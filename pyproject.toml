@@ -90,6 +90,7 @@ max-branches = 8
 "tests/notestest.py" = ["E501"]
 "tests/scaffoldtest.py" = ["E501"]
 "tests/cryptotest.py" = ["E501", "PLR0913", "S105", "S106"]
+"tests/blogrulestest.py" = ["E501"]
 "tests/schemareviewtest.py" = ["E501", "S105"]
 "tests/schemaencodetest.py" = ["E501", "S106", "S311"]  # seeded generators for differential tests
 "tests/admintest.py" = ["E501", "C408", "S106", "RUF001", "RUF059"]  # long request lines, small lambdas
