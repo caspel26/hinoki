@@ -24,3 +24,25 @@ A one-off release-profile build (`uvx maturin develop --release --uv`) gave a st
 * These numbers are not end-to-end: they exclude HTTP, ASGI, parsing, validation and I/O.
 
 Not yet measured (RUNTIME-DESIGN V10): ASGI vs RSGI, extra Tokio threads per worker, full request path under load.
+
+## `requestbench.py` — JSON and query parsing, Python vs Rust
+
+Question: what does decoding a JSON body, encoding a response and parsing a query string cost through `hinoki.native` compared with `json.loads` / `json.dumps` / `urllib.parse.parse_qs`? One payload (about 1.2 KB: nested object, 20-item list, strings, numbers, booleans, null), 7 samples × 20 000 calls.
+
+```sh
+uv run --locked python benchmarks/requestbench.py
+```
+
+Observations (2026-11-13, one 8-core Linux laptop, Python 3.14.8, debug-profile extension; a release-profile build gave the same numbers within noise):
+
+| Operation | Python (CPython C accelerators for JSON) | Rust | Ratio |
+| --- | --- | --- | --- |
+| decode JSON | ≈ 8.3 µs | ≈ 7.0 µs | 1.2× faster |
+| encode JSON | ≈ 9.8 µs | ≈ 5.7 µs | 1.7× faster |
+| parse query | ≈ 6.5 µs | ≈ 1.2 µs | 5.4× faster |
+
+Notes and limits:
+
+* A first decoder built on `serde_json::Value` was **slower** than `json.loads` (0.67×), so it was replaced by a direct parser that builds Python objects without an intermediate tree. The result is only a modest win because creating Python objects, not parsing, dominates. Do not expect more than tens of percent on decode.
+* The Rust decoder is stricter: it rejects a BOM, lone surrogates and nesting deeper than 128 levels (the standard library accepts the first two). Integers of any size stay exact.
+* Not end to end: no HTTP, ASGI, validation or I/O. Query-string CV was 2–16 % between runs on this machine; the gap is far larger than that. No claim is made about any other framework.

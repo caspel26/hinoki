@@ -14,15 +14,14 @@ constructible without arguments.
 from __future__ import annotations
 
 import inspect
-import json
 import math
 import re
 import typing
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from urllib.parse import parse_qs
 from uuid import UUID
 
+from hinoki import native
 from hinoki.auth import Principal
 from hinoki.errors import (
     ErrorDetail,
@@ -92,25 +91,21 @@ CONVERTERS: dict[object, Callable[[str], object]] = {
 }
 
 
-def reject_constant(name: str) -> object:
-    raise ValueError(f"{name} is not valid JSON")
-
-
 def decode_body(raw: bytes, content_type: str) -> object:
-    """Decode a JSON request body or raise ``InvalidBody``."""
+    """Decode a JSON request body (in Rust) or raise ``InvalidBody``."""
     if content_type.split(";", maxsplit=1)[0].strip().lower() != "application/json":
         raise InvalidBody("unsupported_media_type", "expected application/json")
     try:
-        return json.loads(raw, parse_constant=reject_constant)
-    except (ValueError, RecursionError):
+        return native.decode_json(raw)
+    except ValueError:
         raise InvalidBody("invalid_json", "the body is not valid JSON") from None
 
 
 def parse_query(raw: bytes) -> dict[str, list[str]]:
-    """Parse a query string; malformed percent-encoding raises ``InvalidBody``."""
+    """Parse a query string (in Rust); malformed input raises ``InvalidBody``."""
     try:
-        return parse_qs(raw.decode("ascii"), keep_blank_values=True, errors="strict")
-    except (UnicodeDecodeError, ValueError):
+        return native.parse_query_string(raw)
+    except ValueError:
         raise InvalidBody("invalid_query", "malformed query string") from None
 
 

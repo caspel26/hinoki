@@ -7,6 +7,7 @@ from http import HTTPStatus
 from typing import Any
 from urllib.parse import unquote
 
+from hinoki import native
 from hinoki.auth import Credentials, Principal
 from hinoki.context import request_id
 from hinoki.errors import InvalidBody
@@ -52,15 +53,10 @@ def decode_params(params: dict[str, str]) -> dict[str, str]:
 
 
 def header_map(scope: Scope) -> dict[str, str]:
-    """Header values by lower-case name. Repeated headers are joined with
-    ``", "`` (HTTP list semantics), so a doubled credential header never
-    resolves to just one of the values."""
-    headers: dict[str, str] = {}
-    for name, value in scope.get("headers", []):
-        key = name.decode("latin-1").lower()
-        text = value.decode("latin-1")
-        headers[key] = f"{headers[key]}, {text}" if key in headers else text
-    return headers
+    """Header values by lower-case name (joined in Rust). Repeated headers are
+    joined with ``", "`` (HTTP list semantics), so a doubled credential header
+    never resolves to just one of the values."""
+    return native.header_dict(scope.get("headers", []))
 
 
 async def authorize(scope: Scope, binding: Binding) -> Principal[Any] | None:

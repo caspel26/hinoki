@@ -1,10 +1,11 @@
 //! Python bindings for the Hinoki native core, exposed as `hinoki.native`.
 //!
-//! Current scope: the path router. Request parsing and the ORM runtime are
-//! designed in `docs/RUNTIME-DESIGN.md` and not implemented yet.
+//! Scope: the path router, the database bridge, the SQL compiler and request
+//! decoding / JSON (see `request.rs`).
 
 mod db;
 mod query;
+mod request;
 mod router;
 
 use pyo3::exceptions::PyValueError;
@@ -75,5 +76,10 @@ fn native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRouter>()?;
     db::register(m)?;
     m.add_function(wrap_pyfunction!(query::compile_query, m)?)?;
+    m.add_function(wrap_pyfunction!(request::parse_query_string, m)?)?;
+    m.add_function(wrap_pyfunction!(request::parse_cookie_header, m)?)?;
+    m.add_function(wrap_pyfunction!(request::header_dict, m)?)?;
+    m.add_function(wrap_pyfunction!(request::decode_json, m)?)?;
+    m.add_function(wrap_pyfunction!(request::encode_json, m)?)?;
     Ok(())
 }
