@@ -61,7 +61,9 @@ class Client:
         start, end = sink.sent
         headers = {k.decode(): v.decode() for k, v in start["headers"]}
         raw = end["body"]
-        return Reply(start["status"], headers, json.loads(raw) if raw else None)
+        is_json = headers.get("content-type", "").endswith("json")
+        text: Any = json.loads(raw) if raw and is_json else raw.decode() or None
+        return Reply(start["status"], headers, text)
 
 
 def request_headers(

@@ -16,6 +16,7 @@ from hinoki.httperrors import (
 from hinoki.modules import Module, ModuleContext
 from hinoki.native import core_version
 from hinoki.parsers import FormParser, JSONParser, MultiPartParser, Parser
+from hinoki.renderers import JSONRenderer, Renderer
 from hinoki.request import Request
 from hinoki.routing import Route, delete, get, patch, post, put
 from hinoki.runtime.config import RuntimeConfig
@@ -39,6 +40,7 @@ __all__ = [
     "HeaderAuth",
     "HinokiAPI",
     "JSONParser",
+    "JSONRenderer",
     "Module",
     "ModuleContext",
     "ModuleGraphError",
@@ -47,6 +49,7 @@ __all__ = [
     "Parser",
     "Principal",
     "RegistrationError",
+    "Renderer",
     "Request",
     "Route",
     "RuntimeConfig",

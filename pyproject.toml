@@ -79,6 +79,7 @@ max-branches = 8
 # The request is a mandatory first parameter that a handler need not read.
 "examples/**" = ["ARG001", "ARG002"]
 "python/hinoki/crud.py" = ["ARG001"]
+"python/hinoki/routing.py" = ["PLR0913"]  # each decorator mirrors the Options fields
 "tests/**" = ["S101", "PLR2004", "ARG001", "ARG002", "S104", "S603", "S310"]
 [tool.ruff.lint.isort]
 known-first-party = ["hinoki", "examples", "tests"]

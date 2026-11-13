@@ -115,7 +115,7 @@ Honest status, verified by the test suite:
 | JWT, rules engine, MCP, admin extra, benchmarks beyond the router micro-benchmark | Not started |
 | `Request` as the first handler argument (`method`, `headers`, `GET`, `COOKIES`, `body`, `data`, `user`) | Implemented; query, cookie and header parsing and JSON decode/encode run in Rust (modest measured gain for JSON, larger for query strings: [benchmarks](benchmarks/README.md)) |
 | Body parsers chosen by `Content-Type`: JSON (default), form, multipart (Rust), custom; `parsers=[...]` per action | Implemented; uploads stay in memory within a 1 MiB body cap |
-| Renderers with `Accept` negotiation | Designed ([docs/REQUEST-DESIGN.md](docs/REQUEST-DESIGN.md)), not implemented |
+| Renderers chosen by `Accept` (negotiation in Rust, 406 before the handler runs), `renderers=[...]` per action, custom renderers | Implemented; error bodies are always JSON |
 
 ```python
 >>> from hinoki import HinokiAPI, get

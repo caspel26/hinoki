@@ -16,6 +16,7 @@ from typing import ParamSpec, TypeVar
 from hinoki.access import Access
 from hinoki.pagination import PageNumberPagination
 from hinoki.parsers import DEFAULT_PARSERS, Parser, check_parsers
+from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -39,6 +40,7 @@ class Route:
     pagination: PageNumberPagination | None = None
     replaces: str = ""
     parsers: tuple[Parser, ...] = DEFAULT_PARSERS
+    renderers: tuple[Renderer, ...] = DEFAULT_RENDERERS
 
     @property
     def is_async(self) -> bool:
@@ -59,6 +61,7 @@ class Options:
     pagination: PageNumberPagination | None = None
     replaces: str = ""
     parsers: Sequence[Parser] | None = None
+    renderers: Sequence[Renderer] | None = None
 
 
 class RouteDeclaration:
@@ -95,6 +98,11 @@ class RouteDeclaration:
                 if options.parsers is None
                 else check_parsers(options.parsers)
             ),
+            renderers=(
+                DEFAULT_RENDERERS
+                if options.renderers is None
+                else check_renderers(options.renderers)
+            ),
         )
         setattr(fn, ROUTE_ATTR, route)
         return fn
@@ -109,8 +117,11 @@ def get(
     pagination: PageNumberPagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
+    renderers: Sequence[Renderer] | None = None,
 ) -> RouteDeclaration:
-    options = Options(status, access, transaction, pagination, replaces, parsers)
+    options = Options(
+        status, access, transaction, pagination, replaces, parsers, renderers
+    )
     return RouteDeclaration("GET", path, options)
 
 
@@ -123,8 +134,11 @@ def post(
     pagination: PageNumberPagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
+    renderers: Sequence[Renderer] | None = None,
 ) -> RouteDeclaration:
-    options = Options(status, access, transaction, pagination, replaces, parsers)
+    options = Options(
+        status, access, transaction, pagination, replaces, parsers, renderers
+    )
     return RouteDeclaration("POST", path, options)
 
 
@@ -137,8 +151,11 @@ def put(
     pagination: PageNumberPagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
+    renderers: Sequence[Renderer] | None = None,
 ) -> RouteDeclaration:
-    options = Options(status, access, transaction, pagination, replaces, parsers)
+    options = Options(
+        status, access, transaction, pagination, replaces, parsers, renderers
+    )
     return RouteDeclaration("PUT", path, options)
 
 
@@ -151,8 +168,11 @@ def patch(
     pagination: PageNumberPagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
+    renderers: Sequence[Renderer] | None = None,
 ) -> RouteDeclaration:
-    options = Options(status, access, transaction, pagination, replaces, parsers)
+    options = Options(
+        status, access, transaction, pagination, replaces, parsers, renderers
+    )
     return RouteDeclaration("PATCH", path, options)
 
 
@@ -165,8 +185,11 @@ def delete(
     pagination: PageNumberPagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
+    renderers: Sequence[Renderer] | None = None,
 ) -> RouteDeclaration:
-    options = Options(status, access, transaction, pagination, replaces, parsers)
+    options = Options(
+        status, access, transaction, pagination, replaces, parsers, renderers
+    )
     return RouteDeclaration("DELETE", path, options)
 
 

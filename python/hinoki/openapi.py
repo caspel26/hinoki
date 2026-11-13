@@ -170,8 +170,9 @@ class OpenAPIBuilder:
         status = 204 if empty and route.status == HTTPStatus.OK else route.status
         success: dict[str, Any] = {"description": "Successful response"}
         if not empty:
+            schema = self.annotation(annotation)
             success["content"] = {
-                "application/json": {"schema": self.annotation(annotation)}
+                renderer.media_type: {"schema": schema} for renderer in route.renderers
             }
         responses: dict[str, Any] = {str(status): success}
         if any(p.source != "principal" for p in binding.params):

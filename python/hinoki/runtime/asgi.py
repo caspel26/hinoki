@@ -19,6 +19,7 @@ from hinoki.db import Database
 from hinoki.errors import RegistrationError, ShutdownError, StartupError
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
+from hinoki.renderers import Renderer, negotiate
 from hinoki.request import Request
 from hinoki.routing import MethodNotAllowed
 from hinoki.runtime.binding import BODY_METHODS, Binding
@@ -29,6 +30,7 @@ from hinoki.runtime.requests import (
     authorize,
     build_request,
     decode_params,
+    header_map,
     read_body,
 )
 from hinoki.runtime.responses import (
@@ -148,10 +150,18 @@ class ASGIAdapter:
             return Response.json(HTTPStatus.OK, self.document)
         binding, path_params = self._route(scope)
         principal = await authorize(scope, binding)
+        renderer = negotiate(
+            header_map(scope).get("accept", ""), binding.route.renderers
+        )
+        if renderer is None:
+            wanted = ", ".join(r.media_type for r in binding.route.renderers)
+            raise HTTPError(
+                HTTPStatus.NOT_ACCEPTABLE, "not_acceptable", available=wanted
+            )
         takes_body = binding.route.method in BODY_METHODS
         raw_body = await read_body(receive) if takes_body else b""
         request, data = build_request(scope, binding, path_params, raw_body, principal)
-        return await self._invoke(binding, request, binding.collect(data))
+        return await self._invoke(binding, request, renderer, binding.collect(data))
 
     def _is_document_request(self, scope: Scope) -> bool:
         return bool(scope["method"] == "GET" and scope["path"] == self.app.openapi_url)
@@ -178,18 +188,26 @@ class ASGIAdapter:
             raise HTTPError(HTTPStatus.BAD_REQUEST, "bad_path_encoding") from None
 
     async def _invoke(
-        self, binding: Binding, request: Request, kwargs: dict[str, object]
+        self,
+        binding: Binding,
+        request: Request,
+        renderer: Renderer,
+        kwargs: dict[str, object],
     ) -> Response:
         """Run the handler; with ``transaction=True`` inside a transaction that
         commits only after the output is encoded, and rolls back on any error
         before it becomes an HTTP response."""
         if not binding.route.transaction:
-            return await self._call(binding, request, kwargs)
+            return await self._call(binding, request, renderer, kwargs)
         async with self.ctx.get(Database).transaction():
-            return await self._call(binding, request, kwargs)
+            return await self._call(binding, request, renderer, kwargs)
 
     async def _call(
-        self, binding: Binding, request: Request, kwargs: dict[str, object]
+        self,
+        binding: Binding,
+        request: Request,
+        renderer: Renderer,
+        kwargs: dict[str, object],
     ) -> Response:
         route = binding.route
         owner = (route.owner(),) if route.owner is not None else ()
@@ -205,6 +223,8 @@ class ASGIAdapter:
                 HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
             ) from None
         if result is not None and route.status not in BODYLESS:
-            return Response.json(route.status, encode(result))
+            body = renderer.render(encode(result), request)
+            many = len(route.renderers) > 1
+            return Response.rendered(route.status, body, renderer.media_type, many)
         no_content = route.status == HTTPStatus.OK
         return Response(HTTPStatus.NO_CONTENT if no_content else route.status)
