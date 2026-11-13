@@ -87,6 +87,23 @@ jobs:
           uv venv --python 3.12 /tmp/wheel-env
           uv pip install --python /tmp/wheel-env/bin/python dist/*.whl
           /tmp/wheel-env/bin/python -c "import hinoki; print(hinoki.__version__)"
+      - name: Smoke-test the packaged data files and native features
+        run: |
+          /tmp/wheel-env/bin/python - <<'PY'
+          from hinoki import Schema, native
+          from hinoki.admin.templates import Templates
+          from hinoki.docsui import pages
+
+          class T(Schema):
+              name: str
+
+          assert T.validate({"name": "x"}).name == "x"
+          assert native.encode_json(T(name="x")) == b'{"name":"x"}'
+          assert len(Templates(theme="midnight").stylesheet()) > 1000
+          assert len(pages("/o", "/d", "/r")) == 6
+          assert native.verify_password("a", native.hash_password("a", 19456, 2, 1))
+          print("wheel smoke ok")
+          PY
 
   pre-commit:
     runs-on: ubuntu-latest
