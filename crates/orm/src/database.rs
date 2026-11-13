@@ -180,14 +180,10 @@ impl Transaction {
 
     async fn finish(&mut self, statement: &str) -> Result<(), DbError> {
         let conn = self.conn()?;
-        let outcome = conn
-            .batch_execute(statement)
+        // On failure the state is unknown: `conn` stays set so Drop discards it.
+        conn.batch_execute(statement)
             .await
-            .map_err(|e| DbError::from_driver(&e));
-        if outcome.is_err() {
-            // The state is unknown: leave `conn` set so Drop discards it.
-            return outcome;
-        }
+            .map_err(|e| DbError::from_driver(&e))?;
         self.conn = None; // back to the pool
         Ok(())
     }
