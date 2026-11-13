@@ -23,6 +23,6 @@ class TaskOut(Schema, model=Task, exclude=["owner_id"]):
 * `TaskOut` takes the columns of `Task` with `model=`: types and limits come from the model, `exclude` keeps `owner_id` out. Relations are never derived; you name them on purpose.
 * Because the owner is not a field of `TaskIn`, a client cannot choose it. If it were, `Task.acreate(data, owner_id=me)` would still win (server values beat the client's), and a schema can never carry the primary key.
 
-More: [Schemas](../SCHEMAS.md), [schemas from models and validators](../MODEL-SCHEMA-DESIGN.md).
+More: [Schemas](../SCHEMAS.md), [model-derived schemas and validators](../MODEL-SCHEMAS.md).
 
 Next: [3. Operations](3-operations.md).
