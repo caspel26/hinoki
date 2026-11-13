@@ -1,4 +1,4 @@
-"""``python -m hinoki migrations plan|apply|status|sql``."""
+"""``python -m hinoki migrations plan|apply|status|sql`` and ``check``."""
 
 import argparse
 import asyncio
@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from hinoki import migrator
+from hinoki.checkcli import add_arguments, run_check
 from hinoki.db import Database
 from hinoki.errors import MigrationError
 from hinoki.migrations import migration_files, models_of, plan
@@ -17,6 +18,7 @@ URL_VARIABLE = "HINOKI_DATABASE_URL"
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(prog="python -m hinoki")
     commands = root.add_subparsers(dest="group", required=True)
+    add_arguments(commands)
     group = commands.add_parser("migrations", help="plan, apply and inspect migrations")
     group.add_argument("--dir", default="migrations", help="migrations directory")
     actions = group.add_subparsers(dest="action", required=True)
@@ -76,6 +78,8 @@ def run_sql(args: argparse.Namespace) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.group == "check":
+        return run_check(args)
     try:
         if args.action == "plan":
             run_plan(args)
