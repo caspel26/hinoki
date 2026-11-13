@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import Access, HinokiAPI, Principal, RegistrationError
+from hinoki import Access, Caller, HinokiAPI, RegistrationError
 from hinoki.admin import THEMES, Admin, Badge, Fieldset, ModelAdmin, Tab, Theme, csrf
 from hinoki.admin.components import icon_name, initials, page_window, sparkline
 from hinoki.admin.forms import FieldProblem, collect, convert, fields_for, label_of
@@ -29,7 +29,7 @@ needs_database = pytest.mark.skipif(
 STAFF = {"authorization": "Bearer editor-token"}
 FORM = "application/x-www-form-urlencoded"
 SECRET = "s" * 40
-staff = Access(auth=TokenAuth(), scopes=["posts:write"])
+staff = Access(auth=TokenAuth(), permissions=["posts:write"])
 
 
 class Owner(Model, table="admin_owners"):
@@ -71,14 +71,14 @@ class Secret(Model, table="admin_secrets"):
 class SecretAdmin(ModelAdmin[Secret]):
     saved: ClassVar[list[dict[str, Any]]] = []
 
-    def queryset(self, principal: Principal[Any]) -> Any:
+    def queryset(self, principal: Caller[Any]) -> Any:
         return Secret.filter(hidden=False)
 
-    def can(self, principal: Principal[Any], action: str, row: Any = None) -> bool:
+    def can(self, principal: Caller[Any], action: str, row: Any = None) -> bool:
         return action != "delete"
 
     async def save(
-        self, values: dict[str, Any], principal: Principal[Any], row: Any = None
+        self, values: dict[str, Any], principal: Caller[Any], row: Any = None
     ) -> Any:
         self.saved.append(values)
         return await super().save(values, principal, row)

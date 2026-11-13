@@ -6,7 +6,7 @@ from hinoki import API, Access, HinokiAPI, get, post
 from hinoki.request import Request
 from tests.providers import TokenAuth
 
-editor = Access(auth=TokenAuth(), scopes={"posts:write"})
+editor = Access(auth=TokenAuth(), permissions={"posts:write"})
 
 
 @get("/health")

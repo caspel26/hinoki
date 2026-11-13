@@ -17,7 +17,7 @@ from hinoki.admin.templates import Templates
 from hinoki.admin.themes import Theme
 from hinoki.admin.views import ROUTES, VIEWS
 from hinoki.api import API
-from hinoki.auth import Principal
+from hinoki.auth import Caller
 from hinoki.errors import RegistrationError
 from hinoki.orm import Model
 from hinoki.parsers import FormParser
@@ -59,8 +59,8 @@ class Admin:
         workspace: str = "Workspace",
         links: tuple[Link, ...] = (),
         logout_url: str = "",
-        role: Callable[[Principal[Any]], str] | None = None,
-        activity: Callable[[Principal[Any]], Awaitable[list[Event]]] | None = None,
+        role: Callable[[Caller[Any]], str] | None = None,
+        activity: Callable[[Caller[Any]], Awaitable[list[Event]]] | None = None,
         dashboard: tuple[str, ...] = (),
         secure_cookies: bool | None = None,
     ) -> None:
@@ -135,5 +135,5 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()[:10]
 
 
-def default_role(principal: Principal[Any]) -> str:
-    return ", ".join(sorted(principal.scopes)) or "Signed in"
+def default_role(principal: Caller[Any]) -> str:
+    return ", ".join(sorted(principal.permissions)) or "Signed in"

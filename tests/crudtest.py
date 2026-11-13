@@ -13,8 +13,8 @@ from hinoki import (
     UNSET,
     Access,
     BearerAuth,
+    Caller,
     HinokiAPI,
-    Principal,
     RegistrationError,
     Schema,
     Unset,
@@ -63,14 +63,14 @@ class MemoPatch(Schema):
 
 
 class Tokens(BearerAuth[str]):
-    async def resolve_token(self, token: str) -> Principal[str] | None:
+    async def resolve_token(self, token: str) -> Caller[str] | None:
         name = token.strip()
         scopes = frozenset() if name == "viewer" else frozenset({"memo:write"})
-        return Principal(subject=name, identity=name, scopes=scopes)
+        return Caller(id=name, user=name, permissions=scopes)
 
 
 auth = Tokens()
-writer = Access(auth=auth, scopes=["memo:write"])
+writer = Access(auth=auth, permissions=["memo:write"])
 FULL = Resource(
     model=Memo,
     read=MemoOut,
@@ -461,7 +461,7 @@ def test_a_caller_without_an_owner_value_may_change_nothing() -> None:
     resource = Resource(
         model=Memo, read=MemoOut, owner="owner", identity_key=lambda _: None
     )
-    service = Principal(subject="svc", identity="svc", scopes=frozenset())
+    service = Caller(id="svc", user="svc", permissions=frozenset())
     with pytest.raises(Forbidden):
         resource.owner_of(service)
 
@@ -500,7 +500,7 @@ async def test_writes_carry_the_base_query_and_report_missing_as_404(
     await admin.execute("INSERT INTO crud_hidden VALUES ($1, 'ann', true)", hidden)
     await admin.execute("INSERT INTO crud_hidden VALUES ($1, 'ann', false)", shown)
     with use_database(admin):
-        ann = Principal(subject="ann", identity="ann", scopes=frozenset())
+        ann = Caller(id="ann", user="ann", permissions=frozenset())
         # A row hidden after the guard is not deleted by the statement itself.
         assert await SCOPED.scope(hidden, ann).adelete() == 0
         assert len(await admin.fetch("SELECT id FROM crud_hidden")) == 2

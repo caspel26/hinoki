@@ -30,4 +30,4 @@ The probe uses a local prototype `Model`, not the Hinoki ORM.
 
 ## Not yet covered
 
-`Principal[T]` binding, `Page[T].map`, query-set filters, pyright and IDE behaviour (the `.pyi` approach must be re-checked in pyright).
+`Caller[T]` binding, `Page[T].map`, query-set filters, pyright and IDE behaviour (the `.pyi` approach must be re-checked in pyright).

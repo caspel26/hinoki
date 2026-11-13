@@ -27,7 +27,7 @@ from hinoki.rules import (
 )
 from tests.providers import TokenAuth
 
-editor = Access(auth=TokenAuth(), scopes=["posts:write"])
+editor = Access(auth=TokenAuth(), permissions=["posts:write"])
 
 
 class Address(Schema):

@@ -21,24 +21,26 @@ class Access:
     """
 
     auth: BaseAuth[Any]
-    scopes: frozenset[str] = field(default_factory=frozenset)
+    permissions: frozenset[str] = field(default_factory=frozenset)
 
     def __init__(
         self,
         auth: BaseAuth[Any],
-        scopes: Iterable[str] = (),
-        *,
         permissions: Iterable[str] = (),
+        *,
+        scopes: Iterable[str] = (),
     ) -> None:
         if not isinstance(auth, BaseAuth):
             raise TypeError("Access(auth=...) needs a BaseAuth provider")
-        given, chosen = list(scopes), list(permissions)
-        if given and chosen:
+        chosen, older = list(permissions), list(scopes)
+        if chosen and older:
             raise TypeError("use permissions=... (scopes=... is the older name)")
         object.__setattr__(self, "auth", auth)
-        object.__setattr__(self, "scopes", frozenset(str(s) for s in given or chosen))
+        object.__setattr__(
+            self, "permissions", frozenset(str(p) for p in chosen or older)
+        )
 
     @property
-    def permissions(self) -> frozenset[str]:
-        """What a caller must hold (same as ``scopes``)."""
-        return self.scopes
+    def scopes(self) -> frozenset[str]:
+        """Older name of ``permissions``."""
+        return self.permissions

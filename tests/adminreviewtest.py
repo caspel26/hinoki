@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 
 import pytest
 
-from hinoki import Access, HinokiAPI, Principal, RegistrationError
+from hinoki import Access, Caller, HinokiAPI, RegistrationError
 from hinoki.admin import Admin, ModelAdmin
 from hinoki.db import Database, DatabaseModule
 from hinoki.orm import Model, field, foreign_key
@@ -17,7 +17,7 @@ from tests.providers import TokenAuth
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(URL is None, reason="no database")
-staff = Access(auth=TokenAuth(), scopes=["posts:write"])
+staff = Access(auth=TokenAuth(), permissions=["posts:write"])
 
 
 class Acct(Model, table="arv_accts"):
@@ -30,7 +30,7 @@ class Acct(Model, table="arv_accts"):
 class AcctAdmin(ModelAdmin[Acct]):
     exclude = ("secret",)  # no `columns`: the default list must not show it
 
-    def queryset(self, principal: Principal[Any]) -> Any:
+    def queryset(self, principal: Caller[Any]) -> Any:
         return Acct.filter(tenant=0)
 
 
@@ -61,7 +61,7 @@ class ParentAdmin(ModelAdmin[Parent]):
 
 
 class NoView(ModelAdmin[Acct]):
-    def can(self, principal: Principal[Any], action: str, row: Any = None) -> bool:
+    def can(self, principal: Caller[Any], action: str, row: Any = None) -> bool:
         return action != "view"
 
 

@@ -12,7 +12,7 @@ from hinoki.admin.components import initials
 from hinoki.admin.csrf import cookie_header
 from hinoki.admin.modeladmin import ModelAdmin, OutOfScope
 from hinoki.admin.templates import Raw, escape
-from hinoki.auth import Principal
+from hinoki.auth import Caller
 from hinoki.db import (
     CheckViolation,
     DatabaseError,
@@ -91,22 +91,20 @@ def number(raw: str, low: int, high: int) -> int:
     return max(low, min(high, value))
 
 
-def principal_name(principal: Principal[Any]) -> str:
-    return principal.subject
+def principal_name(principal: Caller[Any]) -> str:
+    return principal.id
 
 
 class Site:
     """One request: who is asking, which token to embed, how to answer."""
 
-    def __init__(
-        self, admin: Admin, request: Request, principal: Principal[Any]
-    ) -> None:
+    def __init__(self, admin: Admin, request: Request, principal: Caller[Any]) -> None:
         self.admin = admin
         self.request = request
         self.principal = principal
         self.parts = admin.parts
         self.state = ListState.from_request(request)
-        self.token, self.fresh = admin.csrf.issue(request, principal.subject)
+        self.token, self.fresh = admin.csrf.issue(request, principal.id)
 
     # -- urls ---------------------------------------------------------------
 
@@ -257,7 +255,7 @@ class Site:
         )
 
     def csrf_ok(self) -> bool:
-        return self.admin.csrf.valid(self.request, self.principal.subject)
+        return self.admin.csrf.valid(self.request, self.principal.id)
 
     def done_notice(self) -> Raw:
         text = NOTICES.get(self.state.done)

@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from uuid import UUID
 
 from hinoki import native
-from hinoki.auth import Principal
+from hinoki.auth import Caller
 from hinoki.errors import (
     ErrorDetail,
     InvalidBody,
@@ -231,7 +231,7 @@ def check_owner(route: Route) -> None:
 
 
 def is_principal(annotation: object) -> bool:
-    return annotation is Principal or typing.get_origin(annotation) is Principal
+    return annotation is Caller or typing.get_origin(annotation) is Caller
 
 
 def special_param(

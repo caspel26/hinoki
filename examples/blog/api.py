@@ -5,7 +5,7 @@ from uuid import UUID
 from examples.blog.models import Post, User
 from examples.blog.schemas import HealthOut, PostCreate, PostOut
 from examples.blog.security import editor
-from hinoki import Conflict, Forbidden, Principal, get, post
+from hinoki import Caller, Conflict, Forbidden, get, post
 from hinoki.crud import CrudAPI, Resource
 from hinoki.orm import QuerySet
 from hinoki.pagination import Page, PageNumberPagination, PageParams
@@ -27,10 +27,10 @@ def with_author(query: QuerySet[Post]) -> QuerySet[Post]:
     return query.select_related("author")
 
 
-async def owned_post(item_id: UUID, principal: Principal[User]) -> Post:
+async def owned_post(item_id: UUID, principal: Caller[User]) -> Post:
     """The post, if the caller wrote it. Scopes alone never grant row access."""
     post = await Post.aget(id=item_id)
-    if post.author_id != principal.identity.id:
+    if post.author_id != principal.user.id:
         raise Forbidden("You cannot change this post.")
     return post
 
@@ -81,7 +81,7 @@ class Posts(CrudAPI, path="/posts", resource=POSTS):
 
     @post("/{item_id}/publish", access=editor, transaction=True)
     async def publish(
-        self, request: Request, item_id: UUID, principal: Principal[User]
+        self, request: Request, item_id: UUID, principal: Caller[User]
     ) -> PostOut:
         """Publish an own draft. Publishing twice is a conflict."""
         post = await owned_post(item_id, principal)

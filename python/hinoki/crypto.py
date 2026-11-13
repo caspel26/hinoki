@@ -24,7 +24,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, ClassVar
 
 from hinoki import native
-from hinoki.auth import BearerAuth, Principal
+from hinoki.auth import BearerAuth, Caller
 from hinoki.httperrors import APIError
 
 log = logging.getLogger("hinoki.crypto")
@@ -201,7 +201,7 @@ class JWTAuth[T](BearerAuth[T]):
                 if user is None:
                     return None
                 scopes = frozenset(s for s in raw if isinstance(s, str))
-                return Principal(subject, user, scopes)
+                return Caller(subject, user, scopes)
     """
 
     keys: ClassVar[Sequence[JWTKey]] = ()
@@ -221,10 +221,10 @@ class JWTAuth[T](BearerAuth[T]):
         return int(time.time())
 
     @abstractmethod
-    async def resolve_claims(self, claims: dict[str, Any]) -> Principal[T] | None:
+    async def resolve_claims(self, claims: dict[str, Any]) -> Caller[T] | None:
         """The principal for verified claims, or ``None`` to refuse."""
 
-    async def resolve_token(self, token: str) -> Principal[T] | None:
+    async def resolve_token(self, token: str) -> Caller[T] | None:
         rules = (self.now(), self.leeway, self.issuer, self.audience, self.require_exp)
         try:
             payload = native.jwt_decode(token, [k.spec() for k in self.keys], rules)

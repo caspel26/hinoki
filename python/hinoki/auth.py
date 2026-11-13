@@ -9,42 +9,64 @@ permissions checked after authentication (401 -> no/invalid credentials,
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from collections.abc import Iterable
+from dataclasses import dataclass
 
 from hinoki.httperrors import Unauthorized
 
 
-@dataclass(frozen=True, slots=True)
-class Principal[T]:
-    """Who is calling, as decided by authentication.
+@dataclass(frozen=True, slots=True, init=False)
+class Caller[T]:
+    """Who is making the request, as decided by authentication.
 
-    ``subject`` is a stable id string, ``identity`` is your own object (the user
-    row, a service account) and ``scopes`` the permissions the caller holds.
-    The same class is exported as ``Caller`` with friendlier property names:
-    ``caller.id``, ``caller.user`` and ``caller.permissions``.
+    ``id`` is a stable string, ``user`` is your own object (the user row, a
+    service account) and ``permissions`` is what the caller may do::
+
+        Caller(id="u1", user=user, permissions=frozenset({"posts:write"}))
+
+    The older names ``Principal``, ``subject``, ``identity`` and ``scopes`` are
+    accepted everywhere as aliases.
     """
 
-    subject: str
-    identity: T
-    scopes: frozenset[str] = field(default_factory=frozenset)
+    id: str
+    user: T
+    permissions: frozenset[str]
+
+    def __init__(
+        self,
+        id: str | None = None,
+        user: T | None = None,
+        permissions: Iterable[str] | None = None,
+        *,
+        subject: str | None = None,
+        identity: T | None = None,
+        scopes: Iterable[str] | None = None,
+    ) -> None:
+        chosen = id if id is not None else subject
+        if chosen is None:
+            raise TypeError("Caller needs an id")
+        held = permissions if permissions is not None else (scopes or ())
+        object.__setattr__(self, "id", chosen)
+        object.__setattr__(self, "user", user if user is not None else identity)
+        object.__setattr__(self, "permissions", frozenset(held))
 
     @property
-    def id(self) -> str:
-        """The stable id of the caller (same as ``subject``)."""
-        return self.subject
+    def subject(self) -> str:
+        """Older name of ``id``."""
+        return self.id
 
     @property
-    def user(self) -> T:
-        """Your object for the caller (same as ``identity``)."""
-        return self.identity
+    def identity(self) -> T:
+        """Older name of ``user``."""
+        return self.user
 
     @property
-    def permissions(self) -> frozenset[str]:
-        """What the caller may do (same as ``scopes``)."""
-        return self.scopes
+    def scopes(self) -> frozenset[str]:
+        """Older name of ``permissions``."""
+        return self.permissions
 
 
-Caller = Principal
+Principal = Caller
 
 
 @dataclass(frozen=True, slots=True)
