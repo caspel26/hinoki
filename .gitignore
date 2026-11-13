@@ -218,3 +218,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local-only design handoff package (kept on disk, never published)
+framework-handoff/
