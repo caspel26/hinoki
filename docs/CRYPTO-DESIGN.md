@@ -56,7 +56,7 @@ token = Tokens.issue({"sub": str(user.id)}, ttl=900)     # for services/tests th
 
 ### D4 Parameters and storage
 
-Argon2id defaults from current OWASP guidance (19 MiB memory, 2 iterations, 1 lane) as the floor, overridable in settings, with a startup check that refuses parameters below the floor unless explicitly allowed (tests). Only PHC strings are stored; passwords, keys and tokens are never logged, never in exception messages, and zeroised in Rust where the crates support it.
+Argon2id defaults from current OWASP guidance (19 MiB memory, 2 iterations, 1 lane) as the floor, overridable in settings, with a startup check that refuses parameters below the floor unless explicitly allowed (tests). Only PHC strings are stored; passwords, keys and tokens are never logged and never in exception messages (`JWTKey` excludes its key from `repr`). Zeroisation is **not** done: key and password bytes pass through Python `bytes` and Rust `Vec` copies that are not wiped.
 
 ## Alternatives considered
 
@@ -87,3 +87,10 @@ Independent oracles, not self-consistency: HMAC signatures cross-checked against
 ## Open (owner)
 
 `RS256`/`ES256` support (recommended: only when a concrete need exists, after an advisory check); whether a login/session module follows (Q007 note); the Argon2 parameter floor if deployment memory is tight.
+
+
+## Review outcome (C6)
+
+An independent read-only review (Opus-class, with PyJWT and `cryptography` as oracles) found no high-severity defect: algorithm confusion, `none`, base64 malleability, Ed25519 non-canonical signatures, MAC comparison and claim arithmetic held. Fixed: a token carrying `aud` is refused when the verifier names no audience (RFC 7519 §4.1.3); `JWTKey` no longer prints its secret; duplicate keys are refused at every depth and a forged serde number marker is rejected; undecodable claims give 401 instead of 500; key sets are validated when the provider is built (distinct `kid`s, signing key with a `kid`); `issue()` bounds `ttl` and the server's `iat`/`exp` win; `JWTKey.verify_only` makes the public-key case explicit; Argon2 verification accepts only `argon2id` and flags `v=16` for rehash; Argon2 caps lowered to 256 MiB / 10 passes.
+
+Assumptions an application can get wrong (documented, not enforced): there is no revocation; `typ` is not checked, so use separate keys or `aud` per purpose; `require_exp=False` makes tokens eternal; leaving `issuer` unset accepts any `iss`; unknown users should be verified against a dummy hash to avoid a timing oracle; passwords are not Unicode-normalised; an Ed25519 *public* key passed as a seed cannot be detected from its bytes.

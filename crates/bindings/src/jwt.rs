@@ -86,9 +86,9 @@ impl Fail {
     }
 }
 
-/// A JSON object that refuses duplicate keys (an ambiguous `exp` or `alg` is an
-/// attack surface, not a feature).
-struct Strict(Map<String, Value>);
+/// Any JSON value, refusing duplicate object keys at every depth (an ambiguous
+/// `exp` or `alg` is an attack surface, not a feature).
+struct Strict(Value);
 
 impl<'de> serde::Deserialize<'de> for Strict {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
@@ -96,26 +96,65 @@ impl<'de> serde::Deserialize<'de> for Strict {
         impl<'de> Visitor<'de> for Walk {
             type Value = Strict;
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("a JSON object")
+                f.write_str("a JSON value")
+            }
+            fn visit_bool<E>(self, v: bool) -> Result<Strict, E> {
+                Ok(Strict(Value::Bool(v)))
+            }
+            fn visit_i64<E>(self, v: i64) -> Result<Strict, E> {
+                Ok(Strict(Value::from(v)))
+            }
+            fn visit_u64<E>(self, v: u64) -> Result<Strict, E> {
+                Ok(Strict(Value::from(v)))
+            }
+            fn visit_f64<E>(self, v: f64) -> Result<Strict, E> {
+                Ok(Strict(Value::from(v)))
+            }
+            fn visit_str<E>(self, v: &str) -> Result<Strict, E> {
+                Ok(Strict(Value::String(v.to_owned())))
+            }
+            fn visit_unit<E>(self) -> Result<Strict, E> {
+                Ok(Strict(Value::Null))
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> Result<Strict, A::Error> {
+                let mut out = Vec::new();
+                while let Some(Strict(item)) = seq.next_element()? {
+                    out.push(item);
+                }
+                Ok(Strict(Value::Array(out)))
             }
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Strict, A::Error> {
                 let mut out = Map::new();
-                while let Some((key, value)) = map.next_entry::<String, Value>()? {
+                while let Some((key, Strict(value))) = map.next_entry::<String, Strict>()? {
                     if out.insert(key, value).is_some() {
                         return Err(serde::de::Error::custom("duplicate key"));
                     }
                 }
-                Ok(Strict(out))
+                Ok(Strict(Value::Object(out)))
             }
         }
-        deserializer.deserialize_map(Walk)
+        deserializer.deserialize_any(Walk)
     }
 }
 
+/// serde_json's `arbitrary_precision` feature smuggles numbers through an object
+/// with this key; a token must not be able to forge one.
+const NUMBER_MARKER: &[u8] = b"$serde_json::private";
+
 fn object(bytes: &[u8]) -> Result<Map<String, Value>, Fail> {
-    serde_json::from_slice::<Strict>(bytes)
-        .map(|s| s.0)
-        .map_err(|_| Fail::Malformed)
+    if bytes
+        .windows(NUMBER_MARKER.len())
+        .any(|w| w == NUMBER_MARKER)
+    {
+        return Err(Fail::Malformed);
+    }
+    match serde_json::from_slice::<Strict>(bytes) {
+        Ok(Strict(Value::Object(map))) => Ok(map),
+        _ => Err(Fail::Malformed),
+    }
 }
 
 fn mac<M: Mac + KeyInit>(key: &[u8], message: &[u8]) -> Result<Vec<u8>, Fail> {
@@ -233,6 +272,11 @@ fn check_claims(claims: &Map<String, Value>, rules: &Rules<'_>) -> Result<(), Fa
         if claims.get("iss").and_then(Value::as_str) != Some(expected) {
             return Err(Fail::Issuer);
         }
+    }
+    if rules.audience.is_none() && claims.contains_key("aud") {
+        // RFC 7519 4.1.3: a token addressed to someone must not be accepted by a
+        // verifier that does not say who it is.
+        return Err(Fail::Audience);
     }
     if let Some(expected) = rules.audience {
         let ok = match claims.get("aud") {
@@ -462,6 +506,22 @@ mod tests {
             ),
             Err(Fail::Audience)
         );
+    }
+
+    #[test]
+    fn a_token_addressed_to_someone_needs_a_verifier_that_names_itself() {
+        let token = encode(br#"{"exp":9,"aud":"other-service"}"#, &hs(None)).unwrap();
+        assert_eq!(decode(&token, &[hs(None)], &rules(1)), Err(Fail::Audience));
+        let plain = encode(br#"{"exp":9}"#, &hs(None)).unwrap();
+        assert!(decode(&plain, &[hs(None)], &rules(1)).is_ok());
+    }
+
+    #[test]
+    fn nested_duplicates_and_forged_number_markers_are_refused() {
+        let nested = br#"{"exp":9,"r":{"a":1,"a":2}}"#;
+        assert_eq!(encode(nested, &hs(None)), Err(Fail::Malformed));
+        let forged = br#"{"exp":{"$serde_json::private::Number":"5000"}}"#;
+        assert_eq!(encode(forged, &hs(None)), Err(Fail::Malformed));
     }
 
     #[test]

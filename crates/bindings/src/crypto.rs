@@ -14,8 +14,8 @@ use pyo3::prelude::*;
 pub const MAX_PASSWORD: usize = 4096;
 /// Upper bounds on parameters read from a stored hash (a corrupted or hostile
 /// value must not allocate gigabytes or run for minutes).
-const MAX_MEMORY_KIB: u32 = 1024 * 1024;
-const MAX_TIME_COST: u32 = 64;
+const MAX_MEMORY_KIB: u32 = 256 * 1024;
+const MAX_TIME_COST: u32 = 10;
 const MAX_LANES: u32 = 16;
 const MAX_RANDOM: usize = 1024;
 
@@ -47,6 +47,9 @@ pub fn verify(password: &[u8], stored: &str) -> Result<bool, &'static str> {
         return Ok(false);
     }
     let parsed = PasswordHash::new(stored).map_err(|_| "malformed password hash")?;
+    if parsed.algorithm.as_str() != "argon2id" {
+        return Err("only argon2id hashes are supported");
+    }
     let params = Params::try_from(&parsed).map_err(|_| "malformed password hash")?;
     // Hash parameters come from storage: check them before doing any work.
     let hasher = argon(params.m_cost(), params.t_cost(), params.p_cost())?;
@@ -65,6 +68,7 @@ pub fn needs_rehash(
     let params = Params::try_from(&parsed).map_err(|_| "malformed password hash")?;
     let id = parsed.algorithm.as_str();
     Ok(id != "argon2id"
+        || parsed.version != Some(19)
         || params.m_cost() != memory
         || params.t_cost() != time
         || params.p_cost() != lanes)
