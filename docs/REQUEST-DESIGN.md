@@ -95,7 +95,7 @@ Empty body with a body schema → 422 as today; missing/unknown `Content-Type` �
 | S3 (done) | Rust query/header/cookie parsing and JSON parse/serialise; swap Python implementations behind the same interface | `crates/bindings/src/request.rs`, `python/hinoki/runtime/` |
 | S4 (done) | Parsers: form + multipart in Rust, `parsers=` option, limits as settings | `crates/bindings/src/parse.rs`, `routing.py`, `settings` |
 | S5 (done) | Renderers: `renderers=`, `Accept` negotiation, 406, OpenAPI media types | `runtime/responses.py`, `openapi.py` |
-| S6 | `Request` as a Rust `#[pyclass]` if S3 measurements justify it; benchmark and report | `crates/bindings`, `benchmarks/` |
+| S6 (decided: not built) | `Request` as a Rust `#[pyclass]` if S3 measurements justify it; benchmark and report | `crates/bindings`, `benchmarks/` |
 | S7 | Independent review (request handling touches authentication and untrusted input), fixes, docs, handoff | — |
 
 ## Open (owner)
@@ -127,3 +127,7 @@ Whether the default parser set should include form/multipart (recommended: JSON 
 * The renderer is chosen after authentication and before the body is read, so an unacceptable `Accept` answers 406 `not_acceptable` (with the available types) without running the handler or any transaction. Actions with more than one renderer add `Vary: Accept`.
 * Deviation from the design text: **error bodies are always JSON**, whatever `Accept` says; negotiating errors adds failure modes (a renderer raising while reporting an error) for little value. A handler cannot return a raw `Response` yet, so the "explicit Response bypasses negotiation" clause does not apply.
 * OpenAPI lists one response media type per renderer with the handler's return schema; custom renderers that change the shape must document it themselves.
+
+## Implementation notes (S6)
+
+Measured in `benchmarks/requestobjectbench.py` (see `benchmarks/README.md`): the per-request cost of building the Python `Request` is about 6 µs after headers are decoded once instead of up to three times. A `#[pyclass]` is not justified without end-to-end evidence and stays a possible optimisation behind the same attribute contract.

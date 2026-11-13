@@ -149,10 +149,9 @@ class ASGIAdapter:
         if self.document is not None and self._is_document_request(scope):
             return Response.json(HTTPStatus.OK, self.document)
         binding, path_params = self._route(scope)
-        principal = await authorize(scope, binding)
-        renderer = negotiate(
-            header_map(scope).get("accept", ""), binding.route.renderers
-        )
+        headers = header_map(scope)
+        principal = await authorize(scope, binding, headers)
+        renderer = negotiate(headers.get("accept", ""), binding.route.renderers)
         if renderer is None:
             wanted = ", ".join(r.media_type for r in binding.route.renderers)
             raise HTTPError(
@@ -160,7 +159,9 @@ class ASGIAdapter:
             )
         takes_body = binding.route.method in BODY_METHODS
         raw_body = await read_body(receive) if takes_body else b""
-        request, data = build_request(scope, binding, path_params, raw_body, principal)
+        request, data = build_request(
+            scope, binding, path_params, headers, raw_body, principal
+        )
         return await self._invoke(binding, request, renderer, binding.collect(data))
 
     def _is_document_request(self, scope: Scope) -> bool:

@@ -59,13 +59,15 @@ def header_map(scope: Scope) -> dict[str, str]:
     return native.header_dict(scope.get("headers", []))
 
 
-async def authorize(scope: Scope, binding: Binding) -> Principal[Any] | None:
+async def authorize(
+    scope: Scope, binding: Binding, headers: dict[str, str]
+) -> Principal[Any] | None:
     """Authenticate and check scopes; public actions skip both."""
     access = binding.route.access
     if access is None:
         return None
     query = parse_query(scope.get("query_string", b""))
-    principal = await access.auth.authenticate(Credentials(header_map(scope), query))
+    principal = await access.auth.authenticate(Credentials(headers, query))
     if principal is None:
         challenge = access.auth.challenge
         raise Unauthorized(headers={"www-authenticate": challenge} if challenge else {})
@@ -78,13 +80,14 @@ def build_request(
     scope: Scope,
     binding: Binding,
     path: dict[str, str],
+    headers: dict[str, str],
     raw_body: bytes,
     principal: Principal[Any] | None,
 ) -> tuple[Request, RequestData]:
     """The request object for the handler and the data its parameters bind."""
     query = parse_query(scope.get("query_string", b""))
     client = scope.get("client")
-    host = header_map(scope).get("host") or ":".join(
+    host = headers.get("host") or ":".join(
         str(part) for part in scope.get("server") or ()
     )
     request = Request(
@@ -93,7 +96,7 @@ def build_request(
         scheme=scope.get("scheme", "http"),
         host=host,
         client=tuple(client) if client else None,
-        headers=header_map(scope),
+        headers=headers,
         query=query,
         body=raw_body,
         path_params=path,
