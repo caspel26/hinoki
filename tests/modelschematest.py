@@ -99,3 +99,36 @@ async def test_aupdate_from_writes_only_what_changed(
     assert seen == []
     row = (await database.fetch("SELECT * FROM ms_entries"))[0]
     assert (row["title"], row["body"]) == ("new", "keep")
+
+
+class WithId(Schema):
+    id: UUID | None = None
+    title: str = "t"
+
+
+def test_a_schema_can_never_choose_the_primary_key() -> None:
+    with pytest.raises(FieldError, match="primary key"):
+        Entry.from_schema(WithId(id=uuid4()), owner="o")
+    with pytest.raises(FieldError, match="primary key"):
+        Entry(owner="o", title="x").assign(WithId(id=uuid4()))
+    chosen = uuid4()  # the server may set it explicitly
+    assert Entry.from_schema(EntryIn(title="t"), id=chosen, owner="o").id == chosen
+
+
+def test_assign_is_all_or_nothing_and_refuses_non_schemas() -> None:
+    entry = Entry(owner="o", title="old")
+    with pytest.raises(FieldError):
+        entry.assign(EntryPatch(title="new"), bogus=1)
+    assert entry.title == "old"
+    with pytest.raises(TypeError, match="Schema"):
+        Entry.from_schema({"title": "x"}, owner="o")  # type: ignore[arg-type]
+
+
+@needs_database
+async def test_a_failed_update_leaves_the_instance_as_it_was(
+    database: Database,
+) -> None:
+    row = await Entry.acreate(EntryIn(title="t"), owner="o")
+    with pytest.raises(Exception, match=r"."):
+        await row.aupdate_from(EntryPatch(title="x" * 100))  # over the column limit
+    assert row.title == "t"
