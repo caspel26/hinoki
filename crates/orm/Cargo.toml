@@ -1,0 +1,22 @@
+[package]
+name = "hinoki-orm"
+description = "Hinoki database engine: typed values, pooling, transactions (pure Rust, no Python)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+tokio = { version = "1", features = ["rt", "time", "macros"] }
+tokio-postgres = { version = "0.7", features = ["with-uuid-1", "with-chrono-0_4", "with-serde_json-1"] }
+deadpool-postgres = { version = "0.14", features = ["rt_tokio_1"] }
+uuid = "1"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+serde_json = "1"
+bytes = "1"
+
+[dev-dependencies]
+uuid = { version = "1", features = ["v4"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
