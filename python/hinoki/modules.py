@@ -29,6 +29,11 @@ class ModuleContext:
         self.tasks = ManagedTasks()
         self._provided: dict[type[object], object] = {}
 
+    def reset(self) -> None:
+        """Forget provided resources and tasks; called between lifespans."""
+        self.tasks = ManagedTasks()
+        self._provided.clear()
+
     def provide(self, kind: type[T], value: T) -> None:
         if kind in self._provided:
             raise ModuleGraphError(f"{kind.__name__} is already provided")

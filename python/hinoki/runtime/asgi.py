@@ -16,6 +16,7 @@ from collections.abc import Awaitable, Callable, MutableMapping
 from dataclasses import dataclass, field
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, cast
+from urllib.parse import unquote
 
 from hinoki.context import request_id
 from hinoki.errors import ShutdownError, StartupError
@@ -34,6 +35,7 @@ MAX_BODY = 1024 * 1024
 Scope = MutableMapping[str, Any]
 Headers = list[tuple[bytes, bytes]]
 RETRY_LATER: Headers = [(b"retry-after", b"1")]
+BODYLESS = {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}
 
 
 @dataclass(slots=True)
@@ -58,6 +60,15 @@ class HTTPError(Exception):
     ) -> None:
         super().__init__(error)
         self.response = Response.json(status, {"error": error, **extra}, headers)
+
+
+def decode_params(params: dict[str, str]) -> dict[str, str]:
+    """Percent-decode parameter values after routing on the raw path, so an
+    encoded ``/`` stays inside one segment."""
+    try:
+        return {k: unquote(v, errors="strict") for k, v in params.items()}
+    except UnicodeDecodeError:
+        raise HTTPError(HTTPStatus.BAD_REQUEST, "bad_path_encoding") from None
 
 
 class ASGIAdapter:
@@ -115,11 +126,9 @@ class ASGIAdapter:
             response = await self._respond(scope, receive, rid)
         finally:
             request_id.reset(token)
-        headers = [
-            *response.headers,
-            (b"x-request-id", rid.encode()),
-            (b"content-length", str(len(response.body)).encode()),
-        ]
+        headers = [*response.headers, (b"x-request-id", rid.encode())]
+        if response.status not in BODYLESS:
+            headers.append((b"content-length", str(len(response.body)).encode()))
         start = {"type": "http.response.start", "status": response.status}
         await send({**start, "headers": headers})
         await send({"type": "http.response.body", "body": response.body})
@@ -148,7 +157,9 @@ class ASGIAdapter:
             return error.response
 
     def _route(self, scope: Scope) -> tuple[Binding, dict[str, str]]:
-        found = self.app.lookup(scope["method"], scope["path"])
+        raw_path = scope.get("raw_path")
+        path = raw_path.split(b"?", 1)[0].decode("ascii") if raw_path else scope["path"]
+        found = self.app.lookup(scope["method"], path)
         if found is None:
             raise HTTPError(HTTPStatus.NOT_FOUND, "not_found")
         if isinstance(found, MethodNotAllowed):
@@ -156,7 +167,8 @@ class ASGIAdapter:
             raise HTTPError(
                 HTTPStatus.METHOD_NOT_ALLOWED, "method_not_allowed", [(b"allow", allow)]
             )
-        return self.bindings[found.action], found.params
+        params = found.params if raw_path is None else decode_params(found.params)
+        return self.bindings[found.action], params
 
     async def _invoke(self, binding: Binding, kwargs: dict[str, object]) -> Response:
         route = binding.route
@@ -176,7 +188,7 @@ class ASGIAdapter:
             if limit.expired():
                 raise HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout") from None
             raise
-        if result is not None:
+        if result is not None and route.status not in BODYLESS:
             return Response.json(route.status, result)
         no_content = route.status == HTTPStatus.OK
         return Response(HTTPStatus.NO_CONTENT if no_content else route.status)

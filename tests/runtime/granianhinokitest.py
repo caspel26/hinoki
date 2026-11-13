@@ -1,5 +1,6 @@
 """Hinoki's own adapter and lifespan under a real Granian process."""
 
+import json
 import signal
 import subprocess
 import threading
@@ -76,3 +77,18 @@ def test_two_workers_run_separate_lifespans(tmp_path: Path) -> None:
     finally:
         proc.kill()
         proc.wait()
+
+
+def test_invalid_handler_signature_stops_the_server_instead_of_serving(
+    tmp_path: Path,
+) -> None:
+    proc = spawn("hinokibadapp:app", tmp_path / "events.log", free_port())
+    assert proc.wait(timeout=20) != 0
+
+
+def test_encoded_slash_stays_inside_one_path_segment(
+    server: tuple[subprocess.Popen[bytes], int, Path],
+) -> None:
+    _, port, _ = server
+    assert json.loads(fetch(port, "/echo/a%2Fb")) == {"name": "a/b"}
+    assert json.loads(fetch(port, "/echo/%E4%BD%A0")) == {"name": "\u4f60"}

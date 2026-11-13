@@ -53,4 +53,7 @@ class ManagedTasks:
         tasks = list(self._tasks)
         for task in tasks:
             task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
+        if tasks:
+            # ``wait`` (unlike ``gather``) honours an outer timeout even when a
+            # task swallows its cancellation.
+            await asyncio.wait(tasks)

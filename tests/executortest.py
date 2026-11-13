@@ -68,3 +68,20 @@ async def test_abandoned_call_keeps_its_slot_until_the_thread_finishes() -> None
 async def test_run_outside_lifespan_is_an_error() -> None:
     with pytest.raises(RuntimeError, match="not running"):
         await SyncExecutor().run(lambda: None)
+
+
+async def test_drain_waits_for_running_calls_and_reports_timeout(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    release = threading.Event()
+    async with SyncExecutor(workers=1, queue=0) as executor:
+        task = asyncio.create_task(executor.run(release.wait, 5))
+        await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        with caplog.at_level("WARNING", logger="hinoki.runtime"):
+            await executor.drain(0.1)
+        assert "still running" in caplog.text
+        release.set()
+        await executor.drain(2)
+        assert executor.in_flight == 0

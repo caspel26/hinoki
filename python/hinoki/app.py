@@ -11,6 +11,7 @@ from hinoki.modules import Module, order_modules
 from hinoki.native import Router
 from hinoki.routing import Found, MethodNotAllowed, Route, route_of
 from hinoki.runtime.asgi import ASGIAdapter
+from hinoki.runtime.binding import bind
 from hinoki.runtime.config import RuntimeConfig
 
 
@@ -57,6 +58,8 @@ class HinokiAPI:
                 raise RegistrationError(
                     f"{item!r} is neither an API class nor a decorated function"
                 )
+        for route in pending:
+            bind(route)  # bad signatures fail here, in the factory
         staged = Router()
         for index, route in enumerate(self._routes):
             staged.add(route.method, route.path, index)
@@ -108,7 +111,15 @@ class HinokiAPI:
     async def __call__(
         self, scope: MutableMapping[str, Any], receive: Any, send: Any
     ) -> None:
-        await self.asgi()(scope, receive, send)
+        try:
+            adapter = self.asgi()
+        except RegistrationError as exc:
+            if scope["type"] != "lifespan":
+                raise
+            await receive()
+            await send({"type": "lifespan.startup.failed", "message": str(exc)})
+            return
+        await adapter(scope, receive, send)
 
     def _check_mutable(self) -> None:
         if self._adapter is not None:

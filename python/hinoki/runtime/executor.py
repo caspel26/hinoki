@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import contextvars
 import functools
+import logging
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from types import TracebackType
@@ -12,6 +14,8 @@ from typing import ParamSpec, TypeVar
 
 P = ParamSpec("P")
 R = TypeVar("R")
+
+log = logging.getLogger("hinoki.runtime")
 
 
 class ExecutorSaturated(Exception):
@@ -66,8 +70,22 @@ class SyncExecutor:
         except BaseException:
             self.in_flight -= 1
             raise
-        future.add_done_callback(lambda _: loop.call_soon_threadsafe(self._release))
+        future.add_done_callback(functools.partial(self._notify, loop))
         return await asyncio.wrap_future(future)
+
+    async def drain(self, timeout: float) -> None:
+        """Wait, bounded, for running sync calls (even abandoned ones) to end."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while self.in_flight and loop.time() < deadline:
+            await asyncio.sleep(0.02)
+        if self.in_flight:
+            log.warning("%d sync call(s) still running after drain", self.in_flight)
+
+    def _notify(self, loop: asyncio.AbstractEventLoop, _future: object) -> None:
+        """Runs on the worker thread: hand the slot release back to the loop."""
+        with contextlib.suppress(RuntimeError):  # the loop already closed
+            loop.call_soon_threadsafe(self._release)
 
     def _release(self) -> None:
         self.in_flight -= 1
