@@ -1,14 +1,16 @@
 """Parsers and renderers: Rust-based defaults that users can configure or subclass."""
 
 import json
+import random
 from decimal import Decimal
+from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
 
 from hinoki import HinokiAPI, Request, Schema, get, native, post
 from hinoki.parsers import JSONParser, TextParser
-from hinoki.renderers import JSONRenderer, TextRenderer
+from hinoki.renderers import DEFAULT_RENDERERS, JSONRenderer, TextRenderer
 from hinoki.testing import ASGIClient
 
 
@@ -124,3 +126,114 @@ async def test_application_wide_defaults_apply_unless_an_action_chooses() -> Non
         assert (await client.get("/text")).body == "plain ✓"  # the action's own choice
     with pytest.raises(ValueError, match="distinct media types"):
         HinokiAPI(renderers=[JSONRenderer(), JSONRenderer()])
+
+
+TEXT_CHARS = 'ab"\\\n\u00e9\U0001f600 '
+
+
+class Dumper:
+    def dump(self) -> dict[str, object]:
+        return {"a": [1, {"b": 2}]}
+
+
+def test_replacements_keep_the_indentation_of_the_value_they_replace() -> None:
+    pretty = native.encode_json([Dumper()], 2)
+    assert pretty == json.dumps([Dumper().dump()], indent=2).encode()
+    hooked = native.encode_json(
+        {"k": [Decimal("1")]}, 2, False, lambda v: {"d": str(v)}
+    )
+    assert hooked == json.dumps({"k": [{"d": "1"}]}, indent=2).encode()
+
+
+def test_endless_replacements_and_absurd_indents_are_refused_cleanly() -> None:
+    class Forever:
+        def dump(self) -> object:
+            return Forever()
+
+    with pytest.raises(ValueError, match="deeply"):
+        native.encode_json(Forever())
+    with pytest.raises(ValueError, match="deeply"):
+        native.encode_json(Decimal(1), None, False, lambda _v: Decimal(2))
+    for bad in (257, 2**40):
+        with pytest.raises(ValueError, match="indent"):
+            native.encode_json([[1]], bad)
+    with pytest.raises(OverflowError):
+        native.encode_json([[1]], -1)
+
+
+def test_random_trees_round_trip_with_every_option() -> None:
+    rng = random.Random(7)  # noqa: S311 - a test fixture, not security
+
+    def tree(depth: int) -> object:  # noqa: PLR0911 - one shape per random pick
+        pick = rng.randrange(7 if depth else 4)
+        if pick == 0:
+            return rng.choice([None, True, False])
+        if pick == 1:
+            return rng.randint(-(10**20), 10**20)
+        if pick == 2:
+            return rng.random() * 1e6
+        if pick == 3:
+            return "".join(rng.choice('ab"\\\né\U0001f600 ') for _ in range(5))
+        if pick in (4, 5):
+            return [tree(depth - 1) for _ in range(rng.randrange(4))]
+        return {
+            f"k{rng.randrange(9)}{rng.choice('xé')}": tree(depth - 1) for _ in range(3)
+        }
+
+    for _ in range(300):
+        value = tree(4)
+        for indent in (None, 0, 2, 16):
+            for sort in (False, True):
+                assert json.loads(native.encode_json(value, indent, sort)) == value
+
+
+class WithPostInit(Schema):
+    x: int
+    y: int = 5
+    seen: bool = False  # set by __post_init__ below, never by the caller
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "seen", True)
+
+
+def test_from_model_still_runs_custom_initialisation() -> None:
+    full = WithPostInit.from_model(SimpleNamespace(x=1, y=2, seen=False))
+    partial = WithPostInit.from_model(SimpleNamespace(x=1))
+    assert full.seen is True and partial.seen is True  # same behaviour either way
+
+
+def test_explicit_default_renderers_are_not_overridden_by_application_defaults() -> (
+    None
+):
+    @get("/chosen", renderers=DEFAULT_RENDERERS)
+    async def chosen() -> dict[str, int]:
+        return {"z": 1, "a": 2}
+
+    @get("/unchosen")
+    async def unchosen() -> dict[str, int]:
+        return {"z": 1, "a": 2}
+
+    app = HinokiAPI(renderers=[JSONRenderer(sort_keys=True)])
+    app.include(chosen, unchosen)
+    routes = {r.path: r for r in app.routes}
+    assert routes["/chosen"].renderers[0].sort_keys is False  # type: ignore[attr-defined]
+    assert routes["/unchosen"].renderers[0].sort_keys is True  # type: ignore[attr-defined]
+
+
+async def test_a_buggy_prepare_hook_is_not_reported_as_invalid_json() -> None:
+    class Broken(JSONParser):
+        def prepare(self, data: object) -> object:
+            raise ValueError("my bug")
+
+    @post("/p", parsers=[Broken()])
+    async def p(request: Request) -> dict[str, object]:
+        return {"d": request.data}
+
+    app = HinokiAPI()
+    app.include(p)
+    async with ASGIClient(app) as client:
+        assert (await client.post("/p", json={"a": 1})).status == 500
+        bad = await client.post(
+            "/p", body=b"{", headers={"content-type": "application/json"}
+        )
+        assert (bad.status, bad.body["error"]) == (400, "invalid_json")

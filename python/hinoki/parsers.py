@@ -100,9 +100,10 @@ class JSONParser(Parser):
 
     def parse(self, raw: bytes, content_type: str) -> Parsed:  # noqa: ARG002
         try:
-            return Parsed(self.prepare(native.decode_json(raw)))
+            data = native.decode_json(raw)
         except ValueError:
             raise InvalidBody("invalid_json", "the body is not valid JSON") from None
+        return Parsed(self.prepare(data))  # a bug in the hook is not a bad body
 
 
 class TextParser(Parser):
@@ -190,7 +191,7 @@ DEFAULT_PARSERS: tuple[Parser, ...] = (JSONParser(),)
 
 def check_parsers(parsers: Sequence[Parser]) -> tuple[Parser, ...]:
     """Fail at declaration: at least one parser, each with a distinct media type."""
-    found = tuple(parsers)
+    found = (*parsers,)  # always a new tuple: identity marks "not chosen"
     types = [p.media_type for p in found]
     if not found or "" in types or len(set(types)) != len(types):
         raise ValueError(
