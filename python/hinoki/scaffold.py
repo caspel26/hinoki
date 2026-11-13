@@ -40,10 +40,13 @@ from hinoki import HinokiAPI
 
 from {name}.api import health
 from {name}.rules import project_rules
+from {name}.settings import AppSettings
 
 
 def create_app() -> HinokiAPI:
+    settings = AppSettings.load(prefix="{upper}_")  # {upper}_* environment variables
     app = HinokiAPI(
+        settings=settings,
         title="{title}",
         openapi_url="/openapi.json",
         docs_url="/docs",
@@ -51,6 +54,20 @@ def create_app() -> HinokiAPI:
     )
     app.include(health)
     return app
+'''
+
+SETTINGS = '''"""Typed settings. Built-in groups (execution, lifecycle, logging, docs) come from
+the framework; add your own fields here and read them from ``app.settings``.
+
+    {upper}_LOGGING__FORMAT=json   {upper}_EXECUTION__SYNC_WORKERS=16
+    {upper}_DATABASE_URL=...       (after you add: database_url: Secret)
+"""
+
+from hinoki import FrameworkSettings
+
+
+class AppSettings(FrameworkSettings):
+    pass
 '''
 
 API = '''"""Endpoints. Every action takes the request first; protected actions name an Access policy."""
@@ -112,8 +129,7 @@ MCP = """{{
         "--app", "{name}.main:create_app",
         "--rules", "{name}.rules:project_rules",
         "--package", "{name}"
-      ],
-      "env": {{ "{upper}_DATABASE_URL": "postgres://unused" }}
+      ]
     }}
   }}
 }}
@@ -132,11 +148,11 @@ uv sync
 uv run pytest                                   # tests
 uv run ruff check . && uv run ruff format .     # lint and format
 uv run mypy {name}                              # types
-{upper}_DATABASE_URL=postgres://unused uv run python -m hinoki check --app {name}.main:create_app --rules {name}.rules:project_rules --package {name}
+uv run python -m hinoki check --app {name}.main:create_app --rules {name}.rules:project_rules --package {name}
 uv run granian --interface asgi --factory {name}.main:create_app
 ```
 
-`check` and the MCP server build the app without opening a database; if the factory reads `{upper}_DATABASE_URL`, give it a dummy value as above (the tests need a real disposable database in `HINOKI_TEST_DATABASE_URL`).
+`check` and the MCP server build the app without opening a database, but settings are still loaded: once you add a required field such as `database_url: Secret`, run them with a dummy value (`{upper}_DATABASE_URL=postgres://unused uv run python -m hinoki check ...`, and add it under `env` in `.mcp.json`). Tests that touch the database need a real disposable one in `HINOKI_TEST_DATABASE_URL`.
 
 `check` runs the project's rules and prints diagnostics with stable IDs
 (`HNK-ACC-001` access, `HNK-TXN-001` transactions, `HNK-SCH-001` exposed fields,
@@ -151,6 +167,7 @@ uv run granian --interface asgi --factory {name}.main:create_app
 * Relations are loaded explicitly (`select_related` / `prefetch_related`); there is no lazy loading.
 * Create from a schema with `Model.acreate(data, owner_id=me)`: keyword values set by the server win over the client's. Build responses with `Out.from_model(row)`.
 * Schema changes go through migrations (`python -m hinoki migrations plan ...`), reviewed as SQL. Never apply them at startup.
+* Configuration is typed settings (`{name}/settings.py`, loaded from `{upper}_*` environment variables); add fields there instead of reading `os.environ` in code. Secrets are `Secret` fields.
 * No underscores in file names; tests are `*test.py`.
 
 ## Adding a database and a protected resource
@@ -215,6 +232,7 @@ def files(name: str) -> dict[str, str]:
         f"{name}/main.py": MAIN.format(**values),
         f"{name}/api.py": API.format(**values),
         f"{name}/rules.py": RULES.format(**values),
+        f"{name}/settings.py": SETTINGS.format(**values),
         "tests/__init__.py": "",
         "tests/healthtest.py": TEST.format(**values),
         ".gitignore": ".venv/\n__pycache__/\n*.pyc\n.mypy_cache/\n.ruff_cache/\n",
