@@ -1,10 +1,12 @@
 import functools
 from collections.abc import Callable
+from typing import cast
 
 import pytest
 
 import hinoki
 from hinoki import API, Access, HinokiAPI, RegistrationError, get, post
+from hinoki.request import Request
 from tests.providers import TokenAuth
 
 editor = Access(auth=TokenAuth(), scopes=["posts:write"])
@@ -19,31 +21,31 @@ def twice[**P](fn: Callable[P, int]) -> Callable[P, int]:
 
 
 @get("/health")
-def health() -> dict[str, str]:
+def health(request: Request) -> dict[str, str]:
     return {"status": "ok"}
 
 
 @get("/duplicate-health")
-def duplicate() -> None: ...
+def duplicate(request: Request) -> None: ...
 
 
 @get("/n")
 @twice
-def answer() -> int:
+def answer(request: Request) -> int:
     return 21
 
 
 class Posts(API, path="/posts"):
     @get("/")
-    async def list(self) -> list[int]:
+    async def list(self, request: Request) -> list[int]:
         return []
 
     @get("/{post_id}")
-    def retrieve(self, post_id: int) -> int:
+    def retrieve(self, request: Request, post_id: int) -> int:
         return post_id
 
     @post("/{post_id}/publish", status=202, access=editor, transaction=True)
-    async def publish(self, post_id: int) -> int:
+    async def publish(self, request: Request, post_id: int) -> int:
         return post_id
 
 
@@ -107,7 +109,7 @@ def test_include_rejects_undeclared_objects() -> None:
 
 
 def test_user_decorators_keep_behaviour_under_a_route() -> None:
-    assert answer() == 42
+    assert answer(cast(Request, None)) == 42
 
 
 @pytest.mark.parametrize(

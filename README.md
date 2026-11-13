@@ -36,24 +36,26 @@ This is the confirmed target syntax ([`docs/`](docs) tracks what is implemented)
 ```python
 from uuid import UUID
 
-from hinoki import API, Access, HinokiAPI, get, post
+from hinoki import API, Access, HinokiAPI, Request, get, post
 from hinoki.auth import Principal
 
 editor = Access(auth=blog_auth, scopes={Scope.POSTS_WRITE})
 
 
 @get("/health")
-def health() -> HealthOut:
+def health(request: Request) -> HealthOut:
     return HealthOut(status="ok")
 
 
 class Posts(API, path="/posts"):
     @get("/{post_id}")
-    async def retrieve(self, post_id: UUID) -> PostOut:
+    async def retrieve(self, request: Request, post_id: UUID) -> PostOut:
         return PostOut.from_model(await Post.aget(id=post_id))
 
     @post("/", status=201, access=editor, transaction=True)
-    async def create(self, data: PostCreate, principal: Principal[User]) -> PostOut:
+    async def create(
+        self, request: Request, data: PostCreate, principal: Principal[User]
+    ) -> PostOut:
         ...
 
 
@@ -65,6 +67,9 @@ def create_app() -> HinokiAPI:
 
 * **Plain Python.** `@get`/`@post`/`@put`/`@patch`/`@delete`, normal functions and classes,
   composable with your own decorators. No second grammar, no routing in docstrings.
+* **The request comes first.** Every action takes `request: Request` as its first
+  parameter (after `self`): Django-style `method`, `headers`, `GET`, `COOKIES`, `body`,
+  `data` and `user`. Path, query, body and principal values follow as typed parameters.
 * **Honest types.** `-> PostOut` means the function returns a `PostOut`. Signatures survive
   decoration, so your IDE and type checker keep working.
 * **Public by default, protected on purpose.** Policies are reusable `Access` objects named
@@ -108,7 +113,8 @@ Honest status, verified by the test suite:
 | Reference blog (`examples/blog`) incl. a real Granian + PostgreSQL run | Implemented |
 | Typing: constructors and decorators checked by `mypy --strict`; `Post(...)` and `await post.asave()` are checked; `Model.acreate(**values)` is **not** (generated stubs are still open) | Known gap ([docs/TYPING.md](docs/TYPING.md)) |
 | JWT, rules engine, MCP, admin extra, benchmarks beyond the router micro-benchmark | Not started |
-| Django-style `Request` as first handler argument, pluggable parsers and renderers in Rust | Designed ([docs/REQUEST-DESIGN.md](docs/REQUEST-DESIGN.md)), not implemented; the handler shape above will change |
+| `Request` as the first handler argument (`method`, `headers`, `GET`, `COOKIES`, `body`, `data`, `user`) | Implemented in Python (step S2) |
+| Pluggable parsers (form, multipart) and renderers with `Accept` negotiation, parsing and rendering in Rust | Designed ([docs/REQUEST-DESIGN.md](docs/REQUEST-DESIGN.md)), not implemented; the JSON path is still Python |
 
 ```python
 >>> from hinoki import HinokiAPI, get
@@ -126,12 +132,14 @@ Honest status, verified by the test suite:
 ```python
 class Posts(API, path="/posts"):
     @get("/", pagination=PageNumberPagination(page_size=10, max_page_size=50))
-    async def listing(self, page: PageParams) -> Page[PostOut]:
+    async def listing(self, request: Request, page: PageParams) -> Page[PostOut]:
         newest = Post.filter(published=True).order_by("-created_at", "-id")
         return (await newest.apaginate(page)).map(to_out)
 
     @post("/", status=201, access=editor, transaction=True)
-    async def create(self, data: PostCreate, principal: Principal[User]) -> PostOut:
+    async def create(
+        self, request: Request, data: PostCreate, principal: Principal[User]
+    ) -> PostOut:
         created = await Post.acreate(
             author_id=principal.identity.id,
             title=data.title,
@@ -169,7 +177,7 @@ ownership per worker, the bounded sync executor and the lifespan/shutdown sequen
 1. ~~**Runtime** — lifespan coordinator, ASGI adapter, bounded sync executor~~ ✅
 2. ~~**Vertical slice: blog** — request → schema → ORM (PostgreSQL) → auth → rollback → OpenAPI → pagination~~ ✅
 3. ~~**ORM and generated CRUD** — relations, eager loading, migrations, replaceable CRUD operations~~ ✅ (JWT still open)
-4. **Request object, parsers and renderers** — `request` as first argument, Rust parsing and rendering
+4. **Request object, parsers and renderers** — `request` as first argument ✅; Rust parsing, parsers, renderers next
 5. **Rules and development MCP**
 6. **Admin extra** — one theme, full HTML override
 7. **Stabilization** — wheels, benchmarks, release policy

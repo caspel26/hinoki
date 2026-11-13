@@ -7,6 +7,7 @@ from uuid import UUID
 import pytest
 
 from hinoki import HinokiAPI, RegistrationError, Schema, get, post
+from hinoki.request import Request
 from hinoki.runtime.requests import MAX_BODY
 from hinoki.schema import Field
 from tests.harness import Client, Pool
@@ -33,30 +34,32 @@ POST_ID = UUID(int=9)
 
 
 @post("/posts", status=201)
-async def create(data: PostCreate) -> PostOut:
+async def create(request: Request, data: PostCreate) -> PostOut:
     return PostOut(id=POST_ID, title=data.title, tags=data.tags)
 
 
 @get("/posts")
-def search(q: str, limit: int = 10, active: bool = False) -> list[PostOut]:
+def search(
+    request: Request, q: str, limit: int = 10, active: bool = False
+) -> list[PostOut]:
     return [PostOut(id=POST_ID, title=q, tags=[str(limit), str(active)])]
 
 
 @get("/mixed/{kind}")
-async def mixed(kind: str, page: int = 1) -> dict[str, object]:
+async def mixed(request: Request, kind: str, page: int = 1) -> dict[str, object]:
     return {"kind": kind, "page": page}
 
 
 @post("/two")
-def two_bodies(a: PostCreate, b: Other) -> None: ...
+def two_bodies(request: Request, a: PostCreate, b: Other) -> None: ...
 
 
 @get("/getbody")
-def get_with_body(data: PostCreate) -> None: ...
+def get_with_body(request: Request, data: PostCreate) -> None: ...
 
 
 @post("/items/{item}")
-def schema_in_path(item: PostCreate) -> None: ...
+def schema_in_path(request: Request, item: PostCreate) -> None: ...
 
 
 def make_app() -> HinokiAPI:

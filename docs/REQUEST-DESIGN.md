@@ -1,6 +1,6 @@
 # Request object, parsers and renderers — design (Q008)
 
-Status: **design only, nothing implemented** (2026-11-13). Owner request: a Django-style request, pluggable parsers and renderers, the request as the first argument of every handler, all of it Rust-based.
+Status: **S1 design, S2 implemented** (2026-11-13): `Request` (Python), request-first binding, mechanical rewrite of handlers, tests and example. S3–S7 not started. Owner request: a Django-style request, pluggable parsers and renderers, the request as the first argument of every handler, all of it Rust-based.
 
 ## Observed
 
@@ -91,7 +91,7 @@ Empty body with a body schema → 422 as today; missing/unknown `Content-Type` �
 | Step | Deliverable | Files |
 | --- | --- | --- |
 | S1 | This design | `docs/REQUEST-DESIGN.md` |
-| S2 | `Request` (Python class, read-only, lazy) and request-first handler binding; rewrite handlers, tests, blog, CRUD templates | `python/hinoki/request.py`, `runtime/binding.py`, `runtime/requests.py`, `crud.py`, `examples/`, `tests/` |
+| S2 (done) | `Request` (Python class, read-only, lazy) and request-first handler binding; rewrite handlers, tests, blog, CRUD templates | `python/hinoki/request.py`, `runtime/binding.py`, `runtime/requests.py`, `crud.py`, `examples/`, `tests/` |
 | S3 | Rust query/header/cookie parsing and JSON parse/serialise; swap Python implementations behind the same interface | `crates/bindings/src/request.rs`, `python/hinoki/runtime/` |
 | S4 | Parsers: form + multipart in Rust, `parsers=` option, limits as settings | `crates/bindings/src/parse.rs`, `routing.py`, `settings` |
 | S5 | Renderers: `renderers=`, `Accept` negotiation, 406, OpenAPI media types | `runtime/responses.py`, `openapi.py` |
@@ -101,3 +101,10 @@ Empty body with a body schema → 422 as today; missing/unknown `Content-Type` �
 ## Open (owner)
 
 Whether the default parser set should include form/multipart (recommended: JSON only by default, others opt-in); whether `request.user` should be the only way to reach the principal or the `Principal` parameter stays (recommended: both, identical object).
+
+## Implementation notes (S2)
+
+* `Request` lives in `python/hinoki/request.py`; the first parameter after `self` must be annotated `Request` and be positional-or-keyword, checked in `runtime/binding.py` at include time (`split_request`). The remaining parameters bind exactly as before.
+* The body is now read for every POST/PUT/PATCH action, not only those with a `Schema` parameter, so `request.body` is available and the 413 limit always applies. `request.data` parses once (`decode_body`, JSON only until S4) and is shared with the schema binding.
+* `COOKIES` uses a small Python parser (first value wins, quotes stripped); `POST`/`FILES` arrive with S4. `Headers` and `QueryDict` are read-only mappings.
+* Generated CRUD templates take the request too; the unused-argument lint is relaxed for `examples/` and `crud.py` only, because the first parameter is mandatory and a handler need not read it.

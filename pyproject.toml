@@ -76,6 +76,9 @@ max-branches = 8
 "tests/ormtest.py" = ["PT012"]
 "tests/blogtest.py" = ["S106"]  # fixture tokens, not secrets
 "tests/runtime/granianblogtest.py" = ["S106"]  # table names are test-controlled; blocks need setup
+# The request is a mandatory first parameter that a handler need not read.
+"examples/**" = ["ARG001", "ARG002"]
+"python/hinoki/crud.py" = ["ARG001"]
 "tests/**" = ["S101", "PLR2004", "ARG001", "ARG002", "S104", "S603", "S310"]
 [tool.ruff.lint.isort]
 known-first-party = ["hinoki", "examples", "tests"]

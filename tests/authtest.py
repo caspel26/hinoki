@@ -12,6 +12,7 @@ from hinoki import (
     get,
     post,
 )
+from hinoki.request import Request
 from tests.harness import Client, Pool
 from tests.providers import TokenAuth
 
@@ -25,32 +26,32 @@ class Draft(Schema):
 
 
 @get("/public")
-async def public() -> dict[str, bool]:
+async def public(request: Request) -> dict[str, bool]:
     return {"ok": True}
 
 
 @get("/secure", access=editor)
-async def secure() -> dict[str, bool]:
+async def secure(request: Request) -> dict[str, bool]:
     return {"ok": True}
 
 
 @get("/whoami", access=any_user)
-async def whoami(principal: Principal[str]) -> dict[str, object]:
+async def whoami(request: Request, principal: Principal[str]) -> dict[str, object]:
     return {"subject": principal.subject, "scopes": sorted(principal.scopes)}
 
 
 @post("/drafts", access=editor)
-async def create(data: Draft) -> dict[str, str]:
+async def create(request: Request, data: Draft) -> dict[str, str]:
     return {"title": data.title}
 
 
 @get("/leak", access=any_user)
-async def leak() -> None:
+async def leak(request: Request) -> None:
     raise RuntimeError("secret")
 
 
 @get("/anonymous-principal")
-async def anonymous(principal: Principal[str]) -> None: ...
+async def anonymous(request: Request, principal: Principal[str]) -> None: ...
 
 
 def authorization(token: str) -> list[tuple[bytes, bytes]]:

@@ -31,6 +31,7 @@ from hinoki.errors import (
     ValidationError,
 )
 from hinoki.pagination import PageNumberPagination, PageParams
+from hinoki.request import Request
 from hinoki.routing import Route
 from hinoki.schema import Schema
 
@@ -210,6 +211,7 @@ class Binding:
 
 
 def handler_parameters(route: Route) -> list[inspect.Parameter]:
+    """Every parameter after ``self``; the request is checked by ``bind``."""
     try:
         parameters = list(inspect.signature(route.handler).parameters.values())
     except (TypeError, ValueError) as exc:
@@ -292,9 +294,34 @@ def make_param(route: Route, parameter: inspect.Parameter, annotation: object) -
     return Param(name, "query", convert, default=parameter.default, kind=kind)
 
 
+def split_request(
+    route: Route, parameters: list[inspect.Parameter], hints: dict[str, typing.Any]
+) -> list[inspect.Parameter]:
+    """The request is the first parameter of every action and nothing else may
+    be annotated with it; returns the remaining, bound parameters."""
+    first = parameters[0] if parameters else None
+    if (
+        first is None
+        or hints.get(first.name) is not Request
+        or first.kind is not inspect.Parameter.POSITIONAL_OR_KEYWORD
+    ):
+        raise RegistrationError(
+            f"{route.name}: the first parameter must be the request, "
+            "annotated `Request` (after `self` in an API class)"
+        )
+    return parameters[1:]
+
+
 def bind(route: Route) -> Binding:
     parameters = handler_parameters(route)
     check_owner(route)
+    try:
+        hints = typing.get_type_hints(route.handler)
+    except (NameError, TypeError) as exc:
+        raise RegistrationError(
+            f"{route.name}: cannot resolve annotations: {exc}"
+        ) from exc
+    parameters = split_request(route, parameters, hints)
     names = {p.name for p in parameters}
     missing = set(PATH_PARAM.findall(route.path)) - names
     if missing:
@@ -302,12 +329,6 @@ def bind(route: Route) -> Binding:
             f"{route.name}: path parameters not accepted by the handler: "
             f"{sorted(missing)}"
         )
-    try:
-        hints = typing.get_type_hints(route.handler)
-    except (NameError, TypeError) as exc:
-        raise RegistrationError(
-            f"{route.name}: cannot resolve annotations: {exc}"
-        ) from exc
     params = tuple(make_param(route, p, hints.get(p.name)) for p in parameters)
     if route.pagination is not None and not any(p.source == "page" for p in params):
         raise RegistrationError(

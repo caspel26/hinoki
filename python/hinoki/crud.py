@@ -27,6 +27,7 @@ from hinoki.fields import UNSET
 from hinoki.httperrors import Forbidden
 from hinoki.orm import Model, QuerySet
 from hinoki.pagination import Page, PageNumberPagination, PageParams
+from hinoki.request import Request
 from hinoki.routing import Options, RouteDeclaration
 from hinoki.schema import Schema
 
@@ -221,7 +222,7 @@ class Resource:
         return Forbidden("You cannot change this item.")
 
 
-async def list_rows(self: CrudAPI, page: PageParams) -> Any:
+async def list_rows(self: CrudAPI, request: Request, page: PageParams) -> Any:
     resource = self.resource
     query = resource.base()
     if not query.order:
@@ -229,11 +230,13 @@ async def list_rows(self: CrudAPI, page: PageParams) -> Any:
     return (await query.apaginate(page)).map(resource.present)
 
 
-async def retrieve_row(self: CrudAPI, item_id: Any) -> Any:
+async def retrieve_row(self: CrudAPI, request: Request, item_id: Any) -> Any:
     return self.resource.present(await self.resource.fetch(item_id))
 
 
-async def create_row(self: CrudAPI, data: Any, principal: Any = None) -> Any:
+async def create_row(
+    self: CrudAPI, request: Request, data: Any, principal: Any = None
+) -> Any:
     resource = self.resource
     values = resource.values(data)
     for column, derive in resource.assigned().items():
@@ -249,7 +252,7 @@ async def create_row(self: CrudAPI, data: Any, principal: Any = None) -> Any:
 
 
 async def update_row(
-    self: CrudAPI, item_id: Any, data: Any, principal: Any = None
+    self: CrudAPI, request: Request, item_id: Any, data: Any, principal: Any = None
 ) -> Any:
     resource = self.resource
     await resource.guard(item_id, principal)
@@ -259,7 +262,9 @@ async def update_row(
     return resource.present(await resource.written(item_id))
 
 
-async def delete_row(self: CrudAPI, item_id: Any, principal: Any = None) -> None:
+async def delete_row(
+    self: CrudAPI, request: Request, item_id: Any, principal: Any = None
+) -> None:
     resource = self.resource
     await resource.guard(item_id, principal)
     if not await resource.scope(item_id, principal).adelete():
@@ -343,13 +348,13 @@ def read_routes(resource: Resource, key: Any) -> dict[str, Callable[..., Any]]:
         "list": declare(
             list_rows,
             "list",
-            {"page": PageParams, "return": page},
+            {"request": Request, "page": PageParams, "return": page},
             ("GET", "/", listing),
         ),
         "retrieve": declare(
             retrieve_row,
             "retrieve",
-            {"item_id": key, "return": resource.read},
+            {"request": Request, "item_id": key, "return": resource.read},
             ("GET", ITEM, reads),
         ),
     }
@@ -360,15 +365,16 @@ def write_routes(resource: Resource, key: Any) -> dict[str, Callable[..., Any]]:
     caller = {"principal": Principal[Any]} if resource.access else {}
     found: dict[str, Callable[..., Any]] = {}
     if resource.create:
-        hints = {"data": resource.create, **caller, "return": resource.read}
+        hints = {"request": Request, "data": resource.create, **caller}
+        hints["return"] = resource.read
         route = ("POST", "/", dataclasses.replace(writes, status=201))
         found["create"] = declare(create_row, "create", hints, route)
     if resource.update:
-        hints = {"item_id": key, "data": resource.update, **caller}
+        hints = {"request": Request, "item_id": key, "data": resource.update, **caller}
         hints["return"] = resource.read
         found["update"] = declare(update_row, "update", hints, ("PATCH", ITEM, writes))
     if resource.deletable:
-        hints = {"item_id": key, **caller, "return": type(None)}
+        hints = {"request": Request, "item_id": key, **caller, "return": type(None)}
         route = ("DELETE", ITEM, dataclasses.replace(writes, status=204))
         found["delete"] = declare(delete_row, "delete", hints, route)
     return found

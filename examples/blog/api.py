@@ -9,6 +9,7 @@ from hinoki import Conflict, Forbidden, Principal, get, post
 from hinoki.crud import CrudAPI, Resource
 from hinoki.orm import QuerySet
 from hinoki.pagination import Page, PageNumberPagination, PageParams
+from hinoki.request import Request
 
 
 class PostAlreadyPublished(Conflict):
@@ -43,7 +44,7 @@ async def owned_post(item_id: UUID, principal: Principal[User]) -> Post:
 
 
 @get("/health")
-def health() -> HealthOut:
+def health(request: Request) -> HealthOut:
     """Liveness: answers while the worker runs."""
     return HealthOut(status="ok")
 
@@ -72,7 +73,7 @@ class Posts(CrudAPI, path="/posts", resource=POSTS):
         replaces="list",
         pagination=PageNumberPagination(page_size=10, max_page_size=50),
     )
-    async def listing(self, page: PageParams) -> Page[PostOut]:
+    async def listing(self, request: Request, page: PageParams) -> Page[PostOut]:
         """Published posts, newest first."""
         found = (
             await with_author(Post.filter(published=True))
@@ -82,12 +83,14 @@ class Posts(CrudAPI, path="/posts", resource=POSTS):
         return found.map(to_out)
 
     @get("/{item_id}", replaces="retrieve")
-    async def one(self, item_id: UUID) -> PostOut:
+    async def one(self, request: Request, item_id: UUID) -> PostOut:
         """A published post; unpublished posts are not found."""
         return to_out(await with_author(Post.filter(id=item_id, published=True)).aget())
 
     @post("/{item_id}/publish", access=editor, transaction=True)
-    async def publish(self, item_id: UUID, principal: Principal[User]) -> PostOut:
+    async def publish(
+        self, request: Request, item_id: UUID, principal: Principal[User]
+    ) -> PostOut:
         """Publish an own draft. Publishing twice is a conflict."""
         post = await owned_post(item_id, principal)
         if post.published:
