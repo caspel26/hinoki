@@ -229,6 +229,23 @@ How the pieces fit and what to avoid: [`docs/PATTERNS.md`](docs/PATTERNS.md). Bu
 * **`Schema`** describes data that crosses the API boundary (request bodies and responses) and validates it strictly; **`Model`** describes a database table. They are separate on purpose, so a column never leaks into a response unless a schema names it (rules can enforce that).
 * **`Reply`** lets an action choose the status, headers or body itself (redirects, cookies, HTML) instead of returning a value to be rendered.
 
+## Rules: architecture you can check
+
+Optional, typed rules turn architectural promises into failures with a stable ID and a location. The blog enables four (`examples/blog/rules.py`); they run when the app starts and from the command line:
+
+```text
+$ python -m hinoki check --app examples.blog.main:create_app --rules examples.blog.rules:blog_rules --package examples
+4 rule(s): 0 violated, 0 unverifiable, 0 waived
+
+$ python -m hinoki check --app tests.projects.rulesapp:create_app --rules tests.projects.rulesapp:rules
+tests/projects/rulesapp.py:7: HNK-ACC-001 [violated] GET /health (health) declares no access policy
+tests/projects/rulesapp.py:12: HNK-ACC-001 [violated] POST /items (create) declares no access policy
+tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does not declare transaction=True
+2 rule(s): 3 violated, 0 unverifiable, 0 waived
+```
+
+Exceptions are owner-declared waivers with a reason and a bounded target; tools and agents read them and never edit them. Full guide: [`docs/RULES.md`](docs/RULES.md).
+
 ## Architecture
 
 ```

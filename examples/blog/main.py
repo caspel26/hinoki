@@ -10,6 +10,7 @@ import os
 
 from examples.blog.adminsite import build_admin
 from examples.blog.api import Posts, health
+from examples.blog.rules import blog_rules
 from hinoki import Conflict, HinokiAPI
 from hinoki.db import DatabaseModule, UniqueViolation
 
@@ -29,6 +30,7 @@ def create_app(
         openapi_url="/openapi.json",
         docs_url="/docs",
         redoc_url="/redoc",
+        rules=blog_rules,  # startup rules fail the app if a promise is broken
     )
     app.include(
         health,
