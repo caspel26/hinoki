@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import ParamSpec, TypeVar
 
 from hinoki.access import Access
+from hinoki.pagination import PageNumberPagination
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -34,6 +35,7 @@ class Route:
     access: Access | None
     transaction: bool
     owner: type | None = None
+    pagination: PageNumberPagination | None = None
 
     @property
     def is_async(self) -> bool:
@@ -58,6 +60,7 @@ class RouteDeclaration:
         status: int,
         access: Access | None,
         transaction: bool,
+        pagination: PageNumberPagination | None,
     ) -> None:
         if not path.startswith("/"):
             raise ValueError(f"route path must start with '/': {path!r}")
@@ -68,12 +71,19 @@ class RouteDeclaration:
         self.status = status
         self.access = access
         self.transaction = transaction
+        self.pagination = pagination
 
     def __call__(self, fn: Callable[P, R]) -> Callable[P, R]:
         if hasattr(fn, ROUTE_ATTR):
             raise ValueError(f"{fn.__qualname__} already declares an HTTP route")
         route = Route(
-            self.method, self.path, fn, self.status, self.access, self.transaction
+            self.method,
+            self.path,
+            fn,
+            self.status,
+            self.access,
+            self.transaction,
+            pagination=self.pagination,
         )
         setattr(fn, ROUTE_ATTR, route)
         return fn
@@ -85,8 +95,9 @@ def get(
     status: int = 200,
     access: Access | None = None,
     transaction: bool = False,
+    pagination: PageNumberPagination | None = None,
 ) -> RouteDeclaration:
-    return RouteDeclaration("GET", path, status, access, transaction)
+    return RouteDeclaration("GET", path, status, access, transaction, pagination)
 
 
 def post(
@@ -95,8 +106,9 @@ def post(
     status: int = 200,
     access: Access | None = None,
     transaction: bool = False,
+    pagination: PageNumberPagination | None = None,
 ) -> RouteDeclaration:
-    return RouteDeclaration("POST", path, status, access, transaction)
+    return RouteDeclaration("POST", path, status, access, transaction, pagination)
 
 
 def put(
@@ -105,8 +117,9 @@ def put(
     status: int = 200,
     access: Access | None = None,
     transaction: bool = False,
+    pagination: PageNumberPagination | None = None,
 ) -> RouteDeclaration:
-    return RouteDeclaration("PUT", path, status, access, transaction)
+    return RouteDeclaration("PUT", path, status, access, transaction, pagination)
 
 
 def patch(
@@ -115,8 +128,9 @@ def patch(
     status: int = 200,
     access: Access | None = None,
     transaction: bool = False,
+    pagination: PageNumberPagination | None = None,
 ) -> RouteDeclaration:
-    return RouteDeclaration("PATCH", path, status, access, transaction)
+    return RouteDeclaration("PATCH", path, status, access, transaction, pagination)
 
 
 def delete(
@@ -125,8 +139,9 @@ def delete(
     status: int = 200,
     access: Access | None = None,
     transaction: bool = False,
+    pagination: PageNumberPagination | None = None,
 ) -> RouteDeclaration:
-    return RouteDeclaration("DELETE", path, status, access, transaction)
+    return RouteDeclaration("DELETE", path, status, access, transaction, pagination)
 
 
 @dataclass(frozen=True, slots=True)

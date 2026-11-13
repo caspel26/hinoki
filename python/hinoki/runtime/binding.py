@@ -30,6 +30,7 @@ from hinoki.errors import (
     RegistrationError,
     ValidationError,
 )
+from hinoki.pagination import PageNumberPagination, PageParams
 from hinoki.routing import Route
 from hinoki.schema import Schema
 
@@ -131,20 +132,27 @@ class Param:
     """One handler parameter and where its value comes from."""
 
     name: str
-    source: str  # "path", "query", "body" or "principal"
+    source: str  # "path", "query", "body", "principal" or "page"
     convert: Callable[[str], object] | None = None
     schema: type[Schema] | None = None
     default: object = EMPTY
     kind: str = "str"
+    strategy: PageNumberPagination | None = None
 
     def extract(self, request: RequestData) -> object:
-        if self.source == "principal":
-            return request.principal
-        if self.source == "path":
-            return self.convert_text(request.path[self.name])
-        if self.source == "query":
-            return self.extract_query(request)
-        return self.extract_body(request)
+        """Value for this parameter, from the part of the request it belongs to."""
+        return getattr(self, f"from_{self.source}")(request)
+
+    def from_principal(self, request: RequestData) -> object:
+        return request.principal
+
+    def from_page(self, request: RequestData) -> object:
+        if self.strategy is None:
+            raise TypeError("page parameter without a pagination strategy")
+        return self.strategy.parse(request.query)
+
+    def from_path(self, request: RequestData) -> object:
+        return self.convert_text(request.path[self.name])
 
     def convert_text(self, raw: str) -> object:
         assert self.convert is not None  # noqa: S101 - set for path/query params
@@ -153,7 +161,7 @@ class Param:
         except ValueError:
             raise problem(self.name, "type", "invalid value") from None
 
-    def extract_query(self, request: RequestData) -> object:
+    def from_query(self, request: RequestData) -> object:
         values = request.query.get(self.name)
         if values is None:
             if self.default is EMPTY:
@@ -163,7 +171,7 @@ class Param:
             raise problem(self.name, "duplicate", "given more than once")
         return self.convert_text(values[0])
 
-    def extract_body(self, request: RequestData) -> object:
+    def from_body(self, request: RequestData) -> object:
         assert self.schema is not None  # noqa: S101 - set for body params
         try:
             return self.schema.validate(request.body)
@@ -238,8 +246,18 @@ def is_principal(annotation: object) -> bool:
     return annotation is Principal or typing.get_origin(annotation) is Principal
 
 
-def make_param(route: Route, parameter: inspect.Parameter, annotation: object) -> Param:
+def special_param(
+    route: Route, parameter: inspect.Parameter, annotation: object
+) -> Param | None:
+    """Parameters that are not plain request values: page, principal, body."""
     name, where = parameter.name, route.name
+    if annotation is PageParams:
+        if route.pagination is None:
+            raise RegistrationError(
+                f"{where}: {name!r} asks for PageParams but the action has no "
+                "pagination=... option"
+            )
+        return Param(name, "page", strategy=route.pagination)
     if is_principal(annotation):
         if route.access is None:
             raise RegistrationError(
@@ -247,25 +265,31 @@ def make_param(route: Route, parameter: inspect.Parameter, annotation: object) -
                 "access policy"
             )
         return Param(name, "principal")
-    in_path = name in PATH_PARAM.findall(route.path)
-    is_schema = isinstance(annotation, type) and issubclass(annotation, Schema)
-    if is_schema:
-        if in_path or route.method not in BODY_METHODS:
+    if isinstance(annotation, type) and issubclass(annotation, Schema):
+        if name in PATH_PARAM.findall(route.path) or route.method not in BODY_METHODS:
             raise RegistrationError(
                 f"{where}: schema parameter {name!r} must be a JSON body of a "
                 "POST/PUT/PATCH action, not a path or query parameter"
             )
-        schema = typing.cast(type[Schema], annotation)
-        schema.specs()  # unresolvable annotations fail now, not per request
-        return Param(name, "body", schema=schema)
+        annotation.specs()  # unresolvable annotations fail now, not per request
+        return Param(name, "body", schema=annotation)
+    return None
+
+
+def make_param(route: Route, parameter: inspect.Parameter, annotation: object) -> Param:
+    special = special_param(route, parameter, annotation)
+    if special is not None:
+        return special
+    name = parameter.name
     convert = CONVERTERS.get(annotation)
     if convert is None:
-        raise RegistrationError(f"{where}: unsupported type for parameter {name!r}")
-    if in_path:
-        return Param(name, "path", convert, kind=KINDS[annotation])
-    return Param(
-        name, "query", convert, default=parameter.default, kind=KINDS[annotation]
-    )
+        raise RegistrationError(
+            f"{route.name}: unsupported type for parameter {name!r}"
+        )
+    kind = KINDS[annotation]
+    if name in PATH_PARAM.findall(route.path):
+        return Param(name, "path", convert, kind=kind)
+    return Param(name, "query", convert, default=parameter.default, kind=kind)
 
 
 def bind(route: Route) -> Binding:
@@ -285,6 +309,10 @@ def bind(route: Route) -> Binding:
             f"{route.name}: cannot resolve annotations: {exc}"
         ) from exc
     params = tuple(make_param(route, p, hints.get(p.name)) for p in parameters)
+    if route.pagination is not None and not any(p.source == "page" for p in params):
+        raise RegistrationError(
+            f"{route.name}: pagination=... needs a PageParams parameter"
+        )
     if sum(p.source == "body" for p in params) > 1:
         raise RegistrationError(f"{route.name}: at most one body parameter")
     return Binding(route, params)

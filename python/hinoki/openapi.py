@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, get_args, get_origin
 
 from hinoki.errors import RegistrationError
 from hinoki.fieldtypes import FieldType
+from hinoki.pagination import Page, PageNumberPagination
 from hinoki.runtime.binding import Binding, Param
 from hinoki.schema import Schema
 
@@ -53,7 +54,7 @@ LENGTH_KEYWORDS = {
 VALIDATION_ERROR = "ValidationError"
 DICT_ARGS = 2
 SIMPLE_DEFAULTS = (str, int, float, bool)
-INPUTS = {"path", "query"}
+INPUTS = {"path", "query", "page"}
 BODYLESS_STATUSES = {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}
 
 
@@ -101,7 +102,12 @@ class OpenAPIBuilder:
             operation["summary"] = summary
         if description:
             operation["description"] = description
-        parameters = [self.parameter(p) for p in binding.params if p.source in INPUTS]
+        parameters = [
+            entry
+            for p in binding.params
+            if p.source in INPUTS
+            for entry in self.parameter(p)
+        ]
         if parameters:
             operation["parameters"] = parameters
         body = next((p for p in binding.params if p.source == "body"), None)
@@ -139,7 +145,12 @@ class OpenAPIBuilder:
         self.operation_ids.add(candidate)
         return candidate
 
-    def parameter(self, param: Param) -> dict[str, Any]:
+    def parameter(self, param: Param) -> list[dict[str, Any]]:
+        if param.source == "page" and param.strategy is not None:
+            return page_parameters(param.strategy)
+        return [self.single_parameter(param)]
+
+    def single_parameter(self, param: Param) -> dict[str, Any]:
         required = param.source == "path" or param.default is inspect.Parameter.empty
         schema = dict(KIND_SCHEMAS[param.kind])
         if not required and isinstance(param.default, SIMPLE_DEFAULTS):
@@ -172,14 +183,39 @@ class OpenAPIBuilder:
 
     def annotation(self, annotation: object) -> dict[str, Any]:
         """JSON schema of a handler return annotation."""
-        origin, args = get_origin(annotation), get_args(annotation)
         if isinstance(annotation, type) and issubclass(annotation, Schema):
             return self.component(annotation)
+        generic = self.generic(get_origin(annotation), get_args(annotation))
+        if generic is not None:
+            return generic
+        return dict(SCALAR_TYPES.get(annotation, {}))  # type: ignore[call-overload]
+
+    def generic(self, origin: object, args: tuple[Any, ...]) -> dict[str, Any] | None:
         if origin is list and args:
             return {"type": "array", "items": self.annotation(args[0])}
+        if origin is Page and args:
+            return self.page_schema(args[0])
         if origin is dict and len(args) == DICT_ARGS:
             return {"type": "object", "additionalProperties": self.annotation(args[1])}
-        return dict(SCALAR_TYPES.get(annotation, {}))  # type: ignore[call-overload]
+        return None
+
+    def page_schema(self, item: object) -> dict[str, Any]:
+        items = self.annotation(item)
+        name = "Page_" + str(items.get("$ref", "item")).rsplit("/", 1)[-1]
+        if name not in self.components:
+            integer: dict[str, Any] = {"type": "integer"}
+            self.components[name] = {
+                "type": "object",
+                "properties": {
+                    "items": {"type": "array", "items": items},
+                    "page": integer,
+                    "page_size": integer,
+                    "total": integer,
+                    "pages": integer,
+                },
+                "required": ["items", "page", "page_size", "total", "pages"],
+            }
+        return ref(name)
 
     def component(self, schema: type[Schema]) -> dict[str, str]:
         name = schema.__name__
@@ -231,6 +267,28 @@ def constraint_keyword(name: str, schema: dict[str, Any]) -> str | None:
         return fixed
     low, high = LENGTH_KEYWORDS[schema["type"]]
     return low if name == "min_length" else high
+
+
+def page_parameters(strategy: PageNumberPagination) -> list[dict[str, Any]]:
+    return [
+        {
+            "name": "page",
+            "in": "query",
+            "required": False,
+            "schema": {"type": "integer", "minimum": 1, "default": 1},
+        },
+        {
+            "name": "page_size",
+            "in": "query",
+            "required": False,
+            "schema": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": strategy.max_page_size,
+                "default": strategy.page_size,
+            },
+        },
+    ]
 
 
 def split_docstring(handler: object) -> tuple[str, str]:
