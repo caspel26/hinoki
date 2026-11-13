@@ -7,6 +7,7 @@ from typing import Any
 
 from hinoki.api import API
 from hinoki.errors import RegistrationError
+from hinoki.httperrors import ErrorRegistry
 from hinoki.modules import Module, order_modules
 from hinoki.native import Router
 from hinoki.openapi import OpenAPIBuilder
@@ -39,6 +40,7 @@ class HinokiAPI:
         self.title = title
         self.version = version
         self.openapi_url = openapi_url
+        self.errors = ErrorRegistry()
         self._routes: list[Route] = []
         self._bindings: list[Binding] = []
         self._modules: list[Module] = []

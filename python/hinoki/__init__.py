@@ -3,7 +3,16 @@
 from hinoki.access import Access
 from hinoki.api import API
 from hinoki.app import HinokiAPI
+from hinoki.auth import APIKeyAuth, BaseAuth, BearerAuth, HeaderAuth, Principal
 from hinoki.errors import ModuleGraphError, RegistrationError, ValidationError
+from hinoki.httperrors import (
+    APIError,
+    BadRequest,
+    Conflict,
+    Forbidden,
+    NotFound,
+    Unauthorized,
+)
 from hinoki.modules import Module, ModuleContext
 from hinoki.native import core_version
 from hinoki.routing import Route, delete, get, patch, post, put
@@ -15,16 +24,27 @@ __version__ = core_version()
 __all__ = [
     "API",
     "UNSET",
+    "APIError",
+    "APIKeyAuth",
     "Access",
+    "BadRequest",
+    "BaseAuth",
+    "BearerAuth",
+    "Conflict",
     "Field",
+    "Forbidden",
+    "HeaderAuth",
     "HinokiAPI",
     "Module",
     "ModuleContext",
     "ModuleGraphError",
+    "NotFound",
+    "Principal",
     "RegistrationError",
     "Route",
     "RuntimeConfig",
     "Schema",
+    "Unauthorized",
     "Unset",
     "ValidationError",
     "__version__",

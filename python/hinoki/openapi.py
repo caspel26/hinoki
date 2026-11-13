@@ -19,6 +19,7 @@ from hinoki.runtime.binding import Binding, Param
 from hinoki.schema import Schema
 
 if TYPE_CHECKING:
+    from hinoki.access import Access
     from hinoki.app import HinokiAPI
 
 SCALAR_TYPES: dict[type, dict[str, Any]] = {
@@ -67,6 +68,7 @@ class OpenAPIBuilder:
         self.components: dict[str, dict[str, Any]] = {}
         self.owners: dict[str, type[Schema]] = {}
         self.operation_ids: set[str] = set()
+        self.security_schemes: dict[str, dict[str, Any]] = {}
 
     def build(self) -> dict[str, Any]:
         paths: dict[str, dict[str, Any]] = {}
@@ -79,8 +81,13 @@ class OpenAPIBuilder:
             "info": {"title": self.title, "version": self.version},
             "paths": paths,
         }
+        components: dict[str, Any] = {}
         if self.components:
-            document["components"] = {"schemas": dict(sorted(self.components.items()))}
+            components["schemas"] = dict(sorted(self.components.items()))
+        if self.security_schemes:
+            components["securitySchemes"] = self.security_schemes
+        if components:
+            document["components"] = components
         return document
 
     def operation(self, binding: Binding) -> dict[str, Any]:
@@ -104,8 +111,20 @@ class OpenAPIBuilder:
             }
         operation["responses"] = self.responses(binding)
         if route.access is not None:
-            operation["x-required-scopes"] = sorted(route.access.scopes)
+            self.secure(operation, route.access)
         return operation
+
+    def secure(self, operation: dict[str, Any], access: Access) -> None:
+        """Document the policy: security requirement plus its 401/403 answers."""
+        name = type(access.auth).__name__
+        scheme = access.auth.openapi_scheme()
+        if scheme is not None:
+            self.security_schemes.setdefault(name, scheme)
+            operation["security"] = [{name: sorted(access.scopes)}]
+        responses = operation["responses"]
+        responses["401"] = {"description": "Missing or invalid credentials"}
+        if access.scopes:
+            responses["403"] = {"description": "Missing required scope"}
 
     def operation_id(self, binding: Binding) -> str:
         base = re.sub(r"\W+", "_", binding.route.name.replace("<locals>.", "")).strip(

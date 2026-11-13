@@ -1,88 +1,46 @@
-"""ASGI adapter: lifespan protocol plus path-parameter request dispatch.
+"""ASGI adapter: the lifespan protocol and request dispatch for one worker.
 
-Current scope (R3): lifespan, routing, path-parameter binding, sync/async
-handler execution with limits, and error mapping. No request body, query
-string, schemas or auth yet. The ASGI boundary crosses Python objects; this
-is not a native-only path.
+Scope: lifespan, routing on the raw path, path/query/body binding, access
+policies, sync/async handler execution with limits, error mapping. The ASGI
+boundary crosses Python objects; this is not a native-only path.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import uuid
-from collections.abc import Awaitable, Callable, MutableMapping
-from dataclasses import asdict, dataclass, field
+from collections.abc import Awaitable, Callable
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, cast
-from urllib.parse import unquote
 
 from hinoki.context import request_id
-from hinoki.errors import (
-    InvalidBody,
-    RegistrationError,
-    ShutdownError,
-    StartupError,
-    ValidationError,
-)
+from hinoki.errors import RegistrationError, ShutdownError, StartupError
 from hinoki.modules import ModuleContext
 from hinoki.routing import MethodNotAllowed
-from hinoki.runtime.binding import (
-    MISSING,
-    Binding,
-    RequestData,
-    decode_body,
-    parse_query,
-)
+from hinoki.runtime.binding import Binding
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.lifespan import Lifespan
+from hinoki.runtime.requests import (
+    Scope,
+    authorize,
+    build_request,
+    decode_params,
+    read_body,
+)
+from hinoki.runtime.responses import (
+    BODYLESS,
+    RETRY_LATER,
+    HTTPError,
+    Response,
+    error_response,
+)
 from hinoki.schema import encode
 
 if TYPE_CHECKING:
     from hinoki.app import HinokiAPI
 
 log = logging.getLogger("hinoki.runtime")
-
-MAX_BODY = 1024 * 1024
-Scope = MutableMapping[str, Any]
-Headers = list[tuple[bytes, bytes]]
-RETRY_LATER: Headers = [(b"retry-after", b"1")]
-BODYLESS = {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}
-INVALID_BODY_STATUS = {"unsupported_media_type": HTTPStatus.UNSUPPORTED_MEDIA_TYPE}
-
-
-@dataclass(slots=True)
-class Response:
-    status: int
-    body: bytes = b""
-    headers: Headers = field(default_factory=list)
-
-    @classmethod
-    def json(
-        cls, status: int, payload: object, headers: Headers | None = None
-    ) -> Response:
-        head: Headers = [(b"content-type", b"application/json"), *(headers or [])]
-        return cls(status, json.dumps(payload).encode(), head)
-
-
-class HTTPError(Exception):
-    """Raised inside request handling to answer with a specific response."""
-
-    def __init__(
-        self, status: int, error: str, headers: Headers | None = None, **extra: object
-    ) -> None:
-        super().__init__(error)
-        self.response = Response.json(status, {"error": error, **extra}, headers)
-
-
-def decode_params(params: dict[str, str]) -> dict[str, str]:
-    """Percent-decode parameter values after routing on the raw path, so an
-    encoded ``/`` stays inside one segment."""
-    try:
-        return {k: unquote(v, errors="strict") for k, v in params.items()}
-    except UnicodeDecodeError:
-        raise HTTPError(HTTPStatus.BAD_REQUEST, "bad_path_encoding") from None
 
 
 class ASGIAdapter:
@@ -161,50 +119,21 @@ class ASGIAdapter:
         try:
             return await self._serve(scope, receive)
         except Exception as exc:
-            return self._failure(exc, rid).response
+            return await error_response(exc, rid, self.app.errors)
 
     async def _serve(self, scope: Scope, receive: Any) -> Response:
-        raw_body = await self._read_body(receive)
+        raw_body = await read_body(receive)
         if not self.lifespan.ready:
             raise HTTPError(HTTPStatus.SERVICE_UNAVAILABLE, "not_ready", RETRY_LATER)
         if self.document is not None and self._is_document_request(scope):
             return Response.json(HTTPStatus.OK, self.document)
         binding, path_params = self._route(scope)
-        request = self._request(scope, binding, path_params, raw_body)
+        principal = await authorize(scope, binding)
+        request = build_request(scope, binding, path_params, raw_body, principal)
         return await self._invoke(binding, binding.collect(request))
 
     def _is_document_request(self, scope: Scope) -> bool:
         return bool(scope["method"] == "GET" and scope["path"] == self.app.openapi_url)
-
-    @staticmethod
-    def _failure(exc: Exception, rid: str) -> HTTPError:
-        """Map any request error to its HTTP answer."""
-        if isinstance(exc, HTTPError):
-            return exc
-        if isinstance(exc, ValidationError):
-            details = [asdict(d) for d in exc.details]
-            return HTTPError(
-                HTTPStatus.UNPROCESSABLE_ENTITY, "validation_error", details=details
-            )
-        if isinstance(exc, InvalidBody):
-            status = INVALID_BODY_STATUS.get(exc.code, HTTPStatus.BAD_REQUEST)
-            return HTTPError(status, exc.code, message=exc.message)
-        log.error("unhandled error in request %s", rid, exc_info=exc)
-        return HTTPError(
-            HTTPStatus.INTERNAL_SERVER_ERROR, "internal_error", request_id=rid
-        )
-
-    @staticmethod
-    def _request(
-        scope: Scope, binding: Binding, path: dict[str, str], raw_body: bytes
-    ) -> RequestData:
-        headers = {k.lower(): v for k, v in scope.get("headers", [])}
-        body = MISSING
-        if binding.needs_body:
-            content_type = headers.get(b"content-type", b"").decode("latin-1")
-            body = decode_body(raw_body, content_type)
-        query = parse_query(scope.get("query_string", b""))
-        return RequestData(path, query, body)
 
     def _route(self, scope: Scope) -> tuple[Binding, dict[str, str]]:
         raw_path = scope.get("raw_path")
@@ -242,22 +171,3 @@ class ASGIAdapter:
             return Response.json(route.status, encode(result))
         no_content = route.status == HTTPStatus.OK
         return Response(HTTPStatus.NO_CONTENT if no_content else route.status)
-
-    @staticmethod
-    async def _read_body(receive: Any) -> bytes:
-        chunks: list[bytes] = []
-        size = 0
-        more = True
-        while more:
-            message = await receive()
-            if message["type"] != "http.request":
-                break
-            chunk = message.get("body", b"")
-            size += len(chunk)
-            if size > MAX_BODY:
-                raise HTTPError(
-                    HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "payload_too_large"
-                )
-            chunks.append(chunk)
-            more = message.get("more_body", False)
-        return b"".join(chunks)
