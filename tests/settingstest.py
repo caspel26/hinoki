@@ -1,4 +1,5 @@
 """Typed settings: loading, precedence, errors, secrets, wiring."""
+# ruff: noqa: S105 - fixture values, not secrets
 
 import json
 import logging
@@ -18,6 +19,7 @@ from hinoki import (
     get,
     post,
 )
+from hinoki.__main__ import main
 from hinoki.settings import JsonFormatter, LoggingSettings, parse_dotenv
 from hinoki.testing import ASGIClient
 
@@ -234,3 +236,74 @@ async def test_content_length_above_the_limit_is_refused_before_reading() -> Non
     async with ASGIClient(app) as client:
         reply = await client.post("/echo", body=b"x", headers={"content-length": "11"})
         assert reply.status == 413
+
+
+def test_explain_says_where_every_value_comes_from(tmp_path: Path) -> None:
+    dotenv = tmp_path / ".env"
+    dotenv.write_text("APP_MAIL__HOST=fromdot\nAPP_MAIL__PORT=1\n")
+    rows = AppSettings.explain(
+        prefix="APP_",
+        env={**BASE, "APP_MAIL__PORT": "2"},
+        dotenv=dotenv,
+        overrides={"mail": {"mode": "b"}},
+    )
+    origin = {r.key: r.origin for r in rows}
+    shown = {r.key: r.value for r in rows}
+    assert (
+        origin["APP_MAIL__HOST"] == ".env" and origin["APP_MAIL__PORT"] == "environment"
+    )
+    assert origin["APP_MAIL__MODE"] == "override"
+    assert origin["APP_EXECUTION__SYNC_WORKERS"] == "default"
+    assert shown["APP_JWT_SECRET"] == "***" and "s3cr3t" not in str(rows)
+
+
+def test_secret_files_fill_a_variable_and_never_echo_content(tmp_path: Path) -> None:
+    secret = tmp_path / "jwt"
+    secret.write_text("file-secret-value\n")
+    env = {**BASE}
+    del env["APP_JWT_SECRET"]
+    env["APP_JWT_SECRET_FILE"] = str(secret)
+    settings = AppSettings.load(prefix="APP_", env=env)
+    assert settings.jwt_secret.reveal() == "file-secret-value"  # newline stripped
+    rows = AppSettings.explain(prefix="APP_", env=env)
+    assert {r.key: r.origin for r in rows}["APP_JWT_SECRET"] == "file"
+    both = {**BASE, "APP_JWT_SECRET_FILE": str(secret)}
+    with pytest.raises(SettingsError, match="both directly and through"):
+        AppSettings.load(prefix="APP_", env=both)
+    missing = {**env, "APP_JWT_SECRET_FILE": str(tmp_path / "nope")}
+    with pytest.raises(SettingsError, match="regular file") as raised:
+        AppSettings.load(prefix="APP_", env=missing)
+    assert "file-secret" not in str(raised.value)
+    big = tmp_path / "big"
+    big.write_text("x" * 70_000)
+    with pytest.raises(SettingsError, match="64 KiB"):
+        AppSettings.load(prefix="APP_", env={**env, "APP_JWT_SECRET_FILE": str(big)})
+    with pytest.raises(SettingsError, match="unknown setting"):
+        AppSettings.load(prefix="APP_", env={**BASE, "APP_NOPE_FILE": str(secret)})
+
+
+def test_the_env_example_lists_every_variable_with_its_type() -> None:
+    text = AppSettings.example("APP_")
+    assert "APP_JWT_SECRET=\n" in text and "# secret, required" in text
+    assert "APP_EXECUTION__SYNC_WORKERS=8" in text and "# integer" in text
+    assert "APP_LOGGING__FORMAT=text" in text and "one of text|json" in text
+    assert "APP_MAIL__TAGS=" in text and "# comma-separated text, required" in text
+
+
+def test_the_settings_command_prints_origins_and_failures(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for key, value in BASE.items():
+        monkeypatch.setenv(key, value)
+    target = "tests.settingstest:AppSettings"
+    assert main(["settings", target, "--prefix", "APP_"]) == 0
+    out = capsys.readouterr().out
+    assert "APP_JWT_SECRET" in out and "***" in out and "s3cr3t" not in out
+    assert "environment" in out and "default" in out
+    assert main(["settings", target, "--prefix", "APP_", "--example"]) == 0
+    assert "APP_MAIL__PORT=25" in capsys.readouterr().out
+    monkeypatch.delenv("APP_JWT_SECRET")
+    assert main(["settings", target, "--prefix", "APP_"]) == 1
+    assert "APP_JWT_SECRET: required" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        main(["settings", "nope:Nothing"])

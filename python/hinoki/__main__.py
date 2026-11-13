@@ -6,6 +6,7 @@ import os
 import sys
 from pathlib import Path
 
+from hinoki import settingscli
 from hinoki.checkcli import add_arguments, run_check
 from hinoki.db import Database
 from hinoki.errors import MigrationError
@@ -19,6 +20,7 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(prog="python -m hinoki")
     commands = root.add_subparsers(dest="group", required=True)
     add_arguments(commands)
+    settingscli.add_arguments(commands)
     group = commands.add_parser("migrations", help="plan, apply and inspect migrations")
     group.add_argument("--dir", default="migrations", help="migrations directory")
     actions = group.add_subparsers(dest="action", required=True)
@@ -122,6 +124,7 @@ def main(argv: list[str] | None = None) -> int:
         "new": run_new,
         "mcp": run_mcp_command,
         "migrations": run_migrations,
+        "settings": settingscli.run_settings,
     }
     return commands[args.group](args)
 
