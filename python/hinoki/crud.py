@@ -3,15 +3,17 @@
 ``class Posts(CrudAPI, path="/posts", resource=Resource(...))`` adds ``list``,
 ``retrieve`` and, depending on the resource, ``create``, ``update`` and
 ``delete`` to the class. They are real declarations: they appear in OpenAPI,
-a method of the same name overrides one, and ``@get(..., replaces="list")``
-swaps one for a handwritten route. Generated CRUD never invents security: write
-actions need an ``Access`` policy (or ``public_writes=True``), clients cannot
-send a field the server assigns, and an owner column is enforced on change.
+a method of the same name overrides one, and ``@get(..., replaces=Crud.LIST)``
+(or the plain string ``"list"``) swaps one for a handwritten route. Generated
+CRUD never invents security: write actions need an ``Access`` policy (or
+``public_writes=True``), clients cannot send a field the server assigns, and an
+owner column is enforced on change.
 """
 
 from __future__ import annotations
 
 import dataclasses
+import enum
 import inspect
 import types
 import typing
@@ -34,6 +36,16 @@ from hinoki.schema import Schema
 ITEM = "/{item_id}"
 GENERATED = "hinoki_generated"
 ACTIONS = ("list", "retrieve", "create", "update", "delete")
+
+
+class Crud(enum.StrEnum):
+    """The generated actions ``replaces=`` can name (each is also its plain string)."""
+
+    LIST = "list"
+    RETRIEVE = "retrieve"
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)

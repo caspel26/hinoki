@@ -5,7 +5,19 @@ from typing import cast
 import pytest
 
 import hinoki
-from hinoki import API, Access, Conflict, HinokiAPI, RegistrationError, get, post
+from hinoki import (
+    API,
+    Access,
+    Conflict,
+    Endpoints,
+    Forbidden,
+    HinokiAPI,
+    NotFound,
+    RegistrationError,
+    get,
+    post,
+)
+from hinoki.crud import Crud
 from hinoki.request import Request
 from tests.providers import TokenAuth
 
@@ -150,3 +162,38 @@ def test_errors_option_validates_what_it_is_given() -> None:
 
         @get("/b", errors=(ValueError,))  # type: ignore[arg-type]
         def b() -> None: ...
+
+
+def test_endpoints_state_shared_options_once() -> None:
+    guard = Access(auth=TokenAuth(), permissions=["w"])
+    group = Endpoints("/things", access=guard, atomic=True, errors=(Forbidden,))
+
+    @group.get("/")
+    async def listing() -> None: ...
+
+    @group.post("/{item_id}/go", status=201, errors=(NotFound,))
+    async def go(item_id: int) -> None: ...
+
+    @group.put("/open", access=None, transaction=False)
+    async def open_door() -> None: ...
+
+    app = HinokiAPI()
+    app.include(listing, go, open_door)
+    routes = {(r.method, r.path): r for r in app.routes}
+    assert set(routes) == {
+        ("GET", "/things"),
+        ("POST", "/things/{item_id}/go"),
+        ("PUT", "/things/open"),
+    }
+    assert routes[("GET", "/things")].access is guard
+    assert routes[("GET", "/things")].transaction is False  # reads are not wrapped
+    post_route = routes[("POST", "/things/{item_id}/go")]
+    assert post_route.transaction is True and post_route.status == 201
+    assert post_route.errors == (Forbidden, NotFound)
+    public = routes[("PUT", "/things/open")]
+    assert public.access is None and public.transaction is False
+    with pytest.raises(ValueError, match="prefix"):
+        Endpoints("things")
+    with pytest.raises(TypeError, match="unknown action options"):
+        group.get("/x", nope=1)
+    assert str(Crud.LIST) == "list" and Crud.DELETE.value == "delete"
