@@ -103,7 +103,8 @@ Honest status, verified by the test suite:
 | Pagination: `pagination=...` + `PageParams`, `Page[T]` | Implemented (page-number strategy only) |
 | Database engine in Rust (`tokio-postgres` + `deadpool`): typed binary parameters, typed errors, transactions, cancellation-safe pooling | Implemented; PostgreSQL only |
 | `transaction=True`: commit after output encoding, rollback before error translation, aborted commits reported as errors | Implemented and tested against PostgreSQL |
-| SQL compiler in Rust (select/count/insert/update/delete, quoted identifiers, `$n` placeholders only) and Active Record `Model` / `QuerySet` | Implemented for single tables; **no relations, migrations or sync variants** |
+| SQL compiler in Rust (select/count/insert/update/delete, quoted identifiers, `$n` placeholders only) and Active Record `Model` / `QuerySet` | Implemented; foreign keys load only on request (`select_related` JOIN, `prefetch_related` one extra query); **no sync variants, M2M sugar or generated CRUD yet** |
+| Versioned, inspectable SQL migrations planned from the models (`python -m hinoki migrations plan/apply/status/sql`); destructive operations refused unless allowed; never applied at startup | Implemented (PostgreSQL) |
 | Reference blog (`examples/blog`) incl. a real Granian + PostgreSQL run | Implemented |
 | Typing: constructors and decorators checked by `mypy --strict`; `Model.acreate(**values)` is **not** statically checked | Known gap ([docs/TYPING.md](docs/TYPING.md)) |
 | JWT, CRUD generation, rules engine, MCP, admin extra, benchmarks beyond the router micro-benchmark | Not started |
@@ -139,7 +140,7 @@ class Posts(API, path="/posts"):
         return to_out(created)
 ```
 
-Full code in [`examples/blog`](examples/blog); `BLOG_DATABASE_URL=… granian --interface asgi --factory examples.blog.main:create_app`.
+Full code in [`examples/blog`](examples/blog); Create the schema with `python -m hinoki migrations --dir examples/blog/migrations apply --database $BLOG_DATABASE_URL`, then `BLOG_DATABASE_URL=… granian --interface asgi --factory examples.blog.main:create_app`.
 
 ## Architecture
 
