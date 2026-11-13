@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from hinoki import API, Access, HinokiAPI, get, post
+from hinoki import API, Access, Hinoki, get, post
 from hinoki.request import Request
 from tests.providers import TokenAuth
 
@@ -32,7 +32,7 @@ async def use(posts: Posts, request: Request) -> None:
     print(text, size, label)
 
 
-def factory() -> HinokiAPI:
-    app = HinokiAPI()
+def factory() -> Hinoki:
+    app = Hinoki()
     app.include(health, Posts)
     return app

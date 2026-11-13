@@ -15,10 +15,10 @@ tracker_rules = RuleSet(
 )
 ```
 
-Run them from the command line or let the app enforce them when it starts (`HinokiAPI(rules=tracker_rules)`):
+Run them from the command line or let the app enforce them when it starts (`Hinoki(rules=tracker_rules)`):
 
 ```sh
-python -m hinoki check --app examples.tracker.app:create_app \
+hinoki check examples.tracker.app:create_app \
     --rules examples.tracker.rules:tracker_rules --package examples
 ```
 

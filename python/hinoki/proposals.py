@@ -255,8 +255,8 @@ def propose(
     steps = [
         "Review and edit; this is a starting point, not a finished design.",
         "Fields the server assigns (state, timestamps) must not be in the In schema.",
-        f"Run: python -m hinoki migrations plan --models <module> --name add_{table_name}",
-        "Run: python -m hinoki check",
+        f"Run: hinoki migrations plan --models <module> --name add_{table_name}",
+        "Run: hinoki check",
     ]
     if owned:
         steps.insert(

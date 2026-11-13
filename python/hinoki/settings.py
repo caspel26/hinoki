@@ -5,7 +5,7 @@
         database: DatabaseSettings
 
     settings = BlogSettings.load(prefix="BLOG_", dotenv=".env")
-    app = HinokiAPI(settings=settings)
+    app = Hinoki(settings=settings)
 
 See ``docs/SETTINGS-DESIGN.md``. Errors name keys and reasons, never values.
 """
@@ -92,7 +92,7 @@ class Settings:
     ) -> None:
         """``class BlogSettings(FrameworkSettings, prefix="BLOG_", dotenv=".env")``
         declares where the class reads its variables, so ``BlogSettings.load()``,
-        ``python -m hinoki settings`` and ``serve`` need no repeated arguments.
+        ``hinoki settings`` and ``serve`` need no repeated arguments.
         A subclass inherits what its parent declared."""
         super().__init_subclass__(**options)
         if prefix is not None:
@@ -643,7 +643,7 @@ class DatabaseSettings(Settings):
 
 
 class ServerSettings(Settings):
-    """How ``python -m hinoki serve`` and ``dev`` run the application (Granian).
+    """How ``hinoki serve`` and ``dev`` run the application (Granian).
     ``serve`` applies these; they do nothing when another runner starts the app."""
 
     host: str = "127.0.0.1"

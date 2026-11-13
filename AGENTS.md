@@ -2,7 +2,7 @@
 
 Status: adopted 2026-11-13 from `framework-handoff/rules/AGENTS.md` (name Aptum → Hinoki; otherwise unchanged).
 
-**Document locations.** The design package lives unmodified in `framework-handoff/` (spec, syntax contract, runtime, provenance, `sources/` historical snapshots — never edit `sources/`). Those documents still say "Aptum"; read it as **Hinoki** (`hinoki` import/CLI, `HinokiAPI` application class, `API` for endpoint groups). The live work queue is the root `handoff.md`; designs go in `docs/`, ADRs in `docs/adr/`.
+**Document locations.** The design package lives unmodified in `framework-handoff/` (spec, syntax contract, runtime, provenance, `sources/` historical snapshots — never edit `sources/`). Those documents still say "Aptum"; read it as **Hinoki** (`hinoki` import/CLI, `Hinoki` application class, `API` for endpoint groups). The live work queue is the root `handoff.md`; designs go in `docs/`, ADRs in `docs/adr/`.
 
 **Toolchain.** `uv` for Python (`uv run --locked`), Ruff for lint+format, mypy for types, Cargo for Rust, maturin as build backend. See `docs/TOOLCHAIN.md`.
 

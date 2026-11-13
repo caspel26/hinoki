@@ -1,4 +1,4 @@
-"""``python -m hinoki check``: run the project's rules and report diagnostics.
+"""``hinoki check``: run the project's rules and report diagnostics.
 
 Builds the application registry (importing the project's module, which is
 application code) without starting lifespans or touching a database or the
@@ -14,7 +14,7 @@ import json
 import sys
 from pathlib import Path
 
-from hinoki.app import HinokiAPI
+from hinoki.app import Hinoki
 from hinoki.errors import RegistrationError
 from hinoki.rules import (
     SCHEMA_VERSION,
@@ -41,16 +41,22 @@ def load_object(spec: str) -> object:
     return found
 
 
-def build_app(spec: str) -> HinokiAPI:
+def build_app(spec: str) -> Hinoki:
     found = load_object(spec)
-    if callable(found) and not isinstance(found, HinokiAPI):
+    if callable(found) and not isinstance(found, Hinoki):
         found = found()
-    if not isinstance(found, HinokiAPI):
-        raise TypeError(f"{spec} is not a HinokiAPI or a factory returning one")
+    if not isinstance(found, Hinoki):
+        raise TypeError(f"{spec} is not a Hinoki or a factory returning one")
     return found
 
 
-def build_rules(spec: str | None, app: HinokiAPI) -> RuleSet:
+def default_packages(target: str) -> tuple[str, ...]:
+    """The top-level package of the target module: what the import rules scan
+    when ``--package`` is not given."""
+    return (target.partition(":")[0].split(".")[0],)
+
+
+def build_rules(spec: str | None, app: Hinoki) -> RuleSet:
     if spec is None:
         return app.rules or RuleSet()
     found = load_object(spec)
@@ -91,9 +97,9 @@ def render(diagnostics: list[Diagnostic], rule_count: int, fmt: str) -> str:
 
 def run_check(args: argparse.Namespace, today: datetime.date | None = None) -> int:
     try:
-        app = build_app(args.app)
+        app = build_app(args.target)
         rules = build_rules(args.rules, app)
-        project = Project(app, tuple(args.package or ()))
+        project = Project(app, tuple(args.package or default_packages(args.target)))
         phase = Phase(args.phase) if args.phase else None
         wanted = Path(args.waivers or NAME)
         if args.waivers and not wanted.is_file():
@@ -112,7 +118,7 @@ def add_arguments(
     commands: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
     check = commands.add_parser("check", help="run the project's rules")
-    check.add_argument("--app", required=True, help="module:factory or module:app")
+    check.add_argument("target", help="module:app or module:factory")
     check.add_argument("--rules", help="module:ruleset (default: the app's rules)")
     check.add_argument("--package", action="append", help="package to scan (static)")
     check.add_argument("--phase", choices=[p.value for p in Phase])
@@ -130,7 +136,7 @@ def add_arguments(
     server = commands.add_parser(
         "mcp", help="serve read-only project context over MCP (stdio)"
     )
-    server.add_argument("--app", required=True, help="module:factory or module:app")
+    server.add_argument("target", help="module:app or module:factory")
     server.add_argument("--rules", help="module:ruleset (default: the app's rules)")
     server.add_argument("--package", action="append", help="package to scan (static)")
     server.add_argument("--models", action="append", help="module that defines models")

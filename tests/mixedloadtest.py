@@ -9,7 +9,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from hinoki import HinokiAPI, Request, get
+from hinoki import Hinoki, Request, get
 from hinoki.db import Database, DatabaseModule
 from hinoki.orm import Model, field, use_database
 from hinoki.runtime.config import RuntimeConfig
@@ -55,9 +55,9 @@ async def table() -> AsyncIterator[None]:
     database.close()
 
 
-def build(workers: int, queue: int, timeout: float = 30.0) -> HinokiAPI:
+def build(workers: int, queue: int, timeout: float = 30.0) -> Hinoki:
     assert URL is not None
-    app = HinokiAPI(
+    app = Hinoki(
         runtime=RuntimeConfig(
             sync_workers=workers, sync_queue=queue, request_timeout=timeout
         )

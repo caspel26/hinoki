@@ -1,6 +1,6 @@
 """Development MCP server: structured, read-only context about a project.
 
-``python -m hinoki mcp --app module:factory`` speaks JSON-RPC 2.0 over stdio
+``hinoki mcp module:app`` speaks JSON-RPC 2.0 over stdio
 (one JSON message per line, as in the MCP stdio transport). It is a separate
 command and nothing in ``hinoki.runtime`` imports this module, so a production
 server cannot publish it by accident. All tools are read-only; there is no tool
@@ -24,8 +24,8 @@ from pathlib import Path
 from typing import Any, TextIO
 
 import hinoki
-from hinoki.app import HinokiAPI
-from hinoki.checkcli import USAGE_ERRORS, build_app, build_rules
+from hinoki.app import Hinoki
+from hinoki.checkcli import USAGE_ERRORS, build_app, build_rules, default_packages
 from hinoki.errorcatalog import CATALOG, explain
 from hinoki.orm import Model
 from hinoki.orm.migrations import models_of
@@ -116,7 +116,7 @@ class DevProject:
 
     def __init__(
         self,
-        app: HinokiAPI,
+        app: Hinoki,
         rules: RuleSet,
         packages: tuple[str, ...] = (),
         models: tuple[str, ...] = (),
@@ -375,7 +375,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[..., dict[str, Any]]]] = {
     ),
     "check_project": (
         "Run the enabled rules (startup and static phases) and return the same "
-        "diagnostics as `python -m hinoki check`, with waivers applied.",
+        "diagnostics as `hinoki check`, with waivers applied.",
         {
             "type": "object",
             "properties": {"phase": {"type": "string", "enum": ["static", "startup"]}},
@@ -533,13 +533,13 @@ def serve(server: Server, source: TextIO, sink: TextIO) -> None:
 
 
 def run_mcp(args: argparse.Namespace) -> int:
-    """``python -m hinoki mcp``: serve on stdin/stdout until stdin closes."""
+    """``hinoki mcp``: serve on stdin/stdout until stdin closes."""
     try:
-        app = build_app(args.app)
+        app = build_app(args.target)
         project = DevProject(
             app,
             build_rules(args.rules, app),
-            tuple(args.package or ()),
+            tuple(args.package or default_packages(args.target)),
             tuple(args.models or ()),
             Path(args.waivers) if args.waivers else None,
             scenarios=args.scenarios,

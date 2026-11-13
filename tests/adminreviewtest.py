@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 
 import pytest
 
-from hinoki import Access, Caller, HinokiAPI, RegistrationError
+from hinoki import Access, Caller, Hinoki, RegistrationError
 from hinoki.admin import Admin, ModelAdmin
 from hinoki.db import Database, DatabaseModule
 from hinoki.orm import Model, field, foreign_key
@@ -65,7 +65,7 @@ class NoView(ModelAdmin[Acct]):
         return action != "view"
 
 
-def build(*, hide_accts: bool = False, register_accts: bool = True) -> HinokiAPI:
+def build(*, hide_accts: bool = False, register_accts: bool = True) -> Hinoki:
     admin = Admin(access=staff, secret=SECRET, site="Review")
     if register_accts:
         admin.register(Acct, NoView if hide_accts else AcctAdmin, slug="accts")
@@ -73,7 +73,7 @@ def build(*, hide_accts: bool = False, register_accts: bool = True) -> HinokiAPI
     admin.register(Loose, slug="loose")
     admin.register(Parent, ParentAdmin, slug="parents")
     admin.register(Kid, slug="kids")
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(admin.api())
     if URL:
         app.install(DatabaseModule(URL, max_size=3))
@@ -240,7 +240,7 @@ async def test_error_answers_under_the_admin_carry_the_security_headers(
 def test_a_docs_page_may_not_shadow_a_route() -> None:
     admin = Admin(access=staff, secret=SECRET)
     admin.register(Parent, slug="parents")
-    other = HinokiAPI(openapi_url="/openapi.json", docs_url="/admin")
+    other = Hinoki(openapi_url="/openapi.json", docs_url="/admin")
     other.include(admin.api())  # the admin's index answers GET /admin
     with pytest.raises(RegistrationError, match="documentation viewer"):
         other.asgi()

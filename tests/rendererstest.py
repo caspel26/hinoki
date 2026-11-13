@@ -5,7 +5,7 @@ from typing import Any, cast
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import HinokiAPI, JSONRenderer, Renderer, Request, get
+from hinoki import Hinoki, JSONRenderer, Renderer, Request, get
 from tests.harness import Client, Pool
 
 
@@ -37,8 +37,8 @@ def csvonly(request: Request) -> dict[str, int]:
 def nothing(request: Request) -> None: ...
 
 
-def app() -> HinokiAPI:
-    result = HinokiAPI(openapi_url="/openapi.json")
+def app() -> Hinoki:
+    result = Hinoki(openapi_url="/openapi.json")
     result.include(default, many, csvonly, nothing)
     return result
 

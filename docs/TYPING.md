@@ -10,7 +10,7 @@ How it is verified: `tests/typing/ok_*.py` must produce no errors; `tests/typing
 | --- | --- |
 | `@get/@post/...` preserve the decorated signature (`ParamSpec`/`TypeVar`) on functions and methods | Calls are checked: wrong argument type, missing argument and wrong return assignment are errors |
 | Decorator options are typed | `transaction="yes"`, `access="admin"` are errors; `Access` is a frozen typed object |
-| `HinokiAPI.include` / `API` subclasses | Type-check; unknown objects are rejected at runtime with `RegistrationError` |
+| `Hinoki.include` / `API` subclasses | Type-check; unknown objects are rejected at runtime with `RegistrationError` |
 | Decorators stack with user decorators written with `functools.wraps` + `ParamSpec` | Runtime test + `mypy` pass; untyped user decorators are flagged by `--strict` (`untyped-decorator`), which is the intended pressure |
 | `Schema` subclasses | Constructors are checked like dataclasses (`tests/typing/okschema.py`, `badschema.py`): missing/extra/mistyped arguments, immutability and unknown attributes are errors; `Field(default_factory=list)` types as `list[str]`; `Schema.validate` returns the subclass |
 

@@ -1,6 +1,6 @@
 """Applying and inspecting migration files against a database.
 
-Only called explicitly (``python -m hinoki migrations apply``); the framework
+Only called explicitly (``hinoki migrations apply``); the framework
 never applies migrations at startup. Each file runs in one transaction under an
 advisory lock and is recorded with its checksum, so an edited or missing
 applied file is an error instead of silent drift.

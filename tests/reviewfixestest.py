@@ -6,7 +6,7 @@ import pytest
 
 from hinoki import (
     FormParser,
-    HinokiAPI,
+    Hinoki,
     JSONRenderer,
     MultiPartParser,
     Renderer,
@@ -57,7 +57,7 @@ def upload(request: Request) -> dict[str, Any]:
 
 
 async def serve(pool: Pool) -> Client:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(cookies, echo, probe, form, typed, upload)
     return await pool.start(app)
 

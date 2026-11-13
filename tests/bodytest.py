@@ -6,7 +6,7 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import HinokiAPI, RegistrationError, Schema, get, post
+from hinoki import Hinoki, RegistrationError, Schema, get, post
 from hinoki.request import Request
 from hinoki.runtime.requests import MAX_BODY
 from hinoki.schema import Field
@@ -62,8 +62,8 @@ def get_with_body(request: Request, data: PostCreate) -> None: ...
 def schema_in_path(request: Request, item: PostCreate) -> None: ...
 
 
-def make_app() -> HinokiAPI:
-    app = HinokiAPI()
+def make_app() -> Hinoki:
+    app = Hinoki()
     app.include(create, search, mixed)
     return app
 
@@ -180,7 +180,7 @@ async def test_malformed_query_string_is_a_400(pool: Pool) -> None:
 @pytest.mark.parametrize("handler", [two_bodies, get_with_body, schema_in_path])
 def test_ambiguous_schema_parameters_fail_at_include(handler: object) -> None:
     with pytest.raises(RegistrationError):
-        HinokiAPI().include(handler)
+        Hinoki().include(handler)
 
 
 async def test_oversized_body_is_rejected(pool: Pool) -> None:

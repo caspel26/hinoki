@@ -1,7 +1,7 @@
 """Application factory.
 
     TRACKER_DATABASE_URL=postgres://... \
-      python -m hinoki dev examples.tracker.app:create_app
+      hinoki dev examples.tracker.app:create_app
 
 Layers (see docs/PATTERNS.md): ``api`` -> ``operations`` -> ``models``.
 """
@@ -11,13 +11,13 @@ import os
 from examples.tracker import api
 from examples.tracker.rules import tracker_rules
 from examples.tracker.security import member_only
-from hinoki import HinokiAPI
+from hinoki import Hinoki
 from hinoki.db import DatabaseModule
 from hinoki.mcpapp import expose_as_mcp
 
 
-def create_app(database_url: str | None = None) -> HinokiAPI:
-    app = HinokiAPI(
+def create_app(database_url: str | None = None) -> Hinoki:
+    app = Hinoki(
         title="Tracker",
         openapi_url="/openapi.json",
         docs_url="/docs",

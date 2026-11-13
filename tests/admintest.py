@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import Access, Caller, HinokiAPI, RegistrationError
+from hinoki import Access, Caller, Hinoki, RegistrationError
 from hinoki.admin import THEMES, Admin, Badge, Fieldset, ModelAdmin, Tab, Theme, csrf
 from hinoki.admin.components import icon_name, initials, page_window, sparkline
 from hinoki.admin.forms import FieldProblem, collect, convert, fields_for, label_of
@@ -84,14 +84,14 @@ class SecretAdmin(ModelAdmin[Secret]):
         return await super().save(values, principal, row)
 
 
-def build(theme: str = "studio", templates: str | None = None) -> HinokiAPI:
+def build(theme: str = "studio", templates: str | None = None) -> Hinoki:
     admin = Admin(
         access=staff, secret=SECRET, theme=theme, templates=templates, site="Test Admin"
     )
     admin.register(Note, NoteAdmin, slug="notes")
     admin.register(Secret, SecretAdmin, slug="secrets")
     admin.register(Owner, slug="owners")
-    app = HinokiAPI(openapi_url="/openapi.json")
+    app = Hinoki(openapi_url="/openapi.json")
     app.include(admin.api())
     if URL:
         app.install(DatabaseModule(URL, max_size=3))

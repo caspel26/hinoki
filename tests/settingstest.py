@@ -11,7 +11,7 @@ import pytest
 from hinoki import (
     DatabaseSettings,
     FrameworkSettings,
-    HinokiAPI,
+    Hinoki,
     Request,
     Secret,
     Settings,
@@ -153,10 +153,10 @@ async def test_framework_settings_drive_the_app() -> None:
             "X_EXECUTION__MAX_BODY_BYTES": "100",
         },
     )
-    app = HinokiAPI(settings=settings)
+    app = Hinoki(settings=settings)
     app.include(ping, echo)
     assert (app.title, app.openapi_url) == ("Mine", "/openapi.json")
-    assert HinokiAPI(settings=settings, title="Explicit").title == "Explicit"
+    assert Hinoki(settings=settings, title="Explicit").title == "Explicit"
     async with ASGIClient(app) as client:
         assert (await client.get("/openapi.json")).body["info"]["title"] == "Mine"
         small = await client.post("/echo", body=b"x" * 100)
@@ -190,8 +190,8 @@ def test_review_findings_are_closed() -> None:
     enabled = FrameworkSettings.load(
         prefix="D_", env={"D_DOCS__OPENAPI_URL": "/o.json", "D_DOCS__DOCS_URL": "/docs"}
     )
-    assert HinokiAPI(settings=enabled, docs_url=None).docs_url is None
-    assert HinokiAPI(settings=enabled).docs_url == "/docs"
+    assert Hinoki(settings=enabled, docs_url=None).docs_url is None
+    assert Hinoki(settings=enabled).docs_url == "/docs"
     # a foreign key with the prefix is only fatal in strict mode
     foreign = {"B_OTHER": "1"}
     with pytest.raises(SettingsError, match="B_OTHER: unknown setting"):
@@ -231,7 +231,7 @@ async def test_content_length_above_the_limit_is_refused_before_reading() -> Non
     settings = FrameworkSettings.load(
         prefix="Y_", env={"Y_EXECUTION__MAX_BODY_BYTES": "10"}
     )
-    app = HinokiAPI(settings=settings)
+    app = Hinoki(settings=settings)
     app.include(echo)
     async with ASGIClient(app) as client:
         reply = await client.post("/echo", body=b"x", headers={"content-length": "11"})

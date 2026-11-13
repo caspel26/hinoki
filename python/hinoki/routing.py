@@ -1,7 +1,7 @@
 """HTTP method decorators.
 
 Decorators only attach metadata; nothing is registered, opened or started
-until the function or API class is passed to ``HinokiAPI.include``. They
+until the function or API class is passed to ``Hinoki.include``. They
 return the original callable unchanged, so signatures stay visible to type
 checkers and decorators compose in any order.
 """

@@ -2,7 +2,7 @@
 
 import pytest
 
-from hinoki import HinokiAPI, HTMLRenderer, Reply, Request, get, post, set_cookie
+from hinoki import Hinoki, HTMLRenderer, Reply, Request, get, post, set_cookie
 from tests.harness import Client, Pool
 
 
@@ -35,7 +35,7 @@ def boom(request: Request) -> Reply:
 
 
 async def serve(pool: Pool) -> Client:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(go, page, bad_page, text, boom)
     return await pool.start(app)
 

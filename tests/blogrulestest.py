@@ -4,14 +4,13 @@ import pytest
 
 from examples.blog.main import create_app
 from examples.blog.rules import blog_rules
-from hinoki import Actions, HinokiAPI, Request, delete
+from hinoki import Actions, Hinoki, Request, delete
 from hinoki.__main__ import main
 from hinoki.rules import Project, RuleSet, failing
 
 SECRET = "b" * 40
 CHECK = [
     "check",
-    "--app",
     "examples.blog.main:create_app",
     "--rules",
     "examples.blog.rules:blog_rules",
@@ -58,4 +57,4 @@ def test_a_new_unprotected_write_would_be_caught() -> None:
 def test_the_rule_names_are_stable_ids() -> None:
     ids = [rule.id for rule in blog_rules.rules]
     assert ids == ["HNK-ACC-001", "HNK-TXN-001", "HNK-SCH-001", "HNK-IMP-001"]
-    assert Actions.require_access().id == ids[0] and HinokiAPI is not None
+    assert Actions.require_access().id == ids[0] and Hinoki is not None

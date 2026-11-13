@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from hinoki import Access, BearerAuth, Caller, HinokiAPI, Request, Schema, get, post
+from hinoki import Access, BearerAuth, Caller, Hinoki, Request, Schema, get, post
 from hinoki.db import Database, DatabaseModule
 from hinoki.orm import Model, field, use_database
 from hinoki.runtime.config import RuntimeConfig
@@ -65,9 +65,9 @@ async def hit_async(request: Request, item_id: int) -> ItemOut:
     return ItemOut.from_model(await Item.aget(id=item_id))
 
 
-def build() -> HinokiAPI:
+def build() -> Hinoki:
     assert URL is not None
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(read_sync, read_async, hit_sync, hit_async)
     app.install(DatabaseModule(URL, max_size=3))
     return app
@@ -130,7 +130,7 @@ async def slow_auth(request: Request) -> dict[str, bool]:
 
 
 async def test_a_saturated_pool_answers_503_even_inside_an_auth_hook() -> None:
-    app = HinokiAPI(runtime=RuntimeConfig(sync_workers=1, sync_queue=0))
+    app = Hinoki(runtime=RuntimeConfig(sync_workers=1, sync_queue=0))
     app.include(slow_auth)
     async with ASGIClient(app) as client:
         replies = await asyncio.gather(
@@ -146,7 +146,7 @@ async def test_a_saturated_pool_answers_503_even_inside_an_auth_hook() -> None:
 
 
 def test_sync_client_refuses_misuse_instead_of_hanging() -> None:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(slow_auth)
     client = SyncClient(app)
     with pytest.raises(RuntimeError, match="with` block"):

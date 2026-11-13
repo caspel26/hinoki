@@ -19,7 +19,7 @@ from urllib.parse import quote, unquote, urlencode
 import hinoki
 from hinoki import context
 from hinoki.access import Access
-from hinoki.app import HinokiAPI
+from hinoki.app import Hinoki
 from hinoki.mcp import (
     INVALID_PARAMS,
     NO_METHOD,
@@ -174,7 +174,7 @@ class Tool:
 
 
 def select(
-    app: HinokiAPI, patterns: list[str], allow_writes: bool, mount: str
+    app: Hinoki, patterns: list[str], allow_writes: bool, mount: str
 ) -> list[Tool]:
     document = app.openapi()
     defs = document.get("components", {}).get("schemas", {})
@@ -198,7 +198,7 @@ def select(
 
 
 async def dispatch(
-    app: HinokiAPI, tool: Tool, parts: tuple[str, str, bytes], request: Request
+    app: Hinoki, tool: Tool, parts: tuple[str, str, bytes], request: Request
 ) -> dict[str, Any]:
     """Run the action in-process with the caller's credentials."""
     path, query, body = parts
@@ -267,7 +267,7 @@ def json_reply(payload: dict[str, Any]) -> Reply:
     return Reply(200, json.dumps(payload), content_type="application/json")
 
 
-def initialize(params: dict[str, Any], app: HinokiAPI) -> dict[str, Any]:
+def initialize(params: dict[str, Any], app: Hinoki) -> dict[str, Any]:
     wanted = params.get("protocolVersion")
     return {
         "protocolVersion": wanted if wanted in PROTOCOLS else PROTOCOLS[0],
@@ -277,7 +277,7 @@ def initialize(params: dict[str, Any], app: HinokiAPI) -> dict[str, Any]:
 
 
 async def call_tool(
-    params: dict[str, Any], table: dict[str, Tool], app: HinokiAPI, request: Request
+    params: dict[str, Any], table: dict[str, Tool], app: Hinoki, request: Request
 ) -> dict[str, Any]:
     name, arguments = params.get("name"), params.get("arguments") or {}
     tool = table.get(name) if isinstance(name, str) else None
@@ -291,7 +291,7 @@ async def call_tool(
 
 
 async def handle(
-    message: dict[str, Any], table: dict[str, Tool], app: HinokiAPI, request: Request
+    message: dict[str, Any], table: dict[str, Tool], app: Hinoki, request: Request
 ) -> dict[str, Any]:
     method, params = message["method"], message.get("params") or {}
     if method == "tools/call":
@@ -307,7 +307,7 @@ async def handle(
 
 
 async def respond(
-    request: Request, table: Callable[[], dict[str, Tool]], app: HinokiAPI
+    request: Request, table: Callable[[], dict[str, Tool]], app: Hinoki
 ) -> dict[str, Any] | None:
     """The JSON-RPC answer for one POSTed message (``None`` for a notification)."""
     try:
@@ -324,7 +324,7 @@ async def respond(
 
 
 def expose_as_mcp(
-    app: HinokiAPI,
+    app: Hinoki,
     *,
     tools: Iterable[str],
     access: Access | None,

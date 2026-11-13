@@ -1,7 +1,7 @@
-"""``python -m hinoki settings``: show where every setting comes from.
+"""``hinoki settings``: show where every setting comes from.
 
-    python -m hinoki settings blog.settings:BlogSettings --prefix BLOG_ --dotenv .env
-    python -m hinoki settings blog.settings:BlogSettings --prefix BLOG_ --example
+    hinoki settings blog.settings:BlogSettings --prefix BLOG_ --dotenv .env
+    hinoki settings blog.settings:BlogSettings --prefix BLOG_ --example
 
 Prints each variable with its effective value (secrets as ``***``) and its
 origin: ``override``, ``environment``, ``.env``, ``file`` (a ``*_FILE``
@@ -16,6 +16,7 @@ import importlib
 import json
 import sys
 
+from hinoki.checkcli import USAGE_ERRORS, build_app
 from hinoki.settings import Settings, SettingsError
 
 
@@ -25,7 +26,7 @@ def add_arguments(
     sub = commands.add_parser(
         "settings", help="show the effective settings and where each value comes from"
     )
-    sub.add_argument("target", help="module:SettingsClass")
+    sub.add_argument("target", help="module:SettingsClass, or the app")
     sub.add_argument(
         "--prefix", default=None, help="variable prefix (default: the class's own)"
     )
@@ -44,9 +45,15 @@ def load_class(target: str) -> type[Settings]:
         found = getattr(importlib.import_module(module_name), name)
     except (ImportError, AttributeError) as exc:
         raise SystemExit(f"error: cannot load {target}: {exc}") from None
-    if not (isinstance(found, type) and issubclass(found, Settings)):
-        raise SystemExit(f"error: {target} is not a Settings class")
-    return found
+    if isinstance(found, type) and issubclass(found, Settings):
+        return found
+    try:  # an application (or a factory): the class of its settings
+        app = build_app(target)
+    except (*USAGE_ERRORS, SystemExit):
+        raise SystemExit(f"error: {target} is not a Settings class or an app") from None
+    if isinstance(app.settings, Settings):
+        return type(app.settings)
+    raise SystemExit(f"error: the app {target} has no typed settings")
 
 
 def run_settings(args: argparse.Namespace) -> int:

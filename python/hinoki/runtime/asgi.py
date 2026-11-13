@@ -48,7 +48,7 @@ from hinoki.schema import encode
 from hinoki.settings import FrameworkSettings
 
 if TYPE_CHECKING:
-    from hinoki.app import HinokiAPI
+    from hinoki.app import Hinoki
 
 log = logging.getLogger("hinoki.runtime")
 
@@ -69,7 +69,7 @@ def docs_response(page: Page) -> Response:
 class ASGIAdapter:
     """One adapter per worker process; it owns that worker's runtime state."""
 
-    def __init__(self, app: HinokiAPI) -> None:
+    def __init__(self, app: Hinoki) -> None:
         self.app = app
         self.bindings = app.bindings
         self.document = self._document(app)
@@ -97,7 +97,7 @@ class ASGIAdapter:
         )
 
     @staticmethod
-    def _document(app: HinokiAPI) -> dict[str, Any] | None:
+    def _document(app: Hinoki) -> dict[str, Any] | None:
         """Build the OpenAPI document once, at startup, if it is served."""
         if app.openapi_url is None:
             return None

@@ -7,7 +7,7 @@ from hinoki import (
     APIKeyAuth,
     BearerAuth,
     Caller,
-    HinokiAPI,
+    Hinoki,
     RegistrationError,
     Schema,
     get,
@@ -60,7 +60,7 @@ def authorization(token: str) -> list[tuple[bytes, bytes]]:
 
 
 async def start(pool: Pool) -> Client:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(public, secure, whoami, create, leak)
     return await pool.start(app)
 
@@ -138,7 +138,7 @@ async def test_unexpected_errors_in_protected_actions_do_not_leak(pool: Pool) ->
 
 def test_principal_parameter_needs_an_access_policy() -> None:
     with pytest.raises(RegistrationError, match="access policy"):
-        HinokiAPI().include(anonymous)
+        Hinoki().include(anonymous)
 
 
 def test_access_needs_a_provider() -> None:
@@ -215,7 +215,7 @@ async def sync_secure(request: Request, caller: Caller[str]) -> dict[str, str]:
 
 
 async def test_a_provider_written_with_plain_def_authenticates(pool: Pool) -> None:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(sync_secure)
     client = await pool.start(app)
     good = await client.request(

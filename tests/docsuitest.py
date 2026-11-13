@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from hinoki import HinokiAPI, Request, get
+from hinoki import Hinoki, Request, get
 from hinoki.docsui import STATIC
 from tests.harness import Client, Pool
 
@@ -16,8 +16,8 @@ def ping(request: Request) -> dict[str, str]:
     return {"pong": "yes"}
 
 
-def app(**options: str | None) -> HinokiAPI:
-    result = HinokiAPI(openapi_url="/openapi.json", **options)  # type: ignore[arg-type]
+def app(**options: str | None) -> Hinoki:
+    result = Hinoki(openapi_url="/openapi.json", **options)  # type: ignore[arg-type]
     result.include(ping)
     return result
 
@@ -64,9 +64,9 @@ async def test_both_viewers_can_live_side_by_side(pool: Pool) -> None:
 
 def test_viewers_need_the_document_they_display() -> None:
     with pytest.raises(ValueError, match="need openapi_url"):
-        HinokiAPI(docs_url="/docs")
+        Hinoki(docs_url="/docs")
     with pytest.raises(ValueError, match="need openapi_url"):
-        HinokiAPI(redoc_url="/redoc")
+        Hinoki(redoc_url="/redoc")
 
 
 def test_vendored_files_match_the_recorded_hashes() -> None:

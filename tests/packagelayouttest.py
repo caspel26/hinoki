@@ -28,15 +28,6 @@ def test_public_names_come_from_the_package() -> None:
     assert hinoki.orm.Model is importlib.import_module("hinoki.orm.model").Model
 
 
-def test_old_import_paths_alias_the_new_modules() -> None:
-    for old, new in (
-        ("hinoki.relations", "hinoki.orm.relations"),
-        ("hinoki.migrations", "hinoki.orm.migrations"),
-        ("hinoki.migrator", "hinoki.orm.migrator"),
-    ):
-        assert importlib.import_module(old) is importlib.import_module(new)
-
-
 def test_the_orm_does_not_depend_on_the_web_layers() -> None:
     root = Path(hinoki.orm.__file__).parent
     for path in root.glob("*.py"):

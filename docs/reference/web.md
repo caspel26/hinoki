@@ -1,6 +1,6 @@
 # Routing and requests
 
-::: hinoki.app.HinokiAPI
+::: hinoki.app.Hinoki
 
 ::: hinoki.request.Request
 

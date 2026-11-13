@@ -18,7 +18,7 @@ SERVER = StdioServerParameters(
     command="uv",
     args=[
         *("run", "--locked", "python", "-m", "hinoki", "mcp"),
-        *("--app", "tests.projects.rulesapp:create_app"),
+        *("tests.projects.rulesapp:create_app"),
         *("--rules", "tests.projects.rulesapp:rules"),
         *("--scenarios", "read"),
     ],

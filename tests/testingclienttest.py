@@ -2,7 +2,7 @@
 
 import pytest
 
-from hinoki import Conflict, HinokiAPI, Request, Schema, get, post
+from hinoki import Conflict, Hinoki, Request, Schema, get, post
 from hinoki.modules import Module
 from hinoki.testing import ASGIClient
 
@@ -22,7 +22,7 @@ async def create(request: Request, data: Item) -> Item:
 
 
 async def test_the_client_runs_lifespan_and_requests() -> None:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(ping, create)
     async with ASGIClient(app) as client:
         assert (await client.get("/ping")).body == {"pong": "yes"}
@@ -39,7 +39,7 @@ async def test_a_failing_startup_is_an_error_not_a_hang() -> None:
         def lifespan(self, ctx):  # type: ignore[no-untyped-def]
             raise RuntimeError("nope")
 
-    app = HinokiAPI()
+    app = Hinoki()
     app.install(Broken())
     with pytest.raises(RuntimeError, match="startup failed"):
         async with ASGIClient(app):
@@ -58,7 +58,7 @@ async def test_strict_errors_demand_declared_business_errors() -> None:
     async def undeclared() -> None:
         raise Taken()
 
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(declared, undeclared)
     async with ASGIClient(app, strict_errors=True) as client:
         assert (await client.get("/declared")).status == 409

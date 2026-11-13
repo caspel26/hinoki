@@ -64,7 +64,7 @@ git clone https://github.com/caspel26/hinoki && cd hinoki && uv sync --locked
 === "hinoki check"
 
     ```text
-    $ python -m hinoki check --app tracker.app:create_app --rules tracker.rules:rules
+    $ hinoki check tracker.app:create_app --rules tracker.rules:rules
     tracker/api.py:41: HNK-ACC-001 [violated] DELETE /tasks/{task_id} (delete_task) declares no access policy
     tracker/api.py:41: HNK-TXN-001 [violated] DELETE /tasks/{task_id} (delete_task) does not declare transaction=True
     2 rule(s): 2 violated, 0 unverifiable, 0 waived

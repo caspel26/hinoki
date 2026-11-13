@@ -22,9 +22,9 @@ class BlogSettings(FrameworkSettings):          # keeps the built-in groups
 class BlogSettings(FrameworkSettings, prefix="BLOG_", dotenv=".env"):  # where to read
     ...
 
-def create_app() -> HinokiAPI:
+def create_app() -> Hinoki:
     settings = BlogSettings.load()
-    app = HinokiAPI(settings=settings, ...)
+    app = Hinoki(settings=settings, ...)
 ```
 
 `load` is the only place variables are read. Where a value comes from, highest first:
@@ -72,7 +72,7 @@ invalid settings:
 ## 6. See what is in effect
 
 ```sh
-python -m hinoki settings blog.settings:BlogSettings --prefix BLOG_ --dotenv .env
+hinoki settings blog.settings:BlogSettings --prefix BLOG_ --dotenv .env
 ```
 
 ```text
@@ -85,11 +85,11 @@ BLOG_JWT_SECRET               file         ***
 The second column is where each value came from: `override`, `environment`, `.env`, `file` or `default`. `--format json` prints the same for tools. `--example` prints a ready `.env.example` (every variable with its default and type; secrets and required values blank):
 
 ```sh
-python -m hinoki settings blog.settings:BlogSettings --prefix BLOG_ --example > .env.example
+hinoki settings blog.settings:BlogSettings --prefix BLOG_ --example > .env.example
 ```
 
 ## 7. Use them
 
-`HinokiAPI(settings=settings)` derives the runtime limits, the docs URLs and the logging setup from the built-in groups (an explicit argument such as `title=` still wins). Your own fields are on `app.settings`, and modules reach them as `ctx.settings` in their lifespan.
+`Hinoki(settings=settings)` derives the runtime limits, the docs URLs and the logging setup from the built-in groups (an explicit argument such as `title=` still wins). Your own fields are on `app.settings`, and modules reach them as `ctx.settings` in their lifespan.
 
-The `server` group (host, port, workers) is applied by `python -m hinoki serve`/`dev` ([Running an application](SERVING.md)). Not included yet: TOML files and secret-manager clients as sources.
+The `server` group (host, port, workers) is applied by `hinoki serve`/`dev` ([Running an application](SERVING.md)). Not included yet: TOML files and secret-manager clients as sources.

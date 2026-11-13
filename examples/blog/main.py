@@ -1,7 +1,7 @@
 """Application factory.
 
     BLOG_DATABASE_URL=postgres://... \
-      python -m hinoki dev examples.blog.main:create_app
+      hinoki dev examples.blog.main:create_app
 
 The factory builds declarations only; the pool opens in the worker's lifespan.
 """
@@ -11,7 +11,7 @@ from examples.blog.adminsite import build_admin
 from examples.blog.api import Posts, health
 from examples.blog.rules import blog_rules
 from examples.blog.settings import BlogSettings
-from hinoki import Conflict, HinokiAPI
+from hinoki import Conflict, Hinoki
 from hinoki.db import DatabaseModule, UniqueViolation
 
 
@@ -23,7 +23,7 @@ def create_app(
     database_url: str | None = None,
     admin_secret: str | None = None,
     jwt_secret: str | None = None,
-) -> HinokiAPI:
+) -> Hinoki:
     """Settings come from ``BLOG_*`` environment variables; an explicit argument
     (used by tests) overrides its variable."""
     given = {
@@ -34,7 +34,7 @@ def create_app(
     settings = BlogSettings.load(
         overrides={k: v for k, v in given.items() if v is not None}
     )
-    app = HinokiAPI(
+    app = Hinoki(
         settings=settings,
         title="Blog",
         version="0.1.0",

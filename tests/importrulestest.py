@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from hinoki import HinokiAPI, Imports
+from hinoki import Hinoki, Imports
 from hinoki.imports import absolute, within
 from hinoki.rules import Phase, Project, RuleSet, Status
 
@@ -42,7 +42,7 @@ def name_of(location: str) -> str:
 
 def run(package: str, rule_source: str = "shop.domain") -> list[tuple[str, str, str]]:
     rules = RuleSet(Imports.forbid(source=rule_source, target="shop.api"))
-    found = rules.run(Project(HinokiAPI(), (package,)), Phase.STATIC)
+    found = rules.run(Project(Hinoki(), (package,)), Phase.STATIC)
     return [(d.location, d.status.value, d.message) for d in found]
 
 
@@ -66,13 +66,13 @@ def test_only_the_source_package_is_checked(blog: str) -> None:
 
 def test_without_packages_the_rule_says_it_cannot_decide() -> None:
     rules = RuleSet(Imports.forbid(source="a", target="b"))
-    found = rules.run(Project(HinokiAPI()), Phase.STATIC)
+    found = rules.run(Project(Hinoki()), Phase.STATIC)
     assert [d.status for d in found] == [Status.UNVERIFIABLE]
 
 
 def test_an_unknown_package_is_an_error_not_a_pass() -> None:
     rules = RuleSet(Imports.forbid(source="a", target="b"))
-    found = rules.run(Project(HinokiAPI(), ("definitely_not_a_package",)))
+    found = rules.run(Project(Hinoki(), ("definitely_not_a_package",)))
     assert found[0].status is Status.UNVERIFIABLE
     assert "cannot find package" in found[0].message
 

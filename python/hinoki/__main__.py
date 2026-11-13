@@ -1,4 +1,4 @@
-"""``python -m hinoki migrations plan|apply|status|sql`` and ``check``."""
+"""``hinoki migrations plan|apply|status|sql`` and ``check``."""
 
 import argparse
 import asyncio
@@ -17,7 +17,7 @@ URL_VARIABLE = "HINOKI_DATABASE_URL"
 
 
 def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(prog="python -m hinoki")
+    root = argparse.ArgumentParser(prog="hinoki")
     commands = root.add_subparsers(dest="group", required=True)
     add_arguments(commands)
     settingscli.add_arguments(commands)

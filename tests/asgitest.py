@@ -9,7 +9,7 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import API, HinokiAPI, RegistrationError, RuntimeConfig, context, get, post
+from hinoki import API, Hinoki, RegistrationError, RuntimeConfig, context, get, post
 from hinoki.request import Request
 from tests.harness import Client, Pool
 
@@ -85,8 +85,8 @@ def wrong_name(request: Request, q: str) -> None: ...
 def bad_type(request: Request, t: list[int]) -> None: ...
 
 
-def make_app(**config: float) -> HinokiAPI:
-    app = HinokiAPI(runtime=RuntimeConfig(**config))  # type: ignore[arg-type]
+def make_app(**config: float) -> Hinoki:
+    app = Hinoki(runtime=RuntimeConfig(**config))  # type: ignore[arg-type]
     app.include(
         ping,
         item,
@@ -179,7 +179,7 @@ async def test_not_ready_before_startup_and_after_shutdown(pool: Pool) -> None:
 @pytest.mark.parametrize("handler", [wrong_name, bad_type])
 def test_unsupported_signatures_fail_when_included(handler: Any) -> None:
     with pytest.raises(RegistrationError):
-        HinokiAPI().include(handler)
+        Hinoki().include(handler)
 
 
 async def test_204_has_no_body_and_no_content_length(pool: Pool) -> None:

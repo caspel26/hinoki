@@ -11,7 +11,7 @@ from hinoki import (
     Conflict,
     Endpoints,
     Forbidden,
-    HinokiAPI,
+    Hinoki,
     NotFound,
     RegistrationError,
     get,
@@ -61,8 +61,8 @@ class Posts(API, path="/posts"):
         return post_id
 
 
-def make_app() -> HinokiAPI:
-    app = HinokiAPI()
+def make_app() -> Hinoki:
+    app = Hinoki()
     app.include(health, Posts)
     return app
 
@@ -117,7 +117,7 @@ def test_duplicate_route_fails_and_leaves_app_unchanged() -> None:
 
 def test_include_rejects_undeclared_objects() -> None:
     with pytest.raises(RegistrationError):
-        HinokiAPI().include(lambda: None)
+        Hinoki().include(lambda: None)
 
 
 def test_user_decorators_keep_behaviour_under_a_route() -> None:
@@ -145,7 +145,7 @@ def test_api_prefix_must_be_well_formed() -> None:
 
 
 def test_app_instances_do_not_share_state() -> None:
-    first, second = make_app(), HinokiAPI()
+    first, second = make_app(), Hinoki()
     assert first.routes
     assert not second.routes
 
@@ -177,7 +177,7 @@ def test_endpoints_state_shared_options_once() -> None:
     @group.put("/open", access=None, transaction=False)
     async def open_door() -> None: ...
 
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(listing, go, open_door)
     routes = {(r.method, r.path): r for r in app.routes}
     assert set(routes) == {

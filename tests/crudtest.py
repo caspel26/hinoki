@@ -14,7 +14,7 @@ from hinoki import (
     Access,
     BearerAuth,
     Caller,
-    HinokiAPI,
+    Hinoki,
     RegistrationError,
     Schema,
     Unset,
@@ -96,8 +96,8 @@ class Backwards(CrudAPI, path="/backwards", resource=BACKWARDS):
     pass
 
 
-def app_for(*apis: type[Any], url: str | None = None) -> HinokiAPI:
-    app = HinokiAPI(title="Memos", openapi_url="/openapi.json")
+def app_for(*apis: type[Any], url: str | None = None) -> Hinoki:
+    app = Hinoki(title="Memos", openapi_url="/openapi.json")
     app.include(*apis)
     if url:
         app.install(DatabaseModule(url, max_size=3))
@@ -435,7 +435,7 @@ def test_replaces_rejects_duplicates_chains_and_loose_functions() -> None:
         return {}
 
     with pytest.raises(RegistrationError, match="inside an API class"):
-        HinokiAPI().include(loose)
+        Hinoki().include(loose)
 
 
 def test_a_narrower_resource_drops_the_parent_write_routes() -> None:

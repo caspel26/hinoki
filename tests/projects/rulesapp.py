@@ -1,6 +1,6 @@
 """An application that deliberately breaks two rules, for the check CLI tests."""
 
-from hinoki import Actions, HinokiAPI, Request, Transactions, get, post
+from hinoki import Actions, Hinoki, Request, Transactions, get, post
 from hinoki.rules import Diagnostic, Project, Rule, RuleSet
 
 
@@ -17,8 +17,8 @@ def create(request: Request) -> dict[str, str]:
 rules = RuleSet(Actions.require_access(), Transactions.require_atomic())
 
 
-def create_app() -> HinokiAPI:
-    app = HinokiAPI()
+def create_app() -> Hinoki:
+    app = Hinoki()
     app.include(health, create)
     return app
 

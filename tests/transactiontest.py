@@ -8,7 +8,7 @@ from typing import ClassVar
 
 import pytest
 
-from hinoki import Conflict, HinokiAPI, Module, RuntimeConfig, Schema, get, post
+from hinoki import Conflict, Hinoki, Module, RuntimeConfig, Schema, get, post
 from hinoki.db import Database, DatabaseModule, UniqueViolation
 from hinoki.modules import ModuleContext
 from hinoki.request import Request
@@ -96,9 +96,9 @@ async def count(request: Request) -> dict[str, int]:
 async def needs_database(request: Request) -> None: ...
 
 
-def make_app(**runtime: float) -> HinokiAPI:
+def make_app(**runtime: float) -> Hinoki:
     assert URL is not None
-    app = HinokiAPI(runtime=RuntimeConfig(**runtime))  # type: ignore[arg-type]
+    app = Hinoki(runtime=RuntimeConfig(**runtime))  # type: ignore[arg-type]
     app.include(create_ok, create_then_crash, create_then_conflict, create_duplicate)
     app.include(create_slow, count, swallow_database_error)
     app.install(DatabaseModule(URL, max_size=3, wait=0.5), Holder())
@@ -175,7 +175,7 @@ async def test_a_request_timeout_rolls_back_and_the_worker_keeps_serving(
 
 
 async def test_transaction_without_a_database_fails_startup() -> None:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(needs_database)
     client = Client(app.asgi())
     assert await client.lifespan_event("startup") == "lifespan.startup.failed"

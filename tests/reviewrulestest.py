@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import Actions, HinokiAPI, Imports, Request, Schema, Schemas, get, mcp
+from hinoki import Actions, Hinoki, Imports, Request, Schema, Schemas, get, mcp
 from hinoki.__main__ import main
 from hinoki.imports import imports_of
 from hinoki.mcp import DevProject, Server, serve
@@ -30,7 +30,7 @@ from tests.projects.rulesapp import create_app as plain_app
 TODAY = datetime.date(2026, 11, 13)
 
 
-def project(app: HinokiAPI) -> Project:
+def project(app: Hinoki) -> Project:
     return Project(app)
 
 
@@ -148,7 +148,7 @@ def mystery(request: Request):  # type: ignore[no-untyped-def]
 
 
 def test_exposure_sees_subclasses_and_open_return_types() -> None:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(who, mystery)
     found = RuleSet(Schemas.forbid_exposure("password_hash")).run(project(app))
     assert {(d.status.value, d.subject.rsplit(".", 1)[-1]) for d in found} == {
@@ -198,7 +198,7 @@ def test_an_import_rule_with_a_mistyped_source_is_not_a_pass(
     (tmp_path / "shop" / "__init__.py").write_text("")
     monkeypatch.syspath_prepend(str(tmp_path))
     found = RuleSet(Imports.forbid(source="shop.domian", target="shop.api")).run(
-        Project(HinokiAPI(), ("shop",)), Phase.STATIC
+        Project(Hinoki(), ("shop",)), Phase.STATIC
     )
     assert failing(found)
 
@@ -299,7 +299,7 @@ def test_print_from_rules_does_not_reach_the_protocol_stream(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     class Args:
-        app = "tests.projects.rulesapp:create_app"
+        target = "tests.projects.rulesapp:create_app"
         rules = "tests.projects.rulesapp:chatty"
         package = None
         models = None
@@ -334,7 +334,6 @@ def test_check_fails_for_a_missing_explicit_waiver_file(
     code = main(
         [
             "check",
-            "--app",
             "tests.projects.rulesapp:create_app",
             "--waivers",
             str(tmp_path / "typo.toml"),
@@ -349,7 +348,6 @@ def test_check_allow_effects_runs_effectful_rules(
 ) -> None:
     arguments = [
         "check",
-        "--app",
         "tests.projects.rulesapp:create_app",
         "--rules",
         "tests.projects.rulesapp:effectful",

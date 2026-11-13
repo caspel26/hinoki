@@ -1,6 +1,6 @@
 # Application MCP — design (Q010)
 
-Status: **implemented first slice** (2026-11-13). Goal: let an AI agent use a running Hinoki application's own actions as MCP tools, with exactly the authentication, permissions, validation and transactions a normal client gets. The *development* MCP (`python -m hinoki mcp`) describes and checks a project; this one *serves* it.
+Status: **implemented first slice** (2026-11-13). Goal: let an AI agent use a running Hinoki application's own actions as MCP tools, with exactly the authentication, permissions, validation and transactions a normal client gets. The *development* MCP (`hinoki mcp`) describes and checks a project; this one *serves* it.
 
 ## Decisions
 

@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import HinokiAPI, mcp
+from hinoki import Hinoki, mcp
 from hinoki.mcp import DevProject, Server, serve
 from hinoki.modules import Module, ModuleContext
 from hinoki.proposals import ProposalError, propose
@@ -227,7 +227,6 @@ def test_the_command_serves_over_real_pipes(tmp_path: Path) -> None:
             "-m",
             "hinoki",
             "mcp",
-            "--app",
             "tests.projects.rulesapp:create_app",
         ],
         input=request + "\n",
@@ -239,7 +238,7 @@ def test_the_command_serves_over_real_pipes(tmp_path: Path) -> None:
     assert done.returncode == 0
     assert json.loads(done.stdout)["result"]["tools"]
     failed = subprocess.run(
-        [sys.executable, "-m", "hinoki", "mcp", "--app", "tests.projects.nope:x"],
+        [sys.executable, "-m", "hinoki", "mcp", "tests.projects.nope:x"],
         capture_output=True,
         text=True,
         timeout=60,
@@ -252,8 +251,8 @@ def test_the_command_serves_over_real_pipes(tmp_path: Path) -> None:
 def test_the_production_runtime_never_imports_the_development_server() -> None:
     code = (
         "import sys, hinoki, hinoki.runtime.asgi\n"
-        "from hinoki import HinokiAPI\n"
-        "HinokiAPI().asgi()\n"
+        "from hinoki import Hinoki\n"
+        "Hinoki().asgi()\n"
         "print('hinoki.mcp' in sys.modules)"
     )
     done = subprocess.run(
@@ -277,7 +276,7 @@ def test_propose_model_generates_source_that_imports_and_registers() -> None:
     )
     space: dict[str, object] = {}
     exec(compile(result["source"], "<proposal>", "exec"), space)  # noqa: S102
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(
         *[v for k, v in space.items() if k.endswith("_article") or "articles" in k]
     )

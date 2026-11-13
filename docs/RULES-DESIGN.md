@@ -1,12 +1,12 @@
 # Rules and development MCP — design (Q006)
 
-Status: **R1 design, R2–R5 implemented** (2026-11-13): `python/hinoki/rules.py` with `Diagnostic`/`Rule`/`RuleSet`, `Actions.require_access` (`HNK-ACC-001`), `Transactions.require_atomic` (`HNK-TXN-001`), `Schemas.forbid_exposure` (`HNK-SCH-001`) and `HinokiAPI(rules=..., enforce_rules=...)`. `Imports.forbid` (`HNK-IMP-001`, static, AST only), waivers in `hinoki-rules.toml` (`python/hinoki/waivers.py`, notices `HNK-WVR-001/002`) and `python -m hinoki check` (`checkcli.py`; text/json, exit 0/1/2). R5: `python -m hinoki mcp` (`python/hinoki/mcp.py`, tools `inspect_project`, `list_rules`, `explain_action`, `check_project`). R6 (review) open. Source: `FRAMEWORK_SPEC.md` §14–15 (local package). Nothing here is implemented until a step below says so.
+Status: **R1 design, R2–R5 implemented** (2026-11-13): `python/hinoki/rules.py` with `Diagnostic`/`Rule`/`RuleSet`, `Actions.require_access` (`HNK-ACC-001`), `Transactions.require_atomic` (`HNK-TXN-001`), `Schemas.forbid_exposure` (`HNK-SCH-001`) and `Hinoki(rules=..., enforce_rules=...)`. `Imports.forbid` (`HNK-IMP-001`, static, AST only), waivers in `hinoki-rules.toml` (`python/hinoki/waivers.py`, notices `HNK-WVR-001/002`) and `hinoki check` (`checkcli.py`; text/json, exit 0/1/2). R5: `hinoki mcp` (`python/hinoki/mcp.py`, tools `inspect_project`, `list_rules`, `explain_action`, `check_project`). R6 (review) open. Source: `FRAMEWORK_SPEC.md` §14–15 (local package). Nothing here is implemented until a step below says so.
 
 ## Observed
 
-* The registry already holds everything a startup rule needs: `HinokiAPI.routes` (method, path, handler, status, `Access`, `transaction`, pagination, parsers, renderers, owner class) and `bindings` (typed parameters, body schemas). `HinokiAPI.openapi()` is derived from it.
+* The registry already holds everything a startup rule needs: `Hinoki.routes` (method, path, handler, status, `Access`, `transaction`, pagination, parsers, renderers, owner class) and `bindings` (typed parameters, body schemas). `Hinoki.openapi()` is derived from it.
 * Models carry `__table__`, columns, relations, unique groups; `Schema` classes expose `specs()`; `Access` names an auth provider and scopes.
-* The only CLI is `python -m hinoki migrations …` (`__main__.py`). There is no rules code, no MCP code, no diagnostics type.
+* The only CLI is `hinoki migrations …` (`__main__.py`). There is no rules code, no MCP code, no diagnostics type.
 * Rules are for **applications built with Hinoki**, distinct from `AGENTS.md`, which governs developing Hinoki itself.
 
 ## Decisions
@@ -41,7 +41,7 @@ project_rules = RuleSet(
 | runtime | none in this slice (design only: capability checks around ORM writes) | — |
 | test/contract | none in this slice (`run_scenario` deferred) | — |
 
-Rules apply when enabled in the `RuleSet`; creating an app without one runs nothing. `HinokiAPI(rules=project_rules, enforce=True)` makes startup-phase violations fail startup with every diagnostic listed; `enforce=False` only logs. Static rules run from the CLI/CI, never at import time or startup (no import-time I/O).
+Rules apply when enabled in the `RuleSet`; creating an app without one runs nothing. `Hinoki(rules=project_rules, enforce=True)` makes startup-phase violations fail startup with every diagnostic listed; `enforce=False` only logs. Static rules run from the CLI/CI, never at import time or startup (no import-time I/O).
 
 ### D4 Waivers belong to the owner
 
@@ -50,11 +50,11 @@ Rules apply when enabled in the `RuleSet`; creating an app without one runs noth
 
 ### D5 CLI
 
-`python -m hinoki check --app module:factory [--rules module:project_rules] [--format text|json] [--phase static|startup]`. Exit codes: 0 clean (or only waived/info), 1 violations, 2 usage/loading error. It builds the registry without starting lifespans and without any database or network access.
+`hinoki check module:factory [--rules module:project_rules] [--format text|json] [--phase static|startup]`. Exit codes: 0 clean (or only waived/info), 1 violations, 2 usage/loading error. It builds the registry without starting lifespans and without any database or network access.
 
 ### D6 Development MCP
 
-* `python -m hinoki mcp --app module:factory [--rules …]` speaks JSON-RPC 2.0 over stdio (MCP): `initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call`. Stdlib only. It is a separate command; `hinoki.runtime` never imports it, so a production server cannot publish it by accident.
+* `hinoki mcp module:factory [--rules …]` speaks JSON-RPC 2.0 over stdio (MCP): `initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call`. Stdlib only. It is a separate command; `hinoki.runtime` never imports it, so a production server cannot publish it by accident.
 * Tools, all read-only and versioned (`tool_version` in every result): `inspect_project` (actions, models, `Schema` types, parsers/renderers, rules enabled), `list_rules`, `explain_action` (signature, `Schema` types, access, transaction, documented errors, applicable rules, source location), `check_project` (the same diagnostics as the CLI; effectful checks refused). `run_scenario` is **deferred**: it needs a scenario format and an authorisation story.
 * Results are structured JSON in `structuredContent` plus a short text rendering. Errors use JSON-RPC errors for protocol faults and `isError` results for tool failures.
 * Unverified: conformance with a specific MCP client or protocol revision. The implementation follows the published method names and shapes from memory of the specification; a real client run is a listed open item, and no compatibility claim is made until it exists.
@@ -79,9 +79,9 @@ Per rule: a passing and a failing fixture with the exact diagnostic (ID, locatio
 | Step | Deliverable | Files |
 | --- | --- | --- |
 | R1 | This design | `docs/RULES-DESIGN.md` |
-| R2 (done) | `Diagnostic`, `Rule`, `RuleSet`, startup rules, enforcement hook on `HinokiAPI` | `python/hinoki/rules.py`, `python/hinoki/app.py` |
+| R2 (done) | `Diagnostic`, `Rule`, `RuleSet`, startup rules, enforcement hook on `Hinoki` | `python/hinoki/rules.py`, `python/hinoki/app.py` |
 | R3 (done) | Static `Imports.forbid`, project loading | `python/hinoki/rules.py`, `python/hinoki/imports.py` |
-| R4 (done) | Waivers (`hinoki-rules.toml`) and `python -m hinoki check` | `python/hinoki/waivers.py`, `python/hinoki/__main__.py` |
+| R4 (done) | Waivers (`hinoki-rules.toml`) and `hinoki check` | `python/hinoki/waivers.py`, `python/hinoki/__main__.py` |
 | R5 (done) | Development MCP server and tools | `python/hinoki/mcp.py` |
 | R6 (done) | Independent review (rules decide what passes CI; MCP exposes the project), fixes, docs, handoff | — |
 
@@ -92,7 +92,7 @@ Whether `enforce` should default to on when a `RuleSet` is passed (recommended: 
 ## Implementation notes (R5)
 
 * `mcp.py` is stdlib-only JSON-RPC 2.0, one JSON message per line on stdin/stdout; protocol faults are JSON-RPC errors (-32700/-32600/-32601/-32602), tool failures are `isError` results without tracebacks, notifications get no answer. `initialize` echoes a known protocol version (`2025-06-18`, `2025-03-26`, `2024-11-05`) or offers the newest.
-* A test proves `hinoki.mcp` is not in `sys.modules` after building and serving a `HinokiAPI`; the command loads it lazily.
+* A test proves `hinoki.mcp` is not in `sys.modules` after building and serving a `Hinoki`; the command loads it lazily.
 * Effectful rules are never run through the server (no `allow_effects`). Waivers are read only. `--models` optionally lists modules whose models `inspect_project` describes.
 * **Not verified against a real MCP client**; the shapes follow the specification from the author's knowledge. `run_scenario` and the application MCP stay out of scope.
 

@@ -8,7 +8,7 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import HinokiAPI, Request, Schema, get, native, post
+from hinoki import Hinoki, Request, Schema, get, native, post
 from hinoki.parsers import JSONParser, TextParser
 from hinoki.renderers import DEFAULT_RENDERERS, JSONRenderer, TextRenderer
 from hinoki.testing import ASGIClient
@@ -89,7 +89,7 @@ async def text() -> str:
 
 
 async def test_customised_and_subclassed_codecs_work_through_the_stack() -> None:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(pretty, wrapped, money, echo, text)
     async with ASGIClient(app) as client:
         pretty_reply = await client.get("/pretty")
@@ -118,14 +118,14 @@ async def test_application_wide_defaults_apply_unless_an_action_chooses() -> Non
     async def plain() -> dict[str, int]:
         return {"z": 1, "a": 2}
 
-    app = HinokiAPI(renderers=[JSONRenderer(sort_keys=True), TextRenderer()])
+    app = Hinoki(renderers=[JSONRenderer(sort_keys=True), TextRenderer()])
     app.include(plain, text)
     async with ASGIClient(app) as client:
         reply = await client.get("/plain")
         assert list(reply.body) == ["a", "z"]  # the application default sorts keys
         assert (await client.get("/text")).body == "plain ✓"  # the action's own choice
     with pytest.raises(ValueError, match="distinct media types"):
-        HinokiAPI(renderers=[JSONRenderer(), JSONRenderer()])
+        Hinoki(renderers=[JSONRenderer(), JSONRenderer()])
 
 
 TEXT_CHARS = 'ab"\\\n\u00e9\U0001f600 '
@@ -213,7 +213,7 @@ def test_explicit_default_renderers_are_not_overridden_by_application_defaults()
     async def unchosen() -> dict[str, int]:
         return {"z": 1, "a": 2}
 
-    app = HinokiAPI(renderers=[JSONRenderer(sort_keys=True)])
+    app = Hinoki(renderers=[JSONRenderer(sort_keys=True)])
     app.include(chosen, unchosen)
     routes = {r.path: r for r in app.routes}
     assert routes["/chosen"].renderers[0].sort_keys is False  # type: ignore[attr-defined]
@@ -229,7 +229,7 @@ async def test_a_buggy_prepare_hook_is_not_reported_as_invalid_json() -> None:
     async def p(request: Request) -> dict[str, object]:
         return {"d": request.data}
 
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(p)
     async with ASGIClient(app) as client:
         assert (await client.post("/p", json={"a": 1})).status == 500

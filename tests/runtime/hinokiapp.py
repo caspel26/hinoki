@@ -9,7 +9,7 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from hinoki import HinokiAPI, Module, ModuleContext, RuntimeConfig, get
+from hinoki import Hinoki, Module, ModuleContext, RuntimeConfig, get
 from hinoki.request import Request
 
 LOG = os.environ.get("EXP_LOG", os.devnull)
@@ -71,6 +71,6 @@ async def async_slow(request: Request) -> dict[str, int]:
     return {"pid": os.getpid()}
 
 
-app = HinokiAPI(runtime=RuntimeConfig(sync_workers=2, sync_queue=0))
+app = Hinoki(runtime=RuntimeConfig(sync_workers=2, sync_queue=0))
 app.include(fast, echo, sync_slow, async_slow)
 app.install(Gamma(), Alpha(), Beta())

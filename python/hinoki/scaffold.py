@@ -1,4 +1,4 @@
-"""``python -m hinoki new NAME``: a small project an AI agent can work in.
+"""``hinoki new NAME``: a small project an AI agent can work in.
 
 The generated project has a health route, rules that are on from day one
 (`HNK-ACC-001`, `HNK-TXN-001`, `HNK-SCH-001`), an `AGENTS.md` that tells an
@@ -34,33 +34,29 @@ select = ["E4", "E7", "E9", "F", "I", "B", "UP"]
 known-first-party = ["{name}"]
 {sources}"""
 
-MAIN = '''"""Application factory: ``uv run python -m hinoki dev {name}.main:create_app``."""
+MAIN = '''"""The application, declared: ``uv run hinoki dev {name}.main:app``."""
 
-from hinoki import HinokiAPI
+from hinoki import Hinoki
 
 from {name}.api import health
 from {name}.rules import project_rules
 from {name}.settings import AppSettings
 
-
-def create_app() -> HinokiAPI:
-    settings = AppSettings.load()  # {upper}_* variables and .env, declared on the class
-    app = HinokiAPI(
-        settings=settings,
-        title="{title}",
-        openapi_url="/openapi.json",
-        docs_url="/docs",
-        rules=project_rules,
-    )
-    app.include(health)
-    return app
+app = Hinoki(
+    settings=AppSettings,  # {upper}_* variables and .env, declared on the class
+    title="{title}",
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    rules=project_rules,
+    include=[health],
+)
 '''
 
 SETTINGS = '''"""Typed settings. Built-in groups (execution, lifecycle, logging, docs) come from
 the framework; add your own fields here and read them from ``app.settings``.
 
     {upper}_LOGGING__FORMAT=json   {upper}_EXECUTION__SYNC_WORKERS=16
-    {upper}_DATABASE_URL=...       (after you add: database_url: Secret)
+    {upper}_DATABASE__URL=...      (after you add: database: DatabaseSettings)
 """
 
 from hinoki import FrameworkSettings
@@ -100,11 +96,11 @@ project_rules = RuleSet(
 
 TEST = """from hinoki.testing import ASGIClient
 
-from {name}.main import create_app
+from {name}.main import app
 
 
 async def test_health_answers_through_the_whole_stack() -> None:
-    async with ASGIClient(create_app()) as client:
+    async with ASGIClient(app) as client:
         reply = await client.get("/health")
     assert (reply.status, reply.body) == (200, {{"status": "ok"}})
 """
@@ -125,8 +121,8 @@ MCP = """{{
     "hinoki": {{
       "command": "uv",
       "args": [
-        "run", "python", "-m", "hinoki", "mcp",
-        "--app", "{name}.main:create_app",
+        "run", "hinoki", "mcp",
+        "{name}.main:app",
         "--rules", "{name}.rules:project_rules",
         "--package", "{name}"
       ]
@@ -148,11 +144,11 @@ uv sync
 uv run pytest                                   # tests
 uv run ruff check . && uv run ruff format .     # lint and format
 uv run mypy {name}                              # types
-uv run python -m hinoki check --app {name}.main:create_app --rules {name}.rules:project_rules --package {name}
-uv run python -m hinoki dev {name}.main:create_app      # reload; `serve` runs it for production
+uv run hinoki check {name}.main:app --rules {name}.rules:project_rules --package {name}
+uv run hinoki dev {name}.main:app      # reload; `serve` runs it for production
 ```
 
-`check` and the MCP server build the app without opening a database, but settings are still loaded: once you add a required field such as `database_url: Secret`, run them with a dummy value (`{upper}_DATABASE_URL=postgres://unused uv run python -m hinoki check ...`, and add it under `env` in `.mcp.json`). Tests that touch the database need a real disposable one in `HINOKI_TEST_DATABASE_URL`.
+`check` and the MCP server build the app without opening a database, but settings are still loaded: once you add a required field such as `database: DatabaseSettings`, run them with a dummy value (`{upper}_DATABASE__URL=postgres://unused uv run hinoki check ...`, and add it under `env` in `.mcp.json`). Tests that touch the database need a real disposable one in `HINOKI_TEST_DATABASE_URL`.
 
 `check` runs the project's rules and prints diagnostics with stable IDs
 (`HNK-ACC-001` access, `HNK-TXN-001` transactions, `HNK-SCH-001` exposed fields,
@@ -166,7 +162,7 @@ uv run python -m hinoki dev {name}.main:create_app      # reload; `serve` runs i
 * Request and response bodies are `Schema` classes. Never return a `Model`; list the fields a response may contain. Fields named in the exposure rule (`password_hash`, ...) never appear in a response schema.
 * Relations are loaded explicitly (`select_related` / `prefetch_related`); there is no lazy loading.
 * Create from a schema with `Model.acreate(data, owner_id=me)`: keyword values set by the server win over the client's. Build responses with `Out.from_model(row)`.
-* Schema changes go through migrations (`python -m hinoki migrations plan ...`), reviewed as SQL. Never apply them at startup.
+* Schema changes go through migrations (`hinoki migrations plan ...`), reviewed as SQL. Never apply them at startup.
 * Configuration is typed settings (`{name}/settings.py`, loaded from `{upper}_*` environment variables); add fields there instead of reading `os.environ` in code. Secrets are `Secret` fields.
 * No underscores in file names; tests are `*test.py`.
 
@@ -178,9 +174,9 @@ The generated app has neither. The reference is `examples/tracker` in the framew
 2. `schemas.py`: an `In` schema without the owner, an `Out` schema.
 3. `operations.py`: plain async functions taking `owner_id` and values; row permission goes in the statement (`Model.filter(owner_id=me)`, `aupdate_where({{...}})`), so someone else's row looks missing (404).
 4. `security.py`: a `BearerAuth` that resolves a token to `Caller(id=..., user=member, permissions=...)` and an `Access(...)`.
-5. `api.py`: actions with `access=...`, `caller: Caller[Member]`, `transaction=True` on writes, `pagination=` on lists; `main.py`: `app.install(DatabaseModule(url))` with the URL from `{upper}_DATABASE_URL`.
-6. `python -m hinoki migrations plan --models {name}.models`, then review the SQL.
-7. Tests: `from hinoki.testing import ASGIClient`; `async with ASGIClient(create_app(url)) as client: await client.post("/x", json={{...}}, token="...")`.
+5. `api.py`: actions with `access=...`, `caller: Caller[Member]`, `transaction=True` on writes, `pagination=` on lists; `main.py`: `modules=[DatabaseModule]` in `Hinoki(...)`, which reads `database.url` from the settings.
+6. `hinoki migrations plan --models {name}.models`, then review the SQL.
+7. Tests: `from hinoki.testing import ASGIClient`; `async with ASGIClient(app) as client: await client.post("/x", json={{...}}, token="...")`.
 
 ## What you may not do
 
@@ -190,7 +186,7 @@ The generated app has neither. The reference is `examples/tracker` in the framew
 
 ## The development MCP
 
-`.mcp.json` starts `python -m hinoki mcp`: read-only tools `inspect_project`, `list_rules`, `explain_action`, `check_project`, `explain_error` (error codes and rule ids) and `propose_model` (starting-point source, never written for you; review it: add ownership scoping and pagination). Use them to see the real registry and rule results instead of guessing from files. They cannot change code, rules or waivers.
+`.mcp.json` starts `hinoki mcp`: read-only tools `inspect_project`, `list_rules`, `explain_action`, `check_project`, `explain_error` (error codes and rule ids) and `propose_model` (starting-point source, never written for you; review it: add ownership scoping and pagination). Use them to see the real registry and rule results instead of guessing from files. They cannot change code, rules or waivers.
 
 ## Before you finish
 

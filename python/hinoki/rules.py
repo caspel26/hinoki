@@ -25,7 +25,7 @@ from hinoki.routing import Route
 from hinoki.schema import Schema
 
 if TYPE_CHECKING:
-    from hinoki.app import HinokiAPI
+    from hinoki.app import Hinoki
 
 SCHEMA_VERSION = 1
 
@@ -58,6 +58,7 @@ class Diagnostic:
     status: Status = Status.VIOLATED
     subject: str = ""
     waiver: str = ""
+    fix: str = ""  # the exact change that satisfies the rule
 
     def as_dict(self) -> dict[str, str]:
         return {
@@ -70,17 +71,19 @@ class Diagnostic:
             "explanation": self.explanation,
             "subject": self.subject,
             "waiver": self.waiver,
+            "fix": self.fix,
         }
 
     def text(self) -> str:
-        return f"{self.location}: {self.rule_id} [{self.status}] {self.message}"
+        line = f"{self.location}: {self.rule_id} [{self.status}] {self.message}"
+        return f"{line}\n  fix: {self.fix}" if self.fix else line
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Project:
     """What rules inspect: the application registry."""
 
-    app: HinokiAPI
+    app: Hinoki
     packages: tuple[str, ...] = ()
 
 
@@ -116,6 +119,7 @@ class Rule:
     phase: ClassVar[Phase] = Phase.STARTUP
     severity: ClassVar[Severity] = Severity.ERROR
     explanation: ClassVar[str] = ""
+    fix: ClassVar[str] = ""  # shown under a violation: the exact change to make
     effects: ClassVar[tuple[str, ...]] = ()
 
     def check(self, project: Project) -> Iterable[Diagnostic]:
@@ -139,6 +143,7 @@ class Rule:
             self.explanation,
             status,
             location if subject is None else subject,
+            fix=self.fix if status is Status.VIOLATED else "",
         )
 
     def describe(self) -> dict[str, Any]:
@@ -236,6 +241,10 @@ def matches(route: Route, patterns: Iterable[str]) -> bool:
 
 class RequireAccess(Rule):
     id = "HNK-ACC-001"
+    fix = (
+        "add access=<policy> to the action (or list it in except_ "
+        "when it is public on purpose)"
+    )
     explanation = (
         "Actions are public unless they name an Access policy. This project "
         "requires every matching action to state its policy explicitly."
@@ -275,6 +284,10 @@ class RequireAccess(Rule):
 
 class RequireAtomic(Rule):
     id = "HNK-TXN-001"
+    fix = (
+        "add transaction=True to the action (or declare it on an "
+        "Endpoints(..., atomic=True) group)"
+    )
     explanation = (
         "Actions that change state must run in a transaction so a failure rolls "
         "everything back before the error is reported."
@@ -348,6 +361,10 @@ def reachable(start: Iterable[type[Schema]]) -> Iterator[type[Schema]]:
 
 class ForbidExposure(Rule):
     id = "HNK-SCH-001"
+    fix = (
+        "remove the field from the response Schema, or return a "
+        "Schema that does not carry it"
+    )
     explanation = (
         "A field with a forbidden name must never appear in a schema an action "
         "returns, directly or nested, so it cannot reach a client."
@@ -397,6 +414,7 @@ def models_in(annotation: object) -> Iterator[type]:
 
 class ForbidModelResponses(Rule):
     id = "HNK-API-001"
+    fix = "return a Schema (for example PostOut.from_model(row)) instead of the Model"
     explanation = (
         "An action must not return a Model (or a list/page of them): a response "
         "schema names exactly what a client may see, so a column never leaks "
@@ -429,6 +447,10 @@ class ForbidModelResponses(Rule):
 
 class ForbidImports(Rule):
     id = "HNK-IMP-001"
+    fix = (
+        "move the code to an allowed layer, or depend on it "
+        "through the layer in between"
+    )
     phase = Phase.STATIC
     explanation = (
         "Code under the source package must not import from the target package, "

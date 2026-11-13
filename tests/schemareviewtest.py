@@ -5,7 +5,7 @@ from typing import Annotated, Any
 
 import pytest
 
-from hinoki import Field, HinokiAPI, RegistrationError, Request, Schema, get, native
+from hinoki import Field, Hinoki, RegistrationError, Request, Schema, get, native
 from hinoki.fields import FieldInfo
 from hinoki.fieldtypes import check_limits
 from tests.harness import Pool
@@ -35,7 +35,7 @@ async def test_a_response_never_leaks_what_dump_hides(pool: Pool) -> None:
     def renamed(request: Request) -> Renamed:
         return Renamed(a=1)
 
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(renamed)
     client = await pool.start(app)
     assert (await client.request("GET", "/renamed")).body == {"a": 1}

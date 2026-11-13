@@ -22,16 +22,16 @@ from hinoki.rules import Phase, Project, RuleSet, failing
 from hinoki.runtime.asgi import ASGIAdapter
 from hinoki.runtime.binding import Binding, bind
 from hinoki.runtime.config import RuntimeConfig
-from hinoki.settings import DocsSettings, FrameworkSettings
+from hinoki.settings import DocsSettings, FrameworkSettings, Settings
 
 log = logging.getLogger("hinoki")
 
 
-class HinokiAPI:
+class Hinoki:
     """A Hinoki application.
 
     Registering routes builds the native router; nothing connects to
-    anything, so factories returning ``HinokiAPI`` are safe to import and call.
+    anything, so factories returning ``Hinoki`` are safe to import and call.
     The instance is itself an ASGI callable (``granian --interface asgi
     module:app``); the first call freezes the declarations.
     """
@@ -40,6 +40,8 @@ class HinokiAPI:
         self,
         *,
         settings: object | None = None,
+        include: Sequence[object] = (),
+        modules: Sequence[Module | type[Module]] = (),
         runtime: RuntimeConfig | None = None,
         title: str | None = None,
         version: str | None = None,
@@ -51,6 +53,8 @@ class HinokiAPI:
         parsers: Sequence[Parser] | None = None,
         renderers: Sequence[Renderer] | None = None,
     ) -> None:
+        if isinstance(settings, type) and issubclass(settings, Settings):
+            settings = settings.load()  # a class: read its variables now
         # An explicit argument wins over ``settings``, which wins over the default.
         built_in = settings if isinstance(settings, FrameworkSettings) else None
         docs = built_in.docs if built_in else DocsSettings()
@@ -83,6 +87,17 @@ class HinokiAPI:
         self._modules: list[Module] = []
         self._router = Router()
         self._adapter: ASGIAdapter | None = None
+        # The declared form: ``Hinoki(include=[...], modules=[...])``.
+        if modules:
+            self.install(*(self.module_of(m) for m in modules))
+        if include:
+            self.include(*include)
+
+    def module_of(self, module: Module | type[Module]) -> Module:
+        """An instance as given, or a class built from this app's settings."""
+        if isinstance(module, type):
+            return module.from_settings(self.settings)
+        return module
 
     @property
     def routes(self) -> tuple[Route, ...]:
@@ -97,25 +112,15 @@ class HinokiAPI:
         return tuple(self._modules)
 
     def include(self, *items: object) -> None:
-        """Register decorated functions and ``API`` subclasses.
+        """Register decorated functions, ``API`` subclasses and objects that expose
+        an ``api()`` (the admin).
 
         All-or-nothing per call: on conflict the application is unchanged.
         """
         self._check_mutable()
         pending: list[Route] = []
         for item in items:
-            if isinstance(item, type) and issubclass(item, API):
-                pending.extend(item.routes())
-            elif (route := route_of(item)) is not None:
-                if route.replaces:
-                    raise RegistrationError(
-                        f"{route.name}: replaces=... only works inside an API class"
-                    )
-                pending.append(route)
-            else:
-                raise RegistrationError(
-                    f"{item!r} is neither an API class nor a decorated function"
-                )
+            pending.extend(self.routes_of(item))
         pending = [self.with_defaults(route) for route in pending]
         bound = [bind(route) for route in pending]  # bad signatures fail here
         staged = Router()
@@ -129,6 +134,26 @@ class HinokiAPI:
         self._router = staged
         self._routes.extend(pending)
         self._bindings.extend(bound)
+
+    @staticmethod
+    def routes_of(item: object) -> list[Route]:
+        """The routes an item declares: an API class, a decorated function, or an
+        object exposing ``api()`` (the admin)."""
+        exposed = getattr(item, "api", None)
+        if not isinstance(item, type) and callable(exposed):
+            item = exposed()
+        if isinstance(item, type) and issubclass(item, API):
+            return list(item.routes())
+        route = route_of(item)
+        if route is None:
+            raise RegistrationError(
+                f"{item!r} is neither an API class nor a decorated function"
+            )
+        if route.replaces:
+            raise RegistrationError(
+                f"{route.name}: replaces=... only works inside an API class"
+            )
+        return [route]
 
     def with_defaults(self, route: Route) -> Route:
         """The route with this application's default parsers/renderers filled in
