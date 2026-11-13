@@ -7,7 +7,12 @@ from collections.abc import Callable
 from typing import Any
 
 from hinoki.admin.components import icon_name
-from hinoki.admin.formpages import FormView, form_fields, form_response
+from hinoki.admin.formpages import (
+    FormView,
+    check_references,
+    form_fields,
+    form_response,
+)
 from hinoki.admin.forms import (
     collect,
 )
@@ -129,7 +134,7 @@ async def index(self: API, request: Request, principal: Principal[Any]) -> Reply
 
 async def search(self: API, request: Request, principal: Principal[Any]) -> Reply:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
-    text = request.GET.get("q", "")[:MAX_QUERY].strip()
+    text = request.GET.get("q", "").replace("\x00", "")[:MAX_QUERY].strip()
     groups = []
     if text:
         for slug, entry in site.admin.models.items():
@@ -139,12 +144,12 @@ async def search(self: API, request: Request, principal: Principal[Any]) -> Repl
                 **{f"{entry.search[0]}__contains": text}
             )
             rows = await query.limit(SEARCH_HITS).aall()
-            if rows:
-                links = "".join(
-                    f'<li><a href="{escape(site.url(slug, str(getattr(r, entry.model.__primary_key__))))}">{escape(entry.title_of(r))}</a></li>'
-                    for r in rows
-                    if entry.can(principal, "change", r)
-                )
+            links = "".join(
+                f'<li><a href="{escape(site.url(slug, str(getattr(r, entry.model.__primary_key__))))}">{escape(entry.title_of(r))}</a></li>'
+                for r in rows
+                if entry.can(principal, "view", r) and entry.can(principal, "change", r)
+            )
+            if links:
                 groups.append(f"<h3>{escape(entry.plural())}</h3><ul>{links}</ul>")
     body = (
         Raw("".join(groups))
@@ -199,6 +204,7 @@ async def add_submit(
         )
     fields = form_fields(entry, creating=True)
     values, errors = collect(fields, request.POST)
+    errors = errors or await check_references(site, fields, values)
     errors = errors or await entry.check(values, principal, None)
     message = "" if errors else await guarded(entry.save(values, principal))
     if errors or message:
@@ -251,6 +257,7 @@ async def edit_submit(
     fields = form_fields(entry, creating=False)
     original = {f.name: getattr(row, f.name) for f in fields}
     values, errors = collect(fields, request.POST, original)
+    errors = errors or await check_references(site, fields, values)
     errors = errors or await entry.check(values, principal, row)
     message = "" if errors else await guarded(entry.save(values, principal, row))
     if errors or message:
@@ -309,6 +316,14 @@ async def delete_submit(
     )
 
 
+async def remove_all(
+    entry: ModelAdmin[Any], rows: list[Any], principal: Principal[Any]
+) -> None:
+    """All deletions in one savepoint: either every row goes or none does."""
+    for row in rows:
+        await entry.remove(row, principal)
+
+
 async def bulk(
     self: API, request: Request, principal: Principal[Any], model: str
 ) -> Reply:
@@ -324,7 +339,11 @@ async def bulk(
     rows = []
     for raw in chosen:
         row = await find_row(site, entry, raw)
-        if row is not None and entry.can(principal, "delete", row):
+        if (
+            row is not None
+            and entry.can(principal, "view", row)
+            and entry.can(principal, "delete", row)
+        ):
             rows.append(row)
     if not rows:
         return Reply(303, headers=[("location", site.url(model))])
@@ -345,9 +364,7 @@ async def bulk(
             cancel=site.url(model),
         )
         return await site.page("Delete selected", content, active=model)
-    failed = ""
-    for row in rows:
-        failed = failed or await guarded(entry.remove(row, principal))
+    failed = await guarded(remove_all(entry, rows, principal))
     if failed:
         return await site.problem(409, failed)
     return Reply(303, headers=[("location", site.url(model, done="deleted"))])

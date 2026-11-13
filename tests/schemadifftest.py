@@ -10,6 +10,7 @@ import pytest
 
 from hinoki import UNSET, Field, Schema, Unset
 from hinoki.errors import ErrorDetail, ValidationError
+from hinoki.fieldtypes import FieldType
 from tests.oracle.validation import INVALID, TooManyErrors, Validator
 
 
@@ -48,8 +49,6 @@ def oracle(cls: type[Schema], data: object) -> Any:
     """The old ``Schema.validate``, kept as the reference implementation."""
     validator = Validator()
     try:
-        from hinoki.fieldtypes import FieldType
-
         value = validator.schema(FieldType("schema", schema=cls), data, "")
     except TooManyErrors:
         validator.errors.append(

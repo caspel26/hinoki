@@ -14,6 +14,7 @@ from collections.abc import Awaitable, Callable
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, cast
 
+from hinoki import context
 from hinoki.context import request_id
 from hinoki.db import Database
 from hinoki.docsui import CSP, Page
@@ -72,6 +73,12 @@ class ASGIAdapter:
         self.bindings = app.bindings
         self.document = self._document(app)
         self.docs = docs_pages(app.openapi_url, app.docs_url, app.redoc_url)
+        for path in self.docs:
+            if app.lookup("GET", path) is not None:
+                raise RegistrationError(
+                    f"{path} is served by the documentation viewer and also "
+                    "matches a route; move one of them"
+                )
         self.ctx = ModuleContext(app.settings)
         self.executor = SyncExecutor(app.runtime.sync_workers, app.runtime.sync_queue)
         needs_database = any(b.route.transaction for b in self.bindings)
@@ -133,6 +140,7 @@ class ASGIAdapter:
     async def _http(self, scope: Scope, receive: Any, send: Any) -> None:
         rid = uuid.uuid4().hex
         token = request_id.set(rid)
+        context.route_headers.set(())
         # Models use the worker's Database without it being passed around.
         db_token = database_var.set(self.ctx.find(Database))
         try:
@@ -140,7 +148,13 @@ class ASGIAdapter:
         finally:
             database_var.reset(db_token)
             request_id.reset(token)
-        headers = [*response.headers, (b"x-request-id", rid.encode())]
+        present = {name for name, _ in response.headers}
+        extra = [
+            (name.encode(), value.encode())
+            for name, value in context.route_headers.get()
+            if name.encode() not in present
+        ]
+        headers = [*response.headers, *extra, (b"x-request-id", rid.encode())]
         if response.status not in BODYLESS:
             headers.append((b"content-length", str(len(response.body)).encode()))
         start = {"type": "http.response.start", "status": response.status}
@@ -169,6 +183,8 @@ class ASGIAdapter:
         if page is not None:
             return docs_response(page)
         binding, path_params = self._route(scope)
+        owner = binding.route.owner
+        context.route_headers.set(getattr(owner, "response_headers", ()))
         headers = header_map(scope)
         principal = await authorize(scope, binding, headers)
         renderer = negotiate(headers.get("accept", ""), binding.route.renderers)

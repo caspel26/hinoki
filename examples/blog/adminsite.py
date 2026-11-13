@@ -87,13 +87,28 @@ class PostAdmin(ModelAdmin[Post]):
         return super().display(row, column)
 
     async def stats(self, principal: Principal[Any]) -> list[Stat]:
-        rows = await self.queryset(principal).aall()
-        published = [r for r in rows if r.published]
-        drafts = [r for r in rows if not r.published]
+        """Counts come from the database; only the last week's rows are loaded
+        (for the trend lines), so the cost does not grow with the blog."""
+        total = await self.queryset(principal).acount()
+        published = await self.queryset(principal).filter(published=True).acount()
+        since = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=DAYS)
+        week = await Post.filter(created_at__gte=since).aall()
         return [
-            Stat("Posts", len(rows), "file-text", "accent", per_day(rows)),
-            Stat("Published", len(published), "circle-check", "ok", per_day(published)),
-            Stat("Drafts", len(drafts), "pencil", "warn", per_day(drafts)),
+            Stat("Posts", total, "file-text", "accent", per_day(week)),
+            Stat(
+                "Published",
+                published,
+                "circle-check",
+                "ok",
+                per_day([r for r in week if r.published]),
+            ),
+            Stat(
+                "Drafts",
+                total - published,
+                "pencil",
+                "warn",
+                per_day([r for r in week if not r.published]),
+            ),
         ]
 
 
