@@ -115,3 +115,12 @@ def add_arguments(
     check.add_argument("--phase", choices=[p.value for p in Phase])
     check.add_argument("--waivers", help=f"waiver file (default ./{NAME})")
     check.add_argument("--format", choices=["text", "json"], default="text")
+
+    server = commands.add_parser(
+        "mcp", help="serve read-only project context over MCP (stdio)"
+    )
+    server.add_argument("--app", required=True, help="module:factory or module:app")
+    server.add_argument("--rules", help="module:ruleset (default: the app's rules)")
+    server.add_argument("--package", action="append", help="package to scan (static)")
+    server.add_argument("--models", action="append", help="module that defines models")
+    server.add_argument("--waivers", help=f"waiver file (default ./{NAME})")

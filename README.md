@@ -112,7 +112,9 @@ Honest status, verified by the test suite:
 | Versioned, inspectable SQL migrations planned from the models (`python -m hinoki migrations plan/apply/status/sql`); destructive operations refused unless allowed; never applied at startup | Implemented (PostgreSQL) |
 | Reference blog (`examples/blog`) incl. a real Granian + PostgreSQL run | Implemented |
 | Typing: constructors and decorators checked by `mypy --strict`; `Post(...)` and `await post.asave()` are checked; `Model.acreate(**values)` is **not** (generated stubs are still open) | Known gap ([docs/TYPING.md](docs/TYPING.md)) |
-| JWT, rules engine, MCP, admin extra, benchmarks beyond the router micro-benchmark | Not started |
+| Optional rules (`RuleSet`: access, transaction, schema exposure, static import boundaries), owner waivers, `python -m hinoki check` (text/JSON) | Implemented; runtime and scenario phases not built |
+| Development MCP (`python -m hinoki mcp`): read-only project context over stdio | Implemented; not yet tested against a real MCP client; no application MCP |
+| JWT, admin extra, benchmarks beyond micro-benchmarks | Not started |
 | `Request` as the first handler argument (`method`, `headers`, `GET`, `COOKIES`, `body`, `data`, `user`) | Implemented; query, cookie and header parsing and JSON decode/encode run in Rust (modest measured gain for JSON, larger for query strings: [benchmarks](benchmarks/README.md)) |
 | Body parsers chosen by `Content-Type`: JSON (default), form, multipart (Rust), custom; `parsers=[...]` per action | Implemented; uploads stay in memory within a 1 MiB body cap |
 | Renderers chosen by `Accept` (negotiation in Rust, 406 before the handler runs), `renderers=[...]` per action, custom renderers | Implemented; error bodies are always JSON |
@@ -179,7 +181,7 @@ ownership per worker, the bounded sync executor and the lifespan/shutdown sequen
 2. ~~**Vertical slice: blog** — request → schema → ORM (PostgreSQL) → auth → rollback → OpenAPI → pagination~~ ✅
 3. ~~**ORM and generated CRUD** — relations, eager loading, migrations, replaceable CRUD operations~~ ✅ (JWT still open)
 4. **Request object, parsers and renderers** — `request` as first argument ✅; Rust parsing, parsers, renderers next
-5. **Rules and development MCP**
+5. ~~**Rules and development MCP**~~ ✅ (client compatibility unverified)
 6. **Admin extra** — one theme, full HTML override
 7. **Stabilization** — wheels, benchmarks, release policy
 

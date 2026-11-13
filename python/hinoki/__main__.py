@@ -80,6 +80,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     if args.group == "check":
         return run_check(args)
+    if args.group == "mcp":
+        from hinoki.mcp import run_mcp  # noqa: PLC0415 - loaded only for `mcp`
+
+        return run_mcp(args)
     try:
         if args.action == "plan":
             run_plan(args)
