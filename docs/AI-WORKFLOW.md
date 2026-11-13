@@ -27,7 +27,8 @@ The generated project contains a health route, **rules that are already on** (`H
 
 ## 4. Limits (what this does not do)
 
-* No `run_scenario` tool yet (executing a request as a principal against a disposable database), no model/endpoint *proposal* tool, and no application MCP publishing actions to agents.
-* The MCP has not been exercised by a real MCP client; it follows the protocol from the specification as known.
+* No application MCP yet (publishing an app's own actions to agents as tools); the development MCP describes and checks a project, it does not serve it.
+* The development MCP was exercised with the official `mcp` Python client (`tests/mcpclient/verify.py`: initialize, `tools/list`, `tools/call`); other clients are untested.
+* `propose_model` is a starting point: it can scope rows to an owner (`owner=`), paginates the list and takes `unique_together`, but business rules, state transitions and relations beyond the owner are yours to write.
 * Rules decide declarations, not what a function body does; static import rules read the project's own files and report dynamic imports as unverifiable.
-* The guide was verified by generating a project and running its tests and `check`, not by watching an agent build a feature end to end.
+* The guide was verified twice: by generating a project and running its tests and `check`, and by having a fresh agent add an owner-scoped `Bookmark` resource from the generated `AGENTS.md` alone. That run found the problems now fixed (the framework path in the generated `pyproject.toml`, the missing test client, the database variable for `check`, the missing recipe, `explain_error` gaps, `propose_model` without ownership). It is one run by one agent, not a benchmark.

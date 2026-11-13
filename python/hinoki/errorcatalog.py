@@ -11,6 +11,34 @@ CATALOG: dict[str, tuple[str, str]] = {
         "A request body or parameter failed validation (HTTP 422); `details` lists every problem with its path.",
         "Fix the listed fields; the client sent a wrong type, a missing field, an unknown field or a value outside the schema's constraints.",
     ),
+    "ge": (
+        "A number is below the schema's minimum (`ge`).",
+        "Send a value greater than or equal to the limit shown in the message.",
+    ),
+    "le": (
+        "A number is above the schema's maximum (`le`).",
+        "Send a value less than or equal to the limit shown in the message.",
+    ),
+    "gt": (
+        "A number is not greater than the schema's exclusive lower limit (`gt`).",
+        "Send a value strictly greater than the limit shown in the message.",
+    ),
+    "lt": (
+        "A number is not less than the schema's exclusive upper limit (`lt`).",
+        "Send a value strictly less than the limit shown in the message.",
+    ),
+    "bad_request": (
+        "The request is malformed in a way no more specific code covers (HTTP 400).",
+        "Read the message; correct the request.",
+    ),
+    "conflict": (
+        "The request conflicts with the current state (HTTP 409), for example a duplicate.",
+        "Raise a named `Conflict` subclass with its own `code` for each business rule so clients can tell the cases apart; map database unique violations once with `app.errors.handle(UniqueViolation)`.",
+    ),
+    "unique_conflict": (
+        "A unique value is already in use (the blog example's mapping of `UniqueViolation`).",
+        "Choose another value; in your own app map `UniqueViolation` to a named `Conflict`.",
+    ),
     "required": (
         "A required field is missing.",
         "Send the field, or give it a default in the schema.",

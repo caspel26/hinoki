@@ -401,3 +401,38 @@ def test_propose_model_rejects_odd_inputs() -> None:
     for model in ("Model", "UUID", "Schema", "\uff21rticle"):
         with pytest.raises(ProposalError):
             propose(model, None, [{"name": "x"}])
+
+
+def test_explain_error_knows_builtin_rules_and_more_codes(server: Server) -> None:
+    for code in ("HNK-API-001", "HNK-SCH-001", "conflict", "ge", "unique_conflict"):
+        result = call(server, "explain_error", code=code)["result"]
+        assert not result["isError"], code
+        assert result["structuredContent"]["meaning"]
+
+
+def load(source: str) -> list[object]:
+    space: dict[str, object] = {}
+    exec(compile(source, "<proposal>", "exec"), space)  # noqa: S102
+    return [v for k, v in space.items() if k.split("_")[0] in VERBS]
+
+
+def test_propose_model_with_an_owner_scopes_every_query_and_paginates() -> None:
+    result = propose(
+        "Bookmark",
+        "bookmarks",
+        [{"name": "url", "max_length": 500}, {"name": "tags", "nullable": True}],
+        owner="Member",
+        unique_together=[["owner_id", "url"]],
+    )
+    source = result["source"]
+    assert source.count("owner_id=caller.user.id") >= 5
+    assert "unique=[['owner_id', 'url']]" in source
+    assert "PageNumberPagination" in source and "access=member_only" in source
+    assert "TODO: add access" not in source
+    compile(source, "<proposal>", "exec")
+    with pytest.raises(ProposalError):
+        propose("A", None, [{"name": "x"}], path="/Bad Path")
+    with pytest.raises(ProposalError):
+        propose("A", None, [{"name": "x"}], unique_together=[["nope"]])
+    with pytest.raises(ProposalError):
+        propose("A", None, [{"name": "owner_id"}], owner="Member")

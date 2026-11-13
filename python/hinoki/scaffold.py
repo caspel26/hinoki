@@ -28,10 +28,10 @@ asyncio_default_fixture_loop_scope = "function"
 python_files = ["*test.py"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
+select = ["E4", "E7", "E9", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["{name}", "hinoki"]
+known-first-party = ["{name}"]
 {sources}"""
 
 MAIN = '''"""Application factory: ``uv run granian --interface asgi --factory {name}.main:create_app``."""

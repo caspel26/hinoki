@@ -9,6 +9,7 @@ writes) and leaves the access policy as a visible TODO for the owner.
 from __future__ import annotations
 
 import keyword
+import re
 from typing import Any
 
 TYPES = {
@@ -27,6 +28,7 @@ SHADOWS = {
 MAX_NAME = 64
 MAX_LENGTH = 1_000_000
 MAX_FIELDS = 30
+PATH = r"/[a-z0-9-]+(/[a-z0-9-]+)*"
 
 
 class ProposalError(ValueError):
@@ -108,7 +110,45 @@ class Column:
         return f"{base} | Unset = UNSET" if patch else base
 
 
-def propose(name: Any, table: Any, fields: Any) -> dict[str, Any]:
+def groups_of(raw: Any, names: set[str]) -> list[list[str]]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or not all(
+        isinstance(g, list) and g and all(isinstance(n, str) for n in g) for g in raw
+    ):
+        raise ProposalError("unique_together is a list of lists of field names")
+    for group in raw:
+        unknown = [n for n in group if n not in names]
+        if unknown:
+            raise ProposalError(f"unique_together names unknown fields {unknown}")
+    return raw
+
+
+def names_of(
+    table: Any, model: str, owner: Any, path: Any, columns: list[Column]
+) -> tuple[str, str | None, str]:
+    """The validated table name, owner model and URL path."""
+    if "owner_id" in {c.name for c in columns}:
+        raise ProposalError("owner_id is added when you pass owner; do not declare it")
+    table_name = identifier(table or model.lower() + "s", "table")
+    owner_model = identifier(owner, "owner") if owner is not None else None
+    if owner_model is not None and not owner_model[0].isupper():
+        raise ProposalError("owner is the owning model class name, e.g. 'Member'")
+    if path is None:
+        path = "/" + table_name.replace("_", "-")
+    elif not isinstance(path, str) or not re.fullmatch(PATH, path):
+        raise ProposalError("path looks like /bookmarks (lower-case, digits, dashes)")
+    return table_name, owner_model, path
+
+
+def propose(
+    name: Any,
+    table: Any,
+    fields: Any,
+    owner: Any = None,
+    path: Any = None,
+    unique_together: Any = None,
+) -> dict[str, Any]:
     model = identifier(name, "name")
     if not model[0].isupper():
         raise ProposalError("name is the model class name, e.g. 'Article'")
@@ -117,25 +157,40 @@ def propose(name: Any, table: Any, fields: Any) -> dict[str, Any]:
     columns = [Column(item) for item in fields]
     if len({c.name for c in columns}) != len(columns):
         raise ProposalError("field names must be unique")
-    table_name = identifier(table or model.lower() + "s", "table")
-    path = "/" + table_name.replace("_", "-")
+    table_name, owner_model, path = names_of(table, model, owner, path, columns)
+    unique = groups_of(unique_together, {c.name for c in columns} | {"owner_id"})
+    lower = model.lower()
     required = [c for c in columns if not c.nullable]
     optional = [c for c in columns if c.nullable]
+    owned = owner_model is not None
+    class_options = f'table="{table_name}"' + (f", unique={unique!r}" if unique else "")
     lines = [
+        "from datetime import datetime  # noqa: F401 - only if a field uses it",
         "from typing import Annotated",
         "from uuid import UUID, uuid4",
-        "from datetime import datetime  # noqa: F401 - only if a field uses it",
         "",
-        "from hinoki import UNSET, Field, Request, Schema, Unset, delete, get, patch, post",
-        "from hinoki.orm import Model, field",
+        "from hinoki import (",
+        "    UNSET, Caller, Field, Request, Schema, Unset, delete, get, patch, post,",
+        ")",
+        "from hinoki.orm import Model, field" + (", foreign_key" if owned else ""),
+        "from hinoki.pagination import Page, PageNumberPagination, PageParams",
         "",
         "",
-        f'class {model}(Model, table="{table_name}"):',
+        f"class {model}(Model, {class_options}):",
         "    id: UUID = field(primary_key=True, default_factory=uuid4)",
+        *(
+            [
+                f'    owner_id: UUID = foreign_key({owner_model}, on_delete="restrict", '
+                f'related_name="{table_name}")'
+            ]
+            if owned
+            else []
+        ),
         *(c.model_line() for c in columns),
         "",
         "",
-        f"class {model}In(Schema):  # what a client may set",
+        f"class {model}In(Schema):  # what a client may set"
+        + ("; the owner is the caller" if owned else ""),
         *(f"    {c.name}: {c.schema_annotation(False)}" for c in required),
         *(f"    {c.name}: {c.schema_annotation(False)} = None" for c in optional),
         "",
@@ -149,42 +204,70 @@ def propose(name: Any, table: Any, fields: Any) -> dict[str, Any]:
         *(f"    {c.name}: {c.kind}{' | None' if c.nullable else ''}" for c in columns),
         "",
         "",
-        f'@get("{path}")  # TODO: add access=Access(...) and pagination',
-        f"async def list_{table_name}(request: Request) -> list[{model}Out]:",
-        f"    return [{model}Out.from_model(row) for row in await {model}.all().aall()]",
+    ]
+    guard = "access=member_only, " if owned else ""
+    todo = "" if owned else "  # TODO: add access=Access(...) unless public on purpose"
+    who = f", caller: Caller[{owner_model}]" if owned else ""
+    scope = ", owner_id=caller.user.id" if owned else ""
+    lines += [
+        "PAGES = PageNumberPagination(page_size=10, max_page_size=50)",
         "",
         "",
-        f'@get("{path}/{{item_id}}")',
-        f"async def get_{model.lower()}(request: Request, item_id: UUID) -> {model}Out:",
-        f"    return {model}Out.from_model(await {model}.aget(id=item_id))",
+        f'@get("{path}", {guard}pagination=PAGES){todo}',
+        f"async def list_{table_name}(",
+        f"    request: Request, page: PageParams{who}",
+        f") -> Page[{model}Out]:",
+        f'    found = await {model}.filter({scope[2:]}).order_by("-id").apaginate(page)'
+        if owned
+        else f'    found = await {model}.all().order_by("-id").apaginate(page)',
+        f"    return found.map({model}Out.from_model)",
         "",
         "",
-        f'@post("{path}", status=201, transaction=True)',
-        f"async def create_{model.lower()}(request: Request, data: {model}In) -> {model}Out:",
-        f"    return {model}Out.from_model(await {model}.acreate(data))",
+        f'@get("{path}/{{item_id}}", {guard.rstrip(", ")}){todo}'.replace(", )", ")"),
+        f"async def get_{lower}(request: Request, item_id: UUID{who}) -> {model}Out:",
+        f"    row = await {model}.aget(id=item_id{scope})",
+        f"    return {model}Out.from_model(row)",
         "",
         "",
-        f'@patch("{path}/{{item_id}}", transaction=True)',
-        f"async def update_{model.lower()}(",
-        f"    request: Request, item_id: UUID, data: {model}Patch",
+        f'@post("{path}", status=201, {guard}transaction=True){todo}',
+        f"async def create_{lower}(",
+        f"    request: Request, data: {model}In{who}",
         f") -> {model}Out:",
-        f"    row = await {model}.aget(id=item_id)",
+        f"    row = await {model}.acreate(data{scope})",
+        f"    return {model}Out.from_model(row)",
+        "",
+        "",
+        f'@patch("{path}/{{item_id}}", {guard}transaction=True){todo}',
+        f"async def update_{lower}(",
+        f"    request: Request, item_id: UUID, data: {model}Patch{who}",
+        f") -> {model}Out:",
+        f"    row = await {model}.aget(id=item_id{scope})",
         f"    return {model}Out.from_model(await row.aupdate_from(data))",
         "",
         "",
-        f'@delete("{path}/{{item_id}}", status=204, transaction=True)',
-        f"async def delete_{model.lower()}(request: Request, item_id: UUID) -> None:",
-        f"    await {model}.adelete(id=item_id)",
+        f'@delete("{path}/{{item_id}}", status=204, {guard}transaction=True){todo}',
+        f"async def delete_{lower}(request: Request, item_id: UUID{who}) -> None:",
+        f"    removed = await {model}.adelete(id=item_id{scope})",
+        "    if not removed:",
+        f"        raise {model}.NotFound()",
         "",
     ]
-    return {
-        "source": "\n".join(lines),
-        "next_steps": [
-            "Review and edit; this is a starting point, not a finished design.",
-            "Add Access(...) to every action that is not public on purpose "
-            "(rule HNK-ACC-001) and pagination to the listing.",
-            "Fields the server assigns (owner, state) must not be in the In schema.",
-            f"Run: python -m hinoki migrations plan --models <module> --name add_{table_name}",
-            "Run: python -m hinoki check",
-        ],
-    }
+    steps = [
+        "Review and edit; this is a starting point, not a finished design.",
+        "Fields the server assigns (state, timestamps) must not be in the In schema.",
+        f"Run: python -m hinoki migrations plan --models <module> --name add_{table_name}",
+        "Run: python -m hinoki check",
+    ]
+    if owned:
+        steps.insert(
+            1,
+            f"Define member_only = Access(auth=..., permissions=[...]) for {owner_model}; "
+            "every row query is scoped by owner_id so another member's row looks missing.",
+        )
+    else:
+        steps.insert(
+            1,
+            "No owner given: rows are not scoped. Add Access(...) and, for per-user data, "
+            "regenerate with owner=<Model>.",
+        )
+    return {"source": "\n".join(lines), "next_steps": steps}
