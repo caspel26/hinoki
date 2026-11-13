@@ -130,7 +130,12 @@ class Posts(API, path="/posts"):
 
     @post("/", status=201, access=editor, transaction=True)
     async def create(self, data: PostCreate, principal: Principal[User]) -> PostOut:
-        created = await Post.acreate(author_id=principal.identity.id, **data.dump())
+        created = await Post.acreate(
+            author_id=principal.identity.id,
+            title=data.title,
+            slug=data.slug,
+            body=data.body,
+        )
         return to_out(created)
 ```
 
