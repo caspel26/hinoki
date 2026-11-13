@@ -54,7 +54,7 @@ Python ≥ 3.12/abi3/maturin (ADR 0004); ASGI on Granian first (0001); per-worke
 ## Known limits / open items
 
 * **Needs owner:** typing strategy for `Model.acreate/aupdate` (generated `.pyi` recommended); ASGI vs RSGI default; whether per-worker Tokio threads are acceptable (needs the end-to-end benchmark V10); JWT dependency choice (which crypto library); CHANGELOG policy; `hinoki` name availability on PyPI/crates.io (unchecked).
-* Not implemented: relations, migrations, sync model methods, TLS to PostgreSQL, JWT, OpenAPI overrides/docs UI, cookies/headers binding, streaming, readiness flip before drain (needs a runner), `hinoki` CLI, rules engine, MCP, admin.
+* Not implemented: TLS to PostgreSQL, JWT, OpenAPI overrides, cookies/headers binding, streaming, readiness flip before drain (needs a runner), `hinoki` CLI, rules engine, MCP, admin.
 * Benchmarks: only the router micro-benchmark (`benchmarks/README.md`). No end-to-end numbers exist; no performance claim is made.
 * Review status: runtime (review 1), auth/validation (review 2), database layer (review 3) were done by a separate read-only Opus-class agent; all findings fixed. Relations/CRUD/rules will need new reviews. Mapping of the Opus/Sonnet/Haiku split: this session was a Sonnet-class agent; review agents were Opus-class.
 * Generated CRUD: `Resource.queryset` takes no principal, so per-user/tenant scoping of reads is not expressible (design gap from the CRUD review, not scheduled). Sync handlers abandoned by a deadline keep running to completion but can no longer hand work to the loop.
