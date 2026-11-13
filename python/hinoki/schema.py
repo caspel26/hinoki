@@ -179,12 +179,8 @@ class Schema:
         return cls(**values)
 
     def dump(self) -> dict[str, Any]:
-        """JSON-compatible form; ``UNSET`` fields are omitted."""
-        return {
-            name: encode(getattr(self, name))
-            for name in self.specs()
-            if getattr(self, name) is not UNSET
-        }
+        """JSON-compatible form; ``UNSET`` fields are omitted (built in Rust)."""
+        return cast(dict[str, Any], native.decode_json(native.encode_json(self)))
 
 
 def node_of(
@@ -215,7 +211,9 @@ def compile_native(root: type[Schema]) -> native.CompiledSchema:
             for name, spec in current.specs().items()
         ]
         definitions.append((current, fields))
-    return native.compile_schemas(definitions, 0, uuid.UUID, dt.datetime.fromisoformat)
+    return native.compile_schemas(
+        definitions, 0, uuid.UUID, dt.datetime.fromisoformat, UNSET
+    )
 
 
 def plain(value: Any) -> Any:
