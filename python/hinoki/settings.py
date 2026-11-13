@@ -105,11 +105,7 @@ class Settings:
         names no field an error, which catches typos; pass ``strict=False`` when
         another program shares the prefix. With an empty prefix nothing can be
         told apart from the rest of the environment, so no typo check happens."""
-        source: dict[str, str] = {}
-        if dotenv is not None and Path(dotenv).is_file():
-            source.update(parse_dotenv(Path(dotenv).read_text(encoding="utf-8")))
-        source.update(os.environ if env is None else env)
-        problems: list[str] = []
+        source, _, problems = gather(cls, prefix, env, dotenv)
         found = build(cls, prefix, source, dict(overrides or {}), problems)
         known = known_keys(cls, prefix)
         problems += [
@@ -120,6 +116,31 @@ class Settings:
         if problems or found is None:
             raise SettingsError(problems or ["could not build the settings"])
         return typing.cast(Self, found)
+
+    @classmethod
+    def explain(
+        cls,
+        *,
+        prefix: str = "",
+        env: Mapping[str, str] | None = None,
+        dotenv: str | os.PathLike[str] | None = None,
+        overrides: Mapping[str, Any] | None = None,
+        strict: bool = True,
+    ) -> list[SettingRow]:
+        """Load like ``load`` and say, for every value, where it came from:
+        ``override``, ``environment``, ``.env``, ``file`` (a ``*_FILE`` variable)
+        or ``default``. Secrets are redacted."""
+        found = cls.load(
+            prefix=prefix, env=env, dotenv=dotenv, overrides=overrides, strict=strict
+        )
+        _, origins, _ = gather(cls, prefix, env, dotenv)
+        return rows_of(found, prefix, origins, dict(overrides or {}))
+
+    @classmethod
+    def example(cls, prefix: str = "") -> str:
+        """A ``.env.example``: every variable with its default, required ones and
+        secrets left blank, and a comment with the type."""
+        return example_of(cls, prefix)
 
     def describe(self) -> dict[str, Any]:
         """The effective values as plain data, secrets redacted."""
@@ -140,6 +161,152 @@ class Settings:
 @functools.cache
 def resolved_hints(cls: type) -> dict[str, Any]:
     return typing.get_type_hints(cls)
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class SettingRow:
+    """One effective value: the variable name, the value as shown (secrets are
+    ``***``), and where it came from."""
+
+    key: str
+    value: str
+    origin: str
+
+
+FILE_SUFFIX = "_FILE"
+MAX_SECRET_FILE = 64 * 1024
+
+
+def gather(
+    cls: type[Settings],
+    prefix: str,
+    env: Mapping[str, str] | None,
+    dotenv: str | os.PathLike[str] | None,
+) -> tuple[dict[str, str], dict[str, str], list[str]]:
+    """The merged variables, where each came from, and any problems reading
+    ``*_FILE`` secrets. The environment beats the dotenv file."""
+    source: dict[str, str] = {}
+    origins: dict[str, str] = {}
+    if dotenv is not None and Path(dotenv).is_file():
+        for key, value in parse_dotenv(
+            Path(dotenv).read_text(encoding="utf-8")
+        ).items():
+            source[key], origins[key] = value, ".env"
+    for key, value in (os.environ if env is None else env).items():
+        source[key], origins[key] = value, "environment"
+    problems: list[str] = []
+    known = known_keys(cls, prefix)
+    for key in sorted(k for k in source if k.endswith(FILE_SUFFIX)):
+        target = key.removesuffix(FILE_SUFFIX)
+        if target not in known:
+            continue  # left for the unknown-setting check
+        path = source.pop(key)
+        origins.pop(key, None)
+        if target in source:
+            problems.append(f"{target}: set both directly and through {key}")
+            continue
+        text = read_secret_file(key, path, problems)
+        if text is not None:
+            source[target], origins[target] = text, "file"
+    return source, origins, problems
+
+
+def read_secret_file(key: str, path: str, problems: list[str]) -> str | None:
+    """The content of a secret file without its trailing newline. Only a regular
+    file up to 64 KiB; the problem names the variable, never the content."""
+    target = Path(path)
+    try:
+        if not target.is_file() or target.stat().st_size > MAX_SECRET_FILE:
+            problems.append(f"{key}: must name a regular file of at most 64 KiB")
+            return None
+        return target.read_text(encoding="utf-8").rstrip("\r\n")
+    except (OSError, UnicodeDecodeError):
+        problems.append(f"{key}: the file cannot be read as text")
+        return None
+
+
+def rows_of(
+    value: Settings,
+    prefix: str,
+    origins: Mapping[str, str],
+    overrides: dict[str, Any],
+    path: str = "",
+) -> list[SettingRow]:
+    rows: list[SettingRow] = []
+    for item in dataclasses.fields(value):
+        if item.name.startswith("_"):
+            continue
+        key = f"{path}{item.name.upper()}"
+        current = getattr(value, item.name)
+        if isinstance(current, Settings):
+            nested = overrides.get(item.name)
+            rows += rows_of(
+                current,
+                prefix,
+                origins,
+                dict(nested) if isinstance(nested, Mapping) else {},
+                key + SEPARATOR,
+            )
+            continue
+        if item.name in overrides:
+            origin = "override"
+        else:
+            origin = origins.get(prefix + key, "default")
+        rows.append(SettingRow(prefix + key, str(describe(current)), origin))
+    return rows
+
+
+TYPE_NAMES = {str: "text", int: "integer", float: "number", bool: "true/false"}
+
+
+def type_name(hint: Any) -> str:  # noqa: PLR0911 - one answer per kind of hint
+    if hint is Secret:
+        return "secret"
+    origin = typing.get_origin(hint)
+    if origin is Literal:
+        return "one of " + "|".join(typing.get_args(hint))
+    if origin in (typing.Union, types.UnionType):
+        inner = [a for a in typing.get_args(hint) if a is not type(None)]
+        return f"{type_name(inner[0])}, optional"
+    if origin in (list, tuple):
+        return "comma-separated " + type_name(typing.get_args(hint)[0])
+    return TYPE_NAMES.get(hint, getattr(hint, "__name__", str(hint)))
+
+
+def example_of(cls: type[Settings], prefix: str, path: str = "") -> str:
+    lines: list[str] = []
+    defaults = {f.name: f for f in dataclasses.fields(cls)}
+    for name, hint in cls.fields_of().items():
+        if name.startswith("_") or typing.get_origin(hint) is typing.ClassVar:
+            continue
+        key = f"{path}{name.upper()}"
+        if isinstance(hint, type) and issubclass(hint, Settings):
+            lines.append(example_of(hint, prefix, key + SEPARATOR))
+            continue
+        field = defaults[name]
+        required = has_default(cls, name) is False
+        default = "" if required or hint is Secret else describe_default(field)
+        note = type_name(hint) + (", required" if required else "")
+        lines.append(f"# {note}\n{prefix}{key}={default}")
+    return "\n".join(lines)
+
+
+def describe_default(field: dataclasses.Field[Any]) -> str:  # noqa: PLR0911
+    if field.default is not dataclasses.MISSING:
+        value = field.default
+    elif field.default_factory is not dataclasses.MISSING:
+        value = field.default_factory()
+        if isinstance(value, Settings):
+            return ""
+    else:
+        return ""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, list | tuple):
+        return ",".join(str(v) for v in value)
+    return str(value)
 
 
 def describe(value: Any) -> Any:
