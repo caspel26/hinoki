@@ -16,6 +16,7 @@ from __future__ import annotations
 import builtins
 import copy
 import dataclasses
+import inspect
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -138,34 +139,77 @@ class Model:
         cls.__table__ = table
         cls.__columns__ = tuple(f.name for f in fields)
         cls.__primary_key__ = keys[0]
-        cls.__relations__ = {}
+        cls.check_names(cls.__columns__)
+        cls.__relations__ = {
+            name: relation
+            for base in cls.__mro__[1:]
+            for name, relation in getattr(base, "__relations__", {}).items()
+            if relation.forward
+        }
         cls.register_relations(fields)
         cls.NotFound = type(
             "NotFound", (ObjectNotFound,), {"__qualname__": f"{cls.__name__}.NotFound"}
         )
 
     @classmethod
+    def check_names(cls, columns: tuple[str, ...]) -> None:
+        """A column named like a Model method would hide it on every instance."""
+        reserved = sorted(n for n in columns if n in dir(Model) or n.startswith("__"))
+        if reserved:
+            raise RegistrationError(
+                f"{cls.__name__}: field names {reserved} collide with Model attributes"
+            )
+
+    @classmethod
     def register_relations(cls, fields: tuple[dataclasses.Field[Any], ...]) -> None:
+        """Foreign keys declared by this class (inherited ones come with the
+        base). Every check runs before anything is attached, so a failing
+        definition leaves the referenced models untouched."""
+        own = cls.__dict__.get("__annotations__", {})
+        pending: list[tuple[type[Model], Relation]] = []
         for column in fields:
             meta: FieldMeta = column.metadata.get(MARK, FieldMeta())
-            if meta.references is None:
+            if meta.references is None or column.name not in own:
                 continue
             name = column.name.removesuffix("_id")
             if name == column.name:
                 raise RegistrationError(
                     f"{cls.__name__}.{column.name}: foreign key columns end in _id"
                 )
-            cls.attach(name, Relation(name, meta.references, column.name, True))
+            pending.append((cls, Relation(name, meta.references, column.name, True)))
             if meta.related_name:
                 back = Relation(meta.related_name, cls, column.name, False)
-                meta.references.attach(meta.related_name, back)
+                pending.append((meta.references, back))
+        for owner, relation in pending:
+            owner.check_attach(relation.name, relation)
+        for owner, relation in pending:
+            owner.attach(relation.name, relation)
+
+    @classmethod
+    def check_attach(cls, name: str, relation: Relation) -> None:
+        existing = cls.__relations__.get(name)
+        redefined = (
+            existing is not None
+            and not existing.forward
+            and not relation.forward
+            and (existing.model.__module__, existing.model.__qualname__)
+            == (relation.model.__module__, relation.model.__qualname__)
+        )  # the same model defined again (reload, notebook re-run)
+        taken = (
+            name in cls.__columns__
+            or (name in cls.__relations__ and not redefined)
+            or (
+                hasattr(cls, name)
+                and not isinstance(inspect.getattr_static(cls, name), Related)
+            )
+        )
+        if taken:
+            raise RegistrationError(f"{cls.__name__} already has an attribute {name!r}")
 
     @classmethod
     def attach(cls, name: str, relation: Relation) -> None:
-        if name in cls.__relations__ or name in cls.__columns__ or hasattr(cls, name):
-            raise RegistrationError(f"{cls.__name__} already has an attribute {name!r}")
         cls.__relations__[name] = relation
-        setattr(cls, name, Related(name, relation.forward))
+        setattr(cls, name, Related(name, relation))
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> Self:
@@ -282,7 +326,12 @@ class Model:
         refused so a missing filter cannot wipe the table."""
         if not conditions:
             raise FieldError("adelete needs at least one condition")
-        filters = list(QuerySet(cls).filter(**conditions).filters)
+        query = QuerySet(cls).filter(**conditions)
+        if query.loading.joined:
+            raise FieldError(
+                "adelete cannot filter across a relation; look the keys up first"
+            )
+        filters = list(query.filters)
         sql, params = native.compile_query("delete", cls.__table__, filters=filters)
         return await current_database().execute(sql, *params)
 
@@ -464,7 +513,10 @@ class QuerySet[M: Model]:
         for name in self.loading.selected:
             related_model = self.forward(name).model
             prefix = f"{ALIAS_PREFIX}{name}{SEPARATOR}"
-            values = {c: row[f"{prefix}{c}"] for c in related_model.__columns__}
+            values = {
+                c: row[f"{prefix}{index}"]
+                for index, c in enumerate(related_model.__columns__)
+            }
             key = related_model.__primary_key__
             store(
                 instance,

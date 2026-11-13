@@ -2,7 +2,7 @@
 
 import os
 from collections.abc import AsyncIterator
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -17,6 +17,12 @@ URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(
     URL is None, reason="HINOKI_TEST_DATABASE_URL is not set"
 )
+
+
+def make(
+    name: str, bases: tuple[type, ...], namespace: dict[str, Any], table: str
+) -> type[Model]:
+    return cast(type[Model], type(name, bases, namespace, table=table))
 
 
 class Writer(Model, table="rel_writers"):
@@ -89,8 +95,8 @@ def test_select_related_compiles_one_join() -> None:
     sql, params = Article.all().select_related("writer").compile()
     assert sql == (
         'SELECT "rel_articles"."id", "rel_articles"."writer_id", '
-        '"rel_articles"."title", "rel_writer"."id" AS "rel_writer__id", '
-        '"rel_writer"."name" AS "rel_writer__name" '
+        '"rel_articles"."title", "rel_writer"."id" AS "rel_writer__0", '
+        '"rel_writer"."name" AS "rel_writer__1" '
         'FROM "rel_articles" LEFT JOIN "rel_writers" AS "rel_writer" '
         'ON "rel_writer"."id" = "rel_articles"."writer_id"'
     )
@@ -233,3 +239,154 @@ async def test_database_enforces_the_declared_rule(db: Database) -> None:
         await Writer.adelete(id=ada.id)
     with pytest.raises(ForeignKeyViolation):
         await Article.acreate(writer_id=uuid4(), title="orphan")
+
+
+def test_a_field_named_like_a_model_method_is_refused() -> None:
+    for reserved in ("refresh", "remember", "insert", "asave", "get"):
+        with pytest.raises(RegistrationError, match="collide"):
+            type(
+                "Clashing",
+                (Model,),
+                {
+                    "__annotations__": {"id": int, reserved: str},
+                    "id": field(primary_key=True),
+                },
+                table="clashing",
+            )
+
+
+def test_assigning_a_relation_is_refused() -> None:
+    article = Article(writer_id=uuid4(), title="t")
+    with pytest.raises(AttributeError, match="assign writer_id"):
+        article.writer = Writer(name="x")  # type: ignore[misc]
+
+
+def test_models_with_foreign_keys_can_be_subclassed_and_redefined() -> None:
+    child = cast(type[Model], type("Child", (Article,), {}, table="rel_children"))
+    assert child.__relations__["writer"].forward
+    assert len(Writer.__relations__) == 1
+
+    owner = make(
+        "Owner",
+        (Model,),
+        {"__annotations__": {"id": int}, "id": field(primary_key=True)},
+        table="rel_owners",
+    )
+
+    def define() -> type[Model]:
+        return make(
+            "Pet",
+            (Model,),
+            {
+                "__annotations__": {"id": int, "owner_id": int},
+                "id": field(primary_key=True),
+                "owner_id": foreign_key(
+                    owner, on_delete="cascade", related_name="pets"
+                ),
+            },
+            table="rel_pets",
+        )
+
+    first, second = define(), define()  # a reload defines the same model again
+    assert owner.__relations__["pets"].model is second
+    assert first is not second
+    with pytest.raises(RegistrationError, match="already has"):
+        type(
+            "Cat",
+            (Model,),
+            {
+                "__annotations__": {"id": int, "owner_id": int},
+                "id": field(primary_key=True),
+                "owner_id": foreign_key(
+                    owner, on_delete="cascade", related_name="pets"
+                ),
+            },
+            table="rel_cats",
+        )
+
+
+def test_a_failed_definition_does_not_leave_half_attached_relations() -> None:
+    before = dict(Writer.__relations__)
+    with pytest.raises(RegistrationError):
+        type(
+            "Broken",
+            (Model,),
+            {
+                "__annotations__": {"id": int, "writer_id": UUID, "owner_id": UUID},
+                "id": field(primary_key=True),
+                "writer_id": foreign_key(
+                    Writer, on_delete="cascade", related_name="broken_set"
+                ),
+                "owner_id": foreign_key(
+                    Writer, on_delete="cascade", related_name="articles"
+                ),
+            },
+            table="broken",
+        )
+    assert Writer.__relations__ == before
+
+
+def test_long_column_names_do_not_overflow_aliases() -> None:
+    long = make(
+        "Long",
+        (Model,),
+        {
+            "__annotations__": {
+                "id": int,
+                "display_name_shown_on_the_public_profile": str,
+            },
+            "id": field(primary_key=True),
+        },
+        table="rel_long",
+    )
+    holder = make(
+        "Holder",
+        (Model,),
+        {
+            "__annotations__": {"id": int, "primary_author_of_the_book_id": int},
+            "id": field(primary_key=True),
+            "primary_author_of_the_book_id": foreign_key(long, on_delete="cascade"),
+        },
+        table="rel_holder",
+    )
+    sql, _ = holder.all().select_related("primary_author_of_the_book").compile()
+    assert "display_name_shown" in sql
+    assert '"rel_primary_author_of_the_book__1"' in sql
+
+
+def test_a_join_alias_equal_to_the_base_table_is_refused() -> None:
+    odd = make(
+        "Odd",
+        (Model,),
+        {
+            "__annotations__": {"id": int, "writer_id": UUID},
+            "id": field(primary_key=True),
+            "writer_id": foreign_key(Writer, on_delete="cascade"),
+        },
+        table="rel_writer",
+    )
+    with pytest.raises(ValueError, match="equals the base table"):
+        odd.all().select_related("writer").compile()
+
+
+@needs_database
+async def test_a_loaded_relation_is_not_served_after_its_key_changed(
+    db: Database,
+) -> None:
+    ada = await Writer.acreate(name="Ada")
+    bob = await Writer.acreate(name="Bob")
+    await Article.acreate(writer_id=ada.id, title="t")
+    [article] = await Article.all().select_related("writer").aall()
+    assert article.writer.name == "Ada"
+    article.writer_id = bob.id
+    with pytest.raises(RelationNotLoaded, match="another writer_id"):
+        _ = article.writer
+    await article.asave()
+    with pytest.raises(RelationNotLoaded):
+        _ = article.writer
+
+
+@needs_database
+async def test_delete_across_a_relation_is_refused_clearly(db: Database) -> None:
+    with pytest.raises(FieldError, match="across a relation"):
+        await Article.adelete(writer__name="Ada")

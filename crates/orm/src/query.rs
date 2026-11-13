@@ -45,7 +45,8 @@ pub struct Filter<V> {
 }
 
 /// `JOIN table AS alias ON alias.remote = base.local`. The joined columns
-/// are selected as `alias__column`; an empty list joins only for filtering.
+/// are selected as `alias__N` (N = position in `columns`, so long column names
+/// never overflow the identifier limit); an empty list joins only for filtering.
 #[derive(Debug, Clone)]
 pub struct Join {
     pub table: String,
@@ -248,11 +249,11 @@ fn select_list<V>(q: &Select<V>, joined: bool) -> Result<String, QueryError> {
         .map(|c| column_ref(c, base))
         .collect::<Result<Vec<_>, _>>()?;
     for join in &q.joins {
-        for column in &join.columns {
+        for (index, column) in join.columns.iter().enumerate() {
             parts.push(format!(
                 "{} AS {}",
                 column_ref(&format!("{}.{column}", join.alias), None)?,
-                quote(&format!("{}__{column}", join.alias))?
+                quote(&format!("{}__{index}", join.alias))?
             ));
         }
     }
@@ -262,6 +263,12 @@ fn select_list<V>(q: &Select<V>, joined: bool) -> Result<String, QueryError> {
 fn join_clauses<V>(q: &Select<V>) -> Result<String, QueryError> {
     let mut sql = String::new();
     for join in &q.joins {
+        if join.alias == q.table {
+            return Err(QueryError::BadIdentifier(format!(
+                "join alias {:?} equals the base table",
+                join.alias
+            )));
+        }
         let kind = if join.left { "LEFT JOIN" } else { "INNER JOIN" };
         sql.push_str(&format!(
             " {kind} {} AS {} ON {} = {}",
@@ -430,13 +437,15 @@ mod tests {
         let (sql, params) = compile_select(&q).unwrap();
         assert_eq!(
             sql,
-            "SELECT \"posts\".\"id\", \"posts\".\"title\", \"author\".\"id\" AS \"author__id\", \
-             \"author\".\"name\" AS \"author__name\" FROM \"posts\" INNER JOIN \"users\" AS \"author\" \
+            "SELECT \"posts\".\"id\", \"posts\".\"title\", \"author\".\"id\" AS \"author__0\", \
+             \"author\".\"name\" AS \"author__1\" FROM \"posts\" INNER JOIN \"users\" AS \"author\" \
              ON \"author\".\"id\" = \"posts\".\"author_id\" WHERE \"author\".\"name\" = $1 AND \
              \"posts\".\"id\" <> $2 ORDER BY \"author\".\"name\" ASC, \"posts\".\"title\" DESC"
         );
         assert_eq!(params, vec![1, 2]);
         q.joins[0].left = true;
+        q.joins[0].alias = "posts".into();
+        assert!(compile_select(&q).is_err());
         q.joins[0].alias = "a\"; DROP".into();
         assert!(compile_select(&q).is_err());
     }

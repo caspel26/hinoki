@@ -50,9 +50,11 @@ class Related[T]:
         articles: ClassVar[Related[list[Article]]]
     """
 
-    def __init__(self, name: str, forward: bool) -> None:
+    def __init__(self, name: str, relation: Relation) -> None:
         self.name = name
-        self.forward = forward
+        self.forward = relation.forward
+        self.column = relation.column
+        self.key = relation.model.__primary_key__
 
     @overload
     def __get__(self, instance: None, owner: type | None = None) -> Self: ...
@@ -70,7 +72,24 @@ class Related[T]:
                 f"{type(instance).__name__}.{self.name} was not loaded: "
                 f"query with .{how}({self.name!r})"
             )
-        return loaded[self.name]
+        value = loaded[self.name]
+        if self.forward and self.stale(instance, value):
+            raise RelationNotLoaded(
+                f"{type(instance).__name__}.{self.name} was loaded for another "
+                f"{self.column}: query again with .select_related({self.name!r})"
+            )
+        return value
+
+    def stale(self, instance: Any, value: Any) -> bool:
+        """The foreign key changed after the relation was loaded."""
+        current = getattr(instance, self.column)
+        if value is None:
+            return current is not None
+        return bool(getattr(value, self.key) != current)
+
+    def __set__(self, instance: Any, value: Any) -> None:
+        hint = f"; assign {self.column} instead" if self.forward else ""
+        raise AttributeError(f"{self.name} is read-only{hint}")
 
 
 def store(instance: Any, name: str, value: Any) -> None:
