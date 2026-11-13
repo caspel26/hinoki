@@ -84,6 +84,14 @@ HTTPS terminates somewhere you control (set `Admin(secure_cookies=True)` behind 
 * A broad waiver (`*`) or editing waivers to silence a rule.
 * Catching `Exception` in an action to "keep going": let the framework translate it and roll back.
 
-## Not yet covered
+## 12. More than one service
 
-Guidance for multi-service modules (remote services share no joins or transactions). These are open items in `handoff.md`.
+Split a system only for a reason you can name (independent deploys, different scaling, a team boundary), because every split costs something the framework cannot hide:
+
+* **No joins, no shared transaction.** A foreign key never crosses a service. Store the other service's id as a plain value, and treat what it returns as a snapshot. A write that must touch two services is a sequence of calls that can half-fail: make each step idempotent (a client-supplied key, or a natural unique constraint) and decide what a retry does before writing the code.
+* **Each service owns its tables.** Other services call its API; they never read its database. Migrations belong to the owner and are applied by its deploy step ([section 7](#7-migrations)).
+* **The caller is a `Caller` too.** Service-to-service calls authenticate like any client (a JWT with a service identity and narrow `permissions`, verified by `JWTAuth`); do not forward the end user's token unless the callee must act as that user.
+* **Wrap every remote call in an operation** ([section 1](#1-three-layers-one-direction)) with a timeout and a mapped failure (a 502/503 you chose), never letting a client library's exception become the response.
+* **Share contracts, not models.** Publish the response `Schema` classes (or the OpenAPI document) that other services depend on; keep `Model`s private.
+
+Not covered yet: a runnable two-service example and a client helper.
