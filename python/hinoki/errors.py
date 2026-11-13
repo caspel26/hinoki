@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 
 class RegistrationError(Exception):
     """Invalid or conflicting declarations, raised before the app serves."""
@@ -27,3 +29,20 @@ class ShutdownError(Exception):
         names = ", ".join(type(c).__name__ for c in causes)
         super().__init__(f"shutdown finished with errors: {names}")
         self.causes = causes
+
+
+@dataclass(frozen=True, slots=True)
+class ErrorDetail:
+    """One validation problem: where, a stable code, and a readable message."""
+
+    path: str
+    code: str
+    message: str
+
+
+class ValidationError(Exception):
+    """Input does not match a schema. ``details`` lists every problem found."""
+
+    def __init__(self, details: list[ErrorDetail]) -> None:
+        super().__init__(f"{len(details)} validation error(s)")
+        self.details = details
