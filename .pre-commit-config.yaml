@@ -1,4 +1,7 @@
 # Versions are pinned to match uv.lock (ruff) and the CI job. Bump together.
+# Never rewrite historical snapshots.
+exclude: ^(framework-handoff/|(.*/)?sources/)
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

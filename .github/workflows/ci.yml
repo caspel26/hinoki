@@ -58,4 +58,5 @@ jobs:
         with:
           components: rustfmt
       - uses: astral-sh/setup-uv@v6
-      - run: uvx pre-commit run --all-files
+      - run: uv sync --locked
+      - run: uv run --locked pre-commit run --all-files
