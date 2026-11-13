@@ -16,11 +16,35 @@ from hinoki.httperrors import Unauthorized
 
 @dataclass(frozen=True, slots=True)
 class Principal[T]:
-    """Who is calling: the token subject, the application identity and scopes."""
+    """Who is calling, as decided by authentication.
+
+    ``subject`` is a stable id string, ``identity`` is your own object (the user
+    row, a service account) and ``scopes`` the permissions the caller holds.
+    The same class is exported as ``Caller`` with friendlier property names:
+    ``caller.id``, ``caller.user`` and ``caller.permissions``.
+    """
 
     subject: str
     identity: T
     scopes: frozenset[str] = field(default_factory=frozenset)
+
+    @property
+    def id(self) -> str:
+        """The stable id of the caller (same as ``subject``)."""
+        return self.subject
+
+    @property
+    def user(self) -> T:
+        """Your object for the caller (same as ``identity``)."""
+        return self.identity
+
+    @property
+    def permissions(self) -> frozenset[str]:
+        """What the caller may do (same as ``scopes``)."""
+        return self.scopes
+
+
+Caller = Principal
 
 
 @dataclass(frozen=True, slots=True)

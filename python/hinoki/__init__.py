@@ -3,7 +3,7 @@
 from hinoki.access import Access
 from hinoki.api import API
 from hinoki.app import HinokiAPI
-from hinoki.auth import APIKeyAuth, BaseAuth, BearerAuth, HeaderAuth, Principal
+from hinoki.auth import APIKeyAuth, BaseAuth, BearerAuth, Caller, HeaderAuth, Principal
 from hinoki.errors import ModuleGraphError, RegistrationError, ValidationError
 from hinoki.httperrors import (
     APIError,
@@ -36,6 +36,7 @@ __all__ = [
     "BadRequest",
     "BaseAuth",
     "BearerAuth",
+    "Caller",
     "Conflict",
     "Contract",
     "Field",
