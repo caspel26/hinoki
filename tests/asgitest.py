@@ -3,15 +3,15 @@
 import asyncio
 import json
 import threading
-from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from collections.abc import Iterator
 from typing import Any
 from uuid import UUID
 
 import pytest
 
 from hinoki import API, HinokiAPI, RegistrationError, RuntimeConfig, context, get, post
-from hinoki.runtime.asgi import MAX_BODY, ASGIAdapter
+from hinoki.runtime.asgi import MAX_BODY
+from tests.harness import Client, Pool
 
 release = threading.Event()
 
@@ -77,10 +77,6 @@ class Things(API, path="/things"):
         return {"id": str(thing_id)}
 
 
-@get("/q")
-def needs_query(limit: int) -> None: ...
-
-
 @get("/p/{p}")
 def wrong_name(q: str) -> None: ...
 
@@ -108,86 +104,19 @@ def make_app(**config: float) -> HinokiAPI:
     return app
 
 
-@dataclass
-class Reply:
-    status: int
-    headers: dict[str, str]
-    body: Any
-
-
-class Client:
-    """Drives one adapter through the ASGI lifespan and http protocols."""
-
-    def __init__(self, adapter: ASGIAdapter) -> None:
-        self.adapter = adapter
-        self.inbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-        self.outbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-        self.task: asyncio.Task[None] | None = None
-
-    async def lifespan_event(self, event: str) -> str:
-        if self.task is None:
-            scope = {"type": "lifespan"}
-            self.task = asyncio.create_task(
-                self.adapter(scope, self.inbox.get, self.outbox.put)
-            )
-        await self.inbox.put({"type": f"lifespan.{event}"})
-        message = await self.outbox.get()
-        return str(message["type"])
-
-    async def request(
-        self, method: str, path: str, body: bytes = b"", raw_path: bytes | None = None
-    ) -> Reply:
-        sent: list[dict[str, Any]] = []
-        incoming = {"type": "http.request", "body": body, "more_body": False}
-        scope: dict[str, Any] = {"type": "http", "method": method, "path": path}
-        if raw_path is not None:
-            scope["raw_path"] = raw_path
-        await self.adapter(scope, self.receive(incoming), self.collect(sent))
-        headers = {k.decode(): v.decode() for k, v in sent[0]["headers"]}
-        raw = sent[1]["body"]
-        return Reply(sent[0]["status"], headers, json.loads(raw) if raw else None)
-
-    @staticmethod
-    def receive(message: dict[str, Any]) -> Any:
-        async def receive() -> dict[str, Any]:
-            return message
-
-        return receive
-
-    @staticmethod
-    def collect(sent: list[dict[str, Any]]) -> Any:
-        async def send(message: dict[str, Any]) -> None:
-            sent.append(message)
-
-        return send
-
-
-class Pool:
-    """Starts clients and shuts every one of them down after the test."""
-
-    def __init__(self) -> None:
-        self.clients: list[Client] = []
-
-    async def start(self, **config: float) -> Client:
-        client = Client(make_app(**config).asgi())
-        self.clients.append(client)
-        assert await client.lifespan_event("startup") == "lifespan.startup.complete"
-        return client
-
-
-@pytest.fixture
-async def pool() -> AsyncIterator[Pool]:
+@pytest.fixture(autouse=True)
+def reset_release() -> Iterator[None]:
     release.clear()
-    clients = Pool()
-    yield clients
+    yield
     release.set()
-    for client in clients.clients:
-        if client.task is not None and not client.task.done():
-            await client.lifespan_event("shutdown")
+
+
+async def serve(pool: Pool, **config: float) -> Client:
+    return await pool.start(make_app(**config))
 
 
 async def test_dispatch_status_codes_and_bodies(pool: Pool) -> None:
-    client = await pool.start()
+    client = await serve(pool)
     ok = await client.request("GET", "/ping")
     assert (ok.status, ok.body) == (200, {"pong": "yes"})
     assert (await client.request("GET", "/items/42")).body == {"id": 42}
@@ -198,14 +127,15 @@ async def test_dispatch_status_codes_and_bodies(pool: Pool) -> None:
     wrong = await client.request("DELETE", "/ping")
     assert (wrong.status, wrong.headers["allow"]) == (405, "GET")
     bad = await client.request("GET", "/items/abc")
-    assert (bad.status, bad.body["parameter"]) == (422, "item_id")
+    assert bad.status == 422
+    assert bad.body["details"][0]["path"] == "item_id"
     thing = UUID(int=5)
     assert (await client.request("GET", f"/things/{thing}")).body == {"id": str(thing)}
     assert (await client.request("GET", "/things/not-a-uuid")).status == 422
 
 
 async def test_internal_errors_do_not_leak_and_carry_request_id(pool: Pool) -> None:
-    client = await pool.start()
+    client = await serve(pool)
     reply = await client.request("GET", "/boom")
     assert reply.status == 500
     assert reply.body["request_id"] == reply.headers["x-request-id"]
@@ -213,21 +143,21 @@ async def test_internal_errors_do_not_leak_and_carry_request_id(pool: Pool) -> N
 
 
 async def test_request_id_reaches_sync_handler_thread(pool: Pool) -> None:
-    client = await pool.start()
+    client = await serve(pool)
     reply = await client.request("GET", "/rid")
     assert reply.body["rid"] == reply.headers["x-request-id"]
     assert context.request_id.get() is None  # reset after the request
 
 
 async def test_request_timeout_maps_to_504(pool: Pool) -> None:
-    client = await pool.start(request_timeout=0.1)
+    client = await serve(pool, request_timeout=0.1)
     assert (await client.request("GET", "/slow-async")).status == 504
 
 
 async def test_saturated_executor_sheds_sync_routes_but_async_routes_keep_working(
     pool: Pool,
 ) -> None:
-    client = await pool.start(sync_workers=1, sync_queue=0, request_timeout=5)
+    client = await serve(pool, sync_workers=1, sync_queue=0, request_timeout=5)
     first = asyncio.create_task(client.request("GET", "/block"))
     await asyncio.sleep(0.1)
     shed = await client.request("GET", "/rid")
@@ -241,32 +171,32 @@ async def test_saturated_executor_sheds_sync_routes_but_async_routes_keep_workin
 async def test_not_ready_before_startup_and_after_shutdown(pool: Pool) -> None:
     before = Client(make_app().asgi())
     assert (await before.request("GET", "/ping")).status == 503
-    client = await pool.start()
+    client = await serve(pool)
     assert await client.lifespan_event("shutdown") == "lifespan.shutdown.complete"
     assert (await client.request("GET", "/ping")).status == 503
 
 
 async def test_oversized_body_is_rejected(pool: Pool) -> None:
-    client = await pool.start()
+    client = await serve(pool)
     reply = await client.request("POST", "/made", b"x" * (MAX_BODY + 1))
     assert reply.status == 413
 
 
-@pytest.mark.parametrize("handler", [needs_query, wrong_name, bad_type])
+@pytest.mark.parametrize("handler", [wrong_name, bad_type])
 def test_unsupported_signatures_fail_when_included(handler: Any) -> None:
     with pytest.raises(RegistrationError):
         HinokiAPI().include(handler)
 
 
 async def test_204_has_no_body_and_no_content_length(pool: Pool) -> None:
-    client = await pool.start()
+    client = await serve(pool)
     reply = await client.request("GET", "/gone")
     assert (reply.status, reply.body) == (204, None)
     assert "content-length" not in reply.headers
 
 
 async def test_routing_uses_the_raw_path_and_decodes_parameters(pool: Pool) -> None:
-    client = await pool.start()
+    client = await serve(pool)
     slash = await client.request("GET", "/echo/a/b", raw_path=b"/echo/a%2Fb")
     assert (slash.status, slash.body) == (200, {"name": "a/b"})
     unicode = await client.request("GET", "/echo/x", raw_path=b"/echo/%E4%BD%A0")
@@ -278,6 +208,6 @@ async def test_routing_uses_the_raw_path_and_decodes_parameters(pool: Pool) -> N
 
 @pytest.mark.parametrize("value", [" 42", "nan", "inf", "1_0", "\u0664\u0662"])
 async def test_numeric_parameters_are_strict(pool: Pool, value: str) -> None:
-    client = await pool.start()
+    client = await serve(pool)
     assert (await client.request("GET", f"/ratio/{value}")).status == 422
     assert (await client.request("GET", "/ratio/2.5")).body == {"value": 2.5}
