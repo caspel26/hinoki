@@ -36,9 +36,25 @@ impl DbError {
         }
     }
 
+    /// Client-side failures. Parameter encoding errors keep their message: it
+    /// names types, never values.
+    fn from_client(err: &tokio_postgres::Error) -> Self {
+        let source = std::error::Error::source(err).map(ToString::to_string);
+        let text = match source {
+            Some(inner) => format!("{err}: {inner}"),
+            None => err.to_string(),
+        };
+        if text.starts_with("error serializing parameter")
+            || text.contains("invalid number of parameters")
+        {
+            return Self::new(ErrorKind::Type, text);
+        }
+        Self::new(ErrorKind::Other, "database request failed")
+    }
+
     pub(crate) fn from_driver(err: &tokio_postgres::Error) -> Self {
         let Some(db) = err.as_db_error() else {
-            return Self::new(ErrorKind::Other, "database request failed");
+            return Self::from_client(err);
         };
         let code = db.code();
         let (kind, message) = if *code == SqlState::UNIQUE_VIOLATION {

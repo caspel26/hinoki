@@ -143,7 +143,11 @@ fn from_value(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
         Value::Timestamp(t) => py
             .import("datetime")?
             .getattr("datetime")?
-            .call_method1("fromisoformat", (t.to_rfc3339(),))?
+            .call_method1("fromisoformat", (t.to_rfc3339(),))
+            .map_err(|_| {
+                let message = "timestamp cannot be represented as a Python datetime";
+                db_error(py, &DbError::new(ErrorKind::Type, message))
+            })?
             .unbind(),
         Value::Json(v) => py
             .import("json")?
@@ -314,7 +318,9 @@ impl PyTransaction {
     fn finish<'py>(&self, py: Python<'py>, commit: bool) -> PyResult<Bound<'py, PyAny>> {
         let inner = self.inner.clone();
         let fut = async move {
-            let mut guard = inner.try_lock_owned().map_err(|_| busy_error())?;
+            // Wait for a statement still running in another task: leaving the
+            // transaction open would hold its locks until garbage collection.
+            let mut guard = inner.lock_owned().await;
             let tx = guard.take().ok_or_else(busy_error)?;
             if commit {
                 tx.commit().await
