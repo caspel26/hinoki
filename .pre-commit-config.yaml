@@ -1,6 +1,7 @@
 # Versions are pinned to match uv.lock (ruff) and the CI job. Bump together.
 # Never rewrite historical snapshots.
-exclude: ^(framework-handoff/|(.*/)?sources/)
+# Vendored third-party files are served byte for byte (a test checks their hashes).
+exclude: ^(framework-handoff/|(.*/)?sources/|python/hinoki/docsui/static/)
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
