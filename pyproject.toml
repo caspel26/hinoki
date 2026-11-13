@@ -78,6 +78,8 @@ max-branches = 8
 "tests/runtime/granianblogtest.py" = ["S106"]  # table names are test-controlled; blocks need setup
 # The request is a mandatory first parameter that a handler need not read.
 "examples/**" = ["ARG001", "ARG002"]
+"tests/browser/verify.py" = ["PLR0915", "S105"]  # a linear script with a demo token
+"examples/blog/seed.py" = ["S106"]  # synthetic demo tokens
 "benchmarks/**" = ["ARG001", "S101"]  # benchmark handlers ignore the request
 "python/hinoki/crud.py" = ["ARG001"]
 "python/hinoki/app.py" = ["PLR0913"]  # HinokiAPI takes keyword-only options
@@ -91,6 +93,8 @@ python_version = "3.12"
 strict = true
 warn_unused_ignores = true
 files = ["python/hinoki", "tests", "examples"]
+# Playwright is a development tool run with uvx, not a project dependency.
+exclude = ["tests/browser/"]
 mypy_path = "python"
 
 [tool.pytest.ini_options]

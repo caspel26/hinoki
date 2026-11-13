@@ -8,6 +8,7 @@ The factory builds declarations only; the pool opens in the worker's lifespan.
 
 import os
 
+from examples.blog.adminsite import build_admin
 from examples.blog.api import Posts, health
 from hinoki import Conflict, HinokiAPI
 from hinoki.db import DatabaseModule, UniqueViolation
@@ -19,8 +20,14 @@ def unique_to_conflict(_error: UniqueViolation) -> Conflict:
 
 def create_app(database_url: str | None = None) -> HinokiAPI:
     url = database_url or os.environ["BLOG_DATABASE_URL"]
-    app = HinokiAPI(title="Blog", version="0.1.0", openapi_url="/openapi.json")
-    app.include(health, Posts)
+    app = HinokiAPI(
+        title="Blog",
+        version="0.1.0",
+        openapi_url="/openapi.json",
+        docs_url="/docs",
+        redoc_url="/redoc",
+    )
+    app.include(health, Posts, build_admin().api())
     app.install(DatabaseModule(url, max_size=5))
     app.errors.handle(UniqueViolation)(unique_to_conflict)
     return app

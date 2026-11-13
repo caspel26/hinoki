@@ -78,6 +78,8 @@ class OpenAPIBuilder:
         paths: dict[str, dict[str, Any]] = {}
         for binding in self.app.bindings:
             route = binding.route
+            if getattr(route.owner, "hide_from_docs", False):
+                continue  # HTML pages (the admin) are not part of the API contract
             path = paths.setdefault(route.path, {})
             path[route.method.lower()] = self.operation(binding)
         document: dict[str, Any] = {
