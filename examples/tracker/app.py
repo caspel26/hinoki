@@ -10,8 +10,10 @@ import os
 
 from examples.tracker import api
 from examples.tracker.rules import tracker_rules
+from examples.tracker.security import member_only
 from hinoki import HinokiAPI
 from hinoki.db import DatabaseModule
+from hinoki.mcpapp import expose_as_mcp
 
 
 def create_app(database_url: str | None = None) -> HinokiAPI:
@@ -24,6 +26,10 @@ def create_app(database_url: str | None = None) -> HinokiAPI:
     )
     app.include(
         api.health, api.list_tasks, api.create_task, api.complete_task, api.delete_task
+    )
+    # Agents can read the caller's own tasks through MCP, with the caller's token.
+    app.include(
+        *expose_as_mcp(app, tools=[f"{api.__name__}.list_tasks"], access=member_only)
     )
     app.install(DatabaseModule(database_url or os.environ["TRACKER_DATABASE_URL"]))
     return app

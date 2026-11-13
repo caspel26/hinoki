@@ -10,7 +10,8 @@ tracker_rules = RuleSet(
         match="examples.tracker.*", except_=["examples.tracker.api.health"]
     ),
     Actions.forbid_model_responses(match=f"{PKG}.*"),
-    Transactions.require_atomic(),
+    # The MCP endpoint dispatches other actions, which have their own transactions.
+    Transactions.require_atomic(except_=["hinoki.mcpapp.*"]),
     Schemas.forbid_exposure("token"),
     # The direction of dependencies: api -> operations -> models.
     Imports.forbid(
