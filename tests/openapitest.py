@@ -69,7 +69,7 @@ class Posts(API, path="/posts"):
     def retrieve(self, post_id: UUID) -> PostOut:
         raise NotImplementedError
 
-    @post("/", status=201, access=editor, transaction=True)
+    @post("/", status=201, access=editor)
     async def create(self, data: PostCreate) -> PostOut:
         raise NotImplementedError
 
