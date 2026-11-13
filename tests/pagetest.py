@@ -3,7 +3,7 @@
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import HinokiAPI, RegistrationError, Schema, get
+from hinoki import Hinoki, RegistrationError, Schema, get
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from hinoki.request import Request
 from tests.harness import Pool
@@ -30,8 +30,8 @@ async def orphan(request: Request, page: PageParams) -> Page[ItemOut]:
 async def unused(request: Request) -> None: ...
 
 
-def make_app() -> HinokiAPI:
-    app = HinokiAPI()
+def make_app() -> Hinoki:
+    app = Hinoki()
     app.include(items)
     return app
 
@@ -78,7 +78,7 @@ async def test_invalid_page_parameters_give_422(
 @pytest.mark.parametrize("handler", [orphan, unused])
 def test_pagination_option_and_parameter_must_come_together(handler: object) -> None:
     with pytest.raises(RegistrationError):
-        HinokiAPI().include(handler)
+        Hinoki().include(handler)
 
 
 def test_openapi_documents_the_query_parameters_and_the_page_schema() -> None:

@@ -18,7 +18,7 @@ Content negotiation (`Accept`, quality values, wildcards) also runs in Rust; wit
 Per action, or for the whole application (an action's own choice wins):
 
 ```python
-app = HinokiAPI(renderers=[JSONRenderer(sort_keys=True), TextRenderer()])
+app = Hinoki(renderers=[JSONRenderer(sort_keys=True), TextRenderer()])
 
 @get("/report", renderers=[JSONRenderer(indent=2)])
 async def report() -> dict[str, int]: ...

@@ -117,7 +117,6 @@ def test_the_tracker_keeps_its_layering_promises(
     monkeypatch.setenv("TRACKER_DATABASE_URL", "postgres://unused")
     argv = [
         "check",
-        "--app",
         "examples.tracker.app:create_app",
         "--rules",
         "examples.tracker.rules:tracker_rules",

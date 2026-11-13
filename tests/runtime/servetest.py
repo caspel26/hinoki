@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from hinoki import FrameworkSettings, HinokiAPI
+from hinoki import FrameworkSettings, Hinoki
 from hinoki.serve import load_target, server_settings
 from tests.runtime.harness import fetch, free_port, wait_ready
 
@@ -39,7 +39,7 @@ def test_the_server_group_comes_from_the_applications_settings(
     with pytest.raises(SystemExit, match="port must be"):
         server_settings("tests.runtime.serveapp:create_app")
     assert isinstance(FrameworkSettings.load().server.port, int)
-    assert HinokiAPI().settings is None
+    assert Hinoki().settings is None
 
 
 def test_serve_starts_the_application_on_the_configured_port() -> None:

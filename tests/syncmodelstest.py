@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import HinokiAPI, RuntimeConfig, get, post
+from hinoki import Hinoki, RuntimeConfig, get, post
 from hinoki.blocking import run_sync
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import FieldError
@@ -80,7 +80,7 @@ async def client(pool: Pool) -> AsyncIterator[Client]:
         "CREATE TABLE sync_gadgets (id uuid PRIMARY KEY, name text NOT NULL, "
         "tags jsonb NOT NULL, stock int NOT NULL)"
     )
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(add, show, listing, restock, blocking_on_the_loop)
     app.install(DatabaseModule(URL, max_size=3))
     yield await pool.start(app)
@@ -206,7 +206,7 @@ async def test_the_deadline_cancels_work_a_sync_handler_handed_to_the_loop(
     pool: Pool,
 ) -> None:
     assert URL is not None
-    app = HinokiAPI(runtime=RuntimeConfig(request_timeout=0.4))
+    app = Hinoki(runtime=RuntimeConfig(request_timeout=0.4))
     app.include(slow)
     app.install(DatabaseModule(URL, max_size=2))
     client = await pool.start(app)

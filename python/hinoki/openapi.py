@@ -23,7 +23,7 @@ from hinoki.schema import Schema
 
 if TYPE_CHECKING:
     from hinoki.access import Access
-    from hinoki.app import HinokiAPI
+    from hinoki.app import Hinoki
 
 SCALAR_TYPES: dict[type, dict[str, Any]] = {
     str: {"type": "string"},
@@ -68,7 +68,7 @@ def ref(name: str) -> dict[str, str]:
 class OpenAPIBuilder:
     """Builds one document; create a new builder per document."""
 
-    def __init__(self, app: HinokiAPI, title: str, version: str) -> None:
+    def __init__(self, app: Hinoki, title: str, version: str) -> None:
         self.app = app
         self.title = title
         self.version = version

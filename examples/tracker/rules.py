@@ -1,4 +1,4 @@
-"""The promises that keep the layers apart (run by ``python -m hinoki check``)."""
+"""The promises that keep the layers apart (run by ``hinoki check``)."""
 
 from hinoki import Actions, Imports, Schemas, Transactions
 from hinoki.rules import RuleSet

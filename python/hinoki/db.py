@@ -194,6 +194,18 @@ class DatabaseModule(Module):
         self.max_size = max_size
         self.wait = wait
 
+    @classmethod
+    def from_settings(cls, settings: object) -> DatabaseModule:
+        """The module for ``settings.database`` (a ``DatabaseSettings``: url and
+        max_size), so ``Hinoki(settings=..., modules=[DatabaseModule])`` works."""
+        group = getattr(settings, "database", None)
+        if group is None or not hasattr(group, "url"):
+            raise TypeError(
+                "DatabaseModule needs a `database: DatabaseSettings` field in the "
+                "application's settings"
+            )
+        return cls(group.url.reveal(), max_size=group.max_size)
+
     @asynccontextmanager
     async def lifespan(self, ctx: ModuleContext) -> AsyncIterator[None]:
         database = await Database.connect(

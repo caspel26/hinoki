@@ -14,7 +14,7 @@ import contextlib
 import json
 from typing import Any
 
-from hinoki.app import HinokiAPI
+from hinoki.app import Hinoki
 
 SAFE = frozenset({"GET", "HEAD", "OPTIONS"})
 METHODS = SAFE | {"POST", "PUT", "PATCH", "DELETE"}
@@ -99,7 +99,7 @@ async def next_message(
     return None
 
 
-async def drive(app: HinokiAPI, scope: dict[str, Any], body: bytes) -> dict[str, Any]:
+async def drive(app: Hinoki, scope: dict[str, Any], body: bytes) -> dict[str, Any]:
     adapter = app.asgi()
     inbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     outbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
@@ -137,7 +137,7 @@ async def drive(app: HinokiAPI, scope: dict[str, Any], body: bytes) -> dict[str,
 
 
 async def drive_with_timeout(
-    app: HinokiAPI, scope: dict[str, Any], body: bytes
+    app: Hinoki, scope: dict[str, Any], body: bytes
 ) -> dict[str, Any]:
     try:
         async with asyncio.timeout(TIMEOUT):
@@ -148,7 +148,7 @@ async def drive_with_timeout(
         ) from None
 
 
-def run_scenario(app: HinokiAPI, args: dict[str, Any], mode: str) -> dict[str, Any]:
+def run_scenario(app: Hinoki, args: dict[str, Any], mode: str) -> dict[str, Any]:
     scope = build_scope(
         args.get("method", "GET"),
         args.get("path"),

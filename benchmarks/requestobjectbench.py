@@ -9,7 +9,7 @@ Run: ``uv run --locked python benchmarks/requestobjectbench.py``.
 import statistics
 import time
 
-from hinoki import HinokiAPI, Request, get
+from hinoki import Hinoki, Request, get
 from hinoki.runtime.binding import bind
 from hinoki.runtime.requests import build_request, header_map
 
@@ -22,7 +22,7 @@ def item(request: Request, item_id: int) -> dict[str, int]:
     return {"id": item_id}
 
 
-APP = HinokiAPI()
+APP = Hinoki()
 APP.include(item)
 ROUTE = APP.resolve("GET", "/items/1")
 assert ROUTE is not None

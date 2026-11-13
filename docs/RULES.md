@@ -14,7 +14,7 @@ blog_rules = RuleSet(
 )
 
 # examples/blog/main.py
-app = HinokiAPI(..., rules=blog_rules)   # startup rules fail the app if a promise is broken
+app = Hinoki(..., rules=blog_rules)   # startup rules fail the app if a promise is broken
 ```
 
 | ID | Rule | Phase | Checks |
@@ -30,7 +30,7 @@ app = HinokiAPI(..., rules=blog_rules)   # startup rules fail the app if a promi
 ## Run them
 
 ```sh
-python -m hinoki check --app examples.blog.main:create_app \
+hinoki check examples.blog.main:create_app \
     --rules examples.blog.rules:blog_rules --package examples
 # 4 rule(s): 0 violated, 0 unverifiable, 0 waived        (exit 0)
 ```
@@ -74,4 +74,4 @@ Subclass `hinoki.rules.Rule` with a stable `id`, a `phase`, an `explanation` and
 
 ## Seeing them from an agent
 
-The development MCP (`python -m hinoki mcp`) exposes `list_rules`, `check_project` and `explain_error` (which also explains rule IDs), read only. See [AI-WORKFLOW.md](AI-WORKFLOW.md). Design and limits: [RULES-DESIGN.md](RULES-DESIGN.md) (rules decide declarations, not what a function body does; there are no runtime or scenario rules yet).
+The development MCP (`hinoki mcp`) exposes `list_rules`, `check_project` and `explain_error` (which also explains rule IDs), read only. See [AI-WORKFLOW.md](AI-WORKFLOW.md). Design and limits: [RULES-DESIGN.md](RULES-DESIGN.md) (rules decide declarations, not what a function body does; there are no runtime or scenario rules yet).

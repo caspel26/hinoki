@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from types import TracebackType
 from typing import Any
 
-from hinoki.app import HinokiAPI
+from hinoki.app import Hinoki
 
 ERROR_STATUS = 400
 # What the framework itself answers, whatever an action declares.
@@ -64,7 +64,7 @@ class Feed:
 class ASGIClient:
     """Use as an async context manager so startup and shutdown always run."""
 
-    def __init__(self, app: HinokiAPI, strict_errors: bool = False) -> None:
+    def __init__(self, app: Hinoki, strict_errors: bool = False) -> None:
         self.app = app
         self.strict_errors = strict_errors
         self.adapter = app.asgi()
@@ -189,7 +189,7 @@ class SyncClient:
     body itself: seed and inspect data with an async fixture or your own
     connection."""
 
-    def __init__(self, app: HinokiAPI, timeout: float = 60.0) -> None:
+    def __init__(self, app: Hinoki, timeout: float = 60.0) -> None:
         self.inner = ASGIClient(app)
         self.timeout = timeout
         self.loop = asyncio.new_event_loop()

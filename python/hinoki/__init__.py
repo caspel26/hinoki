@@ -2,7 +2,7 @@
 
 from hinoki.access import Access
 from hinoki.api import API
-from hinoki.app import HinokiAPI
+from hinoki.app import Hinoki
 from hinoki.auth import (
     APIKeyAuth,
     BaseAuth,
@@ -74,7 +74,7 @@ __all__ = [
     "FrameworkSettings",
     "HTMLRenderer",
     "HeaderAuth",
-    "HinokiAPI",
+    "Hinoki",
     "Imports",
     "Invalid",
     "JSONParser",

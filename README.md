@@ -72,7 +72,7 @@ This is the confirmed target syntax ([`docs/`](docs) tracks what is implemented)
 ```python
 from uuid import UUID
 
-from hinoki import API, Access, HinokiAPI, Request, get, post
+from hinoki import API, Access, Hinoki, Request, get, post
 from hinoki.auth import Caller
 
 editor = Access(auth=blog_auth, permissions={Scope.POSTS_WRITE})
@@ -95,8 +95,8 @@ class Posts(API, path="/posts"):
         ...
 
 
-def create_app() -> HinokiAPI:
-    app = HinokiAPI()
+def create_app() -> Hinoki:
+    app = Hinoki()
     app.include(health, Posts)
     return app
 ```
@@ -133,7 +133,7 @@ Honest status, verified by the test suite:
 
 | Area | State |
 | --- | --- |
-| Decorators `@get/@post/...`, `Access`, `API` classes, `HinokiAPI.include` / `install` | Implemented; typed and tested |
+| Decorators `@get/@post/...`, `Access`, `API` classes, `Hinoki.include` / `install` | Implemented; typed and tested |
 | Native router (`hinoki.native.Router`): `{param}` paths, literal-over-param priority with method-aware backtracking, 404/405 | Implemented in Rust |
 | Modules: dependency graph, per-worker lifespan, reverse cleanup with per-step deadlines, managed tasks | Implemented; tested in-process and under Granian |
 | ASGI adapter: raw-path routing, path/query/JSON-body binding, 400/401/403/404/405/409/415/422/503/504 mapping, bounded sync executor | Implemented |
@@ -145,25 +145,25 @@ Honest status, verified by the test suite:
 | Database engine in Rust (`tokio-postgres` + `deadpool`): typed binary parameters, typed errors, transactions, cancellation-safe pooling | Implemented; PostgreSQL only |
 | `transaction=True`: commit after output encoding, rollback before error translation, aborted commits reported as errors | Implemented and tested against PostgreSQL |
 | SQL compiler in Rust (select/count/insert/update/delete, quoted identifiers, `$n` placeholders only) and Active Record `Model` / `QuerySet` | Implemented; foreign keys load only on request (`select_related` JOIN, `prefetch_related` one extra query); sync variants for sync handlers; generated CRUD (`CrudAPI` + `Resource`); many-to-many is an explicit join model with composite `unique=[...]`, no `through=` sugar |
-| Versioned, inspectable SQL migrations planned from the models (`python -m hinoki migrations plan/apply/status/sql`); destructive operations refused unless allowed; never applied at startup | Implemented (PostgreSQL) |
+| Versioned, inspectable SQL migrations planned from the models (`hinoki migrations plan/apply/status/sql`); destructive operations refused unless allowed; never applied at startup | Implemented (PostgreSQL) |
 | Reference blog (`examples/blog`) incl. a real Granian + PostgreSQL run | Implemented |
 | Typing: constructors and decorators checked by `mypy --strict`; `Post(...)` and `await post.asave()` are checked; `Model.acreate(**values)` is **not** (generated stubs are still open) | Known gap ([docs/TYPING.md](docs/TYPING.md)) |
-| Optional rules (`RuleSet`: access, transaction, schema exposure, static import boundaries), owner waivers, `python -m hinoki check` (text/JSON) | Implemented; runtime and scenario phases not built |
-| Development MCP (`python -m hinoki mcp`): read-only project context over stdio | Implemented; not yet tested against a real MCP client; no application MCP |
+| Optional rules (`RuleSet`: access, transaction, schema exposure, static import boundaries), owner waivers, `hinoki check` (text/JSON) | Implemented; runtime and scenario phases not built |
+| Development MCP (`hinoki mcp`): read-only project context over stdio | Implemented; not yet tested against a real MCP client; no application MCP |
 | Interactive API docs: **Swagger UI** and **ReDoc** (`docs_url=`, `redoc_url=`), vendored and served from the package under a strict CSP | Implemented; verified in Chromium and Firefox |
 | Admin extra (`hinoki.admin`): Studio/Console/Paper themes over one base component set, Lucide icons, dashboard stats, tabs, search, sortable paginated lists with badges and avatars, edit drawer or page, FK selects, fieldsets, bulk delete, signed CSRF, per-model `can()`/`queryset()`/`save()` hooks, template and CSS overrides | Implemented; reviewed once (findings fixed in this version). The earlier browser run covered the first version only: the new UI has been looked at in Chromium (screenshots above) but `tests/browser/verify.py` still targets the old markup and has **not** been re-run, and WebKit has never started here. No login UI, no rich-text or tag widgets, no audit log |
-| `python -m hinoki new` scaffolds a project with rules on, `AGENTS.md` and the MCP configured; `explain_error` tool ([guide](docs/AI-WORKFLOW.md)) | Implemented; not yet exercised with a real MCP client or agent |
+| `hinoki new` scaffolds a project with rules on, `AGENTS.md` and the MCP configured; `explain_error` tool ([guide](docs/AI-WORKFLOW.md)) | Implemented; not yet exercised with a real MCP client or agent |
 | JWT, benchmarks beyond micro-benchmarks | Not started |
 | `Request` as the first handler argument (`method`, `headers`, `GET`, `COOKIES`, `body`, `data`, `user`) | Implemented; query, cookie and header parsing and JSON decode/encode run in Rust (modest measured gain for JSON, larger for query strings: [benchmarks](benchmarks/README.md)) |
 | Body parsers chosen by `Content-Type`: JSON (default), form, multipart (Rust), custom; `parsers=[...]` per action | Implemented; uploads stay in memory within a 1 MiB body cap |
 | Renderers chosen by `Accept` (negotiation in Rust, 406 before the handler runs), `renderers=[...]` per action, custom renderers | Implemented; error bodies are always JSON |
 
 ```python
->>> from hinoki import HinokiAPI, get
+>>> from hinoki import Hinoki, get
 >>> @get("/users/{user_id}")
 ... def user(user_id: int) -> dict[str, int]:
 ...     return {"id": user_id}
->>> app = HinokiAPI(); app.include(user)
+>>> app = Hinoki(); app.include(user)
 >>> route, params = app.resolve("GET", "/users/42")
 >>> route.name, params
 ('user', {'user_id': '42'})
@@ -186,7 +186,7 @@ class Posts(API, path="/posts"):
         return to_out(created)
 ```
 
-Full code in [`examples/blog`](examples/blog) (the real blog generates create and delete with `CrudAPI`; this handwritten form is what the generated action does). Create the tables with `python -m hinoki migrations --dir examples/blog/migrations apply --database $BLOG_DATABASE_URL`, then `BLOG_DATABASE_URL=… granian --interface asgi --factory examples.blog.main:create_app`.
+Full code in [`examples/blog`](examples/blog) (the real blog generates create and delete with `CrudAPI`; this handwritten form is what the generated action does). Create the tables with `hinoki migrations --dir examples/blog/migrations apply --database $BLOG_DATABASE_URL`, then `BLOG_DATABASE_URL=… granian --interface asgi --factory examples.blog.main:create_app`.
 
 ## Screenshots
 
@@ -223,7 +223,7 @@ Try it: create a disposable PostgreSQL database, then
 ```sh
 export BLOG_DATABASE_URL=postgres://postgres:pw@127.0.0.1:5432/hinoki_demo
 uv run python -m examples.blog.seed          # migrations + synthetic users and posts
-uv run python -m hinoki dev examples.blog.main:create_app   # reload; `serve` for production
+uv run hinoki dev examples.blog.main:create_app   # reload; `serve` for production
 # API docs:  http://127.0.0.1:8000/docs  and  /redoc
 # Admin:     http://127.0.0.1:8000/admin  (send the cookie blog_token=demo-editor-token;
 #            set BLOG_ADMIN_SECRET (32+ bytes) and optionally BLOG_ADMIN_THEME=studio|console|paper)
@@ -241,7 +241,7 @@ How the pieces fit and what to avoid: [`docs/PATTERNS.md`](docs/PATTERNS.md). Bu
 * **`Caller`** is *who is making the request*, as decided by authentication. An auth provider (bearer token, API key, JWT, a cookie) turns the credentials into a `Caller` with three things: `id` (a stable string), `user` (your own object, for example the `User` row) and `permissions` (what it may do). Declare `caller: Caller[User]` on an action to receive it; `request.user` is the same object. No valid credentials: the request is refused before your code runs (401); missing permissions: 403.
 * **`Access`** is a reusable policy: *which provider* authenticates and *which permissions* are required: `Access(auth=tokens, permissions=["posts:write"])`. You attach it to an action with `access=editor`; an action without one is public.
 * **`Schema`** describes data that crosses the API boundary (request bodies and responses) and validates it strictly; **`Model`** describes a database table. They are separate on purpose, so a column never leaks into a response unless a schema names it (rules can enforce that).
-* **Settings** are typed, immutable and loaded explicitly: `class BlogSettings(FrameworkSettings): jwt_secret: Secret; ...`, then `BlogSettings.load(prefix="BLOG_", dotenv=".env")` and `HinokiAPI(settings=settings)`. Built-in groups (`execution`, `lifecycle`, `logging`, `docs`) are set with variables such as `BLOG_EXECUTION__SYNC_WORKERS=16` or `BLOG_LOGGING__FORMAT=json`; secrets never print; a typo in a variable name or a bad value fails at startup with every problem listed ([`docs/SETTINGS.md`](docs/SETTINGS.md); `python -m hinoki settings` shows where every value comes from).
+* **Settings** are typed, immutable and loaded explicitly: `class BlogSettings(FrameworkSettings): jwt_secret: Secret; ...`, then `BlogSettings.load(prefix="BLOG_", dotenv=".env")` and `Hinoki(settings=settings)`. Built-in groups (`execution`, `lifecycle`, `logging`, `docs`) are set with variables such as `BLOG_EXECUTION__SYNC_WORKERS=16` or `BLOG_LOGGING__FORMAT=json`; secrets never print; a typo in a variable name or a bad value fails at startup with every problem listed ([`docs/SETTINGS.md`](docs/SETTINGS.md); `hinoki settings` shows where every value comes from).
 * **`Reply`** lets an action choose the status, headers or body itself (redirects, cookies, HTML) instead of returning a value to be rendered.
 
 ## Rules: architecture you can check
@@ -249,10 +249,10 @@ How the pieces fit and what to avoid: [`docs/PATTERNS.md`](docs/PATTERNS.md). Bu
 Optional, typed rules turn architectural promises into failures with a stable ID and a location. The blog enables four (`examples/blog/rules.py`); they run when the app starts and from the command line:
 
 ```text
-$ python -m hinoki check --app examples.blog.main:create_app --rules examples.blog.rules:blog_rules --package examples
+$ hinoki check examples.blog.main:create_app --rules examples.blog.rules:blog_rules --package examples
 4 rule(s): 0 violated, 0 unverifiable, 0 waived
 
-$ python -m hinoki check --app tests.projects.rulesapp:create_app --rules tests.projects.rulesapp:rules
+$ hinoki check tests.projects.rulesapp:create_app --rules tests.projects.rulesapp:rules
 tests/projects/rulesapp.py:7: HNK-ACC-001 [violated] GET /health (health) declares no access policy
 tests/projects/rulesapp.py:12: HNK-ACC-001 [violated] POST /items (create) declares no access policy
 tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does not declare transaction=True

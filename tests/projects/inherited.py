@@ -1,6 +1,6 @@
 """Two APIs inheriting one unprotected action, for the identity regression."""
 
-from hinoki import API, HinokiAPI, Request, delete, get
+from hinoki import API, Hinoki, Request, delete, get
 
 
 class Base(API):
@@ -20,7 +20,7 @@ class Comments(Base, path="/comments"):
     pass
 
 
-def create_app() -> HinokiAPI:
-    app = HinokiAPI()
+def create_app() -> Hinoki:
+    app = Hinoki()
     app.include(Posts, Comments)
     return app

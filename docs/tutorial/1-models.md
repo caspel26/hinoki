@@ -39,7 +39,7 @@ class Task(Model, table="tracker_tasks", label="Task", plural="Tasks"):
 The planner compares the models with its recorded state and writes SQL you can read:
 
 ```sh
-python -m hinoki migrations --dir examples/tracker/migrations plan \
+hinoki migrations --dir examples/tracker/migrations plan \
     --models examples.tracker.models --name initial
 ```
 

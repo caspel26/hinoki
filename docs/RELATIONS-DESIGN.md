@@ -37,7 +37,7 @@ M2M is an explicit join model with two `foreign_key` columns and a composite uni
 
 ### D4 Migrations are files, planned from models, applied by a command
 
-* `python -m hinoki migrations plan --models blog.models` compares the models with the **recorded state** and writes `migrations/NNNN-name.sql` (forward SQL, human readable) and `migrations/NNNN-name.state.json` (the schema after the migration). Names use no underscores.
+* `hinoki migrations plan --models blog.models` compares the models with the **recorded state** and writes `migrations/NNNN-name.sql` (forward SQL, human readable) and `migrations/NNNN-name.state.json` (the schema after the migration). Names use no underscores.
 * Operations in this slice: create table (columns, primary key, unique, foreign keys), add column, drop column/table, change type, set/drop NOT NULL. Adding a NOT NULL column without a default is flagged too (it fails on tables with rows). Changing unique/primary-key/foreign-key on an existing column is **not planned automatically**: the plan fails and asks for a hand-written migration. Operations that lose data (drop table/column, narrowing a type) are **never generated silently**: the plan prints them as `DESTRUCTIVE` and writes them only with `--allow-destructive`.
 * `migrations apply` runs unapplied files in order, each in one transaction, and records `(name, checksum, applied_at)` in `hinoki_migrations`. A changed checksum of an applied file is an error. `migrations status` and `migrations sql NAME` print without touching anything.
 * **Nothing applies migrations at startup.** The lifespan checks nothing about schema; the example documents running `apply` as a deploy step. `transaction=True` request code never runs DDL.

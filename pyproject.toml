@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "hinoki"
 version = "0.0.1"
-description = "Typed Python API framework with a native Rust core."
+description = "A Python API framework that checks its own architecture, with a native Rust core."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -24,6 +24,9 @@ classifiers = [
 
 [project.urls]
 Repository = "https://github.com/caspel26/hinoki"
+
+[project.scripts]
+hinoki = "hinoki.__main__:main"
 
 [project.optional-dependencies]
 server = ["granian>=2.8,<3"]
@@ -104,7 +107,7 @@ max-branches = 8
 # Inline HTML fragments are clearer on one line than split across string pieces.
 "python/hinoki/admin/{lists,site,views,formpages}.py" = ["E501", "PLR0911"]
 "python/hinoki/admin/modeladmin.py" = ["ARG002"]  # overridable hooks
-"python/hinoki/app.py" = ["PLR0913"]  # HinokiAPI takes keyword-only options
+"python/hinoki/app.py" = ["PLR0913"]  # Hinoki takes keyword-only options
 "python/hinoki/routing.py" = ["PLR0913"]  # each decorator mirrors the Options fields
 "tests/**" = ["S101", "PLR2004", "ARG001", "ARG002", "S104", "S603", "S310"]
 [tool.ruff.lint.isort]

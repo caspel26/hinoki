@@ -10,7 +10,7 @@ from hinoki import (
     Access,
     Caller,
     Conflict,
-    HinokiAPI,
+    Hinoki,
     Request,
     Schema,
     delete,
@@ -63,8 +63,8 @@ async def public_secret(request: Request) -> dict[str, str]:
     return {"hidden": "yes"}
 
 
-def build(**options: Any) -> HinokiAPI:
-    app = HinokiAPI()
+def build(**options: Any) -> Hinoki:
+    app = Hinoki()
     app.include(read_note, search, add_note, drop_note, public_secret)
     tools = options.pop(
         "tools", ["*.read_note", "*.search", "*.add_note", "*.drop_note"]
@@ -199,7 +199,7 @@ async def test_notifications_bad_json_and_oversized_messages() -> None:
 
 
 def test_exposure_must_be_explicit() -> None:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(read_note)
     with pytest.raises(ExposureError, match="tools"):
         expose_as_mcp(app, tools=[], access=reader)
@@ -209,13 +209,13 @@ def test_exposure_must_be_explicit() -> None:
 
 
 async def test_the_endpoint_never_exposes_itself_or_matches_nothing() -> None:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(read_note)
     app.include(*expose_as_mcp(app, tools=["*"], access=reader))
     async with ASGIClient(app) as client:
         listed = (await call(client, rpc("tools/list"))).body["result"]["tools"]
         assert len(listed) == 1 and "mcp" not in listed[0]["name"]
-    other = HinokiAPI()
+    other = Hinoki()
     other.include(read_note)
     with pytest.raises(ExposureError, match="no included action"):
         expose_as_mcp(other, tools=["no.such.*"], access=reader)  # fails when built
@@ -235,7 +235,7 @@ async def test_browser_style_requests_are_refused() -> None:
             assert reply.status == expected, headers
         ok = await client.post("/mcp", json=message, headers=HEADERS)
         assert ok.status == 200
-    allowed = HinokiAPI()
+    allowed = Hinoki()
     allowed.include(read_note)
     allowed.include(
         *expose_as_mcp(
@@ -259,7 +259,7 @@ async def test_the_nested_request_sees_the_client_and_a_second_mount_is_hidden()
         seen["client"], seen["host"] = request.client, request.headers.get("host")
         return {}
 
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(who)
     app.include(*expose_as_mcp(app, tools=["*.who"], access=reader))
     app.include(*expose_as_mcp(app, tools=["*"], access=reader, path="/mcp2"))
@@ -278,7 +278,7 @@ async def test_declared_errors_appear_in_the_tool_description() -> None:
     @get("/gone", access=reader, errors=(Gone,))
     async def gone() -> None: ...
 
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(gone)
     app.include(*expose_as_mcp(app, tools=["*.gone"], access=reader))
     async with ASGIClient(app) as client:

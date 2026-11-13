@@ -1,9 +1,9 @@
 """The smallest useful Hinoki app: a notes API in one file.
 
     NOTES_DATABASE_URL=postgres://... \
-        uv run python -m hinoki dev examples.notes.app:create_app
+        uv run hinoki dev examples.notes.app:create_app
 
-Create the table with a migration (``python -m hinoki migrations plan --models
+Create the table with a migration (``hinoki migrations plan --models
 examples.notes.app``) or by hand; nothing here touches a database at import.
 """
 
@@ -11,7 +11,7 @@ import os
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from hinoki import Field, HinokiAPI, Schema, delete, get, post
+from hinoki import Field, Hinoki, Schema, delete, get, post
 from hinoki.db import DatabaseModule
 from hinoki.orm import Model, field
 
@@ -53,8 +53,8 @@ async def remove(note_id: UUID) -> None:
     await Note.adelete(id=note_id)
 
 
-def create_app(database_url: str | None = None) -> HinokiAPI:
-    app = HinokiAPI(title="Notes", openapi_url="/openapi.json", docs_url="/docs")
+def create_app(database_url: str | None = None) -> Hinoki:
+    app = Hinoki(title="Notes", openapi_url="/openapi.json", docs_url="/docs")
     app.include(listing, one, create, remove)
     app.install(DatabaseModule(database_url or os.environ["NOTES_DATABASE_URL"]))
     return app

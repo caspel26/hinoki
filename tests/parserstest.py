@@ -7,7 +7,7 @@ from openapi_spec_validator import validate
 
 from hinoki import (
     FormParser,
-    HinokiAPI,
+    Hinoki,
     JSONParser,
     MultiPartParser,
     Parser,
@@ -73,8 +73,8 @@ def csv(request: Request) -> dict[str, Any]:
     return {"rows": request.data}
 
 
-def app() -> HinokiAPI:
-    result = HinokiAPI(openapi_url="/openapi.json")
+def app() -> Hinoki:
+    result = Hinoki(openapi_url="/openapi.json")
     result.include(plain, note, form, upload, csv)
     return result
 
@@ -190,7 +190,7 @@ async def test_form_accessors_are_empty_for_json(pool: Pool) -> None:
     def probe(request: Request) -> dict[str, Any]:
         return {"post": dict(request.POST), "files": len(request.FILES)}
 
-    application = HinokiAPI()
+    application = Hinoki()
     application.include(probe)
     client = await pool.start(application)
     reply = await client.request(

@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import API, HinokiAPI, RegistrationError, Request, get, native, post
+from hinoki import API, Hinoki, RegistrationError, Request, get, native, post
 from tests.harness import Client, Pool
 
 
@@ -41,7 +41,7 @@ class Things(API, path="/things"):
 
 
 async def started(pool: Pool) -> Client:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(echo, raw, Things)
     return await pool.start(app)
 
@@ -129,7 +129,7 @@ class Quiet(API, path="/quiet"):
 async def test_the_request_is_optional_and_passed_only_when_declared(
     pool: Pool,
 ) -> None:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(bare, bare_path, Quiet)
     client = await pool.start(app)
     assert (await client.request("GET", "/bare")).body == {"declared": "no"}
@@ -158,4 +158,4 @@ def test_a_declared_request_must_be_first_and_annotated() -> None:
         (wrong, "annotate the `request`"),
     ):
         with pytest.raises(RegistrationError, match=message):
-            HinokiAPI().include(target)
+            Hinoki().include(target)

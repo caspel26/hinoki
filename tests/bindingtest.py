@@ -1,6 +1,6 @@
 import pytest
 
-from hinoki import API, HinokiAPI, RegistrationError, get
+from hinoki import API, Hinoki, RegistrationError, get
 from hinoki.request import Request
 
 
@@ -57,7 +57,7 @@ class WithStatic(API, path="/static"):
 )
 def test_unusable_declarations_fail_at_include(target: object) -> None:
     with pytest.raises((RegistrationError, ValueError)):
-        HinokiAPI().include(target)
+        Hinoki().include(target)
 
 
 def test_override_without_decorator_drops_the_route() -> None:

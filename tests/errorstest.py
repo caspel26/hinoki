@@ -2,7 +2,7 @@
 
 import pytest
 
-from hinoki import APIError, BadRequest, Conflict, HinokiAPI, NotFound, get
+from hinoki import APIError, BadRequest, Conflict, Hinoki, NotFound, get
 from hinoki.errors import ObjectNotFound
 from hinoki.request import Request
 from tests.harness import Pool
@@ -76,8 +76,8 @@ def explode(error: KeyError) -> APIError:
     raise RuntimeError("handler failed")
 
 
-def make_app() -> HinokiAPI:
-    app = HinokiAPI()
+def make_app() -> Hinoki:
+    app = Hinoki()
     app.include(conflict, custom_message, details, quota, hard_quota, teapot)
     app.include(broken_handler, missing_object)
     app.errors.handle(Quota)(too_much)

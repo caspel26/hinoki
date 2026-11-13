@@ -9,7 +9,7 @@ import pytest
 from hinoki import (
     UNSET,
     Field,
-    HinokiAPI,
+    Hinoki,
     Invalid,
     RegistrationError,
     Schema,
@@ -259,7 +259,7 @@ async def test_checks_run_on_request_bodies_and_answer_422() -> None:
     async def signup(data: SignUp) -> dict[str, str]:
         return {"ok": "yes"}
 
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(signup)
     async with ASGIClient(app) as client:
         body = {"password": "s3cret-pass", "again": "nope", "home": {"zip": "12345"}}

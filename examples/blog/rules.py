@@ -1,4 +1,4 @@
-"""The blog's rules (run with ``python -m hinoki check``, see the README).
+"""The blog's rules (run with ``hinoki check``, see the README).
 
 Each line is an architectural promise the tool checks, not a style preference.
 """

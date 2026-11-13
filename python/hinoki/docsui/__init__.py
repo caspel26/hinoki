@@ -1,6 +1,6 @@
 """Interactive API documentation: Swagger UI and ReDoc, served from the package.
 
-``HinokiAPI(openapi_url="/openapi.json", docs_url="/docs", redoc_url="/redoc")``
+``Hinoki(openapi_url="/openapi.json", docs_url="/docs", redoc_url="/redoc")``
 serves both viewers over the application's own OpenAPI document. The viewer
 code is vendored (versions and licences in ``THIRD-PARTY.md``), so documentation
 works offline and under a strict ``Content-Security-Policy``: no inline scripts,

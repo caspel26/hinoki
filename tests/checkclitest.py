@@ -109,7 +109,7 @@ def test_check_reports_violations_with_a_failing_exit_code(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.chdir(tmp_path)  # no hinoki-rules.toml here
-    code = main(["check", "--app", APP, "--rules", RULES])
+    code = main(["check", APP, "--rules", RULES])
     out = capsys.readouterr().out
     assert code == 1
     assert "HNK-ACC-001" in out
@@ -131,7 +131,6 @@ def test_check_json_is_versioned_and_waivers_make_it_pass(
     code = main(
         [
             "check",
-            "--app",
             APP,
             "--rules",
             RULES,
@@ -154,18 +153,18 @@ def test_check_without_rules_passes_and_says_zero(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    assert main(["check", "--app", APP]) == 0
+    assert main(["check", APP]) == 0
     assert "0 rule(s)" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
     "arguments",
     [
-        ["--app", "tests.projects.nope:create_app"],
-        ["--app", "tests.projects.rulesapp:missing"],
-        ["--app", "tests.projects.rulesapp"],
-        ["--app", "tests.projects.rulesapp:rules"],
-        ["--app", APP, "--rules", "tests.projects.rulesapp:health"],
+        ["tests.projects.nope:create_app"],
+        ["tests.projects.rulesapp:missing"],
+        ["tests.projects.rulesapp"],
+        ["tests.projects.rulesapp:rules"],
+        [APP, "--rules", "tests.projects.rulesapp:health"],
     ],
 )
 def test_check_that_cannot_run_exits_2(
@@ -179,5 +178,5 @@ def test_a_broken_waiver_file_exits_2(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     bad = write(tmp_path / "w.toml", "[[waiver")
-    assert main(["check", "--app", APP, "--waivers", str(bad)]) == 2
+    assert main(["check", APP, "--waivers", str(bad)]) == 2
     assert "error:" in capsys.readouterr().err

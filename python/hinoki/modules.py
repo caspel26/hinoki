@@ -66,6 +66,15 @@ class Module:
     requires: ClassVar[tuple[type[Module], ...]] = ()
     apis: ClassVar[tuple[type[API], ...]] = ()
 
+    @classmethod
+    def from_settings(cls, settings: object) -> Module:  # noqa: ARG003 - for overrides
+        """Build the module from the application's settings. Override it to make
+        ``Hinoki(modules=[YourModule])`` work; the default says it is not supported."""
+        raise TypeError(
+            f"{cls.__name__} cannot be built from settings; pass an instance, "
+            f"{cls.__name__}(...), or add a from_settings classmethod"
+        )
+
     def lifespan(
         self,
         ctx: ModuleContext,  # noqa: ARG002 - part of the overridable interface

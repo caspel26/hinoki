@@ -1,6 +1,6 @@
 """Application with an invalid handler signature (path parameter mismatch)."""
 
-from hinoki import HinokiAPI, get
+from hinoki import Hinoki, get
 from hinoki.request import Request
 
 
@@ -8,5 +8,5 @@ from hinoki.request import Request
 def user(request: Request, user_id: int) -> None: ...
 
 
-app = HinokiAPI()
+app = Hinoki()
 app.include(user)

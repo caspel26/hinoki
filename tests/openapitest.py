@@ -12,7 +12,7 @@ from hinoki import (
     Caller,
     Conflict,
     Forbidden,
-    HinokiAPI,
+    Hinoki,
     RegistrationError,
     Schema,
     get,
@@ -90,8 +90,8 @@ def stats(request: Request) -> dict[str, int]:
     return {}
 
 
-def make_app(**options: Any) -> HinokiAPI:
-    app = HinokiAPI(title="Blog", version="1.2.3", **options)
+def make_app(**options: Any) -> Hinoki:
+    app = Hinoki(title="Blog", version="1.2.3", **options)
     app.include(health, Posts, tree, stats)
     return app
 
@@ -251,7 +251,7 @@ async def pat(request: Request, data: Pattern) -> None: ...
 
 
 def test_principal_is_not_documented_as_an_input() -> None:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(me)
     operation = app.openapi()["paths"]["/me"]["get"]
     assert "parameters" not in operation
@@ -260,7 +260,7 @@ def test_principal_is_not_documented_as_an_input() -> None:
 
 
 def test_none_returning_actions_are_documented_as_204() -> None:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(remove)
     responses = app.openapi()["paths"]["/remove/{item}"]["get"]["responses"]
     assert "204" in responses
@@ -268,7 +268,7 @@ def test_none_returning_actions_are_documented_as_204() -> None:
 
 
 def test_patterns_are_documented_anchored_like_the_runtime_matches_them() -> None:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(pat)
     slug = app.openapi()["components"]["schemas"]["Pattern"]["properties"]["slug"]
     assert slug["pattern"] == "^(?:[a-z]+)$"
@@ -287,7 +287,7 @@ def test_declared_errors_become_responses_with_their_codes() -> None:
     def x() -> dict[str, str]:
         return {}
 
-    app = HinokiAPI(openapi_url="/openapi.json")
+    app = Hinoki(openapi_url="/openapi.json")
     app.include(x)
     document = app.openapi()
     responses = document["paths"]["/x"]["get"]["responses"]

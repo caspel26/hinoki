@@ -5,8 +5,8 @@
 The app is built by a factory that loads its typed settings ([settings guide](../SETTINGS.md)) and installs the database module:
 
 ```python
-def create_app(database_url: str | None = None) -> HinokiAPI:
-    app = HinokiAPI(title="Tracker", openapi_url="/openapi.json", docs_url="/docs",
+def create_app(database_url: str | None = None) -> Hinoki:
+    app = Hinoki(title="Tracker", openapi_url="/openapi.json", docs_url="/docs",
                     redoc_url="/redoc", rules=tracker_rules)
     app.include(api.health, api.list_tasks, api.create_task, api.complete_task, api.delete_task)
     app.install(DatabaseModule(database_url or os.environ["TRACKER_DATABASE_URL"]))
@@ -14,7 +14,7 @@ def create_app(database_url: str | None = None) -> HinokiAPI:
 ```
 
 ```sh
-TRACKER_DATABASE_URL=postgres://... python -m hinoki dev examples.tracker.app:create_app
+TRACKER_DATABASE_URL=postgres://... hinoki dev examples.tracker.app:create_app
 ```
 
 `dev` reloads on change; `serve` runs without reload and takes host, port and workers from the `server` settings ([serving](../SERVING.md)). Open `/docs` or `/redoc`.

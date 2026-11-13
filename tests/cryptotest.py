@@ -15,7 +15,7 @@ from typing import Any, ClassVar
 
 import pytest
 
-from hinoki import Access, Caller, HinokiAPI, Request, get, native
+from hinoki import Access, Caller, Hinoki, Request, get, native
 from hinoki.crypto import (
     HashingBusy,
     JWTAuth,
@@ -286,7 +286,7 @@ async def test_the_provider_guards_an_action_over_http(pool: Pool) -> None:
     def me(request: Request, principal: Caller[str]) -> dict[str, str]:
         return {"who": principal.id}
 
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(me)
     client = await pool.start(app)
     valid = {

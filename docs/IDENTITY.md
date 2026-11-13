@@ -4,7 +4,7 @@ Status: **proposals, not decisions** (Q026). Each item says what exists today, w
 
 ## What already makes Hinoki recognisable (keep and say it everywhere)
 
-1. **It checks your architecture.** `python -m hinoki check` fails on a missing access policy, a write without a transaction, an exposed `password_hash`, a model returned from an action, an import against the layering. No other framework in this space ships that. *Voice:* "Hinoki refuses to ship what you promised not to."
+1. **It checks your architecture.** `hinoki check` fails on a missing access policy, a write without a transaction, an exposed `password_hash`, a model returned from an action, an import against the layering. No other framework in this space ships that. *Voice:* "Hinoki refuses to ship what you promised not to."
 2. **Policies and transactions read as declarations:** `access=member_only`, `transaction=True`, `errors=(NotFound,)`, groups with `Endpoints(...)`. Failures are declared, so OpenAPI, the MCP and the test client all know them.
 3. **Built to be driven by an agent, with guardrails you can verify:** the development MCP, the application MCP with an allowlist, waivers only the owner can write.
 4. **Rust where it matters, plain Python where you read it:** parsing, validation, JSON, hashing and the query compiler are native; the surface is ordinary typed Python, sync or async.
@@ -22,7 +22,7 @@ Status: **proposals, not decisions** (Q026). Each item says what exists today, w
 | I5 | **Error voice** | `RegistrationError` messages name the action and the fix | Standardise: *what happened, where, the exact fix, the rule id* (`HNK-…`), one line each. Already true for registration errors and rules; extend to settings and migrations. |
 | I6 | **Status words** | "Pre-alpha" | Keep it honest; add a public "what works today / what does not" table (README has it) and link it from every landing page. |
 | I7 | **Visual identity** | violet mark and wordmark, three admin styles | Use the violet as the single brand colour in docs, CLI output and the admin default; give the docs a tree-ring motif (the hinoki is a cypress) instead of stock graphics. |
-| I8 | **CLI voice** | `python -m hinoki ...` | Add a `hinoki` console script (`hinoki dev`, `hinoki serve`, `hinoki check`, `hinoki settings`, `hinoki new`) so docs and agents use one short command; `python -m hinoki` keeps working. |
+| I8 | **CLI voice** | `hinoki ...` | Add a `hinoki` console script (`hinoki dev`, `hinoki serve`, `hinoki check`, `hinoki settings`, `hinoki new`) so docs and agents use one short command; `python -m hinoki` keeps working. |
 | I9 | **Decorator vocabulary** | `@get/@post/...`, `@unique/@indexed/@ordered_by`, `@field_check/@object_check` | Keep: one visual grammar (decorators state facts about the thing below them). Do not add more declaration syntaxes. |
 | I10 | **A signature example** | blog, tracker | Promote the tracker as *the* reference (layers, rules, errors, MCP) and keep the blog as the admin showcase. |
 
@@ -41,7 +41,7 @@ def create_app() -> HinokiAPI:
 ```
 
 ```sh
-python -m hinoki dev blog.main:create_app
+hinoki dev blog.main:create_app
 ```
 
 **Proposed (I3 + I4 + I8)**: the app class carries the brand, small apps are declared as data, and one short command runs everything. Nothing below exists yet; the factory form keeps working.

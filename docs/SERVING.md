@@ -1,11 +1,11 @@
 # Running an application
 
 ```sh
-python -m hinoki dev   blog.main:create_app     # development: reload on change
-python -m hinoki serve blog.main:create_app     # production-style: no reload
+hinoki dev   blog.main:create_app     # development: reload on change
+hinoki serve blog.main:create_app     # production-style: no reload
 ```
 
-`TARGET` is `module:name`, where `name` is an application (`HinokiAPI`) or a function that returns one (a factory: the usual choice, because it builds the app inside each worker). The factory builds declarations only; databases and pools open in the worker's lifespan.
+`TARGET` is `module:name`, where `name` is an application (`Hinoki`) or a function that returns one (a factory: the usual choice, because it builds the app inside each worker). The factory builds declarations only; databases and pools open in the worker's lifespan.
 
 Both commands run the app under Granian, so install the server extra: `pip install 'hinoki[server]'` (the generated project already depends on it).
 
@@ -22,7 +22,7 @@ From the application's **`server` settings group** ([settings guide](SETTINGS.md
 | `server.backlog` | `BLOG_SERVER__BACKLOG` | `1024` | |
 | `server.access_log` | `BLOG_SERVER__ACCESS_LOG` | `false` | |
 
-`dev` always runs one worker with reload. The settings command shows what is in effect: `python -m hinoki settings blog.settings:BlogSettings`.
+`dev` always runs one worker with reload. The settings command shows what is in effect: `hinoki settings blog.settings:BlogSettings`.
 
 ## Declaring where settings are read
 

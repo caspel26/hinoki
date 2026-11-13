@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-from hinoki import HinokiAPI
+from hinoki import Hinoki
 from hinoki.runtime.asgi import ASGIAdapter
 
 
@@ -101,7 +101,7 @@ class Pool:
     def __init__(self) -> None:
         self.clients: list[Client] = []
 
-    async def start(self, app: HinokiAPI) -> Client:
+    async def start(self, app: Hinoki) -> Client:
         client = Client(app.asgi())
         self.clients.append(client)
         assert await client.lifespan_event("startup") == "lifespan.startup.complete"

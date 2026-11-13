@@ -8,7 +8,7 @@ from hinoki import (
     API,
     Access,
     Actions,
-    HinokiAPI,
+    Hinoki,
     RegistrationError,
     Request,
     Schema,
@@ -69,7 +69,7 @@ class Safe(API, path="/safe"):
 
 
 def project(*items: object) -> Project:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(*items)
     return Project(app)
 
@@ -121,9 +121,7 @@ def test_forbidden_fields_are_found_through_nested_schemas() -> None:
 
 
 def test_enforcement_fails_the_application_with_every_violation() -> None:
-    app = HinokiAPI(
-        rules=RuleSet(Actions.require_access(), Transactions.require_atomic())
-    )
+    app = Hinoki(rules=RuleSet(Actions.require_access(), Transactions.require_atomic()))
     app.include(health, Posts)
     with pytest.raises(RegistrationError, match=r"3 rule violation") as raised:
         app.asgi()
@@ -134,18 +132,18 @@ def test_enforcement_fails_the_application_with_every_violation() -> None:
 def test_log_only_mode_serves_and_clean_projects_pass(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    app = HinokiAPI(rules=RuleSet(Actions.require_access()), enforce_rules=False)
+    app = Hinoki(rules=RuleSet(Actions.require_access()), enforce_rules=False)
     app.include(health)
     with caplog.at_level("WARNING", logger="hinoki"):
         assert app.asgi() is not None
     assert "HNK-ACC-001" in caplog.text
-    clean = HinokiAPI(rules=RuleSet(Transactions.require_atomic()))
+    clean = Hinoki(rules=RuleSet(Transactions.require_atomic()))
     clean.include(Safe)
     assert clean.asgi() is not None
 
 
 def test_no_rules_means_nothing_runs() -> None:
-    app = HinokiAPI()
+    app = Hinoki()
     app.include(health)
     assert app.asgi() is not None
 
@@ -204,6 +202,7 @@ def test_diagnostics_are_data_first() -> None:
         "explanation",
         "subject",
         "waiver",
+        "fix",
     }
     assert data["severity"] == Severity.ERROR.value
     assert found.text().startswith(found.location)

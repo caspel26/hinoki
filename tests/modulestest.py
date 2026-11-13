@@ -1,6 +1,6 @@
 import pytest
 
-from hinoki import API, HinokiAPI, Module, ModuleGraphError, RegistrationError, get
+from hinoki import API, Hinoki, Module, ModuleGraphError, RegistrationError, get
 from hinoki.modules import order_modules
 from hinoki.request import Request
 
@@ -76,7 +76,7 @@ def test_duplicate_and_empty_names_are_rejected() -> None:
 
 
 def test_install_includes_module_apis_and_validates_early() -> None:
-    app = HinokiAPI()
+    app = Hinoki()
     app.install(WithApi())
     assert app.resolve("GET", "/things") is not None
     assert [m.name for m in app.modules] == ["things"]
@@ -87,7 +87,7 @@ def test_install_includes_module_apis_and_validates_early() -> None:
 
 
 def test_install_and_include_are_refused_after_serving_starts() -> None:
-    app = HinokiAPI()
+    app = Hinoki()
     app.asgi()
     with pytest.raises(RegistrationError, match="frozen"):
         app.install(A())

@@ -1,9 +1,9 @@
-"""``python -m hinoki dev|serve TARGET``: run an application under Granian.
+"""``hinoki dev|serve TARGET``: run an application under Granian.
 
-    python -m hinoki dev   blog.main:create_app     # reload on change
-    python -m hinoki serve blog.main:create_app     # production-style, no reload
+    hinoki dev   blog.main:create_app     # reload on change
+    hinoki serve blog.main:create_app     # production-style, no reload
 
-``TARGET`` is ``module:name`` where ``name`` is an application (``HinokiAPI``) or
+``TARGET`` is ``module:name`` where ``name`` is an application (``Hinoki``) or
 a function returning one. The host, port and worker count come from the
 application's ``server`` settings group (``FrameworkSettings.server``), and the
 flags below override them. Granian is an optional dependency
@@ -18,7 +18,7 @@ import inspect
 import sys
 from typing import Any
 
-from hinoki.app import HinokiAPI
+from hinoki.app import Hinoki
 from hinoki.routing import ROUTE_ATTR
 from hinoki.settings import FrameworkSettings, ServerSettings, SettingsError
 
@@ -47,7 +47,7 @@ def load_target(target: str) -> tuple[Any, bool]:
         found = getattr(importlib.import_module(module_name), name)
     except (ImportError, AttributeError) as exc:
         raise SystemExit(f"error: cannot load {target}: {exc}") from None
-    if isinstance(found, HinokiAPI):
+    if isinstance(found, Hinoki):
         return found, False
     if (
         callable(found)

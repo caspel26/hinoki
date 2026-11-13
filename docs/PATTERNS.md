@@ -55,7 +55,7 @@ An application is a set of modules with explicit dependencies and a lifespan (`D
 
 ## 7. Migrations
 
-`python -m hinoki migrations plan` writes reviewable SQL and a state file; destructive operations are flagged and need `--allow-destructive`; adding a NOT NULL column without a default is flagged. Review the SQL like code, apply with `migrations apply` against a disposable database first.
+`hinoki migrations plan` writes reviewable SQL and a state file; destructive operations are flagged and need `--allow-destructive`; adding a NOT NULL column without a default is flagged. Review the SQL like code, apply with `migrations apply` against a disposable database first.
 
 ## 8. Testing
 
@@ -71,7 +71,7 @@ HTTPS terminates somewhere you control (set `Admin(secure_cookies=True)` behind 
 
 ## 10. Rules to turn on from day one
 
-`python -m hinoki new` generates a project with `HNK-ACC-001`, `HNK-TXN-001` and `HNK-SCH-001` enabled. Add `Imports.forbid` for the layer direction in section 1. Waivers live in `hinoki-rules.toml`, are decided by the owner, have a reason and a bounded target, and are never edited by tools or agents to make a check pass.
+`hinoki new` generates a project with `HNK-ACC-001`, `HNK-TXN-001` and `HNK-SCH-001` enabled. Add `Imports.forbid` for the layer direction in section 1. Waivers live in `hinoki-rules.toml`, are decided by the owner, have a reason and a bounded target, and are never edited by tools or agents to make a check pass.
 
 ## 11. Anti-patterns
 
