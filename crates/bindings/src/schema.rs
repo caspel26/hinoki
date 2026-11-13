@@ -42,6 +42,7 @@ struct Node {
     le: Option<Py<PyAny>>,
     gt: Option<Py<PyAny>>,
     lt: Option<Py<PyAny>>,
+    one_of: Option<Vec<Py<PyAny>>>,
 }
 
 struct Field {
@@ -94,6 +95,17 @@ fn optional_object(constraints: &Bound<'_, PyDict>, name: &str) -> PyResult<Opti
     Ok(constraints.get_item(name)?.map(Bound::unbind))
 }
 
+fn optional_choices(constraints: &Bound<'_, PyDict>) -> PyResult<Option<Vec<Py<PyAny>>>> {
+    let Some(values) = constraints.get_item("one_of")? else {
+        return Ok(None);
+    };
+    let mut choices = Vec::new();
+    for value in values.try_iter()? {
+        choices.push(value?.unbind());
+    }
+    Ok(Some(choices))
+}
+
 fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node> {
     let (kind, nullable, constraints, item, index): (
         String,
@@ -137,6 +149,7 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node> {
         le: optional_object(&constraints, "le")?,
         gt: optional_object(&constraints, "gt")?,
         lt: optional_object(&constraints, "lt")?,
+        one_of: optional_choices(&constraints)?,
     })
 }
 
@@ -298,16 +311,50 @@ impl<'py> Run<'_, 'py> {
             }
             return self.fail(path, "null", "null is not allowed".to_owned());
         }
-        match &node.kind {
-            Kind::Str => self.text(node, data, path),
-            Kind::Int => self.integer(node, data, path),
-            Kind::Float => self.number(node, data, path),
-            Kind::Bool => self.boolean(data, path),
-            Kind::Uuid => self.uuid(data, path),
-            Kind::Datetime => self.moment(data, path),
-            Kind::List(item) => self.sequence(node, item, data, path, depth),
-            Kind::Schema(index) => self.schema(*index, data, path, depth),
+        let checked = match &node.kind {
+            Kind::Str => self.text(node, data, path)?,
+            Kind::Int => self.integer(node, data, path)?,
+            Kind::Float => self.number(node, data, path)?,
+            Kind::Bool => self.boolean(data, path)?,
+            Kind::Uuid => self.uuid(data, path)?,
+            Kind::Datetime => self.moment(data, path)?,
+            Kind::List(item) => self.sequence(node, item, data, path, depth)?,
+            Kind::Schema(index) => self.schema(*index, data, path, depth)?,
+        };
+        match (&node.one_of, checked) {
+            (Some(choices), Some(value)) => self.one_of(choices, value, path),
+            (_, other) => Ok(other),
         }
+    }
+
+    /// The value must equal one of the declared choices (strict types were
+    /// already enforced by the kind, so `1` never matches `True`).
+    fn one_of(
+        &mut self,
+        choices: &[Py<PyAny>],
+        value: Bound<'py, PyAny>,
+        path: &str,
+    ) -> Checked<'py> {
+        for choice in choices {
+            if value.eq(choice.bind(self.py))? {
+                return Ok(Some(value));
+            }
+        }
+        let shown: Vec<String> = choices
+            .iter()
+            .take(10)
+            .map(|c| {
+                c.bind(self.py)
+                    .repr()
+                    .map(|r| r.to_string())
+                    .unwrap_or_default()
+            })
+            .collect();
+        self.fail(
+            path,
+            "one_of",
+            format!("must be one of {}", shown.join(", ")),
+        )
     }
 
     fn length(&mut self, node: &Node, size: usize, path: &str) -> Result<bool, Abort> {

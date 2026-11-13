@@ -27,9 +27,9 @@ SCALARS: dict[type, str] = {
 }
 
 ALLOWED_CONSTRAINTS: dict[str, frozenset[str]] = {
-    "str": frozenset({"min_length", "max_length", "pattern"}),
-    "int": frozenset({"ge", "le", "gt", "lt"}),
-    "float": frozenset({"ge", "le", "gt", "lt"}),
+    "str": frozenset({"min_length", "max_length", "pattern", "one_of"}),
+    "int": frozenset({"ge", "le", "gt", "lt", "one_of"}),
+    "float": frozenset({"ge", "le", "gt", "lt", "one_of"}),
     "list": frozenset({"min_length", "max_length"}),
 }
 
@@ -90,6 +90,25 @@ def check_limits(info: FieldInfo, where: str) -> None:
             raise RegistrationError(f"{where}: {name} must be a number")
 
 
+def check_one_of(info: FieldInfo, kind: str, where: str) -> None:
+    """``one_of`` is a non-empty tuple of values of the field's own type."""
+    values = info.one_of
+    if values is None:
+        return
+    kinds: dict[str, tuple[type, ...]] = {
+        "str": (str,),
+        "int": (int,),
+        "float": (int, float),
+    }
+    wanted = kinds[kind]
+    if not values or any(
+        isinstance(v, bool) or not isinstance(v, wanted) for v in values
+    ):
+        raise RegistrationError(
+            f"{where}: one_of needs a non-empty list of {kind} values"
+        )
+
+
 def parse_annotation(annotation: object, where: str) -> FieldType:
     """Turn an annotation into a ``FieldType`` or fail with a clear error."""
     base, info = split_annotated(annotation)
@@ -128,4 +147,6 @@ def build(
         raise RegistrationError(
             f"{where}: constraint(s) {sorted(unsupported)} do not apply to {kind}"
         )
+    if kind in {"str", "int", "float"}:
+        check_one_of(info, kind, where)
     return FieldType(kind, nullable, allows_unset, info, item, schema)

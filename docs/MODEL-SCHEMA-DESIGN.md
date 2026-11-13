@@ -22,7 +22,36 @@ class PostPatch(Schema, model=Post, fields=["title", "body"], optional=True)
 * **Relations are not derived.** Foreign-key columns appear as their id (`author_id`); nested objects are declared explicitly, so what a client sees stays a visible decision (and `HNK-SCH-001` keeps working).
 * **Typing:** the type checker sees only the fields declared in the body, not the derived ones. Declare a field by hand when you need static access to it. (A stub generator is a possible later step.)
 
-## Queued slices
+## Our own validation (slices 2 and 3, implemented)
 
-* **Slice 2, declarative constraints, run in Rust:** `Field(one_of=[...])`, `min_items`/`max_items` on lists, `format="email"|"url"|"slug"|...` (compiled to Rust patterns), cross-field comparisons.
-* **Slice 3, validators:** `@field_check("password")` and `@object_check` hooks for what cannot be declared, with the same error shape and codes as built-in validation, run after the structural check; never able to change types.
+**Declarative, run in Rust** (so they cost nothing extra and appear in OpenAPI):
+
+* `Field(one_of=["red", "green"])` on `str`, `int` and `float` fields: the value must equal one of the choices (strict types: `True` never matches `1`). Error code `one_of`; OpenAPI `enum`.
+* `Field(format="email" | "url" | "slug" | "hex_color")`: a ready-made whole-value pattern (linear-time Rust syntax). It is `Field(pattern=...)` underneath, so the error code is `pattern`; combining `format=` and `pattern=` is an error.
+* Lists already take `min_length`/`max_length` as item counts.
+
+**Hooks in Python, for what cannot be declared:**
+
+```python
+class SignUp(Schema):
+    password: Annotated[str, Field(min_length=8)]
+    again: str
+
+    @field_check("password")
+    def not_common(self, value: str) -> None:
+        if value in COMMON:
+            raise Invalid("common", "too common")
+
+    @object_check
+    def same_password(self) -> None:
+        if self.password != self.again:
+            raise Invalid("mismatch", "the two passwords differ", path="again")
+```
+
+* Checks run **after** the structural validation succeeded, so `value` has its declared type and `self` is a fully built instance; a malformed body never reaches them.
+* Every check runs (all problems come back together) and nested schemas run their own, with paths like `home.zip` and `others[1].zip`. A check raises `Invalid(code, message, path=...)`; it cannot change a value.
+* They are inherited by subclasses; a schema graph without any check pays nothing.
+* They are synchronous and must not do I/O: a rule that needs the database ("this email is taken") belongs in an operation that raises a declared `Conflict`.
+* Same error shape as built-in validation (`path`, `code`, `message`), so clients, `explain_error` and OpenAPI treat them alike.
+
+Not yet: cross-field comparisons declared without code (`Field(equals="password")`), checks that normalise values (trim, lower-case), and running declarative checks that need Python in the Rust engine.

@@ -29,8 +29,8 @@ If you come from Pydantic (or an assistant suggests its API), these do not exist
 | `model_validate`, `parse_obj` | `Schema.validate(data)` (raises a validation error listing every problem) |
 | `model_dump`, `.dict()`, `.json()` | `to_dict()` (Python values), `dump()` (JSON-compatible) |
 | Coercion in "lax" mode (`"1"` becomes `1`) | none: strict only |
-| `Field(..., ge=, le=, pattern=)` | `Field(ge=, le=, gt=, lt=, min_length=, max_length=, pattern=)`; patterns use Rust syntax, whole-value, no look-around |
-| `validator`, `field_validator` | custom validators are planned (see the roadmap), not available yet |
+| `Field(..., ge=, le=, pattern=)` | `Field(ge=, le=, gt=, lt=, min_length=, max_length=, pattern=, one_of=, format=)`; patterns use Rust syntax, whole-value, no look-around |
+| `validator`, `field_validator`, `model_validator` | `@field_check("name")` and `@object_check` raising `Invalid(code, message)`: run after the structural check, never change values, no I/O (see [Schemas from models](MODEL-SCHEMA-DESIGN.md)) |
 | Mutable instances | instances are immutable |
 
 See also the [glossary](GLOSSARY.md) for what "schema" does and does not mean in these docs.
