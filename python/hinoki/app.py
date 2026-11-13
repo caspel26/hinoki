@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import MutableMapping
 from typing import Any
 
@@ -12,9 +13,12 @@ from hinoki.modules import Module, order_modules
 from hinoki.native import Router
 from hinoki.openapi import OpenAPIBuilder
 from hinoki.routing import Found, MethodNotAllowed, Route, route_of
+from hinoki.rules import Phase, Project, RuleSet, failing
 from hinoki.runtime.asgi import ASGIAdapter
 from hinoki.runtime.binding import Binding, bind
 from hinoki.runtime.config import RuntimeConfig
+
+log = logging.getLogger("hinoki")
 
 
 class HinokiAPI:
@@ -34,12 +38,16 @@ class HinokiAPI:
         title: str = "Hinoki API",
         version: str = "0.1.0",
         openapi_url: str | None = None,
+        rules: RuleSet | None = None,
+        enforce_rules: bool = True,
     ) -> None:
         self.settings = settings
         self.runtime = runtime or RuntimeConfig()
         self.title = title
         self.version = version
         self.openapi_url = openapi_url
+        self.rules = rules
+        self.enforce_rules = enforce_rules
         self.errors = ErrorRegistry()
         self._routes: list[Route] = []
         self._bindings: list[Binding] = []
@@ -130,8 +138,24 @@ class HinokiAPI:
     def asgi(self) -> ASGIAdapter:
         """The ASGI adapter for this worker; builds and validates bindings once."""
         if self._adapter is None:
-            self._adapter = ASGIAdapter(self)
+            adapter = ASGIAdapter(self)  # bad signatures fail here
+            self.enforce()
+            self._adapter = adapter
         return self._adapter
+
+    def enforce(self) -> None:
+        """Fail with every startup-rule violation when rules are enforced. With
+        ``enforce_rules=False`` the diagnostics are only logged."""
+        if self.rules is None:
+            return
+        diagnostics = self.rules.run(Project(self), Phase.STARTUP)
+        broken = failing(diagnostics)
+        if not broken:
+            return
+        report = "\n".join(d.text() for d in broken)
+        if self.enforce_rules:
+            raise RegistrationError(f"{len(broken)} rule violation(s):\n{report}")
+        log.warning("%d rule violation(s):\n%s", len(broken), report)
 
     async def __call__(
         self, scope: MutableMapping[str, Any], receive: Any, send: Any

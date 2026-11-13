@@ -1,6 +1,6 @@
 # Rules and development MCP — design (Q006)
 
-Status: **design** (2026-11-13). Source: `FRAMEWORK_SPEC.md` §14–15 (local package). Nothing here is implemented until a step below says so.
+Status: **R1 design, R2 implemented** (2026-11-13): `python/hinoki/rules.py` with `Diagnostic`/`Rule`/`RuleSet`, `Actions.require_access` (`HNK-ACC-001`), `Transactions.require_atomic` (`HNK-TXN-001`), `Schemas.forbid_exposure` (`HNK-SCH-001`) and `HinokiAPI(rules=..., enforce_rules=...)`. R3–R6 open. Source: `FRAMEWORK_SPEC.md` §14–15 (local package). Nothing here is implemented until a step below says so.
 
 ## Observed
 
@@ -79,7 +79,7 @@ Per rule: a passing and a failing fixture with the exact diagnostic (ID, locatio
 | Step | Deliverable | Files |
 | --- | --- | --- |
 | R1 | This design | `docs/RULES-DESIGN.md` |
-| R2 | `Diagnostic`, `Rule`, `RuleSet`, startup rules, enforcement hook on `HinokiAPI` | `python/hinoki/rules.py`, `python/hinoki/app.py` |
+| R2 (done) | `Diagnostic`, `Rule`, `RuleSet`, startup rules, enforcement hook on `HinokiAPI` | `python/hinoki/rules.py`, `python/hinoki/app.py` |
 | R3 | Static `Imports.forbid`, project loading | `python/hinoki/rules.py`, `python/hinoki/imports.py` |
 | R4 | Waivers (`hinoki-rules.toml`) and `python -m hinoki check` | `python/hinoki/waivers.py`, `python/hinoki/__main__.py` |
 | R5 | Development MCP server and tools | `python/hinoki/mcp.py` |
