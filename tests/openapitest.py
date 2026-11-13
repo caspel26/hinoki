@@ -128,7 +128,7 @@ def test_request_body_and_responses() -> None:
     create = make_app().openapi()["paths"]["/posts"]["post"]
     body = create["requestBody"]["content"]["application/json"]["schema"]
     assert body == {"$ref": "#/components/schemas/PostCreate"}
-    assert set(create["responses"]) == {"201", "422"}
+    assert set(create["responses"]) == {"201", "422", "401", "403"}
     ok = create["responses"]["201"]["content"]["application/json"]["schema"]
     assert ok == {"$ref": "#/components/schemas/PostOut"}
     assert create["security"] == [{"TokenAuth": ["posts:write"]}]
