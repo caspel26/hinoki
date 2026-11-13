@@ -30,6 +30,7 @@ from hinoki.errors import (
 )
 from hinoki.fields import UNSET, Field, FieldInfo, Unset
 from hinoki.fieldtypes import FieldType, parse_annotation
+from hinoki.native import dump_instance
 
 __all__ = ["UNSET", "Contract", "Field", "FieldSpec", "Schema", "Unset"]
 
@@ -148,12 +149,7 @@ class Schema:
         """The field values as Python objects (UUID, datetime stay what they are),
         nested schemas converted too. Fields left ``UNSET`` are omitted, so the
         result is exactly "what the client sent" for a partial update."""
-        skipped = set(exclude)
-        return {
-            name: plain(getattr(self, name))
-            for name in self.specs()
-            if name not in skipped and getattr(self, name) is not UNSET
-        }
+        return dump_instance(self, False, list(exclude))
 
     @classmethod
     def from_model(cls, row: object, **extra: Any) -> Self:
@@ -183,13 +179,9 @@ class Schema:
         return cls(**values)
 
     def dump(self) -> dict[str, Any]:
-        """JSON-compatible form; ``UNSET`` fields are omitted. (Responses do not
-        go through this method: JSON answers are serialised in Rust.)"""
-        return {
-            name: encode(getattr(self, name))
-            for name in self.specs()
-            if getattr(self, name) is not UNSET
-        }
+        """JSON-compatible form; ``UNSET`` fields are omitted. Built in Rust,
+        like the JSON answers themselves."""
+        return dump_instance(self, True)
 
 
 def node_of(

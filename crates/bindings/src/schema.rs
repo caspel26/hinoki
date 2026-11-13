@@ -187,8 +187,12 @@ pub fn compile_schemas(
 
 /// For a `Schema` instance: its field names in declaration order and the
 /// `UNSET` sentinel (fields holding it are not serialised). The class is
-/// compiled on first use. `None` when `value` is not a schema instance.
-pub fn instance_fields(value: &Bound<'_, PyAny>) -> PyResult<Option<(Vec<String>, Py<PyAny>)>> {
+/// compiled on first use. `None` when `value` is not a schema instance (or,
+/// with `honour_custom_dump`, when its class overrides `dump()`).
+pub fn instance_fields(
+    value: &Bound<'_, PyAny>,
+    honour_custom_dump: bool,
+) -> PyResult<Option<(Vec<String>, Py<PyAny>)>> {
     let class = value.get_type();
     if !class.hasattr("__hinoki_schema__")? {
         return Ok(None);
@@ -197,17 +201,18 @@ pub fn instance_fields(value: &Bound<'_, PyAny>) -> PyResult<Option<(Vec<String>
     let table = class.getattr("__dict__")?;
     // A class that overrides `dump()` decides what it exposes: the caller falls
     // back to calling it, exactly as the Python encoder always did.
-    if let Ok(flag) = table.get_item("__native_dump__") {
-        if !flag.is_truthy()? {
-            return Ok(None);
-        }
-    } else {
-        class.call_method0("native_schema")?;
-        if !class
-            .getattr("__dict__")?
-            .get_item("__native_dump__")?
-            .is_truthy()?
-        {
+    if honour_custom_dump {
+        let overrides = match table.get_item("__native_dump__") {
+            Ok(flag) => !flag.is_truthy()?,
+            Err(_) => {
+                class.call_method0("native_schema")?;
+                !class
+                    .getattr("__dict__")?
+                    .get_item("__native_dump__")?
+                    .is_truthy()?
+            }
+        };
+        if overrides {
             return Ok(None);
         }
     }
@@ -633,4 +638,105 @@ mod tests {
             assert!(!is_rfc3339(bad), "{bad}");
         }
     }
+}
+
+const DUMP_DEPTH: usize = 1000;
+
+fn exact_class(value: &Bound<'_, PyAny>, module: &str, name: &str) -> PyResult<bool> {
+    let wanted = value.py().import(module)?.getattr(name)?;
+    Ok(value.get_type().is(&wanted))
+}
+
+/// A value as `Schema.dump()` (JSON-compatible) or `Schema.to_dict()` (Python
+/// values) shows it: nested schemas become dicts, lists and tuples lists, dicts
+/// are copied; in JSON mode exact `UUID`/`datetime` values become text and any
+/// object with a `dump()` method is replaced by what it returns.
+fn convert<'py>(
+    value: &Bound<'py, PyAny>,
+    json_mode: bool,
+    depth: usize,
+) -> PyResult<Bound<'py, PyAny>> {
+    let py = value.py();
+    if depth > DUMP_DEPTH {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "value is nested too deeply",
+        ));
+    }
+    if let Ok(list) = value.cast::<PyList>() {
+        let out = PyList::empty(py);
+        for item in list.iter() {
+            out.append(convert(&item, json_mode, depth + 1)?)?;
+        }
+        return Ok(out.into_any());
+    }
+    if let Ok(tuple) = value.cast::<pyo3::types::PyTuple>() {
+        let out = PyList::empty(py);
+        for item in tuple.iter() {
+            out.append(convert(&item, json_mode, depth + 1)?)?;
+        }
+        return Ok(out.into_any());
+    }
+    if let Ok(dict) = value.cast::<PyDict>() {
+        let out = PyDict::new(py);
+        for (key, item) in dict.iter() {
+            out.set_item(key, convert(&item, json_mode, depth + 1)?)?;
+        }
+        return Ok(out.into_any());
+    }
+    if instance_fields(value, false)?.is_some() {
+        if json_mode && instance_fields(value, true)?.is_none() {
+            return value.call_method0("dump"); // the class decides what it exposes
+        }
+        return Ok(dump_instance_at(value, json_mode, &[], depth + 1)?.into_any());
+    }
+    if json_mode {
+        if exact_class(value, "uuid", "UUID")? {
+            return Ok(value.str()?.into_any());
+        }
+        if exact_class(value, "datetime", "datetime")? {
+            return value.call_method0("isoformat");
+        }
+        if value.hasattr("dump")? {
+            return value.call_method0("dump");
+        }
+    }
+    Ok(value.clone())
+}
+
+fn dump_instance_at<'py>(
+    value: &Bound<'py, PyAny>,
+    json_mode: bool,
+    exclude: &[String],
+    depth: usize,
+) -> PyResult<Bound<'py, PyDict>> {
+    let py = value.py();
+    let Some((names, unset)) = instance_fields(value, false)? else {
+        return Err(pyo3::exceptions::PyTypeError::new_err(
+            "not a schema instance",
+        ));
+    };
+    let out = PyDict::new(py);
+    for name in names {
+        if exclude.contains(&name) {
+            continue;
+        }
+        let item = value.getattr(name.as_str())?;
+        if item.is(&unset) {
+            continue;
+        }
+        out.set_item(&name, convert(&item, json_mode, depth)?)?;
+    }
+    Ok(out)
+}
+
+/// The fields of a schema instance as a dict (UNSET omitted): JSON-compatible
+/// when `json_mode`, Python values otherwise. `exclude` names fields to skip.
+#[pyfunction]
+#[pyo3(signature = (value, json_mode, exclude=Vec::new()))]
+pub fn dump_instance<'py>(
+    value: &Bound<'py, PyAny>,
+    json_mode: bool,
+    exclude: Vec<String>,
+) -> PyResult<Bound<'py, PyDict>> {
+    dump_instance_at(value, json_mode, &exclude, 0)
 }
