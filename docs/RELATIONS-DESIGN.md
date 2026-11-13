@@ -33,7 +33,7 @@ Static typing: the framework installs a `Related[T]` descriptor for every relati
 
 ### D3 Many-to-many is a model
 
-M2M is an explicit join model with two `foreign_key` columns and a composite uniqueness, not hidden machinery. A convenience `through=` on `prefetch_related` may follow once real use shows the shape; it is **not** part of this slice (recorded in Open).
+M2M is an explicit join model with two `foreign_key` columns and a composite uniqueness, not hidden machinery. Composite uniqueness is declared on the model class: `class PostTag(Model, table="post_tags", unique=[("post_id", "tag_id")])`, planned into `UNIQUE (...)` on table creation (changing it on an existing table is a hand-written migration). A convenience `through=` on `prefetch_related` may follow once real use shows the shape; it is **not** part of this slice (recorded in Open).
 
 ### D4 Migrations are files, planned from models, applied by a command
 

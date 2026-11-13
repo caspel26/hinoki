@@ -17,7 +17,7 @@ import builtins
 import copy
 import dataclasses
 import inspect
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, ClassVar, Self, cast, dataclass_transform
@@ -117,6 +117,9 @@ def foreign_key(
     return dataclasses.field(default=default, metadata={MARK: meta})
 
 
+MIN_UNIQUE = 2
+
+
 @dataclass_transform(kw_only_default=True, field_specifiers=(field,))
 class Model:
     """Base class: ``class Post(Model, table="posts"): ...``."""
@@ -125,9 +128,15 @@ class Model:
     __columns__: ClassVar[tuple[str, ...]] = ()
     __primary_key__: ClassVar[str] = ""
     __relations__: ClassVar[dict[str, Relation]] = {}
+    __unique__: ClassVar[tuple[tuple[str, ...], ...]] = ()
     NotFound: ClassVar[type[ObjectNotFound]] = ObjectNotFound
 
-    def __init_subclass__(cls, table: str = "", **kwargs: object) -> None:
+    def __init_subclass__(
+        cls,
+        table: str = "",
+        unique: Sequence[Sequence[str]] = (),
+        **kwargs: object,
+    ) -> None:
         super().__init_subclass__(**kwargs)
         if not table:
             raise RegistrationError(f"{cls.__name__}: table=... is required")
@@ -140,6 +149,7 @@ class Model:
         cls.__columns__ = tuple(f.name for f in fields)
         cls.__primary_key__ = keys[0]
         cls.check_names(cls.__columns__)
+        cls.__unique__ = cls.check_unique(unique)
         cls.__relations__ = {
             name: relation
             for base in cls.__mro__[1:]
@@ -150,6 +160,28 @@ class Model:
         cls.NotFound = type(
             "NotFound", (ObjectNotFound,), {"__qualname__": f"{cls.__name__}.NotFound"}
         )
+
+    @classmethod
+    def check_unique(
+        cls, groups: Sequence[Sequence[str]]
+    ) -> tuple[tuple[str, ...], ...]:
+        """Composite uniqueness, e.g. ``unique=[("post_id", "tag_id")]`` on a
+        many-to-many join model. Single columns use ``field(unique=True)``."""
+        checked = []
+        for group in groups:
+            columns = tuple(group)
+            unknown = [c for c in columns if c not in cls.__columns__]
+            if (
+                len(columns) < MIN_UNIQUE
+                or len(set(columns)) != len(columns)
+                or unknown
+            ):
+                raise RegistrationError(
+                    f"{cls.__name__}: unique={columns} needs two or more distinct "
+                    f"columns of the model (unknown: {unknown})"
+                )
+            checked.append(columns)
+        return tuple(checked)
 
     @classmethod
     def check_names(cls, columns: tuple[str, ...]) -> None:

@@ -118,7 +118,7 @@ def table_state(model: type[Model]) -> State:
     for item in dataclasses.fields(model):  # type: ignore[arg-type]
         meta: FieldMeta = item.metadata.get(MARK, FieldMeta())
         columns[item.name] = column_state(model, item.name, hints[item.name], meta)
-    return {"columns": columns}
+    return {"columns": columns, "unique": [list(group) for group in model.__unique__]}
 
 
 def family(sql_type: str) -> str:
@@ -194,9 +194,14 @@ def column_sql(name: str, column: State) -> str:
 
 
 def create_table(name: str, spec: State) -> Operation:
-    lines = ",\n".join(f"    {column_sql(c, s)}" for c, s in spec["columns"].items())
+    lines = [f"    {column_sql(c, s)}" for c, s in spec["columns"].items()]
+    lines.extend(
+        f"    UNIQUE ({', '.join(quote(c) for c in group)})"
+        for group in spec.get("unique", [])
+    )
+    text = ",\n".join(lines)
     return Operation(
-        f"create table {name}", f"CREATE TABLE {quote(name)} (\n{lines}\n);"
+        f"create table {name}", f"CREATE TABLE {quote(name)} (\n{text}\n);"
     )
 
 
@@ -251,6 +256,11 @@ def drop_column(table: str, name: str) -> Operation:
 
 def table_changes(table: str, old: State, new: State) -> list[Operation]:
     operations: list[Operation] = []
+    if old.get("unique", []) != new.get("unique", []):
+        raise MigrationError(
+            f"{table}: changing composite unique constraints is not planned "
+            "automatically; write that migration by hand"
+        )
     for name, column in new["columns"].items():
         if name not in old["columns"]:
             operations.append(add_column(table, name, column))
