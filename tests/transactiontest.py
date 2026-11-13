@@ -3,7 +3,7 @@
 import asyncio
 import os
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import ClassVar
 
 import pytest
@@ -68,6 +68,16 @@ async def create_duplicate(data: Item) -> dict[str, str]:
     return {}
 
 
+@post("/swallow", transaction=True)
+async def swallow_database_error(data: Item) -> dict[str, str]:
+    """Catches a constraint error and returns normally: the commit must fail."""
+    sql = f"INSERT INTO {TABLE} (name) VALUES ($1)"  # noqa: S608
+    await database().execute(sql, data.name)
+    with suppress(UniqueViolation):
+        await database().execute(sql, data.name)
+    return {"name": data.name}
+
+
 @post("/slow", transaction=True)
 async def create_slow(data: Item) -> dict[str, str]:
     await database().execute(f"INSERT INTO {TABLE} (name) VALUES ($1)", data.name)  # noqa: S608
@@ -89,7 +99,7 @@ def make_app(**runtime: float) -> HinokiAPI:
     assert URL is not None
     app = HinokiAPI(runtime=RuntimeConfig(**runtime))  # type: ignore[arg-type]
     app.include(create_ok, create_then_crash, create_then_conflict, create_duplicate)
-    app.include(create_slow, count)
+    app.include(create_slow, count, swallow_database_error)
     app.install(DatabaseModule(URL, max_size=3, wait=0.5), Holder())
     return app
 
@@ -168,3 +178,12 @@ async def test_transaction_without_a_database_fails_startup() -> None:
     app.include(needs_database)
     client = Client(app.asgi())
     assert await client.lifespan_event("startup") == "lifespan.startup.failed"
+
+
+async def test_a_swallowed_database_error_never_becomes_a_2xx(pool: Pool) -> None:
+    client = await pool.start(make_app())
+    reply = await client.request(
+        "POST", "/swallow", b'{"name": "a"}', content_type=JSON
+    )
+    assert reply.status == 500
+    assert await rows(pool) == 0

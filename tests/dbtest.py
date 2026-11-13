@@ -219,3 +219,136 @@ async def test_status_reports_pool_usage(db: Database) -> None:
     size, idle = db.status()
     assert size >= 1
     assert idle >= 1
+
+
+async def test_cancelling_begin_never_returns_an_open_transaction_to_the_pool(
+    db: Database,
+) -> None:
+    one = await Database.connect(URL or "", max_size=1, wait=1.0)
+    try:
+        for attempt in range(150):
+            task = asyncio.ensure_future(one.engine.begin())
+            await asyncio.sleep((attempt % 10) * 0.0001)
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        first = (await one.fetch("SELECT now() AS t"))[0]["t"]
+        await asyncio.sleep(0.02)
+        second = (await one.fetch("SELECT now() AS t"))[0]["t"]
+        assert first != second, "the pooled connection is inside a transaction"
+    finally:
+        one.close()
+
+
+async def test_commit_of_an_aborted_transaction_is_an_error_not_success(
+    db: Database,
+) -> None:
+    await add(db, "dup")
+    with pytest.raises(DatabaseError) as info:
+        async with db.transaction():
+            await add(db, "fresh")
+            with pytest.raises(UniqueViolation):
+                await add(db, "dup")
+            # the error was caught, but PostgreSQL already aborted the transaction
+    assert info.value.sqlstate == "25P02"
+    assert await count(db) == 1
+
+
+async def test_an_error_inside_a_savepoint_scope_does_not_abort_the_outer_commit(
+    db: Database,
+) -> None:
+    await add(db, "dup")
+    async with db.transaction():
+        await add(db, "outer")
+        with pytest.raises(UniqueViolation):
+            async with db.transaction():
+                await add(db, "dup")
+    assert await count(db) == 2
+
+
+async def test_leaving_a_scope_waits_for_a_running_child_and_leaves_nothing_open(
+    db: Database,
+) -> None:
+    async def child() -> None:
+        await db.fetch("SELECT pg_sleep(0.4)")
+
+    async with db.transaction():
+        await add(db, "parent")
+        task = asyncio.create_task(child())
+        await asyncio.sleep(0.1)
+    await asyncio.gather(task, return_exceptions=True)
+    assert await count(db) == 1
+    size, idle = db.status()
+    assert idle == size, "a connection is still held by an orphaned transaction"
+
+
+async def test_a_task_that_outlives_its_transaction_cannot_use_it(db: Database) -> None:
+    holder: list[asyncio.Task[object]] = []
+    async with db.transaction():
+        holder.append(asyncio.create_task(late(db)))
+    with pytest.raises(DatabaseError, match="has ended"):
+        await holder[0]
+
+
+async def late(db: Database) -> object:
+    await asyncio.sleep(0.1)
+    return await db.fetch("SELECT 1")
+
+
+async def test_cancelled_statements_do_not_block_the_pool(db: Database) -> None:
+    start = asyncio.get_running_loop().time()
+    with pytest.raises(TimeoutError):
+        await asyncio.wait_for(db.fetch("SELECT pg_sleep(4)"), 0.2)
+    await db.fetch("SELECT 1")
+    assert asyncio.get_running_loop().time() - start < 2.0
+
+
+async def test_a_timeout_inside_a_transaction_is_enforced_promptly(
+    db: Database,
+) -> None:
+    start = asyncio.get_running_loop().time()
+    with pytest.raises(TimeoutError):
+        async with asyncio.timeout(0.2), db.transaction():
+            await db.fetch("SELECT pg_sleep(4)")
+    assert asyncio.get_running_loop().time() - start < 2.0
+    assert (await db.fetch("SELECT 1 AS one")) == [{"one": 1}]
+
+
+async def test_cached_statements_survive_ddl_changes(db: Database) -> None:
+    sql = f"SELECT * FROM {table(db)}"
+    await add(db, "a")
+    assert len(await db.fetch(sql)) == 1
+    await db.execute(f"ALTER TABLE {table(db)} ADD COLUMN extra text")
+    rows = await db.fetch(sql)
+    assert "extra" in rows[0]
+
+
+async def test_savepoints_must_be_opened_by_the_owning_task(db: Database) -> None:
+    async def sibling() -> None:
+        async with db.transaction():
+            pass
+
+    async with db.transaction():
+        with pytest.raises(DatabaseError, match="owns the transaction"):
+            await asyncio.create_task(sibling())
+
+
+async def test_large_json_integers_keep_their_precision(db: Database) -> None:
+    value = {"n": 2**64 + 1}
+    row = await db.fetch_one("SELECT $1::jsonb AS v", value)
+    assert row is not None
+    assert row["v"] == value
+
+
+async def test_unrepresentable_timestamps_fail_without_echoing_values(
+    db: Database,
+) -> None:
+    with pytest.raises(DatabaseError) as info:
+        await db.fetch("SELECT '12000-01-01 00:00:00+00'::timestamptz AS t")
+    assert "12000" not in str(info.value)
+
+
+async def test_parameter_type_mismatches_are_distinguishable_errors(
+    db: Database,
+) -> None:
+    with pytest.raises(DatabaseError, match="cannot send"):
+        await db.fetch("SELECT $1::int4 AS n", 1.5)
