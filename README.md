@@ -20,8 +20,8 @@
 > [!WARNING]
 > **Hinoki is pre-alpha.** A reference blog runs end to end (HTTP server, validation,
 > auth, ORM on PostgreSQL, transactions, pagination, OpenAPI), but APIs will change,
-> there are no migrations, relations or CRUD generation yet, and nothing is published
-> to PyPI. See [What works today](#what-works-today). Do not build on it yet.
+> and nothing is published to PyPI. See [What works today](#what-works-today).
+> Do not build on it yet.
 
 Hinoki is an independent framework for REST APIs and modular services. You write
 ordinary, fully typed Python — functions or classes, sync or async — and Hinoki turns
@@ -103,11 +103,12 @@ Honest status, verified by the test suite:
 | Pagination: `pagination=...` + `PageParams`, `Page[T]` | Implemented (page-number strategy only) |
 | Database engine in Rust (`tokio-postgres` + `deadpool`): typed binary parameters, typed errors, transactions, cancellation-safe pooling | Implemented; PostgreSQL only |
 | `transaction=True`: commit after output encoding, rollback before error translation, aborted commits reported as errors | Implemented and tested against PostgreSQL |
-| SQL compiler in Rust (select/count/insert/update/delete, quoted identifiers, `$n` placeholders only) and Active Record `Model` / `QuerySet` | Implemented; foreign keys load only on request (`select_related` JOIN, `prefetch_related` one extra query); sync variants for sync handlers; generated CRUD (`CrudAPI` + `Resource`); **no M2M sugar** |
+| SQL compiler in Rust (select/count/insert/update/delete, quoted identifiers, `$n` placeholders only) and Active Record `Model` / `QuerySet` | Implemented; foreign keys load only on request (`select_related` JOIN, `prefetch_related` one extra query); sync variants for sync handlers; generated CRUD (`CrudAPI` + `Resource`); many-to-many is an explicit join model with composite `unique=[...]`, no `through=` sugar |
 | Versioned, inspectable SQL migrations planned from the models (`python -m hinoki migrations plan/apply/status/sql`); destructive operations refused unless allowed; never applied at startup | Implemented (PostgreSQL) |
 | Reference blog (`examples/blog`) incl. a real Granian + PostgreSQL run | Implemented |
 | Typing: constructors and decorators checked by `mypy --strict`; `Post(...)` and `await post.asave()` are checked; `Model.acreate(**values)` is **not** (generated stubs are still open) | Known gap ([docs/TYPING.md](docs/TYPING.md)) |
-| JWT, CRUD generation, rules engine, MCP, admin extra, benchmarks beyond the router micro-benchmark | Not started |
+| JWT, rules engine, MCP, admin extra, benchmarks beyond the router micro-benchmark | Not started |
+| Django-style `Request` as first handler argument, pluggable parsers and renderers in Rust | Designed ([docs/REQUEST-DESIGN.md](docs/REQUEST-DESIGN.md)), not implemented; the handler shape above will change |
 
 ```python
 >>> from hinoki import HinokiAPI, get
@@ -140,7 +141,7 @@ class Posts(API, path="/posts"):
         return to_out(created)
 ```
 
-Full code in [`examples/blog`](examples/blog); Create the schema with `python -m hinoki migrations --dir examples/blog/migrations apply --database $BLOG_DATABASE_URL`, then `BLOG_DATABASE_URL=… granian --interface asgi --factory examples.blog.main:create_app`.
+Full code in [`examples/blog`](examples/blog). Create the schema with `python -m hinoki migrations --dir examples/blog/migrations apply --database $BLOG_DATABASE_URL`, then `BLOG_DATABASE_URL=… granian --interface asgi --factory examples.blog.main:create_app`.
 
 ## Architecture
 
@@ -167,10 +168,11 @@ ownership per worker, the bounded sync executor and the lifespan/shutdown sequen
 
 1. ~~**Runtime** — lifespan coordinator, ASGI adapter, bounded sync executor~~ ✅
 2. ~~**Vertical slice: blog** — request → schema → ORM (PostgreSQL) → auth → rollback → OpenAPI → pagination~~ ✅
-3. **ORM and generated CRUD** — relations, eager loading, migrations, JWT, replaceable CRUD operations
-4. **Rules and development MCP**
-5. **Admin extra** — one theme, full HTML override
-6. **Stabilization** — wheels, benchmarks, release policy
+3. ~~**ORM and generated CRUD** — relations, eager loading, migrations, replaceable CRUD operations~~ ✅ (JWT still open)
+4. **Request object, parsers and renderers** — `request` as first argument, Rust parsing and rendering
+5. **Rules and development MCP**
+6. **Admin extra** — one theme, full HTML override
+7. **Stabilization** — wheels, benchmarks, release policy
 
 The working queue lives in [`handoff.md`](handoff.md).
 
@@ -187,11 +189,6 @@ cargo test --workspace                # Rust tests
 Requirements: [uv](https://docs.astral.sh/uv/), a stable Rust toolchain, Python 3.12+.
 Full gate list: [`docs/TOOLCHAIN.md`](docs/TOOLCHAIN.md) · Contributing:
 [`CONTRIBUTING.md`](CONTRIBUTING.md) · Agent rules: [`AGENTS.md`](AGENTS.md).
-
-## Brand
-
-The approved identity — a folded ribbon with a single sprout and lilac dots — is in
-[`assets/`](assets). Palette: deep aubergine `#1a0f22`, lilac `#cdaefd`, off-white `#fbfbfb`.
 
 ## License
 
