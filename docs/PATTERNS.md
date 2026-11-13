@@ -1,6 +1,6 @@
 # Structuring a Hinoki application: pattern and best practices
 
-Opinionated, with reasons. It describes how the framework's features fit together; each rule is something the framework either enforces, can check with an optional rule, or leaves to review (marked **enforced**, **rule** or **convention**). The reference blog (`examples/blog`) and the one-file notes example (`examples/notes`) show the parts; a larger layered example does not exist yet.
+Opinionated, with reasons. It describes how the framework's features fit together; each rule is something the framework either enforces, can check with an optional rule, or leaves to review (marked **enforced**, **rule** or **convention**). The reference blog (`examples/blog`) and the one-file notes example (`examples/notes`) show the parts; `examples/tracker` is the layered example: `api` → `operations` → `models`, row permission in the statements, the direction enforced by `Imports.forbid`, operations tested without HTTP.
 
 ## 1. Three layers, one direction
 
@@ -86,4 +86,4 @@ HTTPS terminates somewhere you control (set `Admin(secure_cookies=True)` behind 
 
 ## Not yet covered
 
-A layered example application, optional rules for "no model in a response type" and "operations do not import the HTTP layer" beyond `Imports.forbid`, and guidance for multi-service modules (remote services share no joins or transactions). These are open items in `handoff.md`.
+Optional rules for "no model in a response type" and "operations do not import the HTTP layer" beyond `Imports.forbid`, and guidance for multi-service modules (remote services share no joins or transactions). These are open items in `handoff.md`.
