@@ -55,10 +55,11 @@ class ModelAdmin[M: Model]:
         return True
 
     def title_of(self, row: M) -> str:
-        """A row's name: its first listed column when that is text."""
-        first = getattr(row, self.shown_columns()[0], None)
-        if isinstance(first, str) and first:
-            return first
+        """A row's name: the first listed column that holds text."""
+        for column in self.shown_columns():
+            value = getattr(row, column, None)
+            if isinstance(value, str) and value:
+                return value
         return f"{type(row).__name__} {getattr(row, self.model.__primary_key__)}"
 
     def display(self, row: M, column: str) -> Any:
@@ -119,7 +120,12 @@ class ModelAdmin[M: Model]:
         return self.label or f"{self.model.__name__}s"
 
     def shown_columns(self) -> tuple[str, ...]:
-        return self.columns or tuple(self.model.__columns__[:6])
+        """The list columns: ``columns``, else the first six that are not
+        ``exclude``d (an excluded column is never displayed or sortable)."""
+        if self.columns:
+            return tuple(c for c in self.columns if c not in self.exclude)
+        visible = [c for c in self.model.__columns__ if c not in self.exclude]
+        return tuple(visible[:6])
 
     def skipped(self) -> frozenset[str]:
         return frozenset(self.exclude) | frozenset(self.assign)

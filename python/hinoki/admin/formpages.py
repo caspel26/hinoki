@@ -34,14 +34,17 @@ async def option_lists(
         related = next(
             (e for e in site.admin.models.values() if e.model is target), None
         )
-        query = related.queryset(site.principal) if related else target.all()
-        rows = await query.limit(OPTION_LIMIT + 1).aall()
+        if related is None or not related.can(site.principal, "view"):
+            # No admin for the target, or the caller may not view it: never list
+            # its rows. The field stays a plain id input.
+            updated.append(field)
+            continue
+        rows = await related.queryset(site.principal).limit(OPTION_LIMIT + 1).aall()
         if len(rows) > OPTION_LIMIT:
             updated.append(field)
             continue
-        label = related.title_of if related else str
         lists[field.name] = [
-            (str(getattr(r, target.__primary_key__)), label(r)) for r in rows
+            (str(getattr(r, target.__primary_key__)), related.title_of(r)) for r in rows
         ]
         updated.append(dataclasses.replace(field, select=True))
     return updated, lists
@@ -194,3 +197,27 @@ def form_fields(entry: ModelAdmin[Any], *, creating: bool) -> list[FormField]:
     )
     readonly = frozenset(entry.readonly) | frozenset(entry.assign)
     return fields_for(entry.model, skip, readonly, creating=creating)
+
+
+async def check_references(
+    site: Site, fields: list[FormField], values: dict[str, Any]
+) -> dict[str, str]:
+    """A foreign key must point at a row the caller may see in the related
+    admin; the select only limits the browser, this limits the server."""
+    errors: dict[str, str] = {}
+    for field in fields:
+        target = field.references
+        value = values.get(field.name)
+        if target is None or value is None or field.shown_only:
+            continue
+        related = next(
+            (e for e in site.admin.models.values() if e.model is target), None
+        )
+        if related is None:
+            continue
+        query = related.queryset(site.principal).filter(
+            **{target.__primary_key__: value}
+        )
+        if not related.can(site.principal, "view") or not await query.aexists():
+            errors[field.name] = "That choice is not available."
+    return errors

@@ -49,3 +49,10 @@ class Handoff:
 
 
 handed_off: ContextVar[Handoff | None] = ContextVar("hinoki_handed_off", default=None)
+
+
+# Headers an API class asks to have on every answer under its routes, including
+# the errors the framework builds (401, 403, 404, 500). Set once the route is known.
+route_headers: ContextVar[tuple[tuple[str, str], ...]] = ContextVar(
+    "hinoki_route_headers", default=()
+)

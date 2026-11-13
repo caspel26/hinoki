@@ -24,7 +24,7 @@ def apply_state(
         query = query.filter(**dict(entry.tabs[state.view - 1].filters))
     if state.q and entry.search:
         query = query.filter(**{f"{entry.search[0]}__contains": state.q})
-    columns = set(entry.model.__columns__)
+    columns = set(entry.model.__columns__) & set(entry.shown_columns())
     if state.sort in columns:
         return query.order_by(("-" if state.direction == "desc" else "") + state.sort)
     if entry.ordering:

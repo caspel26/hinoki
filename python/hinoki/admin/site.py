@@ -39,6 +39,7 @@ SECURITY_HEADERS = (
 NOTICES = {"created": "Created.", "saved": "Saved.", "deleted": "Deleted."}
 MAX_PAGE = 1_000_000
 MAX_QUERY = 200
+INT_MIN, INT_MAX = -(2**63), 2**63 - 1
 OPTION_LIMIT = 200
 RECENT = 5
 SEARCH_HITS = 5
@@ -60,7 +61,7 @@ class ListState:
     def from_request(cls, request: Request) -> ListState:
         get = request.GET
         return cls(
-            q=get.get("q", "")[:MAX_QUERY],
+            q=get.get("q", "").replace("\x00", "")[:MAX_QUERY],
             page=number(get.get("page", "1"), 1, MAX_PAGE),
             view=number(get.get("view", "0"), 0, 50),
             sort=get.get("sort", "")[:64],
@@ -286,9 +287,12 @@ async def guarded(operation: Awaitable[Any]) -> str:
 def parse_key(entry: ModelAdmin[Any], raw: str) -> Any:
     """The primary key from its URL text, or ``None`` when it cannot be one."""
     kind = typing.get_type_hints(entry.model)[entry.model.__primary_key__]
+    if "\x00" in raw:
+        return None  # PostgreSQL cannot store or compare NUL: not a key
     try:
         if kind is int:
-            return to_int(raw)
+            value = to_int(raw)
+            return value if INT_MIN <= value <= INT_MAX else None
         if kind is str:
             return raw
         return kind(raw)
