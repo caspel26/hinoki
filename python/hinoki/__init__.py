@@ -29,7 +29,7 @@ from hinoki.request import Request
 from hinoki.routing import Route, delete, get, patch, post, put
 from hinoki.rules import Actions, Imports, Schemas, Transactions
 from hinoki.runtime.config import RuntimeConfig
-from hinoki.schema import UNSET, Contract, Field, Schema, Unset
+from hinoki.schema import UNSET, Field, Schema, Unset
 from hinoki.settings import (
     DatabaseSettings,
     DocsSettings,
@@ -56,7 +56,6 @@ __all__ = [
     "BearerAuth",
     "Caller",
     "Conflict",
-    "Contract",
     "DatabaseSettings",
     "DocsSettings",
     "ExecutionSettings",

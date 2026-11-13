@@ -77,6 +77,8 @@ nav:
   - Getting started: getting-started.md
   - Guide:
       - Patterns and best practices: PATTERNS.md
+      - Schemas: SCHEMAS.md
+      - Glossary: GLOSSARY.md
       - Rules, checks for your project: RULES.md
       - Settings: SETTINGS-DESIGN.md
       - Sync and async: SYNC-ASYNC.md

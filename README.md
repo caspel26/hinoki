@@ -63,7 +63,7 @@ async def create(request: Request, data: NoteIn) -> NoteOut:
     return NoteOut.from_model(await Note.acreate(data))
 ```
 
-`Note.acreate(data)` takes the validated schema directly; extra keyword values (`acreate(data, author_id=me)`) are set by the server and always win over what the client sent. `NoteOut.from_model(row)` builds the response from a row, `row.aupdate_from(patch)` applies only the fields a client sent, and `data.to_dict()` gives the Python values. Validation and JSON serialisation of schemas run in Rust.
+`Note.acreate(data)` takes the validated `Schema` directly; extra keyword values (`acreate(data, author_id=me)`) are set by the server and always win over what the client sent. `NoteOut.from_model(row)` builds the response from a row, `row.aupdate_from(patch)` applies only the fields a client sent, and `data.to_dict()` gives the Python values. Validation and JSON serialisation of `Schema` classes run in Rust.
 
 ## The shape of the API
 
@@ -120,7 +120,7 @@ def create_app() -> HinokiAPI:
 | Goal | What it means |
 | --- | --- |
 | **Optional, deterministic rules** | Declare architectural boundaries; violations produce diagnostics with a stable ID, location and phase. Off unless you enable them. |
-| **Real context for AI tooling** | A development MCP server exposes the live registry, schemas and rule results — not a guess from reading files. |
+| **Real context for AI tooling** | A development MCP server exposes the live registry, `Schema` types and rule results — not a guess from reading files. |
 | **Consistent customization** | Hand-written and generated (CRUD) operations share the same auth, errors and docs. Replace one operation without forking. |
 | **Explicit modules** | Dependencies, resources and lifespan are inspectable; a module can grow into its own service. |
 | **Native core** | Routing, request handling and the ORM engine in Rust; the Python/Rust boundary and its costs are documented, not hidden. |
@@ -186,7 +186,7 @@ class Posts(API, path="/posts"):
         return to_out(created)
 ```
 
-Full code in [`examples/blog`](examples/blog) (the real blog generates create and delete with `CrudAPI`; this handwritten form is what the generated action does). Create the schema with `python -m hinoki migrations --dir examples/blog/migrations apply --database $BLOG_DATABASE_URL`, then `BLOG_DATABASE_URL=… granian --interface asgi --factory examples.blog.main:create_app`.
+Full code in [`examples/blog`](examples/blog) (the real blog generates create and delete with `CrudAPI`; this handwritten form is what the generated action does). Create the tables with `python -m hinoki migrations --dir examples/blog/migrations apply --database $BLOG_DATABASE_URL`, then `BLOG_DATABASE_URL=… granian --interface asgi --factory examples.blog.main:create_app`.
 
 ## Screenshots
 

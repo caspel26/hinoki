@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import UNSET, Contract, Schema, Unset
+from hinoki import UNSET, Schema, Unset
 from hinoki.errors import RelationNotLoaded
 from hinoki.orm import Model, field, foreign_key
 from hinoki.orm.relations import Related
@@ -111,10 +111,3 @@ def test_from_model_is_strict_about_missing_and_unloaded_data() -> None:
         PetOut.from_model(pet, shout="x")  # the relation was not loaded: no lazy I/O
     with pytest.raises(TypeError, match="no fields"):
         OwnerOut.from_model(Owner(name="x"), nope=1)
-
-
-def test_contract_is_the_same_class_as_schema() -> None:
-    class Thing(Contract):
-        name: str
-
-    assert issubclass(Thing, Schema) and Thing.validate({"name": "x"}).name == "x"

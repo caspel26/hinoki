@@ -5,7 +5,7 @@ Status: **R1 design, R2–R5 implemented** (2026-11-13): `python/hinoki/rules.py
 ## Observed
 
 * The registry already holds everything a startup rule needs: `HinokiAPI.routes` (method, path, handler, status, `Access`, `transaction`, pagination, parsers, renderers, owner class) and `bindings` (typed parameters, body schemas). `HinokiAPI.openapi()` is derived from it.
-* Models carry `__table__`, columns, relations, unique groups; schemas expose `specs()`; `Access` names an auth provider and scopes.
+* Models carry `__table__`, columns, relations, unique groups; `Schema` classes expose `specs()`; `Access` names an auth provider and scopes.
 * The only CLI is `python -m hinoki migrations …` (`__main__.py`). There is no rules code, no MCP code, no diagnostics type.
 * Rules are for **applications built with Hinoki**, distinct from `AGENTS.md`, which governs developing Hinoki itself.
 
@@ -55,7 +55,7 @@ Rules apply when enabled in the `RuleSet`; creating an app without one runs noth
 ### D6 Development MCP
 
 * `python -m hinoki mcp --app module:factory [--rules …]` speaks JSON-RPC 2.0 over stdio (MCP): `initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call`. Stdlib only. It is a separate command; `hinoki.runtime` never imports it, so a production server cannot publish it by accident.
-* Tools, all read-only and versioned (`tool_version` in every result): `inspect_project` (actions, models, schemas, parsers/renderers, rules enabled), `list_rules`, `explain_action` (signature, schema, access, transaction, documented errors, applicable rules, source location), `check_project` (the same diagnostics as the CLI; effectful checks refused). `run_scenario` is **deferred**: it needs a scenario format and an authorisation story.
+* Tools, all read-only and versioned (`tool_version` in every result): `inspect_project` (actions, models, `Schema` types, parsers/renderers, rules enabled), `list_rules`, `explain_action` (signature, `Schema` types, access, transaction, documented errors, applicable rules, source location), `check_project` (the same diagnostics as the CLI; effectful checks refused). `run_scenario` is **deferred**: it needs a scenario format and an authorisation story.
 * Results are structured JSON in `structuredContent` plus a short text rendering. Errors use JSON-RPC errors for protocol faults and `isError` results for tool failures.
 * Unverified: conformance with a specific MCP client or protocol revision. The implementation follows the published method names and shapes from memory of the specification; a real client run is a listed open item, and no compatibility claim is made until it exists.
 * Application MCP (publishing selected actions) is a later item and not designed here.
