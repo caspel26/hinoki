@@ -76,14 +76,25 @@ def run_sql(args: argparse.Namespace) -> None:
     raise MigrationError(f"no migration named {args.name!r}")
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = parser().parse_args(argv)
-    if args.group == "check":
-        return run_check(args)
-    if args.group == "mcp":
-        from hinoki.mcp import run_mcp  # noqa: PLC0415 - loaded only for `mcp`
+def run_new(args: argparse.Namespace) -> int:
+    from hinoki.scaffold import ScaffoldError, create  # noqa: PLC0415 - only for `new`
 
-        return run_mcp(args)
+    try:
+        target = create(args.name, Path(args.dir))
+    except ScaffoldError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    print(f"created {target}; next: cd {target} && uv sync && uv run pytest")
+    return 0
+
+
+def run_mcp_command(args: argparse.Namespace) -> int:
+    from hinoki.mcp import run_mcp  # noqa: PLC0415 - loaded only for `mcp`
+
+    return run_mcp(args)
+
+
+def run_migrations(args: argparse.Namespace) -> int:
     try:
         if args.action == "plan":
             run_plan(args)
@@ -95,6 +106,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {error}", file=sys.stderr)
         return 1
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parser().parse_args(argv)
+    commands = {
+        "check": run_check,
+        "new": run_new,
+        "mcp": run_mcp_command,
+        "migrations": run_migrations,
+    }
+    return commands[args.group](args)
 
 
 if __name__ == "__main__":

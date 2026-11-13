@@ -27,6 +27,7 @@ from typing import Any, TextIO
 import hinoki
 from hinoki.app import HinokiAPI
 from hinoki.checkcli import USAGE_ERRORS, build_app, build_rules
+from hinoki.errorcatalog import CATALOG, explain
 from hinoki.migrations import models_of
 from hinoki.orm import Model
 from hinoki.routing import Route
@@ -208,6 +209,26 @@ def tool_check_project(project: DevProject, args: dict[str, Any]) -> dict[str, A
     }
 
 
+def tool_explain_error(project: DevProject, args: dict[str, Any]) -> dict[str, Any]:
+    code = args.get("code")
+    if not isinstance(code, str) or not code:
+        raise ToolFailure("'code' must be an error code or a rule id")
+    found = explain(code)
+    if found is not None:
+        return {"code": code, "kind": "error", "meaning": found[0], "fix": found[1]}
+    for rule in project.rules.rules:
+        if rule.id == code:
+            return {
+                "code": code,
+                "kind": "rule",
+                "meaning": rule.explanation,
+                "fix": "Change the code so the rule holds; do not edit waivers "
+                "or weaken the rule.",
+            }
+    near = sorted(c for c in CATALOG if code.lower() in c)[:5]
+    raise ToolFailure(f"unknown code {code!r}" + (f"; similar: {near}" if near else ""))
+
+
 TOOLS: dict[str, tuple[str, dict[str, Any], Callable[..., dict[str, Any]]]] = {
     "inspect_project": (
         "Actions (method, path, access, transaction, parsers, renderers, location), "
@@ -230,6 +251,16 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[..., dict[str, Any]]]] = {
             "required": ["action"],
         },
         tool_explain_action,
+    ),
+    "explain_error": (
+        "What an error code (a validation detail or an HTTP error code) or a "
+        "rule id means, and how to fix it.",
+        {
+            "type": "object",
+            "properties": {"code": {"type": "string"}},
+            "required": ["code"],
+        },
+        tool_explain_error,
     ),
     "check_project": (
         "Run the enabled rules (startup and static phases) and return the same "
