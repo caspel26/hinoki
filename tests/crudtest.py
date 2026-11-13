@@ -286,3 +286,142 @@ async def test_delete_and_missing_rows(memos: Client) -> None:
     )
     assert patch.status == 404
     assert (await memos.request("GET", "/memos/not-a-uuid")).status == 422
+
+
+class Hidden(Model, table="crud_hidden"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    owner: str = field(max_length=20)
+    hidden: bool = False
+
+
+class HiddenOut(Schema):
+    id: UUID
+    owner: str
+    hidden: bool
+
+
+class HiddenPatch(Schema):
+    hidden: bool | Unset = UNSET
+
+
+def visible() -> Any:
+    return Hidden.filter(hidden=False)
+
+
+SCOPED = Resource(
+    model=Hidden,
+    read=HiddenOut,
+    update=HiddenPatch,
+    deletable=True,
+    access=writer,
+    owner="owner",
+    identity_key=str,
+    queryset=visible,
+)
+
+
+class Scoped(CrudAPI, path="/scoped", resource=SCOPED):
+    pass
+
+
+@pytest.fixture
+async def scoped(pool: Pool) -> AsyncIterator[tuple[Client, Database]]:
+    assert URL is not None
+    admin = await Database.connect(URL, max_size=1)
+    await admin.execute("DROP TABLE IF EXISTS crud_hidden")
+    await admin.execute(
+        "CREATE TABLE crud_hidden (id uuid PRIMARY KEY, owner varchar(20) NOT NULL, "
+        "hidden boolean NOT NULL)"
+    )
+    yield await pool.start(app_for(Scoped, url=URL)), admin
+    await admin.execute("DROP TABLE IF EXISTS crud_hidden")
+    admin.close()
+
+
+@needs_database
+async def test_rows_outside_the_base_query_are_not_found_for_every_action(
+    scoped: tuple[Client, Database],
+) -> None:
+    client, admin = scoped
+    mine, theirs = uuid4(), uuid4()
+    for key, owner in ((mine, "ann"), (theirs, "bob")):
+        await admin.execute("INSERT INTO crud_hidden VALUES ($1, $2, true)", key, owner)
+    for key in (mine, theirs):
+        path = f"/scoped/{key}"
+        assert (await client.request("GET", path)).status == 404
+        patch = await client.request(
+            "PATCH", path, body(hidden=False), content_type=JSON, headers=ANN
+        )
+        assert patch.status == 404
+        assert (await client.request("DELETE", path, headers=ANN)).status == 404
+    rows = await admin.fetch("SELECT id FROM crud_hidden")
+    assert len(rows) == 2
+
+
+def test_update_schemas_cannot_carry_the_key_or_loud_defaults() -> None:
+    class WithKey(Schema):
+        id: UUID | Unset = UNSET
+
+    class Loud(Schema):
+        hidden: bool = False
+
+    class Nullable(Schema):
+        owner: str | None | Unset = UNSET
+
+    for schema, message in (
+        (WithKey, "must not contain"),
+        (Loud, "default to UNSET"),
+        (Nullable, "accepts null"),
+    ):
+        with pytest.raises(RegistrationError, match=message):
+            Resource(model=Hidden, read=HiddenOut, update=schema, access=writer).check()
+
+
+def test_an_inherited_override_survives_and_a_new_resource_regenerates() -> None:
+    class Base(CrudAPI):
+        @get("/{item_id}")
+        async def retrieve(self, item_id: UUID) -> dict[str, str]:
+            return {"custom": "yes"}
+
+    class Child(Base, path="/c", resource=Resource(model=Memo, read=MemoOut)):
+        pass
+
+    assert Child.retrieve is Base.retrieve
+
+    class Other(Child, resource=Resource(model=Memo, read=MemoOut)):
+        pass
+
+    assert Other.retrieve is Base.retrieve
+
+
+def test_replaces_rejects_duplicates_chains_and_loose_functions() -> None:
+    class Twice(CrudAPI, path="/t", resource=Resource(model=Memo, read=MemoOut)):
+        @get("/a", replaces="list")
+        async def a(self) -> dict[str, str]:
+            return {}
+
+        @get("/b", replaces="list")
+        async def b(self) -> dict[str, str]:
+            return {}
+
+    with pytest.raises(RegistrationError, match="once"):
+        Twice.routes()
+
+    class Chain(CrudAPI, path="/u", resource=Resource(model=Memo, read=MemoOut)):
+        @get("/a", replaces="list")
+        async def a(self) -> dict[str, str]:
+            return {}
+
+        @get("/b", replaces="a")
+        async def b(self) -> dict[str, str]:
+            return {}
+
+    with pytest.raises(RegistrationError, match="never a route"):
+        Chain.routes()
+
+    @get("/loose", replaces="list")
+    async def loose() -> dict[str, str]:
+        return {}
+
+    with pytest.raises(RegistrationError, match="inside an API class"):
+        HinokiAPI().include(loose)

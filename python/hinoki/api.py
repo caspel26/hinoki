@@ -48,18 +48,28 @@ class API:
     @classmethod
     def apply_replacements(cls, found: list[Route]) -> list[Route]:
         """Drop the routes that another route names in ``replaces=``."""
-        replaced = {route.replaces for route in found if route.replaces}
+        replacers = [route for route in found if route.replaces]
+        replaced = [route.replaces for route in replacers]
         names = {route.handler.__name__ for route in found}
-        unknown = replaced - names
+        unknown = set(replaced) - names
         if unknown:
             raise RegistrationError(
                 f"{cls.__name__}: replaces={sorted(unknown)} names no action "
                 f"(actions: {sorted(names)})"
             )
+        again = sorted({name for name in replaced if replaced.count(name) > 1})
+        chained = sorted(
+            {route.handler.__name__ for route in replacers} & set(replaced)
+        )
+        if again or chained:
+            raise RegistrationError(
+                f"{cls.__name__}: replaces must name an action once and never a "
+                f"route that replaces another ({again or chained})"
+            )
         return [
             route
             for route in found
-            if route.replaces or route.handler.__name__ not in replaced
+            if route.replaces or route.handler.__name__ not in set(replaced)
         ]
 
     @classmethod

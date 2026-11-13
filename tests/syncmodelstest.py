@@ -1,16 +1,18 @@
 """Sync model methods inside sync handlers, and ``asave`` dirty tracking."""
 
 import os
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import HinokiAPI, get, post
+from hinoki import HinokiAPI, RuntimeConfig, get, post
+from hinoki.blocking import run_sync
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import FieldError
-from hinoki.orm import Model, field, use_database
+from hinoki.orm import Model, current_database, field, use_database
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from tests.harness import Client, Pool
 
@@ -191,3 +193,23 @@ def statements(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     monkeypatch.setattr(Database, "fetch", counting)
     return seen
+
+
+@post("/slow", transaction=True)
+def slow() -> dict[str, str]:
+    run_sync(current_database().fetch("SELECT pg_sleep(4)"))
+    return {}
+
+
+async def test_the_deadline_cancels_work_a_sync_handler_handed_to_the_loop(
+    pool: Pool,
+) -> None:
+    assert URL is not None
+    app = HinokiAPI(runtime=RuntimeConfig(request_timeout=0.4))
+    app.include(slow)
+    app.install(DatabaseModule(URL, max_size=2))
+    client = await pool.start(app)
+    started = time.monotonic()
+    reply = await client.request("POST", "/slow")
+    assert reply.status == 504
+    assert time.monotonic() - started < 2

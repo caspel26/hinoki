@@ -304,21 +304,34 @@ class Model:
         if key not in values:
             raise FieldError(f"{cls.__name__}.aupdate needs {key}=...")
         identity = values.pop(key)
-        if not values:
-            raise FieldError("nothing to update")
+        rows = await cls.aupdate_where({key: identity}, values)
+        if not rows:
+            raise cls.NotFound(f"{cls.__name__} not found")
+        return rows[0]
+
+    @classmethod
+    async def aupdate_where(
+        cls, conditions: dict[str, Any], values: dict[str, Any]
+    ) -> list[Self]:
+        """Update every row matching ``conditions`` and return the new rows.
+        Conditions are part of the statement, so a row that stopped matching
+        (for example after a concurrent owner change) is not touched."""
+        if not conditions or not values:
+            raise FieldError("aupdate_where needs conditions and values")
         for name in values:
             cls.check_field(name)
+        query = QuerySet(cls).filter(**conditions)
+        if query.loading.joined:
+            raise FieldError("updates cannot filter across a relation")
         sql, params = native.compile_query(
             "update",
             cls.__table__,
             assignments=list(values.items()),
-            filters=[(key, "eq", [identity])],
+            filters=list(query.filters),
             returning=list(cls.__columns__),
         )
         rows = await current_database().fetch(sql, *params)
-        if not rows:
-            raise cls.NotFound(f"{cls.__name__} not found")
-        return cls.from_row(rows[0])
+        return [cls.from_row(row) for row in rows]
 
     @classmethod
     async def adelete(cls, **conditions: Any) -> int:

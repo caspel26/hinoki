@@ -16,7 +16,7 @@ Brand: `assets/hinoki-identity-approved.png` unchanged; `hinoki-banner.png` / `h
 | Q002 | Typing and syntax proof | **Mostly done.** Decorators, `Access`, `API`, `Schema` proven with mypy strict; ORM probe shows `Post(...)` is checkable and `Model.acreate(**values)` is not. Pyright/IDE untested. |
 | Q003 | Repo bootstrap and gates | **Done.** uv + maturin + Cargo workspace, Ruff pre-commit, CI with a PostgreSQL service, wheel smoke test, Python 3.12–3.14. |
 | Q004 | Vertical slice blog | **Done**: runtime (R1–R5), schemas, body/query binding, OpenAPI, errors, auth, pagination, Rust DB engine, `transaction=True`, SQL compiler, Active Record, `examples/blog` (also under real Granian + PostgreSQL). Three independent reviews run; every reported finding fixed with a regression test. |
-| Q005 | Relations and CRUD generation | **Next.** FK/M2M/through, `select_related`/`prefetch_related`, generated CRUD with `replaces`, migrations (versioned, inspectable, opt-in), sync model methods. |
+| Q005 | Relations and CRUD generation | **Implemented** (R2–R5: FK + explicit loading, versioned migrations, generated CRUD with `replaces`, sync model methods, typed `asave`). Relations review fixed (a5dd82c); CRUD review findings fixed (owner/PATCH/replaces/run_sync cancellation), pending a re-review. M2M/through not yet. |
 | Q006 | Rules and development MCP | Not started. |
 | Q007 | Admin extra | Not started. |
 
@@ -26,7 +26,7 @@ Brand: `assets/hinoki-identity-approved.png` unchanged; `hinoki-banner.png` / `h
 * `crates/orm` (pure Rust): `tokio-postgres` + `deadpool` engine (leases that discard abandoned connections, poisoned transactions, aborted-commit detection, stale-plan recovery), query AST → SQL.
 * `python/hinoki`: decorators/API/app, modules + lifespan, runtime (adapter, requests, responses, binding, executor, tasks), schemas + validation, auth, HTTP errors, pagination, OpenAPI, `db`, `orm`.
 * `examples/blog`: reference app. `benchmarks/routerbench.py`: Python→Rust call cost (not end to end).
-* Tests: 252 Python tests (97% coverage), 8 + 10 Rust tests, typing fixtures; DB tests need `HINOKI_TEST_DATABASE_URL` and are **skipped without it** (CI provides PostgreSQL).
+* Tests: 322 Python tests (97% coverage), 8 + 10 Rust tests, typing fixtures; DB tests need `HINOKI_TEST_DATABASE_URL` and are **skipped without it** (CI provides PostgreSQL).
 
 ## Commands (all green on 2026-11-13; last CI run success on 6 jobs)
 
