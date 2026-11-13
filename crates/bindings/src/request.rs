@@ -761,7 +761,7 @@ fn is_instance_of_named(value: &Bound<'_, PyAny>, module: &str, class: &str) -> 
 /// Objects that are not plain JSON values: schema instances, UUIDs, datetimes,
 /// and anything with a `dump()` method.
 fn write_object(out: &mut Vec<u8>, value: &Bound<'_, PyAny>, depth: usize) -> PyResult<()> {
-    if let Some((names, unset)) = crate::schema::instance_fields(value)? {
+    if let Some((names, unset)) = crate::schema::instance_fields(value, true)? {
         out.push(b'{');
         let mut first = true;
         for name in names {
