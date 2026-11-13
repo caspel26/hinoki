@@ -1,6 +1,8 @@
 """The same scenario through the sync and the async surfaces gives the same results."""
 
+import asyncio
 import os
+import time
 from collections.abc import AsyncIterator
 
 import pytest
@@ -8,6 +10,7 @@ import pytest
 from hinoki import Access, BearerAuth, Caller, HinokiAPI, Request, Schema, get, post
 from hinoki.db import Database, DatabaseModule
 from hinoki.orm import Model, field, use_database
+from hinoki.runtime.config import RuntimeConfig
 from hinoki.testing import ASGIClient, SyncClient
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -87,6 +90,7 @@ async def seeded() -> AsyncIterator[None]:
 
 
 AUTH = {"authorization": "Bearer tok"}
+TOKEN = "t"  # noqa: S105 - a fixture token, not a secret
 
 
 @needs_database
@@ -110,3 +114,48 @@ def test_sync_client_drives_the_same_app_without_async(seeded: None) -> None:
         assert client.get("/async/1", headers=AUTH).status == 200
         assert client.post("/sync/1/hit").body["hits"] == 6
         assert client.get("/missing").status == 404
+
+
+class SlowTokens(BearerAuth[str]):
+    """A plain-def hook that holds an executor slot for a while."""
+
+    def resolve_token(self, token: str) -> Caller[str] | None:
+        time.sleep(0.3)
+        return Caller(id=token, user=token, permissions=frozenset())
+
+
+@get("/slow-auth", access=Access(auth=SlowTokens()))
+async def slow_auth(request: Request) -> dict[str, bool]:
+    return {"ok": True}
+
+
+async def test_a_saturated_pool_answers_503_even_inside_an_auth_hook() -> None:
+    app = HinokiAPI(runtime=RuntimeConfig(sync_workers=1, sync_queue=0))
+    app.include(slow_auth)
+    async with ASGIClient(app) as client:
+        replies = await asyncio.gather(
+            *(client.get("/slow-auth", token=TOKEN) for _ in range(3))
+        )
+    codes = sorted(r.status for r in replies)
+    assert codes == [200, 503, 503]
+    assert all(
+        r.body["error"] == "overloaded" and "retry-after" in r.headers
+        for r in replies
+        if r.status == 503
+    )
+
+
+def test_sync_client_refuses_misuse_instead_of_hanging() -> None:
+    app = HinokiAPI()
+    app.include(slow_auth)
+    client = SyncClient(app)
+    with pytest.raises(RuntimeError, match="with` block"):
+        client.get("/slow-auth")
+    client.__exit__(None, None, None)  # exit without enter is a no-op
+    with client:
+        pass
+    with pytest.raises(RuntimeError, match="with` block"):
+        client.get("/slow-auth")
+    client.__exit__(None, None, None)  # a second exit is a no-op
+    with pytest.raises(RuntimeError, match="once"):
+        client.__enter__()

@@ -1,6 +1,6 @@
 # Sync and async: what works where (Q018)
 
-Hinoki runs on one event loop per worker. **Async is the native way; sync is a supported way**, not a second-class one: a plain `def` handler or hook runs on a bounded thread pool (`ExecutionSettings.sync_workers`, `sync_queue`; a full queue answers 503), the request's context follows it, and the sync ORM methods hand their work back to the worker's loop and block that thread, never the loop.
+Hinoki runs on one event loop per worker. **Async is the native way; sync is a supported way**, not a second-class one: a plain `def` handler or hook runs on a bounded thread pool (`ExecutionSettings.sync_workers`, `sync_queue`; a full queue answers 503 `overloaded`, in handlers and in sync hooks), the request's context follows it, and the sync ORM methods hand their work back to the worker's loop and block that thread, never the loop.
 
 ## Parity table
 
@@ -21,6 +21,14 @@ Hinoki runs on one event loop per worker. **Async is the native way; sync is a s
 | Admin hooks (`stats`, `check`, `save`, `remove`) | `async def` | none | The admin runs on the loop; override with `async def` |
 | Tests | `ASGIClient` | `SyncClient` | Same behaviour through both |
 | Dev MCP `run_scenario` | n/a | n/a | Runs the app in-process |
+
+## Limits to know
+
+* **Sync hooks use the same pool as sync handlers.** A request to a protected route with a plain-`def` auth hook takes an executor slot for the whole hook, also when its credentials are wrong; a flood of bad tokens can fill the queue and make legitimate sync work answer 503 (`overloaded`, with `Retry-After`). Keep sync hooks short, reject malformed credentials before touching the database, and prefer an `async def` provider on exposed endpoints.
+* **A sync auth hook runs before the action's transaction opens**, so it is never part of it.
+* **Sync model calls only work inside the application's sync handlers and hooks.** In a test body use the async API (an async fixture) or your own connection, also with `SyncClient`.
+* **No sync lifespan, sync admin hooks, sync background tasks (`ctx.tasks.start_soon` takes coroutines) or sync `Database` SQL.** A sync *error handler* runs on the loop and must not call the ORM (its failure is treated as "unhandled").
+* **`SyncClient`** refuses use outside its `with` block and gives up after `timeout` seconds instead of hanging.
 
 ## Rules of thumb
 

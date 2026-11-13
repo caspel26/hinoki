@@ -149,13 +149,14 @@ class ASGIAdapter:
         rid = uuid.uuid4().hex
         token = request_id.set(rid)
         context.route_headers.set(())
-        context.sync_runner.set(self.executor.run)
+        runner_token = context.sync_runner.set(self.executor.run)
         # Models use the worker's Database without it being passed around.
         db_token = database_var.set(self.ctx.find(Database))
         try:
             response = await self._respond(scope, receive, rid)
         finally:
             database_var.reset(db_token)
+            context.sync_runner.reset(runner_token)
             request_id.reset(token)
         present = {name for name, _ in response.headers}
         extra = [
@@ -170,7 +171,9 @@ class ASGIAdapter:
         await send({**start, "headers": headers})
         await send({"type": "http.response.body", "body": response.body})
 
-    async def _respond(self, scope: Scope, receive: Any, rid: str) -> Response:
+    async def _respond(  # noqa: PLR0911 - one exit per failure class
+        self, scope: Scope, receive: Any, rid: str
+    ) -> Response:
         try:
             async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
                 return await self._serve(scope, receive)
@@ -178,6 +181,10 @@ class ASGIAdapter:
             if limit.expired():
                 return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
             return await error_response(exc, rid, self.app.errors)
+        except ExecutorSaturated:  # a plain-def hook found the pool full
+            return HTTPError(
+                HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
+            ).response
         except Exception as exc:
             return await error_response(exc, rid, self.app.errors)
 
