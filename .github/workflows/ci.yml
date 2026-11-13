@@ -105,10 +105,27 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Build abi3 wheel
         run: uv build --wheel
+      - name: Verify the native extension has its matching stub
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          wheel = next(Path("dist").glob("hinoki-*.whl"))
+          with ZipFile(wheel) as archive:
+              files = set(archive.namelist())
+          assert "hinoki/native.pyi" in files
+          assert any(name.startswith("hinoki/native.") and name.endswith(".so") for name in files)
+          PY
       - name: Smoke-test the wheel in a clean environment
         run: |
+          uv sync --locked --group typecheck
           uv venv --python 3.12 /tmp/wheel-env
           uv pip install --python /tmp/wheel-env/bin/python dist/*.whl
+          cd /tmp
+          "${GITHUB_WORKSPACE}/.venv/bin/mypy" --config-file=/dev/null --strict \
+            --python-executable=/tmp/wheel-env/bin/python \
+            "${GITHUB_WORKSPACE}/tests/typing/native.py"
           /tmp/wheel-env/bin/python -c "import hinoki; print(hinoki.__version__)"
       - name: Smoke-test the packaged data files and native features
         run: |
