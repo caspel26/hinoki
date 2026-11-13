@@ -8,6 +8,7 @@ The factory builds declarations only; the pool opens in the worker's lifespan.
 
 import os
 
+from examples.blog.accounts import build_accounts
 from examples.blog.adminsite import build_admin
 from examples.blog.api import Posts, health
 from examples.blog.rules import blog_rules
@@ -20,10 +21,13 @@ def unique_to_conflict(_error: UniqueViolation) -> Conflict:
 
 
 def create_app(
-    database_url: str | None = None, admin_secret: str | None = None
+    database_url: str | None = None,
+    admin_secret: str | None = None,
+    jwt_secret: str | None = None,
 ) -> HinokiAPI:
     url = database_url or os.environ["BLOG_DATABASE_URL"]
     secret = admin_secret or os.environ["BLOG_ADMIN_SECRET"]  # at least 32 bytes
+    # BLOG_JWT_SECRET (32+ bytes) switches on /auth/login and /auth/me.
     app = HinokiAPI(
         title="Blog",
         version="0.1.0",
@@ -37,6 +41,10 @@ def create_app(
         Posts,
         build_admin(secret, os.environ.get("BLOG_ADMIN_THEME", "studio")).api(),
     )
+    token_secret = jwt_secret or os.environ.get("BLOG_JWT_SECRET")
+    if token_secret:  # password login is on only when a signing secret exists
+        actions, _hasher = build_accounts(token_secret)
+        app.include(*actions)
     app.install(DatabaseModule(url, max_size=5))
     app.errors.handle(UniqueViolation)(unique_to_conflict)
     return app

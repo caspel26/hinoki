@@ -17,6 +17,8 @@ class User(Model, table="blog_users"):
     name: str = field(max_length=80)
     token: str = field(unique=True)
     is_editor: bool = False
+    username: str | None = field(unique=True, max_length=40, default=None)
+    password_hash: str | None = None  # Argon2id PHC string, never a password
     posts: ClassVar["Related[list[Post]]"]
 
 

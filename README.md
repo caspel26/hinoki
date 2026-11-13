@@ -221,6 +221,10 @@ uv run granian --interface asgi --factory examples.blog.main:create_app
 # API docs:  http://127.0.0.1:8000/docs  and  /redoc
 # Admin:     http://127.0.0.1:8000/admin  (send the cookie blog_token=demo-editor-token;
 #            set BLOG_ADMIN_SECRET (32+ bytes) and optionally BLOG_ADMIN_THEME=studio|midnight|paper)
+# Password login: set BLOG_JWT_SECRET (32+ bytes), then
+#   curl -X POST :8000/auth/login -H 'content-type: application/json' \
+#        -d '{"username":"ada","password":"demo-password-change-me"}'
+#   -> a 15-minute JWT for GET /auth/me (Argon2id hashing and JWT signing run in Rust)
 ```
 
 ## Core concepts
