@@ -8,7 +8,7 @@ import contextvars
 import functools
 import logging
 from collections.abc import Callable
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from types import TracebackType
 from typing import ParamSpec, TypeVar
 
@@ -69,7 +69,7 @@ class SyncExecutor:
         # the loop travels with it so sync model methods can reach the database.
         scope = contextvars.copy_context()
         scope.run(context.event_loop.set, loop)
-        handed: list[Future[object]] = []
+        handed = context.Handoff()
         scope.run(context.handed_off.set, handed)
         call = functools.partial(scope.run, fn, *args, **kwargs)
         try:
@@ -83,8 +83,7 @@ class SyncExecutor:
         except asyncio.CancelledError:
             # The deadline fired: stop work the thread handed to the loop, so a
             # pending query cannot pin the connection past the request.
-            for pending in handed:
-                pending.cancel()
+            handed.close()
             raise
 
     async def drain(self, timeout: float) -> None:

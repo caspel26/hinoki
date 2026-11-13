@@ -32,6 +32,7 @@ from hinoki.schema import Schema
 
 ITEM = "/{item_id}"
 GENERATED = "hinoki_generated"
+ACTIONS = ("list", "retrieve", "create", "update", "delete")
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -148,7 +149,12 @@ class Resource:
                 )
 
     def check_required(self, create: type[Schema]) -> None:
-        covered = set(create.specs()) | set(self.assigned())
+        sent = {
+            item.name
+            for item in dataclasses.fields(create)  # type: ignore[arg-type]
+            if item.name in create.specs() and item.default is not UNSET
+        }
+        covered = sent | set(self.assigned())
         missing = [
             f.name
             for f in dataclasses.fields(self.model)  # type: ignore[arg-type]
@@ -173,31 +179,54 @@ class Resource:
         found = {name: getattr(data, name) for name in data.specs()}
         return {name: value for name, value in found.items() if value is not UNSET}
 
-    def owner_conditions(self, key: Any, principal: Any) -> dict[str, Any]:
-        """Primary key, plus the owner when one is enforced. Used in the
-        UPDATE/DELETE itself, so a row that changed hands meanwhile is untouched."""
-        conditions = {self.model.__primary_key__: key}
+    def owner_of(self, principal: Any) -> Any:
+        """The caller's owner value; a caller without one may change nothing,
+        or ``None`` would match every ownerless row."""
+        value = self.identity_key(principal.identity)
+        if value is None:
+            raise Forbidden("You cannot change this item.")
+        return value
+
+    def scope(self, key: Any, principal: Any) -> QuerySet[Any]:
+        """The rows a change may touch: the base query, the primary key and the
+        owner, all in the UPDATE/DELETE itself, so a row that was hidden or
+        changed hands meanwhile is untouched."""
+        scoped = self.base().filter(**{self.model.__primary_key__: key})
         if self.owner:
-            conditions[self.owner] = self.identity_key(principal.identity)
-        return conditions
+            scoped = scoped.filter(**{self.owner: self.owner_of(principal)})
+        return scoped
 
     async def fetch(self, key: Any) -> Any:
         return await self.base().filter(**{self.model.__primary_key__: key}).aget()
+
+    async def written(self, key: Any) -> Any:
+        """Read back a row the caller just wrote. It may now be outside the
+        base query (archived, unpublished); the writer still sees the result."""
+        try:
+            return await self.fetch(key)
+        except self.model.NotFound:
+            return await self.model.aget(**{self.model.__primary_key__: key})
 
     async def guard(self, key: Any, principal: Any) -> None:
         """404 for a row outside the base query (or missing), 403 when somebody
         else owns it. Rows the base query hides look the same as missing ones."""
         row = await self.fetch(key)
-        if self.owner and getattr(row, self.owner) != self.identity_key(
-            principal.identity
-        ):
+        if self.owner and getattr(row, self.owner) != self.owner_of(principal):
             raise Forbidden("You cannot change this item.")
+
+    async def refused(self, key: Any) -> Forbidden:
+        """A write matched no row: 404 if the row is gone or hidden by now,
+        otherwise the owner changed under the caller."""
+        await self.fetch(key)
+        return Forbidden("You cannot change this item.")
 
 
 async def list_rows(self: CrudAPI, page: PageParams) -> Any:
     resource = self.resource
-    ordered = resource.base().order_by(resource.model.__primary_key__)
-    return (await ordered.apaginate(page)).map(resource.present)
+    query = resource.base()
+    if not query.order:
+        query = query.order_by(resource.model.__primary_key__)
+    return (await query.apaginate(page)).map(resource.present)
 
 
 async def retrieve_row(self: CrudAPI, item_id: Any) -> Any:
@@ -208,10 +237,14 @@ async def create_row(self: CrudAPI, data: Any, principal: Any = None) -> Any:
     resource = self.resource
     values = resource.values(data)
     for column, derive in resource.assigned().items():
-        values[column] = derive(principal.identity)
+        values[column] = (
+            resource.owner_of(principal)
+            if column == resource.owner
+            else derive(principal.identity)
+        )
     created = await resource.model.acreate(**values)
     return resource.present(
-        await resource.fetch(getattr(created, created.__primary_key__))
+        await resource.written(getattr(created, created.__primary_key__))
     )
 
 
@@ -221,19 +254,16 @@ async def update_row(
     resource = self.resource
     await resource.guard(item_id, principal)
     values = resource.values(data)
-    if values:
-        conditions = resource.owner_conditions(item_id, principal)
-        if not await resource.model.aupdate_where(conditions, values):
-            raise Forbidden("You cannot change this item.")
-    return resource.present(await resource.fetch(item_id))
+    if values and not await resource.scope(item_id, principal).aupdate(values):
+        raise await resource.refused(item_id)
+    return resource.present(await resource.written(item_id))
 
 
 async def delete_row(self: CrudAPI, item_id: Any, principal: Any = None) -> None:
     resource = self.resource
     await resource.guard(item_id, principal)
-    conditions = resource.owner_conditions(item_id, principal)
-    if not await resource.model.adelete(**conditions):
-        raise Forbidden("You cannot change this item.")
+    if not await resource.scope(item_id, principal).adelete():
+        raise await resource.refused(item_id)
 
 
 def specialize(
@@ -276,10 +306,15 @@ class CrudAPI(API):
             return
         resource.check()
         cls.resource = resource
-        for name, function in generate(resource).items():
+        generated = generate(resource)
+        for name in ACTIONS:
             existing = inspect.getattr_static(cls, name, None)
-            if existing is None or getattr(existing, GENERATED, False):
-                setattr(cls, name, function)
+            if not getattr(existing, GENERATED, False) and existing is not None:
+                continue  # handwritten: keep it
+            # Inherited generated actions belong to the parent's resource (its
+            # access, schemas and owner); a resource that does not declare them
+            # must not keep them running against the new one.
+            setattr(cls, name, generated.get(name))
 
 
 def item_type(model: type[Model]) -> Any:

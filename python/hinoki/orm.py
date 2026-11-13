@@ -316,22 +316,9 @@ class Model:
         """Update every row matching ``conditions`` and return the new rows.
         Conditions are part of the statement, so a row that stopped matching
         (for example after a concurrent owner change) is not touched."""
-        if not conditions or not values:
+        if not conditions:
             raise FieldError("aupdate_where needs conditions and values")
-        for name in values:
-            cls.check_field(name)
-        query = QuerySet(cls).filter(**conditions)
-        if query.loading.joined:
-            raise FieldError("updates cannot filter across a relation")
-        sql, params = native.compile_query(
-            "update",
-            cls.__table__,
-            assignments=list(values.items()),
-            filters=list(query.filters),
-            returning=list(cls.__columns__),
-        )
-        rows = await current_database().fetch(sql, *params)
-        return [cls.from_row(row) for row in rows]
+        return await QuerySet(cls).filter(**conditions).aupdate(values)
 
     @classmethod
     async def adelete(cls, **conditions: Any) -> int:
@@ -339,14 +326,7 @@ class Model:
         refused so a missing filter cannot wipe the table."""
         if not conditions:
             raise FieldError("adelete needs at least one condition")
-        query = QuerySet(cls).filter(**conditions)
-        if query.loading.joined:
-            raise FieldError(
-                "adelete cannot filter across a relation; look the keys up first"
-            )
-        filters = list(query.filters)
-        sql, params = native.compile_query("delete", cls.__table__, filters=filters)
-        return await current_database().execute(sql, *params)
+        return await QuerySet(cls).filter(**conditions).adelete()
 
     @classmethod
     def create(cls, **values: Any) -> Self:
@@ -588,6 +568,39 @@ class QuerySet[M: Model]:
         if len(rows) > 1:
             raise MultipleObjectsReturned(f"{self.model.__name__}: several rows match")
         return rows[0]
+
+    async def aupdate(self, values: dict[str, Any]) -> builtins.list[M]:
+        """Update the rows this query matches (its filters are part of the
+        statement) and return them. Ordering and loading are ignored."""
+        if not self.filters or not values:
+            raise FieldError("aupdate needs filters and values")
+        for name in values:
+            self.model.check_field(name)
+        if self.loading.joined:
+            raise FieldError("updates cannot filter across a relation")
+        sql, params = native.compile_query(
+            "update",
+            self.model.__table__,
+            assignments=list(values.items()),
+            filters=list(self.filters),
+            returning=list(self.model.__columns__),
+        )
+        rows = await current_database().fetch(sql, *params)
+        return [self.model.from_row(row) for row in rows]
+
+    async def adelete(self) -> int:
+        """Delete the rows this query matches; returns how many. A query
+        without filters is refused so it cannot wipe the table."""
+        if not self.filters:
+            raise FieldError("adelete needs at least one condition")
+        if self.loading.joined:
+            raise FieldError(
+                "adelete cannot filter across a relation; look the keys up first"
+            )
+        sql, params = native.compile_query(
+            "delete", self.model.__table__, filters=list(self.filters)
+        )
+        return await current_database().execute(sql, *params)
 
     async def acount(self) -> int:
         sql, params = self.derive(order=(), limit_to=None, offset_by=None).compile(

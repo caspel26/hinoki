@@ -22,7 +22,8 @@ from hinoki import (
 )
 from hinoki.crud import CrudAPI, Resource
 from hinoki.db import Database, DatabaseModule
-from hinoki.orm import Model, field
+from hinoki.httperrors import Forbidden
+from hinoki.orm import Model, field, use_database
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from tests.harness import Client, Pool
 
@@ -82,6 +83,15 @@ FULL = Resource(
 
 
 class Memos(CrudAPI, path="/memos", resource=FULL):
+    pass
+
+
+BACKWARDS = Resource(
+    model=Memo, read=MemoOut, queryset=lambda: Memo.all().order_by("-title")
+)
+
+
+class Backwards(CrudAPI, path="/backwards", resource=BACKWARDS):
     pass
 
 
@@ -178,7 +188,7 @@ async def memos(pool: Pool) -> AsyncIterator[Client]:
         "CREATE TABLE crud_memos (id uuid PRIMARY KEY, owner varchar(20) NOT NULL, "
         "title varchar(40) NOT NULL, body text NOT NULL)"
     )
-    yield await pool.start(app_for(Memos, url=URL))
+    yield await pool.start(app_for(Memos, Backwards, url=URL))
     await admin.execute("DROP TABLE IF EXISTS crud_memos")
     admin.close()
 
@@ -425,3 +435,76 @@ def test_replaces_rejects_duplicates_chains_and_loose_functions() -> None:
 
     with pytest.raises(RegistrationError, match="inside an API class"):
         HinokiAPI().include(loose)
+
+
+def test_a_narrower_resource_drops_the_parent_write_routes() -> None:
+    class Public(Memos, path="/public", resource=Resource(model=Memo, read=MemoOut)):
+        pass
+
+    assert {r.handler.__name__ for r in Public.routes()} == {"list", "retrieve"}
+    assert {r.handler.__name__ for r in Memos.routes()} >= {"update", "delete"}
+
+
+def test_a_required_column_is_not_covered_by_an_optional_create_field() -> None:
+    class Loose(Schema):
+        title: str | Unset = UNSET
+
+    resource = Resource(
+        model=Memo, read=MemoOut, create=Loose, access=writer, owner="owner"
+    )
+    with pytest.raises(RegistrationError, match="required columns"):
+        resource.check()
+
+
+def test_a_caller_without_an_owner_value_may_change_nothing() -> None:
+    resource = Resource(
+        model=Memo, read=MemoOut, owner="owner", identity_key=lambda _: None
+    )
+    service = Principal(subject="svc", identity="svc", scopes=frozenset())
+    with pytest.raises(Forbidden):
+        resource.owner_of(service)
+
+
+@needs_database
+async def test_list_keeps_the_ordering_of_the_base_query(memos: Client) -> None:
+    for title in ("a", "c", "b"):
+        await memos.request(
+            "POST", "/memos", body(title=title), content_type=JSON, headers=ANN
+        )
+    listing = (await memos.request("GET", "/backwards")).body["items"]
+    assert [m["title"] for m in listing] == ["c", "b", "a"]
+
+
+@needs_database
+async def test_a_change_that_hides_the_row_still_answers_and_persists(
+    scoped: tuple[Client, Database],
+) -> None:
+    client, admin = scoped
+    key = uuid4()
+    await admin.execute("INSERT INTO crud_hidden VALUES ($1, 'ann', false)", key)
+    patch = await client.request(
+        "PATCH", f"/scoped/{key}", body(hidden=True), content_type=JSON, headers=ANN
+    )
+    assert (patch.status, patch.body["hidden"]) == (200, True)
+    rows = await admin.fetch("SELECT hidden FROM crud_hidden WHERE id = $1", key)
+    assert rows[0]["hidden"] is True
+
+
+@needs_database
+async def test_writes_carry_the_base_query_and_report_missing_as_404(
+    scoped: tuple[Client, Database],
+) -> None:
+    _, admin = scoped
+    hidden, shown = uuid4(), uuid4()
+    await admin.execute("INSERT INTO crud_hidden VALUES ($1, 'ann', true)", hidden)
+    await admin.execute("INSERT INTO crud_hidden VALUES ($1, 'ann', false)", shown)
+    with use_database(admin):
+        ann = Principal(subject="ann", identity="ann", scopes=frozenset())
+        # A row hidden after the guard is not deleted by the statement itself.
+        assert await SCOPED.scope(hidden, ann).adelete() == 0
+        assert len(await admin.fetch("SELECT id FROM crud_hidden")) == 2
+        # Zero rows because the row vanished is a 404; because it is owned by
+        # someone else (checked against a still visible row) it is a 403.
+        with pytest.raises(Hidden.NotFound):
+            await SCOPED.refused(hidden)
+        assert isinstance(await SCOPED.refused(shown), Forbidden)
