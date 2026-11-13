@@ -115,7 +115,8 @@ class OpenAPIBuilder:
             operation["requestBody"] = {
                 "required": True,
                 "content": {
-                    "application/json": {"schema": self.component(body.schema)}
+                    parser.media_type: {"schema": self.component(body.schema)}
+                    for parser in route.parsers
                 },
             }
         operation["responses"] = self.responses(binding)

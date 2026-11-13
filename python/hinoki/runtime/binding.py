@@ -91,16 +91,6 @@ CONVERTERS: dict[object, Callable[[str], object]] = {
 }
 
 
-def decode_body(raw: bytes, content_type: str) -> object:
-    """Decode a JSON request body (in Rust) or raise ``InvalidBody``."""
-    if content_type.split(";", maxsplit=1)[0].strip().lower() != "application/json":
-        raise InvalidBody("unsupported_media_type", "expected application/json")
-    try:
-        return native.decode_json(raw)
-    except ValueError:
-        raise InvalidBody("invalid_json", "the body is not valid JSON") from None
-
-
 def parse_query(raw: bytes) -> dict[str, list[str]]:
     """Parse a query string (in Rust); malformed input raises ``InvalidBody``."""
     try:
