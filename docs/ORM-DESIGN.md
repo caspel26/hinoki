@@ -1,6 +1,6 @@
 # ORM design — spike and first slice (Q004 R7 / S2)
 
-Status: **design** · 2026-11-13. Scope is deliberately small: a Rust database engine reachable from asyncio, transactions bound to the request, typed errors, and only then a minimal Active Record layer. Relations, migrations and CRUD generation are Q005.
+Status: **D1–D4 implemented** (2026-11-13); reviewed independently, findings fixed (see `handoff.md`). Scope is deliberately small: a Rust database engine reachable from asyncio, transactions bound to the request, typed errors, and only then a minimal Active Record layer. Relations, migrations and CRUD generation are Q005.
 
 ## Observed
 
@@ -43,3 +43,11 @@ Rust: AST→SQL goldens (no DB); engine integration against the disposable Postg
 ## Open
 
 NUMERIC/decimal and timestamp-without-zone mapping; prepared-statement cache sizing; SSL (TLS) configuration; PgBouncer compatibility; read replicas.
+
+## Implementation notes (what changed from the design)
+
+* **Cancellation is stronger than designed:** pooled connections are lent through a *lease*; if the operation's future is dropped mid-flight, a cancel request is sent and the connection is **discarded**, not recycled. A transaction whose statement is abandoned is *poisoned*: rollback discards the connection immediately.
+* **Aborted transactions:** PostgreSQL answers `COMMIT` of an aborted transaction with a silent rollback. The engine tracks server errors and reports such a commit as an error (SQLSTATE `25P02`); `ROLLBACK TO SAVEPOINT` recovers.
+* **SQL compilation** lives in `crates/orm/src/query.rs` and returns placeholders only; identifiers are validated and quoted.
+* Savepoints use per-transaction unique names; only the task that owns a transaction may nest scopes; a task that outlives its scope gets an error.
+* Not done: relations, migrations, sync variants, TLS, `NUMERIC`/`timestamp` without zone, statement timeouts from the request deadline.
