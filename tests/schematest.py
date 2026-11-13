@@ -5,6 +5,7 @@ from uuid import UUID
 import pytest
 
 from hinoki import UNSET, Field, RegistrationError, Schema, Unset, ValidationError
+from hinoki.validation import MAX_ERRORS
 
 
 class Author(Schema):
@@ -197,3 +198,82 @@ def test_recursive_schemas_validate_with_forward_references() -> None:
     assert codes({"name": "r", "children": [{}]}, Node) == {
         "children[0].name": "required"
     }
+
+
+class Bounded(Schema):
+    n: Annotated[int, Field(ge=0.5, le=10.0)]
+    x: float = 0.0
+    code: Annotated[str, Field(max_length=8, pattern=r"(a|aa)+")] = "a"
+
+
+def test_float_limits_apply_to_integers() -> None:
+    assert codes({"n": 999}, Bounded) == {"n": "le"}
+    assert codes({"n": 0}, Bounded) == {"n": "ge"}
+    assert Bounded.validate({"n": 5}).n == 5
+
+
+@pytest.mark.parametrize("value", [1e999, 10**400, float("inf")])
+def test_non_finite_and_overflowing_numbers_are_rejected(value: object) -> None:
+    assert codes({"n": 1, "x": value}, Bounded) == {"x": "finite"}
+
+
+def test_length_is_checked_before_the_regex_so_it_bounds_the_cost() -> None:
+    hostile = "a" * 5000 + "!"
+    assert codes({"n": 1, "code": hostile}, Bounded) == {"code": "max_length"}
+
+
+def test_error_list_is_capped_and_marked_truncated() -> None:
+    class Many(Schema):
+        items: list[str]
+
+    found = codes({"items": [0] * 10_000}, Many)
+    assert len(found) <= MAX_ERRORS + 1
+    assert found[""] == "too_many_errors"
+
+
+class Many(Schema):
+    items: list[str]
+
+
+def test_many_unknown_keys_are_capped_and_keys_are_truncated() -> None:
+    payload = {"k" * 500 + str(i): 1 for i in range(1000)}
+    with pytest.raises(ValidationError) as info:
+        Many.validate({"items": [], **payload})
+    assert len(info.value.details) <= MAX_ERRORS + 1
+    assert all(len(d.path) <= 64 for d in info.value.details)
+
+
+def test_deeply_nested_recursive_input_reports_depth_not_a_crash() -> None:
+    data: dict[str, Any] = {"name": "leaf"}
+    for _ in range(5000):
+        data = {"name": "n", "children": [data]}
+    assert codes(data, Node) == {"": "depth"}
+
+
+def test_constraints_in_a_field_default_are_an_error() -> None:
+    with pytest.raises(RegistrationError, match="Annotated"):
+        type(
+            "Bad",
+            (Schema,),
+            {"__annotations__": {"title": str}, "title": Field(min_length=3)},
+        )
+
+
+def test_invalid_regex_fails_at_class_creation() -> None:
+    with pytest.raises(RegistrationError, match="pattern"):
+        type(
+            "Bad",
+            (Schema,),
+            {"__annotations__": {"v": Annotated[str, Field(pattern="(")]}},
+        )
+
+
+def test_uuid_and_datetime_accept_only_canonical_forms() -> None:
+    assert codes(
+        {"id": "{6f1c8a52-0000-4000-8000-000000000001}", "name": "A"}, Author
+    ) == {"id": "uuid"}
+    assert codes({"id": "6f1c8a5200004000800000000000000a", "name": "A"}, Author) == {
+        "id": "uuid"
+    }
+    for bad in ["20261113T100000Z", "2026-11-13", "2026-11-13 10:00:00Z"]:
+        assert codes({**VALID, "created": bad}) == {"created": "datetime"}
