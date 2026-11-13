@@ -26,8 +26,10 @@ def add_arguments(
         "settings", help="show the effective settings and where each value comes from"
     )
     sub.add_argument("target", help="module:SettingsClass")
-    sub.add_argument("--prefix", default="", help="environment variable prefix")
-    sub.add_argument("--dotenv", help="a .env file to read")
+    sub.add_argument(
+        "--prefix", default=None, help="variable prefix (default: the class's own)"
+    )
+    sub.add_argument("--dotenv", help="a .env file (default: the class's own)")
     sub.add_argument("--format", choices=["text", "json"], default="text")
     sub.add_argument(
         "--example", action="store_true", help="print a .env.example instead"

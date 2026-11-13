@@ -46,6 +46,7 @@ from hinoki.settings import (
     LifecycleSettings,
     LoggingSettings,
     Secret,
+    ServerSettings,
     Settings,
     SettingsError,
 )
@@ -96,6 +97,7 @@ __all__ = [
     "Schema",
     "Schemas",
     "Secret",
+    "ServerSettings",
     "Settings",
     "SettingsError",
     "Transactions",

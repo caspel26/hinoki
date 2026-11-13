@@ -1,7 +1,7 @@
 """The smallest useful Hinoki app: a notes API in one file.
 
-    NOTES_DATABASE_URL=postgres://... uv run granian --interface asgi \
-        --factory examples.notes.app:create_app
+    NOTES_DATABASE_URL=postgres://... \
+        uv run python -m hinoki dev examples.notes.app:create_app
 
 Create the table with a migration (``python -m hinoki migrations plan --models
 examples.notes.app``) or by hand; nothing here touches a database at import.

@@ -1,7 +1,7 @@
 """Application factory.
 
     BLOG_DATABASE_URL=postgres://... \
-      granian --interface asgi --factory examples.blog.main:create_app
+      python -m hinoki dev examples.blog.main:create_app
 
 The factory builds declarations only; the pool opens in the worker's lifespan.
 """
@@ -32,7 +32,7 @@ def create_app(
         "jwt_secret": jwt_secret,
     }
     settings = BlogSettings.load(
-        prefix="BLOG_", overrides={k: v for k, v in given.items() if v is not None}
+        overrides={k: v for k, v in given.items() if v is not None}
     )
     app = HinokiAPI(
         settings=settings,

@@ -13,7 +13,7 @@ from typing import Literal
 from hinoki import FrameworkSettings, Secret
 
 
-class BlogSettings(FrameworkSettings):
+class BlogSettings(FrameworkSettings, prefix="BLOG_"):
     database_url: Secret
     admin_secret: Secret
     jwt_secret: Secret | None = None

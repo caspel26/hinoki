@@ -25,6 +25,9 @@ classifiers = [
 [project.urls]
 Repository = "https://github.com/caspel26/hinoki"
 
+[project.optional-dependencies]
+server = ["granian>=2.8,<3"]
+
 [dependency-groups]
 dev = [
     { include-group = "lint" },

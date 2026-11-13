@@ -82,6 +82,7 @@ nav:
       - Schemas from models: MODEL-SCHEMA-DESIGN.md
       - Glossary: GLOSSARY.md
       - Rules, checks for your project: RULES.md
+      - Running an application: SERVING.md
       - Settings (how it works): SETTINGS.md
       - Settings design: SETTINGS-DESIGN.md
       - Sync and async: SYNC-ASYNC.md

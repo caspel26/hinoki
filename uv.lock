@@ -504,6 +504,11 @@ name = "hinoki"
 version = "0.0.1"
 source = { editable = "." }
 
+[package.optional-dependencies]
+server = [
+    { name = "granian" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "granian" },
@@ -534,6 +539,8 @@ typecheck = [
 ]
 
 [package.metadata]
+requires-dist = [{ name = "granian", marker = "extra == 'server'", specifier = ">=2.8,<3" }]
+provides-extras = ["server"]
 
 [package.metadata.requires-dev]
 dev = [

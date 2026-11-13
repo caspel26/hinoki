@@ -19,8 +19,11 @@ class BlogSettings(FrameworkSettings):          # keeps the built-in groups
 ## 2. Load them when the app is built
 
 ```python
+class BlogSettings(FrameworkSettings, prefix="BLOG_", dotenv=".env"):  # where to read
+    ...
+
 def create_app() -> HinokiAPI:
-    settings = BlogSettings.load(prefix="BLOG_", dotenv=".env")
+    settings = BlogSettings.load()
     app = HinokiAPI(settings=settings, ...)
 ```
 
@@ -89,4 +92,4 @@ python -m hinoki settings blog.settings:BlogSettings --prefix BLOG_ --example > 
 
 `HinokiAPI(settings=settings)` derives the runtime limits, the docs URLs and the logging setup from the built-in groups (an explicit argument such as `title=` still wins). Your own fields are on `app.settings`, and modules reach them as `ctx.settings` in their lifespan.
 
-Not included yet: a `server` group (host, port, workers; there is no `serve` command that applies it, see the app entry point work), TOML files and secret-manager clients as sources.
+The `server` group (host, port, workers) is applied by `python -m hinoki serve`/`dev` ([Running an application](SERVING.md)). Not included yet: TOML files and secret-manager clients as sources.
