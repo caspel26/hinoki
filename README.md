@@ -18,10 +18,10 @@
 ---
 
 > [!WARNING]
-> **Hinoki is pre-alpha and not usable yet.** The design is settled and the first
-> pieces of the core exist (see [What works today](#what-works-today)), but there is
-> no HTTP server integration, ORM, auth or docs generator yet. Nothing is published
-> to PyPI. Do not build on it.
+> **Hinoki is pre-alpha.** A reference blog runs end to end (HTTP server, validation,
+> auth, ORM on PostgreSQL, transactions, pagination, OpenAPI), but APIs will change,
+> there are no migrations, relations or CRUD generation yet, and nothing is published
+> to PyPI. See [What works today](#what-works-today). Do not build on it yet.
 
 Hinoki is an independent framework for REST APIs and modular services. You write
 ordinary, fully typed Python — functions or classes, sync or async — and Hinoki turns
@@ -92,16 +92,21 @@ Honest status, verified by the test suite:
 
 | Area | State |
 | --- | --- |
-| HTTP method decorators, `Access`, `API` classes, `HinokiAPI.include` / `install` | Implemented; typed and tested |
-| Native router (`hinoki.native.Router`): static + `{param}` paths, literal-over-param priority, 404/405, duplicate and conflict detection | Implemented in Rust, with Rust and Python tests |
-| Modules: dependency graph, per-worker lifespan, reverse cleanup, deadlines, managed tasks | Implemented; tested in-process and under Granian |
-| ASGI adapter (lifespan, raw-path routing, path/query parameters, JSON bodies, 400/404/405/415/422/503/504/500 mapping) and bounded sync executor | Implemented; **no auth, response validation, pagination or headers/cookies yet** |
-| `Schema` / `Field` / `UNSET`: strict validation with path-aware errors, nested and recursive schemas, JSON dump | Implemented (pure Python engine) and wired to bodies and responses |
-| OpenAPI 3.1 generation from routes, signatures, schemas and docstrings (`app.openapi()`, optional `openapi_url`) | Implemented; validated with `openapi-spec-validator`; no security schemes, examples or docs UI yet |
-| Static typing contract (positive and negative fixtures, `mypy --strict`) | Implemented |
-| Runtime design: Python/Rust/Granian boundary, resource ownership, shutdown | [Designed](docs/RUNTIME-DESIGN.md); verifications V1–V6, V8 tested |
-| ORM, auth, HTTP error hierarchy, pagination | Not started |
-| CRUD generation, rules engine, MCP, admin extra | Not started |
+| Decorators `@get/@post/...`, `Access`, `API` classes, `HinokiAPI.include` / `install` | Implemented; typed and tested |
+| Native router (`hinoki.native.Router`): `{param}` paths, literal-over-param priority with method-aware backtracking, 404/405 | Implemented in Rust |
+| Modules: dependency graph, per-worker lifespan, reverse cleanup with per-step deadlines, managed tasks | Implemented; tested in-process and under Granian |
+| ASGI adapter: raw-path routing, path/query/JSON-body binding, 400/401/403/404/405/409/415/422/503/504 mapping, bounded sync executor | Implemented |
+| `Schema` / `Field` / `UNSET`: strict validation with capped, path-aware errors, nested and recursive schemas | Implemented (pure Python engine) |
+| Auth: `BearerAuth` / `APIKeyAuth` / `HeaderAuth`, `Principal[T]`, scopes (401 vs 403), public by default | Implemented; **no JWT provider yet** |
+| HTTP error hierarchy and `app.errors.handle(...)` | Implemented |
+| OpenAPI 3.1 from the same declarations (`app.openapi()`, opt-in `openapi_url`), security schemes, pagination | Implemented; validated with `openapi-spec-validator`; no docs UI, examples or custom overrides yet |
+| Pagination: `pagination=...` + `PageParams`, `Page[T]` | Implemented (page-number strategy only) |
+| Database engine in Rust (`tokio-postgres` + `deadpool`): typed binary parameters, typed errors, transactions, cancellation-safe pooling | Implemented; PostgreSQL only |
+| `transaction=True`: commit after output encoding, rollback before error translation, aborted commits reported as errors | Implemented and tested against PostgreSQL |
+| SQL compiler in Rust (select/count/insert/update/delete, quoted identifiers, `$n` placeholders only) and Active Record `Model` / `QuerySet` | Implemented for single tables; **no relations, migrations or sync variants** |
+| Reference blog (`examples/blog`) incl. a real Granian + PostgreSQL run | Implemented |
+| Typing: constructors and decorators checked by `mypy --strict`; `Model.acreate(**values)` is **not** statically checked | Known gap ([docs/TYPING.md](docs/TYPING.md)) |
+| JWT, CRUD generation, rules engine, MCP, admin extra, benchmarks beyond the router micro-benchmark | Not started |
 
 ```python
 >>> from hinoki import HinokiAPI, get
@@ -113,6 +118,23 @@ Honest status, verified by the test suite:
 >>> route.name, params
 ('user', {'user_id': '42'})
 ```
+
+## A glance at the reference blog
+
+```python
+class Posts(API, path="/posts"):
+    @get("/", pagination=PageNumberPagination(page_size=10, max_page_size=50))
+    async def listing(self, page: PageParams) -> Page[PostOut]:
+        newest = Post.filter(published=True).order_by("-created_at", "-id")
+        return (await newest.apaginate(page)).map(to_out)
+
+    @post("/", status=201, access=editor, transaction=True)
+    async def create(self, data: PostCreate, principal: Principal[User]) -> PostOut:
+        created = await Post.acreate(author_id=principal.identity.id, **data.dump())
+        return to_out(created)
+```
+
+Full code in [`examples/blog`](examples/blog); `BLOG_DATABASE_URL=… granian --interface asgi --factory examples.blog.main:create_app`.
 
 ## Architecture
 
@@ -137,9 +159,9 @@ ownership per worker, the bounded sync executor and the lifespan/shutdown sequen
 
 ## Roadmap
 
-1. **Runtime** — lifespan coordinator, ASGI adapter, bounded sync executor *(designed)*
-2. **Vertical slice: blog** — request → schema → ORM (PostgreSQL) → auth → rollback → OpenAPI → pagination
-3. **ORM and generated CRUD** — relations, eager loading, replaceable operations
+1. ~~**Runtime** — lifespan coordinator, ASGI adapter, bounded sync executor~~ ✅
+2. ~~**Vertical slice: blog** — request → schema → ORM (PostgreSQL) → auth → rollback → OpenAPI → pagination~~ ✅
+3. **ORM and generated CRUD** — relations, eager loading, migrations, JWT, replaceable CRUD operations
 4. **Rules and development MCP**
 5. **Admin extra** — one theme, full HTML override
 6. **Stabilization** — wheels, benchmarks, release policy
@@ -150,7 +172,7 @@ The working queue lives in [`handoff.md`](handoff.md).
 
 ```sh
 uv sync --locked                      # venv + builds the Rust extension via maturin
-uv run --locked pytest --cov          # Python tests
+uv run --locked pytest --cov          # Python tests (DB tests need HINOKI_TEST_DATABASE_URL)
 uv run --locked mypy                  # strict types + typing fixtures
 uv run --locked ruff check . && uv run --locked ruff format --check .
 cargo test --workspace                # Rust tests
