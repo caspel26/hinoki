@@ -13,6 +13,8 @@ docs/TYPING.md) until generated stubs exist.
 
 from __future__ import annotations
 
+import builtins
+import copy
 import dataclasses
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -20,6 +22,7 @@ from contextvars import ContextVar
 from typing import Any, ClassVar, Self, cast, dataclass_transform
 
 from hinoki import native
+from hinoki.blocking import run_sync
 from hinoki.db import Database
 from hinoki.errors import (
     FieldError,
@@ -34,6 +37,7 @@ OPERATORS = {"gt", "gte", "lt", "lte", "ne", "in", "isnull"}
 SEPARATOR = "__"
 IN_CHUNK = 10000
 MARK = "hinoki_field"
+SNAPSHOT = "hinoki_snapshot"
 
 database_var: ContextVar[Database | None] = ContextVar("hinoki_database", default=None)
 
@@ -165,7 +169,55 @@ class Model:
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> Self:
-        return cls(**row)
+        instance = cls(**row)
+        instance.remember()
+        return instance
+
+    def remember(self) -> None:
+        """Record the stored values, so ``asave`` writes only what changed."""
+        columns = type(self).__columns__
+        self.__dict__[SNAPSHOT] = {c: copy.deepcopy(getattr(self, c)) for c in columns}
+
+    async def asave(self) -> Self:
+        """Insert a new instance, or update the columns changed since it was
+        loaded. Typed: ``Post(title="x", ...)`` is checked by the type checker."""
+        cls = type(self)
+        stored = self.__dict__.get(SNAPSHOT)
+        if stored is None:
+            return await self.insert()
+        key = cls.__primary_key__
+        if getattr(self, key) != stored[key]:
+            raise FieldError(f"{cls.__name__}: the primary key cannot be changed")
+        changed = {
+            c: getattr(self, c)
+            for c in cls.__columns__
+            if c != key and getattr(self, c) != stored[c]
+        }
+        if changed:
+            updated = await cls.aupdate(**{key: stored[key]}, **changed)
+            self.refresh(updated)
+        return self
+
+    async def insert(self) -> Self:
+        cls = type(self)
+        assignments = [(c, getattr(self, c)) for c in cls.__columns__]
+        sql, params = native.compile_query(
+            "insert",
+            cls.__table__,
+            assignments=assignments,
+            returning=list(cls.__columns__),
+        )
+        rows = await current_database().fetch(sql, *params)
+        self.refresh(cls.from_row(rows[0]))
+        return self
+
+    def refresh(self, stored: Model) -> None:
+        for column in type(self).__columns__:
+            setattr(self, column, getattr(stored, column))
+        self.remember()
+
+    def save(self) -> Self:
+        return run_sync(self.asave())
 
     def related(self, name: str) -> Any:
         """The loaded relation ``name`` (``RelationNotLoaded`` if it was not)."""
@@ -187,16 +239,7 @@ class Model:
         """Insert a row (defaults and factories apply) and return it."""
         for name in values:
             cls.check_field(name)
-        instance = cls(**values)
-        assignments = [(c, getattr(instance, c)) for c in cls.__columns__]
-        sql, params = native.compile_query(
-            "insert",
-            cls.__table__,
-            assignments=assignments,
-            returning=list(cls.__columns__),
-        )
-        rows = await current_database().fetch(sql, *params)
-        return cls.from_row(rows[0])
+        return await cls(**values).insert()
 
     @classmethod
     async def aget(cls, **conditions: Any) -> Self:
@@ -242,6 +285,27 @@ class Model:
         filters = list(QuerySet(cls).filter(**conditions).filters)
         sql, params = native.compile_query("delete", cls.__table__, filters=filters)
         return await current_database().execute(sql, *params)
+
+    @classmethod
+    def create(cls, **values: Any) -> Self:
+        """Sync ``acreate`` for sync handlers."""
+        return run_sync(cls.acreate(**values))
+
+    @classmethod
+    def get(cls, **conditions: Any) -> Self:
+        return run_sync(cls.aget(**conditions))
+
+    @classmethod
+    def get_or_none(cls, **conditions: Any) -> Self | None:
+        return run_sync(cls.aget_or_none(**conditions))
+
+    @classmethod
+    def update(cls, **values: Any) -> Self:
+        return run_sync(cls.aupdate(**values))
+
+    @classmethod
+    def delete(cls, **conditions: Any) -> int:
+        return run_sync(cls.adelete(**conditions))
 
     @classmethod
     def check_field(cls, name: str) -> None:
@@ -469,6 +533,25 @@ class QuerySet[M: Model]:
 
     async def aexists(self) -> bool:
         return await self.afirst() is not None
+
+    def list(self) -> builtins.list[M]:
+        """Sync ``aall`` for sync handlers."""
+        return run_sync(self.aall())
+
+    def first(self) -> M | None:
+        return run_sync(self.afirst())
+
+    def get(self) -> M:
+        return run_sync(self.aget())
+
+    def count(self) -> int:
+        return run_sync(self.acount())
+
+    def exists(self) -> bool:
+        return run_sync(self.aexists())
+
+    def paginate(self, params: PageParams) -> Page[M]:
+        return run_sync(self.apaginate(params))
 
     async def apaginate(self, params: PageParams) -> Page[M]:
         """One page plus the total. Without ``order_by`` the primary key orders
