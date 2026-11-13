@@ -15,6 +15,8 @@ pub enum RouteError {
     Duplicate { method: String, template: String },
     /// Two templates use different parameter names at the same position.
     ParamConflict { template: String, existing: String },
+    /// The same parameter name appears twice in one template.
+    RepeatedParam { template: String, name: String },
 }
 
 impl fmt::Display for RouteError {
@@ -23,6 +25,9 @@ impl fmt::Display for RouteError {
             Self::InvalidTemplate(t) => write!(f, "invalid path template {t:?}"),
             Self::Duplicate { method, template } => {
                 write!(f, "duplicate route {method} {template}")
+            }
+            Self::RepeatedParam { template, name } => {
+                write!(f, "parameter {{{name}}} repeated in {template:?}")
             }
             Self::ParamConflict { template, existing } => write!(
                 f,
@@ -88,10 +93,18 @@ impl Router {
         let segs = segments(template).ok_or_else(invalid)?;
         let method = method.to_ascii_uppercase();
         let mut node = &mut self.root;
+        let mut seen: Vec<&str> = Vec::new();
         for seg in segs {
             node = match param_name(seg).map_err(|()| invalid())? {
                 None => node.literals.entry(seg.to_owned()).or_default(),
                 Some(name) => {
+                    if seen.contains(&name) {
+                        return Err(RouteError::RepeatedParam {
+                            template: template.to_owned(),
+                            name: name.to_owned(),
+                        });
+                    }
+                    seen.push(name);
                     let (existing, child) = node
                         .param
                         .get_or_insert_with(|| (name.to_owned(), Box::default()));
@@ -121,41 +134,57 @@ impl Router {
         };
         let method = method.to_ascii_uppercase();
         let mut params = Vec::new();
-        match Self::walk(&self.root, &segs, &mut params) {
-            None => Match::NotFound,
-            Some(node) => match node.actions.get(&method) {
-                Some(&action) => Match::Found { action, params },
-                None => {
-                    let mut allowed: Vec<String> = node.actions.keys().cloned().collect();
-                    allowed.sort();
-                    Match::MethodNotAllowed { allowed }
-                }
-            },
+        if let Some(action) = Self::walk(&self.root, &segs, &method, &mut params) {
+            return Match::Found { action, params };
         }
+        let mut allowed = Vec::new();
+        Self::collect_methods(&self.root, &segs, &mut allowed);
+        if allowed.is_empty() {
+            return Match::NotFound;
+        }
+        allowed.sort();
+        allowed.dedup();
+        Match::MethodNotAllowed { allowed }
     }
 
-    fn walk<'a>(
-        node: &'a Node,
+    /// Depth-first match that backtracks when a branch lacks the method.
+    fn walk(
+        node: &Node,
         segs: &[&str],
+        method: &str,
         params: &mut Vec<(String, String)>,
-    ) -> Option<&'a Node> {
+    ) -> Option<u32> {
         let Some((head, tail)) = segs.split_first() else {
-            return (!node.actions.is_empty()).then_some(node);
+            return node.actions.get(method).copied();
         };
-        if let Some(found) = node
+        if let Some(action) = node
             .literals
             .get(*head)
-            .and_then(|child| Self::walk(child, tail, params))
+            .and_then(|child| Self::walk(child, tail, method, params))
         {
-            return Some(found);
+            return Some(action);
         }
         let (name, child) = node.param.as_ref()?;
         params.push((name.clone(), (*head).to_owned()));
-        let found = Self::walk(child, tail, params);
+        let found = Self::walk(child, tail, method, params);
         if found.is_none() {
             params.pop();
         }
         found
+    }
+
+    /// Methods of every route whose path shape matches, over all branches.
+    fn collect_methods(node: &Node, segs: &[&str], out: &mut Vec<String>) {
+        let Some((head, tail)) = segs.split_first() else {
+            out.extend(node.actions.keys().cloned());
+            return;
+        };
+        if let Some(child) = node.literals.get(*head) {
+            Self::collect_methods(child, tail, out);
+        }
+        if let Some((_, child)) = node.param.as_ref() {
+            Self::collect_methods(child, tail, out);
+        }
     }
 }
 
@@ -218,6 +247,33 @@ mod tests {
                 allowed: vec!["GET".into(), "POST".into()]
             }
         );
+    }
+
+    #[test]
+    fn falls_back_to_a_parameter_route_when_the_literal_lacks_the_method() {
+        let mut r = router();
+        r.add("DELETE", "/posts/{post_id}", 7).unwrap();
+        // `/posts/featured` only has GET, but DELETE matches `{post_id}`.
+        assert_eq!(
+            r.find("DELETE", "/posts/featured"),
+            found(7, &[("post_id", "featured")])
+        );
+        // 405 lists the methods of every branch matching the path.
+        assert_eq!(
+            r.find("PATCH", "/posts/featured"),
+            Match::MethodNotAllowed {
+                allowed: vec!["DELETE".into(), "GET".into()]
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_repeated_parameter_names() {
+        let mut r = Router::new();
+        assert!(matches!(
+            r.add("GET", "/a/{x}/b/{x}", 1),
+            Err(RouteError::RepeatedParam { .. })
+        ));
     }
 
     #[test]
