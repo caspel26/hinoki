@@ -31,7 +31,16 @@ from hinoki.migrations import models_of
 from hinoki.orm import Model
 from hinoki.proposals import ProposalError, propose
 from hinoki.routing import Route
-from hinoki.rules import Diagnostic, Phase, Project, RuleSet, failing, qualified, where
+from hinoki.rules import (
+    Diagnostic,
+    Phase,
+    Project,
+    Rule,
+    RuleSet,
+    failing,
+    qualified,
+    where,
+)
 from hinoki.scenario import ScenarioError, run_scenario
 from hinoki.waivers import NAME, apply_waivers, load_waivers
 
@@ -228,6 +237,15 @@ def tool_explain_error(project: DevProject, args: dict[str, Any]) -> dict[str, A
                 "fix": "Change the code so the rule holds; do not edit waivers "
                 "or weaken the rule.",
             }
+    for rule_class in Rule.__subclasses__():
+        if getattr(rule_class, "id", "") == code:  # a built-in rule this project lacks
+            return {
+                "code": code,
+                "kind": "rule",
+                "meaning": rule_class.explanation,
+                "fix": "This rule is not enabled in the project. If it is, change "
+                "the code so it holds; never edit waivers or weaken it.",
+            }
     near = sorted(c for c in CATALOG if code.lower() in c)[:5]
     raise ToolFailure(f"unknown code {code!r}" + (f"; similar: {near}" if near else ""))
 
@@ -245,7 +263,14 @@ def tool_run_scenario(project: DevProject, args: dict[str, Any]) -> dict[str, An
 
 def tool_propose_model(_project: DevProject, args: dict[str, Any]) -> dict[str, Any]:
     try:
-        return propose(args.get("name"), args.get("table"), args.get("fields"))
+        return propose(
+            args.get("name"),
+            args.get("table"),
+            args.get("fields"),
+            args.get("owner"),
+            args.get("path"),
+            args.get("unique_together"),
+        )
     except ProposalError as exc:
         raise ToolFailure(str(exc)) from None
 
@@ -291,6 +316,15 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[..., dict[str, Any]]]] = {
             "properties": {
                 "name": {"type": "string", "description": "Model class, e.g. Article"},
                 "table": {"type": "string"},
+                "owner": {
+                    "type": "string",
+                    "description": "Owning model, e.g. Member; rows are scoped to it",
+                },
+                "path": {
+                    "type": "string",
+                    "description": "URL prefix, e.g. /bookmarks",
+                },
+                "unique_together": {"type": "array", "items": {"type": "array"}},
                 "fields": {
                     "type": "array",
                     "items": {
