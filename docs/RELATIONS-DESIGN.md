@@ -1,6 +1,6 @@
 # Relations, migrations and CRUD generation — design (Q005)
 
-Status: **R1 design, R2 relations and R3 migrations implemented** (2026-11-13). Implementation follows in the steps below; each step ends with the blog green and tests that fail without it.
+Status: **R1 design; R2 relations, R3 migrations and R4 generated CRUD implemented** (2026-11-13). Implementation follows in the steps below; each step ends with the blog green and tests that fail without it.
 
 ## Observed
 
@@ -46,11 +46,20 @@ M2M is an explicit join model with two `foreign_key` columns and a composite uni
 
 ### D5 Generated CRUD is ordinary routes
 
-`crud(Post, create=PostIn, read=PostOut, ...)` returns a normal `API` class. Every route is a real declaration (visible in OpenAPI, overridable):
+```python
+POSTS = Resource(model=Post, read=PostOut, create=PostCreate, deletable=True,
+                 access=editor, owner="author_id")
 
-* `replaces="list"` (etc.) on a handwritten route removes the generated one of that action at include time; two routes for one action without `replaces` are a `RegistrationError`.
-* Policy hooks are functions the generated code calls: `owner="author_id"` (the principal is assigned on create and required to match on update/delete, else 403/404 per the existing 401/403 rules) and `assign={"author_id": principal.id}` style field assignment. Clients can never send an assigned field (it is not in the input schema).
-* Default access is the framework default (public) unless `access=` is given — generated CRUD does not silently invent security.
+class Posts(CrudAPI, path="/posts", resource=POSTS): ...
+```
+
+`CrudAPI` is a normal `API` subclass (statically typed, no dynamic base). At class creation it adds `list`, `retrieve` and, as the `Resource` declares, `create` (POST, 201), `update` (PATCH; fields left `UNSET` are untouched) and `delete` (204). Each is a real declaration: it appears in OpenAPI and binds like a handwritten action.
+
+* A method of the same name on the class overrides the generated one; `@get(..., replaces="list")` on a differently named method replaces it. `replaces` naming nothing is a `RegistrationError`.
+* Generated routes use `{item_id}`; the router rejects two different parameter names at one position, so handwritten routes under the same prefix use `item_id` too.
+* Nothing is invented for security: write actions need `access=` (or `public_writes=True`), reads are public unless `read_access=` is given.
+* Policy hooks: `owner="column"` assigns the caller's identity (via `identity_key`) on create and requires equality on update/delete (403, 404 first for a missing row); `assign={"column": fn(identity)}` sets other server-owned columns on create. Both need an access policy, and the input schemas may not contain those fields (checked at class creation, along with required columns nobody can set and schema fields the model lacks).
+* `queryset=` supplies the base query (relations to load) and `output=` converts a row to the read schema when it is not a plain field copy.
 
 ### D6 Sync model methods
 
