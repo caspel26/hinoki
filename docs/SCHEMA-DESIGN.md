@@ -1,6 +1,6 @@
 # Schema design (Q004 step S1)
 
-Status: **design** · 2026-11-13 · Public syntax in `framework-handoff/FRAMEWORK_SPEC.md` §5 is confirmed in spirit; the engine below is a proposal.
+Status: **design note** · 2026-11-13 · This records the early schema design; the current public API is described in [Schemas](SCHEMAS.md).
 
 ## Observed
 

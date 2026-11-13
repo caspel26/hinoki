@@ -1,6 +1,6 @@
 # Contributing to Hinoki
 
-Hinoki is pre-alpha. Read [`AGENTS.md`](AGENTS.md) (the working rules, also for AI agents), [`handoff.md`](handoff.md) (state and queue) and [`docs/TOOLCHAIN.md`](docs/TOOLCHAIN.md).
+Hinoki is pre-alpha. Read [`AGENTS.md`](AGENTS.md) (the working rules, also for AI agents), [`ROADMAP.md`](ROADMAP.md) (public project status) and [`docs/TOOLCHAIN.md`](docs/TOOLCHAIN.md).
 
 ```sh
 uv sync --locked
@@ -11,5 +11,5 @@ cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings
 ```
 
 * Non-trivial changes start with a design note in `docs/` (see `AGENTS.md`); decisions go in `docs/adr/`.
-* Keep commits scoped (`feat(core):`, `docs(runtime):`, `build:`, `ci:`, `test:`) and update `handoff.md` in the same series.
+* Keep commits scoped (`feat(core):`, `docs(runtime):`, `build:`, `ci:`, `test:`) and update the relevant status document when project status changes.
 * Don't claim a test, benchmark or feature that does not exist. Don't add Pydantic, Django, FastAPI or Starlette.

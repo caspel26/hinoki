@@ -1,5 +1,8 @@
 """Application factory.
 
+This example uses a factory because it conditionally installs accounts when the
+JWT secret is configured and builds the optional admin from settings.
+
     BLOG_DATABASE_URL=postgres://... \
       hinoki dev examples.blog.main:create_app
 

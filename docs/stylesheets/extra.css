@@ -20,23 +20,29 @@
 
 /* Landing page: the hinoki is a cypress, so the hero carries tree rings. */
 .hn-hero {
-  position: relative; text-align: left; padding: 3rem 2rem 2.25rem; margin: 0 0 1.5rem;
-  border-radius: 14px; overflow: hidden;
-  background:
-    radial-gradient(circle at 100% 0, transparent 0 4rem, color-mix(in srgb, var(--md-accent-fg-color) 14%, transparent) 4rem 4.15rem, transparent 4.15rem 7rem, color-mix(in srgb, var(--md-accent-fg-color) 11%, transparent) 7rem 7.12rem, transparent 7.12rem 10.5rem, color-mix(in srgb, var(--md-accent-fg-color) 9%, transparent) 10.5rem 10.6rem, transparent 10.6rem 15rem, color-mix(in srgb, var(--md-accent-fg-color) 7%, transparent) 15rem 15.1rem, transparent 15.1rem),
-    linear-gradient(180deg, color-mix(in srgb, var(--md-accent-fg-color) 7%, var(--md-default-bg-color)), var(--md-default-bg-color));
+  position: relative; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(16rem, .75fr);
+  align-items: center; gap: 2rem; text-align: left; padding: 2.5rem 2.25rem; margin: 0 0 1.5rem;
+  border: 1px solid color-mix(in srgb, var(--md-accent-fg-color) 22%, transparent);
+  border-radius: 18px; overflow: hidden; isolation: isolate;
+  background: linear-gradient(125deg, color-mix(in srgb, var(--md-accent-fg-color) 12%, var(--md-default-bg-color)) 0%, var(--md-default-bg-color) 63%);
 }
+.hn-hero-copy { position: relative; z-index: 1; }
+.hn-hero-art { min-height: 15rem; position: relative; display: grid; align-content: center; overflow: hidden; border-radius: 12px; padding: 1rem; background: #170d22; }
+.hn-hero-art img { position: relative; z-index: 1; width: 100%; height: auto; border-radius: 8px; }
+.hn-hero-art p { z-index: 1; align-self: end; margin: .8rem .25rem 0; color: #e8dafa; font: 500 .78rem/1.5 "JetBrains Mono", monospace; letter-spacing: .02em; }
+.hn-rings { position: absolute; width: 25rem; height: 25rem; right: -11rem; top: -9rem; border: 1px solid #b48cf54d; border-radius: 50%; box-shadow: 0 0 0 1.4rem #b48cf51a, 0 0 0 3.1rem #b48cf514, 0 0 0 5.4rem #b48cf50e; }
 .hn-kicker { margin: 0 0 .6rem; font-size: .8rem; letter-spacing: .14em; text-transform: uppercase; color: var(--md-accent-fg-color); font-weight: 600; }
 .hn-title { margin: 0 0 .8rem; max-width: 22ch; font-size: clamp(1.9rem, 4.2vw, 2.9rem); line-height: 1.12; letter-spacing: -.02em; }
 .hn-hero p.tag { font-size: 1.12rem; margin: 0 0 1.1rem; max-width: 40rem; color: var(--md-default-fg-color--light); }
 .hn-hero .md-button { margin: .75rem .5rem 0 0; }
-.hn-hero pre { max-width: 40rem; }
+.hn-hero pre { max-width: 40rem; margin: 1rem 0 .5rem; }
 .hn-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 1.5rem 0 2rem; }
 .hn-card { border: 1px solid var(--md-default-fg-color--lightest); border-radius: 10px; padding: .9rem 1.1rem; background: var(--md-default-bg-color); transition: border-color .15s; }
 .hn-card:hover { border-color: var(--md-accent-fg-color); }
 .hn-card h3 { margin: 0 0 .35rem; font-size: 1.02rem; font-weight: 600; }
 .hn-card p { margin: 0; font-size: .88rem; color: var(--md-default-fg-color--light); }
-@media (max-width: 40em) { .hn-hero { padding: 2rem 1.1rem 1.5rem; } .hn-hero p.tag { font-size: 1rem; } }
+@media (max-width: 55em) { .hn-hero { grid-template-columns: 1fr; gap: 1.2rem; } .hn-hero-art { min-height: 0; grid-template-columns: minmax(0, 1fr) 10rem; align-items: center; } .hn-hero-art p { align-self: center; } }
+@media (max-width: 40em) { .hn-hero { padding: 1.5rem 1rem; } .hn-hero-copy, .hn-hero-art { min-width: 0; } .hn-hero p.tag { font-size: 1rem; } .hn-hero pre { max-width: 100%; overflow-x: auto; } .hn-hero-art { grid-template-columns: 1fr; } .hn-hero-art img { min-width: 0; display: block; } .hn-hero-art p { margin-top: .4rem; } }
 @media (prefers-reduced-motion: reduce) { .hn-card { transition: none; } }
 
 /* Buttons readable in both schemes (the dark primary colour is the page colour). */

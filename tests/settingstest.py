@@ -304,6 +304,8 @@ def test_the_settings_command_prints_origins_and_failures(
     assert "APP_MAIL__PORT=25" in capsys.readouterr().out
     monkeypatch.delenv("APP_JWT_SECRET")
     assert main(["settings", target, "--prefix", "APP_"]) == 1
-    assert "APP_JWT_SECRET: required" in capsys.readouterr().err
+    error = capsys.readouterr().err
+    assert "APP_JWT_SECRET: required" in error
+    assert "fix: set the named variables" in error
     with pytest.raises(SystemExit):
         main(["settings", "nope:Nothing"])

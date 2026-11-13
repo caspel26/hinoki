@@ -43,7 +43,7 @@ Generated OpenAPI is validated with `openapi-spec-validator` inside the Python t
 ## Decisions
 
 * **Python ≥ 3.12**, dev interpreter 3.13 (`.python-version`), CI 3.12, 3.13 and 3.14, abi3 wheels (smoke-tested in a clean 3.12 env by the `wheel` CI job) — see [ADR 0004](adr/0004-python-version-and-build-backend.md).
-* **Ruff** is the only linter/formatter (`ruff check` with `--fix`, then `ruff format`), version pinned in `pyproject.toml` (`lint` group) and in `.pre-commit-config.yaml`; keep them equal when bumping. `framework-handoff/` is excluded.
+* **Ruff** is the only linter/formatter (`ruff check` with `--fix`, then `ruff format`), version pinned in `pyproject.toml` (`lint` group) and in `.pre-commit-config.yaml`; keep them equal when bumping.
 * **mypy --strict** is the separate type check. No overlapping tools (no black, isort, flake8, pylint).
 * **maturin** is the build backend (`python-source = "python"`, extension `hinoki.native`); uv rebuilds when Rust sources change (`tool.uv.cache-keys`).
 * Complexity: Ruff `C901` ≤ 10 as the Python budget; the Shiori budget of 15 was a design target, not tied to this tooling. Rust gets clippy defaults for now.

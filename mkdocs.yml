@@ -1,8 +1,6 @@
 site_name: Hinoki
-site_description: Typed Python APIs with a native Rust core.
+site_description: A Python API framework that checks its own architecture.
 site_url: https://caspel26.github.io/hinoki/
-repo_url: https://github.com/caspel26/hinoki
-repo_name: caspel26/hinoki
 docs_dir: docs
 strict: true
 validation:
@@ -12,6 +10,7 @@ validation:
 
 theme:
   name: material
+  logo: assets/hinoki-mark.png
   features:
     - navigation.tabs
     - navigation.instant
@@ -42,6 +41,12 @@ theme:
 
 extra_css:
   - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/caspel26/hinoki
+      name: Hinoki on GitHub
 
 markdown_extensions:
   - admonition
@@ -108,7 +113,7 @@ nav:
   - Concepts:
       - Sync and async: SYNC-ASYNC.md
       - Glossary: GLOSSARY.md
-      - Identity (proposals): IDENTITY.md
+      - Identity: IDENTITY.md
   - Reference:
       - Overview: reference/index.md
       - Routing and requests: reference/web.md

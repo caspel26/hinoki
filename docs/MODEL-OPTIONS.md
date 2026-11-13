@@ -1,6 +1,6 @@
 # Model options
 
-Options that describe a model beyond its columns are **decorators**, read like the action decorators. Only what is needed when the class is created stays a class keyword.
+Options that describe a model beyond its columns are **decorators**, read like the action decorators. Hinoki has no nested `class Meta`. Only what is needed when the class is created stays a class keyword.
 
 ```python
 @unique("owner_id", "url")

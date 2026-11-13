@@ -13,7 +13,6 @@ flags below override them. Granian is an optional dependency
 from __future__ import annotations
 
 import argparse
-import importlib
 import inspect
 import sys
 from typing import Any
@@ -21,6 +20,7 @@ from typing import Any
 from hinoki.app import Hinoki
 from hinoki.routing import ROUTE_ATTR
 from hinoki.settings import FrameworkSettings, ServerSettings, SettingsError
+from hinoki.target import load_target as import_target
 
 
 def add_arguments(
@@ -40,12 +40,9 @@ def add_arguments(
 
 def load_target(target: str) -> tuple[Any, bool]:
     """The named object and whether it is a factory (a callable, not an app)."""
-    module_name, _, name = target.partition(":")
-    if not module_name or not name:
-        raise SystemExit("error: target is module:application or module:factory")
     try:
-        found = getattr(importlib.import_module(module_name), name)
-    except (ImportError, AttributeError) as exc:
+        found = import_target(target)
+    except (ImportError, AttributeError, ValueError) as exc:
         raise SystemExit(f"error: cannot load {target}: {exc}") from None
     if isinstance(found, Hinoki):
         return found, False

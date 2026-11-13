@@ -7,6 +7,7 @@ Not part of pytest (it needs the third-party client); run it after changing
 """
 
 import asyncio
+import os
 from pathlib import Path
 from typing import Any
 
@@ -17,12 +18,18 @@ ROOT = Path(__file__).resolve().parents[2]
 SERVER = StdioServerParameters(
     command="uv",
     args=[
-        *("run", "--locked", "python", "-m", "hinoki", "mcp"),
-        *("tests.projects.rulesapp:create_app"),
-        *("--rules", "tests.projects.rulesapp:rules"),
-        *("--scenarios", "read"),
+        "run",
+        "--locked",
+        "hinoki",
+        "mcp",
+        "tests.projects.rulesapp:create_app",
+        "--rules",
+        "tests.projects.rulesapp:rules",
+        "--scenarios",
+        "read",
     ],
     cwd=str(ROOT),
+    env={**os.environ, "PYTHONPATH": str(ROOT)},
 )
 FIELDS = [{"name": "title", "max_length": 80}]
 # (tool, arguments, expect an error result, key the structured result must have)

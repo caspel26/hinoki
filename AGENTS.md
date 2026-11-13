@@ -1,14 +1,14 @@
 # Agent instructions — Hinoki
 
-Status: adopted 2026-11-13 from `framework-handoff/rules/AGENTS.md` (name Aptum → Hinoki; otherwise unchanged).
+Status: adopted 2026-11-13 and adapted for the public Hinoki repository.
 
-**Document locations.** The design package lives unmodified in `framework-handoff/` (spec, syntax contract, runtime, provenance, `sources/` historical snapshots — never edit `sources/`). Those documents still say "Aptum"; read it as **Hinoki** (`hinoki` import/CLI, `Hinoki` application class, `API` for endpoint groups). The live work queue is the root `handoff.md`; designs go in `docs/`, ADRs in `docs/adr/`.
+**Document locations.** `ROADMAP.md` is the public project status. Public design notes and ADRs live in `docs/` and `docs/adr/`. The owner may keep a detailed `handoff.md` and source design package locally; they are not required in a public checkout.
 
 **Toolchain.** `uv` for Python (`uv run --locked`), Ruff for lint+format, mypy for types, Cargo for Rust, maturin as build backend. See `docs/TOOLCHAIN.md`.
 
 ## Read first
 
-Read this file, `handoff.md`, and `framework-handoff/{FRAMEWORK_SPEC,SYNTAX_CONTRACT,RUNTIME_AND_MODULES}.md` before starting. Durable decisions and the ordered work queue live in files. Read the design for the active item rather than reconstructing intent from chat.
+Read this file and `ROADMAP.md` before starting. If a local `handoff.md` or design package is available, read it for additional project context. Read the relevant public design document for the active item rather than reconstructing intent from chat.
 
 The project name is **Hinoki** (owner decision, supersedes the earlier "Aptum" in the handoff package). `hinoki` is the package/import/CLI identifier; external availability on PyPI/crates.io has not been checked. Do not invent implemented features, benchmark numbers, supported versions or completed checks.
 
@@ -29,13 +29,13 @@ The project name is **Hinoki** (owner decision, supersedes the earlier "Aptum" i
 
 ## Work loop
 
-1. Add new work to the ordered queue in `handoff.md`; finish the active item before switching unless the owner redirects it. Answer questions promptly and incorporate corrections into the active design.
+1. Record significant new work in the local handoff when available; otherwise update `ROADMAP.md` when public project status changes. Finish the active item before switching unless the owner redirects it. Answer questions promptly and incorporate corrections into the active design.
 2. Design nontrivial changes before implementation. Write `docs/<TOPIC>-DESIGN.md`: observed code/data, one recommendation, alternatives and trade-offs, public API examples, failure/empty/private states, tests, numbered build steps, file ownership and dependencies. Recommend defaults for routine choices; isolate genuine owner decisions.
 3. Implement one reviewable step at a time. When multiple agents are authorized, parallelize only independent tracks. Shared files require explicit non-overlapping ownership or serial edits. Never have two agents edit the same function concurrently.
 4. Verify the actual result. A delegated agent's report is not sufficient evidence. Inspect the diff and run the applicable checks independently. Report exactly what ran and what did not.
 5. For UI changes, inspect actual screenshots and exercise changed controls with browser automation. Check desktop 1440×900, phone 390×844, narrow 320 and short 360×740 where relevant. Verify keyboard/touch paths and both desktop/mobile behavior; test another relevant browser for gestures. Screenshots alone do not prove interaction correctness.
 6. Obtain an independent, read-only review for data, authentication, authorization, privacy, migrations, concurrency or similarly high-impact changes. Require concrete defects, file/line, severity and a failing scenario. Fix findings and re-run affected checks.
-7. When commits are in scope, make scoped local commits, include the applicable `Co-Authored-By` trailer and update `handoff.md` in the same series. Do not push, publish or deploy without the owner's authorization. Previously given authorization remains valid within its scope.
+7. When commits are in scope, make scoped local commits, include the applicable `Co-Authored-By` trailer and update the relevant status document. Do not push, publish or deploy without the owner's authorization. Previously given authorization remains valid within its scope.
 
 No feature freeze or Shiori deployment flow is imported into this project. A future freeze or branch policy must be recorded explicitly.
 
@@ -64,7 +64,7 @@ Carry forward the django-ninja-aio-crud verification discipline:
 
 The source repository's Django commands do not apply here. The first bootstrap task must create and document actual Python/Rust fast/full/coverage/benchmark entry points. Until they exist, report them as unavailable rather than claiming that placeholder commands passed.
 
-Expected gate categories: Python lint/format, Python type checks and typing fixtures, Python tests/coverage, Rust formatting/lints/tests, native-binding integration, real disposable-DB tests, generated OpenAPI checks, packaging/wheel checks, performance. Admin/browser gates apply when that module changes. Exact commands and scope belong in `handoff.md` and CI.
+Expected gate categories: Python lint/format, Python type checks and typing fixtures, Python tests/coverage, Rust formatting/lints/tests, native-binding integration, real disposable-DB tests, generated OpenAPI checks, packaging/wheel checks, performance. Admin/browser gates apply when that module changes. Exact commands and scope belong in CI and the contributor documentation.
 
 Once a failing check has been fixed and the required checks pass, repeat or broaden runs only for new changes or unresolved evidence. Documentation-only changes need document/link/example validation rather than an unrelated DB benchmark cycle.
 
@@ -103,4 +103,4 @@ Once the project defines its release layout, update all actual version sources, 
 
 ## Completion report
 
-State what changed, why, validation actually performed, known limitations and the next queue item. Keep `handoff.md` current with state, decisions, migrations, commands and unresolved failures. Never describe a design proposal as already implemented.
+State what changed, why, validation actually performed, known limitations and the next work item. Keep the relevant status document current with decisions, migrations, commands and unresolved failures. Never describe a design proposal as already implemented.

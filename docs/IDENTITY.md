@@ -1,80 +1,44 @@
-# Hinoki's identity: proposals for the owner
+# Hinoki's identity
 
-Status: **proposals, not decisions** (Q026). Each item says what exists today, what is proposed and why. Nothing here is applied until the owner picks it; the roadmap in `handoff.md` records what was decided.
+These choices are adopted and applied. Hinoki's identity comes from verifiable behaviour and a consistent vocabulary, not from inventing a second API grammar.
 
-## What already makes Hinoki recognisable (keep and say it everywhere)
+## Product promise
 
-1. **It checks your architecture.** `hinoki check` fails on a missing access policy, a write without a transaction, an exposed `password_hash`, a model returned from an action, an import against the layering. No other framework in this space ships that. *Voice:* "Hinoki refuses to ship what you promised not to."
-2. **Policies and transactions read as declarations:** `access=member_only`, `transaction=True`, `errors=(NotFound,)`, groups with `Endpoints(...)`. Failures are declared, so OpenAPI, the MCP and the test client all know them.
-3. **Built to be driven by an agent, with guardrails you can verify:** the development MCP, the application MCP with an allowlist, waivers only the owner can write.
-4. **Rust where it matters, plain Python where you read it:** parsing, validation, JSON, hashing and the query compiler are native; the surface is ordinary typed Python, sync or async.
-5. **Typed settings and secrets that never print.**
-6. **An admin with three genuinely different styles.**
+**A Python API framework that checks its own architecture.** `hinoki check` reports deterministic rule violations with a location, stable ID and a concrete fix. Rust is the implementation choice for selected request, schema, crypto and ORM paths; it is not a performance claim.
 
-## Proposals
+The endpoint declaration is ordinary Python: `@get` / `@post`, reusable `Access`, and `access=`, `transaction=` and `errors=` options. Group defaults use `Endpoints`. The same declarations feed runtime routing, OpenAPI, MCP descriptions and the strict test client.
 
-| # | Proposal | Today | Why |
-| --- | --- | --- | --- |
-| I1 | **Tagline and pitch** | "Typed Python APIs with a native Rust core." | Lead with the checkable architecture and the agent workflow, not the Rust: "A Python API framework that checks its own architecture." Rust is the *how*, not the promise. |
-| I2 | **Vocabulary rule** | `Schema`, `Model`, `Access`, `Caller`, `Endpoints`, `Reply`; glossary in `docs/GLOSSARY.md` | One word per concept, ordinary English, no gimmick names. Identity comes from behaviour, not from renaming `Schema` (decided). |
-| I3 | **The application object** | `HinokiAPI(...)` built by a factory (`create_app`) | Rename to **`Hinoki`** (`app = Hinoki(settings=...)`; `HinokiAPI` kept as an alias until the first release): shorter, owns the brand, reads well in `from hinoki import Hinoki`. Keep the factory for per-worker construction. |
-| I4 | **Declaring the app as data** | `create_app()` function that includes and installs | Optional second form for small apps: `app = Hinoki(settings=BlogSettings, include=[...], modules=[...])`, loaded lazily by `hinoki serve blog.main:app`. Keep the factory form for tests and workers. |
-| I5 | **Error voice** | `RegistrationError` messages name the action and the fix | Standardise: *what happened, where, the exact fix, the rule id* (`HNK-…`), one line each. Already true for registration errors and rules; extend to settings and migrations. |
-| I6 | **Status words** | "Pre-alpha" | Keep it honest; add a public "what works today / what does not" table (README has it) and link it from every landing page. |
-| I7 | **Visual identity** | violet mark and wordmark, three admin styles | Use the violet as the single brand colour in docs, CLI output and the admin default; give the docs a tree-ring motif (the hinoki is a cypress) instead of stock graphics. |
-| I8 | **CLI voice** | `hinoki ...` | Add a `hinoki` console script (`hinoki dev`, `hinoki serve`, `hinoki check`, `hinoki settings`, `hinoki new`) so docs and agents use one short command; `python -m hinoki` keeps working. |
-| I9 | **Decorator vocabulary** | `@get/@post/...`, `@unique/@indexed/@ordered_by`, `@field_check/@object_check` | Keep: one visual grammar (decorators state facts about the thing below them). Do not add more declaration syntaxes. |
-| I10 | **A signature example** | blog, tracker | Promote the tracker as *the* reference (layers, rules, errors, MCP) and keep the blog as the admin showcase. |
+## Vocabulary and schemas
 
-## What it would look like
-
-**Today** (works now): a factory builds the app, `granian` or `hinoki dev` runs it.
+Use the Hinoki class name `Schema` in code font. A model-derived schema is still a `Schema`:
 
 ```python
-# blog/main.py
-def create_app() -> HinokiAPI:
-    settings = BlogSettings.load()
-    app = HinokiAPI(settings=settings, title="Blog", rules=blog_rules)
-    app.include(health, Posts, build_admin(settings).api())
-    app.install(DatabaseModule(settings.database.url.reveal()))
-    return app
+class PostOut(Schema, model=Post, exclude=["password_hash"]):
+    ...
 ```
 
-```sh
-hinoki dev blog.main:create_app
-```
+There is no separate `ModelSchema` type or alias. The term is only a comparison for the use case. Do not write Pydantic method names for Hinoki: use `validate`, `dump`, `to_dict` and `from_model` as documented. The conditional `Shape` renaming test remains a future reconsideration trigger: run 10–15 assistant coding tasks, and reconsider only if more than 20% use Pydantic APIs despite the docs. Until then, `Schema` is the decision.
 
-**Proposed (I3 + I4 + I8)**: the app class carries the brand, small apps are declared as data, and one short command runs everything. Nothing below exists yet; the factory form keeps working.
+Use `Model` for persisted rows, “table state” or “migration state” for database structure, “OpenAPI document” and “JSON Schema” for their respective documents. See [the glossary](GLOSSARY.md).
+
+## Application and command line
+
+Small apps can be declared as data:
 
 ```python
-# blog/main.py
-from hinoki import Hinoki
-
 app = Hinoki(
-    settings=BlogSettings,                 # a class: loaded when the worker starts
-    title="Blog",
-    rules=blog_rules,
-    include=[health, Posts, admin],        # actions, API classes, admin
-    modules=[DatabaseModule],              # built from the settings' database group
+    settings=AppSettings,
+    include=[health, Tasks],
+    modules=[DatabaseModule],
 )
 ```
 
-```sh
-hinoki dev blog.main:app            # reload
-hinoki serve blog.main:app          # host, port, workers from the settings
-hinoki check blog.main:app          # the rules
-hinoki settings blog.main:app       # where every value comes from
-```
+Factories remain appropriate when setup depends on runtime inputs or conditionally installs features. `hinoki dev`, `hinoki serve`, `hinoki check`, `hinoki settings`, `hinoki migrations` and `hinoki new` are the documented command forms.
 
-**Error voice (I5)**: what happened, where, the exact fix, the rule id.
+## Errors and status
 
-```text
-blog/api.py:41  HNK-ACC-001  DELETE /posts/{post_id} declares no access policy
-  fix: add access=editor (or list it in except_ if it is public on purpose)
-```
+Diagnostics say what failed and where, then provide an actionable `fix:` line when a deterministic correction exists. Settings and migration CLI errors follow the same pattern. Keep the project's pre-alpha status explicit; do not present planned work or unmeasured performance as available.
 
-**Tagline (I1)**, on the landing page and in `pip` metadata: *"A Python API framework that checks its own architecture."*
+## Visual identity
 
-## Decisions needed
-
-I3 and I8 are small, mechanical and compatible (aliases stay). I4 and I1 are positioning choices. The rest are conventions already in the code; confirming them makes them a rule.
+The docs and project pages use the Hinoki violet and tree-ring motif. The admin has three structurally distinct themes—Studio, Console and Paper—with light and dark modes for each. The logo and banner are the project's own assets.

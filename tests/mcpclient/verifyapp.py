@@ -20,7 +20,7 @@ from mcp.client.streamable_http import streamable_http_client
 
 ROOT = Path(__file__).resolve().parents[2]
 URL = os.environ["HINOKI_TEST_DATABASE_URL"]
-PORT = 8791
+PORT = 8807
 SETUP = """
 import asyncio, os
 from pathlib import Path

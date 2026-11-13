@@ -1,6 +1,6 @@
 # ORM design — spike and first slice (Q004 R7 / S2)
 
-Status: **D1–D4 implemented** (2026-11-13); reviewed independently, findings fixed (see `handoff.md`). Scope is deliberately small: a Rust database engine reachable from asyncio, transactions bound to the request, typed errors, and only then a minimal Active Record layer. Relations, migrations and CRUD generation are Q005.
+Status: **D1–D4 implemented** (2026-11-13); independently reviewed and revised. Scope is deliberately small: a Rust database engine reachable from asyncio, transactions bound to the request, typed errors, and only then a minimal Active Record layer. Relations, migrations and CRUD generation are covered in the ORM and migration guides.
 
 ## Observed
 

@@ -1,6 +1,6 @@
-# Settings: how configuration and secrets work
+# Settings: how configuration, secrets and database pools work
 
-Hinoki has one way to configure an application: a **typed, immutable settings class** that you load once, explicitly, when the app is built. Nothing is read from the environment by magic, and nothing secret is ever printed.
+Hinoki uses **typed, immutable settings classes**. The declared app form loads its settings class while constructing the app; a factory can call `Settings.load()` itself. Secrets are redacted. Database connection pools have a separate worker lifecycle: settings describe how to connect, and a module opens and closes the pool.
 
 ## 1. Declare what your app needs
 
@@ -93,3 +93,24 @@ hinoki settings blog.settings:BlogSettings --prefix BLOG_ --example > .env.examp
 `Hinoki(settings=settings)` derives the runtime limits, the docs URLs and the logging setup from the built-in groups (an explicit argument such as `title=` still wins). Your own fields are on `app.settings`, and modules reach them as `ctx.settings` in their lifespan.
 
 The `server` group (host, port, workers) is applied by `hinoki serve`/`dev` ([Running an application](SERVING.md)). Not included yet: TOML files and secret-manager clients as sources.
+
+## 8. Database connection ownership
+
+For a server, put the connection details in `DatabaseSettings` and list `DatabaseModule` in the app declaration (or install a configured module in a factory). The module opens a pool in each worker's startup lifespan, fails startup if PostgreSQL is unreachable, and closes that worker's pool on shutdown. It does not connect at module import or when models are imported. Each worker owns its own pool, so budget `replicas × workers × max_size` against the database's connection limit.
+
+```python
+class BlogSettings(FrameworkSettings, prefix="BLOG_"):
+    database: DatabaseSettings
+
+app = Hinoki(settings=BlogSettings, include=[health, Posts], modules=[DatabaseModule])
+```
+
+The configuration is automatic in the useful sense: `BLOG_DATABASE__URL` is loaded from settings and the declared module connects as the server starts. Resource creation and cleanup remain explicit in the module lifecycle; there is no process-global connection opened during import. Factories remain useful when the app's routes or modules depend on runtime choices.
+
+One-off scripts have a different lifecycle. `examples/blog/seed.py` opens a short-lived `Database` explicitly, applies migrations, inserts synthetic rows and closes the pool in `finally`. It runs outside the HTTP server, so there is no worker lifespan to own that resource. This is intentional and avoids starting an app server just to seed a disposable database:
+
+```sh
+BLOG_DATABASE_URL=postgres://... uv run python -m examples.blog.seed
+```
+
+Use a disposable database for the example. The seed command is not a production migration mechanism and is not run at app startup.
