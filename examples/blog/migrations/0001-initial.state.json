@@ -1,0 +1,93 @@
+{
+  "tables": {
+    "blog_users": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "name": {
+          "type": "varchar(80)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "token": {
+          "type": "text",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "references": null
+        },
+        "is_editor": {
+          "type": "boolean",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        }
+      }
+    },
+    "blog_posts": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "author_id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": {
+            "table": "blog_users",
+            "column": "id",
+            "on_delete": "restrict"
+          }
+        },
+        "title": {
+          "type": "varchar(160)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "slug": {
+          "type": "varchar(180)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "references": null
+        },
+        "body": {
+          "type": "text",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "published": {
+          "type": "boolean",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        }
+      }
+    }
+  }
+}

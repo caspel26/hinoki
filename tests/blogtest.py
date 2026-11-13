@@ -13,9 +13,9 @@ from openapi_spec_validator import validate
 
 from examples.blog.main import create_app
 from examples.blog.models import Post, User
-from examples.blog.tables import DROP, SQL
 from hinoki.db import Database
 from hinoki.orm import use_database
+from tests.blogschema import drop, reset
 from tests.harness import Client, Pool
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -32,15 +32,13 @@ READER = {"authorization": "Bearer reader-token"}
 async def admin() -> AsyncIterator[Database]:
     assert URL is not None
     database = await Database.connect(URL, max_size=2)
-    for statement in (*DROP, *SQL):
-        await database.execute(statement)
+    await reset(database)
     with use_database(database):
         await User.acreate(name="Ada", token="editor-token", is_editor=True)
         await User.acreate(name="Bob", token="other-token", is_editor=True)
         await User.acreate(name="Rae", token="reader-token")
         yield database
-    for statement in DROP:
-        await database.execute(statement)
+    await drop(database)
     database.close()
 
 
