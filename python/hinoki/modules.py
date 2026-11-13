@@ -39,6 +39,11 @@ class ModuleContext:
             raise ModuleGraphError(f"{kind.__name__} is already provided")
         self._provided[kind] = value
 
+    def find(self, kind: type[T]) -> T | None:
+        """The provided value of this type, or ``None``."""
+        value = self._provided.get(kind)
+        return value if isinstance(value, kind) else None
+
     def get(self, kind: type[T]) -> T:
         try:
             value = self._provided[kind]
