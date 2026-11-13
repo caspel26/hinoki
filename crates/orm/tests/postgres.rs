@@ -237,3 +237,64 @@ async fn unreachable_server_fails_the_startup_check_without_leaking_the_url() {
     let err = db.check().await.unwrap_err();
     assert!(!err.to_string().contains("topsecret"));
 }
+
+#[tokio::test]
+async fn cancelling_begin_never_leaves_a_transaction_open_in_the_pool() {
+    let Some(db) = database("rt_begin", 1).await else {
+        return;
+    };
+    for attempt in 0..150u64 {
+        let begin = db.begin();
+        let _ = timeout(Duration::from_micros(attempt % 10 * 100), begin).await;
+    }
+    let first = db.fetch("SELECT now()::text AS t", &[]).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    let second = db.fetch("SELECT now()::text AS t", &[]).await.unwrap();
+    assert_ne!(
+        first[0][0].1, second[0][0].1,
+        "connection is inside a transaction"
+    );
+}
+
+#[tokio::test]
+async fn committing_an_aborted_transaction_is_an_error() {
+    let Some(db) = database("rt_abort", 2).await else {
+        return;
+    };
+    let row = |slug: &str| {
+        [
+            Value::Uuid(Uuid::new_v4()),
+            Value::Text(slug.into()),
+            Value::Int(1),
+        ]
+    };
+    db.execute(&insert("rt_abort"), &row("dup")).await.unwrap();
+    let tx = db.begin().await.unwrap();
+    assert!(tx.execute(&insert("rt_abort"), &row("dup")).await.is_err());
+    let err = tx.commit().await.unwrap_err();
+    assert_eq!(err.sqlstate.as_deref(), Some("25P02"));
+    let rows = db
+        .fetch("SELECT count(*)::int FROM rt_abort", &[])
+        .await
+        .unwrap();
+    assert_eq!(rows[0][0].1, Value::Int(1));
+}
+
+#[tokio::test]
+async fn a_statement_abandoned_inside_a_transaction_does_not_block_rollback() {
+    let Some(db) = database("rt_poison", 1).await else {
+        return;
+    };
+    let tx = db.begin().await.unwrap();
+    let slow = tx.fetch("SELECT pg_sleep(5)", &[]);
+    assert!(timeout(Duration::from_millis(200), slow).await.is_err());
+    let started = std::time::Instant::now();
+    tx.rollback().await.unwrap();
+    assert!(started.elapsed() < Duration::from_secs(2));
+    let rows = timeout(
+        Duration::from_secs(3),
+        db.fetch("SELECT 1::int AS one", &[]),
+    )
+    .await;
+    assert_eq!(rows.unwrap().unwrap()[0][0].1, Value::Int(1));
+}

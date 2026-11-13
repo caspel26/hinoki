@@ -1,5 +1,6 @@
 //! Connection pool, statements and transactions.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use deadpool_postgres::{Config, Object, PoolConfig, Runtime, Timeouts};
@@ -43,6 +44,7 @@ fn decode_cell(row: &tokio_postgres::Row, i: usize, ty: &Type) -> Result<Value, 
         };
     }
     Ok(match *ty {
+        Type::VOID => Value::Null,
         Type::BOOL => cell!(bool, Value::Bool),
         Type::INT2 => cell!(i16, |v| Value::Int(i64::from(v))),
         Type::INT4 => cell!(i32, |v| Value::Int(i64::from(v))),
@@ -61,6 +63,62 @@ fn decode_cell(row: &tokio_postgres::Row, i: usize, ty: &Type) -> Result<Value, 
             ))
         }
     })
+}
+
+/// A pooled connection lent for one operation.
+///
+/// If the operation's future is dropped before it finishes (cancellation,
+/// timeout) the server may still be running the statement, so the connection
+/// is *abandoned*: a cancel request is sent and the connection is discarded
+/// instead of returning to the pool with work queued behind it.
+struct Lease {
+    conn: Option<Object>,
+}
+
+impl Lease {
+    fn new(conn: Object) -> Self {
+        Self { conn: Some(conn) }
+    }
+
+    fn get(&self) -> &Object {
+        self.conn.as_ref().expect("lease already released")
+    }
+
+    /// Hand the connection to a longer-lived owner (a transaction).
+    fn into_inner(mut self) -> Object {
+        self.conn.take().expect("lease already released")
+    }
+
+    /// The operation completed (successfully or with a statement error): the
+    /// connection state is known, so it goes back to the pool.
+    fn release(mut self) {
+        drop(self.conn.take());
+    }
+}
+
+impl Drop for Lease {
+    fn drop(&mut self) {
+        if let Some(conn) = self.conn.take() {
+            abandon(conn);
+        }
+    }
+}
+
+fn spawn_cancel(token: tokio_postgres::CancelToken) {
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        handle.spawn(async move {
+            let _ = token.cancel_query(NoTls).await;
+        });
+    }
+}
+
+fn abandon(conn: Object) {
+    spawn_cancel(conn.cancel_token());
+    drop(Object::take(conn));
+}
+
+fn is_stale_plan(err: &DbError) -> bool {
+    matches!(err.sqlstate.as_deref(), Some("0A000" | "26000"))
 }
 
 async fn run_fetch(conn: &Object, sql: &str, values: &[Value]) -> Result<Vec<Row>, DbError> {
@@ -85,6 +143,32 @@ async fn run_execute(conn: &Object, sql: &str, values: &[Value]) -> Result<u64, 
         .map_err(|e| DbError::from_driver(&e))
 }
 
+/// Outside a transaction a cached plan invalidated by DDL can be retried once
+/// after dropping it from the connection's statement cache.
+async fn fetch_with_recovery(
+    conn: &Object,
+    sql: &str,
+    values: &[Value],
+) -> Result<Vec<Row>, DbError> {
+    match run_fetch(conn, sql, values).await {
+        Err(err) if is_stale_plan(&err) => {
+            conn.statement_cache.remove(sql, &[]);
+            run_fetch(conn, sql, values).await
+        }
+        other => other,
+    }
+}
+
+async fn execute_with_recovery(conn: &Object, sql: &str, values: &[Value]) -> Result<u64, DbError> {
+    match run_execute(conn, sql, values).await {
+        Err(err) if is_stale_plan(&err) => {
+            conn.statement_cache.remove(sql, &[]);
+            run_execute(conn, sql, values).await
+        }
+        other => other,
+    }
+}
+
 impl Database {
     /// Create a pool. No connection is opened until first use, so call
     /// [`Database::check`] to fail fast at startup.
@@ -105,8 +189,8 @@ impl Database {
         Ok(Self { pool })
     }
 
-    async fn acquire(&self) -> Result<Object, DbError> {
-        self.pool.get().await.map_err(|e| match e {
+    async fn acquire(&self) -> Result<Lease, DbError> {
+        self.pool.get().await.map(Lease::new).map_err(|e| match e {
             deadpool_postgres::PoolError::Timeout(_) => DbError::new(
                 ErrorKind::Pool,
                 "timed out waiting for a database connection",
@@ -117,26 +201,34 @@ impl Database {
 
     /// Open one connection and run `SELECT 1`.
     pub async fn check(&self) -> Result<(), DbError> {
-        run_fetch(&self.acquire().await?, "SELECT 1", &[])
-            .await
-            .map(drop)
+        self.fetch("SELECT 1", &[]).await.map(drop)
     }
 
     pub async fn fetch(&self, sql: &str, values: &[Value]) -> Result<Vec<Row>, DbError> {
-        run_fetch(&self.acquire().await?, sql, values).await
+        let lease = self.acquire().await?;
+        let outcome = fetch_with_recovery(lease.get(), sql, values).await;
+        lease.release();
+        outcome
     }
 
     pub async fn execute(&self, sql: &str, values: &[Value]) -> Result<u64, DbError> {
-        run_execute(&self.acquire().await?, sql, values).await
+        let lease = self.acquire().await?;
+        let outcome = execute_with_recovery(lease.get(), sql, values).await;
+        lease.release();
+        outcome
     }
 
-    /// Start a transaction that owns one pooled connection until it ends.
+    /// Start a transaction that owns one pooled connection until it ends. If
+    /// this future is dropped while `BEGIN` is in flight the connection is
+    /// abandoned, never returned to the pool inside a transaction.
     pub async fn begin(&self) -> Result<Transaction, DbError> {
-        let conn = self.acquire().await?;
-        conn.batch_execute("BEGIN")
+        let lease = self.acquire().await?;
+        lease
+            .get()
+            .batch_execute("BEGIN")
             .await
             .map_err(|e| DbError::from_driver(&e))?;
-        Ok(Transaction { conn: Some(conn) })
+        Ok(Transaction::new(lease.into_inner()))
     }
 
     pub fn close(&self) {
@@ -149,32 +241,127 @@ impl Database {
     }
 }
 
-/// A transaction. Dropping it without `commit`/`rollback` discards the
-/// connection instead of returning one in an unknown state to the pool.
+/// Marks a statement as in flight; if it is dropped before completing, the
+/// transaction is poisoned (its connection is in an unknown state) and the
+/// server is asked to cancel the statement.
+struct Flight<'a> {
+    poisoned: &'a AtomicBool,
+    token: tokio_postgres::CancelToken,
+    armed: bool,
+}
+
+impl Drop for Flight<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            self.poisoned.store(true, Ordering::SeqCst);
+            spawn_cancel(self.token.clone());
+        }
+    }
+}
+
+/// A transaction. Dropping it without `commit`/`rollback`, or after a
+/// statement was abandoned mid-flight, discards the connection instead of
+/// returning one in an unknown state to the pool.
 pub struct Transaction {
     conn: Option<Object>,
+    /// A statement failed: PostgreSQL will refuse to commit (until a
+    /// `ROLLBACK TO SAVEPOINT` recovers it).
+    failed: AtomicBool,
+    /// A statement was abandoned mid-flight.
+    poisoned: AtomicBool,
 }
 
 impl Transaction {
+    fn new(conn: Object) -> Self {
+        Self {
+            conn: Some(conn),
+            failed: AtomicBool::new(false),
+            poisoned: AtomicBool::new(false),
+        }
+    }
+
     fn conn(&self) -> Result<&Object, DbError> {
+        if self.poisoned.load(Ordering::SeqCst) {
+            return Err(DbError::new(
+                ErrorKind::Other,
+                "transaction was interrupted",
+            ));
+        }
         self.conn
             .as_ref()
             .ok_or_else(|| DbError::new(ErrorKind::Other, "transaction already finished"))
     }
 
+    fn settle<T>(&self, sql: &str, outcome: &Result<T, DbError>) {
+        match outcome {
+            // Only a server-reported error aborts the transaction; a
+            // client-side encoding or decoding failure does not.
+            Err(err) if err.sqlstate.is_some() => self.failed.store(true, Ordering::SeqCst),
+            Err(_) => {}
+            Ok(_)
+                if sql
+                    .trim_start()
+                    .to_ascii_uppercase()
+                    .starts_with("ROLLBACK TO") =>
+            {
+                self.failed.store(false, Ordering::SeqCst);
+            }
+            Ok(_) => {}
+        }
+    }
+
     pub async fn fetch(&self, sql: &str, values: &[Value]) -> Result<Vec<Row>, DbError> {
-        run_fetch(self.conn()?, sql, values).await
+        let conn = self.conn()?;
+        let mut flight = Flight {
+            poisoned: &self.poisoned,
+            token: conn.cancel_token(),
+            armed: true,
+        };
+        let outcome = run_fetch(conn, sql, values).await;
+        flight.armed = false;
+        self.settle(sql, &outcome);
+        outcome
     }
 
     pub async fn execute(&self, sql: &str, values: &[Value]) -> Result<u64, DbError> {
-        run_execute(self.conn()?, sql, values).await
+        let conn = self.conn()?;
+        let mut flight = Flight {
+            poisoned: &self.poisoned,
+            token: conn.cancel_token(),
+            armed: true,
+        };
+        let outcome = run_execute(conn, sql, values).await;
+        flight.armed = false;
+        self.settle(sql, &outcome);
+        outcome
     }
 
+    /// Commit. A transaction aborted by an earlier statement error is rolled
+    /// back and reported as an error: PostgreSQL would silently answer
+    /// `COMMIT` with a rollback, which must never look like success.
     pub async fn commit(mut self) -> Result<(), DbError> {
+        if self.poisoned.load(Ordering::SeqCst) {
+            return Err(DbError::new(
+                ErrorKind::Other,
+                "transaction was interrupted",
+            ));
+        }
+        if self.failed.load(Ordering::SeqCst) {
+            self.finish("ROLLBACK").await?;
+            let mut err = DbError::new(
+                ErrorKind::Other,
+                "transaction was aborted by an earlier error and has been rolled back",
+            );
+            err.sqlstate = Some("25P02".to_owned());
+            return Err(err);
+        }
         self.finish("COMMIT").await
     }
 
     pub async fn rollback(mut self) -> Result<(), DbError> {
+        if self.poisoned.load(Ordering::SeqCst) {
+            return Ok(()); // Drop discards the connection, which ends the transaction
+        }
         self.finish("ROLLBACK").await
     }
 
@@ -192,7 +379,7 @@ impl Transaction {
 impl Drop for Transaction {
     fn drop(&mut self) {
         if let Some(conn) = self.conn.take() {
-            drop(Object::take(conn));
+            abandon(conn);
         }
     }
 }
