@@ -112,7 +112,7 @@ strict = true
 warn_unused_ignores = true
 files = ["python/hinoki", "tests", "examples"]
 # Playwright is a development tool run with uvx, not a project dependency.
-exclude = ["tests/browser/"]
+exclude = ["tests/browser/", "tests/mcpclient/"]
 mypy_path = "python"
 
 [tool.pytest.ini_options]
