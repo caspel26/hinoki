@@ -1,12 +1,12 @@
 # Schema validation and serialisation in Rust — design (Q014)
 
-Status: **N1 design, N2 implemented** (Rust validator + oracle + differential tests + benchmark, 2.0×); N3 implemented (`encode_json` takes `Schema` instances, `UUID`, `datetime`, `dump()` objects; `Schema.dump()` is native; JSONRenderer skips the Python walk; 2.1×); N4–N6 open (2026-11-13). Owner request: all schema and serialisation work happens in the Rust core; use `Schema` everywhere and dataclasses only where genuinely needed; renaming `Schema` is allowed (other frameworks use the word).
+Status: **N1 design, N2 implemented** (Rust validator + oracle + differential tests + benchmark, 2.0×); N3 implemented (`encode_json` takes `Schema` instances, `UUID`, `datetime`, `dump()` objects; `Schema.dump()` is native; JSONRenderer skips the Python walk; 2.1×); `Schema.dump()`/`to_dict()` are native too (`dump_instance`, shared walk with the encoder); N4 docs pass done; N5 review done; N6 (canonical name) waits for the owner (2026-11-13). Owner request: all schema and serialisation work happens in the Rust core; use `Schema` everywhere and dataclasses only where genuinely needed; renaming `Schema` is allowed (other frameworks use the word).
 
 ## Observed
 
 * Class declaration, annotation parsing and the closed type model are Python (`schema.py`, `fieldtypes.py`, `fields.py`): kinds `str`, `int`, `float`, `bool`, `uuid`, `datetime`, `list`, `schema`; constraints `min_length`, `max_length`, `pattern`, `ge`, `le`, `gt`, `lt`; `Unset`, nullability, recursive schemas via forward references.
 * Validation is pure Python (`validation.py`, ~180 lines): strict, no coercion, path-aware errors capped at 50 (`too_many_errors`), unknown keys rejected (`extra_forbidden`, key echo truncated to 64), canonical UUIDs only, RFC 3339 datetimes with an offset, pattern checked with `re.fullmatch` after the length check, depth failures reported as `depth`. It builds the instances itself (`ftype.schema(**values)`).
-* Serialisation: `Schema.dump()`, `to_dict()`, and `encode()` in `schema.py` produce JSON-compatible Python data; the bytes come from `native.encode_json` (Rust, already). JSON decoding is Rust (`native.decode_json`).
+* Serialisation (before N3): `Schema.dump()`, `to_dict()` and `encode()` in `schema.py` produced JSON-compatible Python data and only the bytes came from Rust. Now all three walk in Rust (`native.dump_instance`, `native.encode_json`). JSON decoding is Rust (`native.decode_json`).
 * Measured earlier: the Rust JSON decode is only ~1.2× faster than `json.loads` because creating Python objects dominates, so the gain from moving validation must come from **not crossing back into Python per field** and from fusing steps, not from the parsing itself.
 
 ## Decisions
@@ -50,8 +50,8 @@ Unit tests in Rust for each kind and constraint; the Python differential suite a
 | N1 | This design | `docs/SCHEMA-RUST-DESIGN.md` |
 | N2 (done) | Rust `CompiledSchema` (compile table, validate, construct instances) and Python glue; Python engine moved to tests as oracle; differential tests | `crates/bindings/src/schema.rs`, `python/hinoki/schema.py`, `tests/oracle/`, `tests/schemadifftest.py` |
 | N3 (done) | Native `dump` / `to_dict` and `encode_json` support for `Schema`, `UUID`, `datetime` | `crates/bindings/src/request.rs`, `schema.rs` |
-| N4 | Benchmark, docs, handoff | `benchmarks/schemabench.py` |
-| N5 | Independent review (untrusted input), fixes | — |
+| N4 (done) | Benchmark, docs, handoff | `benchmarks/schemabench.py` |
+| N5 (done) | Independent review (untrusted input), fixes | — |
 | N6 | `Contract` as the canonical name, `Schema` alias, docs/examples updated | repo-wide, mechanical |
 
 ## Open (owner)
