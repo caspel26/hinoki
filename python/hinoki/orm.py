@@ -318,9 +318,7 @@ class Model:
         """An unsaved instance from a schema's values plus ``values``. Explicit
         keyword values win over the schema's, so a column the server assigns
         (owner, state) can never come from the client."""
-        merged = {**(data.to_dict() if data is not None else {}), **values}
-        for name in merged:
-            cls.check_field(name)
+        merged = cls.merged_values(data, values)
         return cls(**merged)
 
     @classmethod
@@ -332,15 +330,20 @@ class Model:
     def assign(self, data: Schema | None = None, /, **values: Any) -> Self:
         """Set fields from a schema (fields the client left ``UNSET`` are
         untouched) and keyword values, without touching the database."""
-        merged = {**(data.to_dict() if data is not None else {}), **values}
-        for name, value in merged.items():
-            type(self).check_field(name)
+        merged = type(self).merged_values(data, values)
+        for name, value in merged.items():  # every name is valid: no half-applied state
             setattr(self, name, value)
         return self
 
     async def aupdate_from(self, data: Schema | None = None, /, **values: Any) -> Self:
         """``assign`` then ``asave``: only the columns that changed are written."""
-        return await self.assign(data, **values).asave()
+        before = {c: getattr(self, c) for c in type(self).__columns__}
+        try:
+            return await self.assign(data, **values).asave()
+        except BaseException:
+            for name, value in before.items():  # a failed write leaves no dirty object
+                setattr(self, name, value)
+            raise
 
     @classmethod
     async def aget(cls, **conditions: Any) -> Self:
@@ -409,6 +412,28 @@ class Model:
     @classmethod
     def delete(cls, **conditions: Any) -> int:
         return run_sync(cls.adelete(**conditions))
+
+    @classmethod
+    def merged_values(
+        cls, data: Schema | None, values: dict[str, Any]
+    ) -> dict[str, Any]:
+        """The schema's values with explicit ``values`` winning, every name
+        checked. A schema may never carry the primary key: the client must not
+        choose a row's identity (pass it as a keyword when the server does)."""
+        from hinoki.schema import Schema  # noqa: PLC0415 - schema imports are lazy here
+
+        if data is not None and not isinstance(data, Schema):
+            raise TypeError(f"expected a Schema, not {type(data).__name__}")
+        sent = data.to_dict() if data is not None else {}
+        if cls.__primary_key__ in sent and cls.__primary_key__ not in values:
+            raise FieldError(
+                f"{cls.__name__}: the schema carries the primary key "
+                f"{cls.__primary_key__!r}; remove it from the schema"
+            )
+        merged = {**sent, **values}
+        for name in merged:
+            cls.check_field(name)
+        return merged
 
     @classmethod
     def check_field(cls, name: str) -> None:
