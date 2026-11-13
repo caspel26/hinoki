@@ -1,45 +1,56 @@
-# Handoff — Aptum
+# Handoff — Hinoki
 
 ## START HERE
 
-Stato al 13 novembre 2026: specifica 0.2, fonti delle regole raccolte e contratto base di sintassi confermato; implementazione non avviata. Nome definitivo: **Aptum**, con `aptum` previsto per import e CLI.
+Updated 2026-11-13. Project name: **Hinoki** (`hinoki` import/CLI, `HinokiAPI` application class, `API` for endpoint groups). The design package in `framework-handoff/` is **local only** (gitignored) and still says "Aptum": read it as Hinoki. Rules: `AGENTS.md`. Toolchain: `docs/TOOLCHAIN.md`. Runtime: `docs/RUNTIME-DESIGN.md` + `docs/adr/`. Typing: `docs/TYPING.md`.
 
-Leggere `START_HERE.md`, `FRAMEWORK_SPEC.md`, `RUNTIME_AND_MODULES.md`, `RULES_PROVENANCE.md` e `rules/AGENTS.md`. Quest'ultimo è una bozza per il futuro repository; gli originali GitHub sono in `sources/`.
+Brand: `assets/hinoki-identity-approved.png` is the approved identity (unchanged); `hinoki-banner.png` and `hinoki-mark.png` are crops of it for the README.
 
-Prima di modificare la superficie pubblica leggere `SYNTAX_CONTRACT.md`. Decisione del proprietario: Python semplice, `@get/@post/...`, policy `Access` riutilizzabili e opzioni `access`/`transaction` sul decoratore; funzioni e classi con più metodi. Scartati i blocchi `with get/post` e la proposta di endpoint inline con `query/lookup`. La sintassi dei CRUD generati resta aperta.
+## Queue
 
-Posizionamento concordato: architettura verificabile con regole facoltative, contesto AI/MCP reale, personalizzazione coerente e moduli espliciti. Il lavoro successivo nella conversazione è il branding/logo di Aptum; la prima implementazione tecnica resta Q001.
+| ID | Work | State |
+| --- | --- | --- |
+| Q001 | Runtime design and ADRs | **Done (design)**. Granian behaviour for startup failure, two workers, SIGTERM drain was observed and is covered by tests; everything else in the design is proposed. |
+| Q002 | Typing and syntax proof | **Partial.** Decorators, `Access`, `API`, `HinokiAPI` proven with mypy strict (positive + negative fixtures). ORM probe shows `Post(...)` is checkable and `acreate(**kwargs)` is not. `Schema`, `Principal[T]`, `Page[T]`, filters, pyright/IDE not covered. |
+| Q003 | Repo bootstrap and gates | **Done.** uv + maturin + Cargo workspace, Ruff pre-commit, CI, lock enforced. No benchmark, DB, OpenAPI or packaging gate yet (wheel builds locally with `uv build --wheel`, not gated in CI). |
+| Q004 | Vertical slice blog | Next. Start with runtime steps R1–R5 in `docs/RUNTIME-DESIGN.md` §9, then schema/ORM. |
+| Q005–Q007 | Relations/CRUD, rules/MCP, admin | Not started. |
 
-## Decisioni del proprietario da preservare
+## What exists (verified)
 
-Python tipizzato e semplice; core Rust per richieste e ORM; indipendenza da altri framework; schemi/settings propri senza Pydantic; funzioni e API class con più metodi; ORM sul modello; docs automatiche/custom; CRUD e regole facoltativi; auth pubblica di default e provider estendibili; errori/paginazione/relazioni; admin extra, più temi e override HTML.
+* `crates/bindings`: Rust path router (`router.rs`) + PyO3 module `hinoki._core` (`Router`, `core_version`). 6 Rust tests.
+* `python/hinoki`: `get/post/put/patch/delete`, `Access`, `API`, `HinokiAPI` (`include`, `resolve`, `routes`), `RegistrationError`. No server, no request handling, no schemas, no ORM.
+* `tests/`: 12 Python tests (98% coverage of `python/hinoki`), typing fixtures, 3 real-Granian lifespan tests.
 
-Preservare anche il requisito di servizi modulari/microservizi, con app espandibili a moduli, lifespan, thread/processi e avvio espliciti. Granian è il server proposto dal proprietario, non una dipendenza già installata. Raccomandazione del documento: prototipo ASGI proprio su Granian e confronto RSGI prima della scelta definitiva.
+## Commands (all run and green on 2026-11-13)
 
-## Open work
+```
+uv lock --check
+uv run --locked ruff check . ; uv run --locked ruff format --check .
+uv run --locked mypy
+uv run --locked pytest --cov
+cargo fmt --all --check ; cargo clippy --workspace --all-targets -- -D warnings ; cargo test --workspace
+uv run --locked pre-commit run --all-files
+```
 
-| ID | Lavoro | Dipendenze | Uscita |
-| --- | --- | --- | --- |
-| Q001 | Design runtime, moduli e bridge | Nessuna | ADR con ownership delle risorse, confini Granian/Rust/Python e prototipo minimo pianificato |
-| Q002 | Prova di typing e sintassi | Q001 per integrazione, design indipendente | Firme schema/ORM/decoratori verificabili da type checker e IDE |
-| Q003 | Bootstrap repository e gate | Q001 | Struttura, toolchain, test e comandi reali documentati |
-| Q004 | Vertical slice blog | Q001–Q003 | Richiesta reale, schema, ORM, auth, rollback, docs e paginazione |
-| Q005 | Relazioni e CRUD generato | Q004 | Contratti coerenti e accesso agli oggetti verificato |
-| Q006 | Regole e development MCP | Primo nucleo già in Q004 | Diagnostica deterministica e tool strutturati |
-| Q007 | Admin extra | Q004–Q006 | Un tema e override HTML dimostrati, migrazioni opt-in |
+Environment used: uv 0.13.8, Rust 1.100.0 (rustup, user-local), Python 3.13.18 (uv-managed), Granian 2.8.8, PyO3 0.30.1, Ruff 0.15.12. CI workflow is written but has **not been observed running** on GitHub yet.
 
-Nessun item è dichiarato completato. Il pacchetto documentale non conta come implementazione di Q001.
+## Decisions made this session (reversible, within the contracts)
 
-## Brief iniziale da dare a un agente
+Python ≥ 3.12 with abi3 and maturin (ADR 0004); ASGI adapter on Granian first, RSGI measured later (ADR 0001); per-worker Tokio runtime for the ORM (ADR 0002); bounded sync executor with 503 backpressure (ADR 0003); mypy strict as the separate type checker; Ruff `C901` ≤ 10 as the Python complexity gate; Granian only a test dependency for now.
 
-> Progetta Q001 senza avviare la costruzione dell'intero framework. Leggi specifica, runtime/moduli e regole consolidate. Scrivi `docs/RUNTIME-DESIGN.md` e le ADR necessarie. Confronta il nostro adattatore ASGI su Granian con RSGI; identifica esattamente quali percorsi sono Rust e dove attraversiamo Python. Definisci factory, grafo dei moduli, startup fallito, cleanup inverso, loop/pool per worker, executor sync limitato, contesto transazionale, cancellazioni e shutdown. Se il backend richiede un secondo runtime Rust per ORM, esplicita costo e ownership. Elenca verifiche di SIGTERM, isolamento a due worker, startup failure e sync che non blocca async. Proponi un default e passi implementativi piccoli con file ownership. Non introdurre Django, FastAPI, Starlette o Pydantic; non creare admin o backend multipli. Distingui risultati misurati da ipotesi e API proposte. Registra decisioni aperte e aggiorna questo handoff.
+## Open items / needs owner
 
-## Verifica effettivamente disponibile
+* Shape of `acreate`/`aupdate` typing: generated `.pyi` stubs (recommended) vs `Post(...).asave()` vs plugin — `docs/TYPING.md`.
+* ASGI vs RSGI default; acceptable extra Tokio threads per worker (needs benchmark V10).
+* Readiness flip before drain needs a runner-level SIGTERM handler (not designed in detail).
+* Name availability of `hinoki` on PyPI/crates.io not checked. CHANGELOG policy still open. PostgreSQL driver (SQLx vs tokio-postgres) at R7.
+* Verified-but-not-reviewed: no independent code review was run (nothing here touches data/auth/migrations; concurrency is design-only). A review is required before R2–R5 land. Opus/Sonnet/Haiku mapping from `AGENTS.md`: this session ran as a single Sonnet-class agent; no delegated agents.
 
-In questo pacchetto non ci sono server, pacchetti installabili, migrazioni o script di test del framework. `examples/blog.py` è un contratto illustrativo: si può verificarne la sintassi Python, non importarlo ed eseguirlo come prodotto esistente.
+## Next assignment
 
-Q003 deve fissare entry point reali per lint/format, type check, Python/Rust unit e integration test, coverage, DB usa e getta, OpenAPI, wheel e benchmark. Non dichiarare passati comandi ancora da creare.
+Q004 step R1–R2: `Module` + module graph (missing/cycle/duplicate errors) and the lifespan coordinator (`AsyncExitStack`, reverse cleanup, per-step deadlines) in pure Python with tests V4/V8, then R3 ASGI adapter + V1–V3/V5/V6 against it. Add a wheel-build job and a Python 3.14 CI entry when ready.
 
-## Migrazioni e deploy
+## Git / deploy
 
-Nessuna migrazione applicata. Nessun repository remoto modificato, push o deploy eseguito. Il modello account dell'admin non esiste ancora; installare l'extra futuro non dovrà mutare il DB.
+Local commits scoped by area; pushed to `origin/main` on explicit owner permission given 2026-11-13 (one-time). No migrations, releases or deploys.
