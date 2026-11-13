@@ -13,6 +13,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from typing import Any
 
 from hinoki import native
+from hinoki.errors import InvalidBody
 from hinoki.parsers import (
     DEFAULT_PARSERS,
     MultiDict,
@@ -98,6 +99,10 @@ class Request:
     def content_type(self) -> str:
         """Media type without parameters, lower-case ("" when absent)."""
         raw = self.headers.get("content-type", "")
+        if "," in raw:
+            # Repeated headers arrive joined with ", ": which value counts is
+            # ambiguous, and proxies may pick a different one.
+            raise InvalidBody("invalid_content_type", "several Content-Type values")
         return raw.split(";", maxsplit=1)[0].strip().lower()
 
     def parsed(self) -> Parsed:
@@ -115,7 +120,7 @@ class Request:
         return self.parsed().data
 
     def accepts_form(self) -> bool:
-        return any(p.media_type == self.content_type for p in self.parsers)
+        return any(p.forms and p.media_type == self.content_type for p in self.parsers)
 
     @property
     def POST(self) -> QueryDict:

@@ -43,6 +43,7 @@ KEYWORD_KINDS = {
 }
 BODY_METHODS = {"POST", "PUT", "PATCH"}
 EMPTY = inspect.Parameter.empty
+MAX_FIELDS = 1000
 MISSING = object()
 
 
@@ -94,7 +95,7 @@ CONVERTERS: dict[object, Callable[[str], object]] = {
 def parse_query(raw: bytes) -> dict[str, list[str]]:
     """Parse a query string (in Rust); malformed input raises ``InvalidBody``."""
     try:
-        return native.parse_query_string(raw)
+        return native.parse_query_string(raw, MAX_FIELDS)
     except ValueError:
         raise InvalidBody("invalid_query", "malformed query string") from None
 
