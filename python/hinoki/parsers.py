@@ -11,12 +11,14 @@ truncation.
 from __future__ import annotations
 
 import dataclasses
+import re
 from collections.abc import Iterator, Mapping, Sequence
 from typing import ClassVar
 
 from hinoki import native
 from hinoki.errors import InvalidBody
 
+DEFAULT_FIELDS = 1000
 DEFAULT_PARTS = 100
 DEFAULT_PART_BYTES = 1024 * 1024
 
@@ -78,6 +80,8 @@ class Parser:
     """Base class of body parsers."""
 
     media_type: ClassVar[str] = ""
+    # True when the parser fills ``Parsed.fields`` / ``files`` (request.POST/FILES).
+    forms: ClassVar[bool] = False
 
     def parse(self, raw: bytes, content_type: str) -> Parsed:
         raise NotImplementedError
@@ -105,21 +109,28 @@ class FormParser(Parser):
     each field as text."""
 
     media_type = "application/x-www-form-urlencoded"
+    forms = True
+
+    def __init__(self, max_fields: int = DEFAULT_FIELDS) -> None:
+        if max_fields < 1:
+            raise ValueError("max_fields must be positive")
+        self.max_fields = max_fields
 
     def parse(self, raw: bytes, content_type: str) -> Parsed:  # noqa: ARG002
         try:
-            fields = native.parse_query_string(raw)
+            fields = native.parse_query_string(raw, self.max_fields)
         except ValueError:
             raise InvalidBody("invalid_form", "malformed form body") from None
         return Parsed({name: values[-1] for name, values in fields.items()}, fields)
 
 
+BOUNDARY = re.compile(r';\s*boundary=(?:"([^"]*)"|([^;\s]*))', re.IGNORECASE)
+
+
 def boundary_of(content_type: str) -> str:
-    for piece in content_type.split(";")[1:]:
-        name, _, value = piece.strip().partition("=")
-        if name.lower() == "boundary":
-            return value.strip().strip('"')
-    return ""
+    """The ``boundary`` parameter, quoted or not (a quoted one may hold ``;``)."""
+    found = BOUNDARY.search(content_type)
+    return (found.group(1) or found.group(2) or "") if found else ""
 
 
 class MultiPartParser(Parser):
@@ -127,6 +138,7 @@ class MultiPartParser(Parser):
     ``max_part_bytes`` bytes each (the whole body is capped separately)."""
 
     media_type = "multipart/form-data"
+    forms = True
 
     def __init__(
         self, max_parts: int = DEFAULT_PARTS, max_part_bytes: int = DEFAULT_PART_BYTES

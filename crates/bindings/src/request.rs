@@ -43,13 +43,17 @@ fn unquote(raw: &[u8], plus: bool) -> Option<String> {
 }
 
 /// `a=1&b=2&a=3` into ordered pairs. Blank values are kept, empty pairs are
-/// skipped, the input must be ASCII and every decoded part valid UTF-8.
-pub fn parse_query(raw: &[u8]) -> Result<Vec<(String, String)>, &'static str> {
+/// skipped, the input must be ASCII, every decoded part valid UTF-8 and there
+/// are at most `max_pairs` pairs.
+pub fn parse_query(raw: &[u8], max_pairs: usize) -> Result<Vec<(String, String)>, &'static str> {
     if !raw.is_ascii() {
         return Err("query string is not ASCII");
     }
     let mut pairs = Vec::new();
     for part in raw.split(|&b| b == b'&').filter(|p| !p.is_empty()) {
+        if pairs.len() >= max_pairs {
+            return Err("too many query or form fields");
+        }
         let (name, value) = match part.iter().position(|&b| b == b'=') {
             Some(at) => (&part[..at], &part[at + 1..]),
             None => (part, &part[..0]),
@@ -98,7 +102,10 @@ pub fn join_headers(headers: &[(Vec<u8>, Vec<u8>)]) -> Vec<(String, String)> {
         let value: String = value.iter().map(|&b| char::from(b)).collect();
         match index.get(&name) {
             Some(&at) => {
-                joined[at].1.push_str(", ");
+                // HTTP/2 splits Cookie into several fields: rejoin with "; ".
+                joined[at]
+                    .1
+                    .push_str(if name == "cookie" { "; " } else { ", " });
                 joined[at].1.push_str(&value);
             }
             None => {
@@ -173,19 +180,29 @@ fn part_headers(block: &[u8]) -> Result<(String, Option<String>, String), &'stat
     let text = std::str::from_utf8(block).map_err(|_| "part headers are not UTF-8")?;
     let (mut name, mut filename, mut content_type) = (None, None, String::from("text/plain"));
     for line in text.split("\r\n") {
+        if line.chars().any(|c| c.is_control() && c != '\t') {
+            return Err("control character in a part header");
+        }
         let Some((key, value)) = line.split_once(':') else {
             return Err("malformed part header");
         };
         match key.trim().to_lowercase().as_str() {
             "content-disposition" => {
-                if value.split(';').next().map(str::trim) != Some("form-data") {
+                if !value
+                    .split(';')
+                    .next()
+                    .is_some_and(|v| v.trim().eq_ignore_ascii_case("form-data"))
+                {
                     return Err("part is not form-data");
                 }
                 for (param, found) in header_params(value) {
-                    match param.as_str() {
-                        "name" => name = Some(found),
-                        "filename" => filename = Some(found),
-                        _ => {}
+                    let slot = match param.as_str() {
+                        "name" => &mut name,
+                        "filename" => &mut filename,
+                        _ => continue,
+                    };
+                    if slot.replace(found).is_some() {
+                        return Err("duplicate parameter in a part header");
                     }
                 }
             }
@@ -311,7 +328,12 @@ pub fn negotiate(accept: &str, available: &[String]) -> Option<usize> {
         .collect();
     let mut best: Option<(f32, u8, usize)> = None;
     for (index, offered) in available.iter().enumerate() {
-        let offered = offered.to_lowercase();
+        let offered = offered
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_lowercase();
         let group = offered.split('/').next().unwrap_or("");
         let matched = ranges
             .iter()
@@ -327,7 +349,10 @@ pub fn negotiate(accept: &str, available: &[String]) -> Option<usize> {
                 };
                 Some((specificity, *quality))
             })
-            .max_by_key(|(specificity, _)| *specificity);
+            .fold(None::<(u8, f32)>, |best, found| match best {
+                Some((spec, _)) if spec >= found.0 => best, // first range wins a tie
+                _ => Some(found),
+            });
         if let Some((specificity, quality)) = matched {
             let better = match best {
                 None => true,
@@ -348,8 +373,8 @@ pub fn negotiate_media(accept: &str, available: Vec<String>) -> Option<usize> {
 }
 
 #[pyfunction]
-pub fn parse_query_string(py: Python<'_>, raw: &[u8]) -> PyResult<Py<PyDict>> {
-    let pairs = parse_query(raw).map_err(PyValueError::new_err)?;
+pub fn parse_query_string(py: Python<'_>, raw: &[u8], max_pairs: usize) -> PyResult<Py<PyDict>> {
+    let pairs = parse_query(raw, max_pairs).map_err(PyValueError::new_err)?;
     let result = PyDict::new(py);
     for (name, value) in pairs {
         match result.get_item(&name)? {
@@ -370,7 +395,19 @@ pub fn parse_cookie_header(py: Python<'_>, header: &str) -> PyResult<Py<PyDict>>
 }
 
 #[pyfunction]
-pub fn header_dict(py: Python<'_>, headers: Vec<(Vec<u8>, Vec<u8>)>) -> PyResult<Py<PyDict>> {
+pub fn header_dict(py: Python<'_>, headers: Vec<Vec<Vec<u8>>>) -> PyResult<Py<PyDict>> {
+    let mut pairs = Vec::with_capacity(headers.len());
+    for mut item in headers {
+        if item.len() != 2 {
+            return Err(PyValueError::new_err(
+                "a header must be a (name, value) pair",
+            ));
+        }
+        let value = item.pop().unwrap_or_default();
+        let name = item.pop().unwrap_or_default();
+        pairs.push((name, value));
+    }
+    let headers = pairs;
     let result = PyDict::new(py);
     for (name, value) in join_headers(&headers) {
         result.set_item(name, value)?;
@@ -611,6 +648,9 @@ impl<'a, 'py> Parser<'a, 'py> {
             std::str::from_utf8(&self.input[start..self.at]).map_err(|_| "invalid number")?;
         if real {
             let float = text.parse::<f64>().map_err(|e| e.to_string())?;
+            if !float.is_finite() {
+                return self.fail("number out of range");
+            }
             return Ok(PyFloat::new(self.py, float).into_any());
         }
         if let Ok(int) = text.parse::<i64>() {
@@ -648,6 +688,12 @@ fn write_string(out: &mut Vec<u8>, text: &str) -> PyResult<()> {
     serde_json::to_writer(out, text).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
+/// Decimal text of a Python int, immune to a subclass overriding `__str__`.
+fn int_text(value: &Bound<'_, PyAny>) -> PyResult<String> {
+    let repr = value.py().get_type::<PyInt>().getattr("__repr__")?;
+    repr.call1((value,))?.extract()
+}
+
 fn write_key(out: &mut Vec<u8>, key: &Bound<'_, PyAny>) -> PyResult<()> {
     if let Ok(text) = key.cast::<PyString>() {
         return write_string(out, text.to_str()?);
@@ -656,7 +702,7 @@ fn write_key(out: &mut Vec<u8>, key: &Bound<'_, PyAny>) -> PyResult<()> {
         return write_string(out, if key.is_truthy()? { "true" } else { "false" });
     }
     if key.is_instance_of::<PyInt>() {
-        return write_string(out, &key.str()?.to_string());
+        return write_string(out, &int_text(key)?);
     }
     if key.is_none() {
         return write_string(out, "null");
@@ -673,7 +719,7 @@ fn write_value(out: &mut Vec<u8>, value: &Bound<'_, PyAny>, depth: usize) -> PyR
     } else if let Ok(flag) = value.cast::<PyBool>() {
         out.extend_from_slice(if flag.is_true() { b"true" } else { b"false" });
     } else if value.is_instance_of::<PyInt>() {
-        out.extend_from_slice(value.str()?.to_string().as_bytes());
+        out.extend_from_slice(int_text(value)?.as_bytes());
     } else if let Ok(float) = value.cast::<PyFloat>() {
         let number = serde_json::Number::from_f64(float.value()).ok_or_else(|| {
             PyValueError::new_err("out of range float values are not JSON compliant")
@@ -733,7 +779,7 @@ mod tests {
 
     #[test]
     fn query_keeps_blank_values_decodes_and_orders() {
-        let got = parse_query(b"a=1&b&c=&a=x%20y+z&&d=%zz").unwrap();
+        let got = parse_query(b"a=1&b&c=&a=x%20y+z&&d=%zz", 100).unwrap();
         assert_eq!(
             got,
             vec![
@@ -748,15 +794,15 @@ mod tests {
 
     #[test]
     fn query_rejects_non_ascii_and_bad_utf8() {
-        assert!(parse_query("é=1".as_bytes()).is_err());
-        assert!(parse_query(b"a=%ff").is_err());
-        assert!(parse_query(b"%ff=1").is_err());
+        assert!(parse_query("é=1".as_bytes(), 9).is_err());
+        assert!(parse_query(b"a=%ff", 9).is_err());
+        assert!(parse_query(b"%ff=1", 9).is_err());
     }
 
     #[test]
     fn a_trailing_percent_stays_literal() {
-        assert_eq!(parse_query(b"a=%4").unwrap(), vec![pair("a", "%4")]);
-        assert_eq!(parse_query(b"a=%41").unwrap(), vec![pair("a", "A")]);
+        assert_eq!(parse_query(b"a=%4", 9).unwrap(), vec![pair("a", "%4")]);
+        assert_eq!(parse_query(b"a=%41", 9).unwrap(), vec![pair("a", "A")]);
     }
 
     #[test]
@@ -852,5 +898,29 @@ mod tests {
             Some(1)
         );
         assert_eq!(negotiate("", &[]), None);
+    }
+
+    #[test]
+    fn review_regressions() {
+        assert!(parse_query(b"a=1&b=2&c=3", 2).is_err());
+        assert!(parse_query(b"a=1&b=2", 2).is_ok());
+        let split = join_headers(&[
+            (b"Cookie".to_vec(), b"a=1".to_vec()),
+            (b"cookie".to_vec(), b"session=abc".to_vec()),
+        ]);
+        assert_eq!(split, vec![pair("cookie", "a=1; session=abc")]);
+        let csv = offered(&["text/csv; charset=utf-8"]);
+        assert_eq!(negotiate("text/csv", &csv), Some(0));
+        let json = offered(&["application/json"]);
+        assert_eq!(
+            negotiate("application/json, application/json;q=0", &json),
+            Some(0)
+        );
+        let head = |h: &str| format!("--B\r\n{h}\r\n\r\nx\r\n--B--");
+        let parse = |h: &str| parse_multipart(head(h).as_bytes(), "B", 5, 9);
+        assert!(parse("Content-Disposition: Form-Data; name=\"a\"").is_ok());
+        assert!(parse("Content-Disposition: form-data; name=\"a\"; name=\"b\"").is_err());
+        assert!(parse("Content-Disposition: form-data; name=\"a\"; filename=\"x\ny\"").is_err());
+        assert!(parse("Content-Disposition: form-data; name=\"a\"\nX: y").is_err());
     }
 }

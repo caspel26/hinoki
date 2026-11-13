@@ -120,13 +120,13 @@ def test_encode_limits_nesting() -> None:
 def test_query_strings_match_parse_qs_for_valid_input() -> None:
     raw = "a=1&b&c=&a=x%20y+z&&d=%zz&e=%41"
     expected = parse_qs(raw, keep_blank_values=True, errors="strict")
-    assert native.parse_query_string(raw.encode()) == expected
+    assert native.parse_query_string(raw.encode(), 100) == expected
 
 
 def test_query_strings_reject_non_ascii_and_bad_utf8() -> None:
     for raw in ("é=1".encode(), b"a=%ff", b"%ff=1"):
         with pytest.raises(ValueError):  # noqa: PT011
-            native.parse_query_string(raw)
+            native.parse_query_string(raw, 100)
 
 
 def test_header_dict_lowers_names_and_joins_repeats() -> None:

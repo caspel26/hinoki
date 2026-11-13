@@ -96,7 +96,7 @@ Empty body with a body schema → 422 as today; missing/unknown `Content-Type` �
 | S4 (done) | Parsers: form + multipart in Rust, `parsers=` option, limits as settings | `crates/bindings/src/parse.rs`, `routing.py`, `settings` |
 | S5 (done) | Renderers: `renderers=`, `Accept` negotiation, 406, OpenAPI media types | `runtime/responses.py`, `openapi.py` |
 | S6 (decided: not built) | `Request` as a Rust `#[pyclass]` if S3 measurements justify it; benchmark and report | `crates/bindings`, `benchmarks/` |
-| S7 | Independent review (request handling touches authentication and untrusted input), fixes, docs, handoff | — |
+| S7 (done) | Independent review (request handling touches authentication and untrusted input), fixes, docs, handoff | — |
 
 ## Open (owner)
 
@@ -131,3 +131,18 @@ Whether the default parser set should include form/multipart (recommended: JSON 
 ## Implementation notes (S6)
 
 Measured in `benchmarks/requestobjectbench.py` (see `benchmarks/README.md`): the per-request cost of building the Python `Request` is about 6 µs after headers are decoded once instead of up to three times. A `#[pyclass]` is not justified without end-to-end evidence and stays a possible optimisation behind the same attribute contract.
+
+## Review outcome (S7)
+
+An independent read-only review (Opus-class) found 2 medium, 2 low-medium and 6 low defects; all were fixed with regression tests in `tests/reviewfixestest.py` and the Rust unit tests:
+
+* ASGI headers given as 2-item lists (not tuples) caused a 500 on every request: `header_dict` accepts any two-item sequence.
+* Repeated `Cookie` headers (HTTP/2) are rejoined with `"; "`, not `", "`.
+* `1e400` is rejected as `invalid_json` instead of becoming `inf` and a 500 when echoed.
+* Media types with parameters (`text/csv; charset=utf-8`) negotiate on their bare type; the first of equally specific `Accept` ranges wins.
+* `int` subclasses can no longer inject text into JSON (`int.__repr__` is used).
+* Several `Content-Type` values answer 400 `invalid_content_type`; duplicate `name`/`filename` parameters and control characters in multipart part headers are refused; `Form-Data` is case-insensitive; the boundary may be quoted (and contain `;`).
+* Form and query strings are limited to 1000 fields (`FormParser(max_fields=...)`), 400 beyond that.
+* `request.POST` / `FILES` no longer parse (or raise) for non-form parsers (`Parser.forms`).
+
+Left as documented limits: preamble/transport padding in multipart, RFC 5987 `filename*`, a lone-surrogate `str` produced by application code raising `UnicodeEncodeError` (500), uploads held in memory.
