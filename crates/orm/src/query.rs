@@ -44,10 +44,23 @@ pub struct Filter<V> {
     pub values: Vec<V>,
 }
 
+/// `JOIN table AS alias ON alias.remote = base.local`. The joined columns
+/// are selected as `alias__column`; an empty list joins only for filtering.
+#[derive(Debug, Clone)]
+pub struct Join {
+    pub table: String,
+    pub alias: String,
+    pub local: String,
+    pub remote: String,
+    pub left: bool,
+    pub columns: Vec<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Select<V> {
     pub table: String,
     pub columns: Vec<String>,
+    pub joins: Vec<Join>,
     pub filters: Vec<Filter<V>>,
     pub order: Vec<(String, bool)>,
     pub limit: Option<u64>,
@@ -113,6 +126,18 @@ pub fn quote(name: &str) -> Result<String, QueryError> {
     }
 }
 
+/// A column reference: `name` (qualified with `base` when given) or
+/// `alias.name` for a joined table.
+fn column_ref(name: &str, base: Option<&str>) -> Result<String, QueryError> {
+    match name.split_once('.') {
+        Some((alias, column)) => Ok(format!("{}.{}", quote(alias)?, quote(column)?)),
+        None => match base {
+            Some(table) => Ok(format!("{}.{}", quote(table)?, quote(name)?)),
+            None => quote(name),
+        },
+    }
+}
+
 fn quote_all(names: &[String]) -> Result<String, QueryError> {
     Ok(names
         .iter()
@@ -124,6 +149,8 @@ fn quote_all(names: &[String]) -> Result<String, QueryError> {
 struct Builder<V> {
     sql: String,
     params: Vec<V>,
+    /// Table that qualifies bare column names (set when the query joins).
+    base: Option<String>,
 }
 
 impl<V: Clone> Builder<V> {
@@ -131,6 +158,7 @@ impl<V: Clone> Builder<V> {
         Self {
             sql,
             params: Vec::new(),
+            base: None,
         }
     }
 
@@ -152,7 +180,7 @@ impl<V: Clone> Builder<V> {
     }
 
     fn clause(&mut self, filter: &Filter<V>) -> Result<String, QueryError> {
-        let column = quote(&filter.column)?;
+        let column = column_ref(&filter.column, self.base.as_deref())?;
         let symbol = match filter.op {
             Op::Eq => "=",
             Op::Ne => "<>",
@@ -206,23 +234,62 @@ impl<V: Clone> Builder<V> {
     }
 }
 
+fn select_list<V>(q: &Select<V>, joined: bool) -> Result<String, QueryError> {
+    if q.count {
+        return Ok("count(*)".to_owned());
+    }
+    if q.columns.is_empty() {
+        return Err(QueryError::Empty("columns"));
+    }
+    let base = joined.then_some(q.table.as_str());
+    let mut parts = q
+        .columns
+        .iter()
+        .map(|c| column_ref(c, base))
+        .collect::<Result<Vec<_>, _>>()?;
+    for join in &q.joins {
+        for column in &join.columns {
+            parts.push(format!(
+                "{} AS {}",
+                column_ref(&format!("{}.{column}", join.alias), None)?,
+                quote(&format!("{}__{column}", join.alias))?
+            ));
+        }
+    }
+    Ok(parts.join(", "))
+}
+
+fn join_clauses<V>(q: &Select<V>) -> Result<String, QueryError> {
+    let mut sql = String::new();
+    for join in &q.joins {
+        let kind = if join.left { "LEFT JOIN" } else { "INNER JOIN" };
+        sql.push_str(&format!(
+            " {kind} {} AS {} ON {} = {}",
+            quote(&join.table)?,
+            quote(&join.alias)?,
+            column_ref(&format!("{}.{}", join.alias, join.remote), None)?,
+            column_ref(&join.local, Some(&q.table))?
+        ));
+    }
+    Ok(sql)
+}
+
 pub fn compile_select<V: Clone>(q: &Select<V>) -> Compiled<V> {
     let table = quote(&q.table)?;
-    let columns = if q.count {
-        "count(*)".to_owned()
-    } else if q.columns.is_empty() {
-        return Err(QueryError::Empty("columns"));
-    } else {
-        quote_all(&q.columns)?
-    };
+    let joined = !q.joins.is_empty();
+    let columns = select_list(q, joined)?;
     let mut b = Builder::new(format!("SELECT {columns} FROM {table}"));
+    b.sql.push_str(&join_clauses(q)?);
+    if joined {
+        b.base = Some(q.table.clone());
+    }
     b.filters(&q.filters)?;
     if !q.order.is_empty() {
         let parts = q
             .order
             .iter()
             .map(|(c, desc)| {
-                quote(c).map(|c| {
+                column_ref(c, b.base.as_deref()).map(|c| {
                     if *desc {
                         format!("{c} DESC")
                     } else {
@@ -307,6 +374,7 @@ mod tests {
         Select {
             table: "posts".into(),
             columns: vec!["id".into(), "title".into()],
+            joins: vec![],
             filters,
             order: vec![],
             limit: None,
@@ -345,6 +413,32 @@ mod tests {
         let (sql, _) = compile_select(&select(vec![f("deleted", Op::IsNull, &[])])).unwrap();
         assert!(sql.ends_with("\"deleted\" IS NULL"));
         assert!(compile_select(&select(vec![f("deleted", Op::IsNull, &[1])])).is_err());
+    }
+
+    #[test]
+    fn joins_qualify_columns_and_alias_joined_ones() {
+        let mut q = select(vec![f("author.name", Op::Eq, &[1]), f("id", Op::Ne, &[2])]);
+        q.joins = vec![Join {
+            table: "users".into(),
+            alias: "author".into(),
+            local: "author_id".into(),
+            remote: "id".into(),
+            left: false,
+            columns: vec!["id".into(), "name".into()],
+        }];
+        q.order = vec![("author.name".into(), false), ("title".into(), true)];
+        let (sql, params) = compile_select(&q).unwrap();
+        assert_eq!(
+            sql,
+            "SELECT \"posts\".\"id\", \"posts\".\"title\", \"author\".\"id\" AS \"author__id\", \
+             \"author\".\"name\" AS \"author__name\" FROM \"posts\" INNER JOIN \"users\" AS \"author\" \
+             ON \"author\".\"id\" = \"posts\".\"author_id\" WHERE \"author\".\"name\" = $1 AND \
+             \"posts\".\"id\" <> $2 ORDER BY \"author\".\"name\" ASC, \"posts\".\"title\" DESC"
+        );
+        assert_eq!(params, vec![1, 2]);
+        q.joins[0].left = true;
+        q.joins[0].alias = "a\"; DROP".into();
+        assert!(compile_select(&q).is_err());
     }
 
     #[test]

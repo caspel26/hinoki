@@ -3,12 +3,13 @@
 //! are mapped back afterwards, so nothing is converted or interpolated here.
 
 use hinoki_orm::query::{
-    compile_delete, compile_insert, compile_select, compile_update, Delete, Filter, Insert, Op,
-    QueryError, Select, Update,
+    compile_delete, compile_insert, compile_select, compile_update, Delete, Filter, Insert, Join,
+    Op, QueryError, Select, Update,
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+type RawJoin = (String, String, String, String, bool, Vec<String>);
 type RawFilter = (String, String, Vec<Py<PyAny>>);
 
 fn error(err: QueryError) -> PyErr {
@@ -60,7 +61,7 @@ impl Store {
 /// `delete`; unused arguments are ignored. Returns `(sql, params)` with
 /// `$n` placeholders in the order of `params`.
 #[pyfunction]
-#[pyo3(signature = (kind, table, *, columns=None, filters=None, assignments=None, returning=None, order=None, limit=None, offset=None))]
+#[pyo3(signature = (kind, table, *, columns=None, filters=None, assignments=None, returning=None, order=None, limit=None, offset=None, joins=None))]
 #[allow(clippy::too_many_arguments)]
 pub fn compile_query(
     py: Python<'_>,
@@ -73,6 +74,7 @@ pub fn compile_query(
     order: Option<Vec<(String, bool)>>,
     limit: Option<u64>,
     offset: Option<u64>,
+    joins: Option<Vec<RawJoin>>,
 ) -> PyResult<(String, Vec<Py<PyAny>>)> {
     let mut store = Store::default();
     let filters = store.filters(filters.unwrap_or_default())?;
@@ -82,6 +84,18 @@ pub fn compile_query(
         "select" | "count" => compile_select(&Select {
             table,
             columns: columns.unwrap_or_default(),
+            joins: joins
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(table, alias, local, remote, left, columns)| Join {
+                    table,
+                    alias,
+                    local,
+                    remote,
+                    left,
+                    columns,
+                })
+                .collect(),
             filters,
             order: order.unwrap_or_default(),
             limit,
