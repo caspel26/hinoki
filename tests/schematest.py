@@ -33,6 +33,11 @@ class Extended(PostCreate):
     extra: int = 1
 
 
+class Node(Schema):
+    name: str
+    children: list["Node"] = Field(default_factory=list)
+
+
 VALID: dict[str, Any] = {"title": "Hello", "slug": "hello"}
 AUTHORED: dict[str, Any] = {"created": "2026-11-13T10:00:00Z"}
 
@@ -184,3 +189,11 @@ def test_constraints_must_fit_the_type() -> None:
             (Schema,),
             {"__annotations__": {"value": Annotated[int, Field(pattern="x")]}},
         )
+
+
+def test_recursive_schemas_validate_with_forward_references() -> None:
+    tree = Node.validate({"name": "root", "children": [{"name": "leaf"}]})
+    assert tree.children[0].name == "leaf"
+    assert codes({"name": "r", "children": [{}]}, Node) == {
+        "children[0].name": "required"
+    }

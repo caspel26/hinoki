@@ -95,11 +95,12 @@ Honest status, verified by the test suite:
 | HTTP method decorators, `Access`, `API` classes, `HinokiAPI.include` / `install` | Implemented; typed and tested |
 | Native router (`hinoki.native.Router`): static + `{param}` paths, literal-over-param priority, 404/405, duplicate and conflict detection | Implemented in Rust, with Rust and Python tests |
 | Modules: dependency graph, per-worker lifespan, reverse cleanup, deadlines, managed tasks | Implemented; tested in-process and under Granian |
-| ASGI adapter (lifespan, routing, path parameters, 404/405/422/503/504/500 mapping) and bounded sync executor | Implemented; **no request body, query, auth or OpenAPI yet** |
-| `Schema` / `Field` / `UNSET`: strict validation with path-aware errors, nested schemas, JSON dump | Implemented (pure Python engine); not yet wired to request bodies |
+| ASGI adapter (lifespan, raw-path routing, path/query parameters, JSON bodies, 400/404/405/415/422/503/504/500 mapping) and bounded sync executor | Implemented; **no auth, response validation, pagination or headers/cookies yet** |
+| `Schema` / `Field` / `UNSET`: strict validation with path-aware errors, nested and recursive schemas, JSON dump | Implemented (pure Python engine) and wired to bodies and responses |
+| OpenAPI 3.1 generation from routes, signatures, schemas and docstrings (`app.openapi()`, optional `openapi_url`) | Implemented; validated with `openapi-spec-validator`; no security schemes, examples or docs UI yet |
 | Static typing contract (positive and negative fixtures, `mypy --strict`) | Implemented |
 | Runtime design: Python/Rust/Granian boundary, resource ownership, shutdown | [Designed](docs/RUNTIME-DESIGN.md); verifications V1–V6, V8 tested |
-| ORM, auth, errors, pagination, OpenAPI | Not started |
+| ORM, auth, HTTP error hierarchy, pagination | Not started |
 | CRUD generation, rules engine, MCP, admin extra | Not started |
 
 ```python
