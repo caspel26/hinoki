@@ -54,12 +54,12 @@ class NoteOut(Schema):
 
 
 @get("/notes/{note_id}")
-async def one(request: Request, note_id: UUID) -> NoteOut:
+async def one(note_id: UUID) -> NoteOut:
     return NoteOut.from_model(await Note.aget(id=note_id))
 
 
 @post("/notes", status=201, transaction=True)
-async def create(request: Request, data: NoteIn) -> NoteOut:
+async def create(data: NoteIn) -> NoteOut:
     return NoteOut.from_model(await Note.acreate(data))
 ```
 
@@ -79,18 +79,18 @@ editor = Access(auth=blog_auth, scopes={Scope.POSTS_WRITE})
 
 
 @get("/health")
-def health(request: Request) -> HealthOut:
+def health() -> HealthOut:
     return HealthOut(status="ok")
 
 
 class Posts(API, path="/posts"):
     @get("/{post_id}")
-    async def retrieve(self, request: Request, post_id: UUID) -> PostOut:
+    async def retrieve(self, post_id: UUID) -> PostOut:
         return PostOut.from_model(await Post.aget(id=post_id))
 
     @post("/", status=201, access=editor, transaction=True)
     async def create(
-        self, request: Request, data: PostCreate, principal: Caller[User]
+        self, data: PostCreate, principal: Caller[User]
     ) -> PostOut:
         ...
 
@@ -103,9 +103,9 @@ def create_app() -> HinokiAPI:
 
 * **Plain Python.** `@get`/`@post`/`@put`/`@patch`/`@delete`, normal functions and classes,
   composable with your own decorators. No second grammar, no routing in docstrings.
-* **The request comes first.** Every action takes `request: Request` as its first
-  parameter (after `self`): Django-style `method`, `headers`, `GET`, `COOKIES`, `body`,
-  `data` and `user`. Path, query, body and principal values follow as typed parameters.
+* **The request, when you want it.** Path, query, body and principal values are typed
+  parameters. Declare `request: Request` as the first parameter (after `self`) only when you
+  need the Django-style `method`, `headers`, `GET`, `COOKIES`, `body`, `data` or `user`.
 * **Honest types.** `-> PostOut` means the function returns a `PostOut`. Signatures survive
   decoration, so your IDE and type checker keep working.
 * **Public by default, protected on purpose.** Policies are reusable `Access` objects named
@@ -174,13 +174,13 @@ Honest status, verified by the test suite:
 ```python
 class Posts(API, path="/posts"):
     @get("/", pagination=PageNumberPagination(page_size=10, max_page_size=50))
-    async def listing(self, request: Request, page: PageParams) -> Page[PostOut]:
+    async def listing(self, page: PageParams) -> Page[PostOut]:
         newest = Post.filter(published=True).order_by("-created_at", "-id")
         return (await newest.apaginate(page)).map(to_out)
 
     @post("/", status=201, access=editor, transaction=True)
     async def create(
-        self, request: Request, data: PostCreate, principal: Caller[User]
+        self, data: PostCreate, principal: Caller[User]
     ) -> PostOut:
         created = await Post.acreate(data, author_id=principal.user.id)
         return to_out(created)
@@ -233,7 +233,7 @@ uv run granian --interface asgi --factory examples.blog.main:create_app
 
 How the pieces fit and what to avoid: [`docs/PATTERNS.md`](docs/PATTERNS.md). Building with an AI agent: [`docs/AI-WORKFLOW.md`](docs/AI-WORKFLOW.md).
 
-* **`Request`** is the first parameter of every action: the incoming HTTP request (`method`, `headers`, `GET`, `COOKIES`, `body`, `data`, `user`). Path, query and body values follow as typed parameters.
+* **`Request`** is the incoming HTTP request, passed to an action that declares it as its first parameter (`method`, `headers`, `GET`, `COOKIES`, `body`, `data`, `user`). Path, query and body values follow as typed parameters.
 * **`Caller`** (also spelled `Principal`) is *who is making the request*, as decided by authentication. An auth provider (bearer token, API key, JWT, a cookie) turns the credentials into a `Caller` with three things: `id` (a stable string), `user` (your own object, for example the `User` row) and `permissions` (what it may do). Declare `caller: Caller[User]` on an action to receive it; `request.user` is the same object. No valid credentials: the request is refused before your code runs (401); missing permissions: 403. (`Principal`, `subject`, `identity`, `scopes` and `Access(scopes=...)` remain as aliases of the same things.)
 * **`Access`** is a reusable policy: *which provider* authenticates and *which permissions* are required: `Access(auth=tokens, permissions=["posts:write"])`. You attach it to an action with `access=editor`; an action without one is public.
 * **`Schema`** describes data that crosses the API boundary (request bodies and responses) and validates it strictly; **`Model`** describes a database table. They are separate on purpose, so a column never leaks into a response unless a schema names it (rules can enforce that).
@@ -283,7 +283,7 @@ ownership per worker, the bounded sync executor and the lifespan/shutdown sequen
 1. ~~**Runtime** — lifespan coordinator, ASGI adapter, bounded sync executor~~ ✅
 2. ~~**Vertical slice: blog** — request → schema → ORM (PostgreSQL) → auth → rollback → OpenAPI → pagination~~ ✅
 3. ~~**ORM and generated CRUD** — relations, eager loading, migrations, replaceable CRUD operations~~ ✅ (JWT still open)
-4. **Request object, parsers and renderers** — `request` as first argument ✅; Rust parsing, parsers, renderers next
+4. **Request object, parsers and renderers** — `request` as an optional first argument ✅; Rust parsing, parsers, renderers next
 5. ~~**Rules and development MCP**~~ ✅ (client compatibility unverified)
 6. **Admin extra** — first slice done (Classic theme, overrides); login, relations, more themes, review pending
 7. **Stabilization** — wheels, benchmarks, release policy

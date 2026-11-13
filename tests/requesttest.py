@@ -106,29 +106,56 @@ def test_cookie_parsing_is_forgiving_and_first_value_wins() -> None:
     }
 
 
-@pytest.mark.parametrize(
-    "build",
-    [
-        lambda: get("/a")(lambda: None),
-        lambda: get("/b")(lambda name: name),
-    ],
-)
-def test_a_handler_without_the_request_is_refused(build: Any) -> None:
-    with pytest.raises(RegistrationError, match="first parameter must be the request"):
-        HinokiAPI().include(build())
+@get("/bare")
+def bare() -> dict[str, str]:
+    return {"declared": "no"}
 
 
-def test_the_request_must_come_first_and_be_annotated() -> None:
+@get("/bare/{item}")
+async def bare_path(item: int) -> dict[str, int]:
+    return {"item": item}
+
+
+class Quiet(API, path="/quiet"):
+    @get("/")
+    def index(self) -> dict[str, str]:
+        return {"class": "no request"}
+
+    @get("/with")
+    def with_request(self, request: Request) -> dict[str, str]:
+        return {"method": request.method}
+
+
+async def test_the_request_is_optional_and_passed_only_when_declared(
+    pool: Pool,
+) -> None:
+    app = HinokiAPI()
+    app.include(bare, bare_path, Quiet)
+    client = await pool.start(app)
+    assert (await client.request("GET", "/bare")).body == {"declared": "no"}
+    assert (await client.request("GET", "/bare/7")).body == {"item": 7}
+    assert (await client.request("GET", "/quiet")).body == {"class": "no request"}
+    assert (await client.request("GET", "/quiet/with")).body == {"method": "GET"}
+
+
+def test_a_declared_request_must_be_first_and_annotated() -> None:
     @get("/late/{x}")
     def late(x: int, request: Request) -> None: ...
 
     @get("/api")
-    def untyped(request: int) -> None: ...
+    def untyped(request) -> None: ...  # type: ignore[no-untyped-def]
 
-    class Lonely(API, path="/lonely"):
-        @get("/")
-        def index(self) -> None: ...
+    @get("/two")
+    def two(request: Request, other: Request) -> None: ...
 
-    for target in (late, untyped, Lonely):
-        with pytest.raises(RegistrationError, match="first parameter"):
+    @get("/wrong")
+    def wrong(request: int) -> None: ...
+
+    for target, message in (
+        (late, "must be the first"),
+        (untyped, "annotate the `request`"),
+        (two, "must be the first"),
+        (wrong, "annotate the `request`"),
+    ):
+        with pytest.raises(RegistrationError, match=message):
             HinokiAPI().include(target)

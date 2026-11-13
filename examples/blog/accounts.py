@@ -19,7 +19,6 @@ from hinoki import (
     Access,
     Caller,
     Field,
-    Request,
     Schema,
     Unauthorized,
     get,
@@ -77,7 +76,7 @@ def build_accounts(secret: str) -> tuple[list[Callable[..., Any]], PasswordHashe
     signed_in = Access(auth=sessions)
 
     @post("/auth/login")
-    async def login(request: Request, data: LoginIn) -> SessionOut:
+    async def login(data: LoginIn) -> SessionOut:
         """Exchange a username and password for a short-lived bearer token."""
         user = await User.aget_or_none(username=data.username)
         stored = user.password_hash if user and user.password_hash else unknown_user
@@ -92,7 +91,7 @@ def build_accounts(secret: str) -> tuple[list[Callable[..., Any]], PasswordHashe
         )
 
     @get("/auth/me", access=signed_in)
-    async def me(request: Request, caller: Caller[User]) -> MeOut:
+    async def me(caller: Caller[User]) -> MeOut:
         """Who the bearer token belongs to."""
         user = caller.user
         return MeOut(username=user.username, name=user.name, is_editor=user.is_editor)

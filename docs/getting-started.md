@@ -26,16 +26,16 @@ The generated project has a health route, typed settings, rules that are on from
 
 ```python
 @get("/notes/{note_id}")
-async def one(request: Request, note_id: UUID) -> NoteOut:
+async def one(note_id: UUID) -> NoteOut:
     return NoteOut.from_model(await Note.aget(id=note_id))
 
 
 @post("/notes", status=201, transaction=True)
-async def create(request: Request, data: NoteIn) -> NoteOut:
+async def create(data: NoteIn) -> NoteOut:
     return NoteOut.from_model(await Note.acreate(data))
 ```
 
-Every action takes the `Request` first; path, query and body values follow as typed parameters. `Note.acreate(data)` takes the validated schema directly, and extra keywords (`acreate(data, owner_id=me)`) are set by the server and always win over the client's values.
+Path, query and body values are typed parameters; the `Request` object is optional (declare `request: Request` first when you need headers, cookies or the raw body). `Note.acreate(data)` takes the validated schema directly, and extra keywords (`acreate(data, owner_id=me)`) are set by the server and always win over the client's values.
 
 ## Run it
 

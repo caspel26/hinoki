@@ -15,14 +15,15 @@ Status: **S1 design, S2–S5 implemented** (2026-11-13): `Request` (Python), req
 
 ```python
 @get("/health")
-async def health(request: Request) -> dict: ...
+async def health() -> dict: ...                       # no request needed
+async def whoami(request: Request) -> dict: ...      # declared: passed in
 
 class Posts(API, path="/posts"):
     @get("/{post_id}")
-    async def retrieve(self, request: Request, post_id: int) -> PostOut: ...
+    async def retrieve(self, post_id: int) -> PostOut: ...
 ```
 
-* Function handlers: `request` first. Class handlers: `self`, then `request`. Registration fails if the first parameter is not annotated `Request` (clear message naming the action). No opt-out and no mixed mode: one shape everywhere, so docs, MCP and generated CRUD agree.
+* **Updated 2026-11-13: the request is optional.** It is passed only to an action that annotates a parameter with `Request`, and then it must be the first one (after `self` in an API class). A `Request` anywhere else, or a parameter called `request` that is not annotated `Request`, fails at registration with a message naming the action. No app-level switch (two dialects). The original rule (mandatory first parameter) came from the owner's first brief and matches django-ninja; FastAPI and Litestar inject it on demand.
 * Bound values (path, query, body schema, `PageParams`, principal) stay keyword parameters after it. `request.user` is the same principal that `access` produced; nothing authenticates twice.
 * Breaking change for every existing handler, test and example. Done in one step (Q008-S2) with a mechanical rewrite, not a compatibility shim.
 
@@ -107,7 +108,7 @@ Whether the default parser set should include form/multipart (recommended: JSON 
 * `Request` lives in `python/hinoki/request.py`; the first parameter after `self` must be annotated `Request` and be positional-or-keyword, checked in `runtime/binding.py` at include time (`split_request`). The remaining parameters bind exactly as before.
 * The body is now read for every POST/PUT/PATCH action, not only those with a `Schema` parameter, so `request.body` is available and the 413 limit always applies. `request.data` parses once (`decode_body`, JSON only until S4) and is shared with the schema binding.
 * `COOKIES` uses a small Python parser (first value wins, quotes stripped); `POST`/`FILES` arrive with S4. `Headers` and `QueryDict` are read-only mappings.
-* Generated CRUD templates take the request too; the unused-argument lint is relaxed for `examples/` and `crud.py` only, because the first parameter is mandatory and a handler need not read it.
+* Generated CRUD actions no longer take the request; the unused-argument lint exception for `examples/` was removed.
 
 ## Implementation notes (S3)
 

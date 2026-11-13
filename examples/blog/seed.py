@@ -22,7 +22,7 @@ DEMO_PASSWORD = "demo-password-change-me"  # noqa: S105 - synthetic; the demo us
 TITLES = [
     "Getting started with Hinoki",
     "Typed handlers, plain Python",
-    "Why requests come first",
+    "Why the request is optional",
     "Policies that read like prose",
     "Transactions without surprises",
     "Pagination you can reason about",
