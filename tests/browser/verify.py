@@ -159,9 +159,15 @@ def flow(browser: Browser, base: str, shots: Path | None, name: str) -> None:
     page.locator("#hn-q").fill(f"Browser post {stamp}")
     page.get_by_role("button", name="Search").click()
     page.locator("tbody a.hn-rowlink").first.click()
+    in_page = page.locator(".hn-edit-page").count() == 1  # a style that edits on a page
     check(
-        page.locator("aside.hn-drawer").count() == 1,
-        "editing opens the drawer beside the list",
+        page.locator("aside.hn-drawer").count() == 0
+        and page.locator("form.hn-form").count() == 1
+        if in_page
+        else page.locator("aside.hn-drawer").count() == 1,
+        "editing opens a page form"
+        if in_page
+        else "editing opens the drawer beside the list",
     )
     page.get_by_label("Title").fill(f"Browser post {stamp} edited")
     page.get_by_role("button", name="Save changes").click()

@@ -111,6 +111,8 @@ def test_templates_escape_by_default_and_guard_raw_values() -> None:
         templates.render(
             "shell",
             edit="x",
+            layout="sidebar",
+            list_style="table",
             sidebar="<b>",
             topbar=Raw(""),
             header=Raw(""),
@@ -140,13 +142,17 @@ def test_application_templates_and_css_override_the_built_in_set(
 
 
 def test_three_themes_share_the_component_set_and_validate() -> None:
-    assert set(THEMES) == {"studio", "midnight", "paper"}
+    assert set(THEMES) == {"studio", "console", "paper"}
     assert {t.edit for t in THEMES.values()} == {"drawer", "page"}
     for name in THEMES:
         css = Templates(theme=name).stylesheet().decode()
         assert f':root[data-theme="{name}"]' in css and "--hn-accent:" in css
-    midnight = Templates(theme="midnight").stylesheet().decode()
-    assert "color-scheme:dark" in midnight.split("[data-mode=light]")[0]
+    for theme in THEMES.values():  # every style ships both schemes, system-driven
+        css = Templates(theme=theme.name).stylesheet().decode()
+        assert "prefers-color-scheme: dark" in css
+        assert "[data-mode=dark]" in css and "[data-mode=light]" in css
+    assert {t.layout for t in THEMES.values()} == {"sidebar", "topbar", "index"}
+    assert {t.list_style for t in THEMES.values()} == {"table", "rows"}
     with pytest.raises(ValueError, match="unknown theme"):
         Templates(theme="nope")
     broken = Theme("mine", "Mine", "page", {"bg": "#fff"}, {}, {})

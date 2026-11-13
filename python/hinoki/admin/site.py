@@ -223,6 +223,8 @@ class Site:
         shell = t.render(
             "shell",
             edit=admin.theme.edit,
+            layout=admin.theme.layout,
+            list_style=admin.theme.list_style,
             sidebar=sidebar,
             topbar=self.topbar(crumb_list, query),
             header=header if header is not None else self.header(title),

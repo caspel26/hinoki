@@ -151,7 +151,7 @@ Honest status, verified by the test suite:
 | Optional rules (`RuleSet`: access, transaction, schema exposure, static import boundaries), owner waivers, `python -m hinoki check` (text/JSON) | Implemented; runtime and scenario phases not built |
 | Development MCP (`python -m hinoki mcp`): read-only project context over stdio | Implemented; not yet tested against a real MCP client; no application MCP |
 | Interactive API docs: **Swagger UI** and **ReDoc** (`docs_url=`, `redoc_url=`), vendored and served from the package under a strict CSP | Implemented; verified in Chromium and Firefox |
-| Admin extra (`hinoki.admin`): Studio/Midnight/Paper themes over one base component set, Lucide icons, dashboard stats, tabs, search, sortable paginated lists with badges and avatars, edit drawer or page, FK selects, fieldsets, bulk delete, signed CSRF, per-model `can()`/`queryset()`/`save()` hooks, template and CSS overrides | Implemented; reviewed once (findings fixed in this version). The earlier browser run covered the first version only: the new UI has been looked at in Chromium (screenshots above) but `tests/browser/verify.py` still targets the old markup and has **not** been re-run, and WebKit has never started here. No login UI, no rich-text or tag widgets, no audit log |
+| Admin extra (`hinoki.admin`): Studio/Console/Paper themes over one base component set, Lucide icons, dashboard stats, tabs, search, sortable paginated lists with badges and avatars, edit drawer or page, FK selects, fieldsets, bulk delete, signed CSRF, per-model `can()`/`queryset()`/`save()` hooks, template and CSS overrides | Implemented; reviewed once (findings fixed in this version). The earlier browser run covered the first version only: the new UI has been looked at in Chromium (screenshots above) but `tests/browser/verify.py` still targets the old markup and has **not** been re-run, and WebKit has never started here. No login UI, no rich-text or tag widgets, no audit log |
 | `python -m hinoki new` scaffolds a project with rules on, `AGENTS.md` and the MCP configured; `explain_error` tool ([guide](docs/AI-WORKFLOW.md)) | Implemented; not yet exercised with a real MCP client or agent |
 | JWT, benchmarks beyond micro-benchmarks | Not started |
 | `Request` as the first handler argument (`method`, `headers`, `GET`, `COOKIES`, `body`, `data`, `user`) | Implemented; query, cookie and header parsing and JSON decode/encode run in Rust (modest measured gain for JSON, larger for query strings: [benchmarks](benchmarks/README.md)) |
@@ -196,23 +196,27 @@ Taken from the reference blog (`examples/blog`) with real browsers (`tests/brows
 | --- | --- |
 | ![Swagger UI showing the blog API](docs/screenshots/swagger.png) | ![ReDoc showing the blog API](docs/screenshots/redoc.png) |
 
-The admin has three deliberately different themes built on one set of base components (Studio is the default; Midnight and Paper restyle the same pages through design tokens, fonts and a little CSS):
+The admin ships three **structurally different styles** (not three colour sets), each with a complete light and dark scheme that follows the system and can be toggled. They share one set of base components; a theme chooses the layout, the list presentation, the type and the tokens:
 
-| Studio: dashboard | Studio: edit drawer |
+| Style | Navigation | List | Edit | Look |
+| --- | --- | --- | --- | --- |
+| **Studio** (default) | sidebar | cards with a table | drawer beside the list | soft violet, rounded |
+| **Console** | horizontal top bar, no sidebar | dense monospaced grid, sticky headers | drawer | neon cyan (dark) / teal (light), square corners |
+| **Paper** | quiet text index + one centred reading column | document rows | its own page | serif type, terracotta, hairlines |
+
+| Studio: light | Studio: dark |
 | --- | --- |
-| ![Studio theme dashboard with stat cards and recent posts](docs/screenshots/admin-studio-dashboard.png) | ![Studio theme with the edit drawer beside the list](docs/screenshots/admin-studio-edit.png) |
+| ![Studio, light](docs/screenshots/admin-studio-list-light.png) | ![Studio, dark](docs/screenshots/admin-studio-list-dark.png) |
 
-| Midnight: dashboard | Midnight: list |
+| Console: light | Console: dark |
 | --- | --- |
-| ![Midnight theme dashboard](docs/screenshots/admin-midnight-dashboard.png) | ![Midnight theme list](docs/screenshots/admin-midnight-list.png) |
+| ![Console, light](docs/screenshots/admin-console-list-light.png) | ![Console, dark](docs/screenshots/admin-console-list-dark.png) |
 
-| Paper: dashboard | Paper: list |
+| Paper: light | Paper: dark |
 | --- | --- |
-| ![Paper theme dashboard](docs/screenshots/admin-paper-dashboard.png) | ![Paper theme list](docs/screenshots/admin-paper-list.png) |
+| ![Paper, light](docs/screenshots/admin-paper-list-light.png) | ![Paper, dark](docs/screenshots/admin-paper-list-dark.png) |
 
-| Studio on a phone (390 px) |
-| --- |
-| ![Studio theme on a phone](docs/screenshots/admin-studio-phone.png) |
+Edit views: [Studio drawer](docs/screenshots/admin-studio-edit-light.png), [Console drawer](docs/screenshots/admin-console-edit-light.png), [Paper page](docs/screenshots/admin-paper-edit-light.png); phones: [Studio](docs/screenshots/admin-studio-phone.png), [Console](docs/screenshots/admin-console-phone.png), [Paper](docs/screenshots/admin-paper-phone.png). Verified in Chromium and Firefox at 1440, 390, 360 and 320 px (WebKit could not start on the development machine).
 
 Try it: create a disposable PostgreSQL database, then
 
@@ -222,7 +226,7 @@ uv run python -m examples.blog.seed          # migrations + synthetic users and 
 uv run python -m hinoki dev examples.blog.main:create_app   # reload; `serve` for production
 # API docs:  http://127.0.0.1:8000/docs  and  /redoc
 # Admin:     http://127.0.0.1:8000/admin  (send the cookie blog_token=demo-editor-token;
-#            set BLOG_ADMIN_SECRET (32+ bytes) and optionally BLOG_ADMIN_THEME=studio|midnight|paper)
+#            set BLOG_ADMIN_SECRET (32+ bytes) and optionally BLOG_ADMIN_THEME=studio|console|paper)
 # Password login: set BLOG_JWT_SECRET (32+ bytes), then
 #   curl -X POST :8000/auth/login -H 'content-type: application/json' \
 #        -d '{"username":"ada","password":"demo-password-change-me"}'

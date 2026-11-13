@@ -70,7 +70,7 @@ A project generator with conventions, a [development MCP server](AI-WORKFLOW.md)
 
 <div class="hn-card" markdown>
 ### An admin that is yours
-Three distinct themes on one component set: soft Studio, neon Midnight, editorial Paper. CSRF-safe, contrast-checked.
+Three distinct themes on one component set: sidebar-and-cards Studio, a dense top-bar Console, an editorial Paper index. CSRF-safe, contrast-checked.
 </div>
 
 </div>

@@ -79,7 +79,7 @@ svg[hidden] { display: none; position: absolute; }
 .hn-stat-label .hn-icon { color: var(--hn-tone-ink, var(--hn-accent-text)); }
 .hn-stat-body { display: flex; justify-content: space-between; align-items: flex-end; gap: .75rem; margin-top: .35rem; }
 .hn-stat-value { font-size: 2rem; line-height: 1.1; }
-.hn-spark { width: 7rem; height: 2.6rem; flex: none; color: var(--hn-tone-ink, var(--hn-accent-text)); }
+.hn-spark { width: 7rem; height: 2.6rem; flex: 0 1 auto; min-width: 3rem; max-width: 45%; color: var(--hn-tone-ink, var(--hn-accent-text)); }
 .hn-cardlist { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 1rem; }
 .hn-cardlist li { padding: 1rem; background: var(--hn-surface); border: 1px solid var(--hn-line); border-radius: var(--hn-radius-lg); }
 
@@ -164,13 +164,45 @@ input[type="checkbox"] { width: 1.15rem; height: 1.15rem; padding: 0; accent-col
 .hn-results h3 { font-size: 1rem; margin: .5rem 0; }
 .hn-results ul { margin: 0; padding-left: 1.1rem; }
 
+/* Layout "topbar" (console): the navigation is a horizontal bar, no sidebar. */
+.hn-layout-topbar { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+.hn-layout-topbar .hn-sidebar { position: sticky; top: 0; z-index: 6; height: auto; flex-direction: row; align-items: center; gap: 1.25rem; padding: .3rem 1rem; border-right: 0; border-bottom: 1px solid var(--hn-line); overflow: visible; }
+.hn-layout-topbar .hn-nav { display: flex; gap: .1rem; }
+.hn-layout-topbar .hn-nav-secondary { margin: 0 0 0 auto; padding: 0; border: 0; }
+.hn-layout-topbar .hn-user { border: 0; padding: 0; }
+.hn-layout-topbar .hn-user-text small, .hn-layout-topbar .hn-brand-text small { display: none; }
+.hn-layout-topbar .hn-topbar { position: static; padding: .35rem 1rem; }
+.hn-layout-topbar .hn-main { padding: 1rem; gap: .9rem; }
+.hn-layout-topbar .hn-drawer { top: 0; max-height: 100vh; }
+
+/* Layout "index" (paper): a quiet text column on the left, one centred reading column. */
+.hn-layout-index { grid-template-columns: var(--hn-sidebar-w) minmax(0, 54rem); justify-content: center; column-gap: 1.5rem; }
+.hn-layout-index .hn-sidebar { background: transparent; border-right: 0; padding-top: 2rem; }
+.hn-layout-index .hn-nav-item { border-radius: 0; padding-left: .25rem; border-left: 2px solid transparent; }
+.hn-layout-index .hn-nav-item .hn-icon, .hn-layout-index .hn-nav-item .hn-count { display: none; }
+.hn-layout-index .hn-nav-item[aria-current="page"] { background: none; border-left-color: var(--hn-accent); }
+.hn-layout-index .hn-topbar { background: transparent; border-bottom: 1px solid var(--hn-line); padding-left: 0; padding-right: 0; position: static; }
+.hn-layout-index .hn-main { padding: 2rem 0 4rem; gap: 1.75rem; }
+
+/* List "rows" (paper): a document index instead of a table. */
+.hn-list-rows .hn-table, .hn-list-rows .hn-table tbody { display: block; min-width: 0; }
+.hn-list-rows .hn-table thead { display: none; }
+.hn-list-rows .hn-table tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem 1.1rem; padding: 1rem .25rem; border-bottom: 1px solid var(--hn-line); }
+.hn-list-rows .hn-table td { display: block; padding: 0; border: 0; }
+.hn-list-rows .hn-table td:has(input[type=checkbox]) { align-self: center; }
+.hn-list-rows .hn-table td:has(.hn-rowlink) { flex: 1 1 30%; min-width: 10rem; font-size: 1.2em; font-weight: 600; }
+.hn-list-rows .hn-table td:not(:has(.hn-rowlink)):not(:has(input[type=checkbox])) { font-size: .85em; color: var(--hn-muted); }
+
 @media (max-width: 1180px) {
   .hn-workspace { flex-direction: column; align-items: stretch; }
   .hn-main { width: 100%; }
   .hn-drawer { position: static; width: 100%; max-height: none; border-left: 0; border-top: 1px solid var(--hn-line); }
 }
 @media (max-width: 860px) {
-  .hn-shell { grid-template-columns: minmax(0, 1fr); }
+  .hn-shell, .hn-layout-index { grid-template-columns: minmax(0, 1fr); }
+  .hn-layout-topbar .hn-sidebar { position: static; flex-wrap: wrap; }
+  .hn-layout-index .hn-sidebar { padding-top: .6rem; }
+  .hn-layout-index .hn-main { padding: 1.2rem .9rem 3rem; }
   .hn-sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .6rem .9rem; border-right: 0; border-bottom: 1px solid var(--hn-line); }
   .hn-nav { grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; order: 3; width: 100%; }
   .hn-nav-secondary { margin: 0; padding: 0; border: 0; order: 4; }
