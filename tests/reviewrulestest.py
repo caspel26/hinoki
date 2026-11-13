@@ -304,6 +304,7 @@ def test_print_from_rules_does_not_reach_the_protocol_stream(
         package = None
         models = None
         waivers = None
+        scenarios = "off"
 
     monkeypatch.setattr(
         sys,

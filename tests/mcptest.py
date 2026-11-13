@@ -1,17 +1,21 @@
 """The development MCP server: protocol, tools and isolation."""
 
+import contextlib
 import datetime
 import io
 import json
 import subprocess
 import sys
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from hinoki import mcp
+from hinoki import HinokiAPI, mcp
 from hinoki.mcp import DevProject, Server, serve
+from hinoki.modules import Module, ModuleContext
+from hinoki.proposals import ProposalError, propose
 from tests.projects.rulesapp import create_app, rules
 
 TODAY = datetime.date(2026, 11, 13)
@@ -76,6 +80,7 @@ def test_tools_are_listed_as_read_only(server: Server) -> None:
         "explain_action",
         "explain_error",
         "check_project",
+        "propose_model",
     }
     assert all(t["annotations"]["readOnlyHint"] for t in tools.values())
     assert tools["explain_action"]["inputSchema"]["required"] == ["action"]
@@ -190,7 +195,10 @@ def test_a_crashing_tool_is_an_error_result_without_a_traceback(
     monkeypatch.setitem(mcp.TOOLS, "list_rules", (description, schema, explode))
     result = call(server, "list_rules")["result"]
     assert result["isError"]
-    assert result["structuredContent"]["error"] == "RuntimeError: boom"
+    assert (
+        result["structuredContent"]["error"]
+        == "RuntimeError (details on the server's stderr)"
+    )
     assert "Traceback" not in json.dumps(result)
 
 
@@ -252,3 +260,144 @@ def test_the_production_runtime_never_imports_the_development_server() -> None:
         [sys.executable, "-c", code], capture_output=True, text=True, check=True
     )
     assert done.stdout.strip() == "False"
+
+
+VERBS = {"list", "get", "create", "update", "delete"}
+
+
+def test_propose_model_generates_source_that_imports_and_registers() -> None:
+    result = propose(
+        "Article",
+        None,
+        [
+            {"name": "title", "type": "str", "max_length": 80, "unique": True},
+            {"name": "views", "type": "int"},
+            {"name": "note", "type": "str", "nullable": True},
+        ],
+    )
+    space: dict[str, object] = {}
+    exec(compile(result["source"], "<proposal>", "exec"), space)  # noqa: S102
+    app = HinokiAPI()
+    app.include(
+        *[v for k, v in space.items() if k.endswith("_article") or "articles" in k]
+    )
+    assert len(app.routes) == 5
+    assert "TODO: add access" in result["source"]
+    for bad in (
+        {"name": "id"},
+        {"name": "Title"},
+        {"name": "x", "type": "blob"},
+        {"name": "class"},
+        {"name": "n", "type": "int", "max_length": 5},
+    ):
+        with pytest.raises(ProposalError):
+            propose("Article", None, [bad])
+    with pytest.raises(ProposalError):
+        propose("article", None, [{"name": "x"}])
+    with pytest.raises(ProposalError):
+        propose("A", "bad table", [{"name": "x"}])
+
+
+def scenario_server(tmp_path: Path, mode: str) -> Server:
+    project = DevProject(
+        create_app(), rules, waivers=tmp_path / "none.toml", today=TODAY, scenarios=mode
+    )
+    return Server(project)
+
+
+def test_run_scenario_is_hidden_and_refused_unless_enabled(
+    server: Server, tmp_path: Path
+) -> None:
+    listed = server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    assert listed is not None
+    assert "run_scenario" not in {t["name"] for t in listed["result"]["tools"]}
+    refused = call(server, "run_scenario", path="/health")["result"]
+    assert refused["isError"] and "off" in refused["structuredContent"]["error"]
+    enabled = scenario_server(tmp_path, "read")
+    answer = enabled.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    assert answer is not None
+    tool = next(t for t in answer["result"]["tools"] if t["name"] == "run_scenario")
+    assert tool["annotations"]["readOnlyHint"] is False  # it runs real handlers
+
+
+def test_run_scenario_runs_a_get_and_refuses_unsafe_requests(tmp_path: Path) -> None:
+    server = scenario_server(tmp_path, "read")
+    ok = call(server, "run_scenario", path="/health")["result"]
+    assert not ok["isError"]
+    assert ok["structuredContent"]["status"] == 200
+    missing = call(server, "run_scenario", path="/nope")["result"]["structuredContent"]
+    assert missing["status"] == 404
+    for bad in (
+        {"method": "POST", "path": "/items"},
+        {"path": "health"},
+        {"path": "/health?x=1"},
+        {"path": "/health", "headers": {"Host": "evil"}},
+        {"path": "/health", "headers": {"x": "a\r\nb: c"}},
+        {"method": "TRACE", "path": "/health"},
+    ):
+        result = call(server, "run_scenario", **bad)["result"]
+        assert result["isError"], bad
+
+
+def test_run_scenario_write_mode_allows_other_methods(tmp_path: Path) -> None:
+    server = scenario_server(tmp_path, "write")
+    result = call(server, "run_scenario", method="POST", path="/items", json={})
+    assert result["result"]["structuredContent"]["status"] in {200, 201, 401, 403, 422}
+
+
+class Failing(Module):
+    name = "failing"
+
+    @contextlib.asynccontextmanager
+    async def lifespan(self, ctx: ModuleContext) -> AsyncIterator[None]:
+        raise RuntimeError("could not connect to postgres://user:s3cret@db/prod")
+        yield
+
+
+def test_a_failing_startup_returns_an_error_without_hanging_or_leaking(
+    tmp_path: Path,
+) -> None:
+    app = create_app()
+    app.install(Failing())
+    project = DevProject(
+        app, rules, waivers=tmp_path / "none.toml", today=TODAY, scenarios="read"
+    )
+    result = call(Server(project), "run_scenario", path="/health")["result"]
+    assert result["isError"]
+    assert "s3cret" not in json.dumps(result)
+
+
+def test_scenario_input_hygiene_and_honest_annotations(tmp_path: Path) -> None:
+    server = scenario_server(tmp_path, "read")
+    for bad in (
+        {"method": ["GET"], "path": "/health"},
+        {"method": "get", "path": "/health"},
+        {"path": "/health", "query": "a=1\r\nX: y"},
+        {"path": "/health", "query": "a#b"},
+        {"path": "/health", "headers": {"a b": "x"}},
+        {"path": "/health", "headers": {"é": "x"}},
+    ):
+        assert call(server, "run_scenario", **bad)["result"]["isError"], bad
+    listed = server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    assert listed is not None
+    tool = next(t for t in listed["result"]["tools"] if t["name"] == "run_scenario")
+    assert tool["annotations"]["readOnlyHint"] is False
+
+
+def test_propose_model_rejects_odd_inputs() -> None:
+    for bad in (
+        {"name": "x", "type": ["str"]},
+        {"name": "x", "unique": "false"},
+        {"name": "x", "max_length": 10**5000},
+        {"name": "x", "max_length": True},
+        {"name": "datetime"},
+        {"name": "_hidden"},
+        {"name": "é"},
+        {"name": "a" * 65},
+        {"name": "dump"},
+    ):
+        with pytest.raises(ProposalError):
+            propose("Article", None, [bad])
+    for model in ("Model", "UUID", "Schema", "\uff21rticle"):
+        with pytest.raises(ProposalError):
+            propose(model, None, [{"name": "x"}])
