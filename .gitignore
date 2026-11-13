@@ -222,6 +222,8 @@ __marimo__/
 # Local-only design handoff package (kept on disk, never published)
 framework-handoff/
 handoff.md
+docs/*-DESIGN.md
+docs/IDENTITY.md
 .playwright-mcp/
 
 # mkdocs output
