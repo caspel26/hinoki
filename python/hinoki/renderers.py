@@ -32,6 +32,18 @@ class JSONRenderer(Renderer):
         return native.encode_json(value)
 
 
+class HTMLRenderer(Renderer):
+    """A handler that returns ``str`` answers HTML (UTF-8). The string is sent
+    as is: escape untrusted data before putting it in."""
+
+    media_type = "text/html; charset=utf-8"
+
+    def render(self, value: object, request: Request) -> bytes:  # noqa: ARG002
+        if not isinstance(value, str):
+            raise TypeError("HTMLRenderer needs the handler to return a str")
+        return value.encode()
+
+
 DEFAULT_RENDERERS: tuple[Renderer, ...] = (JSONRenderer(),)
 
 

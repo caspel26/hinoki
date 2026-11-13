@@ -20,6 +20,7 @@ from hinoki.errors import RegistrationError, ShutdownError, StartupError
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
 from hinoki.renderers import Renderer, negotiate
+from hinoki.reply import Reply
 from hinoki.request import Request
 from hinoki.routing import MethodNotAllowed
 from hinoki.runtime.binding import BODY_METHODS, Binding
@@ -223,6 +224,8 @@ class ASGIAdapter:
             raise HTTPError(
                 HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
             ) from None
+        if isinstance(result, Reply):
+            return Response(result.status, result.body, result.headers)
         if result is not None and route.status not in BODYLESS:
             body = renderer.render(encode(result), request)
             many = len(route.renderers) > 1

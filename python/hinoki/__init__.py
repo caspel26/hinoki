@@ -16,7 +16,8 @@ from hinoki.httperrors import (
 from hinoki.modules import Module, ModuleContext
 from hinoki.native import core_version
 from hinoki.parsers import FormParser, JSONParser, MultiPartParser, Parser
-from hinoki.renderers import JSONRenderer, Renderer
+from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer
+from hinoki.reply import Reply, set_cookie
 from hinoki.request import Request
 from hinoki.routing import Route, delete, get, patch, post, put
 from hinoki.rules import Actions, Imports, Schemas, Transactions
@@ -39,6 +40,7 @@ __all__ = [
     "Field",
     "Forbidden",
     "FormParser",
+    "HTMLRenderer",
     "HeaderAuth",
     "HinokiAPI",
     "Imports",
@@ -53,6 +55,7 @@ __all__ = [
     "Principal",
     "RegistrationError",
     "Renderer",
+    "Reply",
     "Request",
     "Route",
     "RuntimeConfig",
@@ -68,4 +71,5 @@ __all__ = [
     "patch",
     "post",
     "put",
+    "set_cookie",
 ]
