@@ -85,6 +85,13 @@ def run_new(args: argparse.Namespace) -> int:
         print(f"error: {error}", file=sys.stderr)
         return 2
     print(f"created {target}; next: cd {target} && uv sync && uv run pytest")
+    if "tool.uv.sources" not in (target / "pyproject.toml").read_text("utf-8"):
+        print(
+            "note: Hinoki was not run from a source checkout, so pyproject.toml "
+            'names plain "hinoki" (an unrelated package on PyPI). Point it at your '
+            "Hinoki source with [tool.uv.sources] before running uv sync.",
+            file=sys.stderr,
+        )
     return 0
 
 
