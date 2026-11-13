@@ -9,6 +9,7 @@ any exception (including cancellation and timeouts).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -42,12 +43,20 @@ log = logging.getLogger("hinoki.db")
 
 
 class ActiveTransaction:
-    """A native transaction plus its savepoint depth."""
+    """A native transaction, the task that owns it and its savepoint counter."""
 
     def __init__(self, database: Database, native_tx: native.Transaction) -> None:
         self.database = database
         self.native = native_tx
-        self.depth = 0
+        self.owner = asyncio.current_task()
+        self.savepoints = 0
+        self.finished = False
+
+    def next_savepoint(self) -> str:
+        """A name never reused within this transaction, so sibling scopes can
+        not release or roll back each other's savepoints."""
+        self.savepoints += 1
+        return f"hinoki_sp_{self.savepoints}"
 
 
 current: ContextVar[ActiveTransaction | None] = ContextVar(
@@ -71,7 +80,14 @@ class Database:
 
     def active(self) -> ActiveTransaction | None:
         found = current.get()
-        return found if found is not None and found.database is self else None
+        if found is None or found.database is not self:
+            return None
+        if found.finished:
+            raise DatabaseError(
+                "the transaction has ended; a task that outlives its "
+                "transaction scope cannot use the database"
+            )
+        return found
 
     async def fetch(self, sql: str, *params: Param) -> list[Row]:
         """Rows as dicts. Placeholders are ``$1``, ``$2``, ..."""
@@ -116,10 +132,14 @@ class TransactionScope:
             self.state = ActiveTransaction(self.database, native_tx)
             self.token = current.set(self.state)
             return self
+        if asyncio.current_task() is not parent.owner:
+            raise DatabaseError(
+                "nested transaction scopes (savepoints) must be opened by the "
+                "task that owns the transaction"
+            )
         self.state = parent
-        self.savepoint = f"hinoki_sp_{parent.depth}"
+        self.savepoint = parent.next_savepoint()
         await parent.native.execute(f"SAVEPOINT {self.savepoint}", [])
-        parent.depth += 1
         return self
 
     async def __aexit__(
@@ -136,13 +156,17 @@ class TransactionScope:
             return
         if self.token is not None:
             current.reset(self.token)
-        if exc is None:
-            await state.native.commit()  # a failed commit is an error, not success
-        else:
+        state.finished = True
+        if exc is not None:
             await self.rollback(state)
+            return
+        try:
+            await state.native.commit()  # a failed commit is an error, not success
+        except BaseException:
+            await self.rollback(state)  # make sure nothing stays open
+            raise
 
     async def leave_savepoint(self, state: ActiveTransaction, ok: bool) -> None:
-        state.depth -= 1
         verb = "RELEASE SAVEPOINT" if ok else "ROLLBACK TO SAVEPOINT"
         await state.native.execute(f"{verb} {self.savepoint}", [])
 
