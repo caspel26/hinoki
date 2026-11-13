@@ -1,4 +1,4 @@
-//! Python bindings for the Hinoki native core, exposed as `hinoki._core`.
+//! Python bindings for the Hinoki native core, exposed as `hinoki.native`.
 //!
 //! Current scope: the path router. Request parsing and the ORM runtime are
 //! designed in `docs/RUNTIME-DESIGN.md` and not implemented yet.
@@ -22,7 +22,7 @@ fn core_version() -> &'static str {
 }
 
 /// Compiled path router. Build it at startup, then treat it as read-only.
-#[pyclass(name = "Router", module = "hinoki._core")]
+#[pyclass(name = "Router", module = "hinoki.native")]
 struct PyRouter {
     inner: Router,
 }
@@ -68,7 +68,7 @@ impl PyRouter {
 }
 
 #[pymodule]
-fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(core_version, m)?)?;
     m.add_class::<PyRouter>()?;
     Ok(())

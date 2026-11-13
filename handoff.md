@@ -18,7 +18,7 @@ Brand: `assets/hinoki-identity-approved.png` is the approved identity (unchanged
 
 ## What exists (verified)
 
-* `crates/bindings`: Rust path router (`router.rs`) + PyO3 module `hinoki._core` (`Router`, `core_version`). 6 Rust tests.
+* `crates/bindings`: Rust path router (`router.rs`) + PyO3 module `hinoki.native` (`Router`, `core_version`). 6 Rust tests.
 * `python/hinoki`: `get/post/put/patch/delete`, `Access`, `API`, `HinokiAPI` (`include`, `resolve`, `routes`), `RegistrationError`. No server, no request handling, no schemas, no ORM.
 * `tests/`: 12 Python tests (98% coverage of `python/hinoki`), typing fixtures, 3 real-Granian lifespan tests.
 
