@@ -19,7 +19,7 @@ from hinoki.parsers import FormParser, JSONParser, MultiPartParser, Parser
 from hinoki.renderers import JSONRenderer, Renderer
 from hinoki.request import Request
 from hinoki.routing import Route, delete, get, patch, post, put
-from hinoki.rules import Actions, Schemas, Transactions
+from hinoki.rules import Actions, Imports, Schemas, Transactions
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.schema import UNSET, Field, Schema, Unset
 
@@ -41,6 +41,7 @@ __all__ = [
     "FormParser",
     "HeaderAuth",
     "HinokiAPI",
+    "Imports",
     "JSONParser",
     "JSONRenderer",
     "Module",

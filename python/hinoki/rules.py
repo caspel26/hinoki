@@ -17,8 +17,10 @@ import os
 import typing
 from collections.abc import Callable, Iterable, Iterator
 from enum import StrEnum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from hinoki.imports import imports_of, package_modules, within
 from hinoki.routing import Route
 from hinoki.schema import Schema
 
@@ -75,6 +77,7 @@ class Project:
     """What rules inspect: the application registry."""
 
     app: HinokiAPI
+    packages: tuple[str, ...] = ()
 
 
 def qualified(route: Route) -> str:
@@ -323,6 +326,57 @@ class ForbidExposure(Rule):
                         f"{route.method} {route.path}",
                         where(schema),
                     )
+
+
+class ForbidImports(Rule):
+    id = "HNK-IMP-001"
+    phase = Phase.STATIC
+    explanation = (
+        "Code under the source package must not import from the target package, "
+        "keeping the dependency direction the project declared. Only direct "
+        "imports in the project's own files are checked."
+    )
+
+    def __init__(self, source: str, target: str) -> None:
+        self.source = source
+        self.target = target
+
+    def summary(self) -> str:
+        return f"Imports.forbid(source={self.source!r}, target={self.target!r})"
+
+    def check(self, project: Project) -> Iterator[Diagnostic]:
+        if not project.packages:
+            yield self.diagnostic(
+                "no packages were given to scan (pass packages to the check)",
+                self.id,
+                Status.UNVERIFIABLE,
+            )
+            return
+        for package in project.packages:
+            for module, path in package_modules(package):
+                if within(module, self.source):
+                    yield from self.scan(module, path)
+
+    def scan(self, module: str, path: Path) -> Iterator[Diagnostic]:
+        for found in imports_of(module, path):
+            where_ = f"{found.file}:{found.line}"
+            if not found.target:
+                yield self.diagnostic(
+                    f"{module} imports a module chosen at runtime; "
+                    f"cannot tell whether it is {self.target}",
+                    where_,
+                    Status.UNVERIFIABLE,
+                )
+            elif within(found.target, self.target):
+                yield self.diagnostic(
+                    f"{module} imports {found.target}, which is forbidden "
+                    f"for {self.source}",
+                    where_,
+                )
+
+
+class Imports:
+    forbid: ClassVar[Callable[..., Rule]] = ForbidImports
 
 
 class Actions:
