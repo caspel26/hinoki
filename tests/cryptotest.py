@@ -70,8 +70,11 @@ class Tokens(JWTAuth[str]):
         return self.clock
 
     async def resolve_claims(self, claims: dict[str, Any]) -> Principal[str] | None:
-        scopes = frozenset(claims.get("scopes", []))
-        return Principal(subject=claims["sub"], identity=claims["sub"], scopes=scopes)
+        subject, raw = claims.get("sub"), claims.get("scopes", [])
+        if not isinstance(subject, str) or not isinstance(raw, list):
+            return None
+        scopes = frozenset(s for s in raw if isinstance(s, str))
+        return Principal(subject=subject, identity=subject, scopes=scopes)
 
 
 GOOD = {
@@ -272,8 +275,8 @@ async def test_without_keys_the_provider_refuses_to_run() -> None:
     class Empty(Tokens):
         keys = ()
 
-    with pytest.raises(RuntimeError, match="no keys"):
-        await Empty().resolve_token("a.b.c")
+    with pytest.raises(ValueError, match="at least one key"):
+        Empty()
 
 
 async def test_the_provider_guards_an_action_over_http(pool: Pool) -> None:
@@ -304,3 +307,76 @@ async def test_the_provider_guards_an_action_over_http(pool: Pool) -> None:
         "scheme": "bearer",
         "bearerFormat": "JWT",
     }
+
+
+def test_key_sets_are_validated_when_the_provider_is_built() -> None:
+    class Dup(Tokens):
+        keys = (JWTKey("a", "HS256", SECRET), JWTKey("a", "HS256", b"z" * 40))
+
+    class NoKid(Tokens):
+        keys = (JWTKey(None, "HS256", SECRET), JWTKey("b", "HS256", b"z" * 40))
+
+    for bad in (Dup, NoKid):
+        with pytest.raises(ValueError, match="distinct kid"):
+            bad()
+
+
+def test_secrets_never_appear_in_a_repr() -> None:
+    key = JWTKey("k", "HS256", b"super-secret-key-material-0123456789")
+    assert "super-secret" not in repr(key) and "super-secret" not in repr([key])
+    assert JWTKey.verify_only("p", unb64(PUBLIC)).public is True
+
+
+def test_issue_cannot_be_talked_into_odd_lifetimes() -> None:
+    tokens = Tokens()
+    for bad in (0, -5, 10**12):
+        with pytest.raises(ValueError, match="ttl"):
+            tokens.issue({"sub": "a"}, ttl=bad)
+    body = json.loads(
+        unb64(
+            tokens.issue({"sub": "a", "exp": 2**62, "iat": "x"}, ttl=60).split(".")[1]
+        )
+    )
+    assert (body["iat"], body["exp"]) == (1000, 1060)  # the server's, not the caller's
+
+
+async def test_a_token_for_another_audience_is_refused_without_one_configured() -> None:
+    class Open(Tokens):
+        audience = None
+        issuer = None
+
+    other = oracle_hs256({"sub": "a", "exp": 2000, "aud": "other-service"}, kid="k1")
+    assert not await verdict(other, Open())
+    assert await verdict(oracle_hs256({"sub": "a", "exp": 2000}, kid="k1"), Open())
+
+
+async def test_claims_the_json_decoder_cannot_read_are_a_401_not_a_500() -> None:
+    claims = b'{"sub":"a","exp":2000,"iss":"https://api.test","aud":"blog","x":1e400}'
+    head = b64(json.dumps({"alg": "HS256", "kid": "k1"}).encode())
+    body = b64(claims)
+    mac = hmac.new(SECRET, f"{head}.{body}".encode(), hashlib.sha256).digest()
+    assert not await verdict(f"{head}.{body}.{b64(mac)}")
+
+
+async def test_nested_duplicates_and_forged_number_markers_are_refused() -> None:
+    for payload in (
+        b'{"sub":"a","exp":2000,"iss":"https://api.test","aud":"blog","r":{"a":1,"a":2}}',
+        b'{"sub":"a","exp":{"$serde_json::private::Number":"5000"},"iss":"https://api.test","aud":"blog"}',
+    ):
+        head = b64(json.dumps({"alg": "HS256", "kid": "k1"}).encode())
+        body = b64(payload)
+        mac = hmac.new(SECRET, f"{head}.{body}".encode(), hashlib.sha256).digest()
+        assert not await verdict(f"{head}.{body}.{b64(mac)}")
+
+
+def test_argon2_only_verifies_argon2id_and_flags_old_versions() -> None:
+    hasher = PasswordHasher(**WEAK)
+    argon2i = "$argon2i$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$" + "A" * 43
+    with pytest.raises(ValueError, match="argon2id"):
+        hasher.verify_sync("x", argon2i)
+    old = "$argon2id$v=16$m=64,t=1,p=1$c29tZXNhbHQ$" + "A" * 43
+    assert hasher.needs_rehash(old)
+    with pytest.raises(ValueError):  # noqa: PT011
+        hasher.verify_sync(
+            "x", "$argon2id$v=19$m=1048576,t=1,p=1$c29tZXNhbHQ$" + "A" * 43
+        )

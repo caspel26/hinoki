@@ -35,6 +35,7 @@ HS_MIN_BYTES = {"HS256": 32, "HS384": 48, "HS512": 64}
 ALGORITHMS = (*HS_MIN_BYTES, "EdDSA")
 ED25519_BYTES = 32
 MAX_KID = 64
+MAX_TTL = 366 * 24 * 3600  # a year
 
 
 class HashingBusy(APIError):
@@ -50,7 +51,11 @@ class PasswordHasher:
 
     Parameters below the OWASP floor are refused unless ``allow_weak=True``
     (tests only). ``workers`` bounds concurrent hashing, ``max_pending`` the
-    queue; beyond that ``hash``/``verify`` raise ``HashingBusy`` (503).
+    queue; beyond that ``hash``/``verify`` raise ``HashingBusy`` (503). A task
+    cancelled while its hash runs frees its slot but the thread finishes, so at
+    most ``workers`` extra hashes can be in flight; ``hash_sync``/``verify_sync``
+    are not bounded. Only argon2id hashes are verified. For unknown users, verify
+    against a fixed dummy hash so timing does not reveal who exists.
     """
 
     def __init__(
@@ -128,12 +133,12 @@ class JWTKey:
     HMAC secrets must be at least as long as the hash (32/48/64 bytes). For
     ``EdDSA`` the key is the 32-byte private seed, or with ``public=True`` the
     32-byte public key of a verify-only deployment. ``kid`` is required when
-    several keys are configured.
+    several keys are configured. The key is excluded from ``repr``.
     """
 
     kid: str | None
     algorithm: str
-    key: bytes | str
+    key: bytes | str = dataclasses.field(repr=False)  # never printed or logged
     public: bool = False
 
     def __post_init__(self) -> None:
@@ -153,11 +158,30 @@ class JWTKey:
         ):
             raise ValueError("kid must be 1 to 64 printable characters")
 
+    @classmethod
+    def verify_only(cls, kid: str | None, public_key: bytes) -> JWTKey:
+        """An Ed25519 *public* key (32 bytes) that can verify but never sign. Use
+        this, not the plain constructor, wherever you hold only the public key:
+        a public key passed as a seed would let anyone who knows it forge tokens."""
+        return cls(kid, "EdDSA", public_key, public=True)
+
     def material(self) -> bytes:
         return self.key.encode() if isinstance(self.key, str) else bytes(self.key)
 
     def spec(self) -> tuple[str | None, str, bytes, bool]:
         return (self.kid, self.algorithm, self.material(), self.public)
+
+
+def check_key_set(keys: Sequence[JWTKey]) -> None:
+    """Fail when the provider is built, not on the first request."""
+    if not keys:
+        raise ValueError("a JWT provider needs at least one key")
+    kids = [k.kid for k in keys]
+    if len(keys) > 1 and (None in kids or len(set(kids)) != len(kids)):
+        raise ValueError("with several keys every key needs a distinct kid")
+    signer = next((k for k in keys if not k.public), None)
+    if len(keys) > 1 and signer is not None and signer.kid is None:
+        raise ValueError("the signing key needs a kid")
 
 
 class JWTAuth[T](BearerAuth[T]):
@@ -170,11 +194,14 @@ class JWTAuth[T](BearerAuth[T]):
             audience = "blog"
 
             async def resolve_claims(self, claims):
-                user = await User.aget_or_none(id=claims["sub"])
+                subject, raw = claims.get("sub"), claims.get("scopes", [])
+                if not isinstance(subject, str) or not isinstance(raw, list):
+                    return None  # claims are signed, but still untyped JSON
+                user = await User.aget_or_none(id=subject)
                 if user is None:
                     return None
-                scopes = frozenset(claims.get("scopes", []))
-                return Principal(claims["sub"], user, scopes)
+                scopes = frozenset(s for s in raw if isinstance(s, str))
+                return Principal(subject, user, scopes)
     """
 
     keys: ClassVar[Sequence[JWTKey]] = ()
@@ -182,6 +209,9 @@ class JWTAuth[T](BearerAuth[T]):
     audience: ClassVar[str | None] = None
     leeway: ClassVar[int] = 0
     require_exp: ClassVar[bool] = True
+
+    def __init__(self) -> None:
+        check_key_set(self.keys)
 
     def openapi_scheme(self) -> dict[str, object] | None:
         return {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
@@ -195,15 +225,17 @@ class JWTAuth[T](BearerAuth[T]):
         """The principal for verified claims, or ``None`` to refuse."""
 
     async def resolve_token(self, token: str) -> Principal[T] | None:
-        if not self.keys:
-            raise RuntimeError(f"{type(self).__name__} has no keys configured")
         rules = (self.now(), self.leeway, self.issuer, self.audience, self.require_exp)
         try:
             payload = native.jwt_decode(token, [k.spec() for k in self.keys], rules)
         except ValueError as reason:
             log.debug("token rejected: %s", reason)
             return None
-        claims = native.decode_json(payload)
+        try:
+            claims = native.decode_json(payload)
+        except ValueError:
+            log.debug("token rejected: payload is not decodable")
+            return None
         return await self.resolve_claims(claims)
 
     def issue(self, claims: dict[str, Any], ttl: int = 900) -> str:
@@ -213,8 +245,10 @@ class JWTAuth[T](BearerAuth[T]):
         signer = next((k for k in self.keys if not k.public), None)
         if signer is None:
             raise RuntimeError("no signing key is configured")
+        if not 1 <= ttl <= MAX_TTL:
+            raise ValueError(f"ttl must be between 1 and {MAX_TTL} seconds")
         now = self.now()
-        body: dict[str, Any] = {"iat": now, "exp": now + ttl, **claims}
+        body: dict[str, Any] = {**claims, "iat": now, "exp": now + ttl}  # server wins
         if self.issuer is not None:
             body.setdefault("iss", self.issuer)
         if self.audience is not None:
