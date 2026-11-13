@@ -7,9 +7,8 @@ server cannot publish it by accident. All tools are read-only; there is no tool
 to change rules, waivers or code, and checks with side effects are never run.
 Every result carries ``tool_version``.
 
-Not verified against a real MCP client: the method names and result shapes
-follow the published specification as the author knows it; run a client against
-it before relying on compatibility.
+Verified against the official `mcp` Python client (initialize, tools/list and
+tools/call over stdio): `tests/mcpclient/verify.py`. Other clients are untested.
 """
 
 from __future__ import annotations
