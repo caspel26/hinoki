@@ -83,7 +83,7 @@ Per rule: a passing and a failing fixture with the exact diagnostic (ID, locatio
 | R3 (done) | Static `Imports.forbid`, project loading | `python/hinoki/rules.py`, `python/hinoki/imports.py` |
 | R4 (done) | Waivers (`hinoki-rules.toml`) and `python -m hinoki check` | `python/hinoki/waivers.py`, `python/hinoki/__main__.py` |
 | R5 (done) | Development MCP server and tools | `python/hinoki/mcp.py` |
-| R6 | Independent review (rules decide what passes CI; MCP exposes the project), fixes, docs, handoff | — |
+| R6 (done) | Independent review (rules decide what passes CI; MCP exposes the project), fixes, docs, handoff | — |
 
 ## Open (owner)
 
@@ -95,3 +95,15 @@ Whether `enforce` should default to on when a `RuleSet` is passed (recommended: 
 * A test proves `hinoki.mcp` is not in `sys.modules` after building and serving a `HinokiAPI`; the command loads it lazily.
 * Effectful rules are never run through the server (no `allow_effects`). Waivers are read only. `--models` optionally lists modules whose models `inspect_project` describes.
 * **Not verified against a real MCP client**; the shapes follow the specification from the author's knowledge. `run_scenario` and the application MCP stay out of scope.
+
+## Review outcome (R6)
+
+An independent read-only review (Opus-class) found 2 high, 8 medium and 8 low defects. Fixed, each with a regression in `tests/reviewrulestest.py`:
+
+* **Identity:** an action is named after the API class it is mounted on (`pkg.Posts.remove`), not the base class that defines the handler, so inherited actions are matched, waived and explained separately. `except_` patterns match the full qualified name only (`*.health`, never a bare `health`).
+* **Fail closed:** a rule that could not run (needs effects, crashed, `SystemExit`, matched nothing, scanned nothing, return type too open to check) is an `unverifiable` **error**; its diagnostic has an empty subject, which no waiver can cover. `check --allow-effects` runs effectful rules; the MCP never does.
+* **Waivers:** wildcard targets need a literal prefix of at least 5 characters containing a `.`; fields must be text; an explicit `--waivers` path that does not exist is an error; `list_rules` reports the waiver file path and whether it exists.
+* **Rules:** exposure follows subclasses (the runtime serialises the actual subclass); dynamic imports resolve aliases, relative names with `package`/`__package__`, `fromlist` and keyword arguments.
+* **MCP:** application output cannot reach the protocol stream (stdout is redirected to stderr while serving); results are normalised to plain JSON; no input can end the loop; ids and params are checked strictly; notifications never get a reply; `explain_action` finds inherited actions by `Class.method`.
+
+Documented limits: JSON-RPC batches get one `-32600`; a failed `enforce()` reruns the rules on every later call (fails closed); unverifiable/refused diagnostics are not logged when `enforce_rules=False`; `--package a.b` imports `a` to locate it.

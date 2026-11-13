@@ -18,6 +18,7 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import fnmatch
+import re
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,7 @@ NAME = "hinoki-rules.toml"
 STALE = "HNK-WVR-001"
 EXPIRED = "HNK-WVR-002"
 REQUIRED = ("rule", "target", "reason", "owner")
+MIN_PREFIX = 5
 
 
 class WaiverError(ValueError):
@@ -47,12 +49,23 @@ class Waiver:
         return f"{self.reason} ({self.owner}{until})"
 
     def covers(self, diagnostic: Diagnostic) -> bool:
-        return self.rule == diagnostic.rule_id and fnmatch.fnmatchcase(
-            diagnostic.subject, self.target
+        """An empty subject marks "the rule could not do its job"; such a
+        diagnostic cannot be waived."""
+        return (
+            bool(diagnostic.subject)
+            and self.rule == diagnostic.rule_id
+            and fnmatch.fnmatchcase(diagnostic.subject, self.target)
         )
 
 
 def parse_waiver(index: int, raw: dict[str, Any]) -> Waiver:
+    wrong = [
+        key
+        for key in (*REQUIRED, "expires")
+        if key in raw and key != "expires" and not isinstance(raw[key], str)
+    ]
+    if wrong:
+        raise WaiverError(f"waiver #{index}: {', '.join(wrong)} must be text")
     missing = [key for key in REQUIRED if not str(raw.get(key, "")).strip()]
     if missing:
         raise WaiverError(f"waiver #{index}: missing {', '.join(missing)}")
@@ -60,8 +73,14 @@ def parse_waiver(index: int, raw: dict[str, Any]) -> Waiver:
     if unknown:
         raise WaiverError(f"waiver #{index}: unknown keys {sorted(unknown)}")
     target = str(raw["target"]).strip()
-    if target.strip("*?") == "":
-        raise WaiverError(f"waiver #{index}: the target {target!r} covers everything")
+    prefix = re.split(r"[*?\[]", target, maxsplit=1)[0]
+    bounded = prefix == target or ("." in prefix and len(prefix) >= MIN_PREFIX)
+    if not bounded:
+        raise WaiverError(
+            f"waiver #{index}: the target {target!r} is not bounded; start it "
+            f"with a literal module or action prefix of at least {MIN_PREFIX} "
+            "characters that contains a '.' (for example 'shop.api.*')"
+        )
     expires = raw.get("expires")
     if expires is not None and not isinstance(expires, datetime.date):
         raise WaiverError(f"waiver #{index}: expires must be a date such as 2027-01-31")

@@ -85,6 +85,11 @@ class Project:
 
 
 def qualified(route: Route) -> str:
+    """Stable identity of an action. An inherited action is named after the API
+    class it is mounted on, so two subclasses of one base never share a name."""
+    if route.owner is not None:
+        owner = route.owner
+        return f"{owner.__module__}.{owner.__qualname__}.{route.handler.__name__}"
     return f"{route.handler.__module__}.{route.handler.__qualname__}"
 
 
@@ -121,8 +126,10 @@ class Rule:
         message: str,
         location: str,
         status: Status = Status.VIOLATED,
-        subject: str = "",
+        subject: str | None = None,
     ) -> Diagnostic:
+        """``subject`` identifies the thing for waivers; an empty subject marks a
+        diagnostic that cannot be waived (the rule could not do its job)."""
         return Diagnostic(
             self.id,
             self.severity,
@@ -131,7 +138,7 @@ class Rule:
             location,
             self.explanation,
             status,
-            subject or location,
+            location if subject is None else subject,
         )
 
     def describe(self) -> dict[str, Any]:
@@ -183,19 +190,20 @@ class RuleSet:
 def refused(rule: Rule) -> Diagnostic:
     return Diagnostic(
         rule.id,
-        Severity.WARNING,
+        Severity.ERROR,
         rule.phase,
-        f"not run: it needs {', '.join(rule.effects)}",
+        f"not run: it needs {', '.join(rule.effects)} (pass --allow-effects)",
         rule.id,
         rule.explanation,
         Status.UNVERIFIABLE,
+        "",
     )
 
 
 def run_rule(rule: Rule, project: Project) -> list[Diagnostic]:
     try:
         return list(rule.check(project))
-    except Exception as exc:
+    except (Exception, SystemExit) as exc:  # a rule may call sys.exit
         return [
             Diagnostic(
                 rule.id,
@@ -205,6 +213,7 @@ def run_rule(rule: Rule, project: Project) -> list[Diagnostic]:
                 rule.id,
                 rule.explanation,
                 Status.UNVERIFIABLE,
+                "",
             )
         ]
 
@@ -219,10 +228,10 @@ def failing(diagnostics: Iterable[Diagnostic]) -> list[Diagnostic]:
 
 
 def matches(route: Route, patterns: Iterable[str]) -> bool:
-    names = {qualified(route), route.handler.__qualname__, route.handler.__name__}
-    return any(
-        fnmatch.fnmatchcase(name, pattern) for name in names for pattern in patterns
-    )
+    """``fnmatch`` against the action's full qualified name (so ``health`` alone
+    never exempts a ``health`` action in another module; write ``*.health``)."""
+    name = qualified(route)
+    return any(fnmatch.fnmatchcase(name, pattern) for pattern in patterns)
 
 
 class RequireAccess(Rule):
@@ -241,8 +250,12 @@ class RequireAccess(Rule):
         return f"Actions.require_access(match={self.match!r}, except_={skipped})"
 
     def check(self, project: Project) -> Iterator[Diagnostic]:
+        hit = 0
         for route in project.app.routes:
-            if not matches(route, [self.match]) or matches(route, self.exceptions):
+            if not matches(route, [self.match]):
+                continue
+            hit += 1
+            if matches(route, self.exceptions):
                 continue
             if route.access is None:
                 yield self.diagnostic(
@@ -251,6 +264,13 @@ class RequireAccess(Rule):
                     where(route.handler),
                     subject=qualified(route),
                 )
+        if self.match != "*" and hit == 0:
+            yield self.diagnostic(
+                f"match={self.match!r} names no action, so nothing was checked",
+                self.id,
+                Status.UNVERIFIABLE,
+                "",
+            )
 
 
 class RequireAtomic(Rule):
@@ -284,6 +304,13 @@ class RequireAtomic(Rule):
                 )
 
 
+def is_open(annotation: object) -> bool:
+    """The annotation does not say what is returned (missing, ``Any``, ``object``)."""
+    if annotation is None or annotation in {typing.Any, object}:
+        return True
+    return any(is_open(argument) for argument in typing.get_args(annotation))
+
+
 def schemas_in(annotation: object) -> Iterator[type[Schema]]:
     """Schema classes named by an annotation (through ``list``, ``Page``, unions)."""
     if isinstance(annotation, type) and issubclass(annotation, Schema):
@@ -293,8 +320,15 @@ def schemas_in(annotation: object) -> Iterator[type[Schema]]:
         yield from schemas_in(argument)
 
 
+def subclasses(schema: type[Schema]) -> Iterator[type[Schema]]:
+    for child in schema.__subclasses__():
+        yield child
+        yield from subclasses(child)
+
+
 def reachable(start: Iterable[type[Schema]]) -> Iterator[type[Schema]]:
-    """``start`` plus every schema nested in their fields, each once."""
+    """``start``, their subclasses (the runtime serialises the actual subclass)
+    and every schema nested in their fields, each once."""
     seen: set[type[Schema]] = set()
     pending = list(start)
     while pending:
@@ -302,6 +336,7 @@ def reachable(start: Iterable[type[Schema]]) -> Iterator[type[Schema]]:
         if schema in seen:
             continue
         seen.add(schema)
+        pending.extend(subclasses(schema))
         yield schema
         for spec in schema.specs().values():
             level: Any = spec.ftype
@@ -329,7 +364,16 @@ class ForbidExposure(Rule):
     def check(self, project: Project) -> Iterator[Diagnostic]:
         for route in project.app.routes:
             hints = typing.get_type_hints(route.handler)
-            returned = list(schemas_in(hints.get("return")))
+            annotation = hints.get("return", None)
+            if "return" not in hints or is_open(annotation):
+                yield self.diagnostic(
+                    f"{route.method} {route.path}: the return type does not name "
+                    "its schema, so exposure cannot be checked",
+                    where(route.handler),
+                    Status.UNVERIFIABLE,
+                    qualified(route),
+                )
+            returned = list(schemas_in(annotation))
             for schema in reachable(returned):
                 for name in sorted(self.fields & set(schema.specs())):
                     yield self.diagnostic(
@@ -362,12 +406,22 @@ class ForbidImports(Rule):
                 "no packages were given to scan (pass packages to the check)",
                 self.id,
                 Status.UNVERIFIABLE,
+                "",
             )
             return
+        scanned = 0
         for package in project.packages:
             for module, path in package_modules(package):
                 if within(module, self.source):
+                    scanned += 1
                     yield from self.scan(module, path)
+        if scanned == 0:
+            yield self.diagnostic(
+                f"no scanned module is under {self.source!r}; nothing was checked",
+                self.id,
+                Status.UNVERIFIABLE,
+                "",
+            )
 
     def scan(self, module: str, path: Path) -> Iterator[Diagnostic]:
         for found in imports_of(module, path):

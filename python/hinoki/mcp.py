@@ -26,7 +26,7 @@ from typing import Any, TextIO
 
 import hinoki
 from hinoki.app import HinokiAPI
-from hinoki.checkcli import build_app, build_rules
+from hinoki.checkcli import USAGE_ERRORS, build_app, build_rules
 from hinoki.migrations import models_of
 from hinoki.orm import Model
 from hinoki.routing import Route
@@ -36,6 +36,7 @@ from hinoki.waivers import NAME, apply_waivers, load_waivers
 TOOL_VERSION = 1
 PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PARSE_ERROR, INVALID_REQUEST, NO_METHOD, INVALID_PARAMS = -32700, -32600, -32601, -32602
+INTERNAL_ERROR = -32603
 
 Handler = Callable[[dict[str, Any]], dict[str, Any]]
 
@@ -50,6 +51,14 @@ class RpcError(Exception):
 
 class ToolFailure(Exception):
     """A tool could not do what was asked; reported as ``isError``, not a crash."""
+
+
+def names_of(route: Route) -> set[str]:
+    """Names an action answers to: full id, ``Class.method``, and the bare method
+    name (which may be ambiguous)."""
+    owner = route.owner.__qualname__ if route.owner is not None else ""
+    short = f"{owner}.{route.handler.__name__}" if owner else route.handler.__qualname__
+    return {qualified(route), short, route.handler.__name__}
 
 
 def describe_access(route: Route) -> dict[str, Any] | None:
@@ -111,11 +120,7 @@ class DevProject:
         self.today = today
 
     def find(self, name: str) -> Route:
-        matches = [
-            r
-            for r in self.app.routes
-            if name in {qualified(r), r.handler.__qualname__, r.handler.__name__}
-        ]
+        matches = [r for r in self.app.routes if name in names_of(r)]
         if not matches:
             raise ToolFailure(f"no action named {name!r}")
         if len(matches) > 1:
@@ -149,6 +154,10 @@ def tool_inspect_project(project: DevProject, _args: dict[str, Any]) -> dict[str
 def tool_list_rules(project: DevProject, _args: dict[str, Any]) -> dict[str, Any]:
     waivers = load_waivers(project.waivers)
     return {
+        "waiver_file": {
+            "path": str(project.waivers.resolve()),
+            "exists": project.waivers.is_file(),
+        },
         "rules": [rule.describe() for rule in project.rules.rules],
         "waivers": [
             {
@@ -178,7 +187,11 @@ def tool_explain_action(project: DevProject, args: dict[str, Any]) -> dict[str, 
         "signature": str(inspect.signature(route.handler)),
         "documentation": inspect.getdoc(route.handler) or "",
         "operation": operation,
-        "diagnostics": [d for d in diagnostics if d["subject"].startswith(subject)],
+        "diagnostics": [
+            d
+            for d in diagnostics
+            if d["subject"] == subject or d["subject"].startswith(subject + ".")
+        ],
     }
 
 
@@ -230,16 +243,29 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[..., dict[str, Any]]]] = {
 }
 
 
+def problem_of(message: dict[str, Any]) -> tuple[Any, int, str] | None:
+    """``(id, code, text)`` for the first thing wrong with a request."""
+    identifier = message.get("id")
+    if "id" in message and (
+        isinstance(identifier, bool) or not isinstance(identifier, str | int)
+    ):
+        return None, INVALID_REQUEST, "id must be a string or an integer"
+    if not isinstance(message.get("method"), str):
+        return identifier, INVALID_REQUEST, "missing method"
+    if "params" in message and not isinstance(message["params"], dict):
+        return identifier, INVALID_PARAMS, "params must be an object"
+    return None
+
+
 def check_message(message: Any) -> dict[str, Any] | None:
-    """An error response when ``message`` is not a valid request, else ``None``."""
+    """An error response when ``message`` is not a valid request, else ``None``.
+    An invalid notification gets no answer at all."""
     if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
         return failure(None, INVALID_REQUEST, "expected a JSON-RPC 2.0 object")
-    identifier = message.get("id")
-    if not isinstance(message.get("method"), str):
-        return failure(identifier, INVALID_REQUEST, "missing method")
-    if not isinstance(message.get("params") or {}, dict):
-        return failure(identifier, INVALID_PARAMS, "params must be an object")
-    return None
+    found = problem_of(message)
+    if found is None or ("id" not in message and found[1] != INVALID_REQUEST):
+        return None
+    return failure(*found)
 
 
 def reply(identifier: Any, result: dict[str, Any]) -> dict[str, Any]:
@@ -325,11 +351,25 @@ class Server:
         except Exception as exc:
             message = f"{type(exc).__name__}: {exc}"
             data, error = {"tool_version": TOOL_VERSION, "error": message}, True
+        data = json.loads(json.dumps(data, default=str))  # always plain JSON
         return {
             "content": [{"type": "text", "text": json.dumps(data, indent=2)}],
             "structuredContent": data,
             "isError": error,
         }
+
+
+def answer_line(server: Server, line: str) -> dict[str, Any] | None:
+    """The response for one input line; no input can make this raise."""
+    try:
+        message = json.loads(line)
+    except (ValueError, RecursionError):
+        return failure(None, PARSE_ERROR, "invalid JSON")
+    try:
+        return server.handle(message)
+    except Exception:  # the loop must survive any one message
+        identifier = message.get("id") if isinstance(message, dict) else None
+        return failure(identifier, INTERNAL_ERROR, "internal error")
 
 
 def serve(server: Server, source: TextIO, sink: TextIO) -> None:
@@ -338,12 +378,7 @@ def serve(server: Server, source: TextIO, sink: TextIO) -> None:
     for line in source:
         if not line.strip():
             continue
-        try:
-            message = json.loads(line)
-        except ValueError:
-            answer: dict[str, Any] | None = failure(None, PARSE_ERROR, "invalid JSON")
-        else:
-            answer = server.handle(message)
+        answer = answer_line(server, line)
         if answer is not None:
             sink.write(json.dumps(answer) + "\n")
             sink.flush()
@@ -360,8 +395,13 @@ def run_mcp(args: argparse.Namespace) -> int:
             tuple(args.models or ()),
             Path(args.waivers) if args.waivers else None,
         )
-    except (ImportError, AttributeError, ValueError, TypeError) as exc:
+    except (*USAGE_ERRORS, SystemExit) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    serve(Server(project), sys.stdin, sys.stdout)
+    # Application code run by rules must not write into the protocol stream.
+    protocol, sys.stdout = sys.stdout, sys.stderr
+    try:
+        serve(Server(project), sys.stdin, protocol)
+    finally:
+        sys.stdout = protocol
     return 0

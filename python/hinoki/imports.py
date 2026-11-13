@@ -31,7 +31,7 @@ class Import:
 
 def package_modules(package: str) -> Iterator[tuple[str, Path]]:
     """``(module name, file)`` for every ``.py`` file of a top-level package."""
-    spec = importlib.util.find_spec(package)  # a top-level name imports nothing
+    spec = importlib.util.find_spec(package)  # a dotted name imports its parents
     if spec is None or not spec.submodule_search_locations:
         raise ValueError(f"cannot find package {package!r}")
     for location in spec.submodule_search_locations:
@@ -54,21 +54,65 @@ def absolute(module: str, is_package: bool, level: int, name: str | None) -> str
     return ".".join([*base, *([name] if name else [])])
 
 
-def literal(call: ast.Call) -> str | None:
-    if call.args and isinstance(call.args[0], ast.Constant):
-        value = call.args[0].value
-        return value if isinstance(value, str) else None
+def text_of(node: ast.expr | None) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
     return None
 
 
-def dynamic_target(call: ast.Call) -> tuple[bool, str] | None:
-    """``(True, name)`` for a dynamic import call, ``None`` for any other call.
-    ``name`` is empty when the module name is not a string literal."""
+def call_name(call: ast.Call) -> str:
     func = call.func
-    name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
-    if name not in DYNAMIC_CALLS:
+    return func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+
+
+def argument(call: ast.Call, position: int, keyword: str) -> ast.expr | None:
+    if len(call.args) > position:
+        return call.args[position]
+    return next((k.value for k in call.keywords if k.arg == keyword), None)
+
+
+def dynamic_targets(
+    call: ast.Call, module: str, is_package: bool, names: set[str]
+) -> list[str] | None:
+    """Modules a dynamic import call names, ``[""]`` when it cannot be told, and
+    ``None`` when the call is not an import. ``names`` holds the local aliases of
+    ``import_module`` / ``__import__`` found in the file."""
+    name = call_name(call)
+    if name not in DYNAMIC_CALLS and name not in names:
         return None
-    return True, literal(call) or ""
+    wanted = text_of(argument(call, 0, "name"))
+    if wanted is None:
+        return [""]
+    if wanted.startswith("."):
+        anchor = argument(call, 1, "package")
+        package = text_of(anchor)
+        if (
+            package is None
+            and isinstance(anchor, ast.Name)
+            and anchor.id == "__package__"
+        ):
+            package = module if is_package else module.rpartition(".")[0]
+        if package is None:
+            return [""]
+        wanted = absolute(
+            package, True, len(wanted) - len(wanted.lstrip(".")), wanted.lstrip(".")
+        )
+    found = [wanted]
+    listed = argument(call, 3, "fromlist") if name == "__import__" else None
+    if isinstance(listed, ast.List | ast.Tuple):
+        found += [f"{wanted}.{text_of(i)}" for i in listed.elts if text_of(i)]
+    return found
+
+
+def aliases(tree: ast.AST) -> set[str]:
+    """Local names bound to ``import_module`` / ``__import__``."""
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            names.update(
+                a.asname for a in node.names if a.asname and a.name in DYNAMIC_CALLS
+            )
+    return names
 
 
 def imports_of(module: str, path: Path) -> Iterator[Import]:
@@ -77,6 +121,7 @@ def imports_of(module: str, path: Path) -> Iterator[Import]:
     shown = os.path.relpath(path)
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     is_package = path.name == "__init__.py"
+    local = aliases(tree)
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
@@ -87,9 +132,8 @@ def imports_of(module: str, path: Path) -> Iterator[Import]:
             for alias in node.names:  # `from pkg import sub` may import pkg.sub
                 yield Import(module, f"{base}.{alias.name}", shown, node.lineno)
         elif isinstance(node, ast.Call):
-            found = dynamic_target(node)
-            if found is not None:
-                yield Import(module, found[1], shown, node.lineno)
+            for target in dynamic_targets(node, module, is_package, local) or []:
+                yield Import(module, target, shown, node.lineno)
 
 
 def within(name: str, prefix: str) -> bool:

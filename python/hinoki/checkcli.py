@@ -95,10 +95,13 @@ def run_check(args: argparse.Namespace, today: datetime.date | None = None) -> i
         rules = build_rules(args.rules, app)
         project = Project(app, tuple(args.package or ()))
         phase = Phase(args.phase) if args.phase else None
-        waivers = load_waivers(Path(args.waivers or NAME))
-        found = rules.run(project, phase)
+        wanted = Path(args.waivers or NAME)
+        if args.waivers and not wanted.is_file():
+            raise WaiverError(f"waiver file {wanted} does not exist")
+        waivers = load_waivers(wanted)
+        found = rules.run(project, phase, allow_effects=args.allow_effects)
         found = apply_waivers(found, waivers, today or datetime.date.today())
-    except (*USAGE_ERRORS, WaiverError) as exc:
+    except (*USAGE_ERRORS, WaiverError, SystemExit) as exc:  # factories may exit
         print(f"error: {exc}", file=sys.stderr)
         return 2
     print(render(found, len(rules.rules), args.format))
@@ -115,6 +118,11 @@ def add_arguments(
     check.add_argument("--phase", choices=[p.value for p in Phase])
     check.add_argument("--waivers", help=f"waiver file (default ./{NAME})")
     check.add_argument("--format", choices=["text", "json"], default="text")
+    check.add_argument(
+        "--allow-effects",
+        action="store_true",
+        help="also run rules that execute code or touch files, network or databases",
+    )
 
     server = commands.add_parser(
         "mcp", help="serve read-only project context over MCP (stdio)"
