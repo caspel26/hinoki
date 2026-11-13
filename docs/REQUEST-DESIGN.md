@@ -1,6 +1,6 @@
 # Request object, parsers and renderers — design (Q008)
 
-Status: **S1 design, S2, S3 and S4 implemented** (2026-11-13): `Request` (Python), request-first binding, Rust query/cookie/header parsing and JSON decode/encode, parsers (JSON, form, multipart) with `parsers=`. S5–S7 not started. Owner request: a Django-style request, pluggable parsers and renderers, the request as the first argument of every handler, all of it Rust-based.
+Status: **S1 design, S2–S5 implemented** (2026-11-13): `Request` (Python), request-first binding, Rust query/cookie/header parsing and JSON decode/encode, parsers (JSON, form, multipart) with `parsers=`, renderers with `renderers=` and Rust `Accept` negotiation. S6–S7 open. Owner request: a Django-style request, pluggable parsers and renderers, the request as the first argument of every handler, all of it Rust-based.
 
 ## Observed
 
@@ -94,7 +94,7 @@ Empty body with a body schema → 422 as today; missing/unknown `Content-Type` �
 | S2 (done) | `Request` (Python class, read-only, lazy) and request-first handler binding; rewrite handlers, tests, blog, CRUD templates | `python/hinoki/request.py`, `runtime/binding.py`, `runtime/requests.py`, `crud.py`, `examples/`, `tests/` |
 | S3 (done) | Rust query/header/cookie parsing and JSON parse/serialise; swap Python implementations behind the same interface | `crates/bindings/src/request.rs`, `python/hinoki/runtime/` |
 | S4 (done) | Parsers: form + multipart in Rust, `parsers=` option, limits as settings | `crates/bindings/src/parse.rs`, `routing.py`, `settings` |
-| S5 | Renderers: `renderers=`, `Accept` negotiation, 406, OpenAPI media types | `runtime/responses.py`, `openapi.py` |
+| S5 (done) | Renderers: `renderers=`, `Accept` negotiation, 406, OpenAPI media types | `runtime/responses.py`, `openapi.py` |
 | S6 | `Request` as a Rust `#[pyclass]` if S3 measurements justify it; benchmark and report | `crates/bindings`, `benchmarks/` |
 | S7 | Independent review (request handling touches authentication and untrusted input), fixes, docs, handoff | — |
 
@@ -120,3 +120,10 @@ Whether the default parser set should include form/multipart (recommended: JSON 
 * `parsers=[...]` is an option on every method decorator (default JSON only); the request chooses the parser by bare media type, answers 415 `unsupported_media_type` listing what is accepted, 400 with the parser's code (`invalid_json`, `invalid_form`, `invalid_multipart`). Lists are checked at declaration (non-empty, distinct media types). OpenAPI lists one request media type per parser with the same schema (it does not model file parts).
 * A `Schema` body parameter validates `request.data`: for forms and multipart that is each field's last value as text, so non-string fields fail strict validation (no coercion). `request.POST` / `request.FILES` are empty when the content type is not one of the action's parsers.
 * Not done: streaming/spooling to disk (uploads are held in memory within the 1 MiB cap), RFC 5987 `filename*`, a configurable body limit, nested multipart.
+
+## Implementation notes (S5)
+
+* `python/hinoki/renderers.py`: `Renderer` base, `JSONRenderer` (default, Rust encoder). `renderers=[...]` is an option on every method decorator, checked at declaration like `parsers`. Negotiation is `negotiate` in `crates/bindings/src/request.rs` (quality values, `type/*` and `*/*`, specificity, then declaration order; `q=0` excludes; malformed `q` drops that range).
+* The renderer is chosen after authentication and before the body is read, so an unacceptable `Accept` answers 406 `not_acceptable` (with the available types) without running the handler or any transaction. Actions with more than one renderer add `Vary: Accept`.
+* Deviation from the design text: **error bodies are always JSON**, whatever `Accept` says; negotiating errors adds failure modes (a renderer raising while reporting an error) for little value. A handler cannot return a raw `Response` yet, so the "explicit Response bypasses negotiation" clause does not apply.
+* OpenAPI lists one response media type per renderer with the handler's return schema; custom renderers that change the shape must document it themselves.

@@ -27,6 +27,15 @@ class Response:
     headers: Headers = field(default_factory=list)
 
     @classmethod
+    def rendered(
+        cls, status: int, body: bytes, media_type: str, vary: bool
+    ) -> Response:
+        head: Headers = [(b"content-type", media_type.encode())]
+        if vary:
+            head.append((b"vary", b"accept"))
+        return cls(status, body, head)
+
+    @classmethod
     def json(
         cls, status: int, payload: object, headers: Headers | None = None
     ) -> Response:

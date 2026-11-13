@@ -282,6 +282,71 @@ pub fn parse_multipart_body<'py>(
     Ok((fields, files))
 }
 
+/// Pick the best of `available` for an `Accept` header (RFC 9110 §12.5.1):
+/// highest quality, then most specific matching range, then earliest in
+/// `available`. `None` when nothing is acceptable; an empty header accepts
+/// anything, so the first entry wins.
+pub fn negotiate(accept: &str, available: &[String]) -> Option<usize> {
+    if accept.trim().is_empty() {
+        return if available.is_empty() { None } else { Some(0) };
+    }
+    let ranges: Vec<(String, f32)> = accept
+        .split(',')
+        .filter_map(|item| {
+            let mut pieces = item.split(';');
+            let media = pieces.next()?.trim().to_lowercase();
+            if media.is_empty() {
+                return None;
+            }
+            let mut quality = 1.0_f32;
+            for param in pieces {
+                if let Some((name, value)) = param.split_once('=') {
+                    if name.trim().eq_ignore_ascii_case("q") {
+                        quality = value.trim().parse::<f32>().ok()?.clamp(0.0, 1.0);
+                    }
+                }
+            }
+            Some((media, quality))
+        })
+        .collect();
+    let mut best: Option<(f32, u8, usize)> = None;
+    for (index, offered) in available.iter().enumerate() {
+        let offered = offered.to_lowercase();
+        let group = offered.split('/').next().unwrap_or("");
+        let matched = ranges
+            .iter()
+            .filter_map(|(media, quality)| {
+                let specificity = if *media == offered {
+                    3
+                } else if media.strip_suffix("/*") == Some(group) {
+                    2
+                } else if media == "*/*" {
+                    1
+                } else {
+                    return None;
+                };
+                Some((specificity, *quality))
+            })
+            .max_by_key(|(specificity, _)| *specificity);
+        if let Some((specificity, quality)) = matched {
+            let better = match best {
+                None => true,
+                Some((q, spec, _)) => quality > q || (quality == q && specificity > spec),
+            };
+            if quality > 0.0 && better {
+                best = Some((quality, specificity, index));
+            }
+        }
+    }
+    best.map(|(_, _, index)| index)
+}
+
+/// Index into `available` of the best match for an `Accept` header, or `None`.
+#[pyfunction]
+pub fn negotiate_media(accept: &str, available: Vec<String>) -> Option<usize> {
+    negotiate(accept, &available)
+}
+
 #[pyfunction]
 pub fn parse_query_string(py: Python<'_>, raw: &[u8]) -> PyResult<Py<PyDict>> {
     let pairs = parse_query(raw).map_err(PyValueError::new_err)?;
@@ -755,5 +820,37 @@ mod tests {
         .is_err());
         assert!(parse_multipart(ok, "", 1, 3).is_err());
         assert!(parse_multipart(ok, &"b".repeat(71), 1, 3).is_err());
+    }
+
+    fn offered(types: &[&str]) -> Vec<String> {
+        types.iter().map(|t| (*t).to_owned()).collect()
+    }
+
+    #[test]
+    fn accept_prefers_quality_then_specificity_then_order() {
+        let both = offered(&["application/json", "text/csv"]);
+        assert_eq!(negotiate("", &both), Some(0));
+        assert_eq!(negotiate("*/*", &both), Some(0));
+        assert_eq!(negotiate("text/csv", &both), Some(1));
+        assert_eq!(
+            negotiate("text/*;q=0.5, application/json;q=0.4", &both),
+            Some(1)
+        );
+        assert_eq!(negotiate("*/*;q=0.1, text/csv", &both), Some(1));
+        assert_eq!(negotiate("application/*, text/csv", &both), Some(1));
+        assert_eq!(negotiate("TEXT/CSV ; Q=0.9", &both), Some(1));
+    }
+
+    #[test]
+    fn accept_refuses_what_it_excludes() {
+        let both = offered(&["application/json", "text/csv"]);
+        assert_eq!(negotiate("text/html", &both), None);
+        assert_eq!(negotiate("application/json;q=0", &both), None);
+        assert_eq!(negotiate("*/*, application/json;q=0", &both), Some(1));
+        assert_eq!(
+            negotiate("application/json;q=abc, text/csv", &both),
+            Some(1)
+        );
+        assert_eq!(negotiate("", &[]), None);
     }
 }
