@@ -146,26 +146,28 @@ ASGI delivers `lifespan.shutdown` only after the server has finished handling ac
 
 | # | Check | Status |
 | --- | --- | --- |
-| V1 | Startup failure → process exits ≠ 0, never ready | **observed** with a hand-written ASGI app (§1.1); to become a test against the real adapter |
-| V2 | Two workers → separate lifespans, separate pools | **observed** (PIDs, §1.1); pool isolation untested |
-| V3 | SIGTERM during request → request completes, then shutdown | **observed** (§1.1); deadline/forced-kill path untested |
-| V4 | Failure in module *k* closes 1…k-1 in reverse | pure-Python test with the coordinator (Q004 slice) |
-| V5 | Sync handler that sleeps does not block concurrent async requests | test with adapter + executor |
-| V6 | Executor full → 503 within bound, queue never exceeds `sync_queue` | test |
-| V7 | Timeout during DB query → rollback, connection not reused | needs ORM runtime |
-| V8 | Task group cancelled and awaited at shutdown | test |
-| V9 | Reload leaves no residual resources | `hinoki dev` smoke test |
-| V10 | Cost of Python↔Rust crossing, extra Tokio threads per worker | benchmark, retained baseline |
+| V1 | Startup failure → process exits ≠ 0, never ready | **tested** with the real adapter under Granian (`tests/runtime/granianhinokitest.py`) |
+| V2 | Two workers → separate lifespans | **tested** (distinct PIDs, one `start:gamma` per worker); pool isolation untested (no pools yet) |
+| V3 | SIGTERM during request → request completes, then shutdown | **tested** against Granian with a hand-written app; forced-kill/deadline path untested |
+| V4 | Failure in module *k* closes 1…k-1 in reverse | **tested** in-process and under Granian |
+| V5 | Sync handler that sleeps does not block concurrent async requests | **tested** under Granian (1 s sync handler, 10 async requests < 0.7 s) |
+| V6 | Executor full → fast 503, queue bounded | **tested** in-process (`executortest`, `asgitest`) |
+| V7 | Timeout during DB query → rollback, connection not reused | not started (needs ORM runtime) |
+| V8 | Task group cancelled and awaited at shutdown | **tested** in-process |
+| V9 | Reload leaves no residual resources | not started (`hinoki dev` does not exist) |
+| V10 | Cost of Python↔Rust crossing, extra Tokio threads per worker | not started (no benchmark) |
+
+"Tested" means one passing run on one machine (Linux, Granian 2.8.8), not a statistical or soak result.
 
 ## 9. Implementation steps (small, with file ownership)
 
 | Step | Deliverable | Owns | Depends on |
 | --- | --- | --- | --- |
-| R1 | `Module`, module graph (topo sort, cycle/missing/duplicate errors) | `python/hinoki/modules.py` | — |
-| R2 | Lifespan coordinator with `AsyncExitStack`, reverse cleanup, deadlines | `python/hinoki/runtime/lifespan.py` | R1 |
-| R3 | ASGI adapter (`lifespan` + `http`), failure messaging | `python/hinoki/runtime/asgi.py` | R2 |
-| R4 | Bounded sync executor + context copy | `python/hinoki/runtime/executor.py` | — |
-| R5 | Tests V1–V6, V8 using Granian as a dev dependency | `tests/runtime/` | R2–R4 |
+| R1 ✅ | `Module`, module graph (topo sort, cycle/missing/duplicate errors) | `python/hinoki/modules.py` | — |
+| R2 ✅ | Lifespan coordinator with `AsyncExitStack`, reverse cleanup, deadlines | `python/hinoki/runtime/lifespan.py` | R1 |
+| R3 ✅ | ASGI adapter (`lifespan` + `http`), failure messaging | `python/hinoki/runtime/asgi.py` | R2 ✅ |
+| R4 ✅ | Bounded sync executor + context copy | `python/hinoki/runtime/executor.py` | — |
+| R5 ✅ | Tests V1–V6, V8 using Granian as a dev dependency | `tests/runtime/` | R2–R4 |
 | R6 | Rust router + benchmark skeleton (V10) | `crates/http/`, `benchmarks/` | Q003 |
 | R7 | ORM runtime spike (Tokio + one query on disposable PostgreSQL) | `crates/orm/` | R3, Q004 |
 

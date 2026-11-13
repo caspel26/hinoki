@@ -24,11 +24,11 @@ Requires: uv ≥ 0.9, a stable Rust toolchain (rustup) with `rustfmt` and `clipp
 | Rust format / lints / tests | `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnings` · `cargo test --workspace` |
 | All hooks | `uv run --locked pre-commit run --all-files` |
 
-Not available yet (do not report as passed): real-DB tests, generated-OpenAPI checks, wheel/packaging check, benchmarks.
+Not available yet (do not report as passed): real-DB tests, generated-OpenAPI checks, benchmarks.
 
 ## Decisions
 
-* **Python ≥ 3.12**, dev interpreter 3.13 (`.python-version`), CI 3.12 + 3.13, abi3 wheels — see [ADR 0004](adr/0004-python-version-and-build-backend.md).
+* **Python ≥ 3.12**, dev interpreter 3.13 (`.python-version`), CI 3.12, 3.13 and 3.14, abi3 wheels (smoke-tested in a clean 3.12 env by the `wheel` CI job) — see [ADR 0004](adr/0004-python-version-and-build-backend.md).
 * **Ruff** is the only linter/formatter (`ruff check` with `--fix`, then `ruff format`), version pinned in `pyproject.toml` (`lint` group) and in `.pre-commit-config.yaml`; keep them equal when bumping. `framework-handoff/` is excluded.
 * **mypy --strict** is the separate type check. No overlapping tools (no black, isort, flake8, pylint).
 * **maturin** is the build backend (`python-source = "python"`, extension `hinoki.native`); uv rebuilds when Rust sources change (`tool.uv.cache-keys`).
@@ -49,5 +49,5 @@ Not available yet (do not report as passed): real-DB tests, generated-OpenAPI ch
 | Rebuild after changing Rust | `uv sync --locked` (or any `uv run`) | `tool.uv.cache-keys` watches `crates/**/*.rs` and `Cargo.toml`; uv reinstalls when they change. Observed: touching `router.rs` made `uv run` rebuild |
 | Force a rebuild | `uv sync --locked --reinstall-package hinoki` | use if in doubt; syncing Python deps alone does not prove the extension is current |
 | Release-profile editable build | `uv run --locked maturin develop --release` | needs `maturin` on PATH (`uvx maturin` works) |
-| Wheel | `uv build --wheel` | abi3 (`cp312-abi3`) wheel in `dist/`; verified locally, not yet a CI gate |
+| Wheel | `uv build --wheel` | abi3 (`cp312-abi3`) wheel in `dist/`; built and import-tested by the `wheel` CI job |
 | Rust-only loop | `cargo test --workspace` | no Python needed |
