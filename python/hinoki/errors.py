@@ -55,3 +55,20 @@ class InvalidBody(Exception):
         super().__init__(message)
         self.code = code
         self.message = message
+
+
+class ModelError(Exception):
+    """Base class for ORM errors that make sense without HTTP."""
+
+
+class ObjectNotFound(ModelError):
+    """A query that must return one row returned none. Each model has its own
+    subclass as ``Model.NotFound``; HTTP maps it to 404."""
+
+
+class MultipleObjectsReturned(ModelError):
+    """A query that must return one row returned several."""
+
+
+class FieldError(ModelError, ValueError):
+    """A query or write names a field the model does not have."""
