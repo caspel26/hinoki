@@ -22,7 +22,7 @@ from hinoki.request import Request
 from hinoki.routing import Route, delete, get, patch, post, put
 from hinoki.rules import Actions, Imports, Schemas, Transactions
 from hinoki.runtime.config import RuntimeConfig
-from hinoki.schema import UNSET, Field, Schema, Unset
+from hinoki.schema import UNSET, Contract, Field, Schema, Unset
 
 __version__ = core_version()
 
@@ -37,6 +37,7 @@ __all__ = [
     "BaseAuth",
     "BearerAuth",
     "Conflict",
+    "Contract",
     "Field",
     "Forbidden",
     "FormParser",

@@ -93,3 +93,22 @@ Template engine: own placeholders (recommended for now) versus Jinja2. Whether a
 Checked per engine: Swagger UI and ReDoc render the document; list, search, pagination, create with validation errors, edit, delete confirmation and delete through real form submissions; a forged CSRF token is refused; `can()` hides the add page for users; no horizontal page scroll and every input labelled at 1440×900, 390×844, 360×740 and 320×640 on the dashboard, list and form; keyboard path (skip link, focus to content, Tab to the search field, visible outline, Enter submits); dark scheme. Screenshots were inspected by eye: the first run showed an over-tall header bar, wrapped slugs on phones and long timestamps, all fixed (CSS grid rows, no-wrap cells, shorter dates), and the admin pages appearing in the API reference, fixed by excluding HTML routes from OpenAPI.
 
 Limits of this verification: touch gestures were not exercised (the slice has none), screen readers were not used, and the contrast of the dark scheme was judged by eye, not measured.
+
+## Theme guide
+
+A theme is a `Theme(name, label, edit, light, dark, fixed, default_mode, extra_css)` (`python/hinoki/admin/themes.py`). Every component template and `ui/base.css` use only `--hn-*` custom properties, so a theme restyles all pages by supplying tokens:
+
+* **Colour tokens** (for each of `light` and `dark`, all required): `bg`, `surface`, `surface-2`, `sidebar-bg`, `topbar-bg`, `text`, `muted`, `line`, `line-strong`, `hover`, `accent`, `accent-hover`, `accent-ink` (text on the accent), `accent-text` (accent used as text), `accent-soft`, `accent-soft-ink`, `ok-bg`/`ok-ink`, `warn-bg`/`warn-ink`, `danger`, `danger-on`, `danger-bg`/`danger-ink`, `focus`, `avatar-bg`/`avatar-ink`, `shadow`.
+* **Fixed tokens**: `font`, `font-size`, `radius`, `radius-sm`, `radius-lg`, `nav-pad`, `cell-pad`, `h1`, `sidebar-w`, `drawer-w`.
+* **Layout**: `edit="drawer"` opens the edit form beside the list, `"page"` on its own page. `default_mode="dark"` makes a theme dark unless the user switches.
+* **Check contrast yourself**: accent text on the accent background and body text on surfaces should reach WCAG AA (4.5:1). The four built-in themes were judged by eye, not measured.
+
+```python
+from hinoki.admin import THEMES, Admin, Theme
+
+mine = Theme("ocean", "Ocean", "drawer", light=THEMES["studio"].light | {"accent": "#0b6e8a"},
+             dark=THEMES["studio"].dark, fixed=THEMES["studio"].fixed)
+admin = Admin(access=staff, secret=secret, theme=mine)
+```
+
+Beyond tokens: `Admin(templates="dir")` lets an application override any component (`dir/components/<name>.html`, same placeholders) and append CSS (`dir/admin.css`, loaded last). The component names and their variables are listed by the files in `python/hinoki/admin/ui/components`.
