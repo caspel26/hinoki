@@ -12,6 +12,8 @@ from concurrent.futures import ThreadPoolExecutor
 from types import TracebackType
 from typing import ParamSpec, TypeVar
 
+from hinoki import context
+
 P = ParamSpec("P")
 R = TypeVar("R")
 
@@ -63,8 +65,11 @@ class SyncExecutor:
             raise ExecutorSaturated
         loop = asyncio.get_running_loop()
         self.in_flight += 1
-        # Copy on the loop thread so request-scoped ContextVars follow the call.
-        call = functools.partial(contextvars.copy_context().run, fn, *args, **kwargs)
+        # Copy on the loop thread so request-scoped ContextVars follow the call;
+        # the loop travels with it so sync model methods can reach the database.
+        scope = contextvars.copy_context()
+        scope.run(context.event_loop.set, loop)
+        call = functools.partial(scope.run, fn, *args, **kwargs)
         try:
             future = pool.submit(call)
         except BaseException:
