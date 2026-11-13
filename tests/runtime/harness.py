@@ -18,16 +18,22 @@ def free_port() -> int:
 
 
 def spawn(
-    target: str, log: Path, port: int, workers: int = 1, **env: str
+    target: str,
+    log: Path,
+    port: int,
+    workers: int = 1,
+    factory: bool = False,
+    cwd: Path = HERE,
+    **env: str,
 ) -> subprocess.Popen[bytes]:
     environment = {**os.environ, "EXP_LOG": str(log), **env}
     command = [
         sys.executable, "-m", "granian", "--interface", "asgi",
         "--workers", str(workers), "--port", str(port),
-        "--no-log", target,
+        "--no-log", *(["--factory"] if factory else []), target,
     ]  # fmt: skip
     return subprocess.Popen(
-        command, cwd=HERE, env=environment, stdout=subprocess.DEVNULL
+        command, cwd=cwd, env=environment, stdout=subprocess.DEVNULL
     )
 
 
