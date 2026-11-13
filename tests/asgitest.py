@@ -10,7 +10,7 @@ from uuid import UUID
 import pytest
 
 from hinoki import API, HinokiAPI, RegistrationError, RuntimeConfig, context, get, post
-from hinoki.runtime.asgi import MAX_BODY
+from hinoki.runtime.requests import MAX_BODY
 from tests.harness import Client, Pool
 
 release = threading.Event()

@@ -43,6 +43,7 @@ class Client:
         raw_path: bytes | None = None,
         query: str = "",
         content_type: str | None = None,
+        headers: dict[str, str] | None = None,
     ) -> Reply:
         incoming = {"type": "http.request", "body": body, "more_body": False}
         scope: dict[str, Any] = {
@@ -50,9 +51,7 @@ class Client:
             "method": method,
             "path": path,
             "query_string": query.encode(),
-            "headers": [(b"content-type", content_type.encode())]
-            if content_type
-            else [],
+            "headers": request_headers(headers, content_type),
         }
         if raw_path is not None:
             scope["raw_path"] = raw_path
@@ -62,6 +61,15 @@ class Client:
         headers = {k.decode(): v.decode() for k, v in start["headers"]}
         raw = end["body"]
         return Reply(start["status"], headers, json.loads(raw) if raw else None)
+
+
+def request_headers(
+    headers: dict[str, str] | None, content_type: str | None
+) -> list[tuple[bytes, bytes]]:
+    merged = dict(headers or {})
+    if content_type:
+        merged["content-type"] = content_type
+    return [(k.encode(), v.encode()) for k, v in merged.items()]
 
 
 class Feed:
