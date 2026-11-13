@@ -122,7 +122,7 @@ jobs:
 
           assert T.validate({"name": "x"}).name == "x"
           assert native.encode_json(T(name="x")) == b'{"name":"x"}'
-          assert len(Templates(theme="midnight").stylesheet()) > 1000
+          assert len(Templates(theme="console").stylesheet()) > 1000
           assert len(pages("/o", "/d", "/r")) == 6
           assert native.verify_password("a", native.hash_password("a", 19456, 2, 1))
           print("wheel smoke ok")
