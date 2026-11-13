@@ -1,0 +1,8 @@
+<form method="post" action="{{ action }}" class="confirm">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<p>{{ message }}</p>
+<p class="actions">
+<button class="btn btn-danger" type="submit">Delete</button>
+<a class="btn" href="{{ cancel }}">Cancel</a>
+</p>
+</form>

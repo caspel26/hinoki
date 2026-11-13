@@ -1,0 +1,16 @@
+<form class="search" method="get" action="{{ action }}" role="search">
+<label for="q">Search</label>
+<input id="q" name="q" type="search" value="{{ query }}" autocomplete="off">
+<button class="btn" type="submit">Search</button>
+</form>
+<p class="actions">{{{ add }}}</p>
+<div class="scroll" tabindex="0" role="region" aria-label="{{ caption }}">
+<table>
+<caption class="visually-hidden">{{ caption }}</caption>
+<thead><tr>{{{ head }}}</tr></thead>
+<tbody>
+{{{ rows }}}
+</tbody>
+</table>
+</div>
+<nav class="pager" aria-label="Pages">{{{ pager }}}</nav>
