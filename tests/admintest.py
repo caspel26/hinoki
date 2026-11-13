@@ -427,7 +427,9 @@ async def test_list_search_tabs_sorting_paging_and_escaping(
         and "alpha" not in done.body
         and "Open" not in done.body.split("<tbody>")[1]
     )
-    ordered = await get(sort="title", dir="desc")
+    # only "alpha" and "beta" contain an "a": the order must not depend on how the
+    # database collates punctuation and digits (it differs between images)
+    ordered = await get(sort="title", dir="desc", q="a")
     assert ordered.body.index("beta") < ordered.body.index("alpha")
     assert 'aria-sort="descending"' in ordered.body
     assert "No rows." in (await get(q="zzz")).body
