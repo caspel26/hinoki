@@ -2,13 +2,13 @@
 
 Status: adopted 2026-11-13 and adapted for the public Hinoki repository.
 
-**Document locations.** `ROADMAP.md` is the public project status. Public design notes and ADRs live in `docs/` and `docs/adr/`. The owner may keep a detailed `handoff.md` and source design package locally; they are not required in a public checkout.
+**Document locations.** User guides and API reference live in `docs/`; `ROADMAP.md` is the public project status. Final architecture decisions for contributors live in `docs/adr/`. Detailed working designs, identity notes and the handoff are local-only; do not publish them unless the owner selects a specific document for contributors.
 
 **Toolchain.** `uv` for Python (`uv run --locked`), Ruff for lint+format, mypy for types, Cargo for Rust, maturin as build backend. See `docs/TOOLCHAIN.md`.
 
 ## Read first
 
-Read this file and `ROADMAP.md` before starting. If a local `handoff.md` or design package is available, read it for additional project context. Read the relevant public design document for the active item rather than reconstructing intent from chat.
+Read this file and `ROADMAP.md` before starting. If a local `handoff.md` or design document is available, read it for additional project context. Read relevant ADRs for established architectural decisions rather than reconstructing intent from chat.
 
 The project name is **Hinoki** (owner decision, supersedes the earlier "Aptum" in the handoff package). `hinoki` is the package/import/CLI identifier; external availability on PyPI/crates.io has not been checked. Do not invent implemented features, benchmark numbers, supported versions or completed checks.
 
@@ -30,7 +30,7 @@ The project name is **Hinoki** (owner decision, supersedes the earlier "Aptum" i
 ## Work loop
 
 1. Record significant new work in the local handoff when available; otherwise update `ROADMAP.md` when public project status changes. Finish the active item before switching unless the owner redirects it. Answer questions promptly and incorporate corrections into the active design.
-2. Design nontrivial changes before implementation. Write `docs/<TOPIC>-DESIGN.md`: observed code/data, one recommendation, alternatives and trade-offs, public API examples, failure/empty/private states, tests, numbered build steps, file ownership and dependencies. Recommend defaults for routine choices; isolate genuine owner decisions.
+2. Design nontrivial changes before implementation. Write a local-only `docs/<TOPIC>-DESIGN.md`: observed code/data, one recommendation, alternatives and trade-offs, public API examples, failure/empty/private states, tests, numbered build steps, file ownership and dependencies. Recommend defaults for routine choices; isolate genuine owner decisions. Do not add working design notes to the public index unless they are intentionally selected as contributor documentation.
 3. Implement one reviewable step at a time. When multiple agents are authorized, parallelize only independent tracks. Shared files require explicit non-overlapping ownership or serial edits. Never have two agents edit the same function concurrently.
 4. Verify the actual result. A delegated agent's report is not sufficient evidence. Inspect the diff and run the applicable checks independently. Report exactly what ran and what did not.
 5. For UI changes, inspect actual screenshots and exercise changed controls with browser automation. Check desktop 1440×900, phone 390×844, narrow 320 and short 360×740 where relevant. Verify keyboard/touch paths and both desktop/mobile behavior; test another relevant browser for gestures. Screenshots alone do not prove interaction correctness.
