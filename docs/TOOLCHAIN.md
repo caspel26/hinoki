@@ -24,7 +24,21 @@ Requires: uv ≥ 0.9, a stable Rust toolchain (rustup) with `rustfmt` and `clipp
 | Rust format / lints / tests | `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnings` · `cargo test --workspace` |
 | All hooks | `uv run --locked pre-commit run --all-files` |
 
-Not available yet (do not report as passed): real-DB tests, generated-OpenAPI checks, benchmarks.
+### Database tests
+
+DB tests (`tests/dbtest.py`, `tests/transactiontest.py`, `crates/orm/tests/postgres.rs`) need a **disposable** PostgreSQL and run only when `HINOKI_TEST_DATABASE_URL` is set; otherwise pytest reports them as *skipped* and Cargo prints `SKIPPED` — a green run without the variable proves nothing about the database layer. Locally:
+
+```sh
+docker run -d --name hinoki-test-pg -e POSTGRES_PASSWORD=hinoki -e POSTGRES_DB=hinoki \
+  -p 127.0.0.1:54399:5432 --tmpfs /var/lib/postgresql/data postgres:17-alpine
+export HINOKI_TEST_DATABASE_URL=postgres://postgres:hinoki@127.0.0.1:54399/hinoki
+uv run --locked pytest && cargo test --workspace
+docker rm -f hinoki-test-pg
+```
+
+CI provides the same database as a service container. Never point the variable at a database with real data: tests create and drop tables.
+
+Generated OpenAPI is validated with `openapi-spec-validator` inside the Python tests. Not available yet (do not report as passed): ORM/model tests, end-to-end benchmarks.
 
 ## Decisions
 
