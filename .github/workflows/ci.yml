@@ -74,6 +74,14 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
 
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Audit Cargo.lock against the RustSec advisory database
+        run: cargo install cargo-audit --locked && cargo audit
+
   wheel:
     runs-on: ubuntu-latest
     steps:
