@@ -14,7 +14,7 @@ class BlogSettings(FrameworkSettings):          # keeps the built-in groups
     admin_theme: Literal["studio", "console", "paper"] = "studio"
 ```
 
-`FrameworkSettings` brings four groups every app has: `execution` (sync workers, queue, request timeout, body limit), `lifecycle` (startup and shutdown timeouts), `logging` (level, text or JSON) and `docs` (title, version, OpenAPI/Swagger/ReDoc URLs). A field without a default is **required**.
+`FrameworkSettings` brings five groups every app has: `execution` (sync workers, queue, request timeout, body limit), `lifecycle` (startup and shutdown timeouts), `logging` (level, text or JSON), `docs` (title, version, OpenAPI/Swagger/ReDoc URLs) and `server` (host, port and workers). A field without a default is **required**.
 
 ## 2. Load them when the app is built
 

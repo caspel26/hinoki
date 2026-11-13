@@ -1,6 +1,9 @@
 # Settings
 
 ::: hinoki.settings.Settings
+    options:
+      members: true
+      show_if_no_docstring: true
 
 ::: hinoki.settings.Secret
 
@@ -15,5 +18,7 @@
 ::: hinoki.settings.LoggingSettings
 
 ::: hinoki.settings.DocsSettings
+
+::: hinoki.settings.ServerSettings
 
 ::: hinoki.settings.DatabaseSettings
