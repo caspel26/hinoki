@@ -103,11 +103,17 @@ class Schema:
 ENCODERS: dict[type, Callable[[Any], Any]] = {UUID: str, datetime: datetime.isoformat}
 
 
+def encode_items(value: list[Any] | dict[str, Any]) -> Any:
+    if isinstance(value, dict):
+        return {key: encode(item) for key, item in value.items()}
+    return [encode(item) for item in value]
+
+
 def encode(value: object) -> Any:
-    """JSON-compatible form of a value produced by a schema."""
+    """JSON-compatible form of a value produced by a handler or schema."""
     if isinstance(value, Schema):
         return value.dump()
-    if isinstance(value, list):
-        return [encode(v) for v in value]
+    if isinstance(value, list | dict):
+        return encode_items(value)
     encoder = ENCODERS.get(type(value))
     return encoder(value) if encoder else value
