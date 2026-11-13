@@ -1,0 +1,13 @@
+<form method="post" action="{{ bulk_action }}" class="hn-bulk">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+{{{ bulkbar }}}
+<div class="hn-scroll" tabindex="0" role="region" aria-label="{{ caption }}">
+<table class="hn-table">
+<caption class="hn-visually-hidden">{{ caption }}</caption>
+<thead><tr>{{{ head }}}</tr></thead>
+<tbody>
+{{{ rows }}}
+</tbody>
+</table>
+</div>
+</form>

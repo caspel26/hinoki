@@ -1,0 +1,10 @@
+<header class="hn-topbar">
+<nav class="hn-crumbs" aria-label="Breadcrumb">{{{ crumbs }}}</nav>
+<form class="hn-gsearch" role="search" method="get" action="{{ search_action }}">
+<svg class="hn-icon" aria-hidden="true"><use href="#i-search"/></svg>
+<label class="hn-visually-hidden" for="hn-gq">Search the admin</label>
+<input id="hn-gq" name="q" type="search" placeholder="Search the admin…" value="{{ query }}" autocomplete="off" data-hn-global-search>
+<kbd aria-hidden="true">Ctrl K</kbd>
+</form>
+<div class="hn-topbar-actions">{{{ actions }}}</div>
+</header>

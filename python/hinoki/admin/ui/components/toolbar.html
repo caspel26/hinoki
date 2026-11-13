@@ -1,0 +1,11 @@
+<div class="hn-toolbar">
+<div class="hn-tabs" role="tablist" aria-label="Views">{{{ tabs }}}</div>
+<form class="hn-search" method="get" action="{{ action }}" role="search">
+{{{ hidden }}}
+<svg class="hn-icon" aria-hidden="true"><use href="#i-search"/></svg>
+<label class="hn-visually-hidden" for="hn-q">Search</label>
+<input id="hn-q" name="q" type="search" value="{{ query }}" placeholder="{{ placeholder }}" autocomplete="off">
+<button class="hn-btn" type="submit">Search</button>
+</form>
+{{{ actions }}}
+</div>
