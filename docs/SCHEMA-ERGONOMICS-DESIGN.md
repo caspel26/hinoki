@@ -1,6 +1,6 @@
 # Schema ergonomics and examples — design (Q009)
 
-Status: **E1 design, E2 implemented** (`Schema.to_dict`, `Schema.from_model`); E3–E5 open (2026-11-13). Owner request: common backend code should be short — create a row by passing the schema (or its dump) directly, convert models to response schemas without hand-written helpers — and the examples and README should show it.
+Status: **E1 design, E2–E4 implemented** (2026-11-13): `Schema.to_dict`/`from_model`, `Model.acreate(data, **values)`, `from_schema`, `assign`, `aupdate_from`/`update_from` (the design's `update_from` is `aupdate_from` here, with the sync `update_from`), the blog's `to_out` uses `from_model`, `examples/notes`, README quick start. E5 (review of precedence and mass assignment) open. Owner request: common backend code should be short — create a row by passing the schema (or its dump) directly, convert models to response schemas without hand-written helpers — and the examples and README should show it.
 
 ## Observed
 
@@ -68,8 +68,8 @@ The schema path is checkable where it matters: `to_dict() -> dict[str, Any]` and
 | --- | --- | --- |
 | E1 | This design | `docs/SCHEMA-ERGONOMICS-DESIGN.md` |
 | E2 (done) | `Schema.to_dict`, `Schema.from_model` | `python/hinoki/schema.py` |
-| E3 | `Model.acreate(data, ...)`, `from_schema`, `update_from`, sync variants | `python/hinoki/orm.py` |
-| E4 | Blog and README rewritten with the short forms; `examples/notes` | `examples/`, `README.md` |
+| E3 (done) | `Model.acreate(data, ...)`, `from_schema`, `update_from`, sync variants | `python/hinoki/orm.py` |
+| E4 (done) | Blog and README rewritten with the short forms; `examples/notes` | `examples/`, `README.md` |
 | E5 | Review of precedence/mass-assignment behaviour, fixes, docs, handoff | — |
 
 ## Open (owner)
