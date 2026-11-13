@@ -77,3 +77,11 @@ class FieldError(ModelError, ValueError):
 class RelationNotLoaded(ModelError, AttributeError):
     """A relation was read that the query did not load. Relations are never
     fetched lazily; name them in ``select_related`` or ``prefetch_related``."""
+
+
+class MigrationError(Exception):
+    """A migration cannot be planned, verified or applied."""
+
+
+class DestructiveMigration(MigrationError):
+    """The plan loses data or may fail on existing rows and was not allowed."""
