@@ -3,6 +3,7 @@
 //! Scope: the path router, the database bridge, the SQL compiler and request
 //! decoding / JSON (see `request.rs`).
 
+mod crypto;
 mod db;
 mod query;
 mod request;
@@ -82,6 +83,11 @@ fn native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(request::parse_multipart_body, m)?)?;
     m.add_function(wrap_pyfunction!(request::negotiate_media, m)?)?;
     m.add_function(wrap_pyfunction!(request::decode_json, m)?)?;
+    m.add_function(wrap_pyfunction!(crypto::hash_password, m)?)?;
+    m.add_function(wrap_pyfunction!(crypto::verify_password, m)?)?;
+    m.add_function(wrap_pyfunction!(crypto::password_needs_rehash, m)?)?;
+    m.add_function(wrap_pyfunction!(crypto::make_token, m)?)?;
+    m.add_function(wrap_pyfunction!(crypto::constant_time_equal, m)?)?;
     m.add_function(wrap_pyfunction!(request::encode_json, m)?)?;
     Ok(())
 }
