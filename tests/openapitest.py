@@ -9,6 +9,7 @@ from openapi_spec_validator import validate
 from hinoki import API, Access, HinokiAPI, RegistrationError, Schema, get, post
 from hinoki.schema import Field
 from tests.harness import Pool
+from tests.providers import TokenAuth
 
 
 class AuthorOut(Schema):
@@ -38,7 +39,7 @@ class Tree(Schema):
     children: list["Tree"] = Field(default_factory=list)
 
 
-editor = Access(auth=object(), scopes=["posts:write"])
+editor = Access(auth=TokenAuth(), scopes=["posts:write"])
 
 
 @get("/health")
@@ -130,7 +131,15 @@ def test_request_body_and_responses() -> None:
     assert set(create["responses"]) == {"201", "422"}
     ok = create["responses"]["201"]["content"]["application/json"]["schema"]
     assert ok == {"$ref": "#/components/schemas/PostOut"}
-    assert create["x-required-scopes"] == ["posts:write"]
+    assert create["security"] == [{"TokenAuth": ["posts:write"]}]
+    assert {"401", "403"} <= set(create["responses"])
+
+
+def test_security_scheme_is_described_from_the_provider() -> None:
+    components = make_app().openapi()["components"]
+    assert components["securitySchemes"] == {
+        "TokenAuth": {"type": "http", "scheme": "bearer"}
+    }
 
 
 def test_none_return_has_no_content_and_lists_are_arrays() -> None:

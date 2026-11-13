@@ -5,8 +5,9 @@ import pytest
 
 import hinoki
 from hinoki import API, Access, HinokiAPI, RegistrationError, get, post
+from tests.providers import TokenAuth
 
-editor = Access(auth=object(), scopes=["posts:write"])
+editor = Access(auth=TokenAuth(), scopes=["posts:write"])
 
 
 def twice[**P](fn: Callable[P, int]) -> Callable[P, int]:

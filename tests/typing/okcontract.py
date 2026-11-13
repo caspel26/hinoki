@@ -3,8 +3,9 @@
 from uuid import UUID
 
 from hinoki import API, Access, HinokiAPI, get, post
+from tests.providers import TokenAuth
 
-editor = Access(auth=object(), scopes={"posts:write"})
+editor = Access(auth=TokenAuth(), scopes={"posts:write"})
 
 
 @get("/health")
