@@ -29,6 +29,8 @@ those declarations into one registry that routing, validation, policies, OpenAPI
 development tooling all share. It is **not** built on Django, FastAPI, Starlette or
 Pydantic.
 
+Documentation site: `uv run --group docs mkdocs serve` (built strictly in CI; not published yet).
+
 ## Quick start
 
 A whole API in one file ([`examples/notes/app.py`](examples/notes/app.py), tested end to end):

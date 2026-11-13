@@ -1,0 +1,43 @@
+/* Hinoki: the identity violet (as in the logo and the admin's Studio theme). */
+:root,
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #5b32ad;
+  --md-primary-fg-color--light: #8a63d2;
+  --md-primary-fg-color--dark: #3d1d85;
+  --md-accent-fg-color: #6d3fc4;
+  --md-typeset-a-color: #5b32ad;
+}
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #1a1026;
+  --md-default-bg-color: #120b1c;
+  --md-default-bg-color--light: #1c1228;
+  --md-accent-fg-color: #b48cf5;
+  --md-typeset-a-color: #c9aaf8;
+}
+.hn-hidden { display: none; }
+.md-typeset h1, .md-typeset h2 { font-weight: 650; letter-spacing: -0.01em; }
+.md-typeset code { border-radius: 4px; }
+
+/* Landing page */
+.hn-hero { text-align: center; padding: 2.5rem 0 1rem; }
+.hn-hero img { max-width: 560px; width: 100%; }
+.hn-hero p.tag { font-size: 1.35rem; margin: 1rem auto 0; max-width: 34rem; }
+.hn-hero .md-button { margin: 1.25rem .25rem 0; }
+.hn-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 2rem 0; }
+.hn-card { border: 1px solid var(--md-default-fg-color--lightest); border-radius: 10px; padding: 1rem 1.1rem; }
+.hn-card h3 { margin: 0 0 .4rem; font-size: 1.05rem; }
+.hn-card p { margin: 0; font-size: .9rem; color: var(--md-default-fg-color--light); }
+.hn-status { border-left: 4px solid #d97706; }
+@media (max-width: 40em) { .hn-hero p.tag { font-size: 1.1rem; } }
+
+/* Buttons readable in both schemes (the dark primary colour is the page colour). */
+[data-md-color-scheme="slate"] .md-typeset .md-button {
+  color: var(--md-accent-fg-color);
+  border-color: var(--md-accent-fg-color);
+}
+[data-md-color-scheme="slate"] .md-typeset .md-button--primary {
+  background-color: var(--md-accent-fg-color);
+  border-color: var(--md-accent-fg-color);
+  color: #1a0f2a;
+}
+.hn-card h3 { font-weight: 600; }
