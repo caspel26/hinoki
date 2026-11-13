@@ -199,6 +199,8 @@ def test_diagnostics_are_data_first() -> None:
         "message",
         "location",
         "explanation",
+        "subject",
+        "waiver",
     }
     assert data["severity"] == Severity.ERROR.value
     assert found.text().startswith(found.location)

@@ -56,6 +56,8 @@ class Diagnostic:
     location: str
     explanation: str
     status: Status = Status.VIOLATED
+    subject: str = ""
+    waiver: str = ""
 
     def as_dict(self) -> dict[str, str]:
         return {
@@ -66,6 +68,8 @@ class Diagnostic:
             "message": self.message,
             "location": self.location,
             "explanation": self.explanation,
+            "subject": self.subject,
+            "waiver": self.waiver,
         }
 
     def text(self) -> str:
@@ -113,7 +117,11 @@ class Rule:
         raise NotImplementedError
 
     def diagnostic(
-        self, message: str, location: str, status: Status = Status.VIOLATED
+        self,
+        message: str,
+        location: str,
+        status: Status = Status.VIOLATED,
+        subject: str = "",
     ) -> Diagnostic:
         return Diagnostic(
             self.id,
@@ -123,6 +131,7 @@ class Rule:
             location,
             self.explanation,
             status,
+            subject or location,
         )
 
     def describe(self) -> dict[str, Any]:
@@ -240,6 +249,7 @@ class RequireAccess(Rule):
                     f"{route.method} {route.path} ({route.handler.__qualname__}) "
                     "declares no access policy",
                     where(route.handler),
+                    subject=qualified(route),
                 )
 
 
@@ -270,6 +280,7 @@ class RequireAtomic(Rule):
                     f"{route.method} {route.path} ({route.handler.__qualname__}) "
                     "does not declare transaction=True",
                     where(route.handler),
+                    subject=qualified(route),
                 )
 
 
@@ -325,6 +336,7 @@ class ForbidExposure(Rule):
                         f"{schema.__name__}.{name} is exposed by "
                         f"{route.method} {route.path}",
                         where(schema),
+                        subject=f"{schema.__module__}.{schema.__qualname__}.{name}",
                     )
 
 
@@ -366,12 +378,14 @@ class ForbidImports(Rule):
                     f"cannot tell whether it is {self.target}",
                     where_,
                     Status.UNVERIFIABLE,
+                    f"{module} -> <dynamic>",
                 )
             elif within(found.target, self.target):
                 yield self.diagnostic(
                     f"{module} imports {found.target}, which is forbidden "
                     f"for {self.source}",
                     where_,
+                    subject=f"{module} -> {found.target}",
                 )
 
 
