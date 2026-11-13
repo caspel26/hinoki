@@ -34,7 +34,13 @@ dev = [
 ]
 lint = ["ruff==0.15.12"]
 typecheck = ["mypy>=1.14"]
-test = ["pytest>=8.3", "pytest-asyncio>=1.0", "pytest-cov>=6.0", "granian>=2.8,<3"]
+test = [
+    "pytest>=8.3",
+    "pytest-asyncio>=1.0",
+    "pytest-cov>=6.0",
+    "granian>=2.8,<3",
+    "openapi-spec-validator>=0.7",
+]
 
 [tool.maturin]
 python-source = "python"

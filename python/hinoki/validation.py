@@ -127,7 +127,7 @@ class Validator:
         if not isinstance(data, dict):
             return self.fail(path, "type", "expected an object")
         before = len(self.errors)
-        specs: dict[str, FieldSpec] = schema.__specs__
+        specs: dict[str, FieldSpec] = schema.specs()
         for key in data:
             if key not in specs:
                 self.fail(join(path, str(key)), "extra_forbidden", "unknown field")

@@ -9,9 +9,10 @@ from hinoki.api import API
 from hinoki.errors import RegistrationError
 from hinoki.modules import Module, order_modules
 from hinoki.native import Router
+from hinoki.openapi import OpenAPIBuilder
 from hinoki.routing import Found, MethodNotAllowed, Route, route_of
 from hinoki.runtime.asgi import ASGIAdapter
-from hinoki.runtime.binding import bind
+from hinoki.runtime.binding import Binding, bind
 from hinoki.runtime.config import RuntimeConfig
 
 
@@ -25,11 +26,21 @@ class HinokiAPI:
     """
 
     def __init__(
-        self, *, settings: object | None = None, runtime: RuntimeConfig | None = None
+        self,
+        *,
+        settings: object | None = None,
+        runtime: RuntimeConfig | None = None,
+        title: str = "Hinoki API",
+        version: str = "0.1.0",
+        openapi_url: str | None = None,
     ) -> None:
         self.settings = settings
         self.runtime = runtime or RuntimeConfig()
+        self.title = title
+        self.version = version
+        self.openapi_url = openapi_url
         self._routes: list[Route] = []
+        self._bindings: list[Binding] = []
         self._modules: list[Module] = []
         self._router = Router()
         self._adapter: ASGIAdapter | None = None
@@ -37,6 +48,10 @@ class HinokiAPI:
     @property
     def routes(self) -> tuple[Route, ...]:
         return tuple(self._routes)
+
+    @property
+    def bindings(self) -> tuple[Binding, ...]:
+        return tuple(self._bindings)
 
     @property
     def modules(self) -> tuple[Module, ...]:
@@ -58,8 +73,7 @@ class HinokiAPI:
                 raise RegistrationError(
                     f"{item!r} is neither an API class nor a decorated function"
                 )
-        for route in pending:
-            bind(route)  # bad signatures fail here, in the factory
+        bound = [bind(route) for route in pending]  # bad signatures fail here
         staged = Router()
         for index, route in enumerate(self._routes):
             staged.add(route.method, route.path, index)
@@ -70,6 +84,7 @@ class HinokiAPI:
                 raise RegistrationError(f"{route.name}: {exc}") from exc
         self._router = staged
         self._routes.extend(pending)
+        self._bindings.extend(bound)
 
     def install(self, *modules: Module) -> None:
         """Install modules and include their APIs.
@@ -101,6 +116,10 @@ class HinokiAPI:
         if isinstance(found, Found):
             return self._routes[found.action], found.params
         return None
+
+    def openapi(self) -> dict[str, Any]:
+        """The OpenAPI 3.1 document for the registered routes."""
+        return OpenAPIBuilder(self, self.title, self.version).build()
 
     def asgi(self) -> ASGIAdapter:
         """The ASGI adapter for this worker; builds and validates bindings once."""
