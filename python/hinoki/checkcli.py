@@ -124,6 +124,9 @@ def add_arguments(
         help="also run rules that execute code or touch files, network or databases",
     )
 
+    new = commands.add_parser("new", help="create a project an AI agent can work in")
+    new.add_argument("name", help="package name: lower-case letters and digits")
+    new.add_argument("--dir", default=".", help="parent directory (default: here)")
     server = commands.add_parser(
         "mcp", help="serve read-only project context over MCP (stdio)"
     )

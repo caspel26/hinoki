@@ -74,6 +74,7 @@ def test_tools_are_listed_as_read_only(server: Server) -> None:
         "inspect_project",
         "list_rules",
         "explain_action",
+        "explain_error",
         "check_project",
     }
     assert all(t["annotations"]["readOnlyHint"] for t in tools.values())

@@ -83,9 +83,12 @@ max-branches = 8
 "benchmarks/**" = ["ARG001", "S101"]  # benchmark handlers ignore the request
 "python/hinoki/crud.py" = ["ARG001"]
 "python/hinoki/admin/themes.py" = ["E501"]  # token tables
+"python/hinoki/scaffold.py" = ["E501"]  # file templates
+"python/hinoki/errorcatalog.py" = ["E501"]  # explanatory text
 "tests/schemadifftest.py" = ["E501", "S311", "RUF001"]
 "tests/adminreviewtest.py" = ["E501"]
 "tests/notestest.py" = ["E501"]
+"tests/scaffoldtest.py" = ["E501"]
 "tests/schemaencodetest.py" = ["E501", "S106", "S311"]  # seeded generators for differential tests
 "tests/admintest.py" = ["E501", "C408", "S106", "RUF001", "RUF059"]  # long request lines, small lambdas
 # Inline HTML fragments are clearer on one line than split across string pieces.
