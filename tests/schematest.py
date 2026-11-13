@@ -5,7 +5,7 @@ from uuid import UUID
 import pytest
 
 from hinoki import UNSET, Field, RegistrationError, Schema, Unset, ValidationError
-from hinoki.validation import MAX_ERRORS
+from tests.oracle.validation import MAX_ERRORS
 
 
 class Author(Schema):
