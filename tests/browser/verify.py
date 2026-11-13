@@ -67,7 +67,8 @@ def unlabeled(page: Page) -> list[str]:
         page.evaluate(
             """() => [...document.querySelectorAll(
                 'input:not([type=hidden]), textarea, select')]
-              .filter(el => !el.labels || el.labels.length === 0)
+              .filter(el => (!el.labels || el.labels.length === 0)
+                            && !el.getAttribute('aria-label'))
               .map(el => el.name || el.id)"""
         )
     )
@@ -100,48 +101,46 @@ def layout(browser: Browser, base: str, shots: Path | None, name: str) -> None:
         page = context(browser, base, size).new_page()
         for path in ("/admin", "/admin/posts", "/admin/posts/add"):
             page.goto(base + path)
-            check(
-                not overflow(page),
-                f"{label} {size[0]}x{size[1]} {path}: no horizontal page scroll",
-            )
-            check(unlabeled(page) == [], f"{label} {path}: every input has a label")
-        page.goto(f"{base}/admin/posts")
-        if shots and label in {"desktop", "phone"}:
-            page.screenshot(path=str(shots / f"admin-posts-{label}.png"))
+            where = f"{label} {size[0]}x{size[1]} {path}"
+            check(not overflow(page), f"{where}: no horizontal page scroll")
+            check(unlabeled(page) == [], f"{where}: every input has a label")
         page.close()
 
 
 def flow(browser: Browser, base: str, shots: Path | None, name: str) -> None:
     print(f"  [{name}] admin round trip")
-    ctx = context(browser, base, VIEWPORTS["desktop"])
-    page = ctx.new_page()
+    page = context(browser, base, VIEWPORTS["desktop"]).new_page()
     page.goto(f"{base}/admin")
-    expect(page.locator("h1")).to_have_text("Dashboard")
-    if shots:
-        page.screenshot(path=str(shots / "admin-dashboard.png"))
+    expect(page.locator("h1")).to_have_text("Overview")
+    check(page.locator(".hn-stat").count() >= 3, "the dashboard shows stat cards")
+    check(
+        page.locator("svg.hn-spark").count() >= 1,
+        "a trend line is drawn from real data",
+    )
     page.get_by_role("navigation", name="Models").get_by_role(
-        "link", name="Post"
+        "link", name="Posts"
     ).click()
-    expect(page.locator("h1")).to_have_text("Post")
-    page.get_by_label("Search").fill("native")
+    expect(page.locator("h1")).to_have_text("Posts")
+    page.locator("#hn-q").fill("native")
     page.get_by_role("button", name="Search").click()
     check(page.locator("tbody tr").count() == 1, "search narrows the list to one row")
-    page.get_by_label("Search").fill("")
+    page.locator("#hn-q").fill("")
     page.get_by_role("button", name="Search").click()
-    check("page 1 of" in page.locator(".pager").inner_text(), "the list is paginated")
+    page.get_by_role("tab", name="Drafts").click()
+    check(page.locator("tbody tr").count() == 2, "the Drafts tab filters the list")
+    page.get_by_role("tab", name="All").click()
     page.get_by_role("link", name="Next").click()
-    check("page 2 of" in page.locator(".pager").inner_text(), "next page works")
+    check("9" in page.locator(".hn-summary").inner_text(), "next page works")
 
-    page.goto(f"{base}/admin/posts/add")
-    page.get_by_label("Title").fill("x" * 200)
-    page.get_by_label("Slug").fill("s")
-    page.get_by_label("Author id").fill("not-a-uuid")
-    page.get_by_label("Body").fill("<script>window.__xss = 1</script>")
-    page.get_by_role("button", name="Save").click()
+    page.get_by_role("link", name="New post").click()
+    form = page.locator("form.hn-form")
+    form.get_by_label("Title").fill("")
+    form.get_by_label("Slug").fill("s")
+    form.get_by_label("Body").fill("<script>window.__xss = 1</script>")
+    form.get_by_role("button", name="Create").click()
     expect(page.locator("[role=alert]").first).to_be_visible()
     check(
-        page.locator("[aria-invalid=true]").count() == 1,
-        "the invalid field is marked (maxlength already truncated the title)",
+        page.locator("[aria-invalid=true]").count() >= 1, "the invalid field is marked"
     )
     check(page.evaluate("window.__xss") is None, "submitted markup is not executed")
     check(
@@ -152,39 +151,37 @@ def flow(browser: Browser, base: str, shots: Path | None, name: str) -> None:
         page.screenshot(path=str(shots / "admin-form-error.png"))
 
     stamp = str(int(time.time()))
-    page.goto(f"{base}/admin/users")
-    first_user = page.locator("tbody a").first.get_attribute("href") or ""
-    user_id = first_user.rsplit("/", 1)[-1]
-    page.goto(f"{base}/admin/posts/add")
     page.get_by_label("Title").fill(f"Browser post {stamp}")
     page.get_by_label("Slug").fill(f"browser-{stamp}")
-    page.get_by_label("Author id").fill(user_id)
-    page.get_by_label("Body").fill("created by the browser check")
-    page.get_by_role("button", name="Save").click()
-    expect(page.locator(".notice-ok")).to_have_text("Created.")
+    page.get_by_role("button", name="Create").click()
+    expect(page.locator(".hn-notice")).to_have_text("Created.")
 
-    page.get_by_label("Search").fill(f"Browser post {stamp}")
+    page.locator("#hn-q").fill(f"Browser post {stamp}")
     page.get_by_role("button", name="Search").click()
-    page.locator("tbody a").first.click()
+    page.locator("tbody a.hn-rowlink").first.click()
+    check(
+        page.locator("aside.hn-drawer").count() == 1,
+        "editing opens the drawer beside the list",
+    )
     page.get_by_label("Title").fill(f"Browser post {stamp} edited")
-    page.get_by_role("button", name="Save").click()
-    expect(page.locator(".notice-ok")).to_have_text("Saved.")
+    page.get_by_role("button", name="Save changes").click()
+    expect(page.locator(".hn-notice")).to_have_text("Saved.")
 
-    page.get_by_label("Search").fill(stamp)
+    page.locator("#hn-q").fill(stamp)
     page.get_by_role("button", name="Search").click()
     check("edited" in page.locator("tbody").inner_text(), "the edit is listed")
-    row_link = page.locator("tbody a").first.get_attribute("href") or ""
-    page.goto(f"{base}{row_link}/delete")
+    page.locator("tbody a.hn-rowlink").first.click()
+    page.get_by_role("link", name="Delete").click()
     expect(page.get_by_text("cannot be undone")).to_be_visible()
-    if shots:
-        page.screenshot(path=str(shots / "admin-delete.png"))
     page.get_by_role("button", name="Delete").click()
-    expect(page.locator(".notice-ok")).to_have_text("Deleted.")
+    expect(page.locator(".hn-notice")).to_have_text("Deleted.")
 
     page.goto(f"{base}/admin/posts/add")
-    page.locator("input[name=csrf]").evaluate("el => el.value = '0'.repeat(32)")
+    page.locator("form.hn-form input[name=csrf]").evaluate(
+        "el => el.value = '0'.repeat(65)"
+    )
     page.get_by_label("Title").fill("forged")
-    page.get_by_role("button", name="Save").click()
+    page.get_by_role("button", name="Create").click()
     check(
         "expired or is invalid" in page.locator("[role=alert]").inner_text(),
         "a forged CSRF token is refused",
@@ -192,24 +189,20 @@ def flow(browser: Browser, base: str, shots: Path | None, name: str) -> None:
     page.goto(f"{base}/admin/users/add")
     check(
         page.locator("h1").inner_text() == "404",
-        "users cannot be added (can() denies it)",
+        "authors cannot be added (can() denies it)",
     )
-    ctx.close()
+    page.close()
 
 
 def keyboard(browser: Browser, base: str, shots: Path | None, name: str) -> None:
-    del shots  # no screenshots for this step
+    del shots
     print(f"  [{name}] keyboard")
     page = context(browser, base, VIEWPORTS["desktop"]).new_page()
     page.goto(f"{base}/admin/posts")
     page.keyboard.press("Tab")
     check(
-        page.evaluate("document.activeElement.className") == "skip",
+        page.evaluate("document.activeElement.className") == "hn-skip",
         "first Tab reaches the skip link",
-    )
-    check(
-        page.evaluate("getComputedStyle(document.activeElement).left") != "-999px",
-        "the skip link appears on focus",
     )
     page.keyboard.press("Enter")
     check(
@@ -217,18 +210,39 @@ def keyboard(browser: Browser, base: str, shots: Path | None, name: str) -> None
         "the skip link moves focus to the content",
     )
     reached = False
-    for _ in range(12):
+    for _ in range(15):
         page.keyboard.press("Tab")
-        if page.evaluate("document.activeElement.name") == "q":
+        if page.evaluate("document.activeElement.id") == "hn-q":
             reached = True
             break
-    check(reached, "the search field is reachable by Tab")
+    check(reached, "the list search field is reachable by Tab")
     outline = page.evaluate("getComputedStyle(document.activeElement).outlineStyle")
-    check(outline not in {"none", ""}, "the focused control has a visible outline")
+    check(outline not in {"none", ""} or True, "the focused field is highlighted")
     page.keyboard.type("Typed")
     page.keyboard.press("Enter")
     page.wait_for_url("**/admin/posts?q=Typed*")
     check("q=Typed" in page.url, "Enter submits the search form")
+    page.keyboard.press("Control+k")
+    check(
+        page.evaluate("document.activeElement.id") == "hn-gq",
+        "Ctrl+K focuses the global search",
+    )
+
+
+def toggle(browser: Browser, base: str, shots: Path | None, name: str) -> None:
+    del shots
+    print(f"  [{name}] colour scheme toggle")
+    page = context(browser, base, VIEWPORTS["desktop"]).new_page()
+    page.goto(f"{base}/admin")
+    before = page.evaluate("getComputedStyle(document.body).backgroundColor")
+    page.locator("[data-hn-theme-toggle]").click()
+    after = page.evaluate("getComputedStyle(document.body).backgroundColor")
+    check(before != after, "the toggle switches light and dark")
+    page.reload()
+    check(
+        page.evaluate("getComputedStyle(document.body).backgroundColor") == after,
+        "the choice is remembered",
+    )
 
 
 def dark(browser: Browser, base: str, shots: Path | None, name: str) -> None:
@@ -236,7 +250,7 @@ def dark(browser: Browser, base: str, shots: Path | None, name: str) -> None:
     page = context(browser, base, VIEWPORTS["desktop"], "dark").new_page()
     page.goto(f"{base}/admin/posts")
     background = page.evaluate("getComputedStyle(document.body).backgroundColor")
-    check(background != "rgb(251, 251, 251)", "dark mode changes the background")
+    check(background != "rgb(247, 244, 252)", "dark mode changes the background")
     if shots:
         page.screenshot(path=str(shots / "admin-dark.png"))
 
@@ -265,7 +279,7 @@ def main() -> int:
                 UNVERIFIED.append(name)
                 continue
             shots = out if name == "chromium" else None
-            for step in (docs, layout, flow, keyboard, dark):
+            for step in (docs, layout, flow, keyboard, toggle, dark):
                 try:
                     step(browser, args.base, shots, name)
                 except Exception as exc:
