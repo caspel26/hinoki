@@ -117,7 +117,7 @@ class ModelAdmin[M: Model]:
             raise OutOfScope
 
     def plural(self) -> str:
-        return self.label or f"{self.model.__name__}s"
+        return self.label or self.model.__plural__ or f"{self.model.__name__}s"
 
     def shown_columns(self) -> tuple[str, ...]:
         """The list columns: ``columns``, else the first six that are not

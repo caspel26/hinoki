@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from hinoki.orm import Model, field, foreign_key
+from hinoki.orm import Model, field, foreign_key, indexed, ordered_by
 
 
 def now() -> datetime:
@@ -16,7 +16,9 @@ class Member(Model, table="tracker_members"):
     token: str = field(unique=True)
 
 
-class Task(Model, table="tracker_tasks"):
+@indexed("owner_id", "created_at")
+@ordered_by("-created_at", "-id")
+class Task(Model, table="tracker_tasks", label="Task", plural="Tasks"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     owner_id: UUID = foreign_key(Member, on_delete="restrict", related_name="tasks")
     title: str = field(max_length=120)

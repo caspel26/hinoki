@@ -11,6 +11,7 @@ rows are reported as destructive and only written when explicitly allowed.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import inspect
 import json
 import re
@@ -24,6 +25,8 @@ from uuid import UUID
 from hinoki.errors import DestructiveMigration, MigrationError
 from hinoki.orm import MARK, FieldMeta, Model
 from hinoki.orm.relations import ON_DELETE
+
+MAX_IDENTIFIER = 63  # PostgreSQL truncates longer names
 
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,62}")
 NAME = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
@@ -118,7 +121,11 @@ def table_state(model: type[Model]) -> State:
     for item in dataclasses.fields(model):  # type: ignore[arg-type]
         meta: FieldMeta = item.metadata.get(MARK, FieldMeta())
         columns[item.name] = column_state(model, item.name, hints[item.name], meta)
-    return {"columns": columns, "unique": [list(group) for group in model.__unique__]}
+    return {
+        "columns": columns,
+        "unique": [list(group) for group in model.__unique__],
+        "indexes": [list(group) for group in model.__indexes__],
+    }
 
 
 def family(sql_type: str) -> str:
@@ -200,9 +207,25 @@ def create_table(name: str, spec: State) -> Operation:
         for group in spec.get("unique", [])
     )
     text = ",\n".join(lines)
-    return Operation(
-        f"create table {name}", f"CREATE TABLE {quote(name)} (\n{text}\n);"
-    )
+    statement = f"CREATE TABLE {quote(name)} (\n{text}\n);"
+    for columns in spec.get("indexes", []):
+        statement += "\n" + create_index_sql(name, columns)
+    return Operation(f"create table {name}", statement)
+
+
+def index_name(table: str, columns: list[str]) -> str:
+    """``ix_<table>_<columns>``, shortened with a hash past PostgreSQL's 63 bytes."""
+    name = "ix_" + table + "_" + "_".join(columns)
+    if len(name) <= MAX_IDENTIFIER:
+        return name
+    digest = hashlib.sha1(name.encode()).hexdigest()[:8]  # noqa: S324 - a name, not security
+    return name[: MAX_IDENTIFIER - 9] + "_" + digest
+
+
+def create_index_sql(table: str, columns: list[str]) -> str:
+    cols = ", ".join(quote(c) for c in columns)
+    name = quote(index_name(table, columns))
+    return f"CREATE INDEX {name} ON {quote(table)} ({cols});"
 
 
 def alter_column(table: str, name: str, old: State, new: State) -> list[Operation]:
@@ -254,6 +277,27 @@ def drop_column(table: str, name: str) -> Operation:
     )
 
 
+def index_changes(table: str, old: State, new: State) -> list[Operation]:
+    before = [list(c) for c in old.get("indexes", [])]
+    after = [list(c) for c in new.get("indexes", [])]
+    operations = [
+        Operation(
+            f"index {table} ({', '.join(columns)})", create_index_sql(table, columns)
+        )
+        for columns in after
+        if columns not in before
+    ]
+    operations.extend(
+        Operation(
+            f"drop index {table} ({', '.join(columns)})",
+            f"DROP INDEX {quote(index_name(table, columns))};",
+        )
+        for columns in before
+        if columns not in after
+    )
+    return operations
+
+
 def table_changes(table: str, old: State, new: State) -> list[Operation]:
     operations: list[Operation] = []
     if old.get("unique", []) != new.get("unique", []):
@@ -261,6 +305,7 @@ def table_changes(table: str, old: State, new: State) -> list[Operation]:
             f"{table}: changing composite unique constraints is not planned "
             "automatically; write that migration by hand"
         )
+    operations.extend(index_changes(table, old, new))
     for name, column in new["columns"].items():
         if name not in old["columns"]:
             operations.append(add_column(table, name, column))

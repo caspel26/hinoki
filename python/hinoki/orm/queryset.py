@@ -39,14 +39,19 @@ class QuerySet[M: Model]:
         self,
         model: type[M],
         filters: tuple[tuple[str, str, list[Any]], ...] = (),
-        order: tuple[tuple[str, bool], ...] = (),
+        order: tuple[tuple[str, bool], ...] | None = None,
         limit_to: int | None = None,
         offset_by: int | None = None,
         loading: Loading = Loading(),  # noqa: B008 - frozen, safe to share
     ) -> None:
         self.model = model
         self.filters = filters
-        self.order = order
+        # ``None``: the model's default ordering (``@ordered_by``); ``()`` is explicit.
+        self.order = (
+            tuple((n.removeprefix("-"), n.startswith("-")) for n in model.__ordering__)
+            if order is None
+            else order
+        )
         self.limit_to = limit_to
         self.offset_by = offset_by
         self.loading = loading

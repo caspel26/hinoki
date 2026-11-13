@@ -20,7 +20,7 @@ def mine(owner_id: UUID) -> QuerySet[Task]:
 
 
 async def list_tasks(owner_id: UUID, page: PageParams) -> Page[Task]:
-    return await mine(owner_id).order_by("-created_at", "-id").apaginate(page)
+    return await mine(owner_id).apaginate(page)  # Task is @ordered_by newest first
 
 
 async def create_task(owner_id: UUID, data: TaskIn) -> Task:
