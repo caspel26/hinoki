@@ -50,6 +50,7 @@ class Response:
     status: int
     headers: dict[str, str]
     body: Any
+    raw: bytes = b""  # the body exactly as sent
 
 
 class Feed:
@@ -131,7 +132,7 @@ class ASGIClient:
         text: Any = raw.decode("utf-8", "replace") or None
         if raw and reply_headers.get("content-type", "").endswith("json"):
             text = _loads(raw)
-        reply = Response(start["status"], reply_headers, text)
+        reply = Response(start["status"], reply_headers, text, raw)
         if self.strict_errors:
             self.check_declared(method, path, reply)
         return reply

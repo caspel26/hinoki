@@ -710,47 +710,161 @@ fn write_key(out: &mut Vec<u8>, key: &Bound<'_, PyAny>) -> PyResult<()> {
     Err(PyTypeError::new_err("keys must be str, int, bool or None"))
 }
 
-fn write_value(out: &mut Vec<u8>, value: &Bound<'_, PyAny>, depth: usize) -> PyResult<()> {
-    if depth > MAX_DEPTH {
-        return Err(PyValueError::new_err("value is nested too deeply"));
-    }
-    if value.is_none() {
-        out.extend_from_slice(b"null");
-    } else if let Ok(flag) = value.cast::<PyBool>() {
-        out.extend_from_slice(if flag.is_true() { b"true" } else { b"false" });
-    } else if value.is_instance_of::<PyInt>() {
-        out.extend_from_slice(int_text(value)?.as_bytes());
-    } else if let Ok(float) = value.cast::<PyFloat>() {
-        let number = serde_json::Number::from_f64(float.value()).ok_or_else(|| {
-            PyValueError::new_err("out of range float values are not JSON compliant")
-        })?;
-        out.extend_from_slice(number.to_string().as_bytes());
-    } else if let Ok(text) = value.cast::<PyString>() {
-        write_string(out, text.to_str()?)?;
-    } else if let Ok(dict) = value.cast::<PyDict>() {
-        out.push(b'{');
-        for (index, (key, item)) in dict.iter().enumerate() {
-            if index > 0 {
-                out.push(b',');
-            }
-            write_key(out, &key)?;
-            out.push(b':');
-            write_value(out, &item, depth + 1)?;
+/// How `encode_json` writes: compact by default; `indent` pretty-prints with that
+/// many spaces, `sort_keys` orders object keys, and `default` is called for a
+/// value that is not JSON (it must return something that is).
+struct Encoder<'py> {
+    out: Vec<u8>,
+    indent: Option<usize>,
+    sort_keys: bool,
+    default: Option<Bound<'py, PyAny>>,
+}
+
+impl<'py> Encoder<'py> {
+    fn newline(&mut self, depth: usize) {
+        if let Some(width) = self.indent {
+            self.out.push(b'\n');
+            self.out.resize(self.out.len() + width * depth, b' ');
         }
-        out.push(b'}');
-    } else if value.is_instance_of::<PyList>() || value.is_instance_of::<PyTuple>() {
-        out.push(b'[');
+    }
+
+    fn colon(&mut self) {
+        self.out
+            .extend_from_slice(if self.indent.is_some() { b": " } else { b":" });
+    }
+
+    fn open(&mut self, bracket: u8) {
+        self.out.push(bracket);
+    }
+
+    fn close(&mut self, bracket: u8, depth: usize, empty: bool) {
+        if !empty {
+            self.newline(depth);
+        }
+        self.out.push(bracket);
+    }
+
+    fn write(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
+        if depth > MAX_DEPTH {
+            return Err(PyValueError::new_err("value is nested too deeply"));
+        }
+        if value.is_none() {
+            self.out.extend_from_slice(b"null");
+        } else if let Ok(flag) = value.cast::<PyBool>() {
+            self.out
+                .extend_from_slice(if flag.is_true() { b"true" } else { b"false" });
+        } else if value.is_instance_of::<PyInt>() {
+            self.out.extend_from_slice(int_text(value)?.as_bytes());
+        } else if let Ok(float) = value.cast::<PyFloat>() {
+            let number = serde_json::Number::from_f64(float.value()).ok_or_else(|| {
+                PyValueError::new_err("out of range float values are not JSON compliant")
+            })?;
+            self.out.extend_from_slice(number.to_string().as_bytes());
+        } else if let Ok(text) = value.cast::<PyString>() {
+            write_string(&mut self.out, text.to_str()?)?;
+        } else if let Ok(dict) = value.cast::<PyDict>() {
+            self.mapping(dict, depth)?;
+        } else if value.is_instance_of::<PyList>() || value.is_instance_of::<PyTuple>() {
+            self.sequence(value, depth)?;
+        } else {
+            self.object(value, depth)?;
+        }
+        Ok(())
+    }
+
+    fn mapping(&mut self, dict: &Bound<'py, PyDict>, depth: usize) -> PyResult<()> {
+        let mut items: Vec<(Vec<u8>, Bound<'py, PyAny>)> = Vec::with_capacity(dict.len());
+        for (key, item) in dict.iter() {
+            let mut text = Vec::new();
+            write_key(&mut text, &key)?;
+            items.push((text, item));
+        }
+        if self.sort_keys {
+            items.sort_by(|a, b| a.0.cmp(&b.0));
+        }
+        self.open(b'{');
+        let empty = items.is_empty();
+        for (index, (key, item)) in items.into_iter().enumerate() {
+            if index > 0 {
+                self.out.push(b',');
+            }
+            self.newline(depth + 1);
+            self.out.extend_from_slice(&key);
+            self.colon();
+            self.write(&item, depth + 1)?;
+        }
+        self.close(b'}', depth, empty);
+        Ok(())
+    }
+
+    fn sequence(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
+        self.open(b'[');
+        let mut empty = true;
         for (index, item) in value.try_iter()?.enumerate() {
+            empty = false;
             if index > 0 {
-                out.push(b',');
+                self.out.push(b',');
             }
-            write_value(out, &item?, depth + 1)?;
+            self.newline(depth + 1);
+            self.write(&item?, depth + 1)?;
         }
-        out.push(b']');
-    } else {
-        write_object(out, value, depth)?;
+        self.close(b']', depth, empty);
+        Ok(())
     }
-    Ok(())
+
+    /// Objects that are not plain JSON values: schema instances, UUIDs, datetimes,
+    /// anything with a `dump()` method, then the caller's `default` hook.
+    fn object(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
+        if let Some((names, unset)) = crate::schema::instance_fields(value, true)? {
+            self.open(b'{');
+            let mut first = true;
+            let mut present = Vec::new();
+            for name in names {
+                let item = value.getattr(name.as_str())?;
+                if !item.is(&unset) {
+                    present.push((name, item));
+                }
+            }
+            if self.sort_keys {
+                present.sort_by(|a, b| a.0.cmp(&b.0));
+            }
+            let empty = present.is_empty();
+            for (name, item) in present {
+                if !first {
+                    self.out.push(b',');
+                }
+                first = false;
+                self.newline(depth + 1);
+                write_string(&mut self.out, &name)?;
+                self.colon();
+                self.write(&item, depth + 1)?;
+            }
+            self.close(b'}', depth, empty);
+        } else if is_instance_of_named(value, "uuid", "UUID")? {
+            write_string(&mut self.out, &value.str()?.to_string())?;
+        } else if is_instance_of_named(value, "datetime", "datetime")? {
+            write_string(
+                &mut self.out,
+                &value.call_method0("isoformat")?.str()?.to_string(),
+            )?;
+        } else if value.hasattr("dump")? {
+            self.write(&value.call_method0("dump")?, depth + 1)?;
+        } else if let Some(hook) = self.default.clone() {
+            let replacement = hook.call1((value,))?;
+            if replacement.is(value) {
+                return Err(PyValueError::new_err(
+                    "the default hook returned the same object",
+                ));
+            }
+            self.write(&replacement, depth + 1)?;
+        } else {
+            let name = value.get_type().name()?;
+            return Err(PyTypeError::new_err(format!(
+                "{name} is not JSON serializable"
+            )));
+        }
+        Ok(())
+    }
 }
 
 fn is_instance_of_named(value: &Bound<'_, PyAny>, module: &str, class: &str) -> PyResult<bool> {
@@ -758,52 +872,28 @@ fn is_instance_of_named(value: &Bound<'_, PyAny>, module: &str, class: &str) -> 
     value.is_instance(&wanted)
 }
 
-/// Objects that are not plain JSON values: schema instances, UUIDs, datetimes,
-/// and anything with a `dump()` method.
-fn write_object(out: &mut Vec<u8>, value: &Bound<'_, PyAny>, depth: usize) -> PyResult<()> {
-    if let Some((names, unset)) = crate::schema::instance_fields(value, true)? {
-        out.push(b'{');
-        let mut first = true;
-        for name in names {
-            let item = value.getattr(name.as_str())?;
-            if item.is(&unset) {
-                continue;
-            }
-            if !first {
-                out.push(b',');
-            }
-            first = false;
-            write_string(out, &name)?;
-            out.push(b':');
-            write_value(out, &item, depth + 1)?;
-        }
-        out.push(b'}');
-    } else if is_instance_of_named(value, "uuid", "UUID")? {
-        write_string(out, &value.str()?.to_string())?;
-    } else if is_instance_of_named(value, "datetime", "datetime")? {
-        write_string(out, &value.call_method0("isoformat")?.str()?.to_string())?;
-    } else if value.hasattr("dump")? {
-        write_value(out, &value.call_method0("dump")?, depth + 1)?;
-    } else {
-        let name = value.get_type().name()?;
-        return Err(PyTypeError::new_err(format!(
-            "{name} is not JSON serializable"
-        )));
-    }
-    Ok(())
-}
-
 /// Serialise plain Python values (`dict`, `list`, `tuple`, `str`, `int`,
-/// `float`, `bool`, `None`), schema instances, UUIDs and datetimes to compact UTF-8 JSON. `NaN` and infinities raise
-/// `ValueError`; anything else raises `TypeError`.
+/// `float`, `bool`, `None`), schema instances, UUIDs and datetimes to UTF-8 JSON:
+/// compact by default, `indent` spaces when given, `sort_keys` to order object
+/// keys, `default` to serialise anything else. `NaN` and infinities raise
+/// `ValueError`; an unsupported value without a `default` raises `TypeError`.
 #[pyfunction]
+#[pyo3(signature = (value, indent=None, sort_keys=false, default=None))]
 pub fn encode_json<'py>(
     py: Python<'py>,
     value: &Bound<'py, PyAny>,
+    indent: Option<usize>,
+    sort_keys: bool,
+    default: Option<Bound<'py, PyAny>>,
 ) -> PyResult<Bound<'py, PyBytes>> {
-    let mut out = Vec::with_capacity(128);
-    write_value(&mut out, value, 0)?;
-    Ok(PyBytes::new(py, &out))
+    let mut encoder = Encoder {
+        out: Vec::with_capacity(128),
+        indent,
+        sort_keys,
+        default,
+    };
+    encoder.write(value, 0)?;
+    Ok(PyBytes::new(py, &encoder.out))
 }
 
 #[cfg(test)]
