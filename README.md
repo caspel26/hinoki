@@ -221,6 +221,8 @@ uv run granian --interface asgi --factory examples.blog.main:create_app
 
 ## Core concepts
 
+How the pieces fit and what to avoid: [`docs/PATTERNS.md`](docs/PATTERNS.md). Building with an AI agent: [`docs/AI-WORKFLOW.md`](docs/AI-WORKFLOW.md).
+
 * **`Request`** is the first parameter of every action: the incoming HTTP request (`method`, `headers`, `GET`, `COOKIES`, `body`, `data`, `user`). Path, query and body values follow as typed parameters.
 * **`Principal`** is *who is calling*, as decided by authentication. An auth provider (bearer token, API key, a cookie) turns the credentials of a request into a `Principal` with three parts: `subject` (a stable id string), `identity` (your own object, for example the `User` row) and `scopes` (the permissions it has). Declare `principal: Principal[User]` on an action to receive it; `request.user` is the same object. If no valid credentials arrive, the request is refused before your code runs (401), and if the scopes are missing it is refused with 403.
 * **`Access`** is a reusable policy: *which provider* authenticates and *which scopes* are required. You attach it to an action with `access=editor`; an action without one is public.
