@@ -96,12 +96,18 @@ class Model:
     __primary_key__: ClassVar[str] = ""
     __relations__: ClassVar[dict[str, Relation]] = {}
     __unique__: ClassVar[tuple[tuple[str, ...], ...]] = ()
+    __indexes__: ClassVar[tuple[tuple[str, ...], ...]] = ()
+    __ordering__: ClassVar[tuple[str, ...]] = ()
+    __label__: ClassVar[str] = ""
+    __plural__: ClassVar[str] = ""
     NotFound: ClassVar[type[ObjectNotFound]] = ObjectNotFound
 
     def __init_subclass__(
         cls,
         table: str = "",
         unique: Sequence[Sequence[str]] = (),
+        label: str = "",
+        plural: str = "",
         **kwargs: object,
     ) -> None:
         super().__init_subclass__(**kwargs)
@@ -117,6 +123,10 @@ class Model:
         cls.__primary_key__ = keys[0]
         cls.check_names(cls.__columns__)
         cls.__unique__ = cls.check_unique(unique)
+        cls.__indexes__ = ()  # a subclass does not inherit its parent's options
+        cls.__ordering__ = ()
+        cls.__label__ = label
+        cls.__plural__ = plural
         cls.__relations__ = {
             name: relation
             for base in cls.__mro__[1:]

@@ -1,0 +1,88 @@
+{
+  "tables": {
+    "tracker_members": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "name": {
+          "type": "varchar(80)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "token": {
+          "type": "text",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "references": null
+        }
+      },
+      "unique": [],
+      "indexes": []
+    },
+    "tracker_tasks": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "owner_id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": {
+            "table": "tracker_members",
+            "column": "id",
+            "on_delete": "restrict"
+          }
+        },
+        "title": {
+          "type": "varchar(120)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "done": {
+          "type": "boolean",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "completed_at": {
+          "type": "timestamptz",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        }
+      },
+      "unique": [],
+      "indexes": [
+        [
+          "owner_id",
+          "created_at"
+        ]
+      ]
+    }
+  }
+}
