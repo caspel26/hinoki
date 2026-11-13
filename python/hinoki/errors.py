@@ -46,3 +46,12 @@ class ValidationError(Exception):
     def __init__(self, details: list[ErrorDetail]) -> None:
         super().__init__(f"{len(details)} validation error(s)")
         self.details = details
+
+
+class InvalidBody(Exception):
+    """The request body cannot be used at all (wrong media type, bad JSON)."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message

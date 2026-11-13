@@ -13,18 +13,26 @@ import json
 import logging
 import uuid
 from collections.abc import Awaitable, Callable, MutableMapping
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import unquote
 
 from hinoki.context import request_id
-from hinoki.errors import ShutdownError, StartupError
+from hinoki.errors import InvalidBody, ShutdownError, StartupError, ValidationError
 from hinoki.modules import ModuleContext
 from hinoki.routing import MethodNotAllowed
-from hinoki.runtime.binding import BadParameter, Binding, bind
+from hinoki.runtime.binding import (
+    MISSING,
+    Binding,
+    RequestData,
+    bind,
+    decode_body,
+    parse_query,
+)
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.lifespan import Lifespan
+from hinoki.schema import encode
 
 if TYPE_CHECKING:
     from hinoki.app import HinokiAPI
@@ -36,6 +44,7 @@ Scope = MutableMapping[str, Any]
 Headers = list[tuple[bytes, bytes]]
 RETRY_LATER: Headers = [(b"retry-after", b"1")]
 BODYLESS = {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}
+INVALID_BODY_STATUS = {"unsupported_media_type": HTTPStatus.UNSUPPORTED_MEDIA_TYPE}
 
 
 @dataclass(slots=True)
@@ -135,26 +144,47 @@ class ASGIAdapter:
 
     async def _respond(self, scope: Scope, receive: Any, rid: str) -> Response:
         try:
-            await self._drain_body(receive)
-            if not self.lifespan.ready:
-                raise HTTPError(
-                    HTTPStatus.SERVICE_UNAVAILABLE, "not_ready", RETRY_LATER
-                )
-            binding, params = self._route(scope)
-            return await self._invoke(binding, binding.convert(params))
-        except HTTPError as exc:
-            return exc.response
-        except BadParameter as exc:
-            error = HTTPError(
-                HTTPStatus.UNPROCESSABLE_ENTITY, "validation_error", parameter=exc.name
+            return await self._serve(scope, receive)
+        except Exception as exc:
+            return self._failure(exc, rid).response
+
+    async def _serve(self, scope: Scope, receive: Any) -> Response:
+        raw_body = await self._read_body(receive)
+        if not self.lifespan.ready:
+            raise HTTPError(HTTPStatus.SERVICE_UNAVAILABLE, "not_ready", RETRY_LATER)
+        binding, path_params = self._route(scope)
+        request = self._request(scope, binding, path_params, raw_body)
+        return await self._invoke(binding, binding.collect(request))
+
+    @staticmethod
+    def _failure(exc: Exception, rid: str) -> HTTPError:
+        """Map any request error to its HTTP answer."""
+        if isinstance(exc, HTTPError):
+            return exc
+        if isinstance(exc, ValidationError):
+            details = [asdict(d) for d in exc.details]
+            return HTTPError(
+                HTTPStatus.UNPROCESSABLE_ENTITY, "validation_error", details=details
             )
-            return error.response
-        except Exception:
-            log.exception("unhandled error in request %s", rid)
-            error = HTTPError(
-                HTTPStatus.INTERNAL_SERVER_ERROR, "internal_error", request_id=rid
-            )
-            return error.response
+        if isinstance(exc, InvalidBody):
+            status = INVALID_BODY_STATUS.get(exc.code, HTTPStatus.BAD_REQUEST)
+            return HTTPError(status, exc.code, message=exc.message)
+        log.error("unhandled error in request %s", rid, exc_info=exc)
+        return HTTPError(
+            HTTPStatus.INTERNAL_SERVER_ERROR, "internal_error", request_id=rid
+        )
+
+    @staticmethod
+    def _request(
+        scope: Scope, binding: Binding, path: dict[str, str], raw_body: bytes
+    ) -> RequestData:
+        headers = {k.lower(): v for k, v in scope.get("headers", [])}
+        body = MISSING
+        if binding.needs_body:
+            content_type = headers.get(b"content-type", b"").decode("latin-1")
+            body = decode_body(raw_body, content_type)
+        query = parse_query(scope.get("query_string", b""))
+        return RequestData(path, query, body)
 
     def _route(self, scope: Scope) -> tuple[Binding, dict[str, str]]:
         raw_path = scope.get("raw_path")
@@ -189,21 +219,25 @@ class ASGIAdapter:
                 raise HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout") from None
             raise
         if result is not None and route.status not in BODYLESS:
-            return Response.json(route.status, result)
+            return Response.json(route.status, encode(result))
         no_content = route.status == HTTPStatus.OK
         return Response(HTTPStatus.NO_CONTENT if no_content else route.status)
 
     @staticmethod
-    async def _drain_body(receive: Any) -> None:
+    async def _read_body(receive: Any) -> bytes:
+        chunks: list[bytes] = []
         size = 0
         more = True
         while more:
             message = await receive()
             if message["type"] != "http.request":
-                return
-            size += len(message.get("body", b""))
+                break
+            chunk = message.get("body", b"")
+            size += len(chunk)
             if size > MAX_BODY:
                 raise HTTPError(
                     HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "payload_too_large"
                 )
+            chunks.append(chunk)
             more = message.get("more_body", False)
+        return b"".join(chunks)

@@ -1,23 +1,36 @@
-"""Startup-time binding of handler signatures to request data.
+"""Binding of handler signatures to request data.
 
-Current scope: path parameters only. Every handler parameter must be a plain
-(keyword-capable) path parameter of its template with a supported annotation,
-and an ``API`` class must be constructible without arguments. Anything else
-fails at startup, never at request time.
+Rules, checked once when a route is included (never per request):
+
+* a parameter named in the path template is a path parameter;
+* a ``Schema`` parameter is the JSON body (one per action, POST/PUT/PATCH);
+* any other supported scalar is a query parameter (optional if it has a default);
+* anything else is ambiguous and rejected.
+
+Handlers must be callable by keyword, and an ``API`` class must be
+constructible without arguments.
 """
 
 from __future__ import annotations
 
 import inspect
+import json
 import math
 import re
 import typing
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from urllib.parse import parse_qs
 from uuid import UUID
 
-from hinoki.errors import RegistrationError
+from hinoki.errors import (
+    ErrorDetail,
+    InvalidBody,
+    RegistrationError,
+    ValidationError,
+)
 from hinoki.routing import Route
+from hinoki.schema import Schema
 
 PATH_PARAM = re.compile(r"\{([^{}]+)\}")
 INTEGER = re.compile(r"-?[0-9]+")
@@ -26,14 +39,9 @@ KEYWORD_KINDS = {
     inspect.Parameter.POSITIONAL_OR_KEYWORD,
     inspect.Parameter.KEYWORD_ONLY,
 }
-
-
-class BadParameter(ValueError):
-    """A path parameter does not match its declared type (-> 422)."""
-
-    def __init__(self, name: str) -> None:
-        super().__init__(name)
-        self.name = name
+BODY_METHODS = {"POST", "PUT", "PATCH"}
+EMPTY = inspect.Parameter.empty
+MISSING = object()
 
 
 def to_bool(raw: str) -> bool:
@@ -73,19 +81,111 @@ CONVERTERS: dict[object, Callable[[str], object]] = {
 }
 
 
+def reject_constant(name: str) -> object:
+    raise ValueError(f"{name} is not valid JSON")
+
+
+def decode_body(raw: bytes, content_type: str) -> object:
+    """Decode a JSON request body or raise ``InvalidBody``."""
+    if content_type.split(";", maxsplit=1)[0].strip().lower() != "application/json":
+        raise InvalidBody("unsupported_media_type", "expected application/json")
+    try:
+        return json.loads(raw, parse_constant=reject_constant)
+    except ValueError:
+        raise InvalidBody("invalid_json", "the body is not valid JSON") from None
+
+
+def parse_query(raw: bytes) -> dict[str, list[str]]:
+    """Parse a query string; malformed percent-encoding raises ``InvalidBody``."""
+    try:
+        return parse_qs(raw.decode("ascii"), keep_blank_values=True, errors="strict")
+    except (UnicodeDecodeError, ValueError):
+        raise InvalidBody("invalid_query", "malformed query string") from None
+
+
+@dataclass(slots=True)
+class RequestData:
+    """Everything a binding may read from a request."""
+
+    path: dict[str, str] = field(default_factory=dict)
+    query: dict[str, list[str]] = field(default_factory=dict)
+    body: object = MISSING
+
+
+def problem(path: str, code: str, message: str) -> ValidationError:
+    return ValidationError([ErrorDetail(path, code, message)])
+
+
+@dataclass(frozen=True, slots=True)
+class Param:
+    """One handler parameter and where its value comes from."""
+
+    name: str
+    source: str  # "path", "query" or "body"
+    convert: Callable[[str], object] | None = None
+    schema: type[Schema] | None = None
+    default: object = EMPTY
+
+    def extract(self, request: RequestData) -> object:
+        if self.source == "path":
+            return self.convert_text(request.path[self.name])
+        if self.source == "query":
+            return self.extract_query(request)
+        return self.extract_body(request)
+
+    def convert_text(self, raw: str) -> object:
+        assert self.convert is not None  # noqa: S101 - set for path/query params
+        try:
+            return self.convert(raw)
+        except ValueError:
+            raise problem(self.name, "type", "invalid value") from None
+
+    def extract_query(self, request: RequestData) -> object:
+        values = request.query.get(self.name)
+        if values is None:
+            if self.default is EMPTY:
+                raise problem(self.name, "required", "query parameter is required")
+            return self.default
+        if len(values) > 1:
+            raise problem(self.name, "duplicate", "given more than once")
+        return self.convert_text(values[0])
+
+    def extract_body(self, request: RequestData) -> object:
+        assert self.schema is not None  # noqa: S101 - set for body params
+        try:
+            return self.schema.validate(request.body)
+        except ValidationError as exc:
+            prefixed = [
+                ErrorDetail(
+                    f"{self.name}.{d.path}" if d.path else self.name, d.code, d.message
+                )
+                for d in exc.details
+            ]
+            raise ValidationError(prefixed) from None
+
+
 @dataclass(frozen=True, slots=True)
 class Binding:
     route: Route
-    converters: dict[str, Callable[[str], object]]
+    params: tuple[Param, ...]
 
-    def convert(self, raw: dict[str, str]) -> dict[str, object]:
-        out: dict[str, object] = {}
-        for name, convert in self.converters.items():
+    @property
+    def needs_body(self) -> bool:
+        return any(p.source == "body" for p in self.params)
+
+    def collect(self, request: RequestData) -> dict[str, object]:
+        """Keyword arguments for the handler; raises ``ValidationError`` with
+        every problem found."""
+        values: dict[str, object] = {}
+        errors: list[ErrorDetail] = []
+        for param in self.params:
             try:
-                out[name] = convert(raw[name])
-            except (ValueError, KeyError):
-                raise BadParameter(name) from None
-        return out
+                values[param.name] = param.extract(request)
+            except ValidationError as exc:
+                errors.extend(exc.details)
+        if errors:
+            raise ValidationError(errors)
+        return values
 
 
 def handler_parameters(route: Route) -> list[inspect.Parameter]:
@@ -101,8 +201,7 @@ def handler_parameters(route: Route) -> list[inspect.Parameter]:
         if parameter.kind not in KEYWORD_KINDS:
             raise RegistrationError(
                 f"{route.name}: parameter {parameter.name!r} must be usable by "
-                "keyword "
-                "(no positional-only, *args or **kwargs)"
+                "keyword (no positional-only, *args or **kwargs)"
             )
     return parameters
 
@@ -113,7 +212,7 @@ def check_owner(route: Route) -> None:
     required = [
         p.name
         for p in inspect.signature(route.owner).parameters.values()
-        if p.default is inspect.Parameter.empty and p.kind in KEYWORD_KINDS
+        if p.default is EMPTY and p.kind in KEYWORD_KINDS
     ]
     if required:
         raise RegistrationError(
@@ -122,16 +221,34 @@ def check_owner(route: Route) -> None:
         )
 
 
+def make_param(route: Route, parameter: inspect.Parameter, annotation: object) -> Param:
+    name, where = parameter.name, route.name
+    in_path = name in PATH_PARAM.findall(route.path)
+    is_schema = isinstance(annotation, type) and issubclass(annotation, Schema)
+    if is_schema:
+        if in_path or route.method not in BODY_METHODS:
+            raise RegistrationError(
+                f"{where}: schema parameter {name!r} must be a JSON body of a "
+                "POST/PUT/PATCH action, not a path or query parameter"
+            )
+        return Param(name, "body", schema=typing.cast(type[Schema], annotation))
+    convert = CONVERTERS.get(annotation)
+    if convert is None:
+        raise RegistrationError(f"{where}: unsupported type for parameter {name!r}")
+    if in_path:
+        return Param(name, "path", convert)
+    return Param(name, "query", convert, default=parameter.default)
+
+
 def bind(route: Route) -> Binding:
     parameters = handler_parameters(route)
     check_owner(route)
-    in_path = set(PATH_PARAM.findall(route.path))
-    declared = {p.name for p in parameters}
-    if declared != in_path:
+    names = {p.name for p in parameters}
+    missing = set(PATH_PARAM.findall(route.path)) - names
+    if missing:
         raise RegistrationError(
-            f"{route.name}: parameters not in path {sorted(declared - in_path)}, "
-            f"path parameters not accepted {sorted(in_path - declared)} "
-            "(only path parameters are supported so far)"
+            f"{route.name}: path parameters not accepted by the handler: "
+            f"{sorted(missing)}"
         )
     try:
         hints = typing.get_type_hints(route.handler)
@@ -139,12 +256,7 @@ def bind(route: Route) -> Binding:
         raise RegistrationError(
             f"{route.name}: cannot resolve annotations: {exc}"
         ) from exc
-    converters: dict[str, Callable[[str], object]] = {}
-    for parameter in parameters:
-        convert = CONVERTERS.get(hints.get(parameter.name))
-        if convert is None:
-            raise RegistrationError(
-                f"{route.name}: unsupported type for path parameter {parameter.name!r}"
-            )
-        converters[parameter.name] = convert
-    return Binding(route, converters)
+    params = tuple(make_param(route, p, hints.get(p.name)) for p in parameters)
+    if sum(p.source == "body" for p in params) > 1:
+        raise RegistrationError(f"{route.name}: at most one body parameter")
+    return Binding(route, params)
