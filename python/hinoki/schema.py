@@ -33,11 +33,60 @@ from hinoki.fields import UNSET, Field, FieldInfo, Unset
 from hinoki.fieldtypes import FieldType, parse_annotation
 from hinoki.native import dump_instance
 
-__all__ = ["UNSET", "Field", "FieldSpec", "Schema", "Unset"]
+__all__ = [
+    "UNSET",
+    "Field",
+    "FieldSpec",
+    "Invalid",
+    "Schema",
+    "Unset",
+    "field_check",
+    "object_check",
+]
 
 
 class ForwardReference(Exception):
     """Internal: an annotation names a class that is not defined yet."""
+
+
+class Invalid(Exception):
+    """Raised by a check to refuse a value: a stable ``code``, a readable
+    ``message`` and optionally the ``path`` it concerns (default: the field the
+    check is attached to, or the object itself)."""
+
+    def __init__(self, code: str, message: str, *, path: str = "") -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.path = path
+
+
+CHECK_ATTR = "__hinoki_check__"
+
+
+def field_check[F: Callable[..., Any]](*names: str) -> Callable[[F], F]:
+    """Mark a method as a check on one or more fields: ``def ok(self, value)``.
+
+    It runs after the structural validation succeeded, so ``value`` already has
+    the declared type, and may read the other fields through ``self``. Raise
+    ``Invalid(code, message)`` to refuse; it never changes the value. Checks are
+    synchronous and must not do I/O: a rule that needs the database belongs in an
+    operation, not in a schema."""
+    if not names:
+        raise RegistrationError("@field_check needs at least one field name")
+
+    def mark(function: F) -> F:
+        setattr(function, CHECK_ATTR, ("field", names))
+        return function
+
+    return mark
+
+
+def object_check[F: Callable[..., Any]](function: F) -> F:
+    """Mark a method as a check on the whole object: ``def ok(self)``. Runs after
+    every field check passed or failed (all problems are reported together)."""
+    setattr(function, CHECK_ATTR, ("object", ()))
+    return function
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +113,7 @@ class Schema:
     __specs__: ClassVar[dict[str, FieldSpec] | None] = None
     __native__: ClassVar[native.CompiledSchema | None] = None
     __native_dump__: ClassVar[bool] = True
+    __checks__: ClassVar[tuple[tuple[str, tuple[str, ...], str], ...]] = ()
 
     def __init_subclass__(
         cls,
@@ -80,6 +130,7 @@ class Schema:
             raise RegistrationError(
                 f"{cls.__name__}: fields/exclude/optional need model=..."
             )
+        cls.__checks__ = collect_checks(cls)
         for name in inspect.get_annotations(cls):
             cls.apply_default(name)
         dataclasses.dataclass(frozen=True, kw_only=True)(cls)
@@ -152,6 +203,10 @@ class Schema:
         instance, problems = cls.native_schema().validate(data)
         if problems:
             raise ValidationError([ErrorDetail(*problem) for problem in problems])
+        if graph_has_checks(cls):
+            found = run_checks(instance, "")
+            if found:
+                raise ValidationError(found)
         return cast(Self, instance)
 
     @classmethod
@@ -224,6 +279,83 @@ def chosen_columns(
             f"{cls.__name__}: optional names unknown fields {stray}"
         )
     return chosen, some, optional is True
+
+
+def collect_checks(cls: type) -> tuple[tuple[str, tuple[str, ...], str], ...]:
+    """``(kind, field names, method name)`` of every check, base classes first;
+    a subclass method with the same name replaces the inherited one."""
+    found: dict[str, tuple[str, tuple[str, ...], str]] = {}
+    for klass in reversed(cls.__mro__):
+        for name, value in vars(klass).items():
+            mark = getattr(value, CHECK_ATTR, None)
+            if mark is not None:
+                found[name] = (mark[0], mark[1], name)
+            elif name in found:
+                del found[name]  # overridden by something that is not a check
+    return tuple(found.values())
+
+
+def graph_has_checks(cls: type[Schema], seen: set[type] | None = None) -> bool:
+    """Whether this schema or any schema reachable from it declares a check
+    (cached on the class, so schemas without checks pay nothing)."""
+    cached = cls.__dict__.get("__graph_checks__")
+    if cached is not None:
+        return bool(cached)
+    seen = seen if seen is not None else set()
+    seen.add(cls)
+    answer = bool(cls.__checks__) or any(
+        graph_has_checks(nested, seen)
+        for nested in nested_schemas(cls)
+        if nested not in seen
+    )
+    cls.__graph_checks__ = answer  # type: ignore[attr-defined]
+    return answer
+
+
+def nested_schemas(cls: type[Schema]) -> list[type[Schema]]:
+    found: list[type[Schema]] = []
+    for spec in cls.specs().values():
+        ftype: FieldType | None = spec.ftype
+        while ftype is not None:
+            if ftype.schema is not None:
+                found.append(ftype.schema)
+            ftype = ftype.item
+    return found
+
+
+def run_checks(instance: Any, path: str) -> list[ErrorDetail]:
+    """Run the checks of an instance and of every schema inside it."""
+    problems: list[ErrorDetail] = []
+    for name in type(instance).specs():
+        value = getattr(instance, name)
+        where = f"{path}.{name}" if path else name
+        if isinstance(value, Schema):
+            problems += run_checks(value, where)
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                if isinstance(item, Schema):
+                    problems += run_checks(item, f"{where}[{index}]")
+    for kind, names, method in type(instance).__checks__:
+        for target in names if kind == "field" else (None,):
+            problems += call_check(instance, method, target, path)
+    return problems
+
+
+def call_check(
+    instance: Any, method: str, target: str | None, path: str
+) -> list[ErrorDetail]:
+    """One check on one field (or on the object when ``target`` is ``None``)."""
+    where = f"{path}.{target}" if path and target else (target or path)
+    try:
+        if target is None:
+            getattr(instance, method)()
+        else:
+            value = getattr(instance, target)
+            if value is not UNSET:
+                getattr(instance, method)(value)
+    except Invalid as refusal:
+        return [ErrorDetail(refusal.path or where, refusal.code, refusal.message)]
+    return []
 
 
 def derive_from_model(

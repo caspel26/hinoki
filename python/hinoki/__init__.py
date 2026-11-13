@@ -29,7 +29,15 @@ from hinoki.request import Request
 from hinoki.routing import Route, delete, get, patch, post, put
 from hinoki.rules import Actions, Imports, Schemas, Transactions
 from hinoki.runtime.config import RuntimeConfig
-from hinoki.schema import UNSET, Field, Schema, Unset
+from hinoki.schema import (
+    UNSET,
+    Field,
+    Invalid,
+    Schema,
+    Unset,
+    field_check,
+    object_check,
+)
 from hinoki.settings import (
     DatabaseSettings,
     DocsSettings,
@@ -67,6 +75,7 @@ __all__ = [
     "HeaderAuth",
     "HinokiAPI",
     "Imports",
+    "Invalid",
     "JSONParser",
     "JSONRenderer",
     "LifecycleSettings",
@@ -95,7 +104,9 @@ __all__ = [
     "ValidationError",
     "__version__",
     "delete",
+    "field_check",
     "get",
+    "object_check",
     "patch",
     "post",
     "put",

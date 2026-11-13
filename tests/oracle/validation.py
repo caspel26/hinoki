@@ -71,7 +71,12 @@ class Validator:
             if ftype.nullable:
                 return None
             return self.fail(path, "null", "null is not allowed")
-        return self.handlers[ftype.kind](ftype, data, path)
+        value = self.handlers[ftype.kind](ftype, data, path)
+        choices = ftype.info.one_of
+        if choices is not None and value is not INVALID and value not in choices:
+            shown = ", ".join(repr(c) for c in choices[:10])
+            return self.fail(path, "one_of", f"must be one of {shown}")
+        return value
 
     def text(self, ftype: FieldType, data: Any, path: str) -> object:
         if not isinstance(data, str):

@@ -47,6 +47,7 @@ CONSTRAINT_KEYWORDS = {
     "le": "maximum",
     "gt": "exclusiveMinimum",
     "lt": "exclusiveMaximum",
+    "one_of": "enum",
 }
 LENGTH_KEYWORDS = {
     "string": ("minLength", "maxLength"),
@@ -292,7 +293,7 @@ class OpenAPIBuilder:
         for name, value in ftype.info.constraints().items():
             keyword = constraint_keyword(name, base)
             if keyword is not None:
-                base[keyword] = value
+                base[keyword] = list(value) if isinstance(value, tuple) else value
             elif name == "pattern":
                 # JSON Schema patterns are unanchored; the runtime matches fully.
                 base["pattern"] = f"^(?:{value})$"

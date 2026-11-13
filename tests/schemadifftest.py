@@ -201,3 +201,29 @@ def test_results_are_equal_instances() -> None:
         first.tags[0] if first.tags else Tag(label="a"), Tag
     )
     assert not math.isnan(first.scores[0]) if first.scores else True
+
+
+class Choices(Schema):
+    colour: Annotated[str, Field(one_of=["red", "green", "blue"])]
+    size: Annotated[int, Field(one_of=[1, 2, 3])]
+    ratio: Annotated[float, Field(one_of=[0.5, 1])] | None = None
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"colour": "red", "size": 1},
+        {"colour": "pink", "size": 1},
+        {"colour": "red", "size": 9, "ratio": 0.5},
+        {"colour": "red", "size": True},
+        {"colour": 5, "size": "1"},
+        {"colour": "red", "size": 2, "ratio": 1},
+        {"colour": "red", "size": 2, "ratio": 1.0},
+        {"colour": "red", "size": 2, "ratio": 2},
+        {"colour": "red", "size": 2, "ratio": None},
+        {},
+        None,
+    ],
+)
+def test_one_of_agrees_with_the_oracle(data: Any) -> None:
+    assert outcome(native, Choices, data) == outcome(oracle, Choices, data)
