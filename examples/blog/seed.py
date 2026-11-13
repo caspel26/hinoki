@@ -3,8 +3,9 @@
     BLOG_DATABASE_URL=postgres://... uv run python -m examples.blog.seed
 
 Applies the migrations and inserts three users and twelve posts. The editor's
-token is ``demo-editor-token``; use it as the ``blog_token`` cookie for /admin
-or as a bearer token for the API.
+token is ``demo-editor-token`` (users ``ada`` and ``rae`` can also log in with
+``demo-password-change-me`` when the app has ``BLOG_JWT_SECRET``); use it as
+the ``blog_token`` cookie for /admin or as a bearer token for the API.
 """
 
 import asyncio
@@ -13,10 +14,12 @@ from pathlib import Path
 
 from examples.blog.models import Post, User
 from hinoki import migrator
+from hinoki.crypto import PasswordHasher
 from hinoki.db import Database
 from hinoki.orm import use_database
 
 MIGRATIONS = Path(__file__).parent / "migrations"
+DEMO_PASSWORD = "demo-password-change-me"  # noqa: S105 - synthetic; the demo users are fake
 TITLES = [
     "Getting started with Hinoki",
     "Typed handlers, plain Python",
@@ -35,13 +38,24 @@ TITLES = [
 
 async def seed(url: str) -> None:
     database = await Database.connect(url, max_size=2)
+    hasher = PasswordHasher()
     try:
         await migrator.apply(database, MIGRATIONS)
         with use_database(database):
+            hashed = await hasher.hash(DEMO_PASSWORD)
             ada = await User.acreate(
-                name="Ada Editor", token="demo-editor-token", is_editor=True
+                name="Ada Editor",
+                token="demo-editor-token",
+                is_editor=True,
+                username="ada",
+                password_hash=hashed,
             )
-            await User.acreate(name="Rae Reader", token="demo-reader-token")
+            await User.acreate(
+                name="Rae Reader",
+                token="demo-reader-token",
+                username="rae",
+                password_hash=hashed,
+            )
             await User.acreate(
                 name="Bob Editor", token="demo-other-token", is_editor=True
             )
@@ -54,6 +68,7 @@ async def seed(url: str) -> None:
                     published=not title.startswith("Draft"),
                 )
     finally:
+        hasher.close()
         database.close()
 
 
