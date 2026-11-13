@@ -6,7 +6,9 @@ for a light and a dark scheme (plus optional extra CSS). ``edit`` chooses where
 the edit form opens: ``"drawer"`` (beside the list) or ``"page"``.
 A theme whose ``default_mode`` is ``"dark"`` is dark unless the user switches.
 
-Built in: ``studio`` (default), ``classic``, ``compact``, ``midnight``.
+Built in, three deliberately different looks: ``studio`` (default: soft violet,
+rounded, edit drawer), ``midnight`` (dark, neon cyan, monospaced labels) and
+``paper`` (warm editorial: serif headings, terracotta, hairlines, edit page).
 To make your own, build a ``Theme`` and pass it as ``Admin(theme=...)``.
 """
 
@@ -107,7 +109,7 @@ STUDIO_DARK = {
     "danger": "#ff8a8a", "danger-on": "#2a0b0b", "danger-bg": "#43191b", "danger-ink": "#ffb0b0",
     "focus": "#79b8ff", "avatar-bg": "#4a3380", "avatar-ink": "#e9defb", "shadow": "none",
 }  # fmt: skip
-CLASSIC_LIGHT = {
+NEUTRAL_LIGHT = {
     "bg": "#f4f5f7", "surface": "#ffffff", "surface-2": "#eceef1", "sidebar-bg": "#ffffff",
     "topbar-bg": "#ffffff", "text": "#1c2430", "muted": "#566070", "line": "#dde1e6",
     "line-strong": "#b8c0ca", "hover": "#f0f2f5", "accent": "#1f5fa8", "accent-hover": "#174a85",
@@ -117,28 +119,25 @@ CLASSIC_LIGHT = {
     "danger-ink": "#912018", "focus": "#1a73e8", "avatar-bg": "#c5d6ea", "avatar-ink": "#17406e",
     "shadow": "none",
 }  # fmt: skip
-CLASSIC_DARK = {
-    "bg": "#12161c", "surface": "#1a2029", "surface-2": "#222a35", "sidebar-bg": "#1a2029",
-    "topbar-bg": "#1a2029", "text": "#e6eaf0", "muted": "#9aa5b4", "line": "#2c3542",
-    "line-strong": "#425063", "hover": "#202833", "accent": "#6aa7ea", "accent-hover": "#8fbdf2",
-    "accent-ink": "#08203a", "accent-text": "#8fbdf2", "accent-soft": "#1f3552",
-    "accent-soft-ink": "#cfe3fb", "ok-bg": "#153a26", "ok-ink": "#86e0a8", "warn-bg": "#3a2b0c",
-    "warn-ink": "#f2c46e", "danger": "#f28b82", "danger-on": "#3a0d0a", "danger-bg": "#411a17",
-    "danger-ink": "#ffb4ac", "focus": "#8ab4f8", "avatar-bg": "#2f4f7a", "avatar-ink": "#d6e6fb",
+PAPER_LIGHT = {
+    "bg": "#f6f0e4", "surface": "#fffdf8", "surface-2": "#efe7d6", "sidebar-bg": "#efe6d3",
+    "topbar-bg": "#f6f0e4", "text": "#2b2118", "muted": "#6b5a47", "line": "#ddd0b8",
+    "line-strong": "#b9a888", "hover": "#ede3cf", "accent": "#b4441f", "accent-hover": "#963716",
+    "accent-ink": "#ffffff", "accent-text": "#963716", "accent-soft": "#f4dccf",
+    "accent-soft-ink": "#7a2c10", "ok-bg": "#e1ecd2", "ok-ink": "#2f5a14", "warn-bg": "#f6e3b4",
+    "warn-ink": "#6b4300", "danger": "#a82020", "danger-on": "#ffffff", "danger-bg": "#f8dcd6",
+    "danger-ink": "#8a1a1a", "focus": "#1d4ed8", "avatar-bg": "#e3c4a8", "avatar-ink": "#6a2a10",
     "shadow": "none",
 }  # fmt: skip
-COMPACT_LIGHT = {
-    **CLASSIC_LIGHT, "bg": "#f2f5f5", "surface-2": "#e8eeee", "line": "#d8e0e0",
-    "line-strong": "#b4c2c2", "hover": "#eaf1f1", "accent": "#0f766e", "accent-hover": "#0b5f58",
-    "accent-text": "#0b5f58", "accent-soft": "#d3ece9", "accent-soft-ink": "#0b4f49",
-    "avatar-bg": "#b8dedb", "avatar-ink": "#0b4f49",
-}  # fmt: skip
-COMPACT_DARK = {
-    **CLASSIC_DARK, "bg": "#0f1616", "surface": "#162020", "surface-2": "#1d2a2a",
-    "sidebar-bg": "#162020", "topbar-bg": "#162020", "line": "#263636", "line-strong": "#3a5252",
-    "hover": "#1b2929", "accent": "#4fd1c5", "accent-hover": "#7ee3d9", "accent-ink": "#06201d",
-    "accent-text": "#7ee3d9", "accent-soft": "#17403c", "accent-soft-ink": "#c4f1ec",
-    "avatar-bg": "#1f5a54", "avatar-ink": "#d3f5f1",
+PAPER_DARK = {
+    "bg": "#1d1812", "surface": "#26201a", "surface-2": "#302820", "sidebar-bg": "#221c16",
+    "topbar-bg": "#1d1812", "text": "#f1e8d8", "muted": "#b7a88f", "line": "#3b3227",
+    "line-strong": "#54483a", "hover": "#2d251d", "accent": "#e9895f", "accent-hover": "#f1a07d",
+    "accent-ink": "#2a1206", "accent-text": "#f1a07d", "accent-soft": "#4a2a1b",
+    "accent-soft-ink": "#f7d2bf", "ok-bg": "#20331a", "ok-ink": "#a6d98a", "warn-bg": "#3d2e10",
+    "warn-ink": "#f0cb7a", "danger": "#f19a8e", "danger-on": "#330c08", "danger-bg": "#46201b",
+    "danger-ink": "#ffc0b6", "focus": "#8ab4f8", "avatar-bg": "#6a3b24", "avatar-ink": "#f7d9c6",
+    "shadow": "none",
 }  # fmt: skip
 MIDNIGHT_DARK = {
     "bg": "#0b0f14", "surface": "#121923", "surface-2": "#1a2330", "sidebar-bg": "#0e141c",
@@ -151,7 +150,7 @@ MIDNIGHT_DARK = {
     "shadow": "0 0 0 1px rgba(34,211,238,.04)",
 }  # fmt: skip
 MIDNIGHT_LIGHT = {
-    **CLASSIC_LIGHT, "bg": "#eef3f8", "sidebar-bg": "#0e141c", "accent": "#0e7490",
+    **NEUTRAL_LIGHT, "bg": "#eef3f8", "sidebar-bg": "#e3eaf2", "accent": "#0e7490",
     "accent-hover": "#155e75", "accent-text": "#155e75", "accent-soft": "#cdeff7",
     "accent-soft-ink": "#0b4a5c", "avatar-bg": "#b6e3ee", "avatar-ink": "#0b4a5c",
 }  # fmt: skip
@@ -165,40 +164,39 @@ STUDIO = Theme(
     },
     extra_css=".hn-avatar{width:2rem;height:2rem;font-size:.75rem}\n.hn-nav-item{font-weight:500}\n",
 )  # fmt: skip
-CLASSIC = Theme(
-    "classic", "Classic", "page", CLASSIC_LIGHT, CLASSIC_DARK,
+PAPER = Theme(
+    "paper", "Paper", "page", PAPER_LIGHT, PAPER_DARK,
     {
-        "font": SYSTEM_FONT, "font-size": "16px", "radius": "4px", "radius-sm": "3px",
-        "radius-lg": "4px", "nav-pad": ".5rem .75rem", "cell-pad": ".6rem .75rem",
-        "h1": "1.5rem", "sidebar-w": "15rem", "drawer-w": "26rem",
-    },
-    extra_css=".hn-card{box-shadow:none}\n.hn-table th{background:var(--hn-surface-2)}\n",
-)  # fmt: skip
-COMPACT = Theme(
-    "compact", "Compact", "page", COMPACT_LIGHT, COMPACT_DARK,
-    {
-        "font": SYSTEM_FONT, "font-size": "14px", "radius": "3px", "radius-sm": "2px",
-        "radius-lg": "3px", "nav-pad": ".35rem .6rem", "cell-pad": ".3rem .6rem",
-        "h1": "1.3rem", "sidebar-w": "12.5rem", "drawer-w": "22rem",
+        "font": SYSTEM_FONT, "font-size": "16px", "radius": "2px", "radius-sm": "2px",
+        "radius-lg": "2px", "nav-pad": ".5rem .9rem", "cell-pad": ".75rem .9rem",
+        "h1": "2.1rem", "sidebar-w": "15rem", "drawer-w": "26rem",
     },
     extra_css=(
-        ".hn-table tbody tr:nth-child(even){background:var(--hn-surface-2)}\n"
-        ".hn-main{padding:1rem;gap:.9rem}\n.hn-btn{min-height:2rem;padding:.25rem .7rem}\n"
-        ".hn-iconbtn{width:2rem;height:2rem}\n.hn-stat-value{font-size:1.5rem}\n"
+        'h1,h2,h3,.hn-brand{font-family:Georgia,"Iowan Old Style","Times New Roman",serif;'
+        "font-weight:600;letter-spacing:-.01em}\n"
+        ".hn-card{box-shadow:none;border-width:1px 0}\n"
+        ".hn-table th{text-transform:uppercase;font-size:.72rem;letter-spacing:.08em;"
+        "background:transparent;border-bottom:2px solid var(--hn-line-strong)}\n"
     ),
 )  # fmt: skip
 MIDNIGHT = Theme(
     "midnight", "Midnight", "drawer", MIDNIGHT_LIGHT, MIDNIGHT_DARK,
     {
-        "font": SYSTEM_FONT, "font-size": "16px", "radius": "10px", "radius-sm": "8px",
-        "radius-lg": "14px", "nav-pad": ".55rem .8rem", "cell-pad": ".65rem .75rem",
+        "font": SYSTEM_FONT, "font-size": "15px", "radius": "6px", "radius-sm": "4px",
+        "radius-lg": "8px", "nav-pad": ".55rem .8rem", "cell-pad": ".65rem .75rem",
         "h1": "1.7rem", "sidebar-w": "15.5rem", "drawer-w": "25rem",
     },
     default_mode="dark",
-    extra_css=".hn-primary{box-shadow:0 0 18px rgba(34,211,238,.25)}\n",
+    extra_css=(
+        ".hn-primary{box-shadow:0 0 18px rgba(34,211,238,.25)}\n"
+        'h1,h2,h3,.hn-brand,.hn-table th,.hn-nav-item{font-family:ui-monospace,"JetBrains Mono",'
+        "Menlo,Consolas,monospace}\n"
+        ".hn-table th{text-transform:uppercase;font-size:.7rem;letter-spacing:.1em}\n"
+        ".hn-nav-item[aria-current=page]{box-shadow:inset 2px 0 var(--hn-accent)}\n"
+    ),
 )  # fmt: skip
 
-THEMES: dict[str, Theme] = {t.name: t for t in (STUDIO, CLASSIC, COMPACT, MIDNIGHT)}
+THEMES: dict[str, Theme] = {t.name: t for t in (STUDIO, MIDNIGHT, PAPER)}
 for built_in in THEMES.values():
     built_in.check()
 

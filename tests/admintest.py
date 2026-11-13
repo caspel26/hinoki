@@ -131,16 +131,16 @@ def test_application_templates_and_css_override_the_built_in_set(
     (tmp_path / "components").mkdir()
     (tmp_path / "components" / "empty.html").write_text("<i>{{ message }}</i>")
     (tmp_path / "admin.css").write_text("/* mine */")
-    templates = Templates(tmp_path, "classic")
+    templates = Templates(tmp_path, "paper")
     assert templates.render("empty", message="x") == "<i>x</i>"
     assert "hn-table" in templates.sources["table"]  # the rest stays built in
     css = templates.stylesheet().decode()
     assert css.index("--hn-accent") < css.index("/* mine */")  # the app css wins last
-    assert 'data-theme="classic"' in css and "prefers-color-scheme: dark" in css
+    assert 'data-theme="paper"' in css and "prefers-color-scheme: dark" in css
 
 
-def test_four_themes_share_the_component_set_and_validate() -> None:
-    assert set(THEMES) == {"studio", "classic", "compact", "midnight"}
+def test_three_themes_share_the_component_set_and_validate() -> None:
+    assert set(THEMES) == {"studio", "midnight", "paper"}
     assert {t.edit for t in THEMES.values()} == {"drawer", "page"}
     for name in THEMES:
         css = Templates(theme=name).stylesheet().decode()
@@ -156,9 +156,9 @@ def test_four_themes_share_the_component_set_and_validate() -> None:
         "mine",
         "Mine",
         "page",
-        THEMES["classic"].light,
-        THEMES["classic"].dark,
-        THEMES["classic"].fixed,
+        THEMES["paper"].light,
+        THEMES["paper"].dark,
+        THEMES["paper"].fixed,
     )
     assert 'data-theme="mine"' in Templates(theme=custom).stylesheet().decode()
 
@@ -621,13 +621,13 @@ async def test_edit_opens_beside_the_list_in_drawer_themes_and_on_a_page_otherwi
         and "hn-table" in drawer.body
         and 'class="is-open"' in drawer.body
     )
-    page = await (await pool.start(build("classic"))).request(
+    page = await (await pool.start(build("paper"))).request(
         "GET", f"/admin/notes/{key}", headers=STAFF
     )
     assert (
         "hn-drawer" not in page.body
         and "hn-page-form" in page.body
-        and 'data-theme="classic"' in page.body
+        and 'data-theme="paper"' in page.body
     )
 
 
