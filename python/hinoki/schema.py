@@ -31,7 +31,7 @@ from hinoki.errors import (
 from hinoki.fields import UNSET, Field, FieldInfo, Unset
 from hinoki.fieldtypes import FieldType, parse_annotation
 
-__all__ = ["UNSET", "Field", "FieldSpec", "Schema", "Unset"]
+__all__ = ["UNSET", "Contract", "Field", "FieldSpec", "Schema", "Unset"]
 
 
 class ForwardReference(Exception):
@@ -272,3 +272,8 @@ def encode(value: object) -> Any:
         return encode_items(value)
     encoder = ENCODERS.get(type(value))
     return encoder(value) if encoder else value
+
+
+# ``Contract`` is the project's own name for a schema (the framework speaks of
+# typed contracts); both names are the same class and either may be used.
+Contract = Schema
