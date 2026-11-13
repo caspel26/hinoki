@@ -94,7 +94,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      - name: Build the documentation site (strict: broken links fail)
+      - name: Build the documentation site, strictly (broken links fail)
         run: uv run --locked --group docs mkdocs build --strict -d /tmp/site
 
   wheel:
