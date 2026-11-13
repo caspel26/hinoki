@@ -81,6 +81,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Audit Cargo.lock against the RustSec advisory database
         run: cargo install cargo-audit --locked && cargo audit
+      - name: Check licences, bans and sources (deny.toml)
+        run: cargo install cargo-deny --locked && cargo deny check
 
   wheel:
     runs-on: ubuntu-latest
