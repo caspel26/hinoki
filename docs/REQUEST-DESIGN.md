@@ -1,6 +1,6 @@
 # Request object, parsers and renderers — design (Q008)
 
-Status: **S1 design, S2 implemented** (2026-11-13): `Request` (Python), request-first binding, mechanical rewrite of handlers, tests and example. S3–S7 not started. Owner request: a Django-style request, pluggable parsers and renderers, the request as the first argument of every handler, all of it Rust-based.
+Status: **S1 design, S2 and S3 implemented** (2026-11-13): `Request` (Python), request-first binding, Rust query/cookie/header parsing and JSON decode/encode. S4–S7 not started. Owner request: a Django-style request, pluggable parsers and renderers, the request as the first argument of every handler, all of it Rust-based.
 
 ## Observed
 
@@ -92,7 +92,7 @@ Empty body with a body schema → 422 as today; missing/unknown `Content-Type` �
 | --- | --- | --- |
 | S1 | This design | `docs/REQUEST-DESIGN.md` |
 | S2 (done) | `Request` (Python class, read-only, lazy) and request-first handler binding; rewrite handlers, tests, blog, CRUD templates | `python/hinoki/request.py`, `runtime/binding.py`, `runtime/requests.py`, `crud.py`, `examples/`, `tests/` |
-| S3 | Rust query/header/cookie parsing and JSON parse/serialise; swap Python implementations behind the same interface | `crates/bindings/src/request.rs`, `python/hinoki/runtime/` |
+| S3 (done) | Rust query/header/cookie parsing and JSON parse/serialise; swap Python implementations behind the same interface | `crates/bindings/src/request.rs`, `python/hinoki/runtime/` |
 | S4 | Parsers: form + multipart in Rust, `parsers=` option, limits as settings | `crates/bindings/src/parse.rs`, `routing.py`, `settings` |
 | S5 | Renderers: `renderers=`, `Accept` negotiation, 406, OpenAPI media types | `runtime/responses.py`, `openapi.py` |
 | S6 | `Request` as a Rust `#[pyclass]` if S3 measurements justify it; benchmark and report | `crates/bindings`, `benchmarks/` |
@@ -108,3 +108,8 @@ Whether the default parser set should include form/multipart (recommended: JSON 
 * The body is now read for every POST/PUT/PATCH action, not only those with a `Schema` parameter, so `request.body` is available and the 413 limit always applies. `request.data` parses once (`decode_body`, JSON only until S4) and is shared with the schema binding.
 * `COOKIES` uses a small Python parser (first value wins, quotes stripped); `POST`/`FILES` arrive with S4. `Headers` and `QueryDict` are read-only mappings.
 * Generated CRUD templates take the request too; the unused-argument lint is relaxed for `examples/` and `crud.py` only, because the first parameter is mandatory and a handler need not read it.
+
+## Implementation notes (S3)
+
+* `crates/bindings/src/request.rs`: pure functions (`parse_query`, `parse_cookies`, `join_headers`, unit-tested) plus a recursive-descent JSON parser that builds Python objects directly and a JSON writer over plain Python values. Python calls them from `runtime/binding.py` (`decode_body`, `parse_query`), `runtime/requests.py` (`header_map`), `request.py` (cookies) and `runtime/responses.py` (encoding).
+* The Rust JSON decoder is deliberately stricter than `json.loads` (BOM, lone surrogates and depth over 128 are errors); the encoder compacts output and writes UTF-8 instead of `\u` escapes. `benchmarks/requestbench.py` records the measured effect: modest for JSON, large for query strings. `Request` stays a Python class; the `#[pyclass]` step (S6) is only justified if end-to-end measurements show it matters.

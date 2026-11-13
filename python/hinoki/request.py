@@ -12,6 +12,8 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping
 from typing import Any
 
+from hinoki import native
+
 UNREAD = object()
 
 
@@ -56,16 +58,6 @@ class QueryDict(Mapping[str, str]):
         return list(self.lists.get(name, []))
 
 
-def parse_cookies(header: str) -> dict[str, str]:
-    """``Cookie`` header to a dict; the first value of a repeated name wins."""
-    cookies: dict[str, str] = {}
-    for part in header.split(";"):
-        name, found, value = part.strip().partition("=")
-        if found and name and name not in cookies:
-            cookies[name] = value.strip().strip('"')
-    return cookies
-
-
 class Request:
     """One HTTP request. Never mutate it; it is shared with the whole call."""
 
@@ -107,7 +99,7 @@ class Request:
         self.client = client
         self.headers = Headers(headers)
         self.GET = QueryDict(query)
-        self.COOKIES = parse_cookies(self.headers.get("cookie", ""))
+        self.COOKIES = native.parse_cookie_header(self.headers.get("cookie", ""))
         self.body = body
         self.path_params = dict(path_params)
         self.user = user
