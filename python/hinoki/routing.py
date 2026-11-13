@@ -19,7 +19,7 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 ROUTE_ATTR = "__hinoki_route__"
-MIN_STATUS = 100
+MIN_STATUS = 200
 MAX_STATUS = 599
 
 

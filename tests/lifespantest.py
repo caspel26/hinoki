@@ -41,6 +41,18 @@ class Recording(Module):
                 raise RuntimeError(f"stop-{self.name}")
 
 
+class HangsOnExit(Recording):
+    name = "hang"
+
+    @asynccontextmanager
+    async def lifespan(self, ctx: ModuleContext) -> AsyncIterator[None]:
+        self.events.append("start:hang")
+        try:
+            yield
+        finally:
+            await asyncio.sleep(60)
+
+
 class First(Recording):
     name = "a"
 
@@ -158,3 +170,49 @@ def test_context_registry_is_typed_and_rejects_duplicates() -> None:
         ctx.get(int)
     with pytest.raises(Exception, match="already provided"):
         ctx.provide(str, "again")
+
+
+async def stubborn(stop: asyncio.Event) -> None:
+    """Swallows cancellation until ``stop`` is set (so the test can clean up)."""
+    while not stop.is_set():
+        try:
+            await asyncio.sleep(0.05)
+        except asyncio.CancelledError:
+            continue
+
+
+async def test_hung_task_and_hung_module_do_not_skip_other_cleanup() -> None:
+    events: list[str] = []
+    life = build([First(events), HangsOnExit(events)], shutdown_timeout=0.2)
+    await life.startup()
+    stop = asyncio.Event()
+    life.ctx.tasks.start_soon(stubborn(stop), name="stubborn")
+    await asyncio.sleep(0)
+    with pytest.raises(ShutdownError) as info:
+        await life.shutdown()
+    stop.set()
+    assert events[-1] == "stop:a", "teardown continued after the hung steps"
+    assert len(info.value.causes) >= 2
+    assert all(isinstance(c, TimeoutError) for c in info.value.causes)
+
+
+async def test_lifespan_can_run_again_after_shutdown() -> None:
+    events: list[str] = []
+    life = build([First(events)])
+    await life.startup()
+    life.ctx.provide(str, "first")
+    life.ctx.tasks.start_soon(asyncio.sleep(60), name="bg")
+    await life.shutdown()
+    await life.startup()
+    life.ctx.provide(str, "second")  # registry was cleared
+    life.ctx.tasks.start_soon(asyncio.sleep(60), name="bg")
+    await life.shutdown()
+    assert events == ["start:a", "stop:a", "start:a", "stop:a"]
+
+
+async def test_duplicate_startup_is_a_startup_error_not_a_crash() -> None:
+    life = build([])
+    await life.startup()
+    with pytest.raises(StartupError, match="<lifespan>"):
+        await life.startup()
+    await life.shutdown()

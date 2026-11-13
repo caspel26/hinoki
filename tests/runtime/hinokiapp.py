@@ -51,6 +51,11 @@ async def fast() -> dict[str, int]:
     return {"pid": os.getpid()}
 
 
+@get("/echo/{name}")
+async def echo(name: str) -> dict[str, str]:
+    return {"name": name}
+
+
 @get("/sync-slow")
 def sync_slow() -> dict[str, int]:
     time.sleep(1.0)
@@ -66,5 +71,5 @@ async def async_slow() -> dict[str, int]:
 
 
 app = HinokiAPI(runtime=RuntimeConfig(sync_workers=2, sync_queue=0))
-app.include(fast, sync_slow, async_slow)
+app.include(fast, echo, sync_slow, async_slow)
 app.install(Gamma(), Alpha(), Beta())

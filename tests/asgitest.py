@@ -56,6 +56,21 @@ async def nothing() -> None:
     return None
 
 
+@get("/echo/{name}")
+async def echo(name: str) -> dict[str, str]:
+    return {"name": name}
+
+
+@get("/gone", status=204)
+async def gone() -> dict[str, str]:
+    return {"ignored": "body"}
+
+
+@get("/ratio/{value}")
+async def ratio(value: float) -> dict[str, float]:
+    return {"value": value}
+
+
 class Things(API, path="/things"):
     @get("/{thing_id}")
     def one(self, thing_id: UUID) -> dict[str, str]:
@@ -77,7 +92,18 @@ def bad_type(t: list[int]) -> None: ...
 def make_app(**config: float) -> HinokiAPI:
     app = HinokiAPI(runtime=RuntimeConfig(**config))  # type: ignore[arg-type]
     app.include(
-        ping, item, request_id_in_thread, boom, slow_async, block, made, nothing, Things
+        ping,
+        item,
+        request_id_in_thread,
+        boom,
+        slow_async,
+        block,
+        made,
+        nothing,
+        echo,
+        gone,
+        ratio,
+        Things,
     )
     return app
 
@@ -108,10 +134,14 @@ class Client:
         message = await self.outbox.get()
         return str(message["type"])
 
-    async def request(self, method: str, path: str, body: bytes = b"") -> Reply:
+    async def request(
+        self, method: str, path: str, body: bytes = b"", raw_path: bytes | None = None
+    ) -> Reply:
         sent: list[dict[str, Any]] = []
         incoming = {"type": "http.request", "body": body, "more_body": False}
-        scope = {"type": "http", "method": method, "path": path}
+        scope: dict[str, Any] = {"type": "http", "method": method, "path": path}
+        if raw_path is not None:
+            scope["raw_path"] = raw_path
         await self.adapter(scope, self.receive(incoming), self.collect(sent))
         headers = {k.decode(): v.decode() for k, v in sent[0]["headers"]}
         raw = sent[1]["body"]
@@ -194,12 +224,16 @@ async def test_request_timeout_maps_to_504(pool: Pool) -> None:
     assert (await client.request("GET", "/slow-async")).status == 504
 
 
-async def test_saturated_sync_executor_sheds_load_with_503(pool: Pool) -> None:
+async def test_saturated_executor_sheds_sync_routes_but_async_routes_keep_working(
+    pool: Pool,
+) -> None:
     client = await pool.start(sync_workers=1, sync_queue=0, request_timeout=5)
     first = asyncio.create_task(client.request("GET", "/block"))
     await asyncio.sleep(0.1)
     shed = await client.request("GET", "/rid")
-    assert (shed.status, shed.headers["retry-after"]) == (503, "1")
+    assert (shed.status, shed.body["error"]) == (503, "overloaded")
+    assert shed.headers["retry-after"] == "1"
+    assert (await client.request("GET", "/items/1")).status == 200  # async route
     release.set()
     assert (await first).status == 204
 
@@ -219,10 +253,31 @@ async def test_oversized_body_is_rejected(pool: Pool) -> None:
 
 
 @pytest.mark.parametrize("handler", [needs_query, wrong_name, bad_type])
-def test_unsupported_signatures_fail_at_startup_not_per_request(
-    handler: Any,
-) -> None:
-    app = HinokiAPI()
-    app.include(handler)
+def test_unsupported_signatures_fail_when_included(handler: Any) -> None:
     with pytest.raises(RegistrationError):
-        app.asgi()
+        HinokiAPI().include(handler)
+
+
+async def test_204_has_no_body_and_no_content_length(pool: Pool) -> None:
+    client = await pool.start()
+    reply = await client.request("GET", "/gone")
+    assert (reply.status, reply.body) == (204, None)
+    assert "content-length" not in reply.headers
+
+
+async def test_routing_uses_the_raw_path_and_decodes_parameters(pool: Pool) -> None:
+    client = await pool.start()
+    slash = await client.request("GET", "/echo/a/b", raw_path=b"/echo/a%2Fb")
+    assert (slash.status, slash.body) == (200, {"name": "a/b"})
+    unicode = await client.request("GET", "/echo/x", raw_path=b"/echo/%E4%BD%A0")
+    assert unicode.body == {"name": "\u4f60"}
+    bad = await client.request("GET", "/echo/x", raw_path=b"/echo/%FF")
+    assert bad.status == 400
+    assert (await client.request("GET", "/echo/a%2Fb")).status == 200  # no raw_path
+
+
+@pytest.mark.parametrize("value", [" 42", "nan", "inf", "1_0", "\u0664\u0662"])
+async def test_numeric_parameters_are_strict(pool: Pool, value: str) -> None:
+    client = await pool.start()
+    assert (await client.request("GET", f"/ratio/{value}")).status == 422
+    assert (await client.request("GET", "/ratio/2.5")).body == {"value": 2.5}
