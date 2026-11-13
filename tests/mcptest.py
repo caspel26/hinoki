@@ -98,7 +98,7 @@ def test_inspect_project_describes_actions(server: Server) -> None:
 def test_list_rules_reports_waivers_read_only(tmp_path: Path) -> None:
     waivers = tmp_path / "w.toml"
     waivers.write_text(
-        '[[waiver]]\nrule="HNK-ACC-001"\ntarget="x.*"\nreason="r"\nowner="o"\n'
+        '[[waiver]]\nrule="HNK-ACC-001"\ntarget="tests.projects.*"\nreason="r"\nowner="o"\n'
     )
     server = Server(DevProject(create_app(), rules, waivers=waivers, today=TODAY))
     data = call(server, "list_rules")["result"]["structuredContent"]

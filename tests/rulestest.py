@@ -88,7 +88,7 @@ def test_require_access_names_every_unprotected_action_with_its_location() -> No
 def test_require_access_exceptions_and_patterns() -> None:
     everything = RuleSet(Actions.require_access())
     assert len(everything.run(project(health, Posts))) == 2
-    allowed = RuleSet(Actions.require_access(except_=["health", "*.listing"]))
+    allowed = RuleSet(Actions.require_access(except_=["*.health", "*.listing"]))
     assert allowed.run(project(health, Posts)) == []
 
 

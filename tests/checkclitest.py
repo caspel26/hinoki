@@ -85,7 +85,7 @@ def entry(**changes: str) -> str:
     [
         (entry(reason=""), "missing reason"),
         (entry(reason="  "), "missing reason"),
-        (entry(target="*"), "covers everything"),
+        (entry(target="*"), "not bounded"),
         (entry(extra="1"), "unknown keys"),
         (entry(expires="soon"), "expires"),
         ("[[waiver", "waiver"),
@@ -104,11 +104,12 @@ def test_an_absent_waiver_file_means_no_waivers(tmp_path: Path) -> None:
 
 
 def test_check_reports_violations_with_a_failing_exit_code(
-    capsys: pytest.CaptureFixture[str], tmp_path: Path
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    code = main(
-        ["check", "--app", APP, "--rules", RULES, "--waivers", str(tmp_path / "n")]
-    )
+    monkeypatch.chdir(tmp_path)  # no hinoki-rules.toml here
+    code = main(["check", "--app", APP, "--rules", RULES])
     out = capsys.readouterr().out
     assert code == 1
     assert "HNK-ACC-001" in out
@@ -148,9 +149,12 @@ def test_check_json_is_versioned_and_waivers_make_it_pass(
 
 
 def test_check_without_rules_passes_and_says_zero(
-    capsys: pytest.CaptureFixture[str], tmp_path: Path
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert main(["check", "--app", APP, "--waivers", str(tmp_path / "n")]) == 0
+    monkeypatch.chdir(tmp_path)
+    assert main(["check", "--app", APP]) == 0
     assert "0 rule(s)" in capsys.readouterr().out
 
 
