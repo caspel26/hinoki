@@ -45,6 +45,7 @@ class API:
                         route.status,
                         route.access,
                         route.transaction,
+                        cls,
                     )
                 )
         return found
