@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import UNSET, Schema, Unset
+from hinoki import UNSET, Contract, Schema, Unset
 from hinoki.errors import RelationNotLoaded
 from hinoki.orm import Model, field, foreign_key
 from hinoki.relations import Related
@@ -114,8 +114,6 @@ def test_from_model_is_strict_about_missing_and_unloaded_data() -> None:
 
 
 def test_contract_is_the_same_class_as_schema() -> None:
-    from hinoki import Contract
-
     class Thing(Contract):
         name: str
 
