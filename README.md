@@ -115,7 +115,7 @@ Honest status, verified by the test suite:
 | Optional rules (`RuleSet`: access, transaction, schema exposure, static import boundaries), owner waivers, `python -m hinoki check` (text/JSON) | Implemented; runtime and scenario phases not built |
 | Development MCP (`python -m hinoki mcp`): read-only project context over stdio | Implemented; not yet tested against a real MCP client; no application MCP |
 | Interactive API docs: **Swagger UI** and **ReDoc** (`docs_url=`, `redoc_url=`), vendored and served from the package under a strict CSP | Implemented; verified in Chromium and Firefox |
-| Admin extra (`hinoki.admin`): Classic theme, list/search/pagination, add/edit/delete with confirmation, CSRF, per-model `can()`/`queryset()`/`save()` hooks, template and CSS overrides | First slice implemented and verified in Chromium and Firefox at 1440×900, 390×844, 360×740 and 320×640 (WebKit could not start here, so it is **not** verified). No login UI, no relation widgets, one theme, no audit log |
+| Admin extra (`hinoki.admin`): Studio/Classic/Compact/Midnight themes over one base component set, Lucide icons, dashboard stats, tabs, search, sortable paginated lists with badges and avatars, edit drawer or page, FK selects, fieldsets, bulk delete, signed CSRF, per-model `can()`/`queryset()`/`save()` hooks, template and CSS overrides | Implemented; reviewed once (findings fixed in this version). The earlier browser run covered the first version only: the new UI has been looked at in Chromium (screenshots above) but `tests/browser/verify.py` still targets the old markup and has **not** been re-run, and WebKit has never started here. No login UI, no rich-text or tag widgets, no audit log |
 | JWT, benchmarks beyond micro-benchmarks | Not started |
 | `Request` as the first handler argument (`method`, `headers`, `GET`, `COOKIES`, `body`, `data`, `user`) | Implemented; query, cookie and header parsing and JSON decode/encode run in Rust (modest measured gain for JSON, larger for query strings: [benchmarks](benchmarks/README.md)) |
 | Body parsers chosen by `Content-Type`: JSON (default), form, multipart (Rust), custom; `parsers=[...]` per action | Implemented; uploads stay in memory within a 1 MiB body cap |
@@ -164,13 +164,19 @@ Taken from the reference blog (`examples/blog`) with real browsers (`tests/brows
 | --- | --- |
 | ![Swagger UI showing the blog API](docs/screenshots/swagger.png) | ![ReDoc showing the blog API](docs/screenshots/redoc.png) |
 
-| Admin list (desktop) | Admin list (phone, 390×844) |
-| --- | --- |
-| ![Admin post list with search and pagination](docs/screenshots/admin-posts-desktop.png) | ![Admin post list on a phone](docs/screenshots/admin-posts-phone.png) |
+The admin has four themes built on one set of base components (Studio is the default; Classic, Compact and Midnight restyle the same pages through design tokens):
 
-| Validation errors keep the input | Dark scheme |
+| Studio: dashboard | Studio: edit drawer |
 | --- | --- |
-| ![Admin form with an invalid field marked](docs/screenshots/admin-form-error.png) | ![Admin in the dark colour scheme](docs/screenshots/admin-dark.png) |
+| ![Studio theme dashboard with stat cards and recent posts](docs/screenshots/admin-studio-dashboard.png) | ![Studio theme with the edit drawer beside the list](docs/screenshots/admin-studio-edit.png) |
+
+| Classic | Compact |
+| --- | --- |
+| ![Classic theme list](docs/screenshots/admin-classic-list.png) | ![Compact theme list](docs/screenshots/admin-compact-list.png) |
+
+| Midnight | Studio on a phone (390 px) |
+| --- | --- |
+| ![Midnight theme dashboard](docs/screenshots/admin-midnight-dashboard.png) | ![Studio theme on a phone](docs/screenshots/admin-studio-phone.png) |
 
 Try it: create a disposable PostgreSQL database, then
 
@@ -179,7 +185,8 @@ export BLOG_DATABASE_URL=postgres://postgres:pw@127.0.0.1:5432/hinoki_demo
 uv run python -m examples.blog.seed          # migrations + synthetic users and posts
 uv run granian --interface asgi --factory examples.blog.main:create_app
 # API docs:  http://127.0.0.1:8000/docs  and  /redoc
-# Admin:     http://127.0.0.1:8000/admin  (send the cookie blog_token=demo-editor-token)
+# Admin:     http://127.0.0.1:8000/admin  (send the cookie blog_token=demo-editor-token;
+#            set BLOG_ADMIN_SECRET (32+ bytes) and optionally BLOG_ADMIN_THEME=studio|classic|compact|midnight)
 ```
 
 ## Core concepts

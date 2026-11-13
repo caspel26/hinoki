@@ -3,7 +3,8 @@
 Importing this package registers nothing and touches no database.
 """
 
-from hinoki.admin.core import Admin, ModelAdmin
+from hinoki.admin.core import Admin
+from hinoki.admin.modeladmin import ModelAdmin
 from hinoki.admin.parts import Avatar, Badge, Event, Fieldset, Link, Stat, Tab
 from hinoki.admin.themes import THEMES, Theme
 

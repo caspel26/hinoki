@@ -59,6 +59,12 @@ class FormField:
     select: bool = False  # a foreign key rendered as a select
 
 
+def label_of(name: str) -> str:
+    """``author_id`` reads as "Author"."""
+    base = name.removesuffix("_id") if name != "id" else name
+    return base.replace("_", " ").capitalize()
+
+
 def unwrap(annotation: Any) -> tuple[Any, bool]:
     """``(type, nullable)`` for ``T | None``."""
     args = typing.get_args(annotation)
@@ -102,7 +108,7 @@ def fields_for(
         found.append(
             FormField(
                 item.name,
-                item.name.replace("_", " ").capitalize(),
+                label_of(item.name),
                 kind,
                 not (has_default or nullable),
                 nullable,
