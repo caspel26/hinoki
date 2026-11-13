@@ -1,7 +1,7 @@
 """Application factory.
 
     TRACKER_DATABASE_URL=postgres://... \
-      granian --interface asgi --factory examples.tracker.app:create_app
+      python -m hinoki dev examples.tracker.app:create_app
 
 Layers (see docs/PATTERNS.md): ``api`` -> ``operations`` -> ``models``.
 """

@@ -41,7 +41,7 @@ Path, query and body values are typed parameters; the `Request` object is option
 
 ```sh
 export NOTES_DATABASE_URL=postgres://postgres:pw@127.0.0.1:5432/notes
-uv run granian --interface asgi --factory examples.notes.app:create_app
+uv run python -m hinoki dev examples.notes.app:create_app
 ```
 
 Open `/docs` (Swagger UI) or `/redoc`.

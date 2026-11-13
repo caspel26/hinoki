@@ -35,6 +35,8 @@ LEVELS = ("debug", "info", "warning", "error", "critical")
 SEPARATOR = "__"
 MAX_BODY_LIMIT = 1 << 30  # 1 GiB: a larger "limit" is no limit
 MAX_SYNC_WORKERS = 1024
+MAX_PORT = 65536
+MAX_WORKERS = 256
 QUOTED = 2  # shortest quoted value: the two quotes
 
 
@@ -79,8 +81,24 @@ class Secret:
 class Settings:
     """Base class: subclasses are keyword-only frozen dataclasses."""
 
-    def __init_subclass__(cls, **options: Any) -> None:
+    __env_prefix__: ClassVar[str] = ""
+    __dotenv__: ClassVar[str | None] = None
+
+    def __init_subclass__(
+        cls,
+        prefix: str | None = None,
+        dotenv: str | None = None,
+        **options: Any,
+    ) -> None:
+        """``class BlogSettings(FrameworkSettings, prefix="BLOG_", dotenv=".env")``
+        declares where the class reads its variables, so ``BlogSettings.load()``,
+        ``python -m hinoki settings`` and ``serve`` need no repeated arguments.
+        A subclass inherits what its parent declared."""
         super().__init_subclass__(**options)
+        if prefix is not None:
+            cls.__env_prefix__ = prefix
+        if dotenv is not None:
+            cls.__dotenv__ = dotenv
         dataclasses.dataclass(frozen=True, kw_only=True)(cls)
 
     @classmethod
@@ -92,7 +110,7 @@ class Settings:
     def load(
         cls,
         *,
-        prefix: str = "",
+        prefix: str | None = None,
         env: Mapping[str, str] | None = None,
         dotenv: str | os.PathLike[str] | None = None,
         overrides: Mapping[str, Any] | None = None,
@@ -104,7 +122,11 @@ class Settings:
         ``strict`` (default) makes a variable that starts with ``prefix`` but
         names no field an error, which catches typos; pass ``strict=False`` when
         another program shares the prefix. With an empty prefix nothing can be
-        told apart from the rest of the environment, so no typo check happens."""
+        told apart from the rest of the environment, so no typo check happens.
+
+        ``prefix`` and ``dotenv`` default to what the class declared."""
+        prefix = cls.__env_prefix__ if prefix is None else prefix
+        dotenv = cls.__dotenv__ if dotenv is None else dotenv
         source, _, problems = gather(cls, prefix, env, dotenv)
         found = build(cls, prefix, source, dict(overrides or {}), problems)
         known = known_keys(cls, prefix)
@@ -121,7 +143,7 @@ class Settings:
     def explain(
         cls,
         *,
-        prefix: str = "",
+        prefix: str | None = None,
         env: Mapping[str, str] | None = None,
         dotenv: str | os.PathLike[str] | None = None,
         overrides: Mapping[str, Any] | None = None,
@@ -130,6 +152,8 @@ class Settings:
         """Load like ``load`` and say, for every value, where it came from:
         ``override``, ``environment``, ``.env``, ``file`` (a ``*_FILE`` variable)
         or ``default``. Secrets are redacted."""
+        prefix = cls.__env_prefix__ if prefix is None else prefix
+        dotenv = cls.__dotenv__ if dotenv is None else dotenv
         found = cls.load(
             prefix=prefix, env=env, dotenv=dotenv, overrides=overrides, strict=strict
         )
@@ -137,10 +161,10 @@ class Settings:
         return rows_of(found, prefix, origins, dict(overrides or {}))
 
     @classmethod
-    def example(cls, prefix: str = "") -> str:
+    def example(cls, prefix: str | None = None) -> str:
         """A ``.env.example``: every variable with its default, required ones and
         secrets left blank, and a comment with the type."""
-        return example_of(cls, prefix)
+        return example_of(cls, cls.__env_prefix__ if prefix is None else prefix)
 
     def describe(self) -> dict[str, Any]:
         """The effective values as plain data, secrets redacted."""
@@ -618,6 +642,26 @@ class DatabaseSettings(Settings):
             raise ValueError("max_size must be >= 1")
 
 
+class ServerSettings(Settings):
+    """How ``python -m hinoki serve`` and ``dev`` run the application (Granian).
+    ``serve`` applies these; they do nothing when another runner starts the app."""
+
+    host: str = "127.0.0.1"
+    port: int = 8000
+    workers: int = 1
+    runtime_threads: int = 1
+    backlog: int = 1024
+    access_log: bool = False
+
+    def validate(self) -> None:
+        if not 0 < self.port < MAX_PORT:
+            raise ValueError("port must be 1 to 65535")
+        if not 0 < self.workers <= MAX_WORKERS or self.runtime_threads < 1:
+            raise ValueError(f"workers 1 to {MAX_WORKERS}, runtime_threads >= 1")
+        if self.backlog < 1:
+            raise ValueError("backlog must be positive")
+
+
 class FrameworkSettings(Settings):
     """The built-in groups every application has; subclass to add your own."""
 
@@ -625,6 +669,7 @@ class FrameworkSettings(Settings):
     lifecycle: LifecycleSettings = dataclasses.field(default_factory=LifecycleSettings)
     logging: LoggingSettings = dataclasses.field(default_factory=LoggingSettings)
     docs: DocsSettings = dataclasses.field(default_factory=DocsSettings)
+    server: ServerSettings = dataclasses.field(default_factory=ServerSettings)
 
     def runtime_config(self) -> RuntimeConfig:
         return RuntimeConfig(

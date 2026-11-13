@@ -219,7 +219,7 @@ Try it: create a disposable PostgreSQL database, then
 ```sh
 export BLOG_DATABASE_URL=postgres://postgres:pw@127.0.0.1:5432/hinoki_demo
 uv run python -m examples.blog.seed          # migrations + synthetic users and posts
-uv run granian --interface asgi --factory examples.blog.main:create_app
+uv run python -m hinoki dev examples.blog.main:create_app   # reload; `serve` for production
 # API docs:  http://127.0.0.1:8000/docs  and  /redoc
 # Admin:     http://127.0.0.1:8000/admin  (send the cookie blog_token=demo-editor-token;
 #            set BLOG_ADMIN_SECRET (32+ bytes) and optionally BLOG_ADMIN_THEME=studio|midnight|paper)

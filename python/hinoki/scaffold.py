@@ -17,7 +17,7 @@ PYPROJECT = """[project]
 name = "{name}"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["hinoki", "granian"]
+dependencies = ["hinoki[server]"]
 
 [dependency-groups]
 dev = ["pytest", "pytest-asyncio", "ruff", "mypy"]
@@ -34,7 +34,7 @@ select = ["E4", "E7", "E9", "F", "I", "B", "UP"]
 known-first-party = ["{name}"]
 {sources}"""
 
-MAIN = '''"""Application factory: ``uv run granian --interface asgi --factory {name}.main:create_app``."""
+MAIN = '''"""Application factory: ``uv run python -m hinoki dev {name}.main:create_app``."""
 
 from hinoki import HinokiAPI
 
@@ -44,7 +44,7 @@ from {name}.settings import AppSettings
 
 
 def create_app() -> HinokiAPI:
-    settings = AppSettings.load(prefix="{upper}_")  # {upper}_* environment variables
+    settings = AppSettings.load()  # {upper}_* variables and .env, declared on the class
     app = HinokiAPI(
         settings=settings,
         title="{title}",
@@ -66,7 +66,7 @@ the framework; add your own fields here and read them from ``app.settings``.
 from hinoki import FrameworkSettings
 
 
-class AppSettings(FrameworkSettings):
+class AppSettings(FrameworkSettings, prefix="{upper}_", dotenv=".env"):
     pass
 '''
 
@@ -149,7 +149,7 @@ uv run pytest                                   # tests
 uv run ruff check . && uv run ruff format .     # lint and format
 uv run mypy {name}                              # types
 uv run python -m hinoki check --app {name}.main:create_app --rules {name}.rules:project_rules --package {name}
-uv run granian --interface asgi --factory {name}.main:create_app
+uv run python -m hinoki dev {name}.main:create_app      # reload; `serve` runs it for production
 ```
 
 `check` and the MCP server build the app without opening a database, but settings are still loaded: once you add a required field such as `database_url: Secret`, run them with a dummy value (`{upper}_DATABASE_URL=postgres://unused uv run python -m hinoki check ...`, and add it under `env` in `.mcp.json`). Tests that touch the database need a real disposable one in `HINOKI_TEST_DATABASE_URL`.
