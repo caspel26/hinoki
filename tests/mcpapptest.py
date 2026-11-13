@@ -6,7 +6,17 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import Access, Caller, HinokiAPI, Request, Schema, delete, get, post
+from hinoki import (
+    Access,
+    Caller,
+    Conflict,
+    HinokiAPI,
+    Request,
+    Schema,
+    delete,
+    get,
+    post,
+)
 from hinoki.mcpapp import ExposureError, expose_as_mcp
 from hinoki.testing import ASGIClient
 from tests.providers import TokenAuth
@@ -259,3 +269,18 @@ async def test_the_nested_request_sees_the_client_and_a_second_mount_is_hidden()
         # the in-process client has no peer: the field is forwarded as it is
         result = await tool(client, listed[0]["name"])
         assert result["isError"] is False and seen["client"] is None
+
+
+async def test_declared_errors_appear_in_the_tool_description() -> None:
+    class Gone(Conflict):
+        code = "gone_already"
+
+    @get("/gone", access=reader, errors=(Gone,))
+    async def gone() -> None: ...
+
+    app = HinokiAPI()
+    app.include(gone)
+    app.include(*expose_as_mcp(app, tools=["*.gone"], access=reader))
+    async with ASGIClient(app) as client:
+        listed = (await call(client, rpc("tools/list"))).body["result"]["tools"]
+        assert "May fail with: 409 gone_already" in listed[0]["description"]

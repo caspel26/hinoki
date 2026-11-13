@@ -78,7 +78,12 @@ class Posts(CrudAPI, path="/posts", resource=POSTS):
         """A published post; unpublished posts are not found."""
         return to_out(await with_author(Post.filter(id=item_id, published=True)).aget())
 
-    @post("/{item_id}/publish", access=editor, transaction=True)
+    @post(
+        "/{item_id}/publish",
+        access=editor,
+        transaction=True,
+        errors=(Forbidden, PostAlreadyPublished),
+    )
     async def publish(self, item_id: UUID, principal: Caller[User]) -> PostOut:
         """Publish an own draft. Publishing twice is a conflict."""
         post = await owned_post(item_id, principal)

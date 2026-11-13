@@ -5,7 +5,7 @@ from typing import cast
 import pytest
 
 import hinoki
-from hinoki import API, Access, HinokiAPI, RegistrationError, get, post
+from hinoki import API, Access, Conflict, HinokiAPI, RegistrationError, get, post
 from hinoki.request import Request
 from tests.providers import TokenAuth
 
@@ -136,3 +136,17 @@ def test_app_instances_do_not_share_state() -> None:
     first, second = make_app(), HinokiAPI()
     assert first.routes
     assert not second.routes
+
+
+def test_errors_option_validates_what_it_is_given() -> None:
+    class Ok(Conflict):
+        code = "ok_conflict"
+
+    assert get("/a", errors=(Ok, Ok)).options.errors == (
+        Ok,
+        Ok,
+    )
+    with pytest.raises(ValueError, match="APIError"):
+
+        @get("/b", errors=(ValueError,))  # type: ignore[arg-type]
+        def b() -> None: ...

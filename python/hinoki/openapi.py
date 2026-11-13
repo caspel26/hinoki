@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, get_args, get_origin
 
 from hinoki.errors import RegistrationError
 from hinoki.fieldtypes import FieldType
+from hinoki.httperrors import APIError
 from hinoki.pagination import Page, PageNumberPagination
 from hinoki.runtime.binding import Binding, Param
 from hinoki.schema import Schema
@@ -52,6 +53,7 @@ LENGTH_KEYWORDS = {
     "array": ("minItems", "maxItems"),
 }
 VALIDATION_ERROR = "ValidationError"
+ERROR = "Error"
 DICT_ARGS = 2
 SIMPLE_DEFAULTS = (str, int, float, bool)
 INPUTS = {"path", "query", "page"}
@@ -124,7 +126,41 @@ class OpenAPIBuilder:
         operation["responses"] = self.responses(binding)
         if route.access is not None:
             self.secure(operation, route.access)
+        self.declare_errors(operation["responses"], route.errors)
         return operation
+
+    def declare_errors(
+        self, responses: dict[str, Any], errors: tuple[type[APIError], ...]
+    ) -> None:
+        """One response per declared status: the shared ``Error`` body with the
+        possible ``error`` codes listed. Errors sharing a status are merged."""
+        if not errors:
+            return
+        self.components.setdefault(ERROR, error_schema())
+        by_status: dict[str, list[type[APIError]]] = {}
+        for error in errors:
+            by_status.setdefault(str(int(error.status)), []).append(error)
+        for status, group in by_status.items():
+            codes = sorted({e.code for e in group})
+            messages = " / ".join(dict.fromkeys(e.message for e in group))
+            known = responses.get(status)
+            description = f"{known['description']}; {messages}" if known else messages
+            responses[status] = {
+                "description": description,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "allOf": [
+                                ref(ERROR),
+                                {
+                                    "type": "object",
+                                    "properties": {"error": {"enum": codes}},
+                                },
+                            ]
+                        }
+                    }
+                },
+            }
 
     def secure(self, operation: dict[str, Any], access: Access) -> None:
         """Document the policy: security requirement plus its 401/403 answers."""
@@ -299,6 +335,19 @@ def split_docstring(handler: object) -> tuple[str, str]:
     doc = inspect.getdoc(handler) or ""
     summary, _, rest = doc.partition("\n")
     return summary.strip(), rest.strip()
+
+
+def error_schema() -> dict[str, Any]:
+    """The body every ``APIError`` answers with."""
+    return {
+        "type": "object",
+        "properties": {
+            "error": {"type": "string", "description": "Stable error code"},
+            "message": {"type": "string"},
+            "request_id": {"type": "string"},
+        },
+        "required": ["error", "request_id"],
+    }
 
 
 def validation_error_schema() -> dict[str, Any]:
