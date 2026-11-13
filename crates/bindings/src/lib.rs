@@ -3,6 +3,7 @@
 //! Current scope: the path router. Request parsing and the ORM runtime are
 //! designed in `docs/RUNTIME-DESIGN.md` and not implemented yet.
 
+mod db;
 mod router;
 
 use pyo3::exceptions::PyValueError;
@@ -71,5 +72,6 @@ impl PyRouter {
 fn native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(core_version, m)?)?;
     m.add_class::<PyRouter>()?;
+    db::register(m)?;
     Ok(())
 }
