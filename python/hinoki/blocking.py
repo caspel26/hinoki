@@ -33,8 +33,17 @@ def run_sync[T](coroutine: Coroutine[Any, Any, T]) -> T:
         raise RuntimeError(
             "sync model methods only work inside sync handlers served by Hinoki"
         )
+    handoff = context.handed_off.get()
+    if handoff is not None and handoff.closed:
+        coroutine.close()
+        raise RuntimeError("the request ended; sync model calls are refused")
     future = asyncio.run_coroutine_threadsafe(coroutine, loop)
-    handed = context.handed_off.get()
-    if handed is not None:
-        handed.append(future)
-    return future.result()
+    if handoff is None:
+        return future.result()
+    if not handoff.add(future):
+        future.cancel()
+        raise RuntimeError("the request ended; sync model calls are refused")
+    try:
+        return future.result()
+    finally:
+        handoff.discard(future)

@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from hinoki import blocking
+from hinoki import blocking, context
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 
 var: contextvars.ContextVar[str] = contextvars.ContextVar("var", default="unset")
@@ -111,3 +111,35 @@ async def test_drain_waits_for_running_calls_and_reports_timeout(
         release.set()
         await executor.drain(2)
         assert executor.in_flight == 0
+
+
+async def test_handed_off_futures_are_released_and_refused_after_cancel() -> None:
+    seen: list[context.Handoff] = []
+    release = threading.Event()
+    refused: list[str] = []
+
+    async def noop() -> None:
+        return None
+
+    def handler() -> None:
+        handoff = context.handed_off.get()
+        assert handoff is not None
+        seen.append(handoff)
+        for _ in range(3):
+            blocking.run_sync(noop())
+        assert not handoff.futures  # completed hand-offs are not retained
+        release.wait(5)
+        try:
+            blocking.run_sync(noop())
+        except RuntimeError as exc:
+            refused.append(str(exc))
+
+    async with SyncExecutor(workers=1, queue=0) as executor:
+        task = asyncio.create_task(executor.run(handler))
+        await asyncio.sleep(0.2)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        release.set()
+        await asyncio.sleep(0.2)
+    assert seen[0].closed
+    assert refused == ["the request ended; sync model calls are refused"]
