@@ -24,8 +24,15 @@ dev = ["pytest", "pytest-asyncio", "ruff", "mypy"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 python_files = ["*test.py"]
-"""
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["{name}", "hinoki"]
+{sources}"""
 
 MAIN = '''"""Application factory: ``uv run granian --interface asgi --factory {name}.main:create_app``."""
 
@@ -70,18 +77,19 @@ project_rules = RuleSet(
     Actions.require_access(match="{name}.*", except_=["{name}.api.health"]),
     Transactions.require_atomic(),
     Schemas.forbid_exposure("password_hash", "password", "token"),
+    Actions.forbid_model_responses(match="{name}.*"),
 )
 '''
 
-TEST = """from hinoki import HinokiAPI
+TEST = """from hinoki.testing import ASGIClient
 
 from {name}.main import create_app
 
 
-def test_the_app_builds_and_routes_health() -> None:
-    app: HinokiAPI = create_app()
-    found = app.resolve("GET", "/health")
-    assert found is not None and found[0].name == "health"
+async def test_health_answers_through_the_whole_stack() -> None:
+    async with ASGIClient(create_app()) as client:
+        reply = await client.get("/health")
+    assert (reply.status, reply.body) == (200, {{"status": "ok"}})
 """
 
 WAIVERS = """# Exceptions to the project's rules. This file is decided by the project owner:
@@ -104,7 +112,8 @@ MCP = """{{
         "--app", "{name}.main:create_app",
         "--rules", "{name}.rules:project_rules",
         "--package", "{name}"
-      ]
+      ],
+      "env": {{ "{upper}_DATABASE_URL": "postgres://unused" }}
     }}
   }}
 }}
@@ -123,9 +132,11 @@ uv sync
 uv run pytest                                   # tests
 uv run ruff check . && uv run ruff format .     # lint and format
 uv run mypy {name}                              # types
-uv run python -m hinoki check --app {name}.main:create_app --rules {name}.rules:project_rules --package {name}
+{upper}_DATABASE_URL=postgres://unused uv run python -m hinoki check --app {name}.main:create_app --rules {name}.rules:project_rules --package {name}
 uv run granian --interface asgi --factory {name}.main:create_app
 ```
+
+`check` and the MCP server build the app without opening a database; if the factory reads `{upper}_DATABASE_URL`, give it a dummy value as above (the tests need a real disposable database in `HINOKI_TEST_DATABASE_URL`).
 
 `check` runs the project's rules and prints diagnostics with stable IDs
 (`HNK-ACC-001` access, `HNK-TXN-001` transactions, `HNK-SCH-001` exposed fields,
@@ -142,6 +153,18 @@ uv run granian --interface asgi --factory {name}.main:create_app
 * Schema changes go through migrations (`python -m hinoki migrations plan ...`), reviewed as SQL. Never apply them at startup.
 * No underscores in file names; tests are `*test.py`.
 
+## Adding a database and a protected resource
+
+The generated app has neither. The reference is `examples/tracker` in the framework repository; the shape is:
+
+1. `models.py`: a `Member` (id, name, token) and your model with `owner_id: UUID = foreign_key(Member, on_delete="restrict", related_name="...")`.
+2. `schemas.py`: an `In` schema without the owner, an `Out` schema.
+3. `operations.py`: plain async functions taking `owner_id` and values; row permission goes in the statement (`Model.filter(owner_id=me)`, `aupdate_where({{...}})`), so someone else's row looks missing (404).
+4. `security.py`: a `BearerAuth` that resolves a token to `Caller(id=..., user=member, permissions=...)` and an `Access(...)`.
+5. `api.py`: actions with `access=...`, `caller: Caller[Member]`, `transaction=True` on writes, `pagination=` on lists; `main.py`: `app.install(DatabaseModule(url))` with the URL from `{upper}_DATABASE_URL`.
+6. `python -m hinoki migrations plan --models {name}.models`, then review the SQL.
+7. Tests: `from hinoki.testing import ASGIClient`; `async with ASGIClient(create_app(url)) as client: await client.post("/x", json={{...}}, token="...")`.
+
 ## What you may not do
 
 * Do not edit `hinoki-rules.toml`, widen a rule's `except_`, or disable a rule so that a check passes. Those are the owner's decisions. If a rule seems wrong, say so and stop.
@@ -150,12 +173,23 @@ uv run granian --interface asgi --factory {name}.main:create_app
 
 ## The development MCP
 
-`.mcp.json` starts `python -m hinoki mcp`: read-only tools `inspect_project`, `list_rules`, `explain_action`, `check_project` and `explain_error`. Use them to see the real registry and rule results instead of guessing from files. They cannot change code, rules or waivers.
+`.mcp.json` starts `python -m hinoki mcp`: read-only tools `inspect_project`, `list_rules`, `explain_action`, `check_project`, `explain_error` (error codes and rule ids) and `propose_model` (starting-point source, never written for you; review it: add ownership scoping and pagination). Use them to see the real registry and rule results instead of guessing from files. They cannot change code, rules or waivers.
 
 ## Before you finish
 
 Run the tests, ruff, mypy and `check`. Report what you ran and its result, what you did not run, and anything you could not verify.
 """
+
+
+def framework_source() -> str:
+    """A ``[tool.uv.sources]`` block pointing at this checkout when Hinoki is
+    run from a source tree (it is not on PyPI; an unrelated ``hinoki`` is)."""
+    import hinoki  # noqa: PLC0415 - only needed to find the checkout
+
+    root = Path(hinoki.__file__).resolve().parents[2]
+    if (root / "crates").is_dir() and (root / "pyproject.toml").is_file():
+        return f'\n[tool.uv.sources]\nhinoki = {{ path = "{root}", editable = true }}\n'
+    return ""
 
 
 class ScaffoldError(ValueError):
@@ -165,7 +199,12 @@ class ScaffoldError(ValueError):
 def files(name: str) -> dict[str, str]:
     """Relative path to content for a new project called ``name``."""
     title = name.capitalize()
-    values = {"name": name, "title": title}
+    values = {
+        "name": name,
+        "title": title,
+        "upper": name.upper(),
+        "sources": framework_source(),
+    }
     return {
         "pyproject.toml": PYPROJECT.format(**values),
         "AGENTS.md": AGENTS.format(**values),
