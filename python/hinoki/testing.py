@@ -133,28 +133,36 @@ def _loads(raw: bytes) -> Any:
 class SyncClient:
     """The same client for tests written without ``async``: the application runs
     on its own event loop in a background thread and every call blocks until the
-    answer arrives.
+    answer arrives (at most ``timeout`` seconds).
 
         with SyncClient(create_app()) as client:
             assert client.get("/health").status == 200
-    """
 
-    def __init__(self, app: HinokiAPI) -> None:
+    Use it only inside the ``with`` block. Sync model calls (``Model.get``,
+    ``create``) work inside the application's sync handlers, not in the test
+    body itself: seed and inspect data with an async fixture or your own
+    connection."""
+
+    def __init__(self, app: HinokiAPI, timeout: float = 60.0) -> None:
         self.inner = ASGIClient(app)
+        self.timeout = timeout
         self.loop = asyncio.new_event_loop()
         self.thread = threading.Thread(
             target=self.loop.run_forever, name="hinoki-test-loop", daemon=True
         )
+        self.state = "new"  # new -> open -> closed
 
     def __enter__(self) -> SyncClient:
+        if self.state != "new":
+            raise RuntimeError("a SyncClient can be entered once")
         self.thread.start()
         try:
-            asyncio.run_coroutine_threadsafe(
-                self.inner.__aenter__(), self.loop
-            ).result()
+            start = self.inner.__aenter__()
+            asyncio.run_coroutine_threadsafe(start, self.loop).result(self.timeout)
         except BaseException:
             self.stop()
             raise
+        self.state = "open"
         return self
 
     def __exit__(
@@ -163,24 +171,30 @@ class SyncClient:
         error: BaseException | None,
         trace: TracebackType | None,
     ) -> None:
+        if self.state != "open":
+            return  # never entered, or already closed: nothing to stop twice
         try:
             future = asyncio.run_coroutine_threadsafe(
                 self.inner.__aexit__(kind, error, trace), self.loop
             )
-            future.result()
+            future.result(self.timeout)
         finally:
             self.stop()
 
     def stop(self) -> None:
+        self.state = "closed"
         self.loop.call_soon_threadsafe(self.loop.stop)
         self.thread.join(timeout=10)
-        self.loop.close()
+        if not self.thread.is_alive():
+            self.loop.close()
 
     def request(self, method: str, path: str, **options: Any) -> Response:
+        if self.state != "open":
+            raise RuntimeError("use the SyncClient inside its `with` block")
         future = asyncio.run_coroutine_threadsafe(
             self.inner.request(method, path, **options), self.loop
         )
-        return future.result()
+        return future.result(self.timeout)
 
     def get(self, path: str, **options: Any) -> Response:
         return self.request("GET", path, **options)
