@@ -11,9 +11,9 @@ from pathlib import Path
 import pytest
 
 from examples.blog.models import User
-from examples.blog.tables import DROP, SQL
 from hinoki.db import Database
 from hinoki.orm import use_database
+from tests.blogschema import drop, reset
 from tests.runtime.harness import free_port, spawn, wait_ready
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -49,8 +49,7 @@ def call(
 async def test_blog_flow_over_http_and_clean_shutdown(tmp_path: Path) -> None:
     assert URL is not None
     admin = await Database.connect(URL, max_size=1)
-    for statement in (*DROP, *SQL):
-        await admin.execute(statement)
+    await reset(admin)
     with use_database(admin):
         await User.acreate(name="Ada", token="editor-token", is_editor=True)
     port = free_port()
@@ -85,6 +84,5 @@ async def test_blog_flow_over_http_and_clean_shutdown(tmp_path: Path) -> None:
         if proc.poll() is None:
             proc.kill()
         proc.wait()
-        for statement in DROP:
-            await admin.execute(statement)
+        await drop(admin)
         admin.close()
