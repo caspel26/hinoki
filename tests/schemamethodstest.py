@@ -9,7 +9,7 @@ import pytest
 from hinoki import UNSET, Contract, Schema, Unset
 from hinoki.errors import RelationNotLoaded
 from hinoki.orm import Model, field, foreign_key
-from hinoki.relations import Related
+from hinoki.orm.relations import Related
 
 
 class Address(Schema):

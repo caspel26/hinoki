@@ -11,7 +11,7 @@ from hinoki import RegistrationError
 from hinoki.db import Database, ForeignKeyViolation
 from hinoki.errors import FieldError, RelationNotLoaded
 from hinoki.orm import Model, field, foreign_key, use_database
-from hinoki.relations import Related
+from hinoki.orm.relations import Related
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(

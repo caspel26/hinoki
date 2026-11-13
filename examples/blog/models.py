@@ -5,7 +5,7 @@ from typing import ClassVar
 from uuid import UUID, uuid4
 
 from hinoki.orm import Model, field, foreign_key
-from hinoki.relations import Related
+from hinoki.orm.relations import Related
 
 
 def now() -> datetime:

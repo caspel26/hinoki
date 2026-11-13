@@ -10,12 +10,11 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import migrator
 from hinoki.__main__ import main
 from hinoki.db import Database
 from hinoki.errors import DestructiveMigration, MigrationError
-from hinoki.migrations import models_of, plan, statements
-from hinoki.orm import Model, field, foreign_key
+from hinoki.orm import Model, field, foreign_key, migrator
+from hinoki.orm.migrations import models_of, plan, statements
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(

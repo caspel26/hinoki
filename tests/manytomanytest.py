@@ -7,11 +7,11 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import RegistrationError, migrator
+from hinoki import RegistrationError
 from hinoki.db import Database, UniqueViolation
 from hinoki.errors import MigrationError
-from hinoki.migrations import plan
-from hinoki.orm import Model, field, foreign_key, use_database
+from hinoki.orm import Model, field, foreign_key, migrator, use_database
+from hinoki.orm.migrations import plan
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(

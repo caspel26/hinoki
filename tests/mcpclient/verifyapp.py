@@ -27,7 +27,7 @@ from pathlib import Path
 from examples.tracker.models import Member, Task
 from examples.tracker import operations
 from examples.tracker.schemas import TaskIn
-from hinoki import migrator
+from hinoki.orm import migrator
 from hinoki.db import Database
 from hinoki.orm import use_database
 
