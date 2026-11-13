@@ -22,7 +22,7 @@ The generated project has a health route, typed settings, rules that are on from
 
 ## A whole API in one file
 
-`examples/notes/app.py` in the repository is a complete, tested API: a model, two schemas, four actions, a database module.
+`examples/notes/app.py` in the repository is a complete, tested API: a model, two `Schema` classes, four actions, a database module.
 
 ```python
 @get("/notes/{note_id}")

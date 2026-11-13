@@ -14,7 +14,7 @@ Hinoki runs on one event loop per worker. **Async is the native way; sync is a s
 | Relations | explicit loading (`select_related`, `prefetch_related`) | same | never lazy, so no hidden I/O in either style |
 | Raw SQL (`Database.fetch`, `fetch_one`, `execute`) | async | none | Use the model/queryset methods from sync code; raw SQL is an async-only escape hatch |
 | Transactions | `transaction=True` on the action | same | The runtime owns it for both styles |
-| Schemas, `Request`, `Reply`, parsers, renderers | plain code | same | No I/O |
+| `Schema`, `Request`, `Reply`, parsers, renderers | plain code | same | No I/O |
 | Password hashing | `await hasher.hash/verify` | `hash_sync`, `verify_sync` | The async calls use a bounded thread pool |
 | Error handlers (`app.errors.handle`) | `async def` | `def` | Run on the loop: no blocking calls inside |
 | Module lifespans | async context manager | none | Resources belong to the worker's loop |

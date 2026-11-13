@@ -22,6 +22,7 @@ The project name is **Hinoki** (owner decision, supersedes the earlier "Aptum" i
 - Do not reintroduce declaration blocks such as `with get/post`, or inline `get(query=...)`/`lookup=...` endpoint assignments. CRUD generation remains required, but its advanced syntax is still provisional.
 - Differentiate Hinoki through deterministic optional rules, structured AI/MCP context, coherent customization and explicit modules, not extra syntax machinery.
 - Typed built-in settings, automatic/customizable docs and pagination.
+- Vocabulary: write `Schema` (code font) for the Hinoki class; use "table state"/"migration state", "OpenAPI document" and "JSON Schema" for the other meanings (`docs/GLOSSARY.md`). The old `Contract` alias no longer exists.
 - Optional admin extra with explicit activation and migrations; installation/import never mutates a database.
 - Explicit application modules and dependencies; defined worker lifespan, bounded sync execution, startup and graceful shutdown. Granian is the first server candidate, pending integration validation.
 - Modules within a service may share local contracts. Remote services do not share ORM joins or pretend to share local transactions.

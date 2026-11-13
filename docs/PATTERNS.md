@@ -15,7 +15,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 ```
 
 * **HTTP layer** turns a request into typed values (`Schema`, path/query parameters, `Principal`) and an operation's result into a response schema. It contains no business rules and no SQL.
-* **Operations** hold the rules ("an editor may publish only their own draft"). They take plain arguments (`principal`, a schema, ids) so they can be called from an action, a CLI, a test, an admin hook (`ModelAdmin.save`) or an MCP tool. **Why:** an action that reads cookies or headers cannot be reused; an operation can.
+* **Operations** hold the rules ("an editor may publish only their own draft"). They take plain arguments (`principal`, a `Schema`, ids) so they can be called from an action, a CLI, a test, an admin hook (`ModelAdmin.save`) or an MCP tool. **Why:** an action that reads cookies or headers cannot be reused; an operation can.
 * **Persistence** never imports the HTTP layer. **Rule:** `Imports.forbid(source="shop.models", target="shop.api")` (and the same for operations → api).
 * Small apps may skip the middle layer (the notes example does). Add it when an action contains a rule you would want to call from somewhere else.
 
@@ -32,12 +32,12 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 | Errors | Raise `APIError` subclasses; translate database errors once with `app.errors.handle(...)` | Failures are exceptions. **A returned `Reply` commits the transaction** |
 | Secrets | Settings/environment, passed to `JWTKey`, `Admin(secret=…)`, never defaults | Nothing to leak from the repository |
 
-## 3. Schemas and models
+## 3. `Schema` classes and models
 
-* Models describe tables; schemas describe the API. **Never return a model.** Name them by role: `PostIn`/`PostCreate` (what a client may set), `PostPatch` (every field `UNSET` by default), `PostOut` (what a client may see). **Rules:** `Actions.forbid_model_responses()` refuses an action whose return type is a `Model` (also inside `list`/`Page`/unions); `Schemas.forbid_exposure("password_hash", …)` keeps columns out of responses even through nesting and subclasses.
-* Create with the schema and add what only the server knows: `await Post.acreate(data, author_id=principal.user.id)` (server values win over the client's). Update with `await row.aupdate_from(patch)` (writes only what was sent). Respond with `PostOut.from_model(row, author_name=row.author.name)`.
+* Models describe tables; `Schema` classes describe the API. **Never return a model.** Name them by role: `PostIn`/`PostCreate` (what a client may set), `PostPatch` (every field `UNSET` by default), `PostOut` (what a client may see). **Rules:** `Actions.forbid_model_responses()` refuses an action whose return type is a `Model` (also inside `list`/`Page`/unions); `Schemas.forbid_exposure("password_hash", …)` keeps columns out of responses even through nesting and subclasses.
+* Create from a `Schema` and add what only the server knows: `await Post.acreate(data, author_id=principal.user.id)` (server values win over the client's). Update with `await row.aupdate_from(patch)` (writes only what was sent). Respond with `PostOut.from_model(row, author_name=row.author.name)`.
 * A server-assigned field must not exist in the input schema at all; the keyword override is a second line of defence.
-* Constraints and patterns belong on the schema, using the Rust pattern syntax (whole-value, no look-around).
+* Constraints and patterns belong on the `Schema`, using the Rust pattern syntax (whole-value, no look-around).
 
 ## 4. Relations and queries
 

@@ -29,7 +29,7 @@ Classes are still declared as Python classes (frozen dataclasses; this is what l
 
 ### D5 Dataclasses and naming
 
-No new dataclasses are introduced for data that is a schema; `Schema` subclasses are the only data-carrier type. Internal configuration objects (`FieldSpec`, `FieldType`) stay as small frozen dataclasses because the compiler consumes them. **Naming:** the owner permits a rename. Recommendation: keep `Schema` working as an alias and introduce **`Contract`** as the canonical name in a final, mechanical step (docs, README, examples, typing fixtures), once the engine change is verified, so the rename is not mixed with the engine risk.
+No new dataclasses are introduced for data that is a schema; `Schema` subclasses are the only data-carrier type. Internal configuration objects (`FieldSpec`, `FieldType`) stay as small frozen dataclasses because the compiler consumes them. **Naming:** the owner allowed a rename; after comparing `Contract`, `Shape`, `Kata` and `Mold` the decision (2026-11-13) is to keep `Schema`; see `docs/GLOSSARY.md` for how the word is used.
 
 ### D6 The Python engine becomes the test oracle
 
@@ -52,11 +52,11 @@ Unit tests in Rust for each kind and constraint; the Python differential suite a
 | N3 (done) | Native `dump` / `to_dict` and `encode_json` support for `Schema`, `UUID`, `datetime` | `crates/bindings/src/request.rs`, `schema.rs` |
 | N4 (done) | Benchmark, docs, handoff | `benchmarks/schemabench.py` |
 | N5 (done) | Independent review (untrusted input), fixes | — |
-| N6 | `Contract` as the canonical name, `Schema` alias, docs/examples updated | repo-wide, mechanical |
+| N6 (decided: no rename) | `Schema` stays the name; the `Contract` alias was removed | `schema.py`, `__init__.py` |
 
 ## Open (owner)
 
-Accepting the pattern-syntax change (D3); confirming `Contract` as the name (D5) or choosing another before N6.
+Decided 2026-11-13: the name stays `Schema` (the `Contract` alias is gone) and the pattern-syntax change (D3) stands. Vocabulary rule in `docs/GLOSSARY.md`.
 
 ## Review outcome (N5)
 
