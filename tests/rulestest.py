@@ -1,5 +1,7 @@
 """Startup rules: typed, deterministic, optional."""
 
+from uuid import UUID, uuid4
+
 import pytest
 
 from hinoki import (
@@ -15,6 +17,7 @@ from hinoki import (
     get,
     post,
 )
+from hinoki.orm import Model, field
 from hinoki.rules import (
     Diagnostic,
     Phase,
@@ -208,3 +211,36 @@ def test_diagnostics_are_data_first() -> None:
         "X", Severity.ERROR, Phase.STARTUP, "m", "l", "e", Status.WAIVED
     )
     assert failing([waived]) == []
+
+
+class Row(Model, table="rule_rows"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+
+
+class RowOut(Schema):
+    id: UUID
+
+
+@get("/rows")
+async def leaky(request: Request) -> list[Row]:
+    return []
+
+
+@get("/rows/one")
+async def leaky_page(request: Request) -> Row | None:
+    return None
+
+
+@get("/rows/safe")
+async def tidy(request: Request) -> list[RowOut]:
+    return []
+
+
+def test_forbid_model_responses_finds_models_through_containers() -> None:
+    rules = RuleSet(Actions.forbid_model_responses())
+    found = rules.run(project(leaky, leaky_page, tidy))
+    assert [d.rule_id for d in found] == ["HNK-API-001", "HNK-API-001"]
+    assert {d.message.split(" (")[0] for d in found} == {"GET /rows", "GET /rows/one"}
+    assert "returns the model Row" in found[0].message
+    exempt = RuleSet(Actions.forbid_model_responses(except_=["*.leaky*"]))
+    assert exempt.run(project(leaky, leaky_page, tidy)) == []

@@ -384,6 +384,49 @@ class ForbidExposure(Rule):
                     )
 
 
+def models_in(annotation: object) -> Iterator[type]:
+    """Model classes named by an annotation (through ``list``, ``Page``, unions)."""
+    from hinoki.orm import Model  # noqa: PLC0415 - orm is only needed to check this
+
+    if isinstance(annotation, type) and issubclass(annotation, Model):
+        yield annotation
+        return
+    for argument in typing.get_args(annotation):
+        yield from models_in(argument)
+
+
+class ForbidModelResponses(Rule):
+    id = "HNK-API-001"
+    explanation = (
+        "An action must not return a Model (or a list/page of them): a response "
+        "schema names exactly what a client may see, so a column never leaks "
+        "because someone added it to the table."
+    )
+
+    def __init__(self, match: str = "*", except_: Iterable[str] = ()) -> None:
+        self.match = match
+        self.exceptions = tuple(except_)
+
+    def summary(self) -> str:
+        return (
+            f"Actions.forbid_model_responses(match={self.match!r}, "
+            f"except_={list(self.exceptions)})"
+        )
+
+    def check(self, project: Project) -> Iterator[Diagnostic]:
+        for route in project.app.routes:
+            if not matches(route, [self.match]) or matches(route, self.exceptions):
+                continue
+            annotation = typing.get_type_hints(route.handler).get("return")
+            for model in models_in(annotation):
+                yield self.diagnostic(
+                    f"{route.method} {route.path} ({route.handler.__qualname__}) "
+                    f"returns the model {model.__name__}; return a Schema",
+                    where(route.handler),
+                    subject=qualified(route),
+                )
+
+
 class ForbidImports(Rule):
     id = "HNK-IMP-001"
     phase = Phase.STATIC
@@ -451,6 +494,7 @@ class Actions:
     """Namespace of action rules."""
 
     require_access: ClassVar[Callable[..., Rule]] = RequireAccess
+    forbid_model_responses: ClassVar[Callable[..., Rule]] = ForbidModelResponses
 
 
 class Transactions:

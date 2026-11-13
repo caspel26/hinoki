@@ -21,6 +21,7 @@ app = HinokiAPI(..., rules=blog_rules)   # startup rules fail the app if a promi
 | --- | --- | --- | --- |
 | `HNK-ACC-001` | `Actions.require_access(match, except_)` | startup | every matching action names an `Access` policy (public by default is the common hole) |
 | `HNK-TXN-001` | `Transactions.require_atomic(methods)` | startup | state-changing actions use `transaction=True` |
+| `HNK-API-001` | `Actions.forbid_model_responses(match, except_)` | startup | no action returns a `Model` (or a list/page of them): responses are schemas |
 | `HNK-SCH-001` | `Schemas.forbid_exposure(*fields)` | startup | named fields never appear in a response schema, nested or in a subclass |
 | `HNK-IMP-001` | `Imports.forbid(source, target)` | static | modules under `source` never import `target` (read from the source files; dynamic imports are reported, not ignored) |
 

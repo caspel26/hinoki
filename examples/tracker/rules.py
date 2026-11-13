@@ -9,6 +9,7 @@ tracker_rules = RuleSet(
     Actions.require_access(
         match="examples.tracker.*", except_=["examples.tracker.api.health"]
     ),
+    Actions.forbid_model_responses(match=f"{PKG}.*"),
     Transactions.require_atomic(),
     Schemas.forbid_exposure("token"),
     # The direction of dependencies: api -> operations -> models.
