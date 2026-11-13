@@ -9,6 +9,7 @@ from urllib.parse import unquote
 
 from hinoki import native
 from hinoki.auth import Caller, Credentials
+from hinoki.blocking import call_hook
 from hinoki.context import request_id
 from hinoki.errors import InvalidBody
 from hinoki.httperrors import Forbidden, Unauthorized
@@ -25,8 +26,8 @@ MAX_BODY = 1024 * 1024
 Scope = MutableMapping[str, Any]
 
 
-async def read_body(receive: Any) -> bytes:
-    """Collect the body, refusing anything above ``MAX_BODY``."""
+async def read_body(receive: Any, limit: int = MAX_BODY) -> bytes:
+    """Collect the body, refusing anything above ``limit`` bytes."""
     chunks: list[bytes] = []
     size = 0
     more = True
@@ -36,7 +37,7 @@ async def read_body(receive: Any) -> bytes:
             raise InvalidBody("disconnected", "the client disconnected")
         chunk = message.get("body", b"")
         size += len(chunk)
-        if size > MAX_BODY:
+        if size > limit:
             raise HTTPError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "payload_too_large")
         chunks.append(chunk)
         more = message.get("more_body", False)
@@ -67,7 +68,9 @@ async def authorize(
     if access is None:
         return None
     query = parse_query(scope.get("query_string", b""))
-    principal = await access.auth.authenticate(Credentials(headers, query))
+    principal: Caller[Any] | None = await call_hook(
+        access.auth.authenticate, Credentials(headers, query)
+    )
     if principal is None:
         challenge = access.auth.challenge
         raise Unauthorized(headers={"www-authenticate": challenge} if challenge else {})

@@ -1,0 +1,470 @@
+"""Typed, immutable settings with environment loading (no Pydantic).
+
+    class BlogSettings(FrameworkSettings):
+        jwt_secret: Secret
+        database: DatabaseSettings
+
+    settings = BlogSettings.load(prefix="BLOG_", dotenv=".env")
+    app = HinokiAPI(settings=settings)
+
+See ``docs/SETTINGS-DESIGN.md``. Errors name keys and reasons, never values.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import functools
+import hmac
+import json
+import logging
+import math
+import os
+import re
+import sys
+import types
+import typing
+from collections.abc import Callable, Mapping
+from pathlib import Path
+from typing import Any, ClassVar, Literal, Self, dataclass_transform
+
+from hinoki.runtime.config import RuntimeConfig
+
+TRUE = frozenset({"1", "true", "yes", "on"})
+FALSE = frozenset({"0", "false", "no", "off"})
+LEVELS = ("debug", "info", "warning", "error", "critical")
+SEPARATOR = "__"
+MAX_BODY_LIMIT = 1 << 30  # 1 GiB: a larger "limit" is no limit
+MAX_SYNC_WORKERS = 1024
+QUOTED = 2  # shortest quoted value: the two quotes
+
+
+class SettingsError(ValueError):
+    """The configuration is invalid; ``problems`` lists every one (no values)."""
+
+    def __init__(self, problems: list[str]) -> None:
+        super().__init__("invalid settings:\n" + "\n".join(f"  {p}" for p in problems))
+        self.problems = problems
+
+
+class Secret:
+    """A string that never prints itself: ``repr`` and ``str`` show ``***``."""
+
+    __slots__ = ("_value",)
+
+    def __init__(self, value: str) -> None:
+        self._value = value
+
+    def reveal(self) -> str:
+        return self._value
+
+    def __repr__(self) -> str:
+        return "Secret('***')"
+
+    __str__ = __repr__
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Secret) and hmac.compare_digest(
+            self._value.encode(), other._value.encode()
+        )
+
+    def __hash__(self) -> int:
+        return hash(self._value)
+
+    def __bool__(self) -> bool:
+        return bool(self._value)
+
+
+@dataclass_transform(frozen_default=True, kw_only_default=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class Settings:
+    """Base class: subclasses are keyword-only frozen dataclasses."""
+
+    def __init_subclass__(cls, **options: Any) -> None:
+        super().__init_subclass__(**options)
+        dataclasses.dataclass(frozen=True, kw_only=True)(cls)
+
+    @classmethod
+    def fields_of(cls) -> dict[str, Any]:
+        """Field name to resolved type."""
+        return resolved_hints(typing.cast(Any, cls))
+
+    @classmethod
+    def load(
+        cls,
+        *,
+        prefix: str = "",
+        env: Mapping[str, str] | None = None,
+        dotenv: str | os.PathLike[str] | None = None,
+        overrides: Mapping[str, Any] | None = None,
+        strict: bool = True,
+    ) -> Self:
+        """Build the settings. Precedence: ``overrides``, ``env`` (default: the
+        process environment), the ``dotenv`` file, the field defaults.
+
+        ``strict`` (default) makes a variable that starts with ``prefix`` but
+        names no field an error, which catches typos; pass ``strict=False`` when
+        another program shares the prefix. With an empty prefix nothing can be
+        told apart from the rest of the environment, so no typo check happens."""
+        source: dict[str, str] = {}
+        if dotenv is not None and Path(dotenv).is_file():
+            source.update(parse_dotenv(Path(dotenv).read_text(encoding="utf-8")))
+        source.update(os.environ if env is None else env)
+        problems: list[str] = []
+        found = build(cls, prefix, source, dict(overrides or {}), problems)
+        known = known_keys(cls, prefix)
+        problems += [
+            f"{key}: unknown setting"
+            for key in sorted(source)
+            if strict and prefix and key.startswith(prefix) and key not in known
+        ]
+        if problems or found is None:
+            raise SettingsError(problems or ["could not build the settings"])
+        return typing.cast(Self, found)
+
+    def describe(self) -> dict[str, Any]:
+        """The effective values as plain data, secrets redacted."""
+        return typing.cast(dict[str, Any], describe(self))
+
+    def __post_init__(self) -> None:
+        for name, hint in self.fields_of().items():
+            value = getattr(self, name, None)
+            if hint is Secret and isinstance(value, str):  # built directly in code
+                object.__setattr__(self, name, Secret(value))
+        self.validate()
+
+    def validate(self) -> None:
+        """Override to check relations between fields; raise ``ValueError``.
+        The message is shown in ``SettingsError``: never put a field's value in it."""
+
+
+@functools.cache
+def resolved_hints(cls: type) -> dict[str, Any]:
+    return typing.get_type_hints(cls)
+
+
+def describe(value: Any) -> Any:
+    if isinstance(value, Secret):
+        return "***"
+    if isinstance(value, Settings):
+        return {
+            f.name: describe(getattr(value, f.name)) for f in dataclasses.fields(value)
+        }
+    if isinstance(value, list | tuple):
+        return [describe(v) for v in value]
+    return value
+
+
+def parse_dotenv(text: str) -> dict[str, str]:
+    """``KEY=value`` lines; ``#`` comments, blank lines, optional ``export``,
+    matching single or double quotes removed. No expansion, no multi-line values."""
+    values: dict[str, str] = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        line = line.removeprefix("export ").strip()
+        key, _, value = line.partition("=")
+        value = value.strip()
+        if len(value) >= QUOTED and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        else:
+            value = value.split(" #", 1)[0].rstrip()
+        if key.strip():
+            values[key.strip()] = value
+    return values
+
+
+def known_keys(cls: type[Settings], prefix: str, path: str = "") -> set[str]:
+    keys: set[str] = set()
+    for name, hint in cls.fields_of().items():
+        if name.startswith("_") or typing.get_origin(hint) is typing.ClassVar:
+            continue
+        key = f"{path}{name.upper()}"
+        if isinstance(hint, type) and issubclass(hint, Settings):
+            keys |= known_keys(hint, prefix, key + SEPARATOR)
+        else:
+            keys.add(prefix + key)
+    return keys
+
+
+MISSING = object()
+
+
+def build(
+    cls: type[Settings],
+    prefix: str,
+    source: Mapping[str, str],
+    overrides: dict[str, Any],
+    problems: list[str],
+    path: str = "",
+) -> Any:
+    """An instance of ``cls`` or ``None`` (with every problem appended)."""
+    values: dict[str, Any] = {}
+    failed = False
+    for name, hint in cls.fields_of().items():
+        if name.startswith("_") or typing.get_origin(hint) is typing.ClassVar:
+            continue
+        key = f"{path}{name.upper()}"
+        if isinstance(hint, type) and issubclass(hint, Settings):
+            nested = overrides.get(name, {})
+            if not isinstance(nested, Mapping):
+                problems.append(
+                    f"{prefix}{key}: overrides for a group must be a mapping"
+                )
+                nested = {}
+            value = build(hint, prefix, source, dict(nested), problems, key + SEPARATOR)
+            value = MISSING if value is None else value
+            failed |= value is MISSING
+        else:
+            value = scalar(cls, name, hint, prefix + key, source, overrides, problems)
+            failed |= value is MISSING
+        if value is not MISSING and value is not DEFAULT:
+            values[name] = value
+    if failed:
+        return None
+    try:
+        return cls(**values)
+    except (ValueError, TypeError) as reason:  # never carries a configured value
+        problems.append(f"{prefix}{path.removesuffix(SEPARATOR)}: {reason}")
+    return None
+
+
+DEFAULT = object()
+
+
+def scalar(
+    cls: type[Settings],
+    name: str,
+    hint: Any,
+    full: str,
+    source: Mapping[str, str],
+    overrides: dict[str, Any],
+    problems: list[str],
+) -> Any:
+    """The converted value (which may be ``None``), ``DEFAULT`` when the field
+    default applies, or ``MISSING`` after recording a problem."""
+    if name in overrides:
+        raw = overrides[name]
+    elif full in source:
+        raw = source[full]
+    elif has_default(cls, name):
+        return DEFAULT
+    else:
+        problems.append(f"{full}: required, not set")
+        return MISSING
+    try:
+        return convert(hint, raw)
+    except ValueError as reason:
+        problems.append(f"{full}: {reason}")
+        return MISSING
+
+
+def has_default(cls: type[Settings], name: str) -> bool:
+    field = next(f for f in dataclasses.fields(cls) if f.name == name)
+    return (
+        field.default is not dataclasses.MISSING
+        or field.default_factory is not dataclasses.MISSING
+    )
+
+
+def convert_bool(raw: Any) -> bool:
+    if isinstance(raw, bool):
+        return raw
+    text = str(raw).strip().lower()
+    if text in TRUE | FALSE:
+        return text in TRUE
+    raise ValueError("must be true or false")
+
+
+INTEGER = re.compile(r"[+-]?[0-9]{1,18}", re.ASCII)
+DECIMAL = re.compile(
+    r"[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]{1,4})?", re.ASCII
+)
+
+
+def convert_int(raw: Any) -> int:
+    if isinstance(raw, bool):
+        raise ValueError("must be an integer")
+    if isinstance(raw, int):
+        return raw
+    text = str(raw).strip()
+    if not INTEGER.fullmatch(text):  # no underscores, no other scripts' digits
+        raise ValueError("must be an integer")
+    return int(text)
+
+
+def convert_float(raw: Any) -> float:
+    if isinstance(raw, bool):
+        raise ValueError("must be a number")
+    text = str(raw).strip()
+    if not isinstance(raw, int | float) and not DECIMAL.fullmatch(text):
+        raise ValueError("must be a number")
+    number = float(text)
+    if not math.isfinite(number):
+        raise ValueError("must be a finite number")
+    return number
+
+
+SCALARS: dict[Any, Callable[[Any], Any]] = {
+    bool: convert_bool,
+    int: convert_int,
+    float: convert_float,
+    str: lambda raw: raw if isinstance(raw, str) else str(raw),
+    Secret: lambda raw: raw if isinstance(raw, Secret) else Secret(str(raw)),
+}
+
+
+def convert_optional(hint: Any, raw: Any) -> Any:
+    arguments = typing.get_args(hint)
+    options = [a for a in arguments if a is not type(None)]
+    if len(options) != 1 or len(arguments) != len(options) + 1:
+        raise ValueError("unsupported union type")
+    if raw is None or raw == "":
+        return None
+    return convert(options[0], raw)
+
+
+def convert_list(hint: Any, raw: Any) -> list[Any] | tuple[Any, ...]:
+    """``list[T]`` or the immutable ``tuple[T, ...]`` (preferred in settings)."""
+    item = typing.get_args(hint)[0]
+    if isinstance(raw, str):
+        raw = [part.strip() for part in raw.split(",") if part.strip()]
+    if not isinstance(raw, list | tuple):
+        raise ValueError("must be a list")
+    converted = [convert(item, part) for part in raw]
+    return tuple(converted) if typing.get_origin(hint) is tuple else converted
+
+
+def convert(hint: Any, raw: Any) -> Any:
+    """``raw`` (environment text or an ``overrides`` value) as ``hint``."""
+    origin = typing.get_origin(hint)
+    if origin in (typing.Union, types.UnionType):
+        return convert_optional(hint, raw)
+    if origin is Literal:
+        choices = typing.get_args(hint)
+        if raw not in choices:
+            raise ValueError(f"must be one of {list(choices)}")
+        return raw
+    if origin in (list, tuple):
+        return convert_list(hint, raw)
+    if hint in SCALARS:
+        return SCALARS[hint](raw)
+    raise ValueError(f"unsupported type {getattr(hint, '__name__', hint)}")
+
+
+class ExecutionSettings(Settings):
+    sync_workers: int = 8
+    sync_queue: int = 64
+    request_timeout: float = 30.0
+    max_body_bytes: int = 1024 * 1024
+
+    def validate(self) -> None:
+        if self.sync_workers < 1 or self.sync_queue < 0:
+            raise ValueError("sync_workers must be >= 1 and sync_queue >= 0")
+        if self.request_timeout <= 0:
+            raise ValueError("request_timeout must be positive")
+        if not 1 <= self.max_body_bytes <= MAX_BODY_LIMIT:
+            raise ValueError(f"max_body_bytes must be 1 to {MAX_BODY_LIMIT}")
+        if self.sync_workers > MAX_SYNC_WORKERS:
+            raise ValueError(f"sync_workers must be at most {MAX_SYNC_WORKERS}")
+
+
+class LifecycleSettings(Settings):
+    startup_timeout: float = 30.0
+    shutdown_timeout: float = 10.0
+
+    def validate(self) -> None:
+        if min(self.startup_timeout, self.shutdown_timeout) <= 0:
+            raise ValueError("timeouts must be positive")
+
+
+class JsonFormatter(logging.Formatter):
+    """One JSON object per line: time, level, logger, message, exception."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        entry: dict[str, Any] = {
+            "time": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
+            "level": record.levelname.lower(),
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if record.exc_info:
+            entry["exception"] = self.formatException(record.exc_info)
+        return json.dumps(entry, default=str)
+
+
+class StderrHandler(logging.StreamHandler):  # type: ignore[type-arg]
+    """Writes to whatever ``sys.stderr`` is at the moment of each record."""
+
+    def __init__(self) -> None:
+        logging.Handler.__init__(self)
+
+    @property
+    def stream(self) -> Any:
+        return sys.stderr
+
+    @stream.setter
+    def stream(self, value: Any) -> None:  # the base class assigns it; ignore
+        pass
+
+
+class LoggingSettings(Settings):
+    level: Literal["debug", "info", "warning", "error", "critical"] = "info"
+    format: Literal["text", "json"] = "text"
+
+    HANDLER: ClassVar[str] = "hinoki-settings"
+
+    def apply(self) -> None:
+        """Configure the ``hinoki`` logger tree (not the root logger); safe to
+        call again, it replaces its own handler."""
+        logger = logging.getLogger("hinoki")
+        for handler in list(logger.handlers):
+            if getattr(handler, "name", "") == self.HANDLER:
+                logger.removeHandler(handler)
+        handler = StderrHandler()
+        handler.name = self.HANDLER
+        handler.setFormatter(
+            JsonFormatter()
+            if self.format == "json"
+            else logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        )
+        logger.addHandler(handler)
+        logger.setLevel(self.level.upper())
+
+
+class DocsSettings(Settings):
+    title: str = "Hinoki API"
+    version: str = "0.1.0"
+    openapi_url: str | None = None
+    docs_url: str | None = None
+    redoc_url: str | None = None
+
+
+class DatabaseSettings(Settings):
+    """For your own settings class: ``database: DatabaseSettings``."""
+
+    url: Secret
+    max_size: int = 10
+
+    def validate(self) -> None:
+        if self.max_size < 1:
+            raise ValueError("max_size must be >= 1")
+
+
+class FrameworkSettings(Settings):
+    """The built-in groups every application has; subclass to add your own."""
+
+    execution: ExecutionSettings = dataclasses.field(default_factory=ExecutionSettings)
+    lifecycle: LifecycleSettings = dataclasses.field(default_factory=LifecycleSettings)
+    logging: LoggingSettings = dataclasses.field(default_factory=LoggingSettings)
+    docs: DocsSettings = dataclasses.field(default_factory=DocsSettings)
+
+    def runtime_config(self) -> RuntimeConfig:
+        return RuntimeConfig(
+            sync_workers=self.execution.sync_workers,
+            sync_queue=self.execution.sync_queue,
+            request_timeout=self.execution.request_timeout,
+            startup_timeout=self.lifecycle.startup_timeout,
+            shutdown_timeout=self.lifecycle.shutdown_timeout,
+            max_body_bytes=self.execution.max_body_bytes,
+        )

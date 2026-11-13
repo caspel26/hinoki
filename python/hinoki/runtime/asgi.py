@@ -45,6 +45,7 @@ from hinoki.runtime.responses import (
     error_response,
 )
 from hinoki.schema import encode
+from hinoki.settings import FrameworkSettings
 
 if TYPE_CHECKING:
     from hinoki.app import HinokiAPI
@@ -80,6 +81,11 @@ class ASGIAdapter:
                     "matches a route; move one of them"
                 )
         self.ctx = ModuleContext(app.settings)
+        self.logging = (
+            app.settings.logging
+            if isinstance(app.settings, FrameworkSettings)
+            else None
+        )
         self.executor = SyncExecutor(app.runtime.sync_workers, app.runtime.sync_queue)
         needs_database = any(b.route.transaction for b in self.bindings)
         self.lifespan = Lifespan(
@@ -119,6 +125,8 @@ class ASGIAdapter:
 
     async def _startup(self, send: Any) -> bool:
         """Answer startup; return True when the protocol loop must end."""
+        if self.logging is not None:
+            self.logging.apply()
         try:
             await self.lifespan.startup()
         except StartupError as exc:
@@ -141,6 +149,7 @@ class ASGIAdapter:
         rid = uuid.uuid4().hex
         token = request_id.set(rid)
         context.route_headers.set(())
+        context.sync_runner.set(self.executor.run)
         # Models use the worker's Database without it being passed around.
         db_token = database_var.set(self.ctx.find(Database))
         try:
@@ -194,7 +203,20 @@ class ASGIAdapter:
                 HTTPStatus.NOT_ACCEPTABLE, "not_acceptable", available=wanted
             )
         takes_body = binding.route.method in BODY_METHODS
-        raw_body = await read_body(receive) if takes_body else b""
+        declared = headers.get("content-length", "")
+        limit = self.app.runtime.max_body_bytes
+        if (
+            takes_body
+            and declared.isascii()
+            and declared.isdigit()
+            and int(declared) > limit  # refuse before reading anything
+        ):
+            raise HTTPError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "payload_too_large")
+        raw_body = (
+            await read_body(receive, self.app.runtime.max_body_bytes)
+            if takes_body
+            else b""
+        )
         request, data = build_request(
             scope, binding, path_params, headers, raw_body, principal
         )

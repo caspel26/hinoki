@@ -19,12 +19,13 @@ import dataclasses
 import logging
 import time
 from abc import abstractmethod
-from collections.abc import Sequence
+from collections.abc import Awaitable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, ClassVar
 
 from hinoki import native
 from hinoki.auth import BearerAuth, Caller
+from hinoki.blocking import call_hook
 from hinoki.httperrors import APIError
 
 log = logging.getLogger("hinoki.crypto")
@@ -224,8 +225,11 @@ class JWTAuth[T](BearerAuth[T]):
         return int(time.time())
 
     @abstractmethod
-    async def resolve_claims(self, claims: dict[str, Any]) -> Caller[T] | None:
-        """The principal for verified claims, or ``None`` to refuse."""
+    def resolve_claims(
+        self, claims: dict[str, Any]
+    ) -> Caller[T] | None | Awaitable[Caller[T] | None]:
+        """The principal for verified claims, or ``None`` to refuse; ``async def``
+        or plain ``def``."""
 
     async def resolve_token(self, token: str) -> Caller[T] | None:
         rules = (self.now(), self.leeway, self.issuer, self.audience, self.require_exp)
@@ -239,7 +243,8 @@ class JWTAuth[T](BearerAuth[T]):
         except ValueError:
             log.debug("token rejected: payload is not decodable")
             return None
-        return await self.resolve_claims(claims)
+        found: Caller[T] | None = await call_hook(self.resolve_claims, claims)
+        return found
 
     def issue(self, claims: dict[str, Any], ttl: int = 900) -> str:
         """A signed token for ``claims`` valid for ``ttl`` seconds, signed with the

@@ -5,6 +5,7 @@ import pytest
 from hinoki import (
     Access,
     APIKeyAuth,
+    BearerAuth,
     Caller,
     HinokiAPI,
     Principal,
@@ -204,3 +205,35 @@ def test_caller_and_permissions_are_the_canonical_names_with_old_aliases() -> No
     )
     with pytest.raises(TypeError, match="permissions"):
         Access(auth, ["a"], scopes=["b"])
+
+
+class SyncTokens(BearerAuth[str]):
+    """A provider written with plain ``def``: it runs on the sync executor."""
+
+    def resolve_token(self, token: str) -> Caller[str] | None:
+        if token != "sync-token":  # noqa: S105 - a fixture, not a secret
+            return None
+        return Caller(id="u-sync", user="sync", permissions=frozenset({"w"}))
+
+
+sync_access = Access(auth=SyncTokens(), permissions=["w"])
+
+
+@get("/sync-secure", access=sync_access)
+async def sync_secure(request: Request, caller: Caller[str]) -> dict[str, str]:
+    return {"id": caller.id}
+
+
+async def test_a_provider_written_with_plain_def_authenticates(pool: Pool) -> None:
+    app = HinokiAPI()
+    app.include(sync_secure)
+    client = await pool.start(app)
+    good = await client.request(
+        "GET", "/sync-secure", headers={"authorization": "Bearer sync-token"}
+    )
+    assert (good.status, good.body) == (200, {"id": "u-sync"})
+    bad = await client.request(
+        "GET", "/sync-secure", headers={"authorization": "Bearer nope"}
+    )
+    assert bad.status == 401
+    assert (await client.request("GET", "/sync-secure")).status == 401
