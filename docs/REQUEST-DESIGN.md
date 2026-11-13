@@ -1,6 +1,6 @@
 # Request object, parsers and renderers — design (Q008)
 
-Status: **S1 design, S2 and S3 implemented** (2026-11-13): `Request` (Python), request-first binding, Rust query/cookie/header parsing and JSON decode/encode. S4–S7 not started. Owner request: a Django-style request, pluggable parsers and renderers, the request as the first argument of every handler, all of it Rust-based.
+Status: **S1 design, S2, S3 and S4 implemented** (2026-11-13): `Request` (Python), request-first binding, Rust query/cookie/header parsing and JSON decode/encode, parsers (JSON, form, multipart) with `parsers=`. S5–S7 not started. Owner request: a Django-style request, pluggable parsers and renderers, the request as the first argument of every handler, all of it Rust-based.
 
 ## Observed
 
@@ -93,7 +93,7 @@ Empty body with a body schema → 422 as today; missing/unknown `Content-Type` �
 | S1 | This design | `docs/REQUEST-DESIGN.md` |
 | S2 (done) | `Request` (Python class, read-only, lazy) and request-first handler binding; rewrite handlers, tests, blog, CRUD templates | `python/hinoki/request.py`, `runtime/binding.py`, `runtime/requests.py`, `crud.py`, `examples/`, `tests/` |
 | S3 (done) | Rust query/header/cookie parsing and JSON parse/serialise; swap Python implementations behind the same interface | `crates/bindings/src/request.rs`, `python/hinoki/runtime/` |
-| S4 | Parsers: form + multipart in Rust, `parsers=` option, limits as settings | `crates/bindings/src/parse.rs`, `routing.py`, `settings` |
+| S4 (done) | Parsers: form + multipart in Rust, `parsers=` option, limits as settings | `crates/bindings/src/parse.rs`, `routing.py`, `settings` |
 | S5 | Renderers: `renderers=`, `Accept` negotiation, 406, OpenAPI media types | `runtime/responses.py`, `openapi.py` |
 | S6 | `Request` as a Rust `#[pyclass]` if S3 measurements justify it; benchmark and report | `crates/bindings`, `benchmarks/` |
 | S7 | Independent review (request handling touches authentication and untrusted input), fixes, docs, handoff | — |
@@ -113,3 +113,10 @@ Whether the default parser set should include form/multipart (recommended: JSON 
 
 * `crates/bindings/src/request.rs`: pure functions (`parse_query`, `parse_cookies`, `join_headers`, unit-tested) plus a recursive-descent JSON parser that builds Python objects directly and a JSON writer over plain Python values. Python calls them from `runtime/binding.py` (`decode_body`, `parse_query`), `runtime/requests.py` (`header_map`), `request.py` (cookies) and `runtime/responses.py` (encoding).
 * The Rust JSON decoder is deliberately stricter than `json.loads` (BOM, lone surrogates and depth over 128 are errors); the encoder compacts output and writes UTF-8 instead of `\u` escapes. `benchmarks/requestbench.py` records the measured effect: modest for JSON, large for query strings. `Request` stays a Python class; the `#[pyclass]` step (S6) is only justified if end-to-end measurements show it matters.
+
+## Implementation notes (S4)
+
+* `python/hinoki/parsers.py`: `Parser` base, `JSONParser` (default), `FormParser`, `MultiPartParser(max_parts, max_part_bytes)`, `Parsed`, `UploadedFile`, `MultiDict`/`QueryDict`. The multipart splitter is Rust (`parse_multipart` in `request.rs`, RFC 7578, bounded parts and per-part size, 8 KiB header block, 70-byte boundary); fields must be UTF-8. The whole body stays capped by `MAX_BODY` (1 MiB) before any parser runs.
+* `parsers=[...]` is an option on every method decorator (default JSON only); the request chooses the parser by bare media type, answers 415 `unsupported_media_type` listing what is accepted, 400 with the parser's code (`invalid_json`, `invalid_form`, `invalid_multipart`). Lists are checked at declaration (non-empty, distinct media types). OpenAPI lists one request media type per parser with the same schema (it does not model file parts).
+* A `Schema` body parameter validates `request.data`: for forms and multipart that is each field's last value as text, so non-string fields fail strict validation (no coercion). `request.POST` / `request.FILES` are empty when the content type is not one of the action's parsers.
+* Not done: streaming/spooling to disk (uploads are held in memory within the 1 MiB cap), RFC 5987 `filename*`, a configurable body limit, nested multipart.

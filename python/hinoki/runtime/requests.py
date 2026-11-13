@@ -99,6 +99,7 @@ def build_request(
         path_params=path,
         user=principal,
         request_id=request_id.get() or "",
+        parsers=binding.route.parsers,
     )
     body: object = request.data if binding.needs_body else MISSING
     return request, RequestData(path, query, body, principal)

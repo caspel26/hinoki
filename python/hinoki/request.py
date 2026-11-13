@@ -9,12 +9,19 @@ I/O.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from typing import Any
 
 from hinoki import native
-
-UNREAD = object()
+from hinoki.parsers import (
+    DEFAULT_PARSERS,
+    MultiDict,
+    Parsed,
+    Parser,
+    QueryDict,
+    UploadedFile,
+    choose,
+)
 
 
 class Headers(Mapping[str, str]):
@@ -36,28 +43,6 @@ class Headers(Mapping[str, str]):
         return len(self.items_)
 
 
-class QueryDict(Mapping[str, str]):
-    """Query parameters. ``query["a"]`` and ``get`` return the last value, as in
-    Django; ``getlist`` returns all of them."""
-
-    __slots__ = ("lists",)
-
-    def __init__(self, lists: Mapping[str, list[str]]) -> None:
-        self.lists = dict(lists)
-
-    def __getitem__(self, name: str) -> str:
-        return self.lists[name][-1]
-
-    def __iter__(self) -> Iterator[str]:
-        return iter(self.lists)
-
-    def __len__(self) -> int:
-        return len(self.lists)
-
-    def getlist(self, name: str) -> list[str]:
-        return list(self.lists.get(name, []))
-
-
 class Request:
     """One HTTP request. Never mutate it; it is shared with the whole call."""
 
@@ -70,6 +55,7 @@ class Request:
         "headers",
         "host",
         "method",
+        "parsers",
         "path",
         "path_params",
         "request_id",
@@ -91,6 +77,7 @@ class Request:
         path_params: Mapping[str, str],
         user: Any,
         request_id: str,
+        parsers: Sequence[Parser] = DEFAULT_PARSERS,
     ) -> None:
         self.method = method
         self.path = path
@@ -104,7 +91,8 @@ class Request:
         self.path_params = dict(path_params)
         self.user = user
         self.request_id = request_id
-        self.cached: object = UNREAD
+        self.parsers = tuple(parsers)
+        self.cached: Parsed | None = None
 
     @property
     def content_type(self) -> str:
@@ -112,12 +100,31 @@ class Request:
         raw = self.headers.get("content-type", "")
         return raw.split(";", maxsplit=1)[0].strip().lower()
 
+    def parsed(self) -> Parsed:
+        """The body through the parser for its content type, once; raises
+        ``InvalidBody`` (415 for an unlisted type, 400 for a malformed body)."""
+        if self.cached is None:
+            self.cached = choose(self.parsers, self.content_type).parse(
+                self.body, self.headers.get("content-type", "")
+            )
+        return self.cached
+
     @property
     def data(self) -> object:
-        """The parsed body; raises ``InvalidBody`` (415/400) when unusable."""
-        if self.cached is UNREAD:
-            # Local import: the binding module imports this one for Request.
-            from hinoki.runtime.binding import decode_body  # noqa: PLC0415
+        """The parsed body (JSON value, or form fields as text)."""
+        return self.parsed().data
 
-            self.cached = decode_body(self.body, self.content_type)
-        return self.cached
+    def accepts_form(self) -> bool:
+        return any(p.media_type == self.content_type for p in self.parsers)
+
+    @property
+    def POST(self) -> QueryDict:
+        """Form fields; empty when the body is not a form."""
+        fields = self.parsed().fields if self.accepts_form() else {}
+        return QueryDict(fields)
+
+    @property
+    def FILES(self) -> MultiDict[UploadedFile]:
+        """Uploaded files of a multipart body; empty otherwise."""
+        files = self.parsed().files if self.accepts_form() else {}
+        return MultiDict(files)
