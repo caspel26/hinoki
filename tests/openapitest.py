@@ -6,7 +6,16 @@ from uuid import UUID
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import API, Access, HinokiAPI, RegistrationError, Schema, get, post
+from hinoki import (
+    API,
+    Access,
+    HinokiAPI,
+    Principal,
+    RegistrationError,
+    Schema,
+    get,
+    post,
+)
 from hinoki.schema import Field
 from tests.harness import Pool
 from tests.providers import TokenAuth
@@ -144,7 +153,7 @@ def test_security_scheme_is_described_from_the_provider() -> None:
 
 def test_none_return_has_no_content_and_lists_are_arrays() -> None:
     paths = make_app().openapi()["paths"]
-    publish = paths["/posts/{post_id}/publish"]["post"]["responses"]["200"]
+    publish = paths["/posts/{post_id}/publish"]["post"]["responses"]["204"]
     assert "content" not in publish
     listing = paths["/posts"]["get"]["responses"]["200"]["content"]
     assert listing["application/json"]["schema"]["type"] == "array"
@@ -220,3 +229,43 @@ async def test_document_is_not_served_by_default(pool: Pool) -> None:
 def test_document_url_cannot_shadow_a_route() -> None:
     with pytest.raises(RegistrationError, match="already used"):
         make_app(openapi_url="/health").asgi()
+
+
+class Pattern(Schema):
+    slug: Annotated[str, Field(pattern="[a-z]+")]
+
+
+@get("/me", access=editor)
+async def me(principal: Principal[str]) -> None: ...
+
+
+@get("/remove/{item}", status=200)
+async def remove(item: str) -> None: ...
+
+
+@post("/pat")
+async def pat(data: Pattern) -> None: ...
+
+
+def test_principal_is_not_documented_as_an_input() -> None:
+    app = HinokiAPI()
+    app.include(me)
+    operation = app.openapi()["paths"]["/me"]["get"]
+    assert "parameters" not in operation
+    assert "422" not in operation["responses"]
+    validate(app.openapi())
+
+
+def test_none_returning_actions_are_documented_as_204() -> None:
+    app = HinokiAPI()
+    app.include(remove)
+    responses = app.openapi()["paths"]["/remove/{item}"]["get"]["responses"]
+    assert "204" in responses
+    assert "200" not in responses
+
+
+def test_patterns_are_documented_anchored_like_the_runtime_matches_them() -> None:
+    app = HinokiAPI()
+    app.include(pat)
+    slug = app.openapi()["components"]["schemas"]["Pattern"]["properties"]["slug"]
+    assert slug["pattern"] == "^(?:[a-z]+)$"

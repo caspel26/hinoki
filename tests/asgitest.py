@@ -10,7 +10,6 @@ from uuid import UUID
 import pytest
 
 from hinoki import API, HinokiAPI, RegistrationError, RuntimeConfig, context, get, post
-from hinoki.runtime.requests import MAX_BODY
 from tests.harness import Client, Pool
 
 release = threading.Event()
@@ -174,12 +173,6 @@ async def test_not_ready_before_startup_and_after_shutdown(pool: Pool) -> None:
     client = await serve(pool)
     assert await client.lifespan_event("shutdown") == "lifespan.shutdown.complete"
     assert (await client.request("GET", "/ping")).status == 503
-
-
-async def test_oversized_body_is_rejected(pool: Pool) -> None:
-    client = await serve(pool)
-    reply = await client.request("POST", "/made", b"x" * (MAX_BODY + 1))
-    assert reply.status == 413
 
 
 @pytest.mark.parametrize("handler", [wrong_name, bad_type])

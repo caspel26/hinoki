@@ -7,6 +7,7 @@ from uuid import UUID
 import pytest
 
 from hinoki import HinokiAPI, RegistrationError, Schema, get, post
+from hinoki.runtime.requests import MAX_BODY
 from hinoki.schema import Field
 from tests.harness import Client, Pool
 
@@ -177,3 +178,30 @@ async def test_malformed_query_string_is_a_400(pool: Pool) -> None:
 def test_ambiguous_schema_parameters_fail_at_include(handler: object) -> None:
     with pytest.raises(RegistrationError):
         HinokiAPI().include(handler)
+
+
+async def test_oversized_body_is_rejected(pool: Pool) -> None:
+    client = await start(pool)
+    big = b"x" * (MAX_BODY + 1)
+    reply = await client.request("POST", "/posts", big, content_type=JSON)
+    assert reply.status == 413
+
+
+async def test_the_body_is_not_read_for_actions_that_take_none(pool: Pool) -> None:
+    client = await start(pool)
+    big = b"x" * (MAX_BODY + 1)
+    reply = await client.request("GET", "/mixed/news", big)
+    assert reply.status == 200
+
+
+async def test_deeply_nested_json_is_a_400_not_a_crash(pool: Pool) -> None:
+    client = await start(pool)
+    deep = b"[" * 100_000 + b"]" * 100_000
+    reply = await client.request("POST", "/posts", deep, content_type=JSON)
+    assert (reply.status, reply.body["error"]) == (400, "invalid_json")
+
+
+async def test_non_ascii_raw_path_is_a_400(pool: Pool) -> None:
+    client = await start(pool)
+    reply = await client.request("GET", "/x", raw_path="/mixed/é".encode())
+    assert (reply.status, reply.body["error"]) == (400, "bad_path_encoding")

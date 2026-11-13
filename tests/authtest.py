@@ -2,7 +2,16 @@
 
 import pytest
 
-from hinoki import Access, HinokiAPI, Principal, RegistrationError, Schema, get, post
+from hinoki import (
+    Access,
+    APIKeyAuth,
+    HinokiAPI,
+    Principal,
+    RegistrationError,
+    Schema,
+    get,
+    post,
+)
 from tests.harness import Client, Pool
 from tests.providers import TokenAuth
 
@@ -133,3 +142,35 @@ def test_principal_parameter_needs_an_access_policy() -> None:
 def test_access_needs_a_provider() -> None:
     with pytest.raises(TypeError):
         Access(auth=object())  # type: ignore[arg-type]
+
+
+async def test_repeated_credential_headers_never_resolve_to_one_of_them(
+    pool: Pool,
+) -> None:
+    client = await start(pool)
+    sent = [
+        (b"authorization", b"Bearer reader-token"),
+        (b"authorization", b"Bearer editor-token"),
+    ]
+    reply = await client.request("GET", "/secure", raw_headers=sent)
+    assert reply.status == 401
+
+
+async def test_unauthenticated_requests_are_refused_before_the_body_is_read(
+    pool: Pool,
+) -> None:
+    client = await start(pool)
+    huge = b"{" * 2_000_000
+    reply = await client.request(
+        "POST", "/drafts", huge, content_type="application/json"
+    )
+    assert reply.status == 401
+
+
+def test_api_key_provider_has_a_challenge() -> None:
+    class Keys(APIKeyAuth[str]):
+        async def resolve(self, value: str) -> Principal[str] | None:
+            return None
+
+    assert Keys().challenge == "ApiKey"
+    assert Keys().header == "x-api-key"

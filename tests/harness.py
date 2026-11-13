@@ -44,6 +44,7 @@ class Client:
         query: str = "",
         content_type: str | None = None,
         headers: dict[str, str] | None = None,
+        raw_headers: list[tuple[bytes, bytes]] | None = None,
     ) -> Reply:
         incoming = {"type": "http.request", "body": body, "more_body": False}
         scope: dict[str, Any] = {
@@ -51,7 +52,7 @@ class Client:
             "method": method,
             "path": path,
             "query_string": query.encode(),
-            "headers": request_headers(headers, content_type),
+            "headers": raw_headers or request_headers(headers, content_type),
         }
         if raw_path is not None:
             scope["raw_path"] = raw_path
