@@ -1,6 +1,6 @@
 # Crypto: password hashing and JWT, in Rust — design (Q011)
 
-Status: **C1 design, C2 implemented** (Rust Argon2id hash/verify/needs_rehash, `random_token`, constant-time compare in `crates/bindings/src/crypto.rs`; Python wrapper and JWT still open) (2026-11-13). Owner request: define what to use for the crypto part, in Rust. Nothing below is implemented until a step says so.
+Status: **C1 design, C2–C5 implemented** (JWT HS256/384/512 + EdDSA in Rust with an algorithm allow-list, duplicate-key refusal, `kid` rules and claim checks; `PasswordHasher`, `JWTKey`, `JWTAuth`, `random_token` in `hinoki.crypto`; tests against the stdlib HMAC and an Argon2/Ed25519 oracle; the Argon2 hash made by Rust verifies in `argon2-cffi`) (Rust Argon2id hash/verify/needs_rehash, `random_token`, constant-time compare in `crates/bindings/src/crypto.rs`; C6 open: `cargo audit`/`deny` in CI and the independent authentication review) (2026-11-13). Owner request: define what to use for the crypto part, in Rust. Nothing below is implemented until a step says so.
 
 ## Observed
 
@@ -79,9 +79,9 @@ Independent oracles, not self-consistency: HMAC signatures cross-checked against
 | --- | --- | --- |
 | C1 | This design | `docs/CRYPTO-DESIGN.md` |
 | C2 (done) | Rust: Argon2id hash/verify/needs_rehash, `random_token`, constant-time helpers | `crates/bindings/src/crypto.rs`, `Cargo.toml` |
-| C3 | Rust: JWS compact (HS256/384/512, EdDSA) encode/verify + claim validation | `crates/bindings/src/jwt.rs` |
-| C4 | Python: `PasswordHasher`, `JWTKey`, `JWTAuth`, settings checks, OpenAPI scheme | `python/hinoki/crypto.py` |
-| C5 | Tests with oracles/vectors; example use in the blog (password column + login-less token issue script) | `tests/`, `examples/` |
+| C3 (done) | Rust: JWS compact (HS256/384/512, EdDSA) encode/verify + claim validation | `crates/bindings/src/jwt.rs` |
+| C4 (done) | Python: `PasswordHasher`, `JWTKey`, `JWTAuth`, settings checks, OpenAPI scheme | `python/hinoki/crypto.py` |
+| C5 (done; blog example not yet) | Tests with oracles/vectors; example use in the blog (password column + login-less token issue script) | `tests/`, `examples/` |
 | C6 | `cargo audit`/`deny` in CI; independent authentication review, fixes, docs, handoff | CI, — |
 
 ## Open (owner)
