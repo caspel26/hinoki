@@ -14,7 +14,7 @@ Operations      plain async functions     one business operation each; no Reques
 Persistence     Model / QuerySet          tables, relations, explicit loading
 ```
 
-* **HTTP layer** turns a request into typed values (`Schema`, path/query parameters, `Principal`) and an operation's result into a response schema. It contains no business rules and no SQL.
+* **HTTP layer** turns a request into typed values (`Schema`, path/query parameters, `Caller`) and an operation's result into a response schema. It contains no business rules and no SQL.
 * **Operations** hold the rules ("an editor may publish only their own draft"). They take plain arguments (`principal`, a `Schema`, ids) so they can be called from an action, a CLI, a test, an admin hook (`ModelAdmin.save`) or an MCP tool. **Why:** an action that reads cookies or headers cannot be reused; an operation can.
 * **Persistence** never imports the HTTP layer. **Rule:** `Imports.forbid(source="shop.models", target="shop.api")` (and the same for operations → api).
 * Small apps may skip the middle layer (the notes example does). Add it when an action contains a rule you would want to call from somewhere else.
@@ -23,7 +23,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 
 | Concern | Put it | Why |
 | --- | --- | --- |
-| Authentication | An auth provider (`BearerAuth`, `JWTAuth`, …) returning a `Principal` | One path, identical for HTTP, admin and MCP |
+| Authentication | An auth provider (`BearerAuth`, `JWTAuth`, …) returning a `Caller` | One path, identical for HTTP, admin and MCP |
 | Coarse permission | `Access(auth=…, permissions=[…])` on the action (or once for a group: `tasks = Endpoints("/tasks", access=member_only, atomic=True)`, then `@tasks.get("/")`). **Public is the default**: protect on purpose. **Rule:** `Actions.require_access` | A forgotten policy is the most common hole |
 | Row permission (ownership, tenant) | In the **statement**: `queryset.filter(owner=…)` and `aupdate`/`adelete` scoped by it, never "read, check, write" | No race between check and use; hidden rows look like missing ones (404) |
 | Input validation | The `Schema` (types, constraints, patterns) | Strict, no coercion, validated in Rust before your code runs |

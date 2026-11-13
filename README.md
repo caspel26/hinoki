@@ -75,7 +75,7 @@ from uuid import UUID
 from hinoki import API, Access, HinokiAPI, Request, get, post
 from hinoki.auth import Caller
 
-editor = Access(auth=blog_auth, scopes={Scope.POSTS_WRITE})
+editor = Access(auth=blog_auth, permissions={Scope.POSTS_WRITE})
 
 
 @get("/health")
@@ -238,7 +238,7 @@ uv run python -m hinoki dev examples.blog.main:create_app   # reload; `serve` fo
 How the pieces fit and what to avoid: [`docs/PATTERNS.md`](docs/PATTERNS.md). Building with an AI agent: [`docs/AI-WORKFLOW.md`](docs/AI-WORKFLOW.md).
 
 * **`Request`** is the incoming HTTP request, passed to an action that declares it as its first parameter (`method`, `headers`, `GET`, `COOKIES`, `body`, `data`, `user`). Path, query and body values follow as typed parameters.
-* **`Caller`** (also spelled `Principal`) is *who is making the request*, as decided by authentication. An auth provider (bearer token, API key, JWT, a cookie) turns the credentials into a `Caller` with three things: `id` (a stable string), `user` (your own object, for example the `User` row) and `permissions` (what it may do). Declare `caller: Caller[User]` on an action to receive it; `request.user` is the same object. No valid credentials: the request is refused before your code runs (401); missing permissions: 403. (`Principal`, `subject`, `identity`, `scopes` and `Access(scopes=...)` remain as aliases of the same things.)
+* **`Caller`** is *who is making the request*, as decided by authentication. An auth provider (bearer token, API key, JWT, a cookie) turns the credentials into a `Caller` with three things: `id` (a stable string), `user` (your own object, for example the `User` row) and `permissions` (what it may do). Declare `caller: Caller[User]` on an action to receive it; `request.user` is the same object. No valid credentials: the request is refused before your code runs (401); missing permissions: 403.
 * **`Access`** is a reusable policy: *which provider* authenticates and *which permissions* are required: `Access(auth=tokens, permissions=["posts:write"])`. You attach it to an action with `access=editor`; an action without one is public.
 * **`Schema`** describes data that crosses the API boundary (request bodies and responses) and validates it strictly; **`Model`** describes a database table. They are separate on purpose, so a column never leaks into a response unless a schema names it (rules can enforce that).
 * **Settings** are typed, immutable and loaded explicitly: `class BlogSettings(FrameworkSettings): jwt_secret: Secret; ...`, then `BlogSettings.load(prefix="BLOG_", dotenv=".env")` and `HinokiAPI(settings=settings)`. Built-in groups (`execution`, `lifecycle`, `logging`, `docs`) are set with variables such as `BLOG_EXECUTION__SYNC_WORKERS=16` or `BLOG_LOGGING__FORMAT=json`; secrets never print; a typo in a variable name or a bad value fails at startup with every problem listed ([`docs/SETTINGS.md`](docs/SETTINGS.md); `python -m hinoki settings` shows where every value comes from).
