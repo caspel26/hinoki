@@ -11,9 +11,10 @@ from __future__ import annotations
 import inspect
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import ParamSpec, TypeVar
+from typing import Any, ParamSpec, TypeVar
 
 from hinoki.access import Access
+from hinoki.fields import UNSET, Unset
 from hinoki.httperrors import APIError
 from hinoki.pagination import PageNumberPagination
 from hinoki.parsers import DEFAULT_PARSERS, Parser, check_parsers
@@ -26,6 +27,7 @@ ROUTE_ATTR = "__hinoki_route__"
 MIN_STATUS = 200
 MAX_STATUS = 599
 MIN_ERROR_STATUS = 400
+WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -229,6 +231,83 @@ def delete(
         status, access, transaction, pagination, replaces, parsers, renderers, errors
     )
     return RouteDeclaration("DELETE", path, options)
+
+
+class Endpoints:
+    """Shared defaults for a group of actions, so they are stated once:
+
+        tasks = Endpoints("/tasks", access=member_only, atomic=True,
+                          errors=(NotFound,))
+
+        @tasks.get("/")                      # GET /tasks
+        async def listing(...): ...
+
+        @tasks.post("/", status=201)         # POST /tasks, transaction=True
+        async def create(...): ...
+
+        @tasks.get("/health", access=None)   # public on purpose, overriding the group
+
+    ``prefix`` is prepended to every path (``"/"`` means the prefix itself),
+    ``access`` is the default policy (pass ``access=None`` on an action to make it
+    public), ``atomic=True`` makes POST/PUT/PATCH/DELETE transactional unless the
+    action says ``transaction=False``, and ``errors`` are added to each action's own.
+    The result is an ordinary action: rules, OpenAPI and the MCP see no difference.
+    """
+
+    def __init__(
+        self,
+        prefix: str = "",
+        *,
+        access: Access | None = None,
+        atomic: bool = False,
+        errors: Sequence[type[APIError]] = (),
+    ) -> None:
+        if prefix and (not prefix.startswith("/") or prefix.endswith("/")):
+            raise ValueError("a prefix starts with '/' and does not end with one")
+        self.prefix = prefix
+        self.access = access
+        self.atomic = atomic
+        self.errors = tuple(errors)
+
+    def declare(
+        self, method: str, path: str, options: dict[str, Any]
+    ) -> RouteDeclaration:
+        full = (self.prefix or "/") if path == "/" else self.prefix + path
+        access = options.pop("access", UNSET)
+        transaction = options.pop("transaction", None)
+        own_errors = tuple(options.pop("errors", ()))
+        chosen = Options(
+            status=options.pop("status", 200),
+            access=self.access if isinstance(access, Unset) else access,
+            transaction=(
+                transaction
+                if transaction is not None
+                else self.atomic and method in WRITE_METHODS
+            ),
+            pagination=options.pop("pagination", None),
+            replaces=options.pop("replaces", ""),
+            parsers=options.pop("parsers", None),
+            renderers=options.pop("renderers", None),
+            errors=(*self.errors, *own_errors),
+        )
+        if options:
+            raise TypeError(f"unknown action options {sorted(options)}")
+        return RouteDeclaration(method, full, chosen)
+
+    def get(self, path: str, **options: Any) -> RouteDeclaration:
+        return self.declare("GET", path, options)
+
+    def post(self, path: str, **options: Any) -> RouteDeclaration:
+        return self.declare("POST", path, options)
+
+    def put(self, path: str, **options: Any) -> RouteDeclaration:
+        return self.declare("PUT", path, options)
+
+    def patch(self, path: str, **options: Any) -> RouteDeclaration:
+        return self.declare("PATCH", path, options)
+
+    def delete(self, path: str, **options: Any) -> RouteDeclaration:
+        return self.declare("DELETE", path, options)
 
 
 @dataclass(frozen=True, slots=True)

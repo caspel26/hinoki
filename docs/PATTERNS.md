@@ -24,7 +24,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 | Concern | Put it | Why |
 | --- | --- | --- |
 | Authentication | An auth provider (`BearerAuth`, `JWTAuth`, …) returning a `Principal` | One path, identical for HTTP, admin and MCP |
-| Coarse permission | `Access(auth=…, scopes=[…])` on the action. **Public is the default**: protect on purpose. **Rule:** `Actions.require_access` | A forgotten policy is the most common hole |
+| Coarse permission | `Access(auth=…, permissions=[…])` on the action (or once for a group: `tasks = Endpoints("/tasks", access=member_only, atomic=True)`, then `@tasks.get("/")`). **Public is the default**: protect on purpose. **Rule:** `Actions.require_access` | A forgotten policy is the most common hole |
 | Row permission (ownership, tenant) | In the **statement**: `queryset.filter(owner=…)` and `aupdate`/`adelete` scoped by it, never "read, check, write" | No race between check and use; hidden rows look like missing ones (404) |
 | Input validation | The `Schema` (types, constraints, patterns) | Strict, no coercion, validated in Rust before your code runs |
 | Business rules | Operations | Testable without HTTP |
