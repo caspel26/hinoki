@@ -26,6 +26,8 @@ The probe uses a local prototype `Model`, not the Hinoki ORM.
 
 **Consequence (proposal):** the spec's `Post.acreate(title=..., author_id=...)` cannot be type-checked by a plain checker. Options, to be decided with the Q004 slice: (a) generate `.pyi` stubs with per-model `acreate`/`aupdate`/filter signatures; (b) make the checked path `await Post(title=...).asave()` and keep `acreate` as sugar; (c) ship a mypy plugin (heavier, per-checker). Recommendation: (a) generated stubs, with (b) as the always-checked fallback. This is an API-shape decision and is **not frozen**.
 
+**Status (Q005):** the owner accepted the recommendation. Path (b) is implemented and statically proven: `await Post(title=...).asave()` inserts, and an instance loaded from the database updates only the columns that changed (`tests/typing/modelcheck.py`, `tests/syncmodelstest.py`). Path (a) is **not implemented yet**: `mypy.stubgen` on a models module drops field defaults (every defaulted field would look required), so the generator has to be custom and is still open. Until then `acreate`/`aupdate` keep `**values: Any`.
+
 ## Not yet covered
 
 `Principal[T]` binding, `Page[T].map`, query-set filters, pyright and IDE behaviour (the `.pyi` approach must be re-checked in pyright).

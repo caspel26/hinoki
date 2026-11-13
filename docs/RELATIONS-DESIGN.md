@@ -1,6 +1,6 @@
 # Relations, migrations and CRUD generation — design (Q005)
 
-Status: **R1 design; R2 relations, R3 migrations and R4 generated CRUD implemented** (2026-11-13). Implementation follows in the steps below; each step ends with the blog green and tests that fail without it.
+Status: **R1 design; R2 relations, R3 migrations and R4 generated CRUD and R5 sync methods/`asave` implemented** (2026-11-13). Implementation follows in the steps below; each step ends with the blog green and tests that fail without it.
 
 ## Observed
 
@@ -63,11 +63,11 @@ class Posts(CrudAPI, path="/posts", resource=POSTS): ...
 
 ### D6 Sync model methods
 
-Sync handlers run in the executor thread; the blocking call path is `run_sync(coroutine)` back onto the event loop that owns the pool. `Model.create/get/update/delete` and `QuerySet.all/first/...` call it. Using them on the event loop thread raises (it would deadlock); the error names the `a...` method to use.
+Sync handlers run in the executor's threads. The executor now carries the worker's event loop in a `ContextVar`; `run_sync(coroutine)` (`hinoki/blocking.py`) hands the coroutine to that loop with the caller's context (so an active `transaction=True` transaction is used) and blocks only the handler's thread. `Model.create/get/get_or_none/update/delete`, `QuerySet.list/first/get/count/exists/paginate` and `instance.save()` use it. Called on the event loop thread (where blocking would freeze the worker) or outside a served handler they raise `RuntimeError` naming the `a...` variant. A sync call abandoned by a timeout runs to completion, like any sync handler (ADR 0003).
 
 ### D7 `acreate`/`aupdate` typing
 
-Accepted by the owner: **generated `.pyi` stubs** for models (`python -m hinoki stubs --models ...`), checked in CI by comparing the generated text with the committed file. Until then `**values` stays runtime-checked.
+The owner accepted the recommendation: generated `.pyi` stubs with the always-checked instance path as fallback. **Implemented: the fallback** — `Post(...)` is checked by `dataclass_transform`, `await post.asave()` inserts a new instance or updates only the changed columns of a loaded one (snapshot comparison, deep-copied so in-place list/dict edits are noticed; the primary key cannot be edited). **Open: the stub generator.** `stubgen` loses field defaults, so it needs a custom emitter; `acreate`/`aupdate` stay `**values: Any` until then.
 
 ## Failure states
 
@@ -83,7 +83,7 @@ Accepted by the owner: **generated `.pyi` stubs** for models (`python -m hinoki 
 | R2 | Joins in the Rust compiler; `foreign_key`, `select_related`, `prefetch_related`, cross-relation filter; blog uses them | `crates/orm/src/query.rs`, `crates/bindings/src/query.rs`, `python/hinoki/orm.py`, `python/hinoki/relations.py` |
 | R3 | Migrations: state, planner, apply, status, CLI; blog uses migrations instead of `tables.py` | `python/hinoki/migrations.py`, `python/hinoki/__main__.py` |
 | R4 | Generated CRUD with `replaces` and ownership/assignment hooks | `python/hinoki/crud.py` |
-| R5 | Sync model methods; model stubs generator | `python/hinoki/orm.py`, `python/hinoki/stubs.py` |
+| R5 | Sync model methods and typed `asave` (done); model stubs generator (open) | `python/hinoki/orm.py`, `python/hinoki/stubs.py` |
 | R6 | Independent reviews, fixes, docs, handoff | — |
 
 ## Open
