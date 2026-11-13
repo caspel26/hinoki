@@ -193,8 +193,25 @@ pub fn instance_fields(value: &Bound<'_, PyAny>) -> PyResult<Option<(Vec<String>
     if !class.hasattr("__hinoki_schema__")? {
         return Ok(None);
     }
-    // Read the class's own entry: a subclass must not use its parent's table.
-    let own = class.getattr("__dict__")?.get_item("__native__").ok();
+    // Read the class's own entries: a subclass must not use its parent's table.
+    let table = class.getattr("__dict__")?;
+    // A class that overrides `dump()` decides what it exposes: the caller falls
+    // back to calling it, exactly as the Python encoder always did.
+    if let Ok(flag) = table.get_item("__native_dump__") {
+        if !flag.is_truthy()? {
+            return Ok(None);
+        }
+    } else {
+        class.call_method0("native_schema")?;
+        if !class
+            .getattr("__dict__")?
+            .get_item("__native_dump__")?
+            .is_truthy()?
+        {
+            return Ok(None);
+        }
+    }
+    let own = table.get_item("__native__").ok();
     let compiled = match own {
         Some(found) if !found.is_none() => found,
         _ => class.call_method0("native_schema")?,
@@ -206,6 +223,27 @@ pub fn instance_fields(value: &Bound<'_, PyAny>) -> PyResult<Option<(Vec<String>
         .map(|field| field.name.clone())
         .collect();
     Ok(Some((names, compiled.unset.clone_ref(value.py()))))
+}
+
+/// Compile-check a `pattern=` at registration: the Rust `regex` syntax (linear
+/// time, no look-around or back-references) matched against the whole value.
+#[pyfunction]
+pub fn check_pattern(source: &str) -> PyResult<()> {
+    let verbose =
+        Regex::new(r"\(\?[a-zA-Z]*x[a-zA-Z-]*[:)]").map_err(|e| compile_error(e.to_string()))?;
+    if verbose.is_match(source) {
+        return Err(compile_error("verbose mode (?x) is not supported"));
+    }
+    for banned in ["&&", "~~", "[[:"] {
+        if source.contains(banned) {
+            return Err(compile_error(format!(
+                "{banned:?} (character-class set operations and POSIX classes) is not supported"
+            )));
+        }
+    }
+    Regex::new(&format!("\\A(?:{source})\\z"))
+        .map(|_| ())
+        .map_err(|e| compile_error(e.to_string()))
 }
 
 fn refers_outside(node: &Node, known: usize) -> bool {

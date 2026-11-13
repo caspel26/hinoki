@@ -87,6 +87,7 @@ fn native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(request::decode_json, m)?)?;
     m.add_class::<schema::Compiled>()?;
     m.add_function(wrap_pyfunction!(schema::compile_schemas, m)?)?;
+    m.add_function(wrap_pyfunction!(schema::check_pattern, m)?)?;
     m.add_function(wrap_pyfunction!(jwt::jwt_encode, m)?)?;
     m.add_function(wrap_pyfunction!(jwt::jwt_decode, m)?)?;
     m.add_function(wrap_pyfunction!(crypto::hash_password, m)?)?;

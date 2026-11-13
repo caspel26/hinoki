@@ -25,7 +25,7 @@ Classes are still declared as Python classes (frozen dataclasses; this is what l
 
 ### D4 Serialisation is native end to end
 
-`native.dump_schema(instance)` (used by `Schema.dump()`) and `to_dict` build their dicts in Rust from the compiled field list; `encode_json` learns `Schema` instances, `UUID` and `datetime` directly so a handler's `PostOut` becomes JSON bytes without a Python walk. `UNSET` fields are omitted as today. Output text is unchanged (compact UTF-8), which the existing tests pin.
+`encode_json` learns `Schema` instances, `UUID` and `datetime` directly so a handler's `PostOut` becomes JSON bytes without a Python walk. `UNSET` fields are omitted as today. Output text is unchanged (compact UTF-8), which the existing tests pin.
 
 ### D5 Dataclasses and naming
 
@@ -37,7 +37,7 @@ No new dataclasses are introduced for data that is a schema; `Schema` subclasses
 
 ## Failure, empty and private states
 
-An uncompilable schema (unsupported regex, inconsistent constraints) fails at class creation or first compile with a `RegistrationError` naming the field, never per request. A schema with forward references compiles on first use, as today. Errors never echo more than 64 characters of a key and never the offending value (unchanged). A Rust panic must not cross the boundary: no `unwrap` on input-derived values (reviewed, clippy `unwrap_used` denied in the module).
+An uncompilable schema (unsupported regex, inconsistent constraints) fails at class creation or first compile with a `RegistrationError` naming the field, never per request. A schema with forward references compiles on first use, as today. Errors never echo more than 64 characters of a key and never the offending value (unchanged). A Rust panic must not cross the boundary: no `unwrap` on input-derived values (checked by review; there is no `unwrap_used` lint configured).
 
 ## Tests
 
@@ -57,3 +57,9 @@ Unit tests in Rust for each kind and constraint; the Python differential suite a
 ## Open (owner)
 
 Accepting the pattern-syntax change (D3); confirming `Contract` as the name (D5) or choosing another before N6.
+
+## Review outcome (N5)
+
+An independent read-only review found 1 high, 1 medium and 5 low items. Fixed: a `Schema` subclass that overrides `dump()` is honoured again by the native serialiser (it decides what it exposes); `pattern=` is checked against the Rust syntax at class creation (a `RegistrationError`, not a 500 on first use), including refusal of verbose mode `(?x)`, character-class set operations (`&&`, `~~`) and POSIX classes `[[:` whose meaning differs between engines; constraint values must be integers/numbers; `Schema.dump()` is the Python JSON-compatible form again (its contract: raw values, no depth cap), while JSON answers are serialised natively (a native `dump()` stays an open item, N3b).
+
+Documented differences of the pattern engine (matched whole, linear time): `$` matches only at the very end (not before a final newline), `\s` and `\w` use Rust's Unicode definitions (Python also matches some control and superscript characters), `\Z`, look-around, back-references, atomic groups and `(?#...)` are rejected. Strings with unpaired surrogates cannot arrive over HTTP (the JSON decoder rejects them); direct callers of `validate` may see them as pattern failures.

@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Any, get_args, get_origin
 from uuid import UUID
 
+from hinoki import native
 from hinoki.errors import RegistrationError
 from hinoki.fields import FieldInfo, Unset
 
@@ -61,6 +62,34 @@ def split_annotated(annotation: object) -> tuple[Any, FieldInfo]:
     return annotation, FieldInfo(**merged)  # type: ignore[arg-type]
 
 
+def check_pattern(pattern: str, where: str) -> None:
+    """Valid in Python and in the Rust engine that enforces it (linear-time
+    syntax: no look-around, back-references or verbose mode)."""
+    try:
+        native.check_pattern(pattern)
+    except ValueError as exc:
+        raise RegistrationError(f"{where}: unsupported pattern: {exc}") from exc
+    try:
+        re.compile(pattern)
+    except re.error as exc:
+        raise RegistrationError(f"{where}: invalid pattern: {exc}") from exc
+
+
+def check_limits(info: FieldInfo, where: str) -> None:
+    for name in ("min_length", "max_length"):
+        value = getattr(info, name)
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or abs(value) > 2**62
+        ):
+            raise RegistrationError(f"{where}: {name} must be an integer")
+    for name in ("ge", "le", "gt", "lt"):
+        value = getattr(info, name)
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int | float)
+        ):
+            raise RegistrationError(f"{where}: {name} must be a number")
+
+
 def parse_annotation(annotation: object, where: str) -> FieldType:
     """Turn an annotation into a ``FieldType`` or fail with a clear error."""
     base, info = split_annotated(annotation)
@@ -92,10 +121,8 @@ def build(
     else:
         raise RegistrationError(f"{where}: unsupported type {base!r}")
     if info.pattern is not None:
-        try:
-            re.compile(info.pattern)
-        except re.error as exc:
-            raise RegistrationError(f"{where}: invalid pattern: {exc}") from exc
+        check_pattern(info.pattern, where)
+    check_limits(info, where)
     unsupported = set(info.constraints()) - ALLOWED_CONSTRAINTS.get(kind, frozenset())
     if unsupported:
         raise RegistrationError(

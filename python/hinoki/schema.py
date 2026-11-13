@@ -61,6 +61,7 @@ class Schema:
     __hinoki_schema__: ClassVar[bool] = True
     __specs__: ClassVar[dict[str, FieldSpec] | None] = None
     __native__: ClassVar[native.CompiledSchema | None] = None
+    __native_dump__: ClassVar[bool] = True
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
@@ -124,6 +125,9 @@ class Schema:
         if cached is None:
             cached = compile_native(cls)
             cls.__native__ = cached
+            # Whether the class uses the standard dump (so Rust may serialise its
+            # fields directly) or overrides it (then dump() decides).
+            cls.__native_dump__ = cls.dump is Schema.dump
         return cached
 
     @classmethod
@@ -179,8 +183,13 @@ class Schema:
         return cls(**values)
 
     def dump(self) -> dict[str, Any]:
-        """JSON-compatible form; ``UNSET`` fields are omitted (built in Rust)."""
-        return cast(dict[str, Any], native.decode_json(native.encode_json(self)))
+        """JSON-compatible form; ``UNSET`` fields are omitted. (Responses do not
+        go through this method: JSON answers are serialised in Rust.)"""
+        return {
+            name: encode(getattr(self, name))
+            for name in self.specs()
+            if getattr(self, name) is not UNSET
+        }
 
 
 def node_of(
