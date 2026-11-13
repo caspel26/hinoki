@@ -24,7 +24,7 @@ data.dump()                          # unchanged: JSON-compatible, for responses
 ### D2 Models accept a schema where they accept values
 
 ```python
-post = await Post.acreate(data, author_id=principal.identity.id)   # schema + server-side values
+post = await Post.acreate(data, author_id=principal.user.id)   # schema + server-side values
 post = Post.from_schema(data, author_id=...)                      # unsaved, fully type-checked constructor call is not possible; see D5
 await post.update_from(patch)                                      # sets the sent fields, saves only what changed
 ```

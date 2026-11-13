@@ -15,7 +15,7 @@ from typing import Any, ClassVar
 
 import pytest
 
-from hinoki import Access, HinokiAPI, Principal, Request, get, native
+from hinoki import Access, Caller, HinokiAPI, Request, get, native
 from hinoki.crypto import (
     HashingBusy,
     JWTAuth,
@@ -69,12 +69,12 @@ class Tokens(JWTAuth[str]):
     def now(self) -> int:
         return self.clock
 
-    async def resolve_claims(self, claims: dict[str, Any]) -> Principal[str] | None:
+    async def resolve_claims(self, claims: dict[str, Any]) -> Caller[str] | None:
         subject, raw = claims.get("sub"), claims.get("scopes", [])
         if not isinstance(subject, str) or not isinstance(raw, list):
             return None
         scopes = frozenset(s for s in raw if isinstance(s, str))
-        return Principal(subject=subject, identity=subject, scopes=scopes)
+        return Caller(id=subject, user=subject, permissions=scopes)
 
 
 GOOD = {
@@ -280,11 +280,11 @@ async def test_without_keys_the_provider_refuses_to_run() -> None:
 
 
 async def test_the_provider_guards_an_action_over_http(pool: Pool) -> None:
-    editor = Access(auth=Tokens(), scopes=["w"])
+    editor = Access(auth=Tokens(), permissions=["w"])
 
     @get("/me", access=editor)
-    def me(request: Request, principal: Principal[str]) -> dict[str, str]:
-        return {"who": principal.subject}
+    def me(request: Request, principal: Caller[str]) -> dict[str, str]:
+        return {"who": principal.id}
 
     app = HinokiAPI()
     app.include(me)

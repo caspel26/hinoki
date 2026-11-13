@@ -32,7 +32,7 @@ from hinoki.admin.site import (
 )
 from hinoki.admin.templates import Raw, escape
 from hinoki.api import API
-from hinoki.auth import Principal
+from hinoki.auth import Caller
 from hinoki.reply import Reply
 from hinoki.request import Request
 
@@ -67,7 +67,7 @@ async def script(self: API, request: Request) -> Reply:  # noqa: ARG001
     )
 
 
-async def index(self: API, request: Request, principal: Principal[Any]) -> Reply:
+async def index(self: API, request: Request, principal: Caller[Any]) -> Reply:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     admin = site.admin
     stats: list[Stat] = []
@@ -132,7 +132,7 @@ async def index(self: API, request: Request, principal: Principal[Any]) -> Reply
     )
 
 
-async def search(self: API, request: Request, principal: Principal[Any]) -> Reply:
+async def search(self: API, request: Request, principal: Caller[Any]) -> Reply:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     text = request.GET.get("q", "").replace("\x00", "")[:MAX_QUERY].strip()
     groups = []
@@ -171,7 +171,7 @@ async def search(self: API, request: Request, principal: Principal[Any]) -> Repl
 
 
 async def listing(
-    self: API, request: Request, principal: Principal[Any], model: str
+    self: API, request: Request, principal: Caller[Any], model: str
 ) -> Reply:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry = site.entry(model)
@@ -181,7 +181,7 @@ async def listing(
 
 
 async def add_form(
-    self: API, request: Request, principal: Principal[Any], model: str
+    self: API, request: Request, principal: Caller[Any], model: str
 ) -> Reply:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry = site.entry(model)
@@ -192,7 +192,7 @@ async def add_form(
 
 
 async def add_submit(
-    self: API, request: Request, principal: Principal[Any], model: str
+    self: API, request: Request, principal: Caller[Any], model: str
 ) -> Reply:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry = site.entry(model)
@@ -232,7 +232,7 @@ async def open_row(
 
 
 async def edit_form(
-    self: API, request: Request, principal: Principal[Any], model: str, key: str
+    self: API, request: Request, principal: Caller[Any], model: str, key: str
 ) -> Reply:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry, row = await open_row(site, model, key, "change")
@@ -244,7 +244,7 @@ async def edit_form(
 
 
 async def edit_submit(
-    self: API, request: Request, principal: Principal[Any], model: str, key: str
+    self: API, request: Request, principal: Caller[Any], model: str, key: str
 ) -> Reply:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry, row = await open_row(site, model, key, "change")
@@ -271,7 +271,7 @@ async def edit_submit(
 
 
 async def delete_form(
-    self: API, request: Request, principal: Principal[Any], model: str, key: str
+    self: API, request: Request, principal: Caller[Any], model: str, key: str
 ) -> Reply:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry, row = await open_row(site, model, key, "delete")
@@ -298,7 +298,7 @@ async def delete_form(
 
 
 async def delete_submit(
-    self: API, request: Request, principal: Principal[Any], model: str, key: str
+    self: API, request: Request, principal: Caller[Any], model: str, key: str
 ) -> Reply:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry, row = await open_row(site, model, key, "delete")
@@ -317,7 +317,7 @@ async def delete_submit(
 
 
 async def remove_all(
-    entry: ModelAdmin[Any], rows: list[Any], principal: Principal[Any]
+    entry: ModelAdmin[Any], rows: list[Any], principal: Caller[Any]
 ) -> None:
     """All deletions in one savepoint: either every row goes or none does."""
     for row in rows:
@@ -325,7 +325,7 @@ async def remove_all(
 
 
 async def bulk(
-    self: API, request: Request, principal: Principal[Any], model: str
+    self: API, request: Request, principal: Caller[Any], model: str
 ) -> Reply:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry = site.entry(model)

@@ -9,8 +9,8 @@ from openapi_spec_validator import validate
 from hinoki import (
     API,
     Access,
+    Caller,
     HinokiAPI,
-    Principal,
     RegistrationError,
     Schema,
     get,
@@ -49,7 +49,7 @@ class Tree(Schema):
     children: list["Tree"] = Field(default_factory=list)
 
 
-editor = Access(auth=TokenAuth(), scopes=["posts:write"])
+editor = Access(auth=TokenAuth(), permissions=["posts:write"])
 
 
 @get("/health")
@@ -237,7 +237,7 @@ class Pattern(Schema):
 
 
 @get("/me", access=editor)
-async def me(request: Request, principal: Principal[str]) -> None: ...
+async def me(request: Request, principal: Caller[str]) -> None: ...
 
 
 @get("/remove/{item}", status=200)

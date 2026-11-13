@@ -67,7 +67,7 @@ def describe_access(route: Route) -> dict[str, Any] | None:
         return None
     return {
         "provider": type(route.access.auth).__name__,
-        "scopes": sorted(str(s) for s in route.access.scopes),
+        "permissions": sorted(str(s) for s in route.access.permissions),
     }
 
 

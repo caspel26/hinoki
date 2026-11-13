@@ -10,7 +10,7 @@ from typing import Any, ClassVar
 
 from examples.blog.models import Post, User
 from examples.blog.security import WRITE
-from hinoki import Access, Principal, native
+from hinoki import Access, Caller, native
 from hinoki.admin import (
     Admin,
     Avatar,
@@ -35,7 +35,7 @@ class CookieAuth(BaseAuth[User]):
     def openapi_scheme(self) -> dict[str, object] | None:
         return {"type": "apiKey", "in": "cookie", "name": COOKIE}
 
-    async def authenticate(self, credentials: Credentials) -> Principal[User] | None:
+    async def authenticate(self, credentials: Credentials) -> Caller[User] | None:
         cookies = native.parse_cookie_header(credentials.headers.get("cookie", ""))
         token = cookies.get(COOKIE)
         if not token:
@@ -44,7 +44,7 @@ class CookieAuth(BaseAuth[User]):
         if user is None:
             raise Unauthorized("Invalid credentials.")
         scopes = frozenset({WRITE}) if user.is_editor else frozenset()
-        return Principal(subject=user.name, identity=user, scopes=scopes)
+        return Caller(id=user.name, user=user, permissions=scopes)
 
 
 def per_day(rows: list[Post]) -> tuple[float, ...]:
@@ -65,7 +65,7 @@ class PostAdmin(ModelAdmin[Post]):
     bulk_delete = True
     readonly = ("created_at",)
     assign: ClassVar[dict[str, Any]] = {
-        "author_id": lambda principal: principal.identity.id
+        "author_id": lambda principal: principal.user.id
     }
     modified_field = "created_at"
     modified_label = "Created"
@@ -78,7 +78,7 @@ class PostAdmin(ModelAdmin[Post]):
     tabs = (Tab("Published", {"published": True}), Tab("Drafts", {"published": False}))
     fieldsets = (Fieldset("Organization", ("author_id", "published")),)
 
-    def queryset(self, principal: Principal[Any]) -> Any:
+    def queryset(self, principal: Caller[Any]) -> Any:
         return Post.all().select_related("author")
 
     def display(self, row: Post, column: str) -> Any:
@@ -86,7 +86,7 @@ class PostAdmin(ModelAdmin[Post]):
             return Avatar(row.author.name)
         return super().display(row, column)
 
-    async def stats(self, principal: Principal[Any]) -> list[Stat]:
+    async def stats(self, principal: Caller[Any]) -> list[Stat]:
         """Counts come from the database; only the last week's rows are loaded
         (for the trend lines), so the cost does not grow with the blog."""
         total = await self.queryset(principal).acount()
@@ -129,12 +129,10 @@ class UserAdmin(ModelAdmin[User]):
         }
     }
 
-    def can(
-        self, principal: Principal[Any], action: str, row: User | None = None
-    ) -> bool:
+    def can(self, principal: Caller[Any], action: str, row: User | None = None) -> bool:
         return action in {"view", "change"}
 
-    async def stats(self, principal: Principal[Any]) -> list[Stat]:
+    async def stats(self, principal: Caller[Any]) -> list[Stat]:
         return []
 
 
@@ -142,7 +140,7 @@ def verb(row: Post) -> str:
     return "published" if row.published else "drafted"
 
 
-async def recent_activity(principal: Principal[Any]) -> list[Event]:
+async def recent_activity(principal: Caller[Any]) -> list[Event]:
     """The latest posts, as activity (derived from real rows, not invented)."""
     rows = (
         await Post.all()
@@ -163,7 +161,7 @@ async def recent_activity(principal: Principal[Any]) -> list[Event]:
 
 
 def build_admin(secret: str, theme: str = "studio") -> Admin:
-    editors = Access(auth=CookieAuth(), scopes=[WRITE])
+    editors = Access(auth=CookieAuth(), permissions=[WRITE])
     admin = Admin(
         access=editors,
         secret=secret,

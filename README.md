@@ -71,7 +71,7 @@ This is the confirmed target syntax ([`docs/`](docs) tracks what is implemented)
 from uuid import UUID
 
 from hinoki import API, Access, HinokiAPI, Request, get, post
-from hinoki.auth import Principal
+from hinoki.auth import Caller
 
 editor = Access(auth=blog_auth, scopes={Scope.POSTS_WRITE})
 
@@ -88,7 +88,7 @@ class Posts(API, path="/posts"):
 
     @post("/", status=201, access=editor, transaction=True)
     async def create(
-        self, request: Request, data: PostCreate, principal: Principal[User]
+        self, request: Request, data: PostCreate, principal: Caller[User]
     ) -> PostOut:
         ...
 
@@ -136,7 +136,7 @@ Honest status, verified by the test suite:
 | Modules: dependency graph, per-worker lifespan, reverse cleanup with per-step deadlines, managed tasks | Implemented; tested in-process and under Granian |
 | ASGI adapter: raw-path routing, path/query/JSON-body binding, 400/401/403/404/405/409/415/422/503/504 mapping, bounded sync executor | Implemented |
 | `Schema` / `Field` / `UNSET`: strict validation with capped, path-aware errors, nested and recursive schemas | Implemented (pure Python engine) |
-| Auth: `BearerAuth` / `APIKeyAuth` / `HeaderAuth`, `Principal[T]`, scopes (401 vs 403), public by default | Implemented; **no JWT provider yet** |
+| Auth: `BearerAuth` / `APIKeyAuth` / `HeaderAuth`, `Caller[T]`, scopes (401 vs 403), public by default | Implemented; **no JWT provider yet** |
 | HTTP error hierarchy and `app.errors.handle(...)` | Implemented |
 | OpenAPI 3.1 from the same declarations (`app.openapi()`, opt-in `openapi_url`), security schemes, pagination | Implemented; validated with `openapi-spec-validator`; no docs UI, examples or custom overrides yet |
 | Pagination: `pagination=...` + `PageParams`, `Page[T]` | Implemented (page-number strategy only) |
@@ -178,9 +178,9 @@ class Posts(API, path="/posts"):
 
     @post("/", status=201, access=editor, transaction=True)
     async def create(
-        self, request: Request, data: PostCreate, principal: Principal[User]
+        self, request: Request, data: PostCreate, principal: Caller[User]
     ) -> PostOut:
-        created = await Post.acreate(data, author_id=principal.identity.id)
+        created = await Post.acreate(data, author_id=principal.user.id)
         return to_out(created)
 ```
 
@@ -224,7 +224,7 @@ uv run granian --interface asgi --factory examples.blog.main:create_app
 How the pieces fit and what to avoid: [`docs/PATTERNS.md`](docs/PATTERNS.md). Building with an AI agent: [`docs/AI-WORKFLOW.md`](docs/AI-WORKFLOW.md).
 
 * **`Request`** is the first parameter of every action: the incoming HTTP request (`method`, `headers`, `GET`, `COOKIES`, `body`, `data`, `user`). Path, query and body values follow as typed parameters.
-* **`Caller`** (also spelled `Principal`) is *who is making the request*, as decided by authentication. An auth provider (bearer token, API key, JWT, a cookie) turns the credentials into a `Caller` with three things: `id` (a stable string), `user` (your own object, for example the `User` row) and `permissions` (what it may do). Declare `caller: Caller[User]` on an action to receive it; `request.user` is the same object. No valid credentials: the request is refused before your code runs (401); missing permissions: 403. (The underlying fields are still called `subject`, `identity` and `scopes`, and `scopes=` is accepted wherever `permissions=` is.)
+* **`Caller`** (also spelled `Principal`) is *who is making the request*, as decided by authentication. An auth provider (bearer token, API key, JWT, a cookie) turns the credentials into a `Caller` with three things: `id` (a stable string), `user` (your own object, for example the `User` row) and `permissions` (what it may do). Declare `caller: Caller[User]` on an action to receive it; `request.user` is the same object. No valid credentials: the request is refused before your code runs (401); missing permissions: 403. (`Principal`, `subject`, `identity`, `scopes` and `Access(scopes=...)` remain as aliases of the same things.)
 * **`Access`** is a reusable policy: *which provider* authenticates and *which permissions* are required: `Access(auth=tokens, permissions=["posts:write"])`. You attach it to an action with `access=editor`; an action without one is public.
 * **`Schema`** describes data that crosses the API boundary (request bodies and responses) and validates it strictly; **`Model`** describes a database table. They are separate on purpose, so a column never leaks into a response unless a schema names it (rules can enforce that).
 * **`Reply`** lets an action choose the status, headers or body itself (redirects, cookies, HTML) instead of returning a value to be rendered.

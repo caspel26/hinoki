@@ -132,10 +132,10 @@ class OpenAPIBuilder:
         scheme = access.auth.openapi_scheme()
         if scheme is not None:
             self.security_schemes.setdefault(name, scheme)
-            operation["security"] = [{name: sorted(access.scopes)}]
+            operation["security"] = [{name: sorted(access.permissions)}]
         responses = operation["responses"]
         responses["401"] = {"description": "Missing or invalid credentials"}
-        if access.scopes:
+        if access.permissions:
             responses["403"] = {"description": "Missing required scope"}
 
     def operation_id(self, binding: Binding) -> str:

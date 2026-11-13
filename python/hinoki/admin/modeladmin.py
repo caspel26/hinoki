@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping
 from typing import Any, ClassVar
 
 from hinoki.admin.parts import Badge, Fieldset, Stat, Tab
-from hinoki.auth import Principal
+from hinoki.auth import Caller
 from hinoki.errors import RegistrationError
 from hinoki.orm import Model, QuerySet
 
@@ -48,10 +48,10 @@ class ModelAdmin[M: Model]:
     show_count: ClassVar[bool] = False
     bulk_delete: ClassVar[bool] = False
 
-    def queryset(self, principal: Principal[Any]) -> QuerySet[M]:
+    def queryset(self, principal: Caller[Any]) -> QuerySet[M]:
         return self.model.all()
 
-    def can(self, principal: Principal[Any], action: str, row: M | None = None) -> bool:
+    def can(self, principal: Caller[Any], action: str, row: M | None = None) -> bool:
         return True
 
     def title_of(self, row: M) -> str:
@@ -71,18 +71,18 @@ class ModelAdmin[M: Model]:
             return mapping[value]
         return value
 
-    async def stats(self, principal: Principal[Any]) -> list[Stat]:
+    async def stats(self, principal: Caller[Any]) -> list[Stat]:
         total = await self.queryset(principal).acount()
         return [Stat(self.plural(), total, self.icon)]
 
     async def check(
-        self, values: dict[str, Any], principal: Principal[Any], row: M | None
+        self, values: dict[str, Any], principal: Caller[Any], row: M | None
     ) -> dict[str, str]:
         """Cross-field validation hook: return ``{field: message}`` to refuse."""
         return {}
 
     async def save(
-        self, values: dict[str, Any], principal: Principal[Any], row: M | None = None
+        self, values: dict[str, Any], principal: Caller[Any], row: M | None = None
     ) -> M:
         key = self.model.__primary_key__
         if row is None:
@@ -102,7 +102,7 @@ class ModelAdmin[M: Model]:
         await self.ensure_visible(found[0], principal)
         return found[0]
 
-    async def remove(self, row: M, principal: Principal[Any]) -> None:
+    async def remove(self, row: M, principal: Caller[Any]) -> None:
         key = self.model.__primary_key__
         gone = (
             await self.queryset(principal).filter(**{key: getattr(row, key)}).adelete()
@@ -110,7 +110,7 @@ class ModelAdmin[M: Model]:
         if not gone:
             raise self.model.NotFound(f"{self.model.__name__} not found")
 
-    async def ensure_visible(self, row: M, principal: Principal[Any]) -> None:
+    async def ensure_visible(self, row: M, principal: Caller[Any]) -> None:
         key = self.model.__primary_key__
         query = self.queryset(principal).filter(**{key: getattr(row, key)})
         if not await query.aexists():

@@ -21,7 +21,7 @@ from typing import Any, ClassVar
 
 from hinoki.access import Access
 from hinoki.api import API
-from hinoki.auth import Principal
+from hinoki.auth import Caller
 from hinoki.errors import RegistrationError
 from hinoki.fields import UNSET
 from hinoki.httperrors import Forbidden
@@ -45,7 +45,7 @@ class Resource:
     * ``access`` protects the write actions, ``read_access`` the reads.
     * ``owner`` names a column that holds the owner: it is assigned from the
       caller on create and must match the caller on update and delete.
-      ``identity_key`` extracts the owner value from ``Principal.identity``.
+      ``identity_key`` extracts the owner value from ``Caller.user``.
     * ``assign`` maps other columns to a function of the caller's identity,
       applied on create; clients cannot send them.
     * ``queryset`` supplies the base query (e.g. with ``select_related``) and
@@ -183,7 +183,7 @@ class Resource:
     def owner_of(self, principal: Any) -> Any:
         """The caller's owner value; a caller without one may change nothing,
         or ``None`` would match every ownerless row."""
-        value = self.identity_key(principal.identity)
+        value = self.identity_key(principal.user)
         if value is None:
             raise Forbidden("You cannot change this item.")
         return value
@@ -243,7 +243,7 @@ async def create_row(
         values[column] = (
             resource.owner_of(principal)
             if column == resource.owner
-            else derive(principal.identity)
+            else derive(principal.user)
         )
     created = await resource.model.acreate(**values)
     return resource.present(
@@ -362,7 +362,7 @@ def read_routes(resource: Resource, key: Any) -> dict[str, Callable[..., Any]]:
 
 def write_routes(resource: Resource, key: Any) -> dict[str, Callable[..., Any]]:
     writes = Options(access=resource.access, transaction=True)
-    caller = {"principal": Principal[Any]} if resource.access else {}
+    caller = {"principal": Caller[Any]} if resource.access else {}
     found: dict[str, Callable[..., Any]] = {}
     if resource.create:
         hints = {"request": Request, "data": resource.create, **caller}

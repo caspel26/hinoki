@@ -18,7 +18,7 @@ from tests.harness import Client, Pool
 from tests.providers import TokenAuth
 
 auth = TokenAuth()
-editor = Access(auth=auth, scopes=["posts:write"])
+editor = Access(auth=auth, permissions=["posts:write"])
 any_user = Access(auth=auth)
 
 
@@ -37,8 +37,8 @@ async def secure(request: Request) -> dict[str, bool]:
 
 
 @get("/whoami", access=any_user)
-async def whoami(request: Request, principal: Principal[str]) -> dict[str, object]:
-    return {"subject": principal.subject, "scopes": sorted(principal.scopes)}
+async def whoami(request: Request, principal: Caller[str]) -> dict[str, object]:
+    return {"subject": principal.id, "scopes": sorted(principal.permissions)}
 
 
 @post("/drafts", access=editor)
@@ -52,7 +52,7 @@ async def leak(request: Request) -> None:
 
 
 @get("/anonymous-principal")
-async def anonymous(request: Request, principal: Principal[str]) -> None: ...
+async def anonymous(request: Request, principal: Caller[str]) -> None: ...
 
 
 def authorization(token: str) -> list[tuple[bytes, bytes]]:
@@ -171,23 +171,36 @@ async def test_unauthenticated_requests_are_refused_before_the_body_is_read(
 
 def test_api_key_provider_has_a_challenge() -> None:
     class Keys(APIKeyAuth[str]):
-        async def resolve(self, value: str) -> Principal[str] | None:
+        async def resolve(self, value: str) -> Caller[str] | None:
             return None
 
     assert Keys().challenge == "ApiKey"
     assert Keys().header == "x-api-key"
 
 
-def test_caller_and_permissions_are_friendlier_names_for_the_same_things() -> None:
-    assert Caller is Principal
-    who = Caller(subject="u1", identity={"name": "Ada"}, scopes=frozenset({"w"}))
+def test_caller_and_permissions_are_the_canonical_names_with_old_aliases() -> None:
+    assert Principal is Caller
+    who = Caller(id="u1", user={"name": "Ada"}, permissions=frozenset({"w"}))
     assert (who.id, who.user, who.permissions) == (
         "u1",
         {"name": "Ada"},
         frozenset({"w"}),
     )
+    old = Caller(subject="u1", identity={"name": "Ada"}, scopes=["w"])
+    assert old == who and (old.subject, old.identity, old.scopes) == (
+        "u1",
+        {"name": "Ada"},
+        frozenset({"w"}),
+    )
+    assert Caller("u2", "me", ["a"]).permissions == frozenset({"a"})
+    with pytest.raises(TypeError, match="id"):
+        Caller()
     auth = TokenAuth()
     assert Access(auth, permissions=["w", "r"]).permissions == frozenset({"w", "r"})
-    assert Access(auth, ["w"]).scopes == Access(auth, permissions=["w"]).scopes
+    assert (
+        Access(auth, ["w"]).scopes
+        == Access(auth, scopes=["w"]).permissions
+        == frozenset({"w"})
+    )
     with pytest.raises(TypeError, match="permissions"):
-        Access(auth, ["a"], permissions=["b"])
+        Access(auth, ["a"], scopes=["b"])

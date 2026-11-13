@@ -47,7 +47,7 @@ class Tokens(JWTAuth[User]):
     keys = [JWTKey("2026-11", "HS256", settings.jwt_secret)]
     issuer = "https://api.example.com"
     audience = "blog"
-    async def resolve_claims(self, claims: dict[str, Any]) -> Principal[User] | None: ...
+    async def resolve_claims(self, claims: dict[str, Any]) -> Caller[User] | None: ...
 
 token = Tokens.issue({"sub": str(user.id)}, ttl=900)     # for services/tests that mint tokens
 ```

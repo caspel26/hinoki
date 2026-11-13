@@ -8,7 +8,7 @@ from typing import Any
 from urllib.parse import unquote
 
 from hinoki import native
-from hinoki.auth import Credentials, Principal
+from hinoki.auth import Caller, Credentials
 from hinoki.context import request_id
 from hinoki.errors import InvalidBody
 from hinoki.httperrors import Forbidden, Unauthorized
@@ -61,7 +61,7 @@ def header_map(scope: Scope) -> dict[str, str]:
 
 async def authorize(
     scope: Scope, binding: Binding, headers: dict[str, str]
-) -> Principal[Any] | None:
+) -> Caller[Any] | None:
     """Authenticate and check scopes; public actions skip both."""
     access = binding.route.access
     if access is None:
@@ -71,7 +71,7 @@ async def authorize(
     if principal is None:
         challenge = access.auth.challenge
         raise Unauthorized(headers={"www-authenticate": challenge} if challenge else {})
-    if not access.scopes <= principal.scopes:
+    if not access.permissions <= principal.permissions:
         raise Forbidden()
     return principal
 
@@ -82,7 +82,7 @@ def build_request(
     path: dict[str, str],
     headers: dict[str, str],
     raw_body: bytes,
-    principal: Principal[Any] | None,
+    principal: Caller[Any] | None,
 ) -> tuple[Request, RequestData]:
     """The request object for the handler and the data its parameters bind."""
     query = parse_query(scope.get("query_string", b""))

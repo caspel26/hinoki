@@ -35,7 +35,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 ## 3. Schemas and models
 
 * Models describe tables; schemas describe the API. **Never return a model.** Name them by role: `PostIn`/`PostCreate` (what a client may set), `PostPatch` (every field `UNSET` by default), `PostOut` (what a client may see). **Rule:** `Schemas.forbid_exposure("password_hash", …)` keeps columns out of responses even through nesting and subclasses.
-* Create with the schema and add what only the server knows: `await Post.acreate(data, author_id=principal.identity.id)` (server values win over the client's). Update with `await row.aupdate_from(patch)` (writes only what was sent). Respond with `PostOut.from_model(row, author_name=row.author.name)`.
+* Create with the schema and add what only the server knows: `await Post.acreate(data, author_id=principal.user.id)` (server values win over the client's). Update with `await row.aupdate_from(patch)` (writes only what was sent). Respond with `PostOut.from_model(row, author_name=row.author.name)`.
 * A server-assigned field must not exist in the input schema at all; the keyword override is a second line of defence.
 * Constraints and patterns belong on the schema, using the Rust pattern syntax (whole-value, no look-around).
 

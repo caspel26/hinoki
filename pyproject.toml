@@ -87,6 +87,7 @@ max-branches = 8
 "python/hinoki/errorcatalog.py" = ["E501"]  # explanatory text
 "tests/schemadifftest.py" = ["E501", "S311", "RUF001"]
 "tests/adminreviewtest.py" = ["E501"]
+"tests/authtest.py" = ["E501"]
 "tests/notestest.py" = ["E501"]
 "tests/scaffoldtest.py" = ["E501"]
 "tests/cryptotest.py" = ["E501", "PLR0913", "S105", "S106"]
