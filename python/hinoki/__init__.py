@@ -25,7 +25,7 @@ from hinoki.parsers import FormParser, JSONParser, MultiPartParser, Parser
 from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer
 from hinoki.reply import Reply, set_cookie
 from hinoki.request import Request
-from hinoki.routing import Endpoints, Route, delete, get, patch, post, put
+from hinoki.routing import Route, RouteGroup, delete, get, patch, post, put
 from hinoki.rules import Actions, Imports, Schemas, Transactions
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.schema import (
@@ -66,7 +66,6 @@ __all__ = [
     "Conflict",
     "DatabaseSettings",
     "DocsSettings",
-    "Endpoints",
     "ExecutionSettings",
     "Field",
     "Forbidden",
@@ -92,6 +91,7 @@ __all__ = [
     "Reply",
     "Request",
     "Route",
+    "RouteGroup",
     "RuntimeConfig",
     "Schema",
     "Schemas",

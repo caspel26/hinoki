@@ -27,9 +27,7 @@ def create_app(database_url: str | None = None) -> Hinoki:
         redoc_url="/redoc",
         rules=tracker_rules,
     )
-    app.include(
-        api.health, api.list_tasks, api.create_task, api.complete_task, api.delete_task
-    )
+    app.include(api.health, api.tasks)
     # The MCP endpoint exposes only this action and uses the caller's own token.
     app.include(
         *expose_as_mcp(app, tools=[f"{api.__name__}.list_tasks"], access=member_only)

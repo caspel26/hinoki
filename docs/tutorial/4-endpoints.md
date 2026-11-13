@@ -3,7 +3,7 @@
 The HTTP layer maps requests to operations and operations to responses. It contains no business rule and no SQL.
 
 ```python
-tasks = Endpoints("/tasks", access=member_only, atomic=True)   # stated once
+tasks = RouteGroup("/tasks", access=member_only, atomic=True)   # stated once
 
 
 @tasks.get("/", pagination=PageNumberPagination(page_size=10, max_page_size=50))
@@ -20,6 +20,9 @@ async def create_task(data: TaskIn, caller: Caller[Member]) -> TaskOut:
 @tasks.post("/{task_id}/complete", errors=(NotFound, TaskAlreadyDone))
 async def complete_task(task_id: UUID, caller: Caller[Member]) -> TaskOut:
     return out(await operations.complete_task(caller.user.id, task_id))
+
+
+app = Hinoki(include=[tasks])
 ```
 
 * **Access** is a reusable policy (`member_only`) naming the provider that authenticates (a bearer token here) and the permissions required. Public is the default, so protect on purpose; a rule below enforces it.

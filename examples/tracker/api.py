@@ -7,7 +7,7 @@ from examples.tracker.errors import DoneTasksAreKept, TaskAlreadyDone
 from examples.tracker.models import Member, Task
 from examples.tracker.schemas import TaskIn, TaskOut
 from examples.tracker.security import member_only
-from hinoki import Caller, Endpoints, NotFound, get
+from hinoki import Caller, NotFound, RouteGroup, get
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 
 
@@ -20,7 +20,7 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-tasks = Endpoints(
+tasks = RouteGroup(
     "/tasks", access=member_only, atomic=True
 )  # stated once for the group
 
