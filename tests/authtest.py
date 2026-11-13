@@ -8,7 +8,6 @@ from hinoki import (
     BearerAuth,
     Caller,
     HinokiAPI,
-    Principal,
     RegistrationError,
     Schema,
     get,
@@ -179,32 +178,23 @@ def test_api_key_provider_has_a_challenge() -> None:
     assert Keys().header == "x-api-key"
 
 
-def test_caller_and_permissions_are_the_canonical_names_with_old_aliases() -> None:
-    assert Principal is Caller
+def test_caller_and_access_use_permissions() -> None:
     who = Caller(id="u1", user={"name": "Ada"}, permissions=frozenset({"w"}))
     assert (who.id, who.user, who.permissions) == (
         "u1",
         {"name": "Ada"},
         frozenset({"w"}),
     )
-    old = Caller(subject="u1", identity={"name": "Ada"}, scopes=["w"])
-    assert old == who and (old.subject, old.identity, old.scopes) == (
-        "u1",
-        {"name": "Ada"},
-        frozenset({"w"}),
-    )
-    assert Caller("u2", "me", ["a"]).permissions == frozenset({"a"})
-    with pytest.raises(TypeError, match="id"):
-        Caller()
+    assert Caller("u2", "me", ["a"]).permissions == frozenset({"a"})  # any iterable
+    assert Caller("u3", "me").permissions == frozenset()
+    with pytest.raises(TypeError):
+        Caller()  # type: ignore[call-arg]
+    assert not hasattr(Caller("u", "me"), "scopes")
     auth = TokenAuth()
     assert Access(auth, permissions=["w", "r"]).permissions == frozenset({"w", "r"})
-    assert (
-        Access(auth, ["w"]).scopes
-        == Access(auth, scopes=["w"]).permissions
-        == frozenset({"w"})
-    )
-    with pytest.raises(TypeError, match="permissions"):
-        Access(auth, ["a"], scopes=["b"])
+    assert Access(auth, ["w"]).permissions == frozenset({"w"})
+    with pytest.raises(TypeError):
+        Access(auth, scopes=["w"])  # type: ignore[call-arg]
 
 
 class SyncTokens(BearerAuth[str]):

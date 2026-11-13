@@ -1,9 +1,9 @@
 """Authentication providers, principals and policy enforcement.
 
 Endpoints are public unless an action names an ``Access`` policy. A provider
-turns request credentials into a ``Principal``; scopes are application
-permissions checked after authentication (401 -> no/invalid credentials,
-403 -> valid identity without the required scope).
+turns request credentials into a ``Caller``; permissions are application
+rules checked after authentication (401 -> no/invalid credentials,
+403 -> valid caller without the required permission).
 """
 
 from __future__ import annotations
@@ -24,50 +24,16 @@ class Caller[T]:
     service account) and ``permissions`` is what the caller may do::
 
         Caller(id="u1", user=user, permissions=frozenset({"posts:write"}))
-
-    The older names ``Principal``, ``subject``, ``identity`` and ``scopes`` are
-    accepted everywhere as aliases.
     """
 
     id: str
     user: T
     permissions: frozenset[str]
 
-    def __init__(
-        self,
-        id: str | None = None,
-        user: T | None = None,
-        permissions: Iterable[str] | None = None,
-        *,
-        subject: str | None = None,
-        identity: T | None = None,
-        scopes: Iterable[str] | None = None,
-    ) -> None:
-        chosen = id if id is not None else subject
-        if chosen is None:
-            raise TypeError("Caller needs an id")
-        held = permissions if permissions is not None else (scopes or ())
-        object.__setattr__(self, "id", chosen)
-        object.__setattr__(self, "user", user if user is not None else identity)
-        object.__setattr__(self, "permissions", frozenset(held))
-
-    @property
-    def subject(self) -> str:
-        """Older name of ``id``."""
-        return self.id
-
-    @property
-    def identity(self) -> T:
-        """Older name of ``user``."""
-        return self.user
-
-    @property
-    def scopes(self) -> frozenset[str]:
-        """Older name of ``permissions``."""
-        return self.permissions
-
-
-Principal = Caller
+    def __init__(self, id: str, user: T, permissions: Iterable[str] = ()) -> None:
+        object.__setattr__(self, "id", id)
+        object.__setattr__(self, "user", user)
+        object.__setattr__(self, "permissions", frozenset(permissions))
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,7 +61,7 @@ class BaseAuth[T](ABC):
     @abstractmethod
     def authenticate(
         self, credentials: Credentials
-    ) -> Principal[T] | None | Awaitable[Principal[T] | None]:
+    ) -> Caller[T] | None | Awaitable[Caller[T] | None]:
         """``async def`` or plain ``def`` (a plain one runs on the sync executor)."""
 
 
@@ -108,17 +74,15 @@ class HeaderAuth[T](BaseAuth[T]):
         return {"type": "apiKey", "in": "header", "name": self.header}
 
     @abstractmethod
-    def resolve(
-        self, value: str
-    ) -> Principal[T] | None | Awaitable[Principal[T] | None]:
+    def resolve(self, value: str) -> Caller[T] | None | Awaitable[Caller[T] | None]:
         """The principal for a header value or ``None`` if invalid; ``async def``
         or plain ``def``."""
 
-    async def authenticate(self, credentials: Credentials) -> Principal[T] | None:
+    async def authenticate(self, credentials: Credentials) -> Caller[T] | None:
         value = credentials.headers.get(self.header.lower())
         if value is None:
             return None
-        principal: Principal[T] | None = await call_hook(self.resolve, value)
+        principal: Caller[T] | None = await call_hook(self.resolve, value)
         if principal is None:
             raise Unauthorized("Invalid credentials.", headers=self.headers())
         return principal
@@ -145,12 +109,12 @@ class BearerAuth[T](HeaderAuth[T]):
     @abstractmethod
     def resolve_token(
         self, token: str
-    ) -> Principal[T] | None | Awaitable[Principal[T] | None]:
+    ) -> Caller[T] | None | Awaitable[Caller[T] | None]:
         """``async def`` or plain ``def``, as ``resolve``."""
 
-    async def resolve(self, value: str) -> Principal[T] | None:
+    async def resolve(self, value: str) -> Caller[T] | None:
         scheme, _, token = value.partition(" ")
         if scheme.lower() != "bearer" or not token.strip():
             return None
-        found: Principal[T] | None = await call_hook(self.resolve_token, token.strip())
+        found: Caller[T] | None = await call_hook(self.resolve_token, token.strip())
         return found

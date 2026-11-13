@@ -9,7 +9,6 @@ from hinoki.auth import (
     BearerAuth,
     Caller,
     HeaderAuth,
-    Principal,
 )
 from hinoki.errors import ModuleGraphError, RegistrationError, ValidationError
 from hinoki.httperrors import (
@@ -88,7 +87,6 @@ __all__ = [
     "MultiPartParser",
     "NotFound",
     "Parser",
-    "Principal",
     "RegistrationError",
     "Renderer",
     "Reply",

@@ -39,7 +39,7 @@ A handler may return `hinoki.Reply(status, body=b"", headers={...})`, which bypa
 
 ### D3 Authorisation is per request and per model
 
-The `Access` on the admin API authenticates and checks scopes. `ModelAdmin.queryset(principal)` (default: all rows) scopes lists and detail pages; `ModelAdmin.can(principal, action, row)` (default: allow if authenticated) gates view/add/change/delete. A hidden row is a 404, like generated CRUD. Saving goes through `ModelAdmin.save(values, principal, row=None)` (default `Model.acreate` / `aupdate_where` scoped by the queryset), so applications override one method to run a domain command or rule instead of writing around it. The admin never invents a bypass: it uses the same queryset-in-the-statement scoping as generated CRUD.
+The `Access` on the admin API authenticates and checks permissions. `ModelAdmin.queryset(caller)` (default: all rows) scopes lists and detail pages; `ModelAdmin.can(principal, action, row)` (default: allow if authenticated) gates view/add/change/delete. A hidden row is a 404, like generated CRUD. Saving goes through `ModelAdmin.save(values, principal, row=None)` (default `Model.acreate` / `aupdate_where` scoped by the queryset), so applications override one method to run a domain command or rule instead of writing around it. The admin never invents a bypass: it uses the same queryset-in-the-statement scoping as generated CRUD.
 
 ### D4 CSRF and cookies
 

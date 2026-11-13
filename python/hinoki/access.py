@@ -13,8 +13,7 @@ from hinoki.auth import BaseAuth
 class Access:
     """Which provider authenticates an action and which permissions it requires.
 
-    ``Access(auth=tokens, permissions=["posts:write"])``; ``scopes=`` is the
-    older spelling of the same thing and still works.
+    ``Access(auth=tokens, permissions=["posts:write"])``.
 
     Declaring an ``Access`` does not protect anything by itself: only actions
     that name it are protected. Enforcement belongs to the request pipeline.
@@ -23,24 +22,8 @@ class Access:
     auth: BaseAuth[Any]
     permissions: frozenset[str] = field(default_factory=frozenset)
 
-    def __init__(
-        self,
-        auth: BaseAuth[Any],
-        permissions: Iterable[str] = (),
-        *,
-        scopes: Iterable[str] = (),
-    ) -> None:
+    def __init__(self, auth: BaseAuth[Any], permissions: Iterable[str] = ()) -> None:
         if not isinstance(auth, BaseAuth):
             raise TypeError("Access(auth=...) needs a BaseAuth provider")
-        chosen, older = list(permissions), list(scopes)
-        if chosen and older:
-            raise TypeError("use permissions=... (scopes=... is the older name)")
         object.__setattr__(self, "auth", auth)
-        object.__setattr__(
-            self, "permissions", frozenset(str(p) for p in chosen or older)
-        )
-
-    @property
-    def scopes(self) -> frozenset[str]:
-        """Older name of ``permissions``."""
-        return self.permissions
+        object.__setattr__(self, "permissions", frozenset(str(p) for p in permissions))

@@ -26,6 +26,55 @@ Status: **proposals, not decisions** (Q026). Each item says what exists today, w
 | I9 | **Decorator vocabulary** | `@get/@post/...`, `@unique/@indexed/@ordered_by`, `@field_check/@object_check` | Keep: one visual grammar (decorators state facts about the thing below them). Do not add more declaration syntaxes. |
 | I10 | **A signature example** | blog, tracker | Promote the tracker as *the* reference (layers, rules, errors, MCP) and keep the blog as the admin showcase. |
 
+## What it would look like
+
+**Today** (works now): a factory builds the app, `granian` or `hinoki dev` runs it.
+
+```python
+# blog/main.py
+def create_app() -> HinokiAPI:
+    settings = BlogSettings.load()
+    app = HinokiAPI(settings=settings, title="Blog", rules=blog_rules)
+    app.include(health, Posts, build_admin(settings).api())
+    app.install(DatabaseModule(settings.database.url.reveal()))
+    return app
+```
+
+```sh
+python -m hinoki dev blog.main:create_app
+```
+
+**Proposed (I3 + I4 + I8)**: the app class carries the brand, small apps are declared as data, and one short command runs everything. Nothing below exists yet; the factory form keeps working.
+
+```python
+# blog/main.py
+from hinoki import Hinoki
+
+app = Hinoki(
+    settings=BlogSettings,                 # a class: loaded when the worker starts
+    title="Blog",
+    rules=blog_rules,
+    include=[health, Posts, admin],        # actions, API classes, admin
+    modules=[DatabaseModule],              # built from the settings' database group
+)
+```
+
+```sh
+hinoki dev blog.main:app            # reload
+hinoki serve blog.main:app          # host, port, workers from the settings
+hinoki check blog.main:app          # the rules
+hinoki settings blog.main:app       # where every value comes from
+```
+
+**Error voice (I5)**: what happened, where, the exact fix, the rule id.
+
+```text
+blog/api.py:41  HNK-ACC-001  DELETE /posts/{post_id} declares no access policy
+  fix: add access=editor (or list it in except_ if it is public on purpose)
+```
+
+**Tagline (I1)**, on the landing page and in `pip` metadata: *"A Python API framework that checks its own architecture."*
+
 ## Decisions needed
 
 I3 and I8 are small, mechanical and compatible (aliases stay). I4 and I1 are positioning choices. The rest are conventions already in the code; confirming them makes them a rule.

@@ -90,7 +90,7 @@ def test_resolves_function_and_class_actions() -> None:
     assert publish.transaction
     assert publish.status == 202
     assert publish.access is editor
-    assert editor.scopes == frozenset({"posts:write"})
+    assert editor.permissions == frozenset({"posts:write"})
 
 
 def test_collection_path_has_no_trailing_slash() -> None:
