@@ -19,6 +19,10 @@ from hinoki.validation import INVALID, Validator
 __all__ = ["UNSET", "Field", "FieldSpec", "Schema", "Unset"]
 
 
+class ForwardReference(Exception):
+    """Internal: an annotation names a class that is not defined yet."""
+
+
 @dataclass(frozen=True, slots=True)
 class FieldSpec:
     """Introspection record of one schema field."""
@@ -40,14 +44,17 @@ class Schema:
     """
 
     __hinoki_schema__: ClassVar[bool] = True
-    __specs__: ClassVar[dict[str, FieldSpec]] = {}
+    __specs__: ClassVar[dict[str, FieldSpec] | None] = None
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
         for name in inspect.get_annotations(cls):
             cls.apply_default(name)
         dataclasses.dataclass(frozen=True, kw_only=True)(cls)
-        cls.__specs__ = cls.build_specs()
+        try:
+            cls.__specs__ = cls.build_specs()
+        except ForwardReference:
+            cls.__specs__ = None  # resolved on first use (recursive schemas)
 
     @classmethod
     def apply_default(cls, name: str) -> None:
@@ -62,10 +69,21 @@ class Schema:
                 )
 
     @classmethod
-    def build_specs(cls) -> dict[str, FieldSpec]:
+    def specs(cls) -> dict[str, FieldSpec]:
+        """Field descriptions, resolving forward references on first use."""
+        cached = cls.__dict__.get("__specs__")
+        if cached is None:
+            cached = cls.build_specs(final=True)
+            cls.__specs__ = cached
+        return cached
+
+    @classmethod
+    def build_specs(cls, final: bool = False) -> dict[str, FieldSpec]:
         try:
             hints = typing.get_type_hints(cls, include_extras=True)
         except NameError as exc:
+            if not final:
+                raise ForwardReference from exc
             raise RegistrationError(f"{cls.__name__}: {exc}") from exc
         specs: dict[str, FieldSpec] = {}
         for item in dataclasses.fields(cast(Any, cls)):
@@ -89,13 +107,13 @@ class Schema:
     @classmethod
     def fields(cls) -> dict[str, FieldSpec]:
         """Immutable description shared by binding, docs and rules."""
-        return dict(cls.__specs__)
+        return dict(cls.specs())
 
     def dump(self) -> dict[str, Any]:
         """JSON-compatible form; ``UNSET`` fields are omitted."""
         return {
             name: encode(getattr(self, name))
-            for name in self.__specs__
+            for name in self.specs()
             if getattr(self, name) is not UNSET
         }
 

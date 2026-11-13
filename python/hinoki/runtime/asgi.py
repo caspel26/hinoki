@@ -19,14 +19,19 @@ from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import unquote
 
 from hinoki.context import request_id
-from hinoki.errors import InvalidBody, ShutdownError, StartupError, ValidationError
+from hinoki.errors import (
+    InvalidBody,
+    RegistrationError,
+    ShutdownError,
+    StartupError,
+    ValidationError,
+)
 from hinoki.modules import ModuleContext
 from hinoki.routing import MethodNotAllowed
 from hinoki.runtime.binding import (
     MISSING,
     Binding,
     RequestData,
-    bind,
     decode_body,
     parse_query,
 )
@@ -85,10 +90,20 @@ class ASGIAdapter:
 
     def __init__(self, app: HinokiAPI) -> None:
         self.app = app
-        self.bindings: list[Binding] = [bind(r) for r in app.routes]
+        self.bindings = app.bindings
+        self.document = self._document(app)
         self.ctx = ModuleContext(app.settings)
         self.executor = SyncExecutor(app.runtime.sync_workers, app.runtime.sync_queue)
         self.lifespan = Lifespan(app.modules, self.ctx, self.executor, app.runtime)
+
+    @staticmethod
+    def _document(app: HinokiAPI) -> dict[str, Any] | None:
+        """Build the OpenAPI document once, at startup, if it is served."""
+        if app.openapi_url is None:
+            return None
+        if any(route.path == app.openapi_url for route in app.routes):
+            raise RegistrationError(f"{app.openapi_url} is already used by a route")
+        return app.openapi()
 
     async def __call__(self, scope: Scope, receive: Any, send: Any) -> None:
         if scope["type"] == "lifespan":
@@ -152,9 +167,14 @@ class ASGIAdapter:
         raw_body = await self._read_body(receive)
         if not self.lifespan.ready:
             raise HTTPError(HTTPStatus.SERVICE_UNAVAILABLE, "not_ready", RETRY_LATER)
+        if self.document is not None and self._is_document_request(scope):
+            return Response.json(HTTPStatus.OK, self.document)
         binding, path_params = self._route(scope)
         request = self._request(scope, binding, path_params, raw_body)
         return await self._invoke(binding, binding.collect(request))
+
+    def _is_document_request(self, scope: Scope) -> bool:
+        return bool(scope["method"] == "GET" and scope["path"] == self.app.openapi_url)
 
     @staticmethod
     def _failure(exc: Exception, rid: str) -> HTTPError:

@@ -72,6 +72,14 @@ def to_uuid(raw: str) -> UUID:
     return value
 
 
+KINDS: dict[object, str] = {
+    str: "str",
+    int: "int",
+    float: "float",
+    bool: "bool",
+    UUID: "uuid",
+}
+
 CONVERTERS: dict[object, Callable[[str], object]] = {
     str: str,
     int: to_int,
@@ -125,6 +133,7 @@ class Param:
     convert: Callable[[str], object] | None = None
     schema: type[Schema] | None = None
     default: object = EMPTY
+    kind: str = "str"
 
     def extract(self, request: RequestData) -> object:
         if self.source == "path":
@@ -231,13 +240,17 @@ def make_param(route: Route, parameter: inspect.Parameter, annotation: object) -
                 f"{where}: schema parameter {name!r} must be a JSON body of a "
                 "POST/PUT/PATCH action, not a path or query parameter"
             )
-        return Param(name, "body", schema=typing.cast(type[Schema], annotation))
+        schema = typing.cast(type[Schema], annotation)
+        schema.specs()  # unresolvable annotations fail now, not per request
+        return Param(name, "body", schema=schema)
     convert = CONVERTERS.get(annotation)
     if convert is None:
         raise RegistrationError(f"{where}: unsupported type for parameter {name!r}")
     if in_path:
-        return Param(name, "path", convert)
-    return Param(name, "query", convert, default=parameter.default)
+        return Param(name, "path", convert, kind=KINDS[annotation])
+    return Param(
+        name, "query", convert, default=parameter.default, kind=KINDS[annotation]
+    )
 
 
 def bind(route: Route) -> Binding:
