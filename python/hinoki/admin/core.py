@@ -9,6 +9,7 @@ and does not do.
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import re
 import types
 import typing
@@ -153,7 +154,7 @@ class Admin:
 
     def api(self) -> type[API]:
         """The ``API`` class to ``include`` in the application."""
-        namespace: dict[str, Any] = {"admin": self}
+        namespace: dict[str, Any] = {"admin": self, "hide_from_docs": True}
         for name, method, path, write in ROUTES:
             options = Options(
                 access=None if name == "stylesheet" else self.access,
@@ -263,7 +264,12 @@ async def find_row(site: Site, entry: ModelAdmin[Any], raw: str) -> Any:
 
 
 def cell(value: Any) -> str:
-    text = show(value) if not isinstance(value, bool) else ("yes" if value else "no")
+    if isinstance(value, bool):
+        text = "yes" if value else "no"
+    elif isinstance(value, datetime.datetime):
+        text = value.astimezone(datetime.UTC).strftime("%Y-%m-%d %H:%M")
+    else:
+        text = show(value)
     if text == "":
         return "—"
     return text if len(text) <= CELL_LIMIT else text[: CELL_LIMIT - 1] + "…"

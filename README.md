@@ -114,7 +114,9 @@ Honest status, verified by the test suite:
 | Typing: constructors and decorators checked by `mypy --strict`; `Post(...)` and `await post.asave()` are checked; `Model.acreate(**values)` is **not** (generated stubs are still open) | Known gap ([docs/TYPING.md](docs/TYPING.md)) |
 | Optional rules (`RuleSet`: access, transaction, schema exposure, static import boundaries), owner waivers, `python -m hinoki check` (text/JSON) | Implemented; runtime and scenario phases not built |
 | Development MCP (`python -m hinoki mcp`): read-only project context over stdio | Implemented; not yet tested against a real MCP client; no application MCP |
-| JWT, admin extra, benchmarks beyond micro-benchmarks | Not started |
+| Interactive API docs: **Swagger UI** and **ReDoc** (`docs_url=`, `redoc_url=`), vendored and served from the package under a strict CSP | Implemented; verified in Chromium and Firefox |
+| Admin extra (`hinoki.admin`): Classic theme, list/search/pagination, add/edit/delete with confirmation, CSRF, per-model `can()`/`queryset()`/`save()` hooks, template and CSS overrides | First slice implemented and verified in Chromium and Firefox at 1440×900, 390×844, 360×740 and 320×640 (WebKit could not start here, so it is **not** verified). No login UI, no relation widgets, one theme, no audit log |
+| JWT, benchmarks beyond micro-benchmarks | Not started |
 | `Request` as the first handler argument (`method`, `headers`, `GET`, `COOKIES`, `body`, `data`, `user`) | Implemented; query, cookie and header parsing and JSON decode/encode run in Rust (modest measured gain for JSON, larger for query strings: [benchmarks](benchmarks/README.md)) |
 | Body parsers chosen by `Content-Type`: JSON (default), form, multipart (Rust), custom; `parsers=[...]` per action | Implemented; uploads stay in memory within a 1 MiB body cap |
 | Renderers chosen by `Accept` (negotiation in Rust, 406 before the handler runs), `renderers=[...]` per action, custom renderers | Implemented; error bodies are always JSON |
@@ -154,6 +156,40 @@ class Posts(API, path="/posts"):
 
 Full code in [`examples/blog`](examples/blog). Create the schema with `python -m hinoki migrations --dir examples/blog/migrations apply --database $BLOG_DATABASE_URL`, then `BLOG_DATABASE_URL=… granian --interface asgi --factory examples.blog.main:create_app`.
 
+## Screenshots
+
+Taken from the reference blog (`examples/blog`) with real browsers (`tests/browser/verify.py`) against synthetic demo data.
+
+| Swagger UI (`/docs`) | ReDoc (`/redoc`) |
+| --- | --- |
+| ![Swagger UI showing the blog API](docs/screenshots/swagger.png) | ![ReDoc showing the blog API](docs/screenshots/redoc.png) |
+
+| Admin list (desktop) | Admin list (phone, 390×844) |
+| --- | --- |
+| ![Admin post list with search and pagination](docs/screenshots/admin-posts-desktop.png) | ![Admin post list on a phone](docs/screenshots/admin-posts-phone.png) |
+
+| Validation errors keep the input | Dark scheme |
+| --- | --- |
+| ![Admin form with an invalid field marked](docs/screenshots/admin-form-error.png) | ![Admin in the dark colour scheme](docs/screenshots/admin-dark.png) |
+
+Try it: create a disposable PostgreSQL database, then
+
+```sh
+export BLOG_DATABASE_URL=postgres://postgres:pw@127.0.0.1:5432/hinoki_demo
+uv run python -m examples.blog.seed          # migrations + synthetic users and posts
+uv run granian --interface asgi --factory examples.blog.main:create_app
+# API docs:  http://127.0.0.1:8000/docs  and  /redoc
+# Admin:     http://127.0.0.1:8000/admin  (send the cookie blog_token=demo-editor-token)
+```
+
+## Core concepts
+
+* **`Request`** is the first parameter of every action: the incoming HTTP request (`method`, `headers`, `GET`, `COOKIES`, `body`, `data`, `user`). Path, query and body values follow as typed parameters.
+* **`Principal`** is *who is calling*, as decided by authentication. An auth provider (bearer token, API key, a cookie) turns the credentials of a request into a `Principal` with three parts: `subject` (a stable id string), `identity` (your own object, for example the `User` row) and `scopes` (the permissions it has). Declare `principal: Principal[User]` on an action to receive it; `request.user` is the same object. If no valid credentials arrive, the request is refused before your code runs (401), and if the scopes are missing it is refused with 403.
+* **`Access`** is a reusable policy: *which provider* authenticates and *which scopes* are required. You attach it to an action with `access=editor`; an action without one is public.
+* **`Schema`** describes data that crosses the API boundary (request bodies and responses) and validates it strictly; **`Model`** describes a database table. They are separate on purpose, so a column never leaks into a response unless a schema names it (rules can enforce that).
+* **`Reply`** lets an action choose the status, headers or body itself (redirects, cookies, HTML) instead of returning a value to be rendered.
+
 ## Architecture
 
 ```
@@ -182,7 +218,7 @@ ownership per worker, the bounded sync executor and the lifespan/shutdown sequen
 3. ~~**ORM and generated CRUD** — relations, eager loading, migrations, replaceable CRUD operations~~ ✅ (JWT still open)
 4. **Request object, parsers and renderers** — `request` as first argument ✅; Rust parsing, parsers, renderers next
 5. ~~**Rules and development MCP**~~ ✅ (client compatibility unverified)
-6. **Admin extra** — one theme, full HTML override
+6. **Admin extra** — first slice done (Classic theme, overrides); login, relations, more themes, review pending
 7. **Stabilization** — wheels, benchmarks, release policy
 
 The working queue lives in [`handoff.md`](handoff.md).

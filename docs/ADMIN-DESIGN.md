@@ -1,6 +1,6 @@
 # Admin extra — design (Q007)
 
-Status: **A1 design, A2–A4 implemented** (`Reply`, `set_cookie`, `HTMLRenderer`; `hinoki.admin`: Classic theme, forms, CSRF, list/search/add/edit/delete; a `contains` filter operator in the SQL compiler). A5 (browser verification, example) and A6 (review) open (2026-11-13). Source: `FRAMEWORK_SPEC.md` §16 (local package). Nothing below is implemented until a step says so.
+Status: **A1 design, A2–A4 implemented** (`Reply`, `set_cookie`, `HTMLRenderer`; `hinoki.admin`: Classic theme, forms, CSRF, list/search/add/edit/delete; a `contains` filter operator in the SQL compiler). A5 done (blog integration, real-browser verification, screenshots; see below); A6 (review) open (2026-11-13). Source: `FRAMEWORK_SPEC.md` §16 (local package). Nothing below is implemented until a step says so.
 
 ## Observed
 
@@ -79,9 +79,17 @@ Unit: template engine (escaping, raw, missing variable, override order), form fi
 | A2 (done) | `Reply`, `HTMLRenderer`, header/cookie helpers | `python/hinoki/reply.py`, `renderers.py`, `runtime/asgi.py` |
 | A3 (done) | Template engine, Classic theme (HTML + CSS), components | `python/hinoki/admin/templates.py`, `admin/theme/` |
 | A4 (done) | `Admin`, `ModelAdmin`, forms, CSRF, list/create/edit/delete | `python/hinoki/admin/` |
-| A5 | Blog integration, PostgreSQL tests, browser verification and screenshots | `examples/blog`, `tests/admintest.py`, `tests/browser/` |
+| A5 (done) | Blog integration, PostgreSQL tests, browser verification and screenshots | `examples/blog`, `tests/admintest.py`, `tests/browser/` |
 | A6 | Independent review (authz, CSRF, XSS, data writes), fixes, docs, handoff | — |
 
 ## Open (owner)
 
 Template engine: own placeholders (recommended for now) versus Jinja2. Whether a session/login module should be the next item after the admin.
+
+## Browser verification (A5)
+
+`tests/browser/verify.py` drives the reference blog (served by Granian, synthetic seed data from `examples/blog/seed.py`) with Playwright, run through `uvx` so it is not a project dependency. On 2026-11-13: **0 failures in Chromium and Firefox**; **WebKit could not start** on this host (missing system libraries; installing them needs root), so WebKit is *not verified*.
+
+Checked per engine: Swagger UI and ReDoc render the document; list, search, pagination, create with validation errors, edit, delete confirmation and delete through real form submissions; a forged CSRF token is refused; `can()` hides the add page for users; no horizontal page scroll and every input labelled at 1440×900, 390×844, 360×740 and 320×640 on the dashboard, list and form; keyboard path (skip link, focus to content, Tab to the search field, visible outline, Enter submits); dark scheme. Screenshots were inspected by eye: the first run showed an over-tall header bar, wrapped slugs on phones and long timestamps, all fixed (CSS grid rows, no-wrap cells, shorter dates), and the admin pages appearing in the API reference, fixed by excluding HTML routes from OpenAPI.
+
+Limits of this verification: touch gestures were not exercised (the slice has none), screen readers were not used, and the contrast of the dark scheme was judged by eye, not measured.

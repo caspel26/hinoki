@@ -167,8 +167,11 @@ def test_registration_rules_and_documentation() -> None:
         Admin(access=staff, prefix="/admin/")
     app = HinokiAPI()
     app.include(admin.api())
-    validate(app.openapi())
-    assert "/admin/{model}/{key}/delete" in app.openapi()["paths"]
+    document = app.openapi()
+    validate(document)
+    # The admin is a set of HTML pages, not part of the documented API.
+    assert not any(path.startswith("/admin") for path in document["paths"])
+    assert {r.path for r in app.routes} >= {"/admin/{model}/{key}/delete"}
 
 
 # --- with a database -----------------------------------------------------
