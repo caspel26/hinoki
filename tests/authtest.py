@@ -5,6 +5,7 @@ import pytest
 from hinoki import (
     Access,
     APIKeyAuth,
+    Caller,
     HinokiAPI,
     Principal,
     RegistrationError,
@@ -175,3 +176,18 @@ def test_api_key_provider_has_a_challenge() -> None:
 
     assert Keys().challenge == "ApiKey"
     assert Keys().header == "x-api-key"
+
+
+def test_caller_and_permissions_are_friendlier_names_for_the_same_things() -> None:
+    assert Caller is Principal
+    who = Caller(subject="u1", identity={"name": "Ada"}, scopes=frozenset({"w"}))
+    assert (who.id, who.user, who.permissions) == (
+        "u1",
+        {"name": "Ada"},
+        frozenset({"w"}),
+    )
+    auth = TokenAuth()
+    assert Access(auth, permissions=["w", "r"]).permissions == frozenset({"w", "r"})
+    assert Access(auth, ["w"]).scopes == Access(auth, permissions=["w"]).scopes
+    with pytest.raises(TypeError, match="permissions"):
+        Access(auth, ["a"], permissions=["b"])
