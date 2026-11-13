@@ -18,7 +18,7 @@ Brand: `assets/hinoki-identity-approved.png` unchanged; `hinoki-banner.png` / `h
 | Q004 | Vertical slice blog | **Done**: runtime (R1–R5), schemas, body/query binding, OpenAPI, errors, auth, pagination, Rust DB engine, `transaction=True`, SQL compiler, Active Record, `examples/blog` (also under real Granian + PostgreSQL). Three independent reviews run; every reported finding fixed with a regression test. |
 | Q005 | Relations and CRUD generation | **Implemented** (R2–R5: FK + explicit loading, versioned migrations, generated CRUD with `replaces`, sync model methods, typed `asave`). Relations review fixed (a5dd82c); Independent CRUD review (Opus-class, read-only) done: 1 high (subclass with a narrower resource kept the parent's write routes without the owner check), 2 medium, 6 low; all fixed with regression tests. M2M is the explicit join model with composite `unique=[(...)]` (model, migrations, tests); a `through=` sugar remains open. |
 | Q008 | Request object, parsers, renderers (Rust) | **Done.** S1 design, **S2 done** (Python `Request`, request-first handlers), **S3 done** (Rust query/cookie/header parsing, JSON decode/encode; `benchmarks/requestbench.py`). **S4 done** (JSON/form/multipart parsers, `parsers=`, Rust multipart). **S5 done** (renderers, Rust `Accept` negotiation, 406). S6 decided not to build (measured, `benchmarks/README.md`). **S7 done**: independent review, 10 findings fixed with regressions. **Q008 complete.** |
-| Q006 | Rules and development MCP | R1 design, R2 startup rules, R3 static imports, R4 waivers + `check` CLI done. R5 (dev MCP) and R6 (review) open. |
+| Q006 | Rules and development MCP | R1 design, R2 startup rules, R3 static imports, R4 waivers + `check` CLI, R5 development MCP done. R6 (independent review) running; MCP untested against a real client. |
 | Q007 | Admin extra | Not started. |
 
 ## What exists (verified)
@@ -27,7 +27,7 @@ Brand: `assets/hinoki-identity-approved.png` unchanged; `hinoki-banner.png` / `h
 * `crates/orm` (pure Rust): `tokio-postgres` + `deadpool` engine (leases that discard abandoned connections, poisoned transactions, aborted-commit detection, stale-plan recovery), query AST → SQL.
 * `python/hinoki`: decorators/API/app, modules + lifespan, runtime (adapter, requests, responses, binding, executor, tasks), schemas + validation, auth, HTTP errors, pagination, OpenAPI, `db`, `orm`.
 * `examples/blog`: reference app. `benchmarks/routerbench.py`: Python→Rust call cost (not end to end).
-* Tests: 465 Python tests (97% coverage), 18 + 8 + 10 Rust tests, typing fixtures; DB tests need `HINOKI_TEST_DATABASE_URL` and are **skipped without it** (CI provides PostgreSQL).
+* Tests: 483 Python tests (97% coverage), 18 + 8 + 10 Rust tests, typing fixtures; DB tests need `HINOKI_TEST_DATABASE_URL` and are **skipped without it** (CI provides PostgreSQL).
 
 ## Commands (all green on 2026-11-13; last CI run success on 6 jobs)
 
