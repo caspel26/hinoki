@@ -10,6 +10,8 @@ from hinoki import (
     API,
     Access,
     Caller,
+    Conflict,
+    Forbidden,
     HinokiAPI,
     RegistrationError,
     Schema,
@@ -270,3 +272,31 @@ def test_patterns_are_documented_anchored_like_the_runtime_matches_them() -> Non
     app.include(pat)
     slug = app.openapi()["components"]["schemas"]["Pattern"]["properties"]["slug"]
     assert slug["pattern"] == "^(?:[a-z]+)$"
+
+
+def test_declared_errors_become_responses_with_their_codes() -> None:
+    class AlreadyDone(Conflict):
+        code = "already_done"
+        message = "It is already done."
+
+    class Locked(Conflict):
+        code = "locked"
+        message = "The item is locked."
+
+    @get("/x", errors=(AlreadyDone, Locked, Forbidden))
+    def x() -> dict[str, str]:
+        return {}
+
+    app = HinokiAPI(openapi_url="/openapi.json")
+    app.include(x)
+    document = app.openapi()
+    responses = document["paths"]["/x"]["get"]["responses"]
+    conflict = responses["409"]
+    assert "It is already done." in conflict["description"]
+    codes = conflict["content"]["application/json"]["schema"]["allOf"][1]
+    assert codes["properties"]["error"]["enum"] == ["already_done", "locked"]
+    assert responses["403"]["content"]["application/json"]
+    assert document["components"]["schemas"]["Error"]["required"] == [
+        "error",
+        "request_id",
+    ]

@@ -2,7 +2,7 @@
 
 import pytest
 
-from hinoki import HinokiAPI, Request, Schema, get, post
+from hinoki import Conflict, HinokiAPI, Request, Schema, get, post
 from hinoki.modules import Module
 from hinoki.testing import ASGIClient
 
@@ -44,3 +44,24 @@ async def test_a_failing_startup_is_an_error_not_a_hang() -> None:
     with pytest.raises(RuntimeError, match="startup failed"):
         async with ASGIClient(app):
             pass
+
+
+async def test_strict_errors_demand_declared_business_errors() -> None:
+    class Taken(Conflict):
+        code = "taken"
+
+    @get("/declared", errors=(Taken,))
+    async def declared() -> None:
+        raise Taken()
+
+    @get("/undeclared")
+    async def undeclared() -> None:
+        raise Taken()
+
+    app = HinokiAPI()
+    app.include(declared, undeclared)
+    async with ASGIClient(app, strict_errors=True) as client:
+        assert (await client.get("/declared")).status == 409
+        with pytest.raises(AssertionError, match="does not declare"):
+            await client.get("/undeclared")
+        assert (await client.get("/nowhere")).status == 404  # unrouted: not checked

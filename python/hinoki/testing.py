@@ -22,6 +22,28 @@ from typing import Any
 
 from hinoki.app import HinokiAPI
 
+ERROR_STATUS = 400
+# What the framework itself answers, whatever an action declares.
+FRAMEWORK_CODES = frozenset(
+    {
+        "validation_error",
+        "unauthorized",
+        "forbidden",
+        "payload_too_large",
+        "unsupported_media_type",
+        "not_acceptable",
+        "invalid_json",
+        "invalid_form",
+        "invalid_multipart",
+        "invalid_content_type",
+        "invalid_query",
+        "internal_error",
+        "overloaded",
+        "timeout",
+        "not_ready",
+    }
+)
+
 
 @dataclass(frozen=True, slots=True)
 class Response:
@@ -41,7 +63,9 @@ class Feed:
 class ASGIClient:
     """Use as an async context manager so startup and shutdown always run."""
 
-    def __init__(self, app: HinokiAPI) -> None:
+    def __init__(self, app: HinokiAPI, strict_errors: bool = False) -> None:
+        self.app = app
+        self.strict_errors = strict_errors
         self.adapter = app.asgi()
         self.inbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self.outbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
@@ -107,7 +131,28 @@ class ASGIClient:
         text: Any = raw.decode("utf-8", "replace") or None
         if raw and reply_headers.get("content-type", "").endswith("json"):
             text = _loads(raw)
-        return Response(start["status"], reply_headers, text)
+        reply = Response(start["status"], reply_headers, text)
+        if self.strict_errors:
+            self.check_declared(method, path, reply)
+        return reply
+
+    def check_declared(self, method: str, path: str, reply: Response) -> None:
+        """With ``strict_errors=True``: an error answer whose code the action did
+        not declare (``errors=...``) and the framework does not produce by itself
+        is an ``AssertionError``. Catches business errors missing from OpenAPI."""
+        if reply.status < ERROR_STATUS or not isinstance(reply.body, dict):
+            return
+        found = self.app.resolve(method, path)
+        if found is None:
+            return  # unrouted (404/405) or a documentation page
+        route = found[0]
+        code = reply.body.get("error")
+        declared = {e.code for e in route.errors}
+        if code not in declared | FRAMEWORK_CODES:
+            raise AssertionError(
+                f"{method} {path} answered {reply.status} {code!r}, which "
+                f"{route.name} does not declare: add it to errors=(...)"
+            )
 
     async def get(self, path: str, **options: Any) -> Response:
         return await self.request("GET", path, **options)

@@ -73,6 +73,14 @@ def rewrite_refs(value: Any) -> Any:
     return value
 
 
+def declared_errors(route: Route) -> str:
+    """A sentence listing the errors the action declares, for the tool description."""
+    if not route.errors:
+        return ""
+    shown = ", ".join(f"{int(e.status)} {e.code}" for e in route.errors)
+    return f"\n\nMay fail with: {shown}."
+
+
 def text_of(value: Any, name: str) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
@@ -103,7 +111,7 @@ class Tool:
         self.route = route
         self.name = str(operation["operationId"])
         text = operation.get("description") or operation.get("summary") or ""
-        self.description = str(text)[:2000]
+        self.description = (str(text) + declared_errors(route))[:2000]
         self.parameters = {
             p["name"]: p
             for p in operation.get("parameters", [])

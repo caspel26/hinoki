@@ -16,6 +16,7 @@ from examples.tracker.schemas import TaskIn
 from hinoki.__main__ import main
 from hinoki.db import Database
 from hinoki.orm import migrator, use_database
+from hinoki.testing import ASGIClient
 from tests.harness import Client, Pool
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -125,3 +126,19 @@ def test_the_tracker_keeps_its_layering_promises(
     ]
     assert main(argv) == 0
     assert "0 violated" in capsys.readouterr().out
+
+
+@needs_database
+async def test_every_business_error_of_the_tracker_is_declared(
+    members: tuple[Member, Member],
+) -> None:
+    assert URL is not None
+    async with ASGIClient(create_app(URL), strict_errors=True) as client:
+        made = await client.post("/tasks", json={"title": "x"}, token="ann-token")
+        path = f"/tasks/{made.body['id']}"
+        assert (await client.post(f"{path}/complete", token="ben-token")).status == 404
+        assert (await client.post(f"{path}/complete", token="ann-token")).status == 200
+        again = await client.post(f"{path}/complete", token="ann-token")
+        assert again.status == 409
+        assert (await client.delete(path, token="ann-token")).status == 409
+        assert (await client.delete(path, token="ben-token")).status == 404
