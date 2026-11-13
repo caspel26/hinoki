@@ -286,7 +286,7 @@ class RequireAtomic(Rule):
     id = "HNK-TXN-001"
     fix = (
         "add transaction=True to the action (or declare it on an "
-        "Endpoints(..., atomic=True) group)"
+        "RouteGroup(..., atomic=True) group)"
     )
     explanation = (
         "Actions that change state must run in a transaction so a failure rolls "

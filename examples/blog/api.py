@@ -1,4 +1,4 @@
-"""Endpoints: plain functions and one API class, sync and async."""
+"""Route functions and one API class, sync and async."""
 
 from uuid import UUID
 

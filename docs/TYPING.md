@@ -14,7 +14,7 @@ uv run --locked mypy
 | --- | --- |
 | HTTP decorators | Preserve a handler's parameter and return types. Invalid decorator options such as `transaction="yes"` are type errors. |
 | `Schema` classes | Generated constructors check required, unknown and mistyped fields; `Field(default_factory=...)` preserves the value type. |
-| Application and route groups | `Hinoki.include`, `API` classes and `Endpoints` provide typed declarations. Unknown include items fail at app construction. |
+| Application and route groups | `Hinoki.include`, `API` classes and `RouteGroup` provide typed declarations. Unknown include items fail at app construction. |
 | Authentication context | Annotate a parameter as `Caller[User]` to receive the typed caller and application user. |
 | Decorator composition | User decorators should preserve signatures with `functools.wraps`, `ParamSpec` and `TypeVar`. |
 

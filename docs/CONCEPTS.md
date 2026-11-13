@@ -8,7 +8,7 @@ This page connects the main parts of Hinoki. The guides explain each API in deta
 
 ## A declaration is reused
 
-An action's Python signature and decorator options describe routing, binding, access, transaction behavior, expected errors, OpenAPI and MCP metadata. A route can be included as a standalone function or grouped with related routes in an `API` class. `Endpoints` shares defaults across function routes.
+An action's Python signature and decorator options describe routing, binding, access, transaction behavior, expected errors, OpenAPI and MCP metadata. A route can be included as a standalone function, grouped in an `API` resource class, or collected in an includable `RouteGroup` of functions with shared defaults.
 
 ## One request
 
