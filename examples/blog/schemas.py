@@ -22,6 +22,7 @@ class PostCreate(Schema):
 class PostOut(Schema):
     id: UUID
     author_id: UUID
+    author_name: str
     title: str
     slug: str
     body: str

@@ -7,6 +7,7 @@ from examples.blog.schemas import HealthOut, PostCreate, PostOut
 from examples.blog.security import editor
 from hinoki import API, Conflict, Forbidden, Principal, get, post
 from hinoki import delete as http_delete
+from hinoki.orm import QuerySet
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 
 
@@ -19,12 +20,18 @@ def to_out(post: Post) -> PostOut:
     return PostOut(
         id=post.id,
         author_id=post.author_id,
+        author_name=post.author.name,
         title=post.title,
         slug=post.slug,
         body=post.body,
         published=post.published,
         created_at=post.created_at,
     )
+
+
+def with_author(query: QuerySet[Post]) -> QuerySet[Post]:
+    """Relations are never lazy: every response that shows the author loads it."""
+    return query.select_related("author")
 
 
 async def owned_post(post_id: UUID, principal: Principal[User]) -> Post:
@@ -48,7 +55,7 @@ class Posts(API, path="/posts"):
     async def listing(self, page: PageParams) -> Page[PostOut]:
         """Published posts, newest first."""
         found = (
-            await Post.filter(published=True)
+            await with_author(Post.filter(published=True))
             .order_by("-created_at", "-id")
             .apaginate(page)
         )
@@ -57,7 +64,7 @@ class Posts(API, path="/posts"):
     @get("/{post_id}")
     async def retrieve(self, post_id: UUID) -> PostOut:
         """A published post; unpublished posts are not found."""
-        return to_out(await Post.aget(id=post_id, published=True))
+        return to_out(await with_author(Post.filter(id=post_id, published=True)).aget())
 
     @post("/", status=201, access=editor, transaction=True)
     async def create(self, data: PostCreate, principal: Principal[User]) -> PostOut:
@@ -68,7 +75,7 @@ class Posts(API, path="/posts"):
             slug=data.slug,
             body=data.body,
         )
-        return to_out(created)
+        return to_out(await with_author(Post.filter(id=created.id)).aget())
 
     @post("/{post_id}/publish", access=editor, transaction=True)
     async def publish(self, post_id: UUID, principal: Principal[User]) -> PostOut:
@@ -76,7 +83,8 @@ class Posts(API, path="/posts"):
         post = await owned_post(post_id, principal)
         if post.published:
             raise PostAlreadyPublished()
-        return to_out(await Post.aupdate(id=post.id, published=True))
+        await Post.aupdate(id=post.id, published=True)
+        return to_out(await with_author(Post.filter(id=post.id)).aget())
 
     @http_delete("/{post_id}", status=204, access=editor, transaction=True)
     async def remove(self, post_id: UUID, principal: Principal[User]) -> None:
