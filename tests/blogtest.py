@@ -78,6 +78,7 @@ async def test_the_full_publishing_flow(blog: Client) -> None:
     published = await blog.request("POST", f"/posts/{post_id}/publish", headers=EDITOR)
     assert published.status == 200
     assert published.body["published"] is True
+    assert published.body["author_name"] == "Ada"
 
     assert (await blog.request("GET", f"/posts/{post_id}")).status == 200
     listing = (await blog.request("GET", "/posts")).body

@@ -1,6 +1,6 @@
 # Relations, migrations and CRUD generation — design (Q005)
 
-Status: **R1 design** (2026-11-13). Implementation follows in the steps below; each step ends with the blog green and tests that fail without it.
+Status: **R1 design, R2 implemented** (2026-11-13). Implementation follows in the steps below; each step ends with the blog green and tests that fail without it.
 
 ## Observed
 
@@ -25,9 +25,11 @@ class Post(Model, table="blog_posts"):
 ### D2 Relations are loaded explicitly, never lazily
 
 * Accessing `post.author` or `user.posts` on an instance where it was not loaded raises `RelationNotLoaded` (with the exact `select_related(...)` call to use). No attribute access ever touches the database.
-* `Post.all().select_related("author")` — **one query**, a `LEFT`/`INNER JOIN` compiled in Rust (inner when the column is not nullable). Forward single-valued relations only.
+* `Post.all().select_related("author")` — **one query**, a `LEFT JOIN` compiled in Rust (a non-null foreign key always matches, a nullable one yields `None`). Forward single-valued relations only; the joined table is aliased `rel_<name>`.
 * `User.all().prefetch_related("posts")` — **two queries**: the parents, then the children with `author_id IN (...)`, grouped in Python. Works for reverse relations and, as an alternative, for forward ones. Prefetch never loads more than the parents' keys and issues one extra query per relation name regardless of row count (proven by a statement-counting test).
 * Filtering across a relation uses the same double-underscore syntax: `Post.filter(author__name="Ada")` compiles to a JOIN (one hop in this slice; deeper paths are rejected with a clear error).
+
+Static typing: the framework installs a `Related[T]` descriptor for every relation; declaring it on the model (`writer: ClassVar[Related[Writer]]`, `articles: ClassVar["Related[list[Article]]"]`) gives the type checker the attribute type. Declaring it is optional and checked by mypy in the tests; the stub generator (R5) will emit it.
 
 ### D3 Many-to-many is a model
 
