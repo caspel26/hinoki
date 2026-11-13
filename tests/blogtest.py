@@ -45,7 +45,7 @@ async def admin() -> AsyncIterator[Database]:
 @pytest.fixture
 async def blog(admin: Database, pool: Pool) -> Client:
     assert URL is not None
-    return await pool.start(create_app(URL))
+    return await pool.start(create_app(URL, "t" * 40))
 
 
 def draft(slug: str = "hello-world") -> bytes:

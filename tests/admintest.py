@@ -27,6 +27,7 @@ needs_database = pytest.mark.skipif(
 STAFF = {"authorization": "Bearer editor-token"}
 FORM = "application/x-www-form-urlencoded"
 staff = Access(auth=TokenAuth(), scopes=["posts:write"])
+SECRET = "s" * 40
 
 
 class Note(Model, table="admin_notes"):
@@ -66,7 +67,7 @@ class SecretAdmin(ModelAdmin[Secret]):
 
 
 def build(templates: str | None = None) -> HinokiAPI:
-    admin = Admin(access=staff, templates=templates, site="Test Admin")
+    admin = Admin(access=staff, secret=SECRET, templates=templates, site="Test Admin")
     admin.register(Note, NoteAdmin, slug="notes")
     admin.register(Secret, SecretAdmin, slug="secrets")
     app = HinokiAPI(openapi_url="/openapi.json")
@@ -155,7 +156,7 @@ def test_csrf_needs_cookie_and_field_to_agree() -> None:
 
 
 def test_registration_rules_and_documentation() -> None:
-    admin = Admin(access=staff)
+    admin = Admin(access=staff, secret=SECRET)
     admin.register(Note)
     with pytest.raises(RegistrationError, match="slug"):
         admin.register(Note)
@@ -164,7 +165,7 @@ def test_registration_rules_and_documentation() -> None:
     with pytest.raises(RegistrationError, match="slug"):
         admin.register(Secret, slug="Bad Slug")
     with pytest.raises(ValueError, match="prefix"):
-        Admin(access=staff, prefix="/admin/")
+        Admin(access=staff, secret=SECRET, prefix="/admin/")
     app = HinokiAPI()
     app.include(admin.api())
     document = app.openapi()
@@ -200,7 +201,7 @@ async def site(pool: Pool, tmp_path: Path) -> AsyncIterator[tuple[Client, Databa
 
 
 def token_of(html: str) -> str:
-    found = re.search(r'name="csrf" value="([0-9a-f]{32})"', html)
+    found = re.search(r'name="csrf" value="([0-9a-f]{32}\.[0-9a-f]{32})"', html)
     assert found, html
     return found.group(1)
 

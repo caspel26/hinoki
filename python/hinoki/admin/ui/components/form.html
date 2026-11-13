@@ -1,0 +1,13 @@
+<form class="hn-form" method="post" action="{{ action }}" novalidate>
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<div class="hn-form-body">
+{{{ summary }}}
+{{{ fields }}}
+{{{ meta }}}
+</div>
+<footer class="hn-form-foot">
+{{{ delete }}}
+<a class="hn-btn" href="{{ cancel }}">Cancel</a>
+<button class="hn-btn hn-primary" type="submit">{{ submit }}</button>
+</footer>
+</form>

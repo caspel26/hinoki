@@ -1,11 +1,11 @@
-"""A small template engine for admin components.
+"""A small template engine for admin components, and the theme's assets.
 
 A component is a ``.html`` file with ``{{ name }}`` placeholders (HTML-escaped)
 and ``{{{ name }}}`` placeholders (raw, only for ``Raw`` values, i.e. HTML that
 a component already produced). There is no logic in templates. A placeholder
 without a value is an error, never silently empty. Resolution order: the
-application's templates directory, then the built-in Classic theme; only the
-known component names are looked up, so a name cannot walk the filesystem.
+application's templates directory, then the built-in set; only the built-in
+component names are looked up, so a name cannot walk the filesystem.
 """
 
 from __future__ import annotations
@@ -15,8 +15,10 @@ import re
 from pathlib import Path
 from typing import Any
 
-BUILTIN = Path(__file__).parent / "theme"
-COMPONENTS = ("layout", "table", "form", "field", "notice", "confirm", "index")
+from hinoki.admin.themes import Theme, resolve
+
+UI = Path(__file__).parent / "ui"
+COMPONENTS = tuple(sorted(p.stem for p in (UI / "components").glob("*.html")))
 PLACEHOLDER = re.compile(r"\{\{\{\s*(\w+)\s*\}\}\}|\{\{\s*(\w+)\s*\}\}")
 
 
@@ -36,24 +38,33 @@ def escape(value: object) -> Raw:
 
 
 class Templates:
-    """The components of one admin, loaded once."""
+    """The components, stylesheet, script and icons of one admin, loaded once."""
 
-    def __init__(self, directory: str | Path | None = None) -> None:
+    def __init__(
+        self, directory: str | Path | None = None, theme: str | Theme = "studio"
+    ) -> None:
         self.directory = Path(directory) if directory else None
+        self.theme = resolve(theme)
         self.sources = {name: self.read(name) for name in COMPONENTS}
+        self.sprite = Raw((UI / "icons.svg").read_text(encoding="utf-8"))
 
     def read(self, name: str) -> str:
         if self.directory is not None:
-            custom = self.directory / f"{name}.html"
+            custom = self.directory / "components" / f"{name}.html"
             if custom.is_file():
                 return custom.read_text(encoding="utf-8")
-        return (BUILTIN / f"{name}.html").read_text(encoding="utf-8")
+        return (UI / "components" / f"{name}.html").read_text(encoding="utf-8")
 
     def stylesheet(self) -> bytes:
-        """``admin.css`` from the application directory, else the built-in one."""
+        """Structure, then the theme's tokens, then the application's ``admin.css``
+        (if any), so an application can override anything last."""
+        parts = [(UI / "base.css").read_text(encoding="utf-8"), self.theme.tokens_css()]
         if self.directory is not None and (self.directory / "admin.css").is_file():
-            return (self.directory / "admin.css").read_bytes()
-        return (BUILTIN / "admin.css").read_bytes()
+            parts.append((self.directory / "admin.css").read_text(encoding="utf-8"))
+        return "\n".join(parts).encode()
+
+    def script(self) -> bytes:
+        return (UI / "admin.js").read_bytes()
 
     def render(self, component: str, /, **values: Any) -> Raw:
         source = self.sources.get(component)

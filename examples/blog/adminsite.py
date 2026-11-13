@@ -5,16 +5,18 @@ signs the editor in (here: by hand or by the browser test). The admin itself
 only needs an ``Access`` policy; this one reads the cookie instead of a header.
 """
 
+import datetime
 from typing import Any
 
 from examples.blog.models import Post, User
 from examples.blog.security import WRITE
 from hinoki import Access, Principal, native
-from hinoki.admin import Admin, ModelAdmin
+from hinoki.admin import Admin, Avatar, Badge, Event, Fieldset, Link, ModelAdmin, Stat, Tab
 from hinoki.auth import BaseAuth, Credentials
 from hinoki.httperrors import Unauthorized
 
 COOKIE = "blog_token"
+DAYS = 7
 
 
 class CookieAuth(BaseAuth[User]):
@@ -35,29 +37,107 @@ class CookieAuth(BaseAuth[User]):
         return Principal(subject=user.name, identity=user, scopes=scopes)
 
 
+def per_day(rows: list[Post]) -> tuple[float, ...]:
+    """Posts created per day over the last week, oldest first (real data)."""
+    today = datetime.datetime.now(datetime.UTC).date()
+    days = [today - datetime.timedelta(days=n) for n in range(DAYS - 1, -1, -1)]
+    return tuple(float(sum(1 for r in rows if r.created_at.date() == d)) for d in days)
+
+
 class PostAdmin(ModelAdmin[Post]):
-    columns = ("title", "slug", "published", "created_at")
+    label = "Posts"
+    icon = "file-text"
+    columns = ("title", "published", "author_id", "created_at")
     search = ("title",)
+    ordering = ("-created_at", "-id")
     per_page = 8
+    show_count = True
+    bulk_delete = True
+    readonly = ("created_at",)
+    assign = {"author_id": lambda principal: principal.identity.id}
+    modified_field = "created_at"
+    modified_label = "Created"
+    badges = {
+        "published": {
+            True: Badge("Published", "ok", "circle-check"),
+            False: Badge("Draft", "warn", "pencil"),
+        }
+    }
+    tabs = (Tab("Published", {"published": True}), Tab("Drafts", {"published": False}))
+    fieldsets = (Fieldset("Organization", ("author_id", "published")),)
+
+    def queryset(self, principal: Principal[Any]) -> Any:
+        return Post.all().select_related("author")
+
+    def display(self, row: Post, column: str) -> Any:
+        if column == "author_id":
+            return Avatar(row.author.name)
+        return super().display(row, column)
+
+    async def stats(self, principal: Principal[Any]) -> list[Stat]:
+        rows = await self.queryset(principal).aall()
+        published = [r for r in rows if r.published]
+        drafts = [r for r in rows if not r.published]
+        return [
+            Stat("Posts", len(rows), "file-text", "accent", per_day(rows)),
+            Stat("Published", len(published), "circle-check", "ok", per_day(published)),
+            Stat("Drafts", len(drafts), "pencil", "warn", per_day(drafts)),
+        ]
 
 
 class UserAdmin(ModelAdmin[User]):
-    """Users can be listed and renamed, never created or deleted here, and
-    their tokens are neither shown nor editable."""
+    """Authors can be listed and renamed, never created or deleted here; their
+    tokens are neither shown nor editable, and editor rights are read-only."""
 
+    label = "Authors"
+    icon = "users"
     columns = ("name", "is_editor")
     search = ("name",)
     exclude = ("token",)
+    readonly = ("is_editor",)
+    badges = {
+        "is_editor": {
+            True: Badge("Editor", "accent", "shield-check"),
+            False: Badge("Reader", "neutral", "user"),
+        }
+    }
 
     def can(
         self, principal: Principal[Any], action: str, row: User | None = None
     ) -> bool:
         return action in {"view", "change"}
 
+    async def stats(self, principal: Principal[Any]) -> list[Stat]:
+        return []
 
-def build_admin() -> Admin:
+
+async def recent_activity(principal: Principal[Any]) -> list[Event]:
+    """The latest posts, as activity (derived from real rows, not invented)."""
+    rows = await Post.all().select_related("author").order_by("-created_at").limit(3).aall()
+    return [
+        Event(
+            f"{row.author.name} {'published' if row.published else 'drafted'} “{row.title}”",
+            row.created_at.strftime("%Y-%m-%d %H:%M"),
+            "circle-check" if row.published else "pencil",
+            "ok" if row.published else "warn",
+        )
+        for row in rows
+    ]
+
+
+def build_admin(secret: str) -> Admin:
     editors = Access(auth=CookieAuth(), scopes=[WRITE])
-    admin = Admin(access=editors, prefix="/admin", site="Blog admin")
+    admin = Admin(
+        access=editors,
+        secret=secret,
+        prefix="/admin",
+        theme="studio",
+        site="Blog Studio",
+        tagline="My blog",
+        links=(Link("API docs", "/docs", "file-text"), Link("API reference", "/redoc", "layers")),
+        activity=recent_activity,
+        dashboard=("posts",),
+    )
     admin.register(Post, PostAdmin, slug="posts")
     admin.register(User, UserAdmin, slug="users")
     return admin
