@@ -8,7 +8,15 @@ import typing
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, ClassVar, Self, cast, dataclass_transform
+from typing import (
+    Any,
+    ClassVar,
+    Protocol,
+    Self,
+    cast,
+    dataclass_transform,
+    runtime_checkable,
+)
 from uuid import UUID
 
 from hinoki.errors import RegistrationError, ValidationError
@@ -121,6 +129,13 @@ class Schema:
 ENCODERS: dict[type, Callable[[Any], Any]] = {UUID: str, datetime: datetime.isoformat}
 
 
+@runtime_checkable
+class Dumpable(Protocol):
+    """Anything that can render itself as JSON-compatible data."""
+
+    def dump(self) -> dict[str, Any]: ...
+
+
 def encode_items(value: list[Any] | dict[str, Any]) -> Any:
     if isinstance(value, dict):
         return {key: encode(item) for key, item in value.items()}
@@ -129,7 +144,7 @@ def encode_items(value: list[Any] | dict[str, Any]) -> Any:
 
 def encode(value: object) -> Any:
     """JSON-compatible form of a value produced by a handler or schema."""
-    if isinstance(value, Schema):
+    if isinstance(value, Dumpable):
         return value.dump()
     if isinstance(value, list | dict):
         return encode_items(value)
