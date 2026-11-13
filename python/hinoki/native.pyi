@@ -51,3 +51,16 @@ class Database:
     async def begin(self) -> Transaction: ...
     def close(self) -> None: ...
     def status(self) -> tuple[int, int]: ...
+
+def compile_query(
+    kind: str,
+    table: str,
+    *,
+    columns: list[str] | None = None,
+    filters: list[tuple[str, str, list[Any]]] | None = None,
+    assignments: list[tuple[str, Any]] | None = None,
+    returning: list[str] | None = None,
+    order: list[tuple[str, bool]] | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> tuple[str, list[Any]]: ...

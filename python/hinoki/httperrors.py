@@ -7,6 +7,8 @@ from collections.abc import Awaitable, Callable
 from http import HTTPStatus
 from typing import Any
 
+from hinoki.errors import ObjectNotFound
+
 
 class APIError(Exception):
     """An error with a public HTTP representation.
@@ -67,6 +69,10 @@ class Conflict(APIError):
 Handler = Callable[[Any], APIError | Awaitable[APIError]]
 
 
+def not_found(_error: ObjectNotFound) -> APIError:
+    return NotFound()
+
+
 class ErrorRegistrar:
     """Decorator returned by ``app.errors.handle(SomeError)``."""
 
@@ -84,6 +90,8 @@ class ErrorRegistry:
 
     def __init__(self) -> None:
         self.handlers: dict[type[Exception], Handler] = {}
+        # Built-in translations, consulted after the application's handlers.
+        self.defaults: dict[type[Exception], Handler] = {ObjectNotFound: not_found}
 
     def handle(self, kind: type[Exception]) -> ErrorRegistrar:
         return ErrorRegistrar(self, kind)
@@ -94,10 +102,11 @@ class ErrorRegistry:
         self.handlers[kind] = handler
 
     def find(self, exc: Exception) -> Handler | None:
-        for klass in type(exc).__mro__:
-            handler = self.handlers.get(klass)
-            if handler is not None:
-                return handler
+        for table in (self.handlers, self.defaults):
+            for klass in type(exc).__mro__:
+                handler = table.get(klass)
+                if handler is not None:
+                    return handler
         return None
 
     async def translate(self, exc: Exception) -> APIError | None:
