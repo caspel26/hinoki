@@ -31,7 +31,7 @@ def spawn(
     cmd = [
         sys.executable, "-m", "granian", "--interface", "asgi",
         "--workers", str(workers), "--port", str(port),
-        "--no-log", "lifespan_app:app",
+        "--no-log", "lifespanapp:app",
     ]  # fmt: skip
     return subprocess.Popen(cmd, cwd=HERE, env=env, stdout=subprocess.DEVNULL)
 

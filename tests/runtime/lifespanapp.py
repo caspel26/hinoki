@@ -8,7 +8,7 @@ import asyncio
 import os
 import time
 
-LOG = os.environ["EXP_LOG"]
+LOG = os.environ.get("EXP_LOG", os.devnull)
 MODE = os.environ.get("EXP_MODE", "ok")
 
 

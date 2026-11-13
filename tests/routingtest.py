@@ -1,17 +1,20 @@
 import functools
 from collections.abc import Callable
-from typing import ParamSpec
 
 import pytest
 
 import hinoki
 from hinoki import API, Access, HinokiAPI, RegistrationError, get, post
 
-P = ParamSpec("P")
+editor = Access(auth=object(), scopes=["posts:write"])
 
 
-def test_native_core_is_loaded() -> None:
-    assert hinoki.__version__ == "0.0.1"
+def twice[**P](fn: Callable[P, int]) -> Callable[P, int]:
+    @functools.wraps(fn)
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> int:
+        return fn(*args, **kwargs) * 2
+
+    return wrapper
 
 
 @get("/health")
@@ -19,7 +22,14 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-editor = Access(auth=object(), scopes=["posts:write"])
+@get("/duplicate-health")
+def duplicate() -> None: ...
+
+
+@get("/n")
+@twice
+def answer() -> int:
+    return 21
 
 
 class Posts(API, path="/posts"):
@@ -42,10 +52,15 @@ def make_app() -> HinokiAPI:
     return app
 
 
+def test_native_core_is_loaded() -> None:
+    assert hinoki.__version__ == "0.0.1"
+
+
 def test_resolves_function_and_class_actions() -> None:
     app = make_app()
     found = app.resolve("GET", "/health")
-    assert found is not None and found[0].handler is health
+    assert found is not None
+    assert found[0].handler is health
 
     found = app.resolve("GET", "/posts/7")
     assert found is not None
@@ -55,8 +70,11 @@ def test_resolves_function_and_class_actions() -> None:
 
     found = app.resolve("POST", "/posts/7/publish")
     assert found is not None
-    assert found[0].is_async and found[0].transaction and found[0].status == 202
-    assert found[0].access is editor
+    publish = found[0]
+    assert publish.is_async
+    assert publish.transaction
+    assert publish.status == 202
+    assert publish.access is editor
     assert editor.scopes == frozenset({"posts:write"})
 
 
@@ -73,15 +91,13 @@ def test_unknown_path_and_wrong_method_do_not_resolve() -> None:
 def test_duplicate_route_fails_and_leaves_app_unchanged() -> None:
     app = make_app()
     before = len(app.routes)
-
-    @get("/health")
-    def again() -> None: ...
-
+    clash = get("/health")(lambda: None)
     with pytest.raises(RegistrationError, match="duplicate"):
-        app.include(again)
+        app.include(clash)
     assert len(app.routes) == before
     found = app.resolve("GET", "/health")
-    assert found is not None and found[0].handler is health
+    assert found is not None
+    assert found[0].handler is health
 
 
 def test_include_rejects_undeclared_objects() -> None:
@@ -89,38 +105,31 @@ def test_include_rejects_undeclared_objects() -> None:
         HinokiAPI().include(lambda: None)
 
 
-def test_decorated_function_keeps_behaviour_and_stacks_with_user_decorators() -> None:
-    def twice(fn: Callable[P, int]) -> Callable[P, int]:
-        @functools.wraps(fn)
-        def inner(*a: P.args, **k: P.kwargs) -> int:
-            return fn(*a, **k) * 2
-
-        return inner
-
-    @get("/n")
-    @twice
-    def n() -> int:
-        return 21
-
-    assert n() == 42
+def test_user_decorators_keep_behaviour_under_a_route() -> None:
+    assert answer() == 42
 
 
-def test_invalid_declarations_fail_at_decoration_time() -> None:
-    with pytest.raises(ValueError, match="start with"):
-        get("no-slash")
-    with pytest.raises(ValueError, match="status"):
-        get("/x", status=99)
-    with pytest.raises(ValueError, match="already declares"):
+@pytest.mark.parametrize(
+    ("build", "message"),
+    [
+        (lambda: get("no-slash"), "start with"),
+        (lambda: get("/x", status=99), "status"),
+        (lambda: get("/a")(get("/b")(lambda: None)), "already declares"),
+    ],
+)
+def test_invalid_declarations_fail_at_decoration_time(
+    build: Callable[[], object], message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        build()
 
-        @get("/a")
-        @get("/b")
-        def f() -> None: ...
 
+def test_api_prefix_must_be_well_formed() -> None:
     with pytest.raises(ValueError, match="path must start"):
-
-        class Bad(API, path="posts"): ...
+        type("Bad", (API,), {}, path="posts")
 
 
 def test_app_instances_do_not_share_state() -> None:
     first, second = make_app(), HinokiAPI()
-    assert first.routes and not second.routes
+    assert first.routes
+    assert not second.routes
