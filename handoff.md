@@ -19,7 +19,7 @@ Brand: `assets/hinoki-identity-approved.png` unchanged; `hinoki-banner.png` / `h
 | Q005 | Relations and CRUD generation | **Implemented** (R2–R5: FK + explicit loading, versioned migrations, generated CRUD with `replaces`, sync model methods, typed `asave`). Relations review fixed (a5dd82c); Independent CRUD review (Opus-class, read-only) done: 1 high (subclass with a narrower resource kept the parent's write routes without the owner check), 2 medium, 6 low; all fixed with regression tests. M2M is the explicit join model with composite `unique=[(...)]` (model, migrations, tests); a `through=` sugar remains open. |
 | Q008 | Request object, parsers, renderers (Rust) | **Done.** S1 design, **S2 done** (Python `Request`, request-first handlers), **S3 done** (Rust query/cookie/header parsing, JSON decode/encode; `benchmarks/requestbench.py`). **S4 done** (JSON/form/multipart parsers, `parsers=`, Rust multipart). **S5 done** (renderers, Rust `Accept` negotiation, 406). S6 decided not to build (measured, `benchmarks/README.md`). **S7 done**: independent review, 10 findings fixed with regressions. **Q008 complete.** |
 | Q006 | Rules and development MCP | R1 design, R2 startup rules, R3 static imports, R4 waivers + `check` CLI, R5 development MCP done. R6 (independent review) running; MCP untested against a real client. |
-| Q007 | Admin extra | Not started. |
+| Q007 | Admin extra | A1 design written (`docs/ADMIN-DESIGN.md`); A2–A6 open. First slice: Classic theme, list/create/edit/delete, CSRF, overrides; no login UI. |
 
 ## What exists (verified)
 
