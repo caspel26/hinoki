@@ -34,11 +34,11 @@ dev = [
 ]
 lint = ["ruff==0.15.12"]
 typecheck = ["mypy>=1.14"]
-test = ["pytest>=8.3", "pytest-cov>=6.0", "granian>=2.8,<3"]
+test = ["pytest>=8.3", "pytest-asyncio>=1.0", "pytest-cov>=6.0", "granian>=2.8,<3"]
 
 [tool.maturin]
 python-source = "python"
-module-name = "hinoki._core"
+module-name = "hinoki.native"
 manifest-path = "crates/bindings/Cargo.toml"
 features = ["pyo3/extension-module"]
 
@@ -52,11 +52,20 @@ target-version = "py312"
 extend-exclude = ["framework-handoff", "sources"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "SIM", "C90", "RUF", "PT", "TID"]
+# Mirrors the SonarQube Python rules that Ruff can express: complexity
+# (S3776), parameter/return counts (S107/S1142), unused parameters (S1172),
+# commented-out code (S125), redundant returns, bug-prone patterns.
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C90", "C4", "RUF", "PT", "TID", "PL", "ERA", "ARG", "RET", "PERF", "S"]
 ignore = ["PT018"]  # compound asserts are the clearest way to narrow Optionals
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
+[tool.ruff.lint.pylint]
+max-args = 7
+max-returns = 4
+max-branches = 8
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "PLR2004", "ARG001", "ARG002", "S104", "S603", "S310"]
 [tool.ruff.lint.isort]
 known-first-party = ["hinoki"]
 
@@ -69,6 +78,9 @@ mypy_path = "python"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+python_files = ["*test.py"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra --strict-markers"
 markers = ["runtime: starts a real server process (Granian)"]
 

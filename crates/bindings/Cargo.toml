@@ -1,6 +1,6 @@
 [package]
 name = "hinoki-bindings"
-description = "PyO3 bindings exposing the Hinoki native core to Python (hinoki._core)"
+description = "PyO3 bindings exposing the Hinoki native core to Python (hinoki.native)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,7 +9,7 @@ rust-version.workspace = true
 publish = false
 
 [lib]
-name = "_core"
+name = "native"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]

@@ -39,14 +39,14 @@ Behaviour of `rsgi` init/del hooks under failure; ASGI throughput vs RSGI; inter
                   hinoki.runtime.asgi  (Python, thin, ~one function)
                               │  method, raw path, headers, body bytes
                               ▼
-                  hinoki._core (Rust, PyO3)                          [core]
+                  hinoki.native (Rust, PyO3)                          [core]
                      router match · limits · param extraction · (later) body decode
                               │  matched action id + typed args
                               ▼
                   registry → pipeline (Python): auth → tx → handler → output validation
                               │                                    ▲
                               ▼                                    │ awaitable, loop-bound
-                  hinoki._core ORM (Rust: query AST → SQL → pool → rows)
+                  hinoki.native ORM (Rust: query AST → SQL → pool → rows)
 ```
 
 Honest accounting for the first release:
@@ -56,7 +56,7 @@ Honest accounting for the first release:
 * **Crossing cost:** with ASGI every request crosses Python at least twice (Granian→app, app→Rust router). We do **not** call this path native. We measure it before claiming anything (benchmark entry point is a Q004 deliverable).
 * RSGI would remove the ASGI scope dict building, but is Granian-specific and has different init/shutdown hooks. **Proposed:** ship ASGI first (portable, standard lifespan), keep the adapter interface small enough that an RSGI adapter is a second file, decide on measurements.
 
-### Native-request core: what lives in `hinoki._core` first
+### Native-request core: what lives in `hinoki.native` first
 
 Phase 0 only proves the toolchain (`core_version()`). The first real Rust unit is the **router** (Q004): compiled once at `app.include`, immutable, shared read-only across threads; match is `(method, path) → ActionId + path params | NotFound | MethodNotAllowed`. No I/O, so it needs no runtime and can be tested in plain `cargo test`.
 

@@ -93,7 +93,7 @@ Honest status, verified by the test suite:
 | Area | State |
 | --- | --- |
 | HTTP method decorators, `Access`, `API` classes, `HinokiAPI.include` | Implemented; typed and tested |
-| Native router (`hinoki._core.Router`): static + `{param}` paths, literal-over-param priority, 404/405, duplicate and conflict detection | Implemented in Rust, with Rust and Python tests |
+| Native router (`hinoki.native.Router`): static + `{param}` paths, literal-over-param priority, 404/405, duplicate and conflict detection | Implemented in Rust, with Rust and Python tests |
 | Static typing contract for the above (positive and negative fixtures) | Implemented, checked with `mypy --strict` |
 | Granian lifespan behaviour (failed startup, per-worker lifespan, SIGTERM drain) | Characterised with real-server tests |
 | Runtime design: Python/Rust/Granian boundary, resource ownership, sync executor, shutdown | [Designed](docs/RUNTIME-DESIGN.md), not implemented |
@@ -117,7 +117,7 @@ Honest status, verified by the test suite:
  client ─▶ Granian (Rust: hyper/tokio) ─▶ hinoki ASGI adapter (Python, thin)
                                               │
                                               ▼
-                              hinoki._core (Rust, PyO3)
+                              hinoki.native (Rust, PyO3)
                               router · limits · (next) request decoding
                                               │
                                               ▼
