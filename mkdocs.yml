@@ -79,6 +79,7 @@ nav:
       - Patterns and best practices: PATTERNS.md
       - Schemas: SCHEMAS.md
       - Model options: MODEL-OPTIONS.md
+      - Schemas from models: MODEL-SCHEMA-DESIGN.md
       - Glossary: GLOSSARY.md
       - Rules, checks for your project: RULES.md
       - Settings: SETTINGS-DESIGN.md

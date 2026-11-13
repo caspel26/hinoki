@@ -1,9 +1,8 @@
 """API shapes. Separate from the models: a column reaches a client only here."""
 
-from datetime import datetime
 from typing import Annotated
-from uuid import UUID
 
+from examples.tracker.models import Task
 from hinoki import Field, Schema
 
 
@@ -13,9 +12,5 @@ class TaskIn(Schema):
     title: Annotated[str, Field(min_length=1, max_length=120)]
 
 
-class TaskOut(Schema):
-    id: UUID
-    title: str
-    done: bool
-    created_at: datetime
-    completed_at: datetime | None
+class TaskOut(Schema, model=Task, exclude=["owner_id"]):
+    """Every column of a task except its owner (derived from the model)."""
