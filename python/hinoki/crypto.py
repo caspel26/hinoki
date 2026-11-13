@@ -197,7 +197,10 @@ class JWTAuth[T](BearerAuth[T]):
                 subject, raw = claims.get("sub"), claims.get("scopes", [])
                 if not isinstance(subject, str) or not isinstance(raw, list):
                     return None  # claims are signed, but still untyped JSON
-                user = await User.aget_or_none(id=subject)
+                try:
+                    user = await User.aget_or_none(id=UUID(subject))
+                except ValueError:  # a signed token can still carry any text
+                    return None
                 if user is None:
                     return None
                 scopes = frozenset(s for s in raw if isinstance(s, str))
