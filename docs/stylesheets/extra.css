@@ -18,17 +18,26 @@
 .md-typeset h1, .md-typeset h2 { font-weight: 650; letter-spacing: -0.01em; }
 .md-typeset code { border-radius: 4px; }
 
-/* Landing page */
-.hn-hero { text-align: center; padding: 2.5rem 0 1rem; }
-.hn-hero img { max-width: 560px; width: 100%; }
-.hn-hero p.tag { font-size: 1.35rem; margin: 1rem auto 0; max-width: 34rem; }
-.hn-hero .md-button { margin: 1.25rem .25rem 0; }
-.hn-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 2rem 0; }
-.hn-card { border: 1px solid var(--md-default-fg-color--lightest); border-radius: 10px; padding: 1rem 1.1rem; }
-.hn-card h3 { margin: 0 0 .4rem; font-size: 1.05rem; }
-.hn-card p { margin: 0; font-size: .9rem; color: var(--md-default-fg-color--light); }
-.hn-status { border-left: 4px solid #d97706; }
-@media (max-width: 40em) { .hn-hero p.tag { font-size: 1.1rem; } }
+/* Landing page: the hinoki is a cypress, so the hero carries tree rings. */
+.hn-hero {
+  position: relative; text-align: left; padding: 3rem 2rem 2.25rem; margin: 0 0 1.5rem;
+  border-radius: 14px; overflow: hidden;
+  background:
+    radial-gradient(circle at 100% 0, transparent 0 4rem, color-mix(in srgb, var(--md-accent-fg-color) 14%, transparent) 4rem 4.15rem, transparent 4.15rem 7rem, color-mix(in srgb, var(--md-accent-fg-color) 11%, transparent) 7rem 7.12rem, transparent 7.12rem 10.5rem, color-mix(in srgb, var(--md-accent-fg-color) 9%, transparent) 10.5rem 10.6rem, transparent 10.6rem 15rem, color-mix(in srgb, var(--md-accent-fg-color) 7%, transparent) 15rem 15.1rem, transparent 15.1rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--md-accent-fg-color) 7%, var(--md-default-bg-color)), var(--md-default-bg-color));
+}
+.hn-kicker { margin: 0 0 .6rem; font-size: .8rem; letter-spacing: .14em; text-transform: uppercase; color: var(--md-accent-fg-color); font-weight: 600; }
+.hn-title { margin: 0 0 .8rem; max-width: 22ch; font-size: clamp(1.9rem, 4.2vw, 2.9rem); line-height: 1.12; letter-spacing: -.02em; }
+.hn-hero p.tag { font-size: 1.12rem; margin: 0 0 1.1rem; max-width: 40rem; color: var(--md-default-fg-color--light); }
+.hn-hero .md-button { margin: .75rem .5rem 0 0; }
+.hn-hero pre { max-width: 40rem; }
+.hn-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 1.5rem 0 2rem; }
+.hn-card { border: 1px solid var(--md-default-fg-color--lightest); border-radius: 10px; padding: .9rem 1.1rem; background: var(--md-default-bg-color); transition: border-color .15s; }
+.hn-card:hover { border-color: var(--md-accent-fg-color); }
+.hn-card h3 { margin: 0 0 .35rem; font-size: 1.02rem; font-weight: 600; }
+.hn-card p { margin: 0; font-size: .88rem; color: var(--md-default-fg-color--light); }
+@media (max-width: 40em) { .hn-hero { padding: 2rem 1.1rem 1.5rem; } .hn-hero p.tag { font-size: 1rem; } }
+@media (prefers-reduced-motion: reduce) { .hn-card { transition: none; } }
 
 /* Buttons readable in both schemes (the dark primary colour is the page colour). */
 [data-md-color-scheme="slate"] .md-typeset .md-button {

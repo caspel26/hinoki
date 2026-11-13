@@ -13,6 +13,7 @@ validation:
 theme:
   name: material
   features:
+    - navigation.tabs
     - navigation.instant
     - navigation.tracking
     - navigation.sections
@@ -73,26 +74,42 @@ plugins:
             separate_signature: true
 
 nav:
-  - Home: index.md
-  - Getting started: getting-started.md
-  - Guide:
-      - Patterns and best practices: PATTERNS.md
-      - Schemas: SCHEMAS.md
-      - Model options: MODEL-OPTIONS.md
-      - Schemas from models: MODEL-SCHEMA-DESIGN.md
-      - Glossary: GLOSSARY.md
-      - Rules, checks for your project: RULES.md
-      - Parsers and renderers: CODECS.md
-      - Running an application: SERVING.md
-      - Settings (how it works): SETTINGS.md
-      - Settings design: SETTINGS-DESIGN.md
+  - Get started:
+      - Home: index.md
+      - Getting started: getting-started.md
+  - Tutorial:
+      - Overview: tutorial/index.md
+      - 1. Models: tutorial/1-models.md
+      - 2. Schemas: tutorial/2-schemas.md
+      - 3. Operations: tutorial/3-operations.md
+      - 4. Endpoints: tutorial/4-endpoints.md
+      - 5. Rules: tutorial/5-rules.md
+      - 6. Run and test it: tutorial/6-run.md
+  - Guides:
+      - Data:
+          - Schemas: SCHEMAS.md
+          - Model options: MODEL-OPTIONS.md
+          - Schemas from models and validators: MODEL-SCHEMA-DESIGN.md
+      - Endpoints:
+          - Parsers and renderers: CODECS.md
+          - Patterns and best practices: PATTERNS.md
+      - Security and checks:
+          - Rules: RULES.md
+      - Operating:
+          - Settings: SETTINGS.md
+          - Running an application: SERVING.md
+          - Typing: TYPING.md
+          - Toolchain and CI: TOOLCHAIN.md
+      - Working with AI:
+          - Build with an agent: AI-WORKFLOW.md
+          - Application MCP: APP-MCP-DESIGN.md
+      - Admin:
+          - The admin: ADMIN.md
+  - Concepts:
       - Sync and async: SYNC-ASYNC.md
-      - Typing: TYPING.md
-      - Toolchain and CI: TOOLCHAIN.md
-  - Working with AI:
-      - Build with an agent: AI-WORKFLOW.md
-      - Application MCP: APP-MCP-DESIGN.md
-  - API reference:
+      - Glossary: GLOSSARY.md
+      - Identity (proposals): IDENTITY.md
+  - Reference:
       - Overview: reference/index.md
       - Routing and requests: reference/web.md
       - Schemas: reference/schemas.md
@@ -111,6 +128,7 @@ nav:
       - Rules engine: RULES-DESIGN.md
       - Admin: ADMIN-DESIGN.md
       - Crypto: CRYPTO-DESIGN.md
+      - Settings: SETTINGS-DESIGN.md
   - Decisions:
       - "0001 ASGI on Granian": adr/0001-server-adapter-asgi-on-granian.md
       - "0002 Resources per worker": adr/0002-resource-ownership-per-worker.md
