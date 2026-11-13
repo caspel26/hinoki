@@ -26,7 +26,6 @@ from hinoki import native
 from hinoki.errors import (
     ErrorDetail,
     RegistrationError,
-    RelationNotLoaded,
     ValidationError,
 )
 from hinoki.fields import UNSET, Field, FieldInfo, Unset
@@ -227,25 +226,11 @@ class Schema:
         computed fields). Nested models become nested schemas. A field the row
         lacks is an error, and an unloaded relation still raises
         ``RelationNotLoaded``: nothing here does I/O."""
-        values: dict[str, Any] = {}
-        for name, spec in cls.specs().items():
-            if name in extra:
-                values[name] = extra[name]
-                continue
-            try:
-                values[name] = from_row(spec.ftype, getattr(row, name))
-            except RelationNotLoaded:
-                raise  # an unloaded relation is a loading mistake, not a missing field
-            except AttributeError:
-                if spec.required:
-                    raise AttributeError(
-                        f"{cls.__name__}.{name}: {type(row).__name__} has no "
-                        f"attribute {name!r}; pass it as {name}=..."
-                    ) from None
-        unknown = set(extra) - set(cls.specs())
-        if unknown:
-            raise TypeError(f"{cls.__name__} has no fields {sorted(unknown)}")
-        return cls(**values)
+        if extra:
+            unknown = set(extra) - set(cls.specs())
+            if unknown:
+                raise TypeError(f"{cls.__name__} has no fields {sorted(unknown)}")
+        return cast(Self, model_plan(cls).build(row, extra))
 
     def dump(self) -> dict[str, Any]:
         """JSON-compatible form; ``UNSET`` fields are omitted. Built in Rust,
@@ -435,6 +420,27 @@ def plain(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: plain(item) for key, item in value.items()}
     return value
+
+
+def conversion_of(ftype: FieldType) -> tuple[Any, Any]:
+    """How a model attribute converts for this field (see ``from_model``)."""
+    inner = conversion_of(ftype.item) if ftype.item is not None else None
+    return (ftype.schema, inner)
+
+
+def model_plan(cls: type[Schema]) -> native.ModelPlan:
+    """The Rust plan of ``from_model`` for this class, built once."""
+    cached = cls.__dict__.get("__model_plan__")
+    if cached is None:
+        cached = native.ModelPlan(
+            cls,
+            [
+                (name, spec.required, conversion_of(spec.ftype))
+                for name, spec in cls.specs().items()
+            ],
+        )
+        cls.__model_plan__ = cached  # type: ignore[attr-defined]
+    return cast(native.ModelPlan, cached)
 
 
 def from_row(ftype: FieldType, value: Any) -> Any:

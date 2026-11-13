@@ -9,11 +9,13 @@ result and returns bytes. Error bodies are always JSON.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import ClassVar
+from collections.abc import Callable, Sequence
+from typing import Any, ClassVar
 
 from hinoki import native
 from hinoki.request import Request
+
+MAX_INDENT = 16
 
 
 class Renderer:
@@ -29,11 +31,39 @@ class Renderer:
 
 
 class JSONRenderer(Renderer):
+    """JSON, written by the Rust encoder. Customise without leaving Rust:
+
+    * options: ``JSONRenderer(indent=2, sort_keys=True, default=fn)`` where
+      ``default`` turns a value that is not JSON (a ``Decimal``, a ``Path``) into
+      one that is;
+    * a subclass overriding ``prepare(value, request)`` to reshape the result
+      (envelopes, key renaming) before it is encoded, and/or ``media_type`` (for
+      ``application/vnd.api+json``).
+    """
+
     media_type = "application/json"
     consumes_objects = True
 
-    def render(self, value: object, request: Request) -> bytes:  # noqa: ARG002
-        return native.encode_json(value)
+    def __init__(
+        self,
+        indent: int | None = None,
+        sort_keys: bool = False,
+        default: Callable[[Any], Any] | None = None,
+    ) -> None:
+        if indent is not None and not 0 <= indent <= MAX_INDENT:
+            raise ValueError(f"indent must be 0 to {MAX_INDENT} or None")
+        self.indent = indent
+        self.sort_keys = sort_keys
+        self.default = default
+
+    def prepare(self, value: object, request: Request) -> object:  # noqa: ARG002
+        """Hook: the value to encode (default: unchanged)."""
+        return value
+
+    def render(self, value: object, request: Request) -> bytes:
+        return native.encode_json(
+            self.prepare(value, request), self.indent, self.sort_keys, self.default
+        )
 
 
 class HTMLRenderer(Renderer):
@@ -45,6 +75,17 @@ class HTMLRenderer(Renderer):
     def render(self, value: object, request: Request) -> bytes:  # noqa: ARG002
         if not isinstance(value, str):
             raise TypeError("HTMLRenderer needs the handler to return a str")
+        return value.encode()
+
+
+class TextRenderer(Renderer):
+    """A handler that returns ``str`` answers plain text (UTF-8)."""
+
+    media_type = "text/plain; charset=utf-8"
+
+    def render(self, value: object, request: Request) -> bytes:  # noqa: ARG002
+        if not isinstance(value, str):
+            raise TypeError("TextRenderer needs the handler to return a str")
         return value.encode()
 
 

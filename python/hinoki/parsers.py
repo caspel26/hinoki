@@ -88,13 +88,33 @@ class Parser:
 
 
 class JSONParser(Parser):
+    """JSON, decoded by the Rust parser (strict: no NaN, no lone surrogates, depth
+    limit). Customise by overriding ``prepare(data)`` to reshape the decoded value
+    (for example rename keys) or ``media_type`` (``application/vnd.api+json``)."""
+
     media_type = "application/json"
+
+    def prepare(self, data: object) -> object:
+        """Hook: the value the action sees (default: as decoded)."""
+        return data
 
     def parse(self, raw: bytes, content_type: str) -> Parsed:  # noqa: ARG002
         try:
-            return Parsed(native.decode_json(raw))
+            return Parsed(self.prepare(native.decode_json(raw)))
         except ValueError:
             raise InvalidBody("invalid_json", "the body is not valid JSON") from None
+
+
+class TextParser(Parser):
+    """``text/plain`` bodies as a ``str`` (UTF-8, strict)."""
+
+    media_type = "text/plain"
+
+    def parse(self, raw: bytes, content_type: str) -> Parsed:  # noqa: ARG002
+        try:
+            return Parsed(raw.decode("utf-8"))
+        except UnicodeDecodeError:
+            raise InvalidBody("invalid_text", "the body is not valid UTF-8") from None
 
 
 def group(pairs: Sequence[tuple[str, str]]) -> dict[str, list[str]]:

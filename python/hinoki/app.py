@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
-from collections.abc import MutableMapping
+from collections.abc import MutableMapping, Sequence
 from typing import Any
 
 from hinoki.api import API
@@ -14,6 +15,8 @@ from hinoki.httperrors import ErrorRegistry
 from hinoki.modules import Module, order_modules
 from hinoki.native import Router
 from hinoki.openapi import OpenAPIBuilder
+from hinoki.parsers import DEFAULT_PARSERS, Parser, check_parsers
+from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers
 from hinoki.routing import Found, MethodNotAllowed, Route, route_of
 from hinoki.rules import Phase, Project, RuleSet, failing
 from hinoki.runtime.asgi import ASGIAdapter
@@ -45,6 +48,8 @@ class HinokiAPI:
         redoc_url: str | None | Unset = UNSET,
         rules: RuleSet | None = None,
         enforce_rules: bool = True,
+        parsers: Sequence[Parser] | None = None,
+        renderers: Sequence[Renderer] | None = None,
     ) -> None:
         # An explicit argument wins over ``settings``, which wins over the default.
         built_in = settings if isinstance(settings, FrameworkSettings) else None
@@ -67,6 +72,11 @@ class HinokiAPI:
         docs_pages(openapi_url, docs_url, redoc_url)  # fail early on a bad combination
         self.rules = rules
         self.enforce_rules = enforce_rules
+        # Application-wide defaults for actions that declare no parsers/renderers.
+        self.default_parsers = None if parsers is None else check_parsers(parsers)
+        self.default_renderers = (
+            None if renderers is None else check_renderers(renderers)
+        )
         self.errors = ErrorRegistry()
         self._routes: list[Route] = []
         self._bindings: list[Binding] = []
@@ -106,6 +116,7 @@ class HinokiAPI:
                 raise RegistrationError(
                     f"{item!r} is neither an API class nor a decorated function"
                 )
+        pending = [self.with_defaults(route) for route in pending]
         bound = [bind(route) for route in pending]  # bad signatures fail here
         staged = Router()
         for index, route in enumerate(self._routes):
@@ -118,6 +129,16 @@ class HinokiAPI:
         self._router = staged
         self._routes.extend(pending)
         self._bindings.extend(bound)
+
+    def with_defaults(self, route: Route) -> Route:
+        """The route with this application's default parsers/renderers filled in
+        where the action did not choose its own."""
+        changes: dict[str, Any] = {}
+        if self.default_parsers is not None and route.parsers is DEFAULT_PARSERS:
+            changes["parsers"] = self.default_parsers
+        if self.default_renderers is not None and route.renderers is DEFAULT_RENDERERS:
+            changes["renderers"] = self.default_renderers
+        return dataclasses.replace(route, **changes) if changes else route
 
     def install(self, *modules: Module) -> None:
         """Install modules and include their APIs.

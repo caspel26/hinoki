@@ -1,6 +1,7 @@
 """Schema.to_dict and Schema.from_model."""
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import ClassVar
 from uuid import UUID, uuid4
 
@@ -111,3 +112,22 @@ def test_from_model_is_strict_about_missing_and_unloaded_data() -> None:
         PetOut.from_model(pet, shout="x")  # the relation was not loaded: no lazy I/O
     with pytest.raises(TypeError, match="no fields"):
         OwnerOut.from_model(Owner(name="x"), nope=1)
+
+
+class Tagged(Schema):
+    id: UUID
+    title: str
+    owners: list[OwnerOut]
+    note: str = "n/a"
+    best: OwnerOut | None = None
+
+
+def test_from_model_handles_lists_nullable_nesting_and_defaults() -> None:
+    a, b = Owner(name="a"), Owner(name="b")
+
+    row = SimpleNamespace(id=uuid4(), title="t", owners=[a, b], best=None)
+    out = Tagged.from_model(row)
+    assert [o.name for o in out.owners] == ["a", "b"] and out.best is None
+    assert out.note == "n/a"  # absent on the row: the schema default applies
+    assert Tagged.from_model(row, note="given").note == "given"
+    assert isinstance(Tagged.from_model(row).owners[0], OwnerOut)
