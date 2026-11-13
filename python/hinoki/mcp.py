@@ -30,8 +30,10 @@ from hinoki.checkcli import USAGE_ERRORS, build_app, build_rules
 from hinoki.errorcatalog import CATALOG, explain
 from hinoki.migrations import models_of
 from hinoki.orm import Model
+from hinoki.proposals import ProposalError, propose
 from hinoki.routing import Route
 from hinoki.rules import Diagnostic, Phase, Project, RuleSet, failing, qualified, where
+from hinoki.scenario import ScenarioError, run_scenario
 from hinoki.waivers import NAME, apply_waivers, load_waivers
 
 TOOL_VERSION = 1
@@ -112,6 +114,7 @@ class DevProject:
         models: tuple[str, ...] = (),
         waivers: Path | None = None,
         today: datetime.date | None = None,
+        scenarios: str = "off",
     ) -> None:
         self.app = app
         self.rules = rules
@@ -119,6 +122,7 @@ class DevProject:
         self.model_modules = models
         self.waivers = waivers or Path(NAME)
         self.today = today
+        self.scenarios = scenarios
 
     def find(self, name: str) -> Route:
         matches = [r for r in self.app.routes if name in names_of(r)]
@@ -229,6 +233,24 @@ def tool_explain_error(project: DevProject, args: dict[str, Any]) -> dict[str, A
     raise ToolFailure(f"unknown code {code!r}" + (f"; similar: {near}" if near else ""))
 
 
+def tool_run_scenario(project: DevProject, args: dict[str, Any]) -> dict[str, Any]:
+    if project.scenarios == "off":
+        raise ToolFailure(
+            "scenarios are off; the owner starts the server with --scenarios"
+        )
+    try:
+        return run_scenario(project.app, args, project.scenarios)
+    except ScenarioError as exc:
+        raise ToolFailure(str(exc)) from None
+
+
+def tool_propose_model(_project: DevProject, args: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return propose(args.get("name"), args.get("table"), args.get("fields"))
+    except ProposalError as exc:
+        raise ToolFailure(str(exc)) from None
+
+
 TOOLS: dict[str, tuple[str, dict[str, Any], Callable[..., dict[str, Any]]]] = {
     "inspect_project": (
         "Actions (method, path, access, transaction, parsers, renderers, location), "
@@ -261,6 +283,62 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[..., dict[str, Any]]]] = {
             "required": ["code"],
         },
         tool_explain_error,
+    ),
+    "propose_model": (
+        "Source text (not written anywhere) for a model, In/Patch/Out schemas and "
+        "CRUD actions from a field list, following the project patterns.",
+        {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Model class, e.g. Article"},
+                "table": {"type": "string"},
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "type": {
+                                "enum": [
+                                    "str",
+                                    "int",
+                                    "float",
+                                    "bool",
+                                    "uuid",
+                                    "datetime",
+                                ]
+                            },
+                            "nullable": {"type": "boolean"},
+                            "unique": {"type": "boolean"},
+                            "max_length": {"type": "integer"},
+                        },
+                        "required": ["name"],
+                    },
+                },
+            },
+            "required": ["name", "fields"],
+        },
+        tool_propose_model,
+    ),
+    "run_scenario": (
+        "Send one HTTP request to the application in-process and return status, "
+        "headers and body. Only offered when the owner enabled scenarios; "
+        "non-GET methods need --scenarios write and a disposable database.",
+        {
+            "type": "object",
+            "properties": {
+                "method": {"type": "string"},
+                "path": {"type": "string"},
+                "query": {"type": "string"},
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {"type": "string"},
+                },
+                "json": {},
+            },
+            "required": ["path"],
+        },
+        tool_run_scenario,
     ),
     "check_project": (
         "Run the enabled rules (startup and static phases) and return the same "
@@ -352,16 +430,21 @@ class Server:
             "waivers and code are changed by the project owner, not by tools.",
         }
 
-    @staticmethod
-    def tool_list() -> list[dict[str, Any]]:
+    def tool_list(self) -> list[dict[str, Any]]:
+        mode = self.project.scenarios
         return [
             {
                 "name": name,
                 "description": description,
                 "inputSchema": schema,
-                "annotations": {"readOnlyHint": True, "openWorldHint": False},
+                "annotations": {
+                    # Even GET runs the lifespan and real handlers: never "read only".
+                    "readOnlyHint": name != "run_scenario",
+                    "openWorldHint": False,
+                },
             }
             for name, (description, schema, _) in TOOLS.items()
+            if name != "run_scenario" or mode != "off"
         ]
 
     def call(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -380,7 +463,8 @@ class Server:
         except ToolFailure as exc:
             data, error = {"tool_version": TOOL_VERSION, "error": str(exc)}, True
         except Exception as exc:
-            message = f"{type(exc).__name__}: {exc}"
+            print(f"hinoki mcp: {name} failed: {exc!r}", file=sys.stderr)
+            message = f"{type(exc).__name__} (details on the server's stderr)"
             data, error = {"tool_version": TOOL_VERSION, "error": message}, True
         data = json.loads(json.dumps(data, default=str))  # always plain JSON
         return {
@@ -425,6 +509,7 @@ def run_mcp(args: argparse.Namespace) -> int:
             tuple(args.package or ()),
             tuple(args.models or ()),
             Path(args.waivers) if args.waivers else None,
+            scenarios=args.scenarios,
         )
     except (*USAGE_ERRORS, SystemExit) as exc:
         print(f"error: {exc}", file=sys.stderr)

@@ -135,3 +135,10 @@ def add_arguments(
     server.add_argument("--package", action="append", help="package to scan (static)")
     server.add_argument("--models", action="append", help="module that defines models")
     server.add_argument("--waivers", help=f"waiver file (default ./{NAME})")
+    server.add_argument(
+        "--scenarios",
+        choices=["off", "read", "write"],
+        default="off",
+        help="offer run_scenario: read = GET only, write = any method "
+        "(runs real handlers: use a disposable database)",
+    )
