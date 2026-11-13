@@ -72,6 +72,7 @@ max-returns = 4
 max-branches = 8
 [tool.ruff.lint.per-file-ignores]
 "tests/harness.py" = ["PLR0913"]  # mirrors the ASGI scope fields a test may set
+"tests/dbtest.py" = ["S608", "PT012"]  # table names are test-controlled; blocks need setup
 "tests/**" = ["S101", "PLR2004", "ARG001", "ARG002", "S104", "S603", "S310"]
 [tool.ruff.lint.isort]
 known-first-party = ["hinoki"]
