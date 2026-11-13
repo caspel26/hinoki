@@ -10,6 +10,7 @@ h1, h2, h3, p { margin: 0; }
 .hn-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .hn-skip { position: absolute; left: -999px; top: 0; z-index: 50; padding: .5rem 1rem; background: var(--hn-surface); color: var(--hn-text); }
 .hn-skip:focus { left: .5rem; top: .5rem; }
+svg[hidden] { display: none; position: absolute; }
 .hn-icon { width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.2em; }
 
 /* Shell: sidebar | column(topbar, workspace(main, drawer)) */

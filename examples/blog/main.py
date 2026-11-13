@@ -30,7 +30,11 @@ def create_app(
         docs_url="/docs",
         redoc_url="/redoc",
     )
-    app.include(health, Posts, build_admin(secret).api())
+    app.include(
+        health,
+        Posts,
+        build_admin(secret, os.environ.get("BLOG_ADMIN_THEME", "studio")).api(),
+    )
     app.install(DatabaseModule(url, max_size=5))
     app.errors.handle(UniqueViolation)(unique_to_conflict)
     return app

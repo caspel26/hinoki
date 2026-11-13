@@ -6,12 +6,22 @@ only needs an ``Access`` policy; this one reads the cookie instead of a header.
 """
 
 import datetime
-from typing import Any
+from typing import Any, ClassVar
 
 from examples.blog.models import Post, User
 from examples.blog.security import WRITE
 from hinoki import Access, Principal, native
-from hinoki.admin import Admin, Avatar, Badge, Event, Fieldset, Link, ModelAdmin, Stat, Tab
+from hinoki.admin import (
+    Admin,
+    Avatar,
+    Badge,
+    Event,
+    Fieldset,
+    Link,
+    ModelAdmin,
+    Stat,
+    Tab,
+)
 from hinoki.auth import BaseAuth, Credentials
 from hinoki.httperrors import Unauthorized
 
@@ -54,10 +64,12 @@ class PostAdmin(ModelAdmin[Post]):
     show_count = True
     bulk_delete = True
     readonly = ("created_at",)
-    assign = {"author_id": lambda principal: principal.identity.id}
+    assign: ClassVar[dict[str, Any]] = {
+        "author_id": lambda principal: principal.identity.id
+    }
     modified_field = "created_at"
     modified_label = "Created"
-    badges = {
+    badges: ClassVar[dict[str, Any]] = {
         "published": {
             True: Badge("Published", "ok", "circle-check"),
             False: Badge("Draft", "warn", "pencil"),
@@ -95,7 +107,7 @@ class UserAdmin(ModelAdmin[User]):
     search = ("name",)
     exclude = ("token",)
     readonly = ("is_editor",)
-    badges = {
+    badges: ClassVar[dict[str, Any]] = {
         "is_editor": {
             True: Badge("Editor", "accent", "shield-check"),
             False: Badge("Reader", "neutral", "user"),
@@ -111,12 +123,22 @@ class UserAdmin(ModelAdmin[User]):
         return []
 
 
+def verb(row: Post) -> str:
+    return "published" if row.published else "drafted"
+
+
 async def recent_activity(principal: Principal[Any]) -> list[Event]:
     """The latest posts, as activity (derived from real rows, not invented)."""
-    rows = await Post.all().select_related("author").order_by("-created_at").limit(3).aall()
+    rows = (
+        await Post.all()
+        .select_related("author")
+        .order_by("-created_at")
+        .limit(3)
+        .aall()
+    )
     return [
         Event(
-            f"{row.author.name} {'published' if row.published else 'drafted'} “{row.title}”",
+            f"{row.author.name} {verb(row)} “{row.title}”",
             row.created_at.strftime("%Y-%m-%d %H:%M"),
             "circle-check" if row.published else "pencil",
             "ok" if row.published else "warn",
@@ -125,16 +147,19 @@ async def recent_activity(principal: Principal[Any]) -> list[Event]:
     ]
 
 
-def build_admin(secret: str) -> Admin:
+def build_admin(secret: str, theme: str = "studio") -> Admin:
     editors = Access(auth=CookieAuth(), scopes=[WRITE])
     admin = Admin(
         access=editors,
         secret=secret,
         prefix="/admin",
-        theme="studio",
+        theme=theme,
         site="Blog Studio",
         tagline="My blog",
-        links=(Link("API docs", "/docs", "file-text"), Link("API reference", "/redoc", "layers")),
+        links=(
+            Link("API docs", "/docs", "file-text"),
+            Link("API reference", "/redoc", "layers"),
+        ),
         activity=recent_activity,
         dashboard=("posts",),
     )
