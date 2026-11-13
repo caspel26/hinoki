@@ -33,7 +33,7 @@ cargo fmt --all --check ; cargo clippy --workspace --all-targets -- -D warnings 
 uv run --locked pre-commit run --all-files
 ```
 
-Environment used: uv 0.13.8, Rust 1.100.0 (rustup, user-local), Python 3.13.18 (uv-managed), Granian 2.8.8, PyO3 0.30.1, Ruff 0.15.12. CI workflow is written but has **not been observed running** on GitHub yet.
+Environment used: uv 0.13.8, Rust 1.100.0 (rustup, user-local), Python 3.13.18 (uv-managed), Granian 2.8.8, PyO3 0.30.1, Ruff 0.15.12. CI run 43350663850 on `main` passed (rust, Python 3.12, Python 3.13, pre-commit).
 
 ## Decisions made this session (reversible, within the contracts)
 
