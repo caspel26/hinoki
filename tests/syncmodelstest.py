@@ -14,6 +14,7 @@ from hinoki.db import Database, DatabaseModule
 from hinoki.errors import FieldError
 from hinoki.orm import Model, current_database, field, use_database
 from hinoki.pagination import Page, PageNumberPagination, PageParams
+from hinoki.request import Request
 from tests.harness import Client, Pool
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -30,7 +31,7 @@ class Gadget(Model, table="sync_gadgets"):
 
 
 @post("/gadgets", status=201, transaction=True)
-def add(name: str) -> dict[str, Any]:
+def add(request: Request, name: str) -> dict[str, Any]:
     made = Gadget.create(name=name)
     if name == "boom":
         raise RuntimeError("after the write")
@@ -38,18 +39,18 @@ def add(name: str) -> dict[str, Any]:
 
 
 @get("/gadgets/{gadget_id}")
-def show(gadget_id: UUID) -> dict[str, Any]:
+def show(request: Request, gadget_id: UUID) -> dict[str, Any]:
     return {"name": Gadget.get(id=gadget_id).name}
 
 
 @get("/gadgets", pagination=PageNumberPagination(page_size=2))
-def listing(page: PageParams) -> Page[dict[str, str]]:
+def listing(request: Request, page: PageParams) -> Page[dict[str, str]]:
     found = Gadget.all().order_by("name").paginate(page)
     return found.map(lambda g: {"name": g.name})
 
 
 @post("/gadgets/{gadget_id}/stock")
-def restock(gadget_id: UUID) -> dict[str, Any]:
+def restock(request: Request, gadget_id: UUID) -> dict[str, Any]:
     gadget = Gadget.get(id=gadget_id)
     gadget.stock += 5
     gadget.save()
@@ -65,7 +66,7 @@ def restock(gadget_id: UUID) -> dict[str, Any]:
 
 
 @get("/loop-guard")
-async def blocking_on_the_loop() -> dict[str, str]:
+async def blocking_on_the_loop(request: Request) -> dict[str, str]:
     Gadget.all().count()
     return {}
 
@@ -196,7 +197,7 @@ def statements(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 
 @post("/slow", transaction=True)
-def slow() -> dict[str, str]:
+def slow(request: Request) -> dict[str, str]:
     run_sync(current_database().fetch("SELECT pg_sleep(4)"))
     return {}
 

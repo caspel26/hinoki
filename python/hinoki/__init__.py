@@ -15,6 +15,7 @@ from hinoki.httperrors import (
 )
 from hinoki.modules import Module, ModuleContext
 from hinoki.native import core_version
+from hinoki.request import Request
 from hinoki.routing import Route, delete, get, patch, post, put
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.schema import UNSET, Field, Schema, Unset
@@ -41,6 +42,7 @@ __all__ = [
     "NotFound",
     "Principal",
     "RegistrationError",
+    "Request",
     "Route",
     "RuntimeConfig",
     "Schema",

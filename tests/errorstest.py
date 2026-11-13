@@ -4,6 +4,7 @@ import pytest
 
 from hinoki import APIError, BadRequest, Conflict, HinokiAPI, NotFound, get
 from hinoki.errors import ObjectNotFound
+from hinoki.request import Request
 from tests.harness import Pool
 
 
@@ -24,42 +25,42 @@ class Teapot(APIError):
 
 
 @get("/conflict")
-async def conflict() -> None:
+async def conflict(request: Request) -> None:
     raise PostAlreadyPublished()
 
 
 @get("/custom-message")
-async def custom_message() -> None:
+async def custom_message(request: Request) -> None:
     raise NotFound("No such post.", code="post_missing")
 
 
 @get("/details")
-async def details() -> None:
+async def details(request: Request) -> None:
     raise BadRequest(details=[{"field": "x"}], headers={"x-hint": "retry"})
 
 
 @get("/quota")
-async def quota() -> None:
+async def quota(request: Request) -> None:
     raise Quota("secret quota internals")
 
 
 @get("/hard-quota")
-def hard_quota() -> None:
+def hard_quota(request: Request) -> None:
     raise HardQuota()
 
 
 @get("/missing-object")
-async def missing_object() -> None:
+async def missing_object(request: Request) -> None:
     raise ObjectNotFound("Post not found")
 
 
 @get("/teapot")
-async def teapot() -> None:
+async def teapot(request: Request) -> None:
     raise Teapot()
 
 
 @get("/broken-handler")
-async def broken_handler() -> None:
+async def broken_handler(request: Request) -> None:
     raise KeyError("x")
 
 

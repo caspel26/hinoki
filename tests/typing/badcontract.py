@@ -7,24 +7,25 @@ passes only while every line below is still flagged.
 from uuid import UUID
 
 from hinoki import API, get, post
+from hinoki.request import Request
 
 
 class Posts(API, path="/posts"):
     @get("/{post_id}")
-    async def retrieve(self, post_id: UUID) -> str:
+    async def retrieve(self, request: Request, post_id: UUID) -> str:
         return str(post_id)
 
 
-async def misuse(posts: Posts) -> None:
-    await posts.retrieve("not-a-uuid")  # type: ignore[arg-type]
-    await posts.retrieve()  # type: ignore[call-arg]
-    number: int = await posts.retrieve(UUID(int=1))  # type: ignore[assignment]
+async def misuse(posts: Posts, request: Request) -> None:
+    await posts.retrieve(request, "not-a-uuid")  # type: ignore[arg-type]
+    await posts.retrieve(request)  # type: ignore[call-arg]
+    number: int = await posts.retrieve(request, UUID(int=1))  # type: ignore[assignment]
     print(number)
 
 
 @get("/x", transaction="yes")  # type: ignore[arg-type]
-def bad_option() -> None: ...
+def bad_option(request: Request) -> None: ...
 
 
 @post("/x", access="admin")  # type: ignore[arg-type]
-def bad_access() -> None: ...
+def bad_access(request: Request) -> None: ...

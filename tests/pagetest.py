@@ -5,6 +5,7 @@ from openapi_spec_validator import validate
 
 from hinoki import HinokiAPI, RegistrationError, Schema, get
 from hinoki.pagination import Page, PageNumberPagination, PageParams
+from hinoki.request import Request
 from tests.harness import Pool
 
 strategy = PageNumberPagination(page_size=2, max_page_size=5)
@@ -16,17 +17,17 @@ class ItemOut(Schema):
 
 
 @get("/items", pagination=strategy)
-async def items(page: PageParams) -> Page[ItemOut]:
+async def items(request: Request, page: PageParams) -> Page[ItemOut]:
     return Page.of(ROWS, page).map(lambda name: ItemOut(name=name))
 
 
 @get("/orphan")
-async def orphan(page: PageParams) -> Page[ItemOut]:
+async def orphan(request: Request, page: PageParams) -> Page[ItemOut]:
     raise NotImplementedError
 
 
 @get("/unused", pagination=strategy)
-async def unused() -> None: ...
+async def unused(request: Request) -> None: ...
 
 
 def make_app() -> HinokiAPI:

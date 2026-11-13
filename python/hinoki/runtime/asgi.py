@@ -19,8 +19,9 @@ from hinoki.db import Database
 from hinoki.errors import RegistrationError, ShutdownError, StartupError
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
+from hinoki.request import Request
 from hinoki.routing import MethodNotAllowed
-from hinoki.runtime.binding import Binding
+from hinoki.runtime.binding import BODY_METHODS, Binding
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.lifespan import Lifespan
 from hinoki.runtime.requests import (
@@ -147,9 +148,10 @@ class ASGIAdapter:
             return Response.json(HTTPStatus.OK, self.document)
         binding, path_params = self._route(scope)
         principal = await authorize(scope, binding)
-        raw_body = await read_body(receive) if binding.needs_body else b""
-        request = build_request(scope, binding, path_params, raw_body, principal)
-        return await self._invoke(binding, binding.collect(request))
+        takes_body = binding.route.method in BODY_METHODS
+        raw_body = await read_body(receive) if takes_body else b""
+        request, data = build_request(scope, binding, path_params, raw_body, principal)
+        return await self._invoke(binding, request, binding.collect(data))
 
     def _is_document_request(self, scope: Scope) -> bool:
         return bool(scope["method"] == "GET" and scope["path"] == self.app.openapi_url)
@@ -175,18 +177,23 @@ class ASGIAdapter:
         except UnicodeDecodeError:
             raise HTTPError(HTTPStatus.BAD_REQUEST, "bad_path_encoding") from None
 
-    async def _invoke(self, binding: Binding, kwargs: dict[str, object]) -> Response:
+    async def _invoke(
+        self, binding: Binding, request: Request, kwargs: dict[str, object]
+    ) -> Response:
         """Run the handler; with ``transaction=True`` inside a transaction that
         commits only after the output is encoded, and rolls back on any error
         before it becomes an HTTP response."""
         if not binding.route.transaction:
-            return await self._call(binding, kwargs)
+            return await self._call(binding, request, kwargs)
         async with self.ctx.get(Database).transaction():
-            return await self._call(binding, kwargs)
+            return await self._call(binding, request, kwargs)
 
-    async def _call(self, binding: Binding, kwargs: dict[str, object]) -> Response:
+    async def _call(
+        self, binding: Binding, request: Request, kwargs: dict[str, object]
+    ) -> Response:
         route = binding.route
-        args = (route.owner(),) if route.owner is not None else ()
+        owner = (route.owner(),) if route.owner is not None else ()
+        args = (*owner, request)
         try:
             if route.is_async:
                 handler = cast(Callable[..., Awaitable[object]], route.handler)

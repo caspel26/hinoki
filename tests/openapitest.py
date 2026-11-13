@@ -16,6 +16,7 @@ from hinoki import (
     get,
     post,
 )
+from hinoki.request import Request
 from hinoki.schema import Field
 from tests.harness import Pool
 from tests.providers import TokenAuth
@@ -52,7 +53,7 @@ editor = Access(auth=TokenAuth(), scopes=["posts:write"])
 
 
 @get("/health")
-def health() -> dict[str, str]:
+def health(request: Request) -> dict[str, str]:
     """Liveness probe.
 
     Always answers while the worker runs.
@@ -62,28 +63,28 @@ def health() -> dict[str, str]:
 
 class Posts(API, path="/posts"):
     @get("/")
-    async def search(self, q: str, limit: int = 10) -> list[PostOut]:
+    async def search(self, request: Request, q: str, limit: int = 10) -> list[PostOut]:
         return []
 
     @get("/{post_id}")
-    def retrieve(self, post_id: UUID) -> PostOut:
+    def retrieve(self, request: Request, post_id: UUID) -> PostOut:
         raise NotImplementedError
 
     @post("/", status=201, access=editor)
-    async def create(self, data: PostCreate) -> PostOut:
+    async def create(self, request: Request, data: PostCreate) -> PostOut:
         raise NotImplementedError
 
     @post("/{post_id}/publish")
-    async def publish(self, post_id: UUID) -> None: ...
+    async def publish(self, request: Request, post_id: UUID) -> None: ...
 
 
 @get("/tree")
-def tree() -> Tree:
+def tree(request: Request) -> Tree:
     raise NotImplementedError
 
 
 @get("/stats")
-def stats() -> dict[str, int]:
+def stats(request: Request) -> dict[str, int]:
     return {}
 
 
@@ -205,7 +206,7 @@ def test_same_name_different_schemas_are_rejected() -> None:
     clash = type("PostOut", (Schema,), {"__annotations__": {"x": int}})
 
     @get("/clash")
-    def other() -> clash:  # type: ignore[valid-type]
+    def other(request: Request) -> clash:  # type: ignore[valid-type]
         raise NotImplementedError
 
     app = make_app()
@@ -236,15 +237,15 @@ class Pattern(Schema):
 
 
 @get("/me", access=editor)
-async def me(principal: Principal[str]) -> None: ...
+async def me(request: Request, principal: Principal[str]) -> None: ...
 
 
 @get("/remove/{item}", status=200)
-async def remove(item: str) -> None: ...
+async def remove(request: Request, item: str) -> None: ...
 
 
 @post("/pat")
-async def pat(data: Pattern) -> None: ...
+async def pat(request: Request, data: Pattern) -> None: ...
 
 
 def test_principal_is_not_documented_as_an_input() -> None:

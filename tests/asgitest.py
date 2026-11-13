@@ -10,78 +10,79 @@ from uuid import UUID
 import pytest
 
 from hinoki import API, HinokiAPI, RegistrationError, RuntimeConfig, context, get, post
+from hinoki.request import Request
 from tests.harness import Client, Pool
 
 release = threading.Event()
 
 
 @get("/ping")
-def ping() -> dict[str, str]:
+def ping(request: Request) -> dict[str, str]:
     return {"pong": "yes"}
 
 
 @get("/items/{item_id}")
-async def item(item_id: int) -> dict[str, int]:
+async def item(request: Request, item_id: int) -> dict[str, int]:
     return {"id": item_id}
 
 
 @get("/rid")
-def request_id_in_thread() -> dict[str, str | None]:
+def request_id_in_thread(request: Request) -> dict[str, str | None]:
     return {"rid": context.request_id.get()}
 
 
 @get("/boom")
-async def boom() -> None:
+async def boom(request: Request) -> None:
     raise RuntimeError("secret internal detail")
 
 
 @get("/slow-async")
-async def slow_async() -> None:
+async def slow_async(request: Request) -> None:
     await asyncio.sleep(5)
 
 
 @get("/block")
-def block() -> None:
+def block(request: Request) -> None:
     release.wait(5)
 
 
 @post("/made", status=201)
-async def made() -> dict[str, bool]:
+async def made(request: Request) -> dict[str, bool]:
     return {"ok": True}
 
 
 @get("/nothing")
-async def nothing() -> None:
+async def nothing(request: Request) -> None:
     return None
 
 
 @get("/echo/{name}")
-async def echo(name: str) -> dict[str, str]:
+async def echo(request: Request, name: str) -> dict[str, str]:
     return {"name": name}
 
 
 @get("/gone", status=204)
-async def gone() -> dict[str, str]:
+async def gone(request: Request) -> dict[str, str]:
     return {"ignored": "body"}
 
 
 @get("/ratio/{value}")
-async def ratio(value: float) -> dict[str, float]:
+async def ratio(request: Request, value: float) -> dict[str, float]:
     return {"value": value}
 
 
 class Things(API, path="/things"):
     @get("/{thing_id}")
-    def one(self, thing_id: UUID) -> dict[str, str]:
+    def one(self, request: Request, thing_id: UUID) -> dict[str, str]:
         return {"id": str(thing_id)}
 
 
 @get("/p/{p}")
-def wrong_name(q: str) -> None: ...
+def wrong_name(request: Request, q: str) -> None: ...
 
 
 @get("/t/{t}")
-def bad_type(t: list[int]) -> None: ...
+def bad_type(request: Request, t: list[int]) -> None: ...
 
 
 def make_app(**config: float) -> HinokiAPI:

@@ -17,7 +17,7 @@ Brand: `assets/hinoki-identity-approved.png` unchanged; `hinoki-banner.png` / `h
 | Q003 | Repo bootstrap and gates | **Done.** uv + maturin + Cargo workspace, Ruff pre-commit, CI with a PostgreSQL service, wheel smoke test, Python 3.12–3.14. |
 | Q004 | Vertical slice blog | **Done**: runtime (R1–R5), schemas, body/query binding, OpenAPI, errors, auth, pagination, Rust DB engine, `transaction=True`, SQL compiler, Active Record, `examples/blog` (also under real Granian + PostgreSQL). Three independent reviews run; every reported finding fixed with a regression test. |
 | Q005 | Relations and CRUD generation | **Implemented** (R2–R5: FK + explicit loading, versioned migrations, generated CRUD with `replaces`, sync model methods, typed `asave`). Relations review fixed (a5dd82c); Independent CRUD review (Opus-class, read-only) done: 1 high (subclass with a narrower resource kept the parent's write routes without the owner check), 2 medium, 6 low; all fixed with regression tests. M2M is the explicit join model with composite `unique=[(...)]` (model, migrations, tests); a `through=` sugar remains open. |
-| Q008 | Request object, parsers, renderers (Rust) | **Owner-requested 2026-11-13, runs before Q006.** Design written (`docs/REQUEST-DESIGN.md`); request becomes the first handler argument. Steps S2–S7 not started. |
+| Q008 | Request object, parsers, renderers (Rust) | **Owner-requested 2026-11-13, runs before Q006.** S1 design and **S2 done** (Python `Request`, request-first handlers everywhere). S3 (Rust parse/serialise), S4 (parsers), S5 (renderers), S6, S7 (review) open. |
 | Q006 | Rules and development MCP | Not started. |
 | Q007 | Admin extra | Not started. |
 
@@ -27,7 +27,7 @@ Brand: `assets/hinoki-identity-approved.png` unchanged; `hinoki-banner.png` / `h
 * `crates/orm` (pure Rust): `tokio-postgres` + `deadpool` engine (leases that discard abandoned connections, poisoned transactions, aborted-commit detection, stale-plan recovery), query AST → SQL.
 * `python/hinoki`: decorators/API/app, modules + lifespan, runtime (adapter, requests, responses, binding, executor, tasks), schemas + validation, auth, HTTP errors, pagination, OpenAPI, `db`, `orm`.
 * `examples/blog`: reference app. `benchmarks/routerbench.py`: Python→Rust call cost (not end to end).
-* Tests: 335 Python tests (97% coverage), 8 + 10 Rust tests, typing fixtures; DB tests need `HINOKI_TEST_DATABASE_URL` and are **skipped without it** (CI provides PostgreSQL).
+* Tests: 343 Python tests (97% coverage), 8 + 10 Rust tests, typing fixtures; DB tests need `HINOKI_TEST_DATABASE_URL` and are **skipped without it** (CI provides PostgreSQL).
 
 ## Commands (all green on 2026-11-13; last CI run success on 6 jobs)
 
@@ -58,7 +58,7 @@ Python ≥ 3.12/abi3/maturin (ADR 0004); ASGI on Granian first (0001); per-worke
 
 ## Next assignment
 
-Order: ~~independent CRUD review~~ (done) → ~~M2M join model~~ (done) → Q008 S2–S7 → Q006 → Q007. Q008 detail below is superseded by `docs/REQUEST-DESIGN.md`.
+Order: ~~independent CRUD review~~ (done) → ~~M2M join model~~ (done) → Q008 S3–S7 → Q006 → Q007. Q008 detail below is superseded by `docs/REQUEST-DESIGN.md`.
 
 
 Q005 step 1 (design first, `docs/RELATIONS-DESIGN.md`): FK and reverse relations with explicit loading (`select_related`/`prefetch_related`, no lazy I/O), then versioned migrations from model definitions (SQL inspectable, destructive operations flagged, never applied at startup), then generated CRUD with `replaces` and the policy hooks (ownership/field-assignment) proven against the blog. Keep the blog green throughout; add a wheel test for the DB bridge on 3.12.

@@ -1,22 +1,23 @@
 import pytest
 
 from hinoki import API, HinokiAPI, RegistrationError, get
+from hinoki.request import Request
 
 
 @get("/a/{x}/b/{x}")
-def repeated(x: int) -> None: ...
+def repeated(request: Request, x: int) -> None: ...
 
 
 @get("/pos/{x}")
-def positional_only(x: int, /) -> None: ...
+def positional_only(request: Request, x: int, /) -> None: ...
 
 
 @get("/star/{x}")
-def star_args(*x: int) -> None: ...
+def star_args(request: Request, *x: int) -> None: ...
 
 
 @get("/kw/{x}")
-def star_kwargs(**x: int) -> None: ...
+def star_kwargs(request: Request, **x: int) -> None: ...
 
 
 class NeedsArgs(API, path="/needs"):
@@ -24,19 +25,19 @@ class NeedsArgs(API, path="/needs"):
         self.dependency = dependency
 
     @get("/")
-    def index(self) -> None: ...
+    def index(self, request: Request) -> None: ...
 
 
 class Base(API, path="/base"):
     @get("/one")
-    def one(self) -> None: ...
+    def one(self, request: Request) -> None: ...
 
     @get("/two")
-    def two(self) -> None: ...
+    def two(self, request: Request) -> None: ...
 
 
 class Child(Base):
-    def two(self) -> None:  # override without a route removes it
+    def two(self, request: Request) -> None:  # override without a route removes it
         return None
 
 
@@ -47,7 +48,7 @@ class Other(Base, path="/other"):
 class WithStatic(API, path="/static"):
     @staticmethod
     @get("/x")
-    def only() -> None: ...
+    def only(request: Request) -> None: ...
 
 
 @pytest.mark.parametrize(

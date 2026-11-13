@@ -8,13 +8,14 @@ from typing import Any
 from urllib.parse import unquote
 
 from hinoki.auth import Credentials, Principal
+from hinoki.context import request_id
 from hinoki.errors import InvalidBody
 from hinoki.httperrors import Forbidden, Unauthorized
+from hinoki.request import Request
 from hinoki.runtime.binding import (
     MISSING,
     Binding,
     RequestData,
-    decode_body,
     parse_query,
 )
 from hinoki.runtime.responses import HTTPError
@@ -83,10 +84,25 @@ def build_request(
     path: dict[str, str],
     raw_body: bytes,
     principal: Principal[Any] | None,
-) -> RequestData:
-    body: object = MISSING
-    if binding.needs_body:
-        content_type = header_map(scope).get("content-type", "")
-        body = decode_body(raw_body, content_type)
+) -> tuple[Request, RequestData]:
+    """The request object for the handler and the data its parameters bind."""
     query = parse_query(scope.get("query_string", b""))
-    return RequestData(path, query, body, principal)
+    client = scope.get("client")
+    host = header_map(scope).get("host") or ":".join(
+        str(part) for part in scope.get("server") or ()
+    )
+    request = Request(
+        method=scope["method"],
+        path=scope["path"],
+        scheme=scope.get("scheme", "http"),
+        host=host,
+        client=tuple(client) if client else None,
+        headers=header_map(scope),
+        query=query,
+        body=raw_body,
+        path_params=path,
+        user=principal,
+        request_id=request_id.get() or "",
+    )
+    body: object = request.data if binding.needs_body else MISSING
+    return request, RequestData(path, query, body, principal)
