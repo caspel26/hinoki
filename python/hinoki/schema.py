@@ -11,6 +11,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import (
+    Annotated,
     Any,
     ClassVar,
     Protocol,
@@ -64,8 +65,21 @@ class Schema:
     __native__: ClassVar[native.CompiledSchema | None] = None
     __native_dump__: ClassVar[bool] = True
 
-    def __init_subclass__(cls, **kwargs: object) -> None:
+    def __init_subclass__(
+        cls,
+        model: type | None = None,
+        fields: Iterable[str] | None = None,
+        exclude: Iterable[str] = (),
+        optional: bool | Iterable[str] = False,
+        **kwargs: object,
+    ) -> None:
         super().__init_subclass__(**kwargs)
+        if model is not None:
+            derive_from_model(cls, model, fields, tuple(exclude), optional)
+        elif fields is not None or tuple(exclude) or optional:
+            raise RegistrationError(
+                f"{cls.__name__}: fields/exclude/optional need model=..."
+            )
         for name in inspect.get_annotations(cls):
             cls.apply_default(name)
         dataclasses.dataclass(frozen=True, kw_only=True)(cls)
@@ -182,6 +196,69 @@ class Schema:
         """JSON-compatible form; ``UNSET`` fields are omitted. Built in Rust,
         like the JSON answers themselves."""
         return dump_instance(self, True)
+
+
+def chosen_columns(
+    cls: type,
+    model: Any,
+    fields: Iterable[str] | None,
+    exclude: tuple[str, ...],
+    optional: bool | Iterable[str],
+) -> tuple[list[str], set[str], bool]:
+    """The columns to take, the names made optional, and whether all are."""
+    if fields is not None and exclude:
+        raise RegistrationError(f"{cls.__name__}: use fields= or exclude=, not both")
+    columns = list(model.__columns__)
+    chosen = (
+        list(fields) if fields is not None else [c for c in columns if c not in exclude]
+    )
+    unknown = [n for n in [*chosen, *exclude] if n not in columns]
+    if unknown:
+        raise RegistrationError(
+            f"{cls.__name__}: {model.__name__} has no columns {unknown}"
+        )
+    some = set() if isinstance(optional, bool) else set(optional)
+    stray = sorted(some - set(chosen))
+    if stray:
+        raise RegistrationError(
+            f"{cls.__name__}: optional names unknown fields {stray}"
+        )
+    return chosen, some, optional is True
+
+
+def derive_from_model(
+    cls: type,
+    model: type,
+    fields: Iterable[str] | None,
+    exclude: tuple[str, ...],
+    optional: bool | Iterable[str],
+) -> None:
+    """Add the model's columns to ``cls`` as annotations (declared ones win)."""
+    from hinoki.orm.model import MARK, FieldMeta, Model  # noqa: PLC0415 - orm uses us
+
+    if not (isinstance(model, type) and issubclass(model, Model)):
+        raise RegistrationError(f"{cls.__name__}: model= must be a Model class")
+    chosen, some, everything = chosen_columns(cls, model, fields, exclude, optional)
+    hints = typing.get_type_hints(model, include_extras=True)
+    by_name = {f.name: f for f in dataclasses.fields(cast(Any, model))}
+    own = dict(inspect.get_annotations(cls))
+    derived: dict[str, Any] = {}
+    defaults: dict[str, Any] = {}
+    for name in (n for n in chosen if n not in own):  # declared by hand: left alone
+        item = by_name[name]
+        meta = item.metadata.get(MARK, FieldMeta())
+        annotation = hints[name]
+        if meta.max_length is not None:
+            annotation = Annotated[annotation, Field(max_length=meta.max_length)]
+        if everything or name in some:
+            derived[name], defaults[name] = annotation | Unset, UNSET
+        else:
+            derived[name] = annotation
+            if item.default is not dataclasses.MISSING:
+                defaults[name] = item.default
+    cls.__annotations__ = {**derived, **own}
+    for name, value in defaults.items():
+        setattr(cls, name, value)
 
 
 def node_of(
