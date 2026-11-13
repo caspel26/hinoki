@@ -3,6 +3,7 @@
 import pytest
 
 from hinoki import APIError, BadRequest, Conflict, HinokiAPI, NotFound, get
+from hinoki.errors import ObjectNotFound
 from tests.harness import Pool
 
 
@@ -47,6 +48,11 @@ def hard_quota() -> None:
     raise HardQuota()
 
 
+@get("/missing-object")
+async def missing_object() -> None:
+    raise ObjectNotFound("Post not found")
+
+
 @get("/teapot")
 async def teapot() -> None:
     raise Teapot()
@@ -72,7 +78,7 @@ def explode(error: KeyError) -> APIError:
 def make_app() -> HinokiAPI:
     app = HinokiAPI()
     app.include(conflict, custom_message, details, quota, hard_quota, teapot)
-    app.include(broken_handler)
+    app.include(broken_handler, missing_object)
     app.errors.handle(Quota)(too_much)
     app.errors.handle(HardQuota)(hard)
     app.errors.handle(KeyError)(explode)
@@ -134,3 +140,12 @@ def test_registering_the_same_exception_twice_is_an_error() -> None:
     app = make_app()
     with pytest.raises(ValueError, match="already registered"):
         app.errors.handle(Quota)(too_much)
+
+
+async def test_model_not_found_maps_to_404_without_leaking_the_message(
+    pool: Pool,
+) -> None:
+    client = await pool.start(make_app())
+    reply = await client.request("GET", "/missing-object")
+    assert (reply.status, reply.body["error"]) == (404, "not_found")
+    assert "Post" not in str(reply.body)
