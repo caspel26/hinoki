@@ -1,70 +1,23 @@
 """Characterisation of Granian's ASGI lifespan behaviour (see RUNTIME-DESIGN §1.1)."""
 
-import os
 import signal
-import socket
 import subprocess
-import sys
 import threading
 import time
-import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
+from tests.runtime.harness import events, fetch, free_port, names, spawn, wait_ready
+
 pytestmark = pytest.mark.runtime
-
-HERE = Path(__file__).parent
-
-
-def free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
-
-
-def spawn(
-    tmp_path: Path, mode: str, workers: int, port: int
-) -> subprocess.Popen[bytes]:
-    env = {**os.environ, "EXP_LOG": str(tmp_path / "events.log"), "EXP_MODE": mode}
-    cmd = [
-        sys.executable, "-m", "granian", "--interface", "asgi",
-        "--workers", str(workers), "--port", str(port),
-        "--no-log", "lifespanapp:app",
-    ]  # fmt: skip
-    return subprocess.Popen(cmd, cwd=HERE, env=env, stdout=subprocess.DEVNULL)
-
-
-def events(tmp_path: Path) -> list[tuple[str, str]]:
-    log = tmp_path / "events.log"
-    if not log.exists():
-        return []
-    return [tuple(line.split()[1:3]) for line in log.read_text().splitlines()]  # type: ignore[misc]
-
-
-def fetch(port: int, path: str = "/") -> str:
-    url = f"http://127.0.0.1:{port}{path}"
-    with urllib.request.urlopen(url, timeout=10) as resp:
-        return str(resp.read().decode())
-
-
-def wait_ready(port: int) -> None:
-    deadline = time.monotonic() + 15
-    while time.monotonic() < deadline:
-        try:
-            fetch(port)
-        except OSError:
-            time.sleep(0.1)
-        else:
-            return
-    raise AssertionError("server did not become ready")
 
 
 @pytest.fixture
 def server(tmp_path: Path) -> Iterator[tuple[subprocess.Popen[bytes], int]]:
     port = free_port()
-    proc = spawn(tmp_path, "ok", 2, port)
+    proc = spawn("lifespanapp:app", tmp_path / "events.log", port, workers=2)
     try:
         wait_ready(port)
         yield proc, port
@@ -75,9 +28,10 @@ def server(tmp_path: Path) -> Iterator[tuple[subprocess.Popen[bytes], int]]:
 
 
 def test_failed_startup_exits_nonzero_and_never_serves(tmp_path: Path) -> None:
-    proc = spawn(tmp_path, "fail", 1, free_port())
+    log = tmp_path / "events.log"
+    proc = spawn("lifespanapp:app", log, free_port(), EXP_MODE="fail")
     assert proc.wait(timeout=20) != 0
-    assert events(tmp_path)[0][1] == "startup-failed"
+    assert names(log)[0] == "startup-failed"
 
 
 def test_each_worker_runs_its_own_lifespan(
@@ -85,7 +39,9 @@ def test_each_worker_runs_its_own_lifespan(
 ) -> None:
     _, port = server
     pids = {fetch(port) for _ in range(40)}
-    started = {pid for pid, event in events(tmp_path) if event == "startup"}
+    started = {
+        pid for pid, event in events(tmp_path / "events.log") if event == "startup"
+    }
     assert len(started) == 2
     assert pids <= started
 
@@ -94,11 +50,12 @@ def test_sigterm_lets_inflight_request_finish_before_shutdown(
     tmp_path: Path, server: tuple[subprocess.Popen[bytes], int]
 ) -> None:
     proc, port = server
+    log = tmp_path / "events.log"
     result: list[str] = []
     client = threading.Thread(target=lambda: result.append(fetch(port, "/slow")))
     client.start()
     deadline = time.monotonic() + 5
-    while not any(e == "slow-start" for _, e in events(tmp_path)):
+    while "slow-start" not in names(log):
         assert time.monotonic() < deadline
         time.sleep(0.05)
 
@@ -107,6 +64,5 @@ def test_sigterm_lets_inflight_request_finish_before_shutdown(
     client.join(timeout=5)
 
     assert len(result) == 1, "in-flight request must complete"
-    busy_pid = result[0]
-    order = [e for pid, e in events(tmp_path) if pid == busy_pid]
+    order = [event for pid, event in events(log) if pid == result[0]]
     assert order.index("slow-end") < order.index("shutdown")
