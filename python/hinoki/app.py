@@ -7,6 +7,7 @@ from collections.abc import MutableMapping
 from typing import Any
 
 from hinoki.api import API
+from hinoki.docsui import pages as docs_pages
 from hinoki.errors import RegistrationError
 from hinoki.httperrors import ErrorRegistry
 from hinoki.modules import Module, order_modules
@@ -38,6 +39,8 @@ class HinokiAPI:
         title: str = "Hinoki API",
         version: str = "0.1.0",
         openapi_url: str | None = None,
+        docs_url: str | None = None,
+        redoc_url: str | None = None,
         rules: RuleSet | None = None,
         enforce_rules: bool = True,
     ) -> None:
@@ -46,6 +49,9 @@ class HinokiAPI:
         self.title = title
         self.version = version
         self.openapi_url = openapi_url
+        self.docs_url = docs_url
+        self.redoc_url = redoc_url
+        docs_pages(openapi_url, docs_url, redoc_url)  # fail early on a bad combination
         self.rules = rules
         self.enforce_rules = enforce_rules
         self.errors = ErrorRegistry()

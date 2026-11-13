@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 from hinoki.context import request_id
 from hinoki.db import Database
+from hinoki.docsui import CSP, Page
+from hinoki.docsui import pages as docs_pages
 from hinoki.errors import RegistrationError, ShutdownError, StartupError
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
@@ -49,6 +51,19 @@ if TYPE_CHECKING:
 log = logging.getLogger("hinoki.runtime")
 
 
+def docs_response(page: Page) -> Response:
+    """Answer for a documentation page or vendored asset."""
+    headers: list[tuple[bytes, bytes]] = [
+        (b"content-type", page.content_type.encode()),
+        (b"x-content-type-options", b"nosniff"),
+    ]
+    if page.content_type.startswith("text/html"):
+        headers.append((b"content-security-policy", CSP.encode()))
+    cache = b"public, max-age=86400" if page.cacheable else b"no-cache"
+    headers.append((b"cache-control", cache))
+    return Response(200, page.body, headers)
+
+
 class ASGIAdapter:
     """One adapter per worker process; it owns that worker's runtime state."""
 
@@ -56,6 +71,7 @@ class ASGIAdapter:
         self.app = app
         self.bindings = app.bindings
         self.document = self._document(app)
+        self.docs = docs_pages(app.openapi_url, app.docs_url, app.redoc_url)
         self.ctx = ModuleContext(app.settings)
         self.executor = SyncExecutor(app.runtime.sync_workers, app.runtime.sync_queue)
         needs_database = any(b.route.transaction for b in self.bindings)
@@ -149,6 +165,9 @@ class ASGIAdapter:
             raise HTTPError(HTTPStatus.SERVICE_UNAVAILABLE, "not_ready", RETRY_LATER)
         if self.document is not None and self._is_document_request(scope):
             return Response.json(HTTPStatus.OK, self.document)
+        page = self.docs.get(scope["path"]) if scope["method"] == "GET" else None
+        if page is not None:
+            return docs_response(page)
         binding, path_params = self._route(scope)
         headers = header_map(scope)
         principal = await authorize(scope, binding, headers)

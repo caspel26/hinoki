@@ -80,6 +80,7 @@ max-branches = 8
 "examples/**" = ["ARG001", "ARG002"]
 "benchmarks/**" = ["ARG001", "S101"]  # benchmark handlers ignore the request
 "python/hinoki/crud.py" = ["ARG001"]
+"python/hinoki/app.py" = ["PLR0913"]  # HinokiAPI takes keyword-only options
 "python/hinoki/routing.py" = ["PLR0913"]  # each decorator mirrors the Options fields
 "tests/**" = ["S101", "PLR2004", "ARG001", "ARG002", "S104", "S603", "S310"]
 [tool.ruff.lint.isort]
