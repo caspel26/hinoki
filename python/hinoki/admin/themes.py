@@ -6,9 +6,18 @@ for a light and a dark scheme (plus optional extra CSS). ``edit`` chooses where
 the edit form opens: ``"drawer"`` (beside the list) or ``"page"``.
 A theme whose ``default_mode`` is ``"dark"`` is dark unless the user switches.
 
-Built in, three deliberately different looks: ``studio`` (default: soft violet,
-rounded, edit drawer), ``midnight`` (dark, neon cyan, monospaced labels) and
-``paper`` (warm editorial: serif headings, terracotta, hairlines, edit page).
+Built in, three deliberately different *styles*, each with a complete light and
+dark scheme (the user's system preference decides, and the toggle overrides it):
+
+* ``studio`` (default): sidebar navigation, cards, soft violet, rounded, the
+  edit form opens in a drawer beside the list.
+* ``console``: no sidebar, a horizontal navigation bar, a dense monospaced grid
+  with sticky headers, square corners, neon-cyan accent (dark) / teal (light).
+* ``paper``: a quiet text index on the left and one centred reading column, serif
+  type, the list as a document index of rows, terracotta accent, edit on a page.
+
+``layout`` (``"sidebar"``, ``"topbar"``, ``"index"``) and ``list_style``
+(``"table"``, ``"rows"``) choose the structure; the tokens choose the look.
 To make your own, build a ``Theme`` and pass it as ``Admin(theme=...)``.
 """
 
@@ -17,6 +26,8 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Mapping
 
+LAYOUTS = {"sidebar", "topbar", "index"}
+LIST_STYLES = {"table", "rows"}
 COLOR_TOKENS = (
     "bg", "surface", "surface-2", "sidebar-bg", "topbar-bg", "text", "muted", "line",
     "line-strong", "hover", "accent", "accent-hover", "accent-ink", "accent-text",
@@ -28,6 +39,8 @@ FIXED_TOKENS = (
     "font", "font-size", "radius", "radius-sm", "radius-lg", "nav-pad", "cell-pad",
     "h1", "sidebar-w", "drawer-w",
 )  # fmt: skip
+SERIF_FONT = 'Charter, "Iowan Old Style", Georgia, "Times New Roman", serif'
+MONO_FONT = 'ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace'
 SYSTEM_FONT = (
     'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif'
 )
@@ -43,6 +56,8 @@ class Theme:
     fixed: Mapping[str, str]
     default_mode: str = "light"
     extra_css: str = ""
+    layout: str = "sidebar"  # "sidebar", "topbar" or "index" (see base.css)
+    list_style: str = "table"  # "table" or "rows"
 
     def check(self) -> None:
         """Fail at configuration time, not on a half-styled page."""
@@ -58,6 +73,8 @@ class Theme:
             "dark",
         }:
             raise ValueError(f"theme {self.name!r}: bad edit or default_mode")
+        if self.layout not in LAYOUTS or self.list_style not in LIST_STYLES:
+            raise ValueError(f"theme {self.name!r}: bad layout or list_style")
         if not self.name.replace("-", "").isalnum():
             raise ValueError("theme names are letters, digits and dashes")
 
@@ -139,7 +156,7 @@ PAPER_DARK = {
     "danger-ink": "#ffc0b6", "focus": "#8ab4f8", "avatar-bg": "#6a3b24", "avatar-ink": "#f7d9c6",
     "shadow": "none",
 }  # fmt: skip
-MIDNIGHT_DARK = {
+CONSOLE_DARK = {
     "bg": "#0b0f14", "surface": "#121923", "surface-2": "#1a2330", "sidebar-bg": "#0e141c",
     "topbar-bg": "rgba(14,20,28,.9)", "text": "#e8eef6", "muted": "#8fa0b4", "line": "#1f2a38",
     "line-strong": "#34455a", "hover": "#172131", "accent": "#22d3ee", "accent-hover": "#67e8f9",
@@ -149,7 +166,7 @@ MIDNIGHT_DARK = {
     "danger-ink": "#fda4af", "focus": "#7dd3fc", "avatar-bg": "#164e63", "avatar-ink": "#cffafe",
     "shadow": "0 0 0 1px rgba(34,211,238,.04)",
 }  # fmt: skip
-MIDNIGHT_LIGHT = {
+CONSOLE_LIGHT = {
     **NEUTRAL_LIGHT, "bg": "#eef3f8", "sidebar-bg": "#e3eaf2", "accent": "#0e7490",
     "accent-hover": "#155e75", "accent-text": "#155e75", "accent-soft": "#cdeff7",
     "accent-soft-ink": "#0b4a5c", "avatar-bg": "#b6e3ee", "avatar-ink": "#0b4a5c",
@@ -167,36 +184,40 @@ STUDIO = Theme(
 PAPER = Theme(
     "paper", "Paper", "page", PAPER_LIGHT, PAPER_DARK,
     {
-        "font": SYSTEM_FONT, "font-size": "16px", "radius": "2px", "radius-sm": "2px",
-        "radius-lg": "2px", "nav-pad": ".5rem .9rem", "cell-pad": ".75rem .9rem",
-        "h1": "2.1rem", "sidebar-w": "15rem", "drawer-w": "26rem",
+        "font": SERIF_FONT, "font-size": "17px", "radius": "2px", "radius-sm": "2px",
+        "radius-lg": "2px", "nav-pad": ".4rem .5rem", "cell-pad": ".75rem .9rem",
+        "h1": "2.3rem", "sidebar-w": "12.5rem", "drawer-w": "26rem",
     },
+    layout="index", list_style="rows",
     extra_css=(
         'h1,h2,h3,.hn-brand{font-family:Georgia,"Iowan Old Style","Times New Roman",serif;'
         "font-weight:600;letter-spacing:-.01em}\n"
-        ".hn-card{box-shadow:none;border-width:1px 0}\n"
-        ".hn-table th{text-transform:uppercase;font-size:.72rem;letter-spacing:.08em;"
-        "background:transparent;border-bottom:2px solid var(--hn-line-strong)}\n"
+        ".hn-card{box-shadow:none;border-width:1px 0;background:transparent}\n"
+        ".hn-pageheader{border-bottom:2px solid var(--hn-line-strong);padding-bottom:.9rem}\n"
+        ".hn-btn{border-radius:0}\n"
     ),
 )  # fmt: skip
-MIDNIGHT = Theme(
-    "midnight", "Midnight", "drawer", MIDNIGHT_LIGHT, MIDNIGHT_DARK,
+CONSOLE = Theme(
+    "console", "Console", "drawer", CONSOLE_LIGHT, CONSOLE_DARK,
     {
-        "font": SYSTEM_FONT, "font-size": "15px", "radius": "6px", "radius-sm": "4px",
-        "radius-lg": "8px", "nav-pad": ".55rem .8rem", "cell-pad": ".65rem .75rem",
-        "h1": "1.7rem", "sidebar-w": "15.5rem", "drawer-w": "25rem",
+        "font": MONO_FONT, "font-size": "13.5px", "radius": "2px", "radius-sm": "2px",
+        "radius-lg": "3px", "nav-pad": ".3rem .75rem", "cell-pad": ".3rem .65rem",
+        "h1": "1.25rem", "sidebar-w": "13rem", "drawer-w": "24rem",
     },
-    default_mode="dark",
+    layout="topbar", list_style="table",
     extra_css=(
-        ".hn-primary{box-shadow:0 0 18px rgba(34,211,238,.25)}\n"
-        'h1,h2,h3,.hn-brand,.hn-table th,.hn-nav-item{font-family:ui-monospace,"JetBrains Mono",'
-        "Menlo,Consolas,monospace}\n"
-        ".hn-table th{text-transform:uppercase;font-size:.7rem;letter-spacing:.1em}\n"
-        ".hn-nav-item[aria-current=page]{box-shadow:inset 2px 0 var(--hn-accent)}\n"
+        ".hn-primary{box-shadow:0 0 14px color-mix(in srgb,var(--hn-accent) 35%,transparent)}\n"
+        ".hn-table{border:1px solid var(--hn-line)}\n"
+        ".hn-table th{position:sticky;top:0;text-transform:uppercase;font-size:.7rem;"
+        "letter-spacing:.1em;background:var(--hn-surface-2);border-bottom:1px solid var(--hn-line-strong)}\n"
+        ".hn-table td,.hn-table th{border-right:1px solid var(--hn-line)}\n"
+        ".hn-table tbody tr:nth-child(even){background:var(--hn-surface-2)}\n"
+        ".hn-nav-item[aria-current=page]{background:none;box-shadow:inset 0 -2px var(--hn-accent)}\n"
+        ".hn-card{box-shadow:none}\n.hn-stat-value{font-size:1.5rem}\n"
     ),
 )  # fmt: skip
 
-THEMES: dict[str, Theme] = {t.name: t for t in (STUDIO, MIDNIGHT, PAPER)}
+THEMES: dict[str, Theme] = {t.name: t for t in (STUDIO, CONSOLE, PAPER)}
 for built_in in THEMES.values():
     built_in.check()
 
