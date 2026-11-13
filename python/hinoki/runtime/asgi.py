@@ -18,6 +18,7 @@ from hinoki.context import request_id
 from hinoki.db import Database
 from hinoki.errors import RegistrationError, ShutdownError, StartupError
 from hinoki.modules import ModuleContext
+from hinoki.orm import database_var
 from hinoki.routing import MethodNotAllowed
 from hinoki.runtime.binding import Binding
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
@@ -112,9 +113,12 @@ class ASGIAdapter:
     async def _http(self, scope: Scope, receive: Any, send: Any) -> None:
         rid = uuid.uuid4().hex
         token = request_id.set(rid)
+        # Models use the worker's Database without it being passed around.
+        db_token = database_var.set(self.ctx.find(Database))
         try:
             response = await self._respond(scope, receive, rid)
         finally:
+            database_var.reset(db_token)
             request_id.reset(token)
         headers = [*response.headers, (b"x-request-id", rid.encode())]
         if response.status not in BODYLESS:
