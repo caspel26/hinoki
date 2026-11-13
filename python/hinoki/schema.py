@@ -422,6 +422,18 @@ def plain(value: Any) -> Any:
     return value
 
 
+def uses_generated_init(cls: type) -> bool:
+    """True when the class has the dataclass-generated constructor and no
+    ``__post_init__``: only then may ``from_model`` build instances directly
+    (otherwise it calls the constructor, so custom initialisation still runs)."""
+    init = vars(cls).get("__init__") or next(
+        (vars(k)["__init__"] for k in cls.__mro__ if "__init__" in vars(k)), None
+    )
+    return getattr(
+        getattr(init, "__code__", None), "co_filename", ""
+    ) == "<string>" and not hasattr(cls, "__post_init__")
+
+
 def conversion_of(ftype: FieldType) -> tuple[Any, Any]:
     """How a model attribute converts for this field (see ``from_model``)."""
     inner = conversion_of(ftype.item) if ftype.item is not None else None
@@ -438,6 +450,7 @@ def model_plan(cls: type[Schema]) -> native.ModelPlan:
                 (name, spec.required, conversion_of(spec.ftype))
                 for name, spec in cls.specs().items()
             ],
+            uses_generated_init(cls),
         )
         cls.__model_plan__ = cached  # type: ignore[attr-defined]
     return cast(native.ModelPlan, cached)

@@ -713,11 +713,14 @@ fn write_key(out: &mut Vec<u8>, key: &Bound<'_, PyAny>) -> PyResult<()> {
 /// How `encode_json` writes: compact by default; `indent` pretty-prints with that
 /// many spaces, `sort_keys` orders object keys, and `default` is called for a
 /// value that is not JSON (it must return something that is).
+const MAX_INDENT: usize = 256;
+
 struct Encoder<'py> {
     out: Vec<u8>,
     indent: Option<usize>,
     sort_keys: bool,
     default: Option<Bound<'py, PyAny>>,
+    hops: usize,
 }
 
 impl<'py> Encoder<'py> {
@@ -812,6 +815,19 @@ impl<'py> Encoder<'py> {
         Ok(())
     }
 
+    /// Write what `dump()` or the `default` hook returned in place of a value: at
+    /// the same indentation depth, with a separate budget so a hook that keeps
+    /// producing new objects ends in an error instead of overflowing the stack.
+    fn replace(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
+        self.hops += 1;
+        if self.hops > MAX_DEPTH {
+            return Err(PyValueError::new_err("value is nested too deeply"));
+        }
+        let result = self.write(value, depth);
+        self.hops -= 1;
+        result
+    }
+
     /// Objects that are not plain JSON values: schema instances, UUIDs, datetimes,
     /// anything with a `dump()` method, then the caller's `default` hook.
     fn object(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
@@ -848,7 +864,7 @@ impl<'py> Encoder<'py> {
                 &value.call_method0("isoformat")?.str()?.to_string(),
             )?;
         } else if value.hasattr("dump")? {
-            self.write(&value.call_method0("dump")?, depth + 1)?;
+            self.replace(&value.call_method0("dump")?, depth)?;
         } else if let Some(hook) = self.default.clone() {
             let replacement = hook.call1((value,))?;
             if replacement.is(value) {
@@ -856,7 +872,7 @@ impl<'py> Encoder<'py> {
                     "the default hook returned the same object",
                 ));
             }
-            self.write(&replacement, depth + 1)?;
+            self.replace(&replacement, depth)?;
         } else {
             let name = value.get_type().name()?;
             return Err(PyTypeError::new_err(format!(
@@ -886,11 +902,17 @@ pub fn encode_json<'py>(
     sort_keys: bool,
     default: Option<Bound<'py, PyAny>>,
 ) -> PyResult<Bound<'py, PyBytes>> {
+    if indent.is_some_and(|width| width > MAX_INDENT) {
+        return Err(PyValueError::new_err(format!(
+            "indent must be at most {MAX_INDENT}"
+        )));
+    }
     let mut encoder = Encoder {
         out: Vec::with_capacity(128),
         indent,
         sort_keys,
         default,
+        hops: 0,
     };
     encoder.write(value, 0)?;
     Ok(PyBytes::new(py, &encoder.out))

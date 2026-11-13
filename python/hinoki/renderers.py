@@ -94,7 +94,7 @@ DEFAULT_RENDERERS: tuple[Renderer, ...] = (JSONRenderer(),)
 
 def check_renderers(renderers: Sequence[Renderer]) -> tuple[Renderer, ...]:
     """Fail at declaration: at least one renderer, distinct media types."""
-    found = tuple(renderers)
+    found = (*renderers,)  # always a new tuple: identity marks "not chosen"
     types = [r.media_type for r in found]
     if not found or "" in types or len(set(types)) != len(types):
         raise ValueError(

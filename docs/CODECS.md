@@ -34,7 +34,7 @@ JSONRenderer(indent=2, sort_keys=True)                 # pretty, stable output
 JSONRenderer(default=str)                              # Decimal, Path, ... become text
 ```
 
-`default` is called for a value the encoder does not know and must return something that is JSON (returning the same object is an error).
+`default` is called for a value the encoder does not know and must return something that is JSON (returning the same object is an error). It does not override what the encoder already handles (UUID, datetime, `Schema`, anything with `dump()`). With `sort_keys=True` object keys are ordered by their encoded text (quotes and escapes included), which is deterministic but not always `json.dumps` order for unusual keys, and integer keys sort as text. `indent` is 0 to 256 (the renderer allows 0 to 16).
 
 ## Inherit and override
 

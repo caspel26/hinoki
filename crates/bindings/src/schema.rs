@@ -819,13 +819,21 @@ struct PlanField {
 pub struct ModelPlan {
     class: Py<PyAny>,
     fields: Vec<PlanField>,
+    direct: bool,
 }
 
 #[pymethods]
 impl ModelPlan {
-    /// `fields` is `[(name, required, (schema, item)), ...]`.
+    /// `fields` is `[(name, required, (schema, item)), ...]`; `direct` says the
+    /// class uses the generated constructor (no `__init__`/`__post_init__` of its
+    /// own), so instances may be built without calling it.
     #[new]
-    fn new(class: Py<PyAny>, fields: Vec<(String, bool, Bound<'_, PyAny>)>) -> PyResult<Self> {
+    #[pyo3(signature = (class, fields, direct=true))]
+    fn new(
+        class: Py<PyAny>,
+        fields: Vec<(String, bool, Bound<'_, PyAny>)>,
+        direct: bool,
+    ) -> PyResult<Self> {
         let mut planned = Vec::with_capacity(fields.len());
         for (name, required, conversion) in fields {
             planned.push(PlanField {
@@ -838,6 +846,7 @@ impl ModelPlan {
         Ok(Self {
             class,
             fields: planned,
+            direct,
         })
     }
 
@@ -867,7 +876,7 @@ impl ModelPlan {
                 Err(error) => self.missing(py, row, field, error)?,
             }
         }
-        if values.len() == self.fields.len() {
+        if self.direct && values.len() == self.fields.len() {
             // Every field is present: build the instance directly, skipping the
             // dataclass constructor (the dominant cost of constructing a schema).
             let object_new = py
