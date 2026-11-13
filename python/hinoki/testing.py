@@ -5,7 +5,8 @@ lifespan and http protocols, with no sockets and no server process.
         reply = await client.post("/tasks", json={"title": "x"}, token="abc")
         assert reply.status == 201
 
-The lifespan runs, so a configured ``DatabaseModule`` opens its pool: point the
+A sync twin, ``SyncClient``, exists for tests without ``async``. The lifespan
+runs, so a configured ``DatabaseModule`` opens its pool: point the
 app at a disposable database. ``reply.body`` is decoded JSON when the response
 is JSON, else text.
 """
@@ -14,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Any
@@ -126,3 +128,68 @@ def _dumps(value: Any) -> bytes:
 
 def _loads(raw: bytes) -> Any:
     return json.loads(raw)
+
+
+class SyncClient:
+    """The same client for tests written without ``async``: the application runs
+    on its own event loop in a background thread and every call blocks until the
+    answer arrives.
+
+        with SyncClient(create_app()) as client:
+            assert client.get("/health").status == 200
+    """
+
+    def __init__(self, app: HinokiAPI) -> None:
+        self.inner = ASGIClient(app)
+        self.loop = asyncio.new_event_loop()
+        self.thread = threading.Thread(
+            target=self.loop.run_forever, name="hinoki-test-loop", daemon=True
+        )
+
+    def __enter__(self) -> SyncClient:
+        self.thread.start()
+        try:
+            asyncio.run_coroutine_threadsafe(
+                self.inner.__aenter__(), self.loop
+            ).result()
+        except BaseException:
+            self.stop()
+            raise
+        return self
+
+    def __exit__(
+        self,
+        kind: type[BaseException] | None,
+        error: BaseException | None,
+        trace: TracebackType | None,
+    ) -> None:
+        try:
+            future = asyncio.run_coroutine_threadsafe(
+                self.inner.__aexit__(kind, error, trace), self.loop
+            )
+            future.result()
+        finally:
+            self.stop()
+
+    def stop(self) -> None:
+        self.loop.call_soon_threadsafe(self.loop.stop)
+        self.thread.join(timeout=10)
+        self.loop.close()
+
+    def request(self, method: str, path: str, **options: Any) -> Response:
+        future = asyncio.run_coroutine_threadsafe(
+            self.inner.request(method, path, **options), self.loop
+        )
+        return future.result()
+
+    def get(self, path: str, **options: Any) -> Response:
+        return self.request("GET", path, **options)
+
+    def post(self, path: str, **options: Any) -> Response:
+        return self.request("POST", path, **options)
+
+    def patch(self, path: str, **options: Any) -> Response:
+        return self.request("PATCH", path, **options)
+
+    def delete(self, path: str, **options: Any) -> Response:
+        return self.request("DELETE", path, **options)

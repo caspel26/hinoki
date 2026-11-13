@@ -398,6 +398,13 @@ class Model:
         return run_sync(self.aupdate_from(data, **values))
 
     @classmethod
+    def update_where(
+        cls, conditions: dict[str, Any], values: dict[str, Any]
+    ) -> list[Self]:
+        """Sync ``aupdate_where`` for sync handlers."""
+        return run_sync(cls.aupdate_where(conditions, values))
+
+    @classmethod
     def get(cls, **conditions: Any) -> Self:
         return run_sync(cls.aget(**conditions))
 
@@ -707,6 +714,14 @@ class QuerySet[M: Model]:
 
     def get(self) -> M:
         return run_sync(self.aget())
+
+    def update(self, values: dict[str, Any]) -> builtins.list[M]:
+        """Sync ``aupdate``."""
+        return run_sync(self.aupdate(values))
+
+    def delete(self) -> int:
+        """Sync ``adelete``."""
+        return run_sync(self.adelete())
 
     def count(self) -> int:
         return run_sync(self.acount())
