@@ -2,11 +2,13 @@
 
 import datetime
 import json
+import sys
 from pathlib import Path
 
 import pytest
 
 from hinoki.__main__ import main
+from hinoki.checkcli import load_object
 from hinoki.rules import Diagnostic, Phase, Severity, Status
 from hinoki.waivers import (
     EXPIRED,
@@ -155,6 +157,18 @@ def test_check_without_rules_passes_and_says_zero(
     monkeypatch.chdir(tmp_path)
     assert main(["check", APP]) == 0
     assert "0 rule(s)" in capsys.readouterr().out
+
+
+def test_target_imports_from_the_current_project_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package = tmp_path / "sampleproject"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "api.py").write_text("answer = 42\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "path", [item for item in sys.path if item != ""])
+    assert load_object("sampleproject.api:answer") == 42
 
 
 @pytest.mark.parametrize(

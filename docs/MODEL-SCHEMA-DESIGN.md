@@ -4,7 +4,7 @@ Status: **slice 1 implemented** (2026-11-13): derived schemas. Slices 2 and 3 (d
 
 ## Derived schemas
 
-The equivalent of django-ninja's `ModelSchema`, without a second class name: a `Schema` takes the columns of a model with the `model=` class keyword.
+The equivalent use case to django-ninja's `ModelSchema` is supported by `Schema` itself: `class PostOut(Schema, model=Post, ...)` derives selected fields from a `Model`. There is no separate `ModelSchema` class or alias. This keeps one schema type and avoids a second declaration vocabulary.
 
 ```python
 class PostOut(Schema, model=Post, exclude=["body_html"]):

@@ -220,7 +220,8 @@ def test_command_line_plans_and_prints(
     assert "CREATE TABLE" in out
     assert main([*args, "sql", "9999-nope"]) == 1
     assert main([*args, "apply"]) == 1  # no database configured
-    assert "error:" in capsys.readouterr().err
+    error = capsys.readouterr().err
+    assert "error:" in error and "fix:" in error
 
 
 @pytest.fixture

@@ -9,18 +9,29 @@ hide:
 
 <div class="hn-hero" markdown>
 
-<p class="hn-kicker">A Python API framework with a native Rust core</p>
+<div class="hn-hero-copy" markdown>
 
-<h2 class="hn-title">An API framework that checks its own architecture.</h2>
+<p class="hn-kicker">Typed Python · checked architecture</p>
 
-<p class="tag">Declare access, transactions and errors on the endpoint. Hinoki refuses to start, or fails the build, when a promise is broken, and an AI agent can build on it without weakening the rules.</p>
+<h2 class="hn-title">Write the promise.<br>Check that it holds.</h2>
+
+<p class="tag">Access, transactions and errors live beside the endpoint. Rules check the architecture at startup and in your build. Development tools read the same contracts as the app.</p>
 
 ```sh
-git clone https://github.com/caspel26/hinoki && cd hinoki && uv sync --locked
+uv sync --locked
+uv run hinoki check app.main:app
 ```
 
 [Get started](getting-started.md){ .md-button .md-button--primary }
 [Take the tutorial](tutorial/index.md){ .md-button }
+
+</div>
+
+<div class="hn-hero-art">
+  <img src="assets/hinoki-banner.png" alt="Hinoki, Python API framework">
+  <div class="hn-rings" aria-hidden="true"></div>
+  <p>Python you can read.<br>Architecture you can verify.</p>
+</div>
 
 </div>
 
@@ -88,8 +99,8 @@ Parsing, strict validation, JSON, Argon2id, JWT and the SQL compiler run in Rust
 </div>
 
 <div class="hn-card" markdown>
-### Built for agents
-`hinoki new` writes an `AGENTS.md`; a development MCP server describes and checks the project; an application MCP serves allowlisted actions with the caller's own credentials. [AI workflow](AI-WORKFLOW.md)
+### Development tools
+`hinoki new` writes project conventions; `hinoki check` reports rule violations; MCP tools expose the same application contracts. [Tooling guide](AI-WORKFLOW.md)
 </div>
 
 <div class="hn-card" markdown>

@@ -18,11 +18,11 @@ uv run hinoki new bookmarks --dir ..
 cd ../bookmarks && uv sync && uv run pytest
 ```
 
-The generated project has a health route, typed settings, rules that are on from day one, an `AGENTS.md` for AI agents and a `.mcp.json` for the development MCP server.
+The generated project has a health route, typed settings, default rules, an `AGENTS.md` with project commands and conventions, and a `.mcp.json` for the development MCP server.
 
 ## A whole API in one file
 
-`examples/notes/app.py` in the repository is a complete, tested API: a model, two `Schema` classes, four actions, a database module.
+`examples/notes/app.py` contains the model, two `Schema` classes and four actions. Its declared entry point is `examples/notes.main:app`; the factory in `app.py` remains useful for tests that pass a disposable database URL directly.
 
 ```python
 @get("/notes/{note_id}")
@@ -40,8 +40,8 @@ Path, query and body values are typed parameters; the `Request` object is option
 ## Run it
 
 ```sh
-export NOTES_DATABASE_URL=postgres://postgres:pw@127.0.0.1:5432/notes
-uv run hinoki dev examples.notes.app:create_app
+export NOTES_DATABASE__URL=postgres://postgres:pw@127.0.0.1:5432/notes
+uv run hinoki dev examples.notes.main:app
 ```
 
 Open `/docs` (Swagger UI) or `/redoc`.
@@ -50,4 +50,4 @@ Open `/docs` (Swagger UI) or `/redoc`.
 
 * Structure a real application: [Patterns and best practices](PATTERNS.md) and the layered `examples/tracker`.
 * Turn on the [rules](RULES.md) and configure with [settings](SETTINGS-DESIGN.md).
-* Let an agent help: [Build with an agent](AI-WORKFLOW.md).
+* Configure development tooling: [Build with an agent](AI-WORKFLOW.md).

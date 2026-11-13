@@ -1,6 +1,6 @@
 # Admin extra — design (Q007)
 
-Status: **A1 design, A2–A4 implemented** (`Reply`, `set_cookie`, `HTMLRenderer`; `hinoki.admin`: Classic theme, forms, CSRF, list/search/add/edit/delete; a `contains` filter operator in the SQL compiler). A5 done (blog integration, real-browser verification, screenshots; see below); A6 (review) open (2026-11-13). Source: `FRAMEWORK_SPEC.md` §16 (local package). Nothing below is implemented until a step says so.
+Status: the original Q007 admin slice is implemented and reviewed. Q019 adds three structurally distinct styles—Studio, Console and Paper—with light and dark modes. The current feature guide is [The admin](ADMIN.md); this file preserves design rationale and implementation evidence, with the theme section updated to the shipped API.
 
 ## Observed
 
@@ -9,11 +9,11 @@ Status: **A1 design, A2–A4 implemented** (`Reply`, `set_cookie`, `HTMLRenderer
 * There is no session or login system; providers are `BearerAuth`, `APIKeyAuth`, `HeaderAuth`, or custom `BaseAuth` subclasses that see `Credentials(headers, query)` (cookies are in `headers["cookie"]`).
 * No template engine or CSS toolchain is a dependency. Playwright browsers exist on the development machine for UI verification (used through `uvx`, never a project dependency).
 
-## Scope of the first slice (what is and is not promised)
+## Scope of the first slice (historical design boundary)
 
-In: one theme (**Classic**, tabular), model list with search, sorting-free pagination and chosen columns, create/edit forms generated from the model, delete with confirmation, a front page listing registered models with counts, CSRF protection, per-request authorisation, template/CSS overrides, accessible HTML, desktop + mobile layouts verified in a browser.
+The initial plan covered one tabular theme, model list/search, forms, confirmed deletion, a model dashboard, CSRF protection, per-request authorization, overrides and responsive HTML. The shipped admin has since grown beyond that first slice.
 
-Out (listed so nobody assumes them): Studio and Compact themes, Tailwind and Lucide (hand-written CSS and a few inline SVGs instead), relation widgets (a foreign key is an id text field), dashboards/metrics, audit log, account/login/session UI and tables, file uploads, bulk actions, MCP/admin integration. Installing or importing the admin never touches a database (no admin tables exist).
+The features not shipped remain relation widgets, audit history, account/login/session UI, file uploads and an admin MCP integration. Installing or importing the admin never touches a database (no admin tables exist).
 
 ## Decisions
 
@@ -88,11 +88,11 @@ Template engine: own placeholders (recommended for now) versus Jinja2. Whether a
 
 ## Browser verification (A5)
 
-`tests/browser/verify.py` drives the reference blog (served by Granian, synthetic seed data from `examples/blog/seed.py`) with Playwright, run through `uvx` so it is not a project dependency. On 2026-11-13: **0 failures in Chromium and Firefox**; **WebKit could not start** on this host (missing system libraries; installing them needs root), so WebKit is *not verified*.
+`tests/browser/verify.py` drives the reference blog (served by Granian, synthetic seed data from `examples/blog/seed.py`) with Playwright, run through `uvx` so it is not a project dependency. The Q019 verification covers Studio, Console and Paper in Chromium and Firefox at desktop and phone widths. WebKit could not start on the recorded host (missing system libraries), so WebKit remains unverified.
 
 Checked per engine: Swagger UI and ReDoc render the document; list, search, pagination, create with validation errors, edit, delete confirmation and delete through real form submissions; a forged CSRF token is refused; `can()` hides the add page for users; no horizontal page scroll and every input labelled at 1440×900, 390×844, 360×740 and 320×640 on the dashboard, list and form; keyboard path (skip link, focus to content, Tab to the search field, visible outline, Enter submits); dark scheme. Screenshots were inspected by eye: the first run showed an over-tall header bar, wrapped slugs on phones and long timestamps, all fixed (CSS grid rows, no-wrap cells, shorter dates), and the admin pages appearing in the API reference, fixed by excluding HTML routes from OpenAPI.
 
-Limits of this verification: touch gestures were not exercised (the slice has none), screen readers were not used, and the contrast of the dark scheme was judged by eye, not measured.
+Limits of this verification: touch gestures were not exercised (the admin has no gesture-only controls), and screen readers were not used. Contrast is measured by `tests/themecontrasttest.py` for both modes of every built-in theme.
 
 ## Theme guide
 
@@ -101,7 +101,7 @@ A theme is a `Theme(name, label, edit, light, dark, fixed, default_mode, extra_c
 * **Colour tokens** (for each of `light` and `dark`, all required): `bg`, `surface`, `surface-2`, `sidebar-bg`, `topbar-bg`, `text`, `muted`, `line`, `line-strong`, `hover`, `accent`, `accent-hover`, `accent-ink` (text on the accent), `accent-text` (accent used as text), `accent-soft`, `accent-soft-ink`, `ok-bg`/`ok-ink`, `warn-bg`/`warn-ink`, `danger`, `danger-on`, `danger-bg`/`danger-ink`, `focus`, `avatar-bg`/`avatar-ink`, `shadow`.
 * **Fixed tokens**: `font`, `font-size`, `radius`, `radius-sm`, `radius-lg`, `nav-pad`, `cell-pad`, `h1`, `sidebar-w`, `drawer-w`.
 * **Layout**: `edit="drawer"` opens the edit form beside the list, `"page"` on its own page. `default_mode="dark"` makes a theme dark unless the user switches.
-* **Check contrast yourself**: accent text on the accent background and body text on surfaces should reach WCAG AA (4.5:1). The four built-in themes were judged by eye, not measured.
+* **Contrast**: the three built-in themes are checked against WCAG AA (4.5:1) by `tests/themecontrasttest.py` for both light and dark tokens. Custom themes should meet the same threshold.
 
 ```python
 from hinoki.admin import THEMES, Admin, Theme

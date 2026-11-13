@@ -12,12 +12,12 @@ variable names and reasons but never values, and exits 1.
 from __future__ import annotations
 
 import argparse
-import importlib
 import json
 import sys
 
 from hinoki.checkcli import USAGE_ERRORS, build_app
 from hinoki.settings import Settings, SettingsError
+from hinoki.target import load_target
 
 
 def add_arguments(
@@ -38,12 +38,9 @@ def add_arguments(
 
 
 def load_class(target: str) -> type[Settings]:
-    module_name, _, name = target.partition(":")
-    if not module_name or not name:
-        raise SystemExit("error: target is module:SettingsClass")
     try:
-        found = getattr(importlib.import_module(module_name), name)
-    except (ImportError, AttributeError) as exc:
+        found = load_target(target)
+    except (ImportError, AttributeError, ValueError) as exc:
         raise SystemExit(f"error: cannot load {target}: {exc}") from None
     if isinstance(found, type) and issubclass(found, Settings):
         return found
@@ -64,7 +61,12 @@ def run_settings(args: argparse.Namespace) -> int:
     try:
         rows = cls.explain(prefix=args.prefix, dotenv=args.dotenv)
     except SettingsError as error:
-        print(error, file=sys.stderr)
+        print(f"error: {error}", file=sys.stderr)
+        print(
+            "  fix: set the named variables or correct the .env file, then rerun "
+            "`hinoki settings`",
+            file=sys.stderr,
+        )
         return 1
     if args.format == "json":
         print(

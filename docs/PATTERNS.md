@@ -51,7 +51,7 @@ Prefer `async` handlers. A sync handler runs on a bounded thread pool and may us
 
 ## 6. Modules
 
-An application is a set of modules with explicit dependencies and a lifespan (`DatabaseModule`, your own `Module`). Importing a module registers nothing and opens nothing. Resources are created in the worker's lifespan, once per worker; migrations are applied by a deploy step, never at startup, never from every worker.
+An application is a set of modules with explicit dependencies and a lifespan (`DatabaseModule`, your own `Module`). Importing a module registers nothing and opens nothing. Resources are created in the worker's lifespan, once per worker; migrations are applied by a deploy step, never at startup, never from every worker. A standalone maintenance script such as `examples/blog/seed.py` owns and closes its short-lived database connection directly because it runs outside a server lifecycle.
 
 ## 7. Migrations
 

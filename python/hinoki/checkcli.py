@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import importlib
 import json
 import sys
 from pathlib import Path
@@ -25,6 +24,7 @@ from hinoki.rules import (
     Status,
     failing,
 )
+from hinoki.target import load_target
 from hinoki.waivers import NAME, WaiverError, apply_waivers, load_waivers
 
 USAGE_ERRORS = (ImportError, AttributeError, ValueError, TypeError, RegistrationError)
@@ -32,13 +32,7 @@ USAGE_ERRORS = (ImportError, AttributeError, ValueError, TypeError, Registration
 
 def load_object(spec: str) -> object:
     """``module:attribute`` (dotted attributes allowed)."""
-    module, _, attribute = spec.partition(":")
-    if not module or not attribute:
-        raise ValueError(f"expected module:attribute, got {spec!r}")
-    found: object = importlib.import_module(module)
-    for part in attribute.split("."):
-        found = getattr(found, part)
-    return found
+    return load_target(spec)
 
 
 def build_app(spec: str) -> Hinoki:

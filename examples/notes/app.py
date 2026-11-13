@@ -1,7 +1,7 @@
-"""The smallest useful Hinoki app: a notes API in one file.
+"""The route and factory form of the smallest useful Hinoki app.
 
-    NOTES_DATABASE_URL=postgres://... \
-        uv run hinoki dev examples.notes.app:create_app
+    NOTES_DATABASE__URL=postgres://... \
+        uv run hinoki dev examples.notes.main:app
 
 Create the table with a migration (``hinoki migrations plan --models
 examples.notes.app``) or by hand; nothing here touches a database at import.
@@ -13,9 +13,11 @@ from uuid import UUID, uuid4
 
 from hinoki import Field, Hinoki, Schema, delete, get, post
 from hinoki.db import DatabaseModule
-from hinoki.orm import Model, field
+from hinoki.orm import Model, field, indexed, ordered_by
 
 
+@indexed("title")
+@ordered_by("title")
 class Note(Model, table="notes"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     title: str = field(max_length=80)
@@ -35,7 +37,7 @@ class NoteOut(Schema):
 
 @get("/notes")
 async def listing() -> list[NoteOut]:
-    return [NoteOut.from_model(n) for n in await Note.all().order_by("title").aall()]
+    return [NoteOut.from_model(n) for n in await Note.all().aall()]
 
 
 @get("/notes/{note_id}")
@@ -54,6 +56,7 @@ async def remove(note_id: UUID) -> None:
 
 
 def create_app(database_url: str | None = None) -> Hinoki:
+    """Factory kept for tests that pass a disposable database URL explicitly."""
     app = Hinoki(title="Notes", openapi_url="/openapi.json", docs_url="/docs")
     app.include(listing, one, create, remove)
     app.install(DatabaseModule(database_url or os.environ["NOTES_DATABASE_URL"]))

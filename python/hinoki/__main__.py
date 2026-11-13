@@ -114,6 +114,11 @@ def run_migrations(args: argparse.Namespace) -> int:
             asyncio.run(run_database(args))
     except MigrationError as error:
         print(f"error: {error}", file=sys.stderr)
+        print(
+            "  fix: correct the model or migration state; inspect with "
+            "`hinoki migrations plan`",
+            file=sys.stderr,
+        )
         return 1
     return 0
 

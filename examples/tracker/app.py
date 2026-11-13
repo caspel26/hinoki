@@ -1,5 +1,8 @@
 """Application factory.
 
+The MCP endpoint is derived from the assembled API, so this example composes
+the app in a factory before exposing the allowlisted action.
+
     TRACKER_DATABASE_URL=postgres://... \
       hinoki dev examples.tracker.app:create_app
 
@@ -27,7 +30,7 @@ def create_app(database_url: str | None = None) -> Hinoki:
     app.include(
         api.health, api.list_tasks, api.create_task, api.complete_task, api.delete_task
     )
-    # Agents can read the caller's own tasks through MCP, with the caller's token.
+    # The MCP endpoint exposes only this action and uses the caller's own token.
     app.include(
         *expose_as_mcp(app, tools=[f"{api.__name__}.list_tasks"], access=member_only)
     )
