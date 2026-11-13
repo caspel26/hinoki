@@ -1,33 +1,32 @@
-# Typing proof (Q002)
+# Type checking Hinoki applications
 
-Status: **partially proven** · 2026-11-13 · checker: mypy `--strict` 1.x (pyright/IDEs not tested).
+Hinoki's public APIs use Python annotations so a type checker can catch mistakes in handlers, decorators and schema construction. The repository is checked with mypy in strict mode; other checkers and IDEs have not been evaluated systematically.
 
-How it is verified: `tests/typing/ok_*.py` must produce no errors; `tests/typing/bad_*.py` and the probe mark every line that must be rejected with `# type: ignore[code]`, and `warn_unused_ignores = true` makes the run fail if any such line stops being flagged. Gate: `uv run --locked mypy`.
+Run the project's check from its checkout:
 
-## Proven (against the real code in `python/hinoki`)
+```sh
+uv run --locked mypy
+```
+
+## Typed surfaces
 
 | Contract | Result |
 | --- | --- |
-| `@get/@post/...` preserve the decorated signature (`ParamSpec`/`TypeVar`) on functions and methods | Calls are checked: wrong argument type, missing argument and wrong return assignment are errors |
-| Decorator options are typed | `transaction="yes"`, `access="admin"` are errors; `Access` is a frozen typed object |
-| `Hinoki.include` / `API` subclasses | Type-check; unknown objects are rejected at runtime with `RegistrationError` |
-| Decorators stack with user decorators written with `functools.wraps` + `ParamSpec` | Runtime test + `mypy` pass; untyped user decorators are flagged by `--strict` (`untyped-decorator`), which is the intended pressure |
-| `Schema` subclasses | Constructors are checked like dataclasses (`tests/typing/okschema.py`, `badschema.py`): missing/extra/mistyped arguments, immutability and unknown attributes are errors; `Field(default_factory=list)` types as `list[str]`; `Schema.validate` returns the subclass |
+| HTTP decorators | Preserve a handler's parameter and return types. Invalid decorator options such as `transaction="yes"` are type errors. |
+| `Schema` classes | Generated constructors check required, unknown and mistyped fields; `Field(default_factory=...)` preserves the value type. |
+| Application and route groups | `Hinoki.include`, `API` classes and `Endpoints` provide typed declarations. Unknown include items fail at app construction. |
+| Authentication context | Annotate a parameter as `Caller[User]` to receive the typed caller and application user. |
+| Decorator composition | User decorators should preserve signatures with `functools.wraps`, `ParamSpec` and `TypeVar`. |
 
-## Probed, not implemented (`tests/typing/ormprobe.py`)
+## ORM method signatures
 
-The probe uses a local prototype `Model`, not the Hinoki ORM.
+Model construction and common instance operations are typed. Some ORM methods that accept arbitrary model field names still have broad keyword signatures, so a checker may not catch a misspelled field passed to these methods:
 
-| Signature style | Static result |
-| --- | --- |
-| `Post(title=...)` via `@dataclass_transform` | **Fully checked** (names, types, required fields, unknown kwargs, attributes) |
-| `await Post.aget(id=...) -> Post` with `Self` | Checked |
-| `Post.acreate(**fields: Any)` | **Not checkable**: any keyword is accepted |
+```python
+task = Task(title="Write docs")  # constructor fields and values are checked
+await task.asave()
+```
 
-**Consequence (proposal):** the spec's `Post.acreate(title=..., author_id=...)` cannot be type-checked by a plain checker. Options, to be decided with the Q004 slice: (a) generate `.pyi` stubs with per-model `acreate`/`aupdate`/filter signatures; (b) make the checked path `await Post(title=...).asave()` and keep `acreate` as sugar; (c) ship a mypy plugin (heavier, per-checker). Recommendation: (a) generated stubs, with (b) as the always-checked fallback. This is an API-shape decision and is **not frozen**.
+`Model.acreate(**values)` and some filter/update keyword calls cannot currently verify each field name against the model class. Use the constructor plus `asave()` when you want field-level checking on insertion. This limitation does not affect runtime validation of model fields or database constraints.
 
-**Status (Q005):** the owner accepted the recommendation. Path (b) is implemented and statically proven: `await Post(title=...).asave()` inserts, and an instance loaded from the database updates only the columns that changed (`tests/typing/modelcheck.py`, `tests/syncmodelstest.py`). Path (a) is **not implemented yet**: `mypy.stubgen` on a models module drops field defaults (every defaulted field would look required), so the generator has to be custom and is still open. Until then `acreate`/`aupdate` keep `**values: Any`.
-
-## Not yet covered
-
-`Caller[T]` binding, `Page[T].map`, query-set filters, pyright and IDE behaviour (the `.pyi` approach must be re-checked in pyright).
+The Python and Rust packages include typing metadata and the native module has a stub. See the [API reference](reference/index.md) for the public signatures.
