@@ -100,7 +100,7 @@ def decode_body(raw: bytes, content_type: str) -> object:
         raise InvalidBody("unsupported_media_type", "expected application/json")
     try:
         return json.loads(raw, parse_constant=reject_constant)
-    except ValueError:
+    except (ValueError, RecursionError):
         raise InvalidBody("invalid_json", "the body is not valid JSON") from None
 
 

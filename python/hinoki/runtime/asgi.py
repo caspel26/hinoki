@@ -117,18 +117,25 @@ class ASGIAdapter:
 
     async def _respond(self, scope: Scope, receive: Any, rid: str) -> Response:
         try:
-            return await self._serve(scope, receive)
+            async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
+                return await self._serve(scope, receive)
+        except TimeoutError as exc:
+            if limit.expired():
+                return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
+            return await error_response(exc, rid, self.app.errors)
         except Exception as exc:
             return await error_response(exc, rid, self.app.errors)
 
     async def _serve(self, scope: Scope, receive: Any) -> Response:
-        raw_body = await read_body(receive)
+        """Ready check, routing, authentication, then (only if the action takes
+        a body) reading and validating it, then the handler."""
         if not self.lifespan.ready:
             raise HTTPError(HTTPStatus.SERVICE_UNAVAILABLE, "not_ready", RETRY_LATER)
         if self.document is not None and self._is_document_request(scope):
             return Response.json(HTTPStatus.OK, self.document)
         binding, path_params = self._route(scope)
         principal = await authorize(scope, binding)
+        raw_body = await read_body(receive) if binding.needs_body else b""
         request = build_request(scope, binding, path_params, raw_body, principal)
         return await self._invoke(binding, binding.collect(request))
 
@@ -137,7 +144,7 @@ class ASGIAdapter:
 
     def _route(self, scope: Scope) -> tuple[Binding, dict[str, str]]:
         raw_path = scope.get("raw_path")
-        path = raw_path.split(b"?", 1)[0].decode("ascii") if raw_path else scope["path"]
+        path = scope["path"] if raw_path is None else self._raw_target(raw_path)
         found = self.app.lookup(scope["method"], path)
         if found is None:
             raise HTTPError(HTTPStatus.NOT_FOUND, "not_found")
@@ -149,24 +156,26 @@ class ASGIAdapter:
         params = found.params if raw_path is None else decode_params(found.params)
         return self.bindings[found.action], params
 
+    @staticmethod
+    def _raw_target(raw_path: bytes) -> str:
+        try:
+            return raw_path.split(b"?", 1)[0].decode("ascii")
+        except UnicodeDecodeError:
+            raise HTTPError(HTTPStatus.BAD_REQUEST, "bad_path_encoding") from None
+
     async def _invoke(self, binding: Binding, kwargs: dict[str, object]) -> Response:
         route = binding.route
         args = (route.owner(),) if route.owner is not None else ()
         try:
-            async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
-                if route.is_async:
-                    handler = cast(Callable[..., Awaitable[object]], route.handler)
-                    result = await handler(*args, **kwargs)
-                else:
-                    result = await self.executor.run(route.handler, *args, **kwargs)
+            if route.is_async:
+                handler = cast(Callable[..., Awaitable[object]], route.handler)
+                result = await handler(*args, **kwargs)
+            else:
+                result = await self.executor.run(route.handler, *args, **kwargs)
         except ExecutorSaturated:
             raise HTTPError(
                 HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
             ) from None
-        except TimeoutError:
-            if limit.expired():
-                raise HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout") from None
-            raise
         if result is not None and route.status not in BODYLESS:
             return Response.json(route.status, encode(result))
         no_content = route.status == HTTPStatus.OK

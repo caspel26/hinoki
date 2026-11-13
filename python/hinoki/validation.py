@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+import operator
 import re
 from collections.abc import Callable
 from datetime import datetime
@@ -17,13 +19,33 @@ if TYPE_CHECKING:
 INVALID = object()
 """Returned by checks that recorded an error."""
 
+MAX_ERRORS = 50
+MAX_KEY_ECHO = 64
+RFC3339 = re.compile(
+    r"\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})?"
+)
+BOUNDS = (
+    ("ge", "greater than or equal to", operator.ge),
+    ("le", "less than or equal to", operator.le),
+    ("gt", "greater than", operator.gt),
+    ("lt", "less than", operator.lt),
+)
+
+
+class TooManyErrors(Exception):
+    """Validation stopped early: more than ``MAX_ERRORS`` problems."""
+
 
 def join(path: str, name: str) -> str:
     return f"{path}.{name}" if path else name
 
 
 class Validator:
-    """Collects every problem found in one input instead of stopping at the first."""
+    """Collects problems found in one input, up to ``MAX_ERRORS``.
+
+    Past the cap it raises ``TooManyErrors`` so a hostile payload cannot make
+    the server build an unbounded list of details.
+    """
 
     def __init__(self) -> None:
         self.errors: list[ErrorDetail] = []
@@ -40,6 +62,8 @@ class Validator:
 
     def fail(self, path: str, code: str, message: str) -> object:
         self.errors.append(ErrorDetail(path, code, message))
+        if len(self.errors) >= MAX_ERRORS:
+            raise TooManyErrors
         return INVALID
 
     def check(self, ftype: FieldType, data: Any, path: str) -> object:
@@ -52,10 +76,13 @@ class Validator:
     def text(self, ftype: FieldType, data: Any, path: str) -> object:
         if not isinstance(data, str):
             return self.fail(path, "type", "expected a string")
-        info = ftype.info
-        if info.pattern is not None and not re.fullmatch(info.pattern, data):
-            return self.fail(path, "pattern", f"must match {info.pattern!r}")
-        return self.length(ftype, data, path)
+        if self.length(ftype, data, path) is INVALID:
+            return INVALID
+        pattern = ftype.info.pattern
+        # Length is checked first so it bounds the cost of the regex.
+        if pattern is not None and not re.fullmatch(pattern, data):
+            return self.fail(path, "pattern", f"must match {pattern!r}")
+        return data
 
     def length(self, ftype: FieldType, data: Any, path: str) -> object:
         info, size = ftype.info, len(data)
@@ -66,16 +93,10 @@ class Validator:
         return data
 
     def bounds(self, ftype: FieldType, data: Any, path: str) -> object:
-        info = ftype.info
-        checks = (
-            (info.ge, data.__ge__, "ge", "greater than or equal to"),
-            (info.le, data.__le__, "le", "less than or equal to"),
-            (info.gt, data.__gt__, "gt", "greater than"),
-            (info.lt, data.__lt__, "lt", "less than"),
-        )
-        for limit, compare, code, words in checks:
-            if limit is not None and not compare(limit):
-                return self.fail(path, code, f"must be {words} {limit}")
+        for name, words, compare in BOUNDS:
+            limit = getattr(ftype.info, name)
+            if limit is not None and not compare(data, limit):
+                return self.fail(path, name, f"must be {words} {limit}")
         return data
 
     def integer(self, ftype: FieldType, data: Any, path: str) -> object:
@@ -86,7 +107,13 @@ class Validator:
     def number(self, ftype: FieldType, data: Any, path: str) -> object:
         if type(data) not in {int, float}:
             return self.fail(path, "type", "expected a number")
-        return self.bounds(ftype, float(data), path)
+        try:
+            value = float(data)
+        except OverflowError:
+            return self.fail(path, "finite", "number is out of range")
+        if not math.isfinite(value):
+            return self.fail(path, "finite", "number must be finite")
+        return self.bounds(ftype, value, path)
 
     def boolean(self, _ftype: FieldType, data: Any, path: str) -> object:
         if type(data) is not bool:
@@ -95,17 +122,19 @@ class Validator:
 
     def uuid(self, _ftype: FieldType, data: Any, path: str) -> object:
         try:
-            return UUID(data) if isinstance(data, str) else INVALID
+            value = UUID(data) if isinstance(data, str) else None
         except ValueError:
-            pass
-        return self.fail(path, "uuid", "expected a UUID string")
+            value = None
+        if value is None or str(value) != data.lower():
+            return self.fail(path, "uuid", "expected a canonical UUID string")
+        return value
 
     def moment(self, _ftype: FieldType, data: Any, path: str) -> object:
+        if not isinstance(data, str) or not RFC3339.fullmatch(data):
+            return self.fail(path, "datetime", "expected an RFC 3339 datetime string")
         try:
-            parsed = datetime.fromisoformat(data) if isinstance(data, str) else None
+            parsed = datetime.fromisoformat(data)
         except ValueError:
-            parsed = None
-        if parsed is None:
             return self.fail(path, "datetime", "expected an RFC 3339 datetime string")
         if parsed.tzinfo is None:
             return self.fail(path, "datetime_tz", "datetime needs a UTC offset")
@@ -116,21 +145,23 @@ class Validator:
             return self.fail(path, "type", "expected an array")
         if self.length(ftype, data, path) is INVALID:
             return INVALID
-        assert ftype.item is not None  # noqa: S101 - set for every list type
+        if ftype.item is None:
+            raise TypeError("list type without an item type")
         before = len(self.errors)
         items = [self.check(ftype.item, v, f"{path}[{i}]") for i, v in enumerate(data)]
         return INVALID if len(self.errors) > before else items
 
     def schema(self, ftype: FieldType, data: Any, path: str) -> object:
-        schema = ftype.schema
-        assert schema is not None  # noqa: S101 - set for every schema type
+        if ftype.schema is None:
+            raise TypeError("schema type without a schema")
         if not isinstance(data, dict):
             return self.fail(path, "type", "expected an object")
         before = len(self.errors)
-        specs: dict[str, FieldSpec] = schema.specs()
+        specs: dict[str, FieldSpec] = ftype.schema.specs()
         for key in data:
             if key not in specs:
-                self.fail(join(path, str(key)), "extra_forbidden", "unknown field")
+                shown = str(key)[:MAX_KEY_ECHO]
+                self.fail(join(path, shown), "extra_forbidden", "unknown field")
         values = {
             name: self.member(spec, data, join(path, name))
             for name, spec in specs.items()
@@ -138,7 +169,7 @@ class Validator:
         }
         if len(self.errors) > before:
             return INVALID
-        return schema(**values)
+        return ftype.schema(**values)
 
     def member(self, spec: FieldSpec, data: dict[str, Any], path: str) -> object:
         if spec.name not in data:

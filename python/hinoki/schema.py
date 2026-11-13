@@ -19,10 +19,10 @@ from typing import (
 )
 from uuid import UUID
 
-from hinoki.errors import RegistrationError, ValidationError
+from hinoki.errors import ErrorDetail, RegistrationError, ValidationError
 from hinoki.fields import UNSET, Field, FieldInfo, Unset
 from hinoki.fieldtypes import FieldType, parse_annotation
-from hinoki.validation import INVALID, Validator
+from hinoki.validation import INVALID, TooManyErrors, Validator
 
 __all__ = ["UNSET", "Field", "FieldSpec", "Schema", "Unset"]
 
@@ -69,6 +69,11 @@ class Schema:
         """Turn a ``Field(default_factory=...)`` attribute into a dataclass default."""
         attr = cls.__dict__.get(name)
         if isinstance(attr, FieldInfo):
+            if attr.constraints():
+                raise RegistrationError(
+                    f"{cls.__name__}.{name}: constraints in Field(...) belong in "
+                    "Annotated[type, Field(...)], not in the default"
+                )
             if attr.default_factory is None:
                 delattr(cls, name)
             else:
@@ -107,7 +112,16 @@ class Schema:
     def validate(cls, data: object) -> Self:
         """Build an instance from decoded JSON or raise ``ValidationError``."""
         validator = Validator()
-        value = validator.schema(FieldType("schema", schema=cls), data, "")
+        try:
+            value = validator.schema(FieldType("schema", schema=cls), data, "")
+        except TooManyErrors:
+            validator.errors.append(
+                ErrorDetail("", "too_many_errors", "further errors omitted")
+            )
+            raise ValidationError(validator.errors) from None
+        except RecursionError:
+            detail = ErrorDetail("", "depth", "input is nested too deeply")
+            raise ValidationError([detail]) from None
         if value is INVALID:
             raise ValidationError(validator.errors)
         return cast(Self, value)
