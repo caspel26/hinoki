@@ -18,7 +18,7 @@ Brand: `assets/hinoki-identity-approved.png` unchanged; `hinoki-banner.png` / `h
 | Q004 | Vertical slice blog | **Done**: runtime (R1–R5), schemas, body/query binding, OpenAPI, errors, auth, pagination, Rust DB engine, `transaction=True`, SQL compiler, Active Record, `examples/blog` (also under real Granian + PostgreSQL). Three independent reviews run; every reported finding fixed with a regression test. |
 | Q005 | Relations and CRUD generation | **Implemented** (R2–R5: FK + explicit loading, versioned migrations, generated CRUD with `replaces`, sync model methods, typed `asave`). Relations review fixed (a5dd82c); Independent CRUD review (Opus-class, read-only) done: 1 high (subclass with a narrower resource kept the parent's write routes without the owner check), 2 medium, 6 low; all fixed with regression tests. M2M is the explicit join model with composite `unique=[(...)]` (model, migrations, tests); a `through=` sugar remains open. |
 | Q008 | Request object, parsers, renderers (Rust) | **Owner-requested 2026-11-13, runs before Q006.** S1 design, **S2 done** (Python `Request`, request-first handlers), **S3 done** (Rust query/cookie/header parsing, JSON decode/encode; `benchmarks/requestbench.py`). **S4 done** (JSON/form/multipart parsers, `parsers=`, Rust multipart). **S5 done** (renderers, Rust `Accept` negotiation, 406). S6 (Request as `#[pyclass]`, only if measurements justify it), S7 (independent review: request handling touches untrusted input) open. |
-| Q006 | Rules and development MCP | Not started. |
+| Q006 | Rules and development MCP | Design written (`docs/RULES-DESIGN.md`, R1). R2–R6 open. |
 | Q007 | Admin extra | Not started. |
 
 ## What exists (verified)
