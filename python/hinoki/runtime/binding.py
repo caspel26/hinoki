@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from urllib.parse import parse_qs
 from uuid import UUID
 
+from hinoki.auth import Principal
 from hinoki.errors import (
     ErrorDetail,
     InvalidBody,
@@ -118,6 +119,7 @@ class RequestData:
     path: dict[str, str] = field(default_factory=dict)
     query: dict[str, list[str]] = field(default_factory=dict)
     body: object = MISSING
+    principal: object = MISSING
 
 
 def problem(path: str, code: str, message: str) -> ValidationError:
@@ -129,13 +131,15 @@ class Param:
     """One handler parameter and where its value comes from."""
 
     name: str
-    source: str  # "path", "query" or "body"
+    source: str  # "path", "query", "body" or "principal"
     convert: Callable[[str], object] | None = None
     schema: type[Schema] | None = None
     default: object = EMPTY
     kind: str = "str"
 
     def extract(self, request: RequestData) -> object:
+        if self.source == "principal":
+            return request.principal
         if self.source == "path":
             return self.convert_text(request.path[self.name])
         if self.source == "query":
@@ -230,8 +234,19 @@ def check_owner(route: Route) -> None:
         )
 
 
+def is_principal(annotation: object) -> bool:
+    return annotation is Principal or typing.get_origin(annotation) is Principal
+
+
 def make_param(route: Route, parameter: inspect.Parameter, annotation: object) -> Param:
     name, where = parameter.name, route.name
+    if is_principal(annotation):
+        if route.access is None:
+            raise RegistrationError(
+                f"{where}: {name!r} asks for the principal but the action has no "
+                "access policy"
+            )
+        return Param(name, "principal")
     in_path = name in PATH_PARAM.findall(route.path)
     is_schema = isinstance(annotation, type) and issubclass(annotation, Schema)
     if is_schema:
