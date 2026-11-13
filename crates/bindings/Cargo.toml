@@ -20,3 +20,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 uuid = "1"
 serde_json = { version = "1", features = ["arbitrary_precision"] }
+argon2 = "0.6"
+getrandom = "0.4"
+subtle = "2"
+base64 = "0.22"

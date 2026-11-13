@@ -1,6 +1,6 @@
 # Crypto: password hashing and JWT, in Rust — design (Q011)
 
-Status: **design** (2026-11-13). Owner request: define what to use for the crypto part, in Rust. Nothing below is implemented until a step says so.
+Status: **C1 design, C2 implemented** (Rust Argon2id hash/verify/needs_rehash, `random_token`, constant-time compare in `crates/bindings/src/crypto.rs`; Python wrapper and JWT still open) (2026-11-13). Owner request: define what to use for the crypto part, in Rust. Nothing below is implemented until a step says so.
 
 ## Observed
 
@@ -78,7 +78,7 @@ Independent oracles, not self-consistency: HMAC signatures cross-checked against
 | Step | Deliverable | Files |
 | --- | --- | --- |
 | C1 | This design | `docs/CRYPTO-DESIGN.md` |
-| C2 | Rust: Argon2id hash/verify/needs_rehash, `random_token`, constant-time helpers | `crates/bindings/src/crypto.rs`, `Cargo.toml` |
+| C2 (done) | Rust: Argon2id hash/verify/needs_rehash, `random_token`, constant-time helpers | `crates/bindings/src/crypto.rs`, `Cargo.toml` |
 | C3 | Rust: JWS compact (HS256/384/512, EdDSA) encode/verify + claim validation | `crates/bindings/src/jwt.rs` |
 | C4 | Python: `PasswordHasher`, `JWTKey`, `JWTAuth`, settings checks, OpenAPI scheme | `python/hinoki/crypto.py` |
 | C5 | Tests with oracles/vectors; example use in the blog (password column + login-less token issue script) | `tests/`, `examples/` |
