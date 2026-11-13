@@ -221,3 +221,6 @@ __marimo__/
 
 # Local-only design handoff package (kept on disk, never published)
 framework-handoff/
+
+# mkdocs output
+site/

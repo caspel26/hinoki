@@ -1,0 +1,111 @@
+site_name: Hinoki
+site_description: Typed Python APIs with a native Rust core.
+site_url: https://caspel26.github.io/hinoki/
+repo_url: https://github.com/caspel26/hinoki
+repo_name: caspel26/hinoki
+docs_dir: docs
+strict: true
+validation:
+  links:
+    absolute_links: relative_to_docs
+    unrecognized_links: warn
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle: {icon: material/weather-night, name: Dark mode}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle: {icon: material/weather-sunny, name: Light mode}
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [python]
+          options:
+            show_source: false
+            show_root_heading: true
+            heading_level: 3
+            docstring_style: google
+            members_order: source
+            show_signature_annotations: true
+            separate_signature: true
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Guide:
+      - Patterns and best practices: PATTERNS.md
+      - Rules, checks for your project: RULES.md
+      - Settings: SETTINGS-DESIGN.md
+      - Sync and async: SYNC-ASYNC.md
+      - Typing: TYPING.md
+      - Toolchain and CI: TOOLCHAIN.md
+  - Working with AI:
+      - Build with an agent: AI-WORKFLOW.md
+      - Application MCP: APP-MCP-DESIGN.md
+  - API reference:
+      - Overview: reference/index.md
+      - Routing and requests: reference/web.md
+      - Schemas: reference/schemas.md
+      - Models and queries: reference/orm.md
+      - Auth and crypto: reference/auth.md
+      - Settings: reference/settings.md
+      - Testing: reference/testing.md
+  - Design:
+      - Runtime: RUNTIME-DESIGN.md
+      - Request, parsers, renderers: REQUEST-DESIGN.md
+      - Schema: SCHEMA-DESIGN.md
+      - Schema ergonomics: SCHEMA-ERGONOMICS-DESIGN.md
+      - Schema in Rust: SCHEMA-RUST-DESIGN.md
+      - ORM: ORM-DESIGN.md
+      - Relations: RELATIONS-DESIGN.md
+      - Rules engine: RULES-DESIGN.md
+      - Admin: ADMIN-DESIGN.md
+      - Crypto: CRYPTO-DESIGN.md
+  - Decisions:
+      - "0001 ASGI on Granian": adr/0001-server-adapter-asgi-on-granian.md
+      - "0002 Resources per worker": adr/0002-resource-ownership-per-worker.md
+      - "0003 Bounded sync executor": adr/0003-bounded-sync-executor.md
+      - "0004 Python and build backend": adr/0004-python-version-and-build-backend.md
