@@ -11,6 +11,7 @@ from __future__ import annotations
 import inspect
 import re
 import typing
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, get_args, get_origin
 
 from hinoki.errors import RegistrationError
@@ -52,6 +53,8 @@ LENGTH_KEYWORDS = {
 VALIDATION_ERROR = "ValidationError"
 DICT_ARGS = 2
 SIMPLE_DEFAULTS = (str, int, float, bool)
+INPUTS = {"path", "query"}
+BODYLESS_STATUSES = {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}
 
 
 def ref(name: str) -> dict[str, str]:
@@ -98,7 +101,7 @@ class OpenAPIBuilder:
             operation["summary"] = summary
         if description:
             operation["description"] = description
-        parameters = [self.parameter(p) for p in binding.params if p.source != "body"]
+        parameters = [self.parameter(p) for p in binding.params if p.source in INPUTS]
         if parameters:
             operation["parameters"] = parameters
         body = next((p for p in binding.params if p.source == "body"), None)
@@ -151,14 +154,15 @@ class OpenAPIBuilder:
     def responses(self, binding: Binding) -> dict[str, Any]:
         route = binding.route
         annotation = typing.get_type_hints(route.handler).get("return")
+        empty = annotation in {None, type(None)} or route.status in BODYLESS_STATUSES
+        status = 204 if empty and route.status == HTTPStatus.OK else route.status
         success: dict[str, Any] = {"description": "Successful response"}
-        schema = (
-            None if annotation in {None, type(None)} else self.annotation(annotation)
-        )
-        if schema is not None:
-            success["content"] = {"application/json": {"schema": schema}}
-        responses: dict[str, Any] = {str(route.status): success}
-        if binding.params:
+        if not empty:
+            success["content"] = {
+                "application/json": {"schema": self.annotation(annotation)}
+            }
+        responses: dict[str, Any] = {str(status): success}
+        if any(p.source != "principal" for p in binding.params):
             self.components.setdefault(VALIDATION_ERROR, validation_error_schema())
             responses["422"] = {
                 "description": "Validation error",
@@ -213,11 +217,16 @@ class OpenAPIBuilder:
             keyword = constraint_keyword(name, base)
             if keyword is not None:
                 base[keyword] = value
+            elif name == "pattern":
+                # JSON Schema patterns are unanchored; the runtime matches fully.
+                base["pattern"] = f"^(?:{value})$"
         return {"anyOf": [base, {"type": "null"}]} if ftype.nullable else base
 
 
 def constraint_keyword(name: str, schema: dict[str, Any]) -> str | None:
     fixed = CONSTRAINT_KEYWORDS[name]
+    if name == "pattern":
+        return None  # anchored form is added by the caller
     if fixed is not None:
         return fixed
     low, high = LENGTH_KEYWORDS[schema["type"]]

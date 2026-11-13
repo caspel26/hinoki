@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import types
 import typing
 from dataclasses import dataclass, field
@@ -90,6 +91,11 @@ def build(
         kind, schema = "schema", base
     else:
         raise RegistrationError(f"{where}: unsupported type {base!r}")
+    if info.pattern is not None:
+        try:
+            re.compile(info.pattern)
+        except re.error as exc:
+            raise RegistrationError(f"{where}: invalid pattern: {exc}") from exc
     unsupported = set(info.constraints()) - ALLOWED_CONSTRAINTS.get(kind, frozenset())
     if unsupported:
         raise RegistrationError(

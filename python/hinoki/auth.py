@@ -78,6 +78,7 @@ class APIKeyAuth[T](HeaderAuth[T]):
     """API key in ``x-api-key`` (override ``header`` to change it)."""
 
     header = "x-api-key"
+    challenge = "ApiKey"
 
 
 class BearerAuth[T](HeaderAuth[T]):

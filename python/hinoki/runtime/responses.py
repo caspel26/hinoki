@@ -31,7 +31,7 @@ class Response:
         cls, status: int, payload: object, headers: Headers | None = None
     ) -> Response:
         head: Headers = [(b"content-type", b"application/json"), *(headers or [])]
-        return cls(status, json.dumps(payload).encode(), head)
+        return cls(status, json.dumps(payload, allow_nan=False).encode(), head)
 
 
 class HTTPError(Exception):

@@ -8,6 +8,7 @@ from typing import Any
 from urllib.parse import unquote
 
 from hinoki.auth import Credentials, Principal
+from hinoki.errors import InvalidBody
 from hinoki.httperrors import Forbidden, Unauthorized
 from hinoki.runtime.binding import (
     MISSING,
@@ -30,7 +31,7 @@ async def read_body(receive: Any) -> bytes:
     while more:
         message = await receive()
         if message["type"] != "http.request":
-            break
+            raise InvalidBody("disconnected", "the client disconnected")
         chunk = message.get("body", b"")
         size += len(chunk)
         if size > MAX_BODY:
@@ -50,10 +51,15 @@ def decode_params(params: dict[str, str]) -> dict[str, str]:
 
 
 def header_map(scope: Scope) -> dict[str, str]:
-    return {
-        k.decode("latin-1").lower(): v.decode("latin-1")
-        for k, v in scope.get("headers", [])
-    }
+    """Header values by lower-case name. Repeated headers are joined with
+    ``", "`` (HTTP list semantics), so a doubled credential header never
+    resolves to just one of the values."""
+    headers: dict[str, str] = {}
+    for name, value in scope.get("headers", []):
+        key = name.decode("latin-1").lower()
+        text = value.decode("latin-1")
+        headers[key] = f"{headers[key]}, {text}" if key in headers else text
+    return headers
 
 
 async def authorize(scope: Scope, binding: Binding) -> Principal[Any] | None:
