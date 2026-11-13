@@ -70,6 +70,10 @@ class HinokiAPI:
             if isinstance(item, type) and issubclass(item, API):
                 pending.extend(item.routes())
             elif (route := route_of(item)) is not None:
+                if route.replaces:
+                    raise RegistrationError(
+                        f"{route.name}: replaces=... only works inside an API class"
+                    )
                 pending.append(route)
             else:
                 raise RegistrationError(

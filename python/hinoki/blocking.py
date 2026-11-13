@@ -33,4 +33,8 @@ def run_sync[T](coroutine: Coroutine[Any, Any, T]) -> T:
         raise RuntimeError(
             "sync model methods only work inside sync handlers served by Hinoki"
         )
-    return asyncio.run_coroutine_threadsafe(coroutine, loop).result()
+    future = asyncio.run_coroutine_threadsafe(coroutine, loop)
+    handed = context.handed_off.get()
+    if handed is not None:
+        handed.append(future)
+    return future.result()

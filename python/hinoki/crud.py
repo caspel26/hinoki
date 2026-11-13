@@ -31,6 +31,7 @@ from hinoki.routing import Options, RouteDeclaration
 from hinoki.schema import Schema
 
 ITEM = "/{item_id}"
+GENERATED = "hinoki_generated"
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -87,13 +88,17 @@ class Resource:
         for column in self.assigned():
             if column not in columns:
                 raise RegistrationError(f"{name} has no column {column!r} to assign")
-        for label, schema in (("create", self.create), ("update", self.update)):
-            if schema is not None:
-                self.check_input(label, schema, columns)
+        self.check_schemas(columns)
+
+    def check_schemas(self, columns: set[str]) -> None:
+        if self.create is not None:
+            self.check_input("create", self.create, columns)
+            self.check_required(self.create)
+        if self.update is not None:
+            self.check_input("update", self.update, columns)
+            self.check_patch(self.update)
         if self.output is None:
             self.check_names("read", self.read, columns)
-        if self.create is not None:
-            self.check_required(self.create)
 
     def check_names(self, label: str, schema: type[Schema], columns: set[str]) -> None:
         unknown = set(schema.specs()) - columns
@@ -105,12 +110,42 @@ class Resource:
 
     def check_input(self, label: str, schema: type[Schema], columns: set[str]) -> None:
         self.check_names(label, schema, columns)
+        self.check_nullable(label, schema)
         sent = set(schema.specs()) & set(self.assigned())
         if sent:
             raise RegistrationError(
                 f"{self.model.__name__}: {label} schema accepts {sorted(sent)}, "
                 "which the server assigns"
             )
+
+    def check_patch(self, update: type[Schema]) -> None:
+        """PATCH touches only what was sent: every field defaults to UNSET and
+        the primary key is not changeable."""
+        key = self.model.__primary_key__
+        if key in update.specs():
+            raise RegistrationError(
+                f"{self.model.__name__}: the update schema must not contain {key!r}"
+            )
+        loud = [
+            item.name
+            for item in dataclasses.fields(update)  # type: ignore[arg-type]
+            if item.default is not UNSET
+        ]
+        if loud:
+            raise RegistrationError(
+                f"{self.model.__name__}: update schema fields {loud} must default "
+                "to UNSET, or an absent field would overwrite the column"
+            )
+
+    def check_nullable(self, label: str, schema: type[Schema]) -> None:
+        hints = typing.get_type_hints(self.model)
+        for name, spec in schema.specs().items():
+            optional = type(None) in typing.get_args(hints.get(name))
+            if spec.ftype.nullable and not optional:
+                raise RegistrationError(
+                    f"{self.model.__name__}: {label} field {name!r} accepts null "
+                    "but the column does not"
+                )
 
     def check_required(self, create: type[Schema]) -> None:
         covered = set(create.specs()) | set(self.assigned())
@@ -138,19 +173,25 @@ class Resource:
         found = {name: getattr(data, name) for name in data.specs()}
         return {name: value for name, value in found.items() if value is not UNSET}
 
-    def owned(self, row: Any, principal: Any) -> None:
-        if self.owner and getattr(row, self.owner) != self.identity_key(
-            principal.identity
-        ):
-            raise Forbidden("You cannot change this item.")
+    def owner_conditions(self, key: Any, principal: Any) -> dict[str, Any]:
+        """Primary key, plus the owner when one is enforced. Used in the
+        UPDATE/DELETE itself, so a row that changed hands meanwhile is untouched."""
+        conditions = {self.model.__primary_key__: key}
+        if self.owner:
+            conditions[self.owner] = self.identity_key(principal.identity)
+        return conditions
 
     async def fetch(self, key: Any) -> Any:
         return await self.base().filter(**{self.model.__primary_key__: key}).aget()
 
     async def guard(self, key: Any, principal: Any) -> None:
-        """404 for a missing row, 403 when somebody else owns it."""
-        row = await self.model.aget(**{self.model.__primary_key__: key})
-        self.owned(row, principal)
+        """404 for a row outside the base query (or missing), 403 when somebody
+        else owns it. Rows the base query hides look the same as missing ones."""
+        row = await self.fetch(key)
+        if self.owner and getattr(row, self.owner) != self.identity_key(
+            principal.identity
+        ):
+            raise Forbidden("You cannot change this item.")
 
 
 async def list_rows(self: CrudAPI, page: PageParams) -> Any:
@@ -181,15 +222,18 @@ async def update_row(
     await resource.guard(item_id, principal)
     values = resource.values(data)
     if values:
-        key = resource.model.__primary_key__
-        await resource.model.aupdate(**{key: item_id}, **values)
+        conditions = resource.owner_conditions(item_id, principal)
+        if not await resource.model.aupdate_where(conditions, values):
+            raise Forbidden("You cannot change this item.")
     return resource.present(await resource.fetch(item_id))
 
 
 async def delete_row(self: CrudAPI, item_id: Any, principal: Any = None) -> None:
     resource = self.resource
     await resource.guard(item_id, principal)
-    await resource.model.adelete(**{resource.model.__primary_key__: item_id})
+    conditions = resource.owner_conditions(item_id, principal)
+    if not await resource.model.adelete(**conditions):
+        raise Forbidden("You cannot change this item.")
 
 
 def specialize(
@@ -233,7 +277,8 @@ class CrudAPI(API):
         resource.check()
         cls.resource = resource
         for name, function in generate(resource).items():
-            if name not in vars(cls):
+            existing = inspect.getattr_static(cls, name, None)
+            if existing is None or getattr(existing, GENERATED, False):
                 setattr(cls, name, function)
 
 
@@ -248,7 +293,11 @@ def declare(
     route: tuple[str, str, Options],
 ) -> Callable[..., Any]:
     method, path, options = route
-    return RouteDeclaration(method, path, options)(specialize(template, hints, name))
+    function = RouteDeclaration(method, path, options)(
+        specialize(template, hints, name)
+    )
+    setattr(function, GENERATED, True)
+    return function
 
 
 def read_routes(resource: Resource, key: Any) -> dict[str, Callable[..., Any]]:

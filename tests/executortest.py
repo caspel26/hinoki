@@ -5,6 +5,7 @@ import time
 
 import pytest
 
+from hinoki import blocking
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 
 var: contextvars.ContextVar[str] = contextvars.ContextVar("var", default="unset")
@@ -61,6 +62,31 @@ async def test_abandoned_call_keeps_its_slot_until_the_thread_finishes() -> None
         with pytest.raises(ExecutorSaturated):
             await executor.run(lambda: None)
         release.set()
+        await asyncio.sleep(0.1)
+        assert executor.in_flight == 0
+
+
+async def test_cancelled_call_cancels_the_work_it_handed_to_the_loop() -> None:
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def slow() -> None:
+        started.set()
+        try:
+            await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    def handler() -> None:
+        blocking.run_sync(slow())
+
+    async with SyncExecutor(workers=1, queue=0) as executor:
+        task = asyncio.create_task(executor.run(handler))
+        await asyncio.wait_for(started.wait(), 1)
+        task.cancel()
+        await asyncio.wait_for(cancelled.wait(), 1)
+        await asyncio.gather(task, return_exceptions=True)
         await asyncio.sleep(0.1)
         assert executor.in_flight == 0
 
