@@ -262,7 +262,8 @@ class ASGIAdapter:
         if isinstance(result, Reply):
             return Response(result.status, result.body, result.headers)
         if result is not None and route.status not in BODYLESS:
-            body = renderer.render(encode(result), request)
+            shown = result if renderer.consumes_objects else encode(result)
+            body = renderer.render(shown, request)
             many = len(route.renderers) > 1
             return Response.rendered(route.status, body, renderer.media_type, many)
         no_content = route.status == HTTPStatus.OK

@@ -20,6 +20,9 @@ class Renderer:
     """Base class of response renderers."""
 
     media_type: ClassVar[str] = ""
+    # True when ``render`` can take schema instances, UUIDs and datetimes as
+    # they are; otherwise it receives the JSON-compatible form.
+    consumes_objects: ClassVar[bool] = False
 
     def render(self, value: object, request: Request) -> bytes:
         raise NotImplementedError
@@ -27,6 +30,7 @@ class Renderer:
 
 class JSONRenderer(Renderer):
     media_type = "application/json"
+    consumes_objects = True
 
     def render(self, value: object, request: Request) -> bytes:  # noqa: ARG002
         return native.encode_json(value)

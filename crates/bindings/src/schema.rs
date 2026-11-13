@@ -62,6 +62,7 @@ pub struct Compiled {
     root: usize,
     uuid: Py<PyAny>,
     from_iso: Py<PyAny>,
+    unset: Py<PyAny>,
 }
 
 enum Abort {
@@ -147,6 +148,7 @@ pub fn compile_schemas(
     root: usize,
     uuid_class: Py<PyAny>,
     from_iso: Py<PyAny>,
+    unset: Py<PyAny>,
 ) -> PyResult<Compiled> {
     let mut built = Vec::with_capacity(definitions.len());
     for (class, fields) in definitions {
@@ -179,7 +181,31 @@ pub fn compile_schemas(
         root,
         uuid: uuid_class,
         from_iso,
+        unset,
     })
+}
+
+/// For a `Schema` instance: its field names in declaration order and the
+/// `UNSET` sentinel (fields holding it are not serialised). The class is
+/// compiled on first use. `None` when `value` is not a schema instance.
+pub fn instance_fields(value: &Bound<'_, PyAny>) -> PyResult<Option<(Vec<String>, Py<PyAny>)>> {
+    let class = value.get_type();
+    if !class.hasattr("__hinoki_schema__")? {
+        return Ok(None);
+    }
+    // Read the class's own entry: a subclass must not use its parent's table.
+    let own = class.getattr("__dict__")?.get_item("__native__").ok();
+    let compiled = match own {
+        Some(found) if !found.is_none() => found,
+        _ => class.call_method0("native_schema")?,
+    };
+    let compiled: PyRef<'_, Compiled> = compiled.extract()?;
+    let names = compiled.definitions[compiled.root]
+        .fields
+        .iter()
+        .map(|field| field.name.clone())
+        .collect();
+    Ok(Some((names, compiled.unset.clone_ref(value.py()))))
 }
 
 fn refers_outside(node: &Node, known: usize) -> bool {

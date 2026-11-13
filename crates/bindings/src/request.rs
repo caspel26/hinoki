@@ -748,6 +748,43 @@ fn write_value(out: &mut Vec<u8>, value: &Bound<'_, PyAny>, depth: usize) -> PyR
         }
         out.push(b']');
     } else {
+        write_object(out, value, depth)?;
+    }
+    Ok(())
+}
+
+fn is_instance_of_named(value: &Bound<'_, PyAny>, module: &str, class: &str) -> PyResult<bool> {
+    let wanted = value.py().import(module)?.getattr(class)?;
+    value.is_instance(&wanted)
+}
+
+/// Objects that are not plain JSON values: schema instances, UUIDs, datetimes,
+/// and anything with a `dump()` method.
+fn write_object(out: &mut Vec<u8>, value: &Bound<'_, PyAny>, depth: usize) -> PyResult<()> {
+    if let Some((names, unset)) = crate::schema::instance_fields(value)? {
+        out.push(b'{');
+        let mut first = true;
+        for name in names {
+            let item = value.getattr(name.as_str())?;
+            if item.is(&unset) {
+                continue;
+            }
+            if !first {
+                out.push(b',');
+            }
+            first = false;
+            write_string(out, &name)?;
+            out.push(b':');
+            write_value(out, &item, depth + 1)?;
+        }
+        out.push(b'}');
+    } else if is_instance_of_named(value, "uuid", "UUID")? {
+        write_string(out, &value.str()?.to_string())?;
+    } else if is_instance_of_named(value, "datetime", "datetime")? {
+        write_string(out, &value.call_method0("isoformat")?.str()?.to_string())?;
+    } else if value.hasattr("dump")? {
+        write_value(out, &value.call_method0("dump")?, depth + 1)?;
+    } else {
         let name = value.get_type().name()?;
         return Err(PyTypeError::new_err(format!(
             "{name} is not JSON serializable"
@@ -757,7 +794,7 @@ fn write_value(out: &mut Vec<u8>, value: &Bound<'_, PyAny>, depth: usize) -> PyR
 }
 
 /// Serialise plain Python values (`dict`, `list`, `tuple`, `str`, `int`,
-/// `float`, `bool`, `None`) to compact UTF-8 JSON. `NaN` and infinities raise
+/// `float`, `bool`, `None`), schema instances, UUIDs and datetimes to compact UTF-8 JSON. `NaN` and infinities raise
 /// `ValueError`; anything else raises `TypeError`.
 #[pyfunction]
 pub fn encode_json<'py>(

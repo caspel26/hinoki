@@ -1,6 +1,6 @@
 # Schema validation and serialisation in Rust — design (Q014)
 
-Status: **N1 design, N2 implemented** (Rust validator + oracle + differential tests + benchmark, 2.0×); N3–N6 open (2026-11-13). Owner request: all schema and serialisation work happens in the Rust core; use `Schema` everywhere and dataclasses only where genuinely needed; renaming `Schema` is allowed (other frameworks use the word).
+Status: **N1 design, N2 implemented** (Rust validator + oracle + differential tests + benchmark, 2.0×); N3 implemented (`encode_json` takes `Schema` instances, `UUID`, `datetime`, `dump()` objects; `Schema.dump()` is native; JSONRenderer skips the Python walk; 2.1×); N4–N6 open (2026-11-13). Owner request: all schema and serialisation work happens in the Rust core; use `Schema` everywhere and dataclasses only where genuinely needed; renaming `Schema` is allowed (other frameworks use the word).
 
 ## Observed
 
@@ -49,7 +49,7 @@ Unit tests in Rust for each kind and constraint; the Python differential suite a
 | --- | --- | --- |
 | N1 | This design | `docs/SCHEMA-RUST-DESIGN.md` |
 | N2 (done) | Rust `CompiledSchema` (compile table, validate, construct instances) and Python glue; Python engine moved to tests as oracle; differential tests | `crates/bindings/src/schema.rs`, `python/hinoki/schema.py`, `tests/oracle/`, `tests/schemadifftest.py` |
-| N3 | Native `dump` / `to_dict` and `encode_json` support for `Schema`, `UUID`, `datetime` | `crates/bindings/src/request.rs`, `schema.rs` |
+| N3 (done) | Native `dump` / `to_dict` and `encode_json` support for `Schema`, `UUID`, `datetime` | `crates/bindings/src/request.rs`, `schema.rs` |
 | N4 | Benchmark, docs, handoff | `benchmarks/schemabench.py` |
 | N5 | Independent review (untrusted input), fixes | — |
 | N6 | `Contract` as the canonical name, `Schema` alias, docs/examples updated | repo-wide, mechanical |

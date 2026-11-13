@@ -4,6 +4,7 @@ Same schema, same decoded JSON, repeated validate calls; prints median and CV.
 Run: ``PYTHONPATH=. uv run --locked python benchmarks/schemabench.py``.
 """
 
+import json
 import statistics
 import time
 from collections.abc import Callable
@@ -12,7 +13,9 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from hinoki import Field, Schema
+from hinoki import native as nat
 from hinoki.fieldtypes import FieldType
+from hinoki.schema import encode
 from tests.oracle.validation import Validator
 
 SAMPLES = 7
@@ -70,7 +73,21 @@ def report(name: str, call: Callable[[], object]) -> float:
     return median
 
 
+INSTANCE = Post.validate(DATA)
+
+
+def encode_python() -> object:
+    return json.dumps(encode(INSTANCE)).encode()
+
+
+def encode_native() -> object:
+    return nat.encode_json(INSTANCE)
+
+
 native()  # compile once, outside the timing
 slow = report("python", oracle)
 fast = report("rust", native)
+print(f"ratio    {slow / fast:8.2f}x")
+slow = report("enc py", encode_python)
+fast = report("enc rust", encode_native)
 print(f"ratio    {slow / fast:8.2f}x")
