@@ -1,9 +1,10 @@
 """Active Record models over the Rust query compiler.
 
-First slice: single-table models with equality/comparison/membership filters,
-ordering, counting and pagination, plus create/get/update/delete. Relations,
-migrations and sync variants come later. SQL is produced by the native
-compiler from validated field names; values are always bound parameters.
+Single-table models with equality/comparison/membership filters, ordering,
+counting and pagination, plus create/get/update/delete, and foreign keys that
+are loaded only on request (``select_related`` joins, ``prefetch_related``
+runs one extra query). SQL is produced by the native compiler from validated
+field names; values are always bound parameters.
 
 Typing note: construction (``Post(title=...)``) is checked statically;
 keyword-style helpers such as ``Post.acreate(**values)`` are not (see
@@ -27,9 +28,11 @@ from hinoki.errors import (
     RegistrationError,
 )
 from hinoki.pagination import Page, PageParams
+from hinoki.relations import ALIAS_PREFIX, ON_DELETE, Related, Relation, store
 
 OPERATORS = {"gt", "gte", "lt", "lte", "ne", "in", "isnull"}
 SEPARATOR = "__"
+IN_CHUNK = 10000
 MARK = "hinoki_field"
 
 database_var: ContextVar[Database | None] = ContextVar("hinoki_database", default=None)
@@ -61,6 +64,9 @@ class FieldMeta:
     primary_key: bool = False
     unique: bool = False
     max_length: int | None = None
+    references: type[Model] | None = None
+    on_delete: str = ""
+    related_name: str = ""
 
 
 def field(
@@ -81,6 +87,31 @@ def field(
     )
 
 
+def foreign_key(
+    model: type[Model],
+    *,
+    on_delete: str,
+    related_name: str = "",
+    unique: bool = False,
+    default: Any = dataclasses.MISSING,
+) -> Any:
+    """Declare a column that references ``model``'s primary key.
+
+    ``author_id: UUID = foreign_key(User, on_delete="restrict", related_name="posts")``
+
+    ``on_delete`` is required (``restrict``, ``cascade``, ``set_null`` or
+    ``no_action``) so a deletion rule is always a decision. The relation is
+    named after the column without ``_id`` and is loaded only by
+    ``select_related`` / ``prefetch_related``.
+    """
+    if on_delete not in ON_DELETE:
+        raise RegistrationError(f"on_delete must be one of {sorted(ON_DELETE)}")
+    meta = FieldMeta(
+        unique=unique, references=model, on_delete=on_delete, related_name=related_name
+    )
+    return dataclasses.field(default=default, metadata={MARK: meta})
+
+
 @dataclass_transform(kw_only_default=True, field_specifiers=(field,))
 class Model:
     """Base class: ``class Post(Model, table="posts"): ...``."""
@@ -88,6 +119,7 @@ class Model:
     __table__: ClassVar[str] = ""
     __columns__: ClassVar[tuple[str, ...]] = ()
     __primary_key__: ClassVar[str] = ""
+    __relations__: ClassVar[dict[str, Relation]] = {}
     NotFound: ClassVar[type[ObjectNotFound]] = ObjectNotFound
 
     def __init_subclass__(cls, table: str = "", **kwargs: object) -> None:
@@ -102,13 +134,45 @@ class Model:
         cls.__table__ = table
         cls.__columns__ = tuple(f.name for f in fields)
         cls.__primary_key__ = keys[0]
+        cls.__relations__ = {}
+        cls.register_relations(fields)
         cls.NotFound = type(
             "NotFound", (ObjectNotFound,), {"__qualname__": f"{cls.__name__}.NotFound"}
         )
 
     @classmethod
+    def register_relations(cls, fields: tuple[dataclasses.Field[Any], ...]) -> None:
+        for column in fields:
+            meta: FieldMeta = column.metadata.get(MARK, FieldMeta())
+            if meta.references is None:
+                continue
+            name = column.name.removesuffix("_id")
+            if name == column.name:
+                raise RegistrationError(
+                    f"{cls.__name__}.{column.name}: foreign key columns end in _id"
+                )
+            cls.attach(name, Relation(name, meta.references, column.name, True))
+            if meta.related_name:
+                back = Relation(meta.related_name, cls, column.name, False)
+                meta.references.attach(meta.related_name, back)
+
+    @classmethod
+    def attach(cls, name: str, relation: Relation) -> None:
+        if name in cls.__relations__ or name in cls.__columns__ or hasattr(cls, name):
+            raise RegistrationError(f"{cls.__name__} already has an attribute {name!r}")
+        cls.__relations__[name] = relation
+        setattr(cls, name, Related(name, relation.forward))
+
+    @classmethod
     def from_row(cls, row: dict[str, Any]) -> Self:
         return cls(**row)
+
+    def related(self, name: str) -> Any:
+        """The loaded relation ``name`` (``RelationNotLoaded`` if it was not)."""
+        relation = self.__relations__.get(name)
+        if relation is None:
+            raise FieldError(f"{type(self).__name__} has no relation {name!r}")
+        return getattr(self, name)
 
     @classmethod
     def filter(cls, **conditions: Any) -> QuerySet[Self]:
@@ -185,6 +249,15 @@ class Model:
             raise FieldError(f"{cls.__name__} has no field {name!r}")
 
 
+@dataclasses.dataclass(frozen=True, slots=True)
+class Loading:
+    """Relations a query joins for filtering, joins and loads, or prefetches."""
+
+    joined: tuple[str, ...] = ()
+    selected: tuple[str, ...] = ()
+    prefetched: tuple[str, ...] = ()
+
+
 class QuerySet[M: Model]:
     """Lazy, immutable query description; nothing runs until an ``a...`` call."""
 
@@ -195,12 +268,14 @@ class QuerySet[M: Model]:
         order: tuple[tuple[str, bool], ...] = (),
         limit_to: int | None = None,
         offset_by: int | None = None,
+        loading: Loading = Loading(),  # noqa: B008 - frozen, safe to share
     ) -> None:
         self.model = model
         self.filters = filters
         self.order = order
         self.limit_to = limit_to
         self.offset_by = offset_by
+        self.loading = loading
 
     def derive(self, **changes: Any) -> QuerySet[M]:
         state = {
@@ -208,27 +283,67 @@ class QuerySet[M: Model]:
             "order": self.order,
             "limit_to": self.limit_to,
             "offset_by": self.offset_by,
+            "loading": self.loading,
         }
         return QuerySet(self.model, **{**state, **changes})
 
     def filter(self, **conditions: Any) -> QuerySet[M]:
-        added = tuple(self.condition(key, value) for key, value in conditions.items())
-        return self.derive(filters=(*self.filters, *added))
+        query = self
+        for key, value in conditions.items():
+            query = query.with_condition(key, value)
+        return query
 
-    def condition(self, key: str, value: Any) -> tuple[str, str, list[Any]]:
-        name, _, suffix = key.rpartition(SEPARATOR)
-        if not name or suffix not in OPERATORS:
-            name, suffix = key, "eq"
-        self.model.check_field(name)
-        if suffix == "in":
-            return name, "in", list(value)
-        if suffix == "isnull":
-            return name, "isnull" if value else "notnull", []
-        if value is None:
-            if suffix not in {"eq", "ne"}:
-                raise FieldError(f"{key} cannot compare with None")
-            return name, "isnull" if suffix == "eq" else "notnull", []
-        return name, suffix, [value]
+    def with_condition(self, key: str, value: Any) -> QuerySet[M]:
+        relation_name, _, rest = key.partition(SEPARATOR)
+        relation = self.model.__relations__.get(relation_name)
+        if relation is None or not rest:
+            return self.derive(
+                filters=(*self.filters, condition(self.model, key, value))
+            )
+        if not relation.forward:
+            raise FieldError(
+                f"cannot filter {self.model.__name__} across the reverse relation "
+                f"{relation_name!r}; query {relation.model.__name__} instead"
+            )
+        name, op, values = condition(relation.model, rest, value)
+        added = (f"{ALIAS_PREFIX}{relation_name}.{name}", op, values)
+        joined = tuple(dict.fromkeys((*self.loading.joined, relation_name)))
+        return self.derive(
+            filters=(*self.filters, added),
+            loading=dataclasses.replace(self.loading, joined=joined),
+        )
+
+    def select_related(self, *names: str) -> QuerySet[M]:
+        """Load forward relations in the same query (one JOIN each)."""
+        for name in names:
+            self.forward(name)
+        merged = tuple(dict.fromkeys((*self.loading.selected, *names)))
+        return self.derive(loading=dataclasses.replace(self.loading, selected=merged))
+
+    def prefetch_related(self, *names: str) -> QuerySet[M]:
+        """Load relations (forward or reverse) with one extra query each."""
+        for name in names:
+            self.relation(name)
+        merged = tuple(dict.fromkeys((*self.loading.prefetched, *names)))
+        return self.derive(loading=dataclasses.replace(self.loading, prefetched=merged))
+
+    def relation(self, name: str) -> Relation:
+        relation = self.model.__relations__.get(name)
+        if relation is None:
+            known = sorted(self.model.__relations__) or "none"
+            raise FieldError(
+                f"{self.model.__name__} has no relation {name!r} (relations: {known})"
+            )
+        return relation
+
+    def forward(self, name: str) -> Relation:
+        relation = self.relation(name)
+        if not relation.forward:
+            raise FieldError(
+                f"{self.model.__name__}.{name} is a reverse relation; "
+                f"use prefetch_related({name!r})"
+            )
+        return relation
 
     def order_by(self, *names: str) -> QuerySet[M]:
         parsed = []
@@ -244,6 +359,29 @@ class QuerySet[M: Model]:
     def offset(self, count: int) -> QuerySet[M]:
         return self.derive(offset_by=count)
 
+    def joins(self) -> list[tuple[str, str, str, str, bool, list[str]]]:
+        """Joins for selected relations (with columns) and filtered ones (without)."""
+        names = dict.fromkeys((*self.loading.selected, *self.loading.joined))
+        result = []
+        for name in names:
+            relation = self.forward(name)
+            columns = (
+                list(relation.model.__columns__)
+                if name in self.loading.selected
+                else []
+            )
+            result.append(
+                (
+                    relation.model.__table__,
+                    f"{ALIAS_PREFIX}{name}",
+                    relation.column,
+                    relation.model.__primary_key__,
+                    True,
+                    columns,
+                )
+            )
+        return result
+
     def compile(self, kind: str = "select") -> tuple[str, list[Any]]:
         return native.compile_query(
             kind,
@@ -253,12 +391,62 @@ class QuerySet[M: Model]:
             order=list(self.order),
             limit=self.limit_to,
             offset=self.offset_by,
+            joins=self.joins(),
         )
+
+    def build(self, row: dict[str, Any]) -> M:
+        own = {column: row[column] for column in self.model.__columns__}
+        instance = self.model.from_row(own)
+        for name in self.loading.selected:
+            related_model = self.forward(name).model
+            prefix = f"{ALIAS_PREFIX}{name}{SEPARATOR}"
+            values = {c: row[f"{prefix}{c}"] for c in related_model.__columns__}
+            key = related_model.__primary_key__
+            store(
+                instance,
+                name,
+                None if values[key] is None else related_model.from_row(values),
+            )
+        return instance
+
+    async def load(self, instances: list[M]) -> None:
+        for name in self.loading.prefetched:
+            await self.prefetch(name, instances)
+
+    async def prefetch(self, name: str, instances: list[M]) -> None:
+        relation = self.relation(name)
+        if relation.forward:
+            await self.prefetch_forward(relation, instances)
+        else:
+            await self.prefetch_reverse(relation, instances)
+
+    async def prefetch_forward(self, relation: Relation, instances: list[M]) -> None:
+        key = relation.model.__primary_key__
+        wanted = {getattr(i, relation.column) for i in instances} - {None}
+        found = await fetch_in(relation.model, key, list(wanted))
+        by_key = {getattr(row, key): row for row in found}
+        for instance in instances:
+            store(
+                instance, relation.name, by_key.get(getattr(instance, relation.column))
+            )
+
+    async def prefetch_reverse(self, relation: Relation, instances: list[M]) -> None:
+        key = self.model.__primary_key__
+        found = await fetch_in(
+            relation.model, relation.column, [getattr(i, key) for i in instances]
+        )
+        children: dict[Any, list[Model]] = {}
+        for row in found:
+            children.setdefault(getattr(row, relation.column), []).append(row)
+        for instance in instances:
+            store(instance, relation.name, children.get(getattr(instance, key), []))
 
     async def aall(self) -> list[M]:
         sql, params = self.compile()
         rows = await current_database().fetch(sql, *params)
-        return [self.model.from_row(row) for row in rows]
+        instances = [self.build(row) for row in rows]
+        await self.load(instances)
+        return instances
 
     async def afirst(self) -> M | None:
         rows = await self.limit(1).aall()
@@ -289,3 +477,30 @@ class QuerySet[M: Model]:
         total = await self.acount()
         window = ordered.limit(params.page_size).offset(params.offset)
         return Page(await window.aall(), params.page, params.page_size, total)
+
+
+def condition(model: type[Model], key: str, value: Any) -> tuple[str, str, list[Any]]:
+    """Parse ``name``, ``name__op`` into ``(column, operator, values)``."""
+    name, _, suffix = key.rpartition(SEPARATOR)
+    if not name or suffix not in OPERATORS:
+        name, suffix = key, "eq"
+    model.check_field(name)
+    if suffix == "in":
+        return name, "in", list(value)
+    if suffix == "isnull":
+        return name, "isnull" if value else "notnull", []
+    if value is None:
+        if suffix not in {"eq", "ne"}:
+            raise FieldError(f"{key} cannot compare with None")
+        return name, "isnull" if suffix == "eq" else "notnull", []
+    return name, suffix, [value]
+
+
+async def fetch_in(model: type[Model], column: str, values: list[Any]) -> list[Any]:
+    """Rows of ``model`` whose ``column`` is one of ``values`` (chunked so the
+    statement stays far below PostgreSQL's parameter limit)."""
+    found: list[Model] = []
+    for start in range(0, len(values), IN_CHUNK):
+        chunk = values[start : start + IN_CHUNK]
+        found.extend(await QuerySet(model).filter(**{f"{column}__in": chunk}).aall())
+    return found

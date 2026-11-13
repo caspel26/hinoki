@@ -63,4 +63,5 @@ def compile_query(
     order: list[tuple[str, bool]] | None = None,
     limit: int | None = None,
     offset: int | None = None,
+    joins: list[tuple[str, str, str, str, bool, list[str]]] | None = None,
 ) -> tuple[str, list[Any]]: ...
