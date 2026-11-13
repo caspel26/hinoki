@@ -34,7 +34,7 @@ from hinoki.errors import (
 from hinoki.pagination import Page, PageParams
 from hinoki.relations import ALIAS_PREFIX, ON_DELETE, Related, Relation, store
 
-OPERATORS = {"gt", "gte", "lt", "lte", "ne", "in", "isnull"}
+OPERATORS = {"gt", "gte", "lt", "lte", "ne", "in", "isnull", "contains"}
 SEPARATOR = "__"
 IN_CHUNK = 10000
 MARK = "hinoki_field"

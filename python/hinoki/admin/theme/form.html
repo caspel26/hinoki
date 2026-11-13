@@ -1,0 +1,9 @@
+<form method="post" action="{{ action }}" novalidate>
+<input type="hidden" name="csrf" value="{{ csrf }}">
+{{{ summary }}}
+{{{ fields }}}
+<p class="actions">
+<button class="btn btn-primary" type="submit">{{ submit }}</button>
+<a class="btn" href="{{ cancel }}">Cancel</a>
+</p>
+</form>

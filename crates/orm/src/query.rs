@@ -18,6 +18,7 @@ pub enum Op {
     In,
     IsNull,
     NotNull,
+    Contains,
 }
 
 impl Op {
@@ -32,6 +33,7 @@ impl Op {
             "in" => Self::In,
             "isnull" => Self::IsNull,
             "notnull" => Self::NotNull,
+            "contains" => Self::Contains,
             _ => return None,
         })
     }
@@ -201,6 +203,7 @@ impl<V: Clone> Builder<V> {
                 return Ok(format!("{column} {word}"));
             }
             Op::In => return self.membership(&column, filter),
+            Op::Contains => return self.contains(&column, filter),
         };
         let [value] = filter.values.as_slice() else {
             return Err(QueryError::BadFilter(format!(
@@ -211,6 +214,21 @@ impl<V: Clone> Builder<V> {
         Ok(format!(
             "{column} {symbol} {}",
             self.placeholder(value.clone())
+        ))
+    }
+
+    /// Case-insensitive substring match; `\`, `%` and `_` in the value are
+    /// escaped in SQL so they match literally.
+    fn contains(&mut self, column: &str, filter: &Filter<V>) -> Result<String, QueryError> {
+        let [value] = filter.values.as_slice() else {
+            return Err(QueryError::BadFilter(format!(
+                "{} needs exactly one value",
+                filter.column
+            )));
+        };
+        let holder = self.placeholder(value.clone());
+        Ok(format!(
+            "{column}::text ILIKE '%' || replace(replace(replace({holder}::text, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%'"
         ))
     }
 
@@ -522,5 +540,13 @@ mod tests {
             Err(QueryError::Empty("assignments"))
         );
         assert!(compile_select(&select(vec![f("n", Op::Eq, &[1, 2])])).is_err());
+    }
+
+    #[test]
+    fn contains_escapes_like_wildcards_in_sql() {
+        let (sql, params) = compile_select(&select(vec![f("title", Op::Contains, &[1])])).unwrap();
+        assert!(sql.contains("\"title\"::text ILIKE '%' || replace(replace(replace($1::text,"));
+        assert_eq!(params, vec![1]);
+        assert!(compile_select(&select(vec![f("title", Op::Contains, &[1, 2])])).is_err());
     }
 }

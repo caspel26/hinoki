@@ -1,6 +1,6 @@
 # Admin extra — design (Q007)
 
-Status: **A1 design, A2 implemented** (`Reply`, `set_cookie`, `HTMLRenderer`) (2026-11-13). Source: `FRAMEWORK_SPEC.md` §16 (local package). Nothing below is implemented until a step says so.
+Status: **A1 design, A2–A4 implemented** (`Reply`, `set_cookie`, `HTMLRenderer`; `hinoki.admin`: Classic theme, forms, CSRF, list/search/add/edit/delete; a `contains` filter operator in the SQL compiler). A5 (browser verification, example) and A6 (review) open (2026-11-13). Source: `FRAMEWORK_SPEC.md` §16 (local package). Nothing below is implemented until a step says so.
 
 ## Observed
 
@@ -77,8 +77,8 @@ Unit: template engine (escaping, raw, missing variable, override order), form fi
 | --- | --- | --- |
 | A1 | This design | `docs/ADMIN-DESIGN.md` |
 | A2 (done) | `Reply`, `HTMLRenderer`, header/cookie helpers | `python/hinoki/reply.py`, `renderers.py`, `runtime/asgi.py` |
-| A3 | Template engine, Classic theme (HTML + CSS), components | `python/hinoki/admin/templates.py`, `admin/theme/` |
-| A4 | `Admin`, `ModelAdmin`, forms, CSRF, list/create/edit/delete | `python/hinoki/admin/` |
+| A3 (done) | Template engine, Classic theme (HTML + CSS), components | `python/hinoki/admin/templates.py`, `admin/theme/` |
+| A4 (done) | `Admin`, `ModelAdmin`, forms, CSRF, list/create/edit/delete | `python/hinoki/admin/` |
 | A5 | Blog integration, PostgreSQL tests, browser verification and screenshots | `examples/blog`, `tests/admintest.py`, `tests/browser/` |
 | A6 | Independent review (authz, CSRF, XSS, data writes), fixes, docs, handoff | — |
 
