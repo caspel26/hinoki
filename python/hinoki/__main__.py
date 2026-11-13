@@ -6,11 +6,11 @@ import os
 import sys
 from pathlib import Path
 
-from hinoki import migrator
 from hinoki.checkcli import add_arguments, run_check
 from hinoki.db import Database
 from hinoki.errors import MigrationError
-from hinoki.migrations import migration_files, models_of, plan
+from hinoki.orm import migrator
+from hinoki.orm.migrations import migration_files, models_of, plan
 
 URL_VARIABLE = "HINOKI_DATABASE_URL"
 

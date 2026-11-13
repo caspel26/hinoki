@@ -13,10 +13,9 @@ from examples.tracker.app import create_app
 from examples.tracker.errors import DoneTasksAreKept, TaskAlreadyDone
 from examples.tracker.models import Member, Task
 from examples.tracker.schemas import TaskIn
-from hinoki import migrator
 from hinoki.__main__ import main
 from hinoki.db import Database
-from hinoki.orm import use_database
+from hinoki.orm import migrator, use_database
 from tests.harness import Client, Pool
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")

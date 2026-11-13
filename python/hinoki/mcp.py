@@ -27,8 +27,8 @@ import hinoki
 from hinoki.app import HinokiAPI
 from hinoki.checkcli import USAGE_ERRORS, build_app, build_rules
 from hinoki.errorcatalog import CATALOG, explain
-from hinoki.migrations import models_of
 from hinoki.orm import Model
+from hinoki.orm.migrations import models_of
 from hinoki.proposals import ProposalError, propose
 from hinoki.routing import Route
 from hinoki.rules import (

@@ -13,10 +13,9 @@ import os
 from pathlib import Path
 
 from examples.blog.models import Post, User
-from hinoki import migrator
 from hinoki.crypto import PasswordHasher
 from hinoki.db import Database
-from hinoki.orm import use_database
+from hinoki.orm import migrator, use_database
 
 MIGRATIONS = Path(__file__).parent / "migrations"
 DEMO_PASSWORD = "demo-password-change-me"  # noqa: S105 - synthetic; the demo users are fake

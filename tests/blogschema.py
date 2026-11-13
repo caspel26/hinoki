@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from hinoki import migrator
 from hinoki.db import Database
+from hinoki.orm import migrator
 
 MIGRATIONS = Path(__file__).parent.parent / "examples" / "blog" / "migrations"
 DROP = (
