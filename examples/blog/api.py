@@ -18,16 +18,8 @@ class PostAlreadyPublished(Conflict):
 
 
 def to_out(post: Post) -> PostOut:
-    return PostOut(
-        id=post.id,
-        author_id=post.author_id,
-        author_name=post.author.name,
-        title=post.title,
-        slug=post.slug,
-        body=post.body,
-        published=post.published,
-        created_at=post.created_at,
-    )
+    """The response schema for a row whose author was loaded explicitly."""
+    return PostOut.from_model(post, author_name=post.author.name)
 
 
 def with_author(query: QuerySet[Post]) -> QuerySet[Post]:

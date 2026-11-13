@@ -20,7 +20,7 @@ import inspect
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, ClassVar, Self, cast, dataclass_transform
+from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, dataclass_transform
 
 from hinoki import native
 from hinoki.blocking import run_sync
@@ -33,6 +33,9 @@ from hinoki.errors import (
 )
 from hinoki.pagination import Page, PageParams
 from hinoki.relations import ALIAS_PREFIX, ON_DELETE, Related, Relation, store
+
+if TYPE_CHECKING:
+    from hinoki.schema import Schema
 
 OPERATORS = {"gt", "gte", "lt", "lte", "ne", "in", "isnull", "contains"}
 SEPARATOR = "__"
@@ -311,11 +314,33 @@ class Model:
         return QuerySet(cls)
 
     @classmethod
-    async def acreate(cls, **values: Any) -> Self:
-        """Insert a row (defaults and factories apply) and return it."""
-        for name in values:
+    def from_schema(cls, data: Schema | None = None, /, **values: Any) -> Self:
+        """An unsaved instance from a schema's values plus ``values``. Explicit
+        keyword values win over the schema's, so a column the server assigns
+        (owner, state) can never come from the client."""
+        merged = {**(data.to_dict() if data is not None else {}), **values}
+        for name in merged:
             cls.check_field(name)
-        return await cls(**values).insert()
+        return cls(**merged)
+
+    @classmethod
+    async def acreate(cls, data: Schema | None = None, /, **values: Any) -> Self:
+        """Insert a row (defaults and factories apply) and return it:
+        ``await Post.acreate(data, author_id=me)`` or ``acreate(title="x")``."""
+        return await cls.from_schema(data, **values).insert()
+
+    def assign(self, data: Schema | None = None, /, **values: Any) -> Self:
+        """Set fields from a schema (fields the client left ``UNSET`` are
+        untouched) and keyword values, without touching the database."""
+        merged = {**(data.to_dict() if data is not None else {}), **values}
+        for name, value in merged.items():
+            type(self).check_field(name)
+            setattr(self, name, value)
+        return self
+
+    async def aupdate_from(self, data: Schema | None = None, /, **values: Any) -> Self:
+        """``assign`` then ``asave``: only the columns that changed are written."""
+        return await self.assign(data, **values).asave()
 
     @classmethod
     async def aget(cls, **conditions: Any) -> Self:
@@ -361,9 +386,13 @@ class Model:
         return await QuerySet(cls).filter(**conditions).adelete()
 
     @classmethod
-    def create(cls, **values: Any) -> Self:
+    def create(cls, data: Schema | None = None, /, **values: Any) -> Self:
         """Sync ``acreate`` for sync handlers."""
-        return run_sync(cls.acreate(**values))
+        return run_sync(cls.acreate(data, **values))
+
+    def update_from(self, data: Schema | None = None, /, **values: Any) -> Self:
+        """Sync ``aupdate_from`` for sync handlers."""
+        return run_sync(self.aupdate_from(data, **values))
 
     @classmethod
     def get(cls, **conditions: Any) -> Self:

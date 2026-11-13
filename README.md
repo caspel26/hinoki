@@ -29,6 +29,40 @@ those declarations into one registry that routing, validation, policies, OpenAPI
 development tooling all share. It is **not** built on Django, FastAPI, Starlette or
 Pydantic.
 
+## Quick start
+
+A whole API in one file ([`examples/notes/app.py`](examples/notes/app.py), tested end to end):
+
+```python
+class Note(Model, table="notes"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    title: str = field(max_length=80)
+    body: str = ""
+
+
+class NoteIn(Schema):
+    title: Annotated[str, Field(min_length=1, max_length=80)]
+    body: str = ""
+
+
+class NoteOut(Schema):
+    id: UUID
+    title: str
+    body: str
+
+
+@get("/notes/{note_id}")
+async def one(request: Request, note_id: UUID) -> NoteOut:
+    return NoteOut.from_model(await Note.aget(id=note_id))
+
+
+@post("/notes", status=201, transaction=True)
+async def create(request: Request, data: NoteIn) -> NoteOut:
+    return NoteOut.from_model(await Note.acreate(data))
+```
+
+`Note.acreate(data)` takes the validated schema directly; extra keyword values (`acreate(data, author_id=me)`) are set by the server and always win over what the client sent. `NoteOut.from_model(row)` builds the response from a row, `row.aupdate_from(patch)` applies only the fields a client sent, and `data.to_dict()` gives the Python values. Validation and JSON serialisation of schemas run in Rust.
+
 ## The shape of the API
 
 This is the confirmed target syntax ([`docs/`](docs) tracks what is implemented):
@@ -145,16 +179,11 @@ class Posts(API, path="/posts"):
     async def create(
         self, request: Request, data: PostCreate, principal: Principal[User]
     ) -> PostOut:
-        created = await Post.acreate(
-            author_id=principal.identity.id,
-            title=data.title,
-            slug=data.slug,
-            body=data.body,
-        )
+        created = await Post.acreate(data, author_id=principal.identity.id)
         return to_out(created)
 ```
 
-Full code in [`examples/blog`](examples/blog). Create the schema with `python -m hinoki migrations --dir examples/blog/migrations apply --database $BLOG_DATABASE_URL`, then `BLOG_DATABASE_URL=… granian --interface asgi --factory examples.blog.main:create_app`.
+Full code in [`examples/blog`](examples/blog) (the real blog generates create and delete with `CrudAPI`; this handwritten form is what the generated action does). Create the schema with `python -m hinoki migrations --dir examples/blog/migrations apply --database $BLOG_DATABASE_URL`, then `BLOG_DATABASE_URL=… granian --interface asgi --factory examples.blog.main:create_app`.
 
 ## Screenshots
 
