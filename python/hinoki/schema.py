@@ -5,7 +5,7 @@ from __future__ import annotations
 import dataclasses
 import inspect
 import typing
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import (
@@ -19,7 +19,12 @@ from typing import (
 )
 from uuid import UUID
 
-from hinoki.errors import ErrorDetail, RegistrationError, ValidationError
+from hinoki.errors import (
+    ErrorDetail,
+    RegistrationError,
+    RelationNotLoaded,
+    ValidationError,
+)
 from hinoki.fields import UNSET, Field, FieldInfo, Unset
 from hinoki.fieldtypes import FieldType, parse_annotation
 from hinoki.validation import INVALID, TooManyErrors, Validator
@@ -131,6 +136,44 @@ class Schema:
         """Immutable description shared by binding, docs and rules."""
         return dict(cls.specs())
 
+    def to_dict(self, *, exclude: Iterable[str] = ()) -> dict[str, Any]:
+        """The field values as Python objects (UUID, datetime stay what they are),
+        nested schemas converted too. Fields left ``UNSET`` are omitted, so the
+        result is exactly "what the client sent" for a partial update."""
+        skipped = set(exclude)
+        return {
+            name: plain(getattr(self, name))
+            for name in self.specs()
+            if name not in skipped and getattr(self, name) is not UNSET
+        }
+
+    @classmethod
+    def from_model(cls, row: object, **extra: Any) -> Self:
+        """Build this schema from a model instance: every field is read from the
+        attribute of the same name, ``extra`` supplies or overrides values (for
+        computed fields). Nested models become nested schemas. A field the row
+        lacks is an error, and an unloaded relation still raises
+        ``RelationNotLoaded``: nothing here does I/O."""
+        values: dict[str, Any] = {}
+        for name, spec in cls.specs().items():
+            if name in extra:
+                values[name] = extra[name]
+                continue
+            try:
+                values[name] = from_row(spec.ftype, getattr(row, name))
+            except RelationNotLoaded:
+                raise  # an unloaded relation is a loading mistake, not a missing field
+            except AttributeError:
+                if spec.required:
+                    raise AttributeError(
+                        f"{cls.__name__}.{name}: {type(row).__name__} has no "
+                        f"attribute {name!r}; pass it as {name}=..."
+                    ) from None
+        unknown = set(extra) - set(cls.specs())
+        if unknown:
+            raise TypeError(f"{cls.__name__} has no fields {sorted(unknown)}")
+        return cls(**values)
+
     def dump(self) -> dict[str, Any]:
         """JSON-compatible form; ``UNSET`` fields are omitted."""
         return {
@@ -138,6 +181,29 @@ class Schema:
             for name in self.specs()
             if getattr(self, name) is not UNSET
         }
+
+
+def plain(value: Any) -> Any:
+    """``value`` with nested schemas turned into dicts (Python values kept)."""
+    if isinstance(value, Schema):
+        return value.to_dict()
+    if isinstance(value, list | tuple):
+        return [plain(item) for item in value]
+    if isinstance(value, dict):
+        return {key: plain(item) for key, item in value.items()}
+    return value
+
+
+def from_row(ftype: FieldType, value: Any) -> Any:
+    """Convert a model attribute for a schema field: nested models (and lists of
+    them) become the nested schema; everything else passes through."""
+    if value is None:
+        return value
+    if ftype.schema is not None and hasattr(type(value), "__table__"):
+        return ftype.schema.from_model(value)
+    if ftype.item is not None and isinstance(value, list | tuple):
+        return [from_row(ftype.item, item) for item in value]
+    return value
 
 
 ENCODERS: dict[type, Callable[[Any], Any]] = {UUID: str, datetime: datetime.isoformat}
