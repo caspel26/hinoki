@@ -9,7 +9,8 @@ event loop itself, where blocking would freeze the whole worker.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Coroutine
+import inspect
+from collections.abc import Callable, Coroutine
 from typing import Any
 
 from hinoki import context
@@ -47,3 +48,20 @@ def run_sync[T](coroutine: Coroutine[Any, Any, T]) -> T:
         return future.result()
     finally:
         handoff.discard(future)
+
+
+async def call_hook(hook: Callable[..., Any], *arguments: Any) -> Any:
+    """Call a framework hook that may be written ``async def`` or plain ``def``.
+
+    Async hooks are awaited on the event loop. A plain ``def`` hook runs on the
+    bounded sync executor (so blocking work and the sync model methods are safe
+    in it) and counts toward the same queue limit as sync handlers."""
+    if inspect.iscoroutinefunction(hook):
+        return await hook(*arguments)
+    runner = context.sync_runner.get()
+    if runner is None:
+        raise RuntimeError("a sync hook can only run inside a request served by Hinoki")
+    result = await runner(hook, *arguments)
+    if inspect.isawaitable(result):  # a sync wrapper that returned a coroutine
+        return await result
+    return result

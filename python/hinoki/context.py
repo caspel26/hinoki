@@ -56,3 +56,9 @@ handed_off: ContextVar[Handoff | None] = ContextVar("hinoki_handed_off", default
 route_headers: ContextVar[tuple[tuple[str, str], ...]] = ContextVar(
     "hinoki_route_headers", default=()
 )
+
+
+# Runs a sync callable on the worker's bounded executor (set per request); lets
+# framework hooks written with plain ``def`` (auth providers, ...) do blocking
+# work and sync model calls without stalling the event loop.
+sync_runner: ContextVar[Any] = ContextVar("hinoki_sync_runner", default=None)

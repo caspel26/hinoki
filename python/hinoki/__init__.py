@@ -30,6 +30,17 @@ from hinoki.routing import Route, delete, get, patch, post, put
 from hinoki.rules import Actions, Imports, Schemas, Transactions
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.schema import UNSET, Contract, Field, Schema, Unset
+from hinoki.settings import (
+    DatabaseSettings,
+    DocsSettings,
+    ExecutionSettings,
+    FrameworkSettings,
+    LifecycleSettings,
+    LoggingSettings,
+    Secret,
+    Settings,
+    SettingsError,
+)
 
 __version__ = core_version()
 
@@ -46,15 +57,21 @@ __all__ = [
     "Caller",
     "Conflict",
     "Contract",
+    "DatabaseSettings",
+    "DocsSettings",
+    "ExecutionSettings",
     "Field",
     "Forbidden",
     "FormParser",
+    "FrameworkSettings",
     "HTMLRenderer",
     "HeaderAuth",
     "HinokiAPI",
     "Imports",
     "JSONParser",
     "JSONRenderer",
+    "LifecycleSettings",
+    "LoggingSettings",
     "Module",
     "ModuleContext",
     "ModuleGraphError",
@@ -70,6 +87,9 @@ __all__ = [
     "RuntimeConfig",
     "Schema",
     "Schemas",
+    "Secret",
+    "Settings",
+    "SettingsError",
     "Transactions",
     "Unauthorized",
     "Unset",

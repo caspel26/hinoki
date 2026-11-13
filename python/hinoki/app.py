@@ -9,6 +9,7 @@ from typing import Any
 from hinoki.api import API
 from hinoki.docsui import pages as docs_pages
 from hinoki.errors import RegistrationError
+from hinoki.fields import UNSET, Unset
 from hinoki.httperrors import ErrorRegistry
 from hinoki.modules import Module, order_modules
 from hinoki.native import Router
@@ -18,6 +19,7 @@ from hinoki.rules import Phase, Project, RuleSet, failing
 from hinoki.runtime.asgi import ASGIAdapter
 from hinoki.runtime.binding import Binding, bind
 from hinoki.runtime.config import RuntimeConfig
+from hinoki.settings import DocsSettings, FrameworkSettings
 
 log = logging.getLogger("hinoki")
 
@@ -36,18 +38,29 @@ class HinokiAPI:
         *,
         settings: object | None = None,
         runtime: RuntimeConfig | None = None,
-        title: str = "Hinoki API",
-        version: str = "0.1.0",
-        openapi_url: str | None = None,
-        docs_url: str | None = None,
-        redoc_url: str | None = None,
+        title: str | None = None,
+        version: str | None = None,
+        openapi_url: str | None | Unset = UNSET,
+        docs_url: str | None | Unset = UNSET,
+        redoc_url: str | None | Unset = UNSET,
         rules: RuleSet | None = None,
         enforce_rules: bool = True,
     ) -> None:
+        # An explicit argument wins over ``settings``, which wins over the default.
+        built_in = settings if isinstance(settings, FrameworkSettings) else None
+        docs = built_in.docs if built_in else DocsSettings()
         self.settings = settings
-        self.runtime = runtime or RuntimeConfig()
-        self.title = title
-        self.version = version
+        self.runtime = runtime or (
+            built_in.runtime_config() if built_in else RuntimeConfig()
+        )
+        self.title = title if title is not None else docs.title
+        self.version = version if version is not None else docs.version
+        # ``None`` disables a page even when the settings enable it; unset defers.
+        openapi_url = (
+            docs.openapi_url if isinstance(openapi_url, Unset) else openapi_url
+        )
+        docs_url = docs.docs_url if isinstance(docs_url, Unset) else docs_url
+        redoc_url = docs.redoc_url if isinstance(redoc_url, Unset) else redoc_url
         self.openapi_url = openapi_url
         self.docs_url = docs_url
         self.redoc_url = redoc_url

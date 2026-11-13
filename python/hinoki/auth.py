@@ -9,9 +9,10 @@ permissions checked after authentication (401 -> no/invalid credentials,
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
+from collections.abc import Awaitable, Iterable
 from dataclasses import dataclass
 
+from hinoki.blocking import call_hook
 from hinoki.httperrors import Unauthorized
 
 
@@ -92,7 +93,10 @@ class BaseAuth[T](ABC):
         return None
 
     @abstractmethod
-    async def authenticate(self, credentials: Credentials) -> Principal[T] | None: ...
+    def authenticate(
+        self, credentials: Credentials
+    ) -> Principal[T] | None | Awaitable[Principal[T] | None]:
+        """``async def`` or plain ``def`` (a plain one runs on the sync executor)."""
 
 
 class HeaderAuth[T](BaseAuth[T]):
@@ -104,14 +108,17 @@ class HeaderAuth[T](BaseAuth[T]):
         return {"type": "apiKey", "in": "header", "name": self.header}
 
     @abstractmethod
-    async def resolve(self, value: str) -> Principal[T] | None:
-        """Return the principal for a header value or ``None`` if invalid."""
+    def resolve(
+        self, value: str
+    ) -> Principal[T] | None | Awaitable[Principal[T] | None]:
+        """The principal for a header value or ``None`` if invalid; ``async def``
+        or plain ``def``."""
 
     async def authenticate(self, credentials: Credentials) -> Principal[T] | None:
         value = credentials.headers.get(self.header.lower())
         if value is None:
             return None
-        principal = await self.resolve(value)
+        principal: Principal[T] | None = await call_hook(self.resolve, value)
         if principal is None:
             raise Unauthorized("Invalid credentials.", headers=self.headers())
         return principal
@@ -136,10 +143,14 @@ class BearerAuth[T](HeaderAuth[T]):
         return {"type": "http", "scheme": "bearer"}
 
     @abstractmethod
-    async def resolve_token(self, token: str) -> Principal[T] | None: ...
+    def resolve_token(
+        self, token: str
+    ) -> Principal[T] | None | Awaitable[Principal[T] | None]:
+        """``async def`` or plain ``def``, as ``resolve``."""
 
     async def resolve(self, value: str) -> Principal[T] | None:
         scheme, _, token = value.partition(" ")
         if scheme.lower() != "bearer" or not token.strip():
             return None
-        return await self.resolve_token(token.strip())
+        found: Principal[T] | None = await call_hook(self.resolve_token, token.strip())
+        return found

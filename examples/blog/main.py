@@ -6,12 +6,11 @@
 The factory builds declarations only; the pool opens in the worker's lifespan.
 """
 
-import os
-
 from examples.blog.accounts import build_accounts
 from examples.blog.adminsite import build_admin
 from examples.blog.api import Posts, health
 from examples.blog.rules import blog_rules
+from examples.blog.settings import BlogSettings
 from hinoki import Conflict, HinokiAPI
 from hinoki.db import DatabaseModule, UniqueViolation
 
@@ -25,10 +24,18 @@ def create_app(
     admin_secret: str | None = None,
     jwt_secret: str | None = None,
 ) -> HinokiAPI:
-    url = database_url or os.environ["BLOG_DATABASE_URL"]
-    secret = admin_secret or os.environ["BLOG_ADMIN_SECRET"]  # at least 32 bytes
-    # BLOG_JWT_SECRET (32+ bytes) switches on /auth/login and /auth/me.
+    """Settings come from ``BLOG_*`` environment variables; an explicit argument
+    (used by tests) overrides its variable."""
+    given = {
+        "database_url": database_url,
+        "admin_secret": admin_secret,
+        "jwt_secret": jwt_secret,
+    }
+    settings = BlogSettings.load(
+        prefix="BLOG_", overrides={k: v for k, v in given.items() if v is not None}
+    )
     app = HinokiAPI(
+        settings=settings,
         title="Blog",
         version="0.1.0",
         openapi_url="/openapi.json",
@@ -39,12 +46,11 @@ def create_app(
     app.include(
         health,
         Posts,
-        build_admin(secret, os.environ.get("BLOG_ADMIN_THEME", "studio")).api(),
+        build_admin(settings.admin_secret.reveal(), settings.admin_theme).api(),
     )
-    token_secret = jwt_secret or os.environ.get("BLOG_JWT_SECRET")
-    if token_secret:  # password login is on only when a signing secret exists
-        actions, _hasher = build_accounts(token_secret)
+    if settings.jwt_secret:  # password login is on only when a signing secret exists
+        actions, _hasher = build_accounts(settings.jwt_secret.reveal())
         app.include(*actions)
-    app.install(DatabaseModule(url, max_size=5))
+    app.install(DatabaseModule(settings.database_url.reveal(), max_size=5))
     app.errors.handle(UniqueViolation)(unique_to_conflict)
     return app
