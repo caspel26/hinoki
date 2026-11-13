@@ -43,7 +43,24 @@ class API:
             route = cls.declared_route(name, inspect.getattr_static(cls, name))
             if route is not None:
                 found.append(cls.mount(route))
-        return found
+        return cls.apply_replacements(found)
+
+    @classmethod
+    def apply_replacements(cls, found: list[Route]) -> list[Route]:
+        """Drop the routes that another route names in ``replaces=``."""
+        replaced = {route.replaces for route in found if route.replaces}
+        names = {route.handler.__name__ for route in found}
+        unknown = replaced - names
+        if unknown:
+            raise RegistrationError(
+                f"{cls.__name__}: replaces={sorted(unknown)} names no action "
+                f"(actions: {sorted(names)})"
+            )
+        return [
+            route
+            for route in found
+            if route.replaces or route.handler.__name__ not in replaced
+        ]
 
     @classmethod
     def declared_route(cls, name: str, member: object) -> Route | None:

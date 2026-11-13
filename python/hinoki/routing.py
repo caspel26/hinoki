@@ -36,6 +36,7 @@ class Route:
     transaction: bool
     owner: type | None = None
     pagination: PageNumberPagination | None = None
+    replaces: str = ""
 
     @property
     def is_async(self) -> bool:
@@ -46,6 +47,17 @@ class Route:
         return self.handler.__qualname__
 
 
+@dataclass(frozen=True, slots=True)
+class Options:
+    """Keyword options shared by every HTTP method decorator."""
+
+    status: int = 200
+    access: Access | None = None
+    transaction: bool = False
+    pagination: PageNumberPagination | None = None
+    replaces: str = ""
+
+
 class RouteDeclaration:
     """Decorator produced by ``@get(...)`` and friends.
 
@@ -53,37 +65,28 @@ class RouteDeclaration:
     it decorates, returning that function unchanged.
     """
 
-    def __init__(
-        self,
-        method: str,
-        path: str,
-        status: int,
-        access: Access | None,
-        transaction: bool,
-        pagination: PageNumberPagination | None,
-    ) -> None:
+    def __init__(self, method: str, path: str, options: Options) -> None:
         if not path.startswith("/"):
             raise ValueError(f"route path must start with '/': {path!r}")
-        if not MIN_STATUS <= status <= MAX_STATUS:
-            raise ValueError(f"invalid HTTP status {status}")
+        if not MIN_STATUS <= options.status <= MAX_STATUS:
+            raise ValueError(f"invalid HTTP status {options.status}")
         self.method = method
         self.path = path
-        self.status = status
-        self.access = access
-        self.transaction = transaction
-        self.pagination = pagination
+        self.options = options
 
     def __call__(self, fn: Callable[P, R]) -> Callable[P, R]:
         if hasattr(fn, ROUTE_ATTR):
             raise ValueError(f"{fn.__qualname__} already declares an HTTP route")
+        options = self.options
         route = Route(
             self.method,
             self.path,
             fn,
-            self.status,
-            self.access,
-            self.transaction,
-            pagination=self.pagination,
+            options.status,
+            options.access,
+            options.transaction,
+            pagination=options.pagination,
+            replaces=options.replaces,
         )
         setattr(fn, ROUTE_ATTR, route)
         return fn
@@ -96,8 +99,10 @@ def get(
     access: Access | None = None,
     transaction: bool = False,
     pagination: PageNumberPagination | None = None,
+    replaces: str = "",
 ) -> RouteDeclaration:
-    return RouteDeclaration("GET", path, status, access, transaction, pagination)
+    options = Options(status, access, transaction, pagination, replaces)
+    return RouteDeclaration("GET", path, options)
 
 
 def post(
@@ -107,8 +112,10 @@ def post(
     access: Access | None = None,
     transaction: bool = False,
     pagination: PageNumberPagination | None = None,
+    replaces: str = "",
 ) -> RouteDeclaration:
-    return RouteDeclaration("POST", path, status, access, transaction, pagination)
+    options = Options(status, access, transaction, pagination, replaces)
+    return RouteDeclaration("POST", path, options)
 
 
 def put(
@@ -118,8 +125,10 @@ def put(
     access: Access | None = None,
     transaction: bool = False,
     pagination: PageNumberPagination | None = None,
+    replaces: str = "",
 ) -> RouteDeclaration:
-    return RouteDeclaration("PUT", path, status, access, transaction, pagination)
+    options = Options(status, access, transaction, pagination, replaces)
+    return RouteDeclaration("PUT", path, options)
 
 
 def patch(
@@ -129,8 +138,10 @@ def patch(
     access: Access | None = None,
     transaction: bool = False,
     pagination: PageNumberPagination | None = None,
+    replaces: str = "",
 ) -> RouteDeclaration:
-    return RouteDeclaration("PATCH", path, status, access, transaction, pagination)
+    options = Options(status, access, transaction, pagination, replaces)
+    return RouteDeclaration("PATCH", path, options)
 
 
 def delete(
@@ -140,8 +151,10 @@ def delete(
     access: Access | None = None,
     transaction: bool = False,
     pagination: PageNumberPagination | None = None,
+    replaces: str = "",
 ) -> RouteDeclaration:
-    return RouteDeclaration("DELETE", path, status, access, transaction, pagination)
+    options = Options(status, access, transaction, pagination, replaces)
+    return RouteDeclaration("DELETE", path, options)
 
 
 @dataclass(frozen=True, slots=True)
