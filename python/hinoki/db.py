@@ -10,11 +10,14 @@ any exception (including cancellation and timeouts).
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from contextvars import ContextVar, Token
 from types import TracebackType
 from typing import TYPE_CHECKING
 
 from hinoki import native
+from hinoki.modules import Module, ModuleContext
 from hinoki.native import (
     CheckViolation,
     DatabaseError,
@@ -150,3 +153,30 @@ class TransactionScope:
             await state.native.rollback()
         except Exception:
             log.exception("rollback failed; the connection will be discarded")
+
+
+class DatabaseModule(Module):
+    """Opens a ``Database`` for the worker and provides it to other modules.
+
+    ``app.install(DatabaseModule(url))``; actions with ``transaction=True``
+    and other modules obtain it with ``ctx.get(Database)``. The pool is
+    created in the worker's lifespan and closed when it ends.
+    """
+
+    name = "database"
+
+    def __init__(self, url: str, *, max_size: int = 8, wait: float = 5.0) -> None:
+        self.url = url
+        self.max_size = max_size
+        self.wait = wait
+
+    @asynccontextmanager
+    async def lifespan(self, ctx: ModuleContext) -> AsyncIterator[None]:
+        database = await Database.connect(
+            self.url, max_size=self.max_size, wait=self.wait
+        )
+        ctx.provide(Database, database)
+        try:
+            yield
+        finally:
+            database.close()

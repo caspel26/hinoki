@@ -7,6 +7,7 @@ import logging
 from collections.abc import Awaitable, Sequence
 from contextlib import AbstractAsyncContextManager
 
+from hinoki.db import Database
 from hinoki.errors import ShutdownError, StartupError
 from hinoki.modules import Module, ModuleContext, order_modules
 from hinoki.runtime.config import RuntimeConfig
@@ -31,11 +32,14 @@ class Lifespan:
         ctx: ModuleContext,
         executor: SyncExecutor,
         config: RuntimeConfig,
+        *,
+        needs_database: bool = False,
     ) -> None:
         self.modules = order_modules(modules)
         self.ctx = ctx
         self.executor = executor
         self.config = config
+        self.needs_database = needs_database
         self._entered: list[AbstractAsyncContextManager[object]] = []
         self._running = False
         self._started = False
@@ -56,12 +60,24 @@ class Lifespan:
                 for module in self.modules:
                     current = module.name
                     await self._enter(module.lifespan(self.ctx))
+                current = "<transactions>"
+                self._check_database()
         except BaseException as exc:
             await self._close()
             if isinstance(exc, asyncio.CancelledError):
                 raise
             raise StartupError(current, exc) from exc
         self._started = True
+
+    def _check_database(self) -> None:
+        """Actions with ``transaction=True`` need a provided ``Database``."""
+        if self.needs_database:
+            try:
+                self.ctx.get(Database)
+            except LookupError:
+                raise RuntimeError(
+                    "an action uses transaction=True but no module provided a Database"
+                ) from None
 
     async def shutdown(self) -> None:
         """Idempotent. Raises ``ShutdownError`` after attempting every step."""

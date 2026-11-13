@@ -15,6 +15,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, cast
 
 from hinoki.context import request_id
+from hinoki.db import Database
 from hinoki.errors import RegistrationError, ShutdownError, StartupError
 from hinoki.modules import ModuleContext
 from hinoki.routing import MethodNotAllowed
@@ -52,7 +53,14 @@ class ASGIAdapter:
         self.document = self._document(app)
         self.ctx = ModuleContext(app.settings)
         self.executor = SyncExecutor(app.runtime.sync_workers, app.runtime.sync_queue)
-        self.lifespan = Lifespan(app.modules, self.ctx, self.executor, app.runtime)
+        needs_database = any(b.route.transaction for b in self.bindings)
+        self.lifespan = Lifespan(
+            app.modules,
+            self.ctx,
+            self.executor,
+            app.runtime,
+            needs_database=needs_database,
+        )
 
     @staticmethod
     def _document(app: HinokiAPI) -> dict[str, Any] | None:
@@ -164,6 +172,15 @@ class ASGIAdapter:
             raise HTTPError(HTTPStatus.BAD_REQUEST, "bad_path_encoding") from None
 
     async def _invoke(self, binding: Binding, kwargs: dict[str, object]) -> Response:
+        """Run the handler; with ``transaction=True`` inside a transaction that
+        commits only after the output is encoded, and rolls back on any error
+        before it becomes an HTTP response."""
+        if not binding.route.transaction:
+            return await self._call(binding, kwargs)
+        async with self.ctx.get(Database).transaction():
+            return await self._call(binding, kwargs)
+
+    async def _call(self, binding: Binding, kwargs: dict[str, object]) -> Response:
         route = binding.route
         args = (route.owner(),) if route.owner is not None else ()
         try:
