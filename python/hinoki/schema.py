@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime as dt
 import inspect
 import typing
+import uuid
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime
@@ -19,6 +21,7 @@ from typing import (
 )
 from uuid import UUID
 
+from hinoki import native
 from hinoki.errors import (
     ErrorDetail,
     RegistrationError,
@@ -27,7 +30,6 @@ from hinoki.errors import (
 )
 from hinoki.fields import UNSET, Field, FieldInfo, Unset
 from hinoki.fieldtypes import FieldType, parse_annotation
-from hinoki.validation import INVALID, TooManyErrors, Validator
 
 __all__ = ["UNSET", "Field", "FieldSpec", "Schema", "Unset"]
 
@@ -58,6 +60,7 @@ class Schema:
 
     __hinoki_schema__: ClassVar[bool] = True
     __specs__: ClassVar[dict[str, FieldSpec] | None] = None
+    __native__: ClassVar[native.CompiledSchema | None] = None
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
@@ -114,22 +117,23 @@ class Schema:
         return specs
 
     @classmethod
+    def native_schema(cls) -> native.CompiledSchema:
+        """The Rust validator for this schema and everything it refers to,
+        compiled on first use and cached on the class."""
+        cached = cls.__dict__.get("__native__")
+        if cached is None:
+            cached = compile_native(cls)
+            cls.__native__ = cached
+        return cached
+
+    @classmethod
     def validate(cls, data: object) -> Self:
-        """Build an instance from decoded JSON or raise ``ValidationError``."""
-        validator = Validator()
-        try:
-            value = validator.schema(FieldType("schema", schema=cls), data, "")
-        except TooManyErrors:
-            validator.errors.append(
-                ErrorDetail("", "too_many_errors", "further errors omitted")
-            )
-            raise ValidationError(validator.errors) from None
-        except RecursionError:
-            detail = ErrorDetail("", "depth", "input is nested too deeply")
-            raise ValidationError([detail]) from None
-        if value is INVALID:
-            raise ValidationError(validator.errors)
-        return cast(Self, value)
+        """Build an instance from decoded JSON or raise ``ValidationError``
+        (validated in Rust)."""
+        instance, problems = cls.native_schema().validate(data)
+        if problems:
+            raise ValidationError([ErrorDetail(*problem) for problem in problems])
+        return cast(Self, instance)
 
     @classmethod
     def fields(cls) -> dict[str, FieldSpec]:
@@ -181,6 +185,37 @@ class Schema:
             for name in self.specs()
             if getattr(self, name) is not UNSET
         }
+
+
+def node_of(
+    ftype: FieldType, index_of: dict[type[Schema], int], queue: list[type[Schema]]
+) -> tuple[Any, ...]:
+    """A field type as the plain tuple the Rust compiler reads."""
+    item = node_of(ftype.item, index_of, queue) if ftype.item is not None else None
+    index = None
+    if ftype.schema is not None:
+        if ftype.schema not in index_of:
+            index_of[ftype.schema] = len(index_of)
+            queue.append(ftype.schema)
+        index = index_of[ftype.schema]
+    return (ftype.kind, ftype.nullable, ftype.info.constraints(), item, index)
+
+
+def compile_native(root: type[Schema]) -> native.CompiledSchema:
+    """Table of every schema reachable from ``root``, compiled by the Rust core."""
+    index_of: dict[type[Schema], int] = {root: 0}
+    queue = [root]
+    definitions = []
+    position = 0
+    while position < len(queue):
+        current = queue[position]
+        position += 1
+        fields = [
+            (name, node_of(spec.ftype, index_of, queue), spec.required)
+            for name, spec in current.specs().items()
+        ]
+        definitions.append((current, fields))
+    return native.compile_schemas(definitions, 0, uuid.UUID, dt.datetime.fromisoformat)
 
 
 def plain(value: Any) -> Any:

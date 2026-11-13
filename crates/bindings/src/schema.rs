@@ -1,0 +1,572 @@
+//! Schema validation and instance construction.
+//!
+//! Python compiles a schema's closed type model into a table of definitions
+//! (see `hinoki.schema`); `CompiledSchema.validate` then walks the decoded JSON
+//! once and either returns the finished instance or the ordered list of
+//! `(path, code, message)` problems. Semantics, codes and messages follow the
+//! pure-Python engine that is kept in `tests/oracle` and compared against this
+//! one: strict (no coercion), unknown keys refused, at most 50 problems.
+
+use std::collections::HashSet;
+
+use pyo3::basic::CompareOp;
+use pyo3::prelude::*;
+use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
+use regex::Regex;
+
+const MAX_ERRORS: usize = 50;
+const MAX_KEY_ECHO: usize = 64;
+const MAX_DEPTH: usize = 128;
+
+type Problem = (String, &'static str, String);
+type FieldTable<'py> = Vec<(String, Bound<'py, PyAny>, bool)>;
+
+enum Kind {
+    Str,
+    Int,
+    Float,
+    Bool,
+    Uuid,
+    Datetime,
+    List(Box<Node>),
+    Schema(usize),
+}
+
+struct Node {
+    kind: Kind,
+    nullable: bool,
+    min_length: Option<i64>,
+    max_length: Option<i64>,
+    pattern: Option<(Py<PyAny>, Regex)>,
+    ge: Option<Py<PyAny>>,
+    le: Option<Py<PyAny>>,
+    gt: Option<Py<PyAny>>,
+    lt: Option<Py<PyAny>>,
+}
+
+struct Field {
+    name: String,
+    node: Node,
+    required: bool,
+}
+
+struct Definition {
+    class: Py<PyAny>,
+    fields: Vec<Field>,
+}
+
+/// A schema (and everything reachable from it) ready to validate.
+#[pyclass(name = "CompiledSchema", module = "hinoki.native")]
+pub struct Compiled {
+    definitions: Vec<Definition>,
+    root: usize,
+    uuid: Py<PyAny>,
+    from_iso: Py<PyAny>,
+}
+
+enum Abort {
+    TooMany,
+    Depth,
+    Python(PyErr),
+}
+
+impl From<PyErr> for Abort {
+    fn from(err: PyErr) -> Self {
+        Abort::Python(err)
+    }
+}
+
+type Checked<'py> = Result<Option<Bound<'py, PyAny>>, Abort>;
+
+fn compile_error(message: impl Into<String>) -> PyErr {
+    pyo3::exceptions::PyValueError::new_err(message.into())
+}
+
+fn optional_int(constraints: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<i64>> {
+    constraints
+        .get_item(name)?
+        .map(|v| v.extract::<i64>())
+        .transpose()
+}
+
+fn optional_object(constraints: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<Py<PyAny>>> {
+    Ok(constraints.get_item(name)?.map(Bound::unbind))
+}
+
+fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node> {
+    let (kind, nullable, constraints, item, index): (
+        String,
+        bool,
+        Bound<'_, PyDict>,
+        Option<Bound<'_, PyAny>>,
+        Option<usize>,
+    ) = raw.extract()?;
+    let kind = match kind.as_str() {
+        "str" => Kind::Str,
+        "int" => Kind::Int,
+        "float" => Kind::Float,
+        "bool" => Kind::Bool,
+        "uuid" => Kind::Uuid,
+        "datetime" => Kind::Datetime,
+        "list" => {
+            let inner = item.ok_or_else(|| compile_error("list type without an item type"))?;
+            Kind::List(Box::new(parse_node(&inner)?))
+        }
+        "schema" => {
+            Kind::Schema(index.ok_or_else(|| compile_error("schema type without a schema"))?)
+        }
+        other => return Err(compile_error(format!("unknown field kind {other:?}"))),
+    };
+    let pattern = match constraints.get_item("pattern")? {
+        Some(text) => {
+            let source: String = text.extract()?;
+            let regex = Regex::new(&format!("\\A(?:{source})\\z"))
+                .map_err(|e| compile_error(format!("unsupported pattern {source:?}: {e}")))?;
+            Some((text.unbind(), regex))
+        }
+        None => None,
+    };
+    Ok(Node {
+        kind,
+        nullable,
+        min_length: optional_int(&constraints, "min_length")?,
+        max_length: optional_int(&constraints, "max_length")?,
+        pattern,
+        ge: optional_object(&constraints, "ge")?,
+        le: optional_object(&constraints, "le")?,
+        gt: optional_object(&constraints, "gt")?,
+        lt: optional_object(&constraints, "lt")?,
+    })
+}
+
+/// Build a validator from `definitions`: a list of `(class, [(name, node,
+/// required), ...])`; nested schemas refer to a definition by index.
+#[pyfunction]
+pub fn compile_schemas(
+    definitions: Vec<(Py<PyAny>, FieldTable<'_>)>,
+    root: usize,
+    uuid_class: Py<PyAny>,
+    from_iso: Py<PyAny>,
+) -> PyResult<Compiled> {
+    let mut built = Vec::with_capacity(definitions.len());
+    for (class, fields) in definitions {
+        let mut parsed = Vec::with_capacity(fields.len());
+        for (name, node, required) in fields {
+            parsed.push(Field {
+                name,
+                node: parse_node(&node)?,
+                required,
+            });
+        }
+        built.push(Definition {
+            class,
+            fields: parsed,
+        });
+    }
+    if root >= built.len() {
+        return Err(compile_error("root schema is not in the table"));
+    }
+    let known = built.len();
+    for definition in &built {
+        for field in &definition.fields {
+            if refers_outside(&field.node, known) {
+                return Err(compile_error("a schema refers to a missing definition"));
+            }
+        }
+    }
+    Ok(Compiled {
+        definitions: built,
+        root,
+        uuid: uuid_class,
+        from_iso,
+    })
+}
+
+fn refers_outside(node: &Node, known: usize) -> bool {
+    match &node.kind {
+        Kind::Schema(index) => *index >= known,
+        Kind::List(inner) => refers_outside(inner, known),
+        _ => false,
+    }
+}
+
+fn join(path: &str, name: &str) -> String {
+    if path.is_empty() {
+        name.to_owned()
+    } else {
+        format!("{path}.{name}")
+    }
+}
+
+struct Run<'a, 'py> {
+    py: Python<'py>,
+    compiled: &'a Compiled,
+    problems: Vec<Problem>,
+}
+
+impl<'py> Run<'_, 'py> {
+    fn fail(&mut self, path: &str, code: &'static str, message: String) -> Checked<'py> {
+        self.problems.push((path.to_owned(), code, message));
+        if self.problems.len() >= MAX_ERRORS {
+            return Err(Abort::TooMany);
+        }
+        Ok(None)
+    }
+
+    fn check(
+        &mut self,
+        node: &Node,
+        data: &Bound<'py, PyAny>,
+        path: &str,
+        depth: usize,
+    ) -> Checked<'py> {
+        if depth > MAX_DEPTH {
+            return Err(Abort::Depth);
+        }
+        if data.is_none() {
+            if node.nullable {
+                return Ok(Some(data.clone()));
+            }
+            return self.fail(path, "null", "null is not allowed".to_owned());
+        }
+        match &node.kind {
+            Kind::Str => self.text(node, data, path),
+            Kind::Int => self.integer(node, data, path),
+            Kind::Float => self.number(node, data, path),
+            Kind::Bool => self.boolean(data, path),
+            Kind::Uuid => self.uuid(data, path),
+            Kind::Datetime => self.moment(data, path),
+            Kind::List(item) => self.sequence(node, item, data, path, depth),
+            Kind::Schema(index) => self.schema(*index, data, path, depth),
+        }
+    }
+
+    fn length(&mut self, node: &Node, size: usize, path: &str) -> Result<bool, Abort> {
+        let size = i64::try_from(size).unwrap_or(i64::MAX);
+        if let Some(least) = node.min_length {
+            if size < least {
+                self.fail(path, "min_length", format!("at least {least} long"))?;
+                return Ok(false);
+            }
+        }
+        if let Some(most) = node.max_length {
+            if size > most {
+                self.fail(path, "max_length", format!("at most {most} long"))?;
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    fn text(&mut self, node: &Node, data: &Bound<'py, PyAny>, path: &str) -> Checked<'py> {
+        let Ok(text) = data.cast::<PyString>() else {
+            return self.fail(path, "type", "expected a string".to_owned());
+        };
+        if !self.length(node, text.len()?, path)? {
+            return Ok(None);
+        }
+        if let Some((source, regex)) = &node.pattern {
+            let matched = text.to_cow().map(|s| regex.is_match(&s)).unwrap_or(false);
+            if !matched {
+                let shown = source.bind(self.py).repr()?;
+                return self.fail(path, "pattern", format!("must match {shown}"));
+            }
+        }
+        Ok(Some(data.clone()))
+    }
+
+    fn bounds(&mut self, node: &Node, data: &Bound<'py, PyAny>, path: &str) -> Checked<'py> {
+        let tests = [
+            ("ge", "greater than or equal to", CompareOp::Ge, &node.ge),
+            ("le", "less than or equal to", CompareOp::Le, &node.le),
+            ("gt", "greater than", CompareOp::Gt, &node.gt),
+            ("lt", "less than", CompareOp::Lt, &node.lt),
+        ];
+        for (name, words, op, limit) in tests {
+            if let Some(limit) = limit {
+                let limit = limit.bind(self.py);
+                if !data.rich_compare(limit, op)?.is_truthy()? {
+                    return self.fail(path, name, format!("must be {words} {}", limit.str()?));
+                }
+            }
+        }
+        Ok(Some(data.clone()))
+    }
+
+    fn integer(&mut self, node: &Node, data: &Bound<'py, PyAny>, path: &str) -> Checked<'py> {
+        if !data.is_exact_instance_of::<PyInt>() {
+            return self.fail(path, "type", "expected an integer".to_owned());
+        }
+        self.bounds(node, data, path)
+    }
+
+    fn number(&mut self, node: &Node, data: &Bound<'py, PyAny>, path: &str) -> Checked<'py> {
+        if !(data.is_exact_instance_of::<PyInt>() || data.is_exact_instance_of::<PyFloat>()) {
+            return self.fail(path, "type", "expected a number".to_owned());
+        }
+        let Ok(value) = data.extract::<f64>() else {
+            return self.fail(path, "finite", "number is out of range".to_owned());
+        };
+        if !value.is_finite() {
+            return self.fail(path, "finite", "number must be finite".to_owned());
+        }
+        let converted = PyFloat::new(self.py, value).into_any();
+        self.bounds(node, &converted, path)
+    }
+
+    fn boolean(&mut self, data: &Bound<'py, PyAny>, path: &str) -> Checked<'py> {
+        if !data.is_exact_instance_of::<PyBool>() {
+            return self.fail(path, "type", "expected a boolean".to_owned());
+        }
+        Ok(Some(data.clone()))
+    }
+
+    fn uuid(&mut self, data: &Bound<'py, PyAny>, path: &str) -> Checked<'py> {
+        let canonical = data
+            .cast::<PyString>()
+            .ok()
+            .and_then(|s| s.to_cow().ok().map(|c| is_canonical_uuid(&c)))
+            .unwrap_or(false);
+        if !canonical {
+            return self.fail(path, "uuid", "expected a canonical UUID string".to_owned());
+        }
+        Ok(Some(self.compiled.uuid.bind(self.py).call1((data,))?))
+    }
+
+    fn moment(&mut self, data: &Bound<'py, PyAny>, path: &str) -> Checked<'py> {
+        let shaped = data
+            .cast::<PyString>()
+            .ok()
+            .and_then(|s| s.to_cow().ok().map(|c| is_rfc3339(&c)))
+            .unwrap_or(false);
+        let message = "expected an RFC 3339 datetime string";
+        if !shaped {
+            return self.fail(path, "datetime", message.to_owned());
+        }
+        let parsed = match self.compiled.from_iso.bind(self.py).call1((data,)) {
+            Ok(value) => value,
+            Err(err) if err.is_instance_of::<pyo3::exceptions::PyValueError>(self.py) => {
+                return self.fail(path, "datetime", message.to_owned());
+            }
+            Err(err) => return Err(err.into()),
+        };
+        if parsed.getattr("tzinfo")?.is_none() {
+            return self.fail(
+                path,
+                "datetime_tz",
+                "datetime needs a UTC offset".to_owned(),
+            );
+        }
+        Ok(Some(parsed))
+    }
+
+    fn sequence(
+        &mut self,
+        node: &Node,
+        item: &Node,
+        data: &Bound<'py, PyAny>,
+        path: &str,
+        depth: usize,
+    ) -> Checked<'py> {
+        let Ok(list) = data.cast::<PyList>() else {
+            return self.fail(path, "type", "expected an array".to_owned());
+        };
+        if !self.length(node, list.len(), path)? {
+            return Ok(None);
+        }
+        let before = self.problems.len();
+        let out = PyList::empty(self.py);
+        for (index, element) in list.iter().enumerate() {
+            let found = self.check(item, &element, &format!("{path}[{index}]"), depth + 1)?;
+            if let Some(value) = found {
+                out.append(value)?;
+            }
+        }
+        Ok(if self.problems.len() > before {
+            None
+        } else {
+            Some(out.into_any())
+        })
+    }
+
+    fn schema(
+        &mut self,
+        index: usize,
+        data: &Bound<'py, PyAny>,
+        path: &str,
+        depth: usize,
+    ) -> Checked<'py> {
+        let Ok(object) = data.cast::<PyDict>() else {
+            return self.fail(path, "type", "expected an object".to_owned());
+        };
+        let compiled = self.compiled;
+        let definition = &compiled.definitions[index];
+        let before = self.problems.len();
+        let known: HashSet<&str> = definition.fields.iter().map(|f| f.name.as_str()).collect();
+        for key in object.keys() {
+            let name = key.str()?.to_string_lossy().into_owned();
+            let is_field = key
+                .cast::<PyString>()
+                .ok()
+                .and_then(|k| k.to_cow().ok())
+                .is_some_and(|k| known.contains(&*k));
+            if !is_field {
+                let shown: String = name.chars().take(MAX_KEY_ECHO).collect();
+                self.fail(
+                    &join(path, &shown),
+                    "extra_forbidden",
+                    "unknown field".to_owned(),
+                )?;
+            }
+        }
+        let values = PyDict::new(self.py);
+        for field in &definition.fields {
+            let here = join(path, &field.name);
+            match object.get_item(&field.name)? {
+                Some(raw) => {
+                    if let Some(value) = self.check(&field.node, &raw, &here, depth + 1)? {
+                        values.set_item(&field.name, value)?;
+                    }
+                }
+                None if field.required => {
+                    self.fail(&here, "required", "field is required".to_owned())?;
+                }
+                None => {}
+            }
+        }
+        if self.problems.len() > before {
+            return Ok(None);
+        }
+        Ok(Some(
+            definition.class.bind(self.py).call((), Some(&values))?,
+        ))
+    }
+}
+
+fn is_canonical_uuid(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    bytes.len() == 36
+        && bytes.iter().enumerate().all(|(at, b)| match at {
+            8 | 13 | 18 | 23 => *b == b'-',
+            _ => b.is_ascii_hexdigit(),
+        })
+}
+
+/// `YYYY-MM-DDThh:mm:ss[.fraction][Z|+hh:mm]` (the offset is optional here; a
+/// missing one is reported separately as `datetime_tz`).
+fn is_rfc3339(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let digits = |from: usize, count: usize| {
+        bytes.len() >= from + count && bytes[from..from + count].iter().all(u8::is_ascii_digit)
+    };
+    let shape = digits(0, 4)
+        && bytes.get(4) == Some(&b'-')
+        && digits(5, 2)
+        && bytes.get(7) == Some(&b'-')
+        && digits(8, 2)
+        && matches!(bytes.get(10), Some(b'T' | b't'))
+        && digits(11, 2)
+        && bytes.get(13) == Some(&b':')
+        && digits(14, 2)
+        && bytes.get(16) == Some(&b':')
+        && digits(17, 2);
+    if !shape {
+        return false;
+    }
+    let mut at = 19;
+    if bytes.get(at) == Some(&b'.') {
+        let start = at + 1;
+        at = start;
+        while bytes.get(at).is_some_and(u8::is_ascii_digit) {
+            at += 1;
+        }
+        if at == start {
+            return false;
+        }
+    }
+    match &bytes[at..] {
+        [] | [b'Z' | b'z'] => true,
+        [b'+' | b'-', ..] => {
+            let rest = &bytes[at + 1..];
+            rest.len() == 5
+                && rest[..2].iter().all(u8::is_ascii_digit)
+                && rest[2] == b':'
+                && rest[3..].iter().all(u8::is_ascii_digit)
+        }
+        _ => false,
+    }
+}
+
+#[pymethods]
+impl Compiled {
+    /// `(instance, problems)`: exactly one of them is meaningful. Problems are
+    /// `(path, code, message)` tuples in the order the checks found them.
+    fn validate<'py>(
+        &self,
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
+    ) -> PyResult<(Option<Bound<'py, PyAny>>, Vec<Problem>)> {
+        let mut run = Run {
+            py,
+            compiled: self,
+            problems: Vec::new(),
+        };
+        match run.schema(self.root, data, "", 0) {
+            Ok(value) => Ok((value, run.problems)),
+            Err(Abort::TooMany) => {
+                let mut problems = run.problems;
+                problems.push((
+                    String::new(),
+                    "too_many_errors",
+                    "further errors omitted".to_owned(),
+                ));
+                Ok((None, problems))
+            }
+            Err(Abort::Depth) => Ok((
+                None,
+                vec![(
+                    String::new(),
+                    "depth",
+                    "input is nested too deeply".to_owned(),
+                )],
+            )),
+            Err(Abort::Python(err)) => Err(err),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn canonical_uuids() {
+        assert!(is_canonical_uuid("12345678-1234-5678-1234-567812345678"));
+        assert!(is_canonical_uuid("ABCDEF00-1234-5678-1234-567812345678"));
+        assert!(!is_canonical_uuid("12345678123456781234567812345678"));
+        assert!(!is_canonical_uuid("{12345678-1234-5678-1234-567812345678}"));
+        assert!(!is_canonical_uuid("1234567g-1234-5678-1234-567812345678"));
+    }
+
+    #[test]
+    fn rfc3339_shapes() {
+        for good in [
+            "2026-11-13T10:00:00",
+            "2026-11-13t10:00:00Z",
+            "2026-11-13T10:00:00.123+01:00",
+            "2026-11-13T10:00:00-05:30",
+        ] {
+            assert!(is_rfc3339(good), "{good}");
+        }
+        for bad in [
+            "2026-11-13",
+            "2026-11-13 10:00:00",
+            "2026-11-13T10:00:00.",
+            "2026-11-13T10:00:00+0100",
+            "2026-11-13T10:00:00Zx",
+            "２０２６-11-13T10:00:00",
+        ] {
+            assert!(!is_rfc3339(bad), "{bad}");
+        }
+    }
+}

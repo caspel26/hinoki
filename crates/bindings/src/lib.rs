@@ -8,6 +8,7 @@ mod db;
 mod query;
 mod request;
 mod router;
+mod schema;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -83,6 +84,8 @@ fn native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(request::parse_multipart_body, m)?)?;
     m.add_function(wrap_pyfunction!(request::negotiate_media, m)?)?;
     m.add_function(wrap_pyfunction!(request::decode_json, m)?)?;
+    m.add_class::<schema::Compiled>()?;
+    m.add_function(wrap_pyfunction!(schema::compile_schemas, m)?)?;
     m.add_function(wrap_pyfunction!(crypto::hash_password, m)?)?;
     m.add_function(wrap_pyfunction!(crypto::verify_password, m)?)?;
     m.add_function(wrap_pyfunction!(crypto::password_needs_rehash, m)?)?;
