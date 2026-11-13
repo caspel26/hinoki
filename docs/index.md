@@ -37,7 +37,7 @@ class NoteIn(Schema):
 
 
 @post("/notes", status=201, transaction=True)
-async def create(request: Request, data: NoteIn) -> NoteOut:
+async def create(data: NoteIn) -> NoteOut:
     return NoteOut.from_model(await Note.acreate(data))
 ```
 

@@ -11,7 +11,7 @@ import os
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from hinoki import Field, HinokiAPI, Request, Schema, delete, get, post
+from hinoki import Field, HinokiAPI, Schema, delete, get, post
 from hinoki.db import DatabaseModule
 from hinoki.orm import Model, field
 
@@ -34,22 +34,22 @@ class NoteOut(Schema):
 
 
 @get("/notes")
-async def listing(request: Request) -> list[NoteOut]:
+async def listing() -> list[NoteOut]:
     return [NoteOut.from_model(n) for n in await Note.all().order_by("title").aall()]
 
 
 @get("/notes/{note_id}")
-async def one(request: Request, note_id: UUID) -> NoteOut:
+async def one(note_id: UUID) -> NoteOut:
     return NoteOut.from_model(await Note.aget(id=note_id))
 
 
 @post("/notes", status=201, transaction=True)
-async def create(request: Request, data: NoteIn) -> NoteOut:
+async def create(data: NoteIn) -> NoteOut:
     return NoteOut.from_model(await Note.acreate(data))
 
 
 @delete("/notes/{note_id}", status=204, transaction=True)
-async def remove(request: Request, note_id: UUID) -> None:
+async def remove(note_id: UUID) -> None:
     await Note.adelete(id=note_id)
 
 

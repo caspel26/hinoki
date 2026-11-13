@@ -70,9 +70,9 @@ class AppSettings(FrameworkSettings):
     pass
 '''
 
-API = '''"""Endpoints. Every action takes the request first; protected actions name an Access policy."""
+API = '''"""Endpoints. Protected actions name an Access policy; declare `request: Request` first only when you need it."""
 
-from hinoki import Request, Schema, get
+from hinoki import Schema, get
 
 
 class Health(Schema):
@@ -80,7 +80,7 @@ class Health(Schema):
 
 
 @get("/health")
-def health(request: Request) -> Health:
+def health() -> Health:
     """Liveness: answers while the worker runs."""
     return Health(status="ok")
 '''
@@ -160,7 +160,7 @@ uv run granian --interface asgi --factory {name}.main:create_app
 
 ## Conventions
 
-* Every action takes `request: Request` first. Path, query and body values follow as typed parameters.
+* Path, query and body values are typed parameters. The request object is optional: declare `request: Request` as the first parameter only when you need headers, cookies or the raw body.
 * Public by default: any action that is not public on purpose names an `Access` policy (`access=editor`).
 * Writes use `transaction=True`. Failures are exceptions, not `Reply` values (a `Reply` commits).
 * Request and response bodies are `Schema` classes. Never return a `Model`; list the fields a response may contain. Fields named in the exposure rule (`password_hash`, ...) never appear in a response schema.

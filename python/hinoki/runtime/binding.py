@@ -176,6 +176,7 @@ class Param:
 class Binding:
     route: Route
     params: tuple[Param, ...]
+    takes_request: bool = True  # False: the action did not declare `Request`
 
     @property
     def needs_body(self) -> bool:
@@ -282,20 +283,36 @@ def make_param(route: Route, parameter: inspect.Parameter, annotation: object) -
 
 def split_request(
     route: Route, parameters: list[inspect.Parameter], hints: dict[str, typing.Any]
-) -> list[inspect.Parameter]:
-    """The request is the first parameter of every action and nothing else may
-    be annotated with it; returns the remaining, bound parameters."""
+) -> tuple[bool, list[inspect.Parameter]]:
+    """Whether the action declares the request, and the remaining parameters.
+
+    The request is optional: it is passed only to an action that annotates a
+    parameter with ``Request``, and then it must be the first one (after
+    ``self`` in an API class). Nothing else may be annotated with it, and a
+    parameter called ``request`` that is not annotated is a mistake."""
     first = parameters[0] if parameters else None
+    takes = first is not None and hints.get(first.name) is Request
+    rest = parameters[1:] if takes else parameters
     if (
-        first is None
-        or hints.get(first.name) is not Request
-        or first.kind is not inspect.Parameter.POSITIONAL_OR_KEYWORD
+        takes
+        and first is not None
+        and first.kind is not inspect.Parameter.POSITIONAL_OR_KEYWORD
     ):
         raise RegistrationError(
-            f"{route.name}: the first parameter must be the request, "
-            "annotated `Request` (after `self` in an API class)"
+            f"{route.name}: the request parameter must be usable by position"
         )
-    return parameters[1:]
+    for parameter in rest:
+        if hints.get(parameter.name) is Request:
+            raise RegistrationError(
+                f"{route.name}: `{parameter.name}: Request` must be the first "
+                "parameter (after `self` in an API class)"
+            )
+        if parameter.name == "request":  # named like the request, not annotated as it
+            raise RegistrationError(
+                f"{route.name}: annotate the `request` parameter with `Request`, "
+                "or remove it: the request is optional and passed only when declared"
+            )
+    return takes, rest
 
 
 def bind(route: Route) -> Binding:
@@ -307,7 +324,7 @@ def bind(route: Route) -> Binding:
         raise RegistrationError(
             f"{route.name}: cannot resolve annotations: {exc}"
         ) from exc
-    parameters = split_request(route, parameters, hints)
+    takes_request, parameters = split_request(route, parameters, hints)
     names = {p.name for p in parameters}
     missing = set(PATH_PARAM.findall(route.path)) - names
     if missing:
@@ -322,4 +339,4 @@ def bind(route: Route) -> Binding:
         )
     if sum(p.source == "body" for p in params) > 1:
         raise RegistrationError(f"{route.name}: at most one body parameter")
-    return Binding(route, params)
+    return Binding(route, params, takes_request)
