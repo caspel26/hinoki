@@ -1,8 +1,8 @@
 ---
 status: implemented
 related:
-  - AI-WORKFLOW.md
-  - AUTHENTICATION.md
+  - ai-workflow.md
+  - authentication.md
 ---
 
 # Expose an application over MCP

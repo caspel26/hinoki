@@ -1,8 +1,8 @@
 ---
 status: implemented
 related:
-  - SERVING.md
-  - MODULES.md
+  - serving.md
+  - modules.md
 ---
 
 # Settings: how configuration, secrets and database pools work
@@ -21,7 +21,7 @@ class BlogSettings(FrameworkSettings):          # keeps the built-in groups
     admin_theme: Literal["studio", "console", "paper"] = "studio"
 ```
 
-`FrameworkSettings` brings five groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs) and `server` (host, port and workers). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](REQUEST-LIFECYCLE.md).
+`FrameworkSettings` brings five groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs) and `server` (host, port and workers). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](request-lifecycle.md).
 
 `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` default to `None`, so no API document or viewer route is served until configured. Swagger UI or ReDoc requires an `openapi_url`. The same values can be supplied as `Hinoki(...)` arguments; explicit arguments win over `docs` settings, and `None` disables a page.
 
@@ -139,7 +139,7 @@ hinoki settings blog.settings:BlogSettings --prefix BLOG_ --example > .env.examp
 
 `Hinoki(settings=settings)` derives the runtime limits, the docs URLs and the logging setup from the built-in groups (an explicit argument such as `title=` still wins). Your own fields are on `app.settings`, and modules reach them as `ctx.settings` in their lifespan.
 
-The `server` group (host, port, workers) is applied by `hinoki serve`/`dev` ([Running an application](SERVING.md)). Hinoki does not connect to secret-manager services itself; use a provider that supplies environment values or secret files.
+The `server` group (host, port, workers) is applied by `hinoki serve`/`dev` ([Running an application](serving.md)). Hinoki does not connect to secret-manager services itself; use a provider that supplies environment values or secret files.
 
 ## 8. Database connection ownership
 

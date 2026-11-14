@@ -1,8 +1,8 @@
 ---
 status: implemented
 related:
-  - SETTINGS.md
-  - CLI.md
+  - settings.md
+  - cli.md
 ---
 
 # Running an application
@@ -14,13 +14,13 @@ hinoki serve blog.main:create_app     # production-style: no reload
 
 `TARGET` is `module:name`, where `name` is an application (`Hinoki`) or a function that returns one (a factory: the usual choice, because it builds the app inside each worker). The factory builds declarations only; databases and pools open in the worker's lifespan.
 
-With a declared app, settings load when the target module creates the `Hinoki` object. A configured `DatabaseModule` opens that worker's pool during lifespan startup and closes it during shutdown. The pool is per worker; no database connection is opened by importing model or route modules. See [settings and database ownership](SETTINGS.md#8-database-connection-ownership).
+With a declared app, settings load when the target module creates the `Hinoki` object. A configured `DatabaseModule` opens that worker's pool during lifespan startup and closes it during shutdown. The pool is per worker; no database connection is opened by importing model or route modules. See [settings and database ownership](settings.md#8-database-connection-ownership).
 
 Both commands run the app under Granian, so install the server extra: `pip install 'hinoki[server]'` (the generated project already depends on it).
 
 ## Where host, port and workers come from
 
-From the application's **`server` settings group** ([settings guide](SETTINGS.md)); flags override them:
+From the application's **`server` settings group** ([settings guide](settings.md)); flags override them:
 
 | Setting | Variable (prefix `BLOG_`) | Default | Flag |
 | --- | --- | --- | --- |

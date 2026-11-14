@@ -1,8 +1,8 @@
 ---
 status: implemented
 related:
-  - SYNC-ASYNC.md
-  - ENDPOINTS.md
+  - sync-async.md
+  - endpoints.md
 ---
 
 # Testing
@@ -43,4 +43,4 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-Database-dependent Python and Rust tests require `HINOKI_TEST_DATABASE_URL`; without it those tests are skipped. CI provides a disposable PostgreSQL service. See [toolchain and CI](TOOLCHAIN.md) for packaging and docs checks too.
+Database-dependent Python and Rust tests require `HINOKI_TEST_DATABASE_URL`; without it those tests are skipped. CI provides a disposable PostgreSQL service. See [toolchain and CI](toolchain.md) for packaging and docs checks too.

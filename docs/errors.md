@@ -31,4 +31,4 @@ Every HTTP request receives a generated request ID. The response includes it in 
 
 ## Check the contract
 
-Use `ASGIClient(..., strict_errors=True)` in tests to fail if a handler returns an error that it did not declare. `hinoki check` can also enforce rules about access and transaction declarations; see [rules](RULES.md).
+Use `ASGIClient(..., strict_errors=True)` in tests to fail if a handler returns an error that it did not declare. `hinoki check` can also enforce rules about access and transaction declarations; see [rules](rules.md).

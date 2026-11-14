@@ -1,9 +1,9 @@
 ---
 status: implemented
 related:
-  - RELATIONS.md
-  - MIGRATIONS.md
-  - MODEL-OPTIONS.md
+  - relations.md
+  - migrations.md
+  - model-options.md
 ---
 
 # Models and queries
@@ -63,16 +63,16 @@ await task.asave()  # updates changed columns
 
 Server-supplied keywords take precedence over values from a `Schema`. A loaded model remembers its stored values; `asave()` updates changed columns and refuses primary-key changes. For a conditional write, use `aupdate_where` so ownership and state checks are part of the SQL condition.
 
-The model constructor is statically typed. Some keyword-based model methods still have broader type-checker signatures; see [typing](TYPING.md).
+The model constructor is statically typed. Some keyword-based model methods still have broader type-checker signatures; see [typing](typing.md).
 
 ## Relations
 
-Declare a foreign-key column with `foreign_key(OtherModel, ...)`. It creates the `other_id` column and a named relation (`row.other`), but reading the relation does not fetch data. Load it explicitly with `select_related` or `prefetch_related`. For many-to-many data, declare an association model with two foreign keys and a composite `@unique` constraint; see [relations and loading](RELATIONS.md).
+Declare a foreign-key column with `foreign_key(OtherModel, ...)`. It creates the `other_id` column and a named relation (`row.other`), but reading the relation does not fetch data. Load it explicitly with `select_related` or `prefetch_related`. For many-to-many data, declare an association model with two foreign keys and a composite `@unique` constraint; see [relations and loading](relations.md).
 
 ## Schema options
 
-Use [model option decorators](MODEL-OPTIONS.md) for indexes, ordering and composite uniqueness. Use [schemas](SCHEMAS.md) to define request and response data; a model does not decide which columns cross the HTTP boundary.
+Use [model option decorators](model-options.md) for indexes, ordering and composite uniqueness. Use [schemas](schemas.md) to define request and response data; a model does not decide which columns cross the HTTP boundary.
 
 ## Migrations
 
-Model changes do not alter a database. Generate and review migration files, then apply them deliberately with the [migration commands](MIGRATIONS.md).
+Model changes do not alter a database. Generate and review migration files, then apply them deliberately with the [migration commands](migrations.md).

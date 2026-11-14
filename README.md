@@ -70,7 +70,7 @@ class Note(Model, table="notes"):
     title: str = field(max_length=80)
 ```
 
-Hinoki uses decorators for model options. See [model options](docs/MODEL-OPTIONS.md) and the runnable [Notes app](examples/notes/app.py).
+Hinoki uses decorators for model options. See [model options](docs/model-options.md) and the runnable [Notes app](examples/notes/app.py).
 
 ## Admin styles
 

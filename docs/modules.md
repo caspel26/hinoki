@@ -32,4 +32,4 @@ Module lifespan hooks are async. Keep startup bounded, fail fast when a required
 
 Scripts outside the server have no worker lifespan. Open their own `Database` and close it explicitly; do not import a module-global pool or start the whole web application to seed data. The blog seed script demonstrates this pattern.
 
-See [settings and database ownership](SETTINGS.md#8-database-connection-ownership), [serving](SERVING.md) and [sync and async](SYNC-ASYNC.md).
+See [settings and database ownership](settings.md#8-database-connection-ownership), [serving](serving.md) and [sync and async](sync-async.md).

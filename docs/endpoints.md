@@ -1,14 +1,14 @@
 ---
 status: implemented
 related:
-  - AUTHENTICATION.md
-  - ERRORS.md
-  - TRANSACTIONS.md
+  - authentication.md
+  - errors.md
+  - transactions.md
 ---
 
 # Endpoints
 
-Hinoki endpoints are ordinary Python functions decorated with an HTTP method. The decorator records metadata; `Hinoki.include(...)` registers the function or an `API` class. The registered declarations also supply the generated [OpenAPI document](OPENAPI.md).
+Hinoki endpoints are ordinary Python functions decorated with an HTTP method. The decorator records metadata; `Hinoki.include(...)` registers the function or an `API` class. The registered declarations also supply the generated [OpenAPI document](openapi.md).
 
 ## Declare an action
 
@@ -134,6 +134,6 @@ action and becomes immutable after successful inclusion.
 
 Return a value matching the declared response type, or return `Reply` when the handler needs to set an explicit status, headers or body. Declare expected `APIError` subclasses in `errors=(...)`; their status, stable code and message feed the OpenAPI document and strict test client.
 
-Paginated actions declare a pagination policy. See [pagination](PAGINATION.md) for the query parameters and response envelope.
+Paginated actions declare a pagination policy. See [pagination](pagination.md) for the query parameters and response envelope.
 
-See [authentication](AUTHENTICATION.md), [parsers and renderers](CODECS.md), and [error handling](ERRORS.md).
+See [authentication](authentication.md), [parsers and renderers](codecs.md), and [error handling](errors.md).

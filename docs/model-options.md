@@ -40,4 +40,4 @@ class Bookmark(Model, table="bookmarks", label="Bookmark", plural="Bookmarks"):
 * Apply options before the model is used: the migration planner, the query layer and the admin read them from the class.
 * Index names are `ix_<table>_<columns>`, shortened deterministically (with a hash) past PostgreSQL's 63 bytes.
 
-Not yet: partial or expression indexes, per-column index options, and soft delete. For timestamps, see [utilities](UTILITIES.md); fields are declared explicitly and migrations remain visible.
+Not yet: partial or expression indexes, per-column index options, and soft delete. For timestamps, see [utilities](utilities.md); fields are declared explicitly and migrations remain visible.

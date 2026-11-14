@@ -1,8 +1,8 @@
 ---
 status: implemented
 related:
-  - RULES.md
-  - ENDPOINTS.md
+  - rules.md
+  - endpoints.md
 ---
 
 # Authentication and access policies

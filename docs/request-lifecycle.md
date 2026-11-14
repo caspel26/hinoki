@@ -16,4 +16,4 @@ The default `execution.request_timeout` is 30 seconds and covers request process
 
 Each request gets a generated `x-request-id` response header. Built-in error JSON includes the same value as `request_id`. Startup and shutdown have separate defaults of 30 and 10 seconds in `lifecycle.startup_timeout` and `lifecycle.shutdown_timeout`; startup failure is reported through the ASGI lifespan protocol, and shutdown runs resource cleanup under its deadline.
 
-The router, parsing, validation and selected serialization work use Rust, but Granian and the ASGI adapter cross Python objects. See [sync and async](SYNC-ASYNC.md) for what runs on which executor.
+The router, parsing, validation and selected serialization work use Rust, but Granian and the ASGI adapter cross Python objects. See [sync and async](sync-async.md) for what runs on which executor.

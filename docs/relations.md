@@ -86,4 +86,4 @@ The reverse `post.tag_links` relation contains `PostTag` rows; load it with `pre
 
 This explicit form supports association rows and their foreign-key relations. Hinoki does not currently generate the join model or expose a direct `post.tags` relation.
 
-See [models and queries](MODELS.md) and [migrations](MIGRATIONS.md) for schema changes to foreign keys.
+See [models and queries](models.md) and [migrations](migrations.md) for schema changes to foreign keys.

@@ -45,11 +45,11 @@ curl -i -X POST http://127.0.0.1:8000/notes \
 curl http://127.0.0.1:8000/notes
 ```
 
-The POST returns `201 Created` and a JSON object with the generated `id`, `title` and `body`. The GET returns a JSON array. Invalid input is rejected before the handler runs; see [error handling](ERRORS.md) for the response format.
+The POST returns `201 Created` and a JSON object with the generated `id`, `title` and `body`. The GET returns a JSON array. Invalid input is rejected before the handler runs; see [error handling](errors.md) for the response format.
 
 ## Where to go next
 
 - [Tutorial](tutorial/index.md): build the Tracker example in six steps.
-- [Models and queries](MODELS.md): fields, querysets and relation loading.
-- [Migrations](MIGRATIONS.md): migration files, destructive changes and deployment workflow.
+- [Models and queries](models.md): fields, querysets and relation loading.
+- [Migrations](migrations.md): migration files, destructive changes and deployment workflow.
 - [API reference](reference/index.md): public symbols and signatures.
