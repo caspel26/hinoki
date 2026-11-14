@@ -178,6 +178,36 @@ def test_a_decorator_on_the_subclass_replaces_the_inherited_kind_only() -> None:
     assert Kept.__indexes__ == (("updated_at",), ("title",))  # kept by repeating it
 
 
+def test_a_replacement_in_an_abstract_base_holds_for_its_subclasses() -> None:
+    @unique("code", "id")
+    @indexed("code")
+    class Coded(Model, abstract=True):
+        id: UUID = field(primary_key=True, default_factory=uuid4)
+        code: str = ""
+        slug: str = ""
+
+    @unique("slug", "id")
+    @indexed("slug")
+    class Slugged(Coded, abstract=True):
+        pass
+
+    class Entry(Slugged, table="am_entries"):
+        pass
+
+    assert Slugged.__unique__ == (("slug", "id"),)
+    assert Entry.__unique__ == (("slug", "id"),)  # not Coded's as well
+    assert Entry.__indexes__ == (("slug",),)
+
+    class Paired(Coded, abstract=True, unique=[("code", "slug")]):
+        pass
+
+    class Pair(Paired, table="am_pairs"):
+        pass
+
+    assert Pair.__unique__ == (("code", "slug"),)
+    assert Pair.__indexes__ == (("code",),)  # the untouched kind is still inherited
+
+
 def test_a_concrete_parent_does_not_pass_on_its_options() -> None:
     class Draft(Article, table="am_drafts"):
         reviewed: bool = False
@@ -233,6 +263,48 @@ def test_an_abstract_foreign_key_gives_each_model_its_own_reverse_name() -> None
     assert {"article_set", "page_set"} <= set(Team.__relations__)
     assert Team.__relations__["article_set"].model is Article
     assert "{model}_set" not in Team.__relations__
+
+
+def test_a_table_subclass_gets_its_own_placeholder_reverse_relation() -> None:
+    class Group(Model, table="am_groups"):
+        id: UUID = field(primary_key=True, default_factory=uuid4)
+
+    class Grouped(Model, abstract=True):
+        group_id: UUID = foreign_key(
+            Group, on_delete="cascade", related_name="{model}_set"
+        )
+
+    class Note(Grouped, Keyed, table="am_notes"):
+        pass
+
+    class Memo(Note, table="am_note_memos"):
+        pass
+
+    assert sorted(Group.__relations__) == ["memo_set", "note_set"]
+    assert Group.__relations__["memo_set"].model is Memo
+    assert sorted(Memo.__relations__) == ["group"]
+
+
+def test_a_foreign_key_cannot_point_at_an_abstract_model() -> None:
+    with pytest.raises(RegistrationError, match="Keyed is abstract"):
+
+        class Pointer(Model, table="am_pointers"):
+            id: UUID = field(primary_key=True, default_factory=uuid4)
+            keyed_id: UUID = foreign_key(Keyed, on_delete="cascade")
+
+
+def test_one_unresolvable_annotation_does_not_cause_a_false_conflict() -> None:
+    class Cached:
+        cache: ClassVar[Missing] = ()  # type: ignore[name-defined]  # noqa: F821
+        code: str = ""
+
+    class Coded(Model, abstract=True):
+        code: str = ""
+
+    class Item(Cached, Coded, Keyed, table="am_items"):
+        pass
+
+    assert Item.__columns__ == ("id", "code")
 
 
 def test_a_fixed_reverse_name_shared_by_two_models_is_explained() -> None:

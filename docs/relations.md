@@ -43,7 +43,7 @@ class Page(Owned, table="pages"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
 ```
 
-`Team` gets the reverse relations `article_set` and `page_set`. With a fixed `related_name`, the second model that inherits the field is refused with an error naming both models. `{model}` is the only placeholder. Without `related_name` there is no reverse relation and nothing can collide.
+`Team` gets the reverse relations `article_set` and `page_set`. With a fixed `related_name`, the second model that inherits the field is refused with an error naming both models. A table model that subclasses another table model copies the column and the forward relation; it gets a reverse relation of its own only when the name uses the placeholder, because a fixed name already belongs to its parent. A foreign key cannot reference an abstract model, which has no table. `{model}` is the only placeholder. Without `related_name` there is no reverse relation and nothing can collide.
 
 ## Load related rows explicitly
 

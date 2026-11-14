@@ -64,19 +64,50 @@ def is_class_variable(kind: object) -> bool:
     return kind is ClassVar or typing.get_origin(kind) is ClassVar
 
 
-def field_types(base: type) -> dict[str, object]:
-    """The field annotations of ``base``'s own body, resolved in its module
-    when they can be (so they still mean the same in a subclass elsewhere)."""
+def resolve_annotation(base: type, name: str, raw: object) -> object:
+    """``raw`` evaluated in ``base``'s module when it is source text; the text
+    itself when that fails (a name imported only for type checking)."""
+    if not isinstance(raw, str):
+        return raw
+    holder = AnnotationHolder()
+    holder.__annotations__ = {name: raw}
+    module = sys.modules.get(base.__module__)
     try:
-        hints = typing.get_type_hints(base, include_extras=True)
-    except (NameError, TypeError):
-        hints = {}
+        hints = typing.get_type_hints(
+            holder,
+            globalns=dict(vars(module)) if module else {},
+            localns=dict(vars(base)),
+            include_extras=True,
+        )
+    except Exception:
+        return raw
+    return hints[name]
+
+
+class AnnotationHolder:
+    """Carries one annotation for ``typing.get_type_hints``."""
+
+    __annotations__: dict[str, Any]
+
+
+def field_types(base: type) -> dict[str, object]:
+    """The field annotations of ``base``'s own body, each resolved in its
+    module when it can be (so it still means the same in a subclass
+    elsewhere). One unresolvable annotation does not affect the others."""
     found = {}
     for name, raw in own_annotations(base).items():
-        kind = hints.get(name, raw)
+        kind = resolve_annotation(base, name, raw)
         if not is_class_variable(kind):
             found[name] = kind
     return found
+
+
+def same_type(first: object, second: object) -> bool:
+    """Whether two bases agree on a field's type. Source text that could not
+    be resolved is only comparable with other source text."""
+    if isinstance(first, str) != isinstance(second, str):
+        return True
+    return first == second
 
 
 def is_model(base: type) -> TypeGuard[type[Model]]:
@@ -134,6 +165,11 @@ def foreign_key(
     """
     if on_delete not in ON_DELETE:
         raise RegistrationError(f"on_delete must be one of {sorted(ON_DELETE)}")
+    if getattr(model, "__abstract__", False):
+        raise RegistrationError(
+            f"foreign_key: {model.__name__} is abstract and has no table to "
+            "reference; point at a model with table=..."
+        )
     meta = FieldMeta(
         unique=unique, references=model, on_delete=on_delete, related_name=related_name
     )
@@ -222,7 +258,11 @@ class Model:
                 continue
             for name, kind in field_types(base).items():
                 first, first_kind = seen.setdefault(name, (base, kind))
-                if name in own or first_kind == kind or issubclass(first, base):
+                if (
+                    name in own
+                    or same_type(first_kind, kind)
+                    or issubclass(first, base)
+                ):
                     continue
                 raise RegistrationError(
                     f"{cls.__name__}: field {name!r} is {first_kind!r} in "
@@ -259,21 +299,16 @@ class Model:
 
     @classmethod
     def option_bases(cls) -> list[type[Model]]:
-        """The abstract bases whose options this class inherits: not those that
-        reach it only through a concrete parent, which keeps its own options."""
-        models = [base for base in cls.__mro__[1:] if is_model(base)]
-        concrete = [base for base in models if not base.__abstract__]
-        return [
-            base
-            for base in models
-            if base.__abstract__ and not any(issubclass(c, base) for c in concrete)
-        ]
+        """The abstract models this class is declared on. Each already holds
+        what it inherited and what it replaced, so nothing further up is read
+        again; a concrete parent keeps its options to itself."""
+        return [base for base in cls.__bases__ if is_model(base) and base.__abstract__]
 
     @classmethod
     def inherit_options(cls, unique: Sequence[Sequence[str]]) -> None:
-        """Options come from the abstract bases: every base's constraints and
-        indexes, and the first base (in the MRO) that sets an order or a
-        timestamp column. A decorator applied to this class later replaces what
+        """Options come from the abstract bases the class lists: every such
+        base's constraints and indexes, and the first one that sets an order or
+        a timestamp column. A decorator applied to this class later replaces what
         was inherited for its kind (see ``hinoki.orm.options``)."""
         bases = cls.option_bases()
         cls.__unique__ = without_repeats([g for b in bases for g in b.__unique__])
@@ -355,7 +390,15 @@ class Model:
         pending: list[tuple[type[Model], Relation]] = []
         for column in fields:
             meta: FieldMeta = column.metadata.get(MARK, FieldMeta())
-            if meta.references is None or column.name in copied:
+            if meta.references is None:
+                continue
+            if column.name in copied:
+                # The parent owns a fixed reverse name; a placeholder gives
+                # this model one of its own.
+                if PLACEHOLDER in meta.related_name:
+                    back_name = cls.reverse_name(column.name, meta.related_name)
+                    back = Relation(back_name, cls, column.name, False)
+                    pending.append((meta.references, back))
                 continue
             name = column.name.removesuffix("_id")
             if name == column.name:
