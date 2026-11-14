@@ -13,7 +13,7 @@ One page for each part of an application. Start with the data and endpoint guide
 - [Model-derived schemas](MODEL-SCHEMAS.md): A Schema can take its fields and constraints from a Model.
 - [Model options](MODEL-OPTIONS.md): Options that describe a model beyond its columns are decorators, read like the action decorators.
 - [Utilities](UTILITIES.md): Hinoki includes a small set of helpers where the framework can define clear behavior.
-- [Relations](RELATIONS.md): Hinoki stores relations as ordinary foreign-key columns and loads related rows only when a query asks for them.
+- [Relations](RELATIONS.md): Foreign keys, explicit many-to-many association models, and how to load related rows.
 - [Migrations](MIGRATIONS.md): Hinoki uses model declarations and recorded migration state to write SQL migration files.
 
 ## Endpoints
