@@ -134,3 +134,11 @@ def test_openapi_shows_the_resolved_sizes() -> None:
     parameters = app.openapi()["paths"]["/items"]["get"]["parameters"]
     size = next(p for p in parameters if p["name"] == "page_size")["schema"]
     assert (size["default"], size["maximum"]) == (25, 100)
+
+
+def test_a_huge_page_number_is_a_validation_error_not_a_crash() -> None:
+    for huge in ("9" * 5000, "9" * 19, str(10**30), "1000000001"):
+        with pytest.raises(ValidationError) as info:
+            strategy.parse({"page": [huge]})
+        assert {d.path: d.code for d in info.value.details} == {"page": "le"}
+    assert strategy.parse({"page": ["1000000000"]}).page == 1_000_000_000

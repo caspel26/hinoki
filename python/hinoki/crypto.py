@@ -246,8 +246,9 @@ class JWTAuth[T](BearerAuth[T]):
 
     def issue(self, claims: dict[str, Any], ttl: int = 900) -> str:
         """A signed token for ``claims`` valid for ``ttl`` seconds, signed with the
-        first non-public key. ``iat``/``exp`` (and ``iss``/``aud`` when
-        configured) are added unless already present."""
+        first non-public key. ``iat`` and ``exp`` are always set by the server (a
+        value in ``claims`` is replaced); ``iss`` and ``aud`` are added when
+        configured, unless ``claims`` already has them."""
         signer = next((k for k in self.keys if not k.public), None)
         if signer is None:
             raise RuntimeError("no signing key is configured")
