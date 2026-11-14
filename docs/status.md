@@ -6,7 +6,7 @@ The [documentation site](documentation-versions.md) separates current developmen
 
 ## Implemented and exercised
 
-The repository includes typed function and class APIs; request binding and strict schemas; access policies and declared errors; optional architecture rules; settings and worker modules; PostgreSQL models, relations, querysets and file-based migrations; sync and async handlers; OpenAPI, parsers, renderers, development and application MCP; and an optional admin with three styles.
+The repository includes typed function and class APIs; request binding and strict schemas; access policies and declared errors; optional architecture rules; settings and worker modules; PostgreSQL models, relations, querysets and file-based migrations; sync and async handlers; OpenAPI, parsers, renderers, development and application MCP; and an optional admin with four styles.
 
 The examples are the best way to see the pieces together: [Notes](https://github.com/caspel26/hinoki/tree/main/examples/notes) for a small declared app, [Tracker](https://github.com/caspel26/hinoki/tree/main/examples/tracker) for layers, ownership and rules, and [Blog](https://github.com/caspel26/hinoki/tree/main/examples/blog) for relations, auth and admin.
 
