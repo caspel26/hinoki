@@ -2,7 +2,7 @@
 
 Used by the development MCP tool ``propose_model``. Pure text generation from a
 validated description: nothing is imported, written or run. The output follows
-``docs/PATTERNS.md`` (separate In/Patch/Out schemas, pagination, transactions on
+``docs/patterns.md`` (separate In/Patch/Out schemas, pagination, transactions on
 writes) and leaves the access policy as a visible TODO for the owner.
 """
 

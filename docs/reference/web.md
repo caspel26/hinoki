@@ -16,6 +16,11 @@
       members: true
       show_if_no_docstring: true
 
+::: hinoki.routing.Route
+    options:
+      members: true
+      show_if_no_docstring: true
+
 ## HTTP method decorators
 
 ::: hinoki.routing.get

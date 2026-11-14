@@ -1,0 +1,6 @@
+{#- First real page under a navigation item (a section may start with a group). -#}
+{% macro first_url(item) -%}
+  {%- if item.url -%}{{ item.url }}
+  {%- elif item.children -%}{{ first_url(item.children | first) }}
+  {%- endif -%}
+{%- endmacro %}
