@@ -8,7 +8,7 @@ One page for each part of an application. Start with the data and endpoint guide
 
 ## Data
 
-- [Models and queries](models.md): Model maps a Python class to one PostgreSQL table.
+- [Models and queries](models.md): Model maps a Python class to one PostgreSQL or SQLite table.
 - [Schemas](schemas.md): A Schema describes data that crosses the API boundary and validates it strictly.
 - [Model-derived schemas](model-schemas.md): A Schema can take its fields and constraints from a Model.
 - [Model options](model-options.md): Options that describe a model beyond its columns are decorators, read like the action decorators.
