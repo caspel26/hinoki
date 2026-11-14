@@ -54,7 +54,7 @@ plugins:
           paths: [python]
           options:
             show_source: false
-            filters: ["!^_[^_]"]
+            filters: ["!^_"]
             show_root_heading: true
             heading_level: 2
             docstring_style: google

@@ -477,6 +477,11 @@ details > :last-child {
   margin-top: var(--sp-7);
 }
 
+.doc-object.doc-attribute > .doc-heading {
+  margin: var(--sp-4) 0 var(--sp-1);
+  font-size: 16px;
+}
+
 .doc-contents {
   margin-left: var(--sp-3);
   padding-left: var(--sp-4);
@@ -486,6 +491,33 @@ details > :last-child {
 .doc-signature,
 .doc code.doc-symbol {
   font-family: var(--hn-font-mono);
+}
+
+.doc-object.doc-attribute > .doc-signature.highlight {
+  display: inline-block;
+  max-width: 100%;
+  margin: var(--sp-1) 0 var(--sp-3);
+  border-color: var(--hn-edge);
+  border-radius: 12px;
+  background: var(--hn-surface-2);
+  box-shadow: none;
+}
+
+.doc-object.doc-attribute > .doc-signature.highlight pre {
+  padding: 9px 14px;
+  color: var(--hn-text-2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.doc-object.doc-attribute > .doc-signature.highlight code * {
+  color: #cfc6ea !important;
+  font-style: normal;
+  font-weight: 400;
+}
+
+html[data-theme="light"] .doc-object.doc-attribute > .doc-signature.highlight code * {
+  color: #4d4859 !important;
 }
 
 .doc-label,
