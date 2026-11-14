@@ -25,6 +25,7 @@ from uuid import UUID
 from hinoki.errors import DestructiveMigration, MigrationError
 from hinoki.orm import MARK, FieldMeta, Model
 from hinoki.orm.relations import ON_DELETE
+from hinoki.target import add_project_to_import_path
 
 MAX_IDENTIFIER = 63  # PostgreSQL truncates longer names
 
@@ -69,6 +70,7 @@ def quote(name: str) -> str:
 
 def models_of(module_name: str) -> list[type[Model]]:
     """Models defined in ``module_name``, in definition order."""
+    add_project_to_import_path()
     module = import_module(module_name)
     found = [
         member

@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 from collections.abc import AsyncIterator
 from datetime import datetime
 from pathlib import Path
@@ -71,6 +72,17 @@ def test_first_plan_creates_tables_in_dependency_order(tmp_path: Path) -> None:
     assert '"seen" timestamptz,' in text or '"seen" timestamptz\n' in text
     state = json.loads((tmp_path / "0001-initial.state.json").read_text())
     assert state["tables"]["mig_things"]["columns"]["seen"]["nullable"] is True
+
+
+def test_models_are_importable_from_a_console_script() -> None:
+    project = str(Path.cwd())
+    original_path = sys.path.copy()
+    sys.path[:] = [entry for entry in sys.path if entry not in {"", project}]
+    try:
+        found = models_of("examples.notes.app")
+    finally:
+        sys.path[:] = original_path
+    assert [item.__name__ for item in found] == ["Note"]
 
 
 def test_an_unchanged_model_plans_nothing(tmp_path: Path) -> None:

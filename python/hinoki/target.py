@@ -7,6 +7,13 @@ import sys
 from pathlib import Path
 
 
+def add_project_to_import_path() -> None:
+    """Make the caller's project importable from installed console scripts."""
+    project = str(Path.cwd())
+    if "" not in sys.path and project not in sys.path:
+        sys.path.insert(0, project)
+
+
 def load_target(spec: str) -> object:
     """Import a project's target, including dotted attributes.
 
@@ -17,8 +24,7 @@ def load_target(spec: str) -> object:
     module_name, separator, attribute = spec.partition(":")
     if not separator or not module_name or not attribute:
         raise ValueError(f"expected module:attribute, got {spec!r}")
-    if "" not in sys.path and str(Path.cwd()) not in sys.path:
-        sys.path.insert(0, str(Path.cwd()))
+    add_project_to_import_path()
     found: object = importlib.import_module(module_name)
     for part in attribute.split("."):
         found = getattr(found, part)
