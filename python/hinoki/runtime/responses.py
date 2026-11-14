@@ -9,8 +9,7 @@ from typing import Any
 
 from hinoki import core
 from hinoki.context import request_id
-from hinoki.errors import InvalidBody, ValidationError
-from hinoki.httperrors import APIError, ErrorRegistry
+from hinoki.errors import APIError, ErrorRegistry, InvalidBody, ValidationError
 
 log = logging.getLogger("hinoki.runtime")
 

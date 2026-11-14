@@ -14,12 +14,12 @@ from examples.blog.adminsite import build_admin
 from examples.blog.api import Posts, health
 from examples.blog.rules import blog_rules
 from examples.blog.settings import BlogSettings
-from hinoki import Conflict, Hinoki
+from hinoki import Hinoki, errors
 from hinoki.db import DatabaseModule, UniqueViolation
 
 
-def unique_to_conflict(_error: UniqueViolation) -> Conflict:
-    return Conflict("A unique value is already in use.", code="unique_conflict")
+def unique_to_conflict(_error: UniqueViolation) -> errors.Conflict:
+    return errors.Conflict("A unique value is already in use.", code="unique_conflict")
 
 
 def create_app(

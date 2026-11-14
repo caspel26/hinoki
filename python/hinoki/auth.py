@@ -13,7 +13,7 @@ from collections.abc import Awaitable, Iterable
 from dataclasses import dataclass
 
 from hinoki.blocking import call_hook
-from hinoki.httperrors import Unauthorized
+from hinoki.errors import Unauthorized
 
 
 @dataclass(frozen=True, slots=True, init=False)

@@ -59,14 +59,14 @@ Import the namespace and decorate actions: `from hinoki import http`, then `@htt
       members: true
       show_if_no_docstring: true
 
-::: hinoki.httperrors.APIError
+::: hinoki.errors.APIError
 
-::: hinoki.httperrors.BadRequest
+::: hinoki.errors.BadRequest
 
-::: hinoki.httperrors.Unauthorized
+::: hinoki.errors.Unauthorized
 
-::: hinoki.httperrors.Forbidden
+::: hinoki.errors.Forbidden
 
-::: hinoki.httperrors.NotFound
+::: hinoki.errors.NotFound
 
-::: hinoki.httperrors.Conflict
+::: hinoki.errors.Conflict

@@ -4,7 +4,8 @@ from typing import Any
 
 import pytest
 
-from hinoki import API, Hinoki, RegistrationError, Request, core, http
+from hinoki import API, Hinoki, Request, core, http
+from hinoki.errors import RegistrationError
 from tests.harness import Client, Pool
 
 

@@ -9,13 +9,13 @@ from hinoki import (
     Access,
     Actions,
     Hinoki,
-    RegistrationError,
     Request,
     Schema,
     Schemas,
     Transactions,
     http,
 )
+from hinoki.errors import RegistrationError
 from hinoki.orm import Model, field
 from hinoki.rules import (
     Diagnostic,

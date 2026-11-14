@@ -6,7 +6,8 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import Access, Caller, Conflict, Hinoki, Request, Schema, http
+from hinoki import Access, Caller, Hinoki, Request, Schema, http
+from hinoki.errors import Conflict
 from hinoki.mcpapp import ExposureError, expose_as_mcp
 from hinoki.testing import ASGIClient
 from tests.providers import TokenAuth

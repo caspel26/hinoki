@@ -9,7 +9,8 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import API, Hinoki, RegistrationError, RuntimeConfig, context, http
+from hinoki import API, Hinoki, RuntimeConfig, context, http
+from hinoki.errors import RegistrationError
 from hinoki.request import Request
 from tests.harness import Client, Pool
 
