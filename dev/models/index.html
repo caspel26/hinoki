@@ -465,7 +465,7 @@
 <span class="n">task</span><span class="o">.</span><span class="n">done</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="k">await</span> <span class="n">task</span><span class="o">.</span><span class="n">asave</span><span class="p">()</span>  <span class="c1"># updates changed columns</span>
 </code></pre></div>
-<p>Server-supplied keywords take precedence over values from a <code>Schema</code>. A loaded model remembers its stored values; <code>asave()</code> updates changed columns and refuses primary-key changes. For a conditional write, use <code>aupdate_where</code> so ownership and state checks are part of the SQL condition.</p>
+<p>Server-supplied keywords take precedence over values from a <code>Schema</code>. A loaded model remembers its stored values; <code>asave()</code> updates changed columns and refuses primary-key changes. For a conditional write, use <code>aupdate_where</code> so ownership and state checks are part of the SQL condition. <code>QuerySet.aupdate(...)</code> and <code>adelete()</code> act on every row the filters match; they ignore ordering and refuse a queryset with <code>limit</code> or <code>offset</code>, so select the rows first and then filter on their keys (<code>filter(id__in=[...])</code>).</p>
 <p>The model constructor is statically typed. Some keyword-based model methods still have broader type-checker signatures; see <a href="../typing/">typing</a>.</p>
 <h2 id="share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins<a class="headerlink" href="#share-fields-abstract-models-and-mixins" title="Permanent link">&para;</a></h2>
 <p>Fields, options and methods that several models need can live in a base class. An <strong>abstract model</strong> has no table of its own: it is not migrated, cannot be queried or saved, and exists to be subclassed.</p>
@@ -536,7 +536,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.2</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 19:31:56 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 19:35:40 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
