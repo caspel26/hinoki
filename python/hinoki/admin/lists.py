@@ -173,7 +173,13 @@ async def list_panel(
     from hinoki.pagination import PageParams  # noqa: PLC0415 - only here
 
     found = await query.apaginate(PageParams(state.page, entry.per_page))
-    bulk = entry.bulk_delete and entry.can(site.principal, "delete")
+    bulk_delete = entry.bulk_delete and entry.can(site.principal, "delete")
+    actions = tuple(
+        action
+        for action in entry.bulk_actions
+        if entry.can(site.principal, action.name)
+    )
+    bulk = bulk_delete or bool(actions)
     t = site.admin.templates
     hidden = ""
     if state.view:
@@ -189,9 +195,26 @@ async def list_panel(
         else "Search is not set up",
         actions=Raw(""),
     )
+    bulk_buttons = []
+    if bulk_delete:
+        bulk_buttons.append(
+            '<button class="hn-btn hn-danger-soft" type="submit" '
+            'name="action" value="delete">Delete selected</button>'
+        )
+    bulk_buttons.extend(
+        [
+            (
+                '<button class="hn-btn" type="submit" name="action" '
+                f'value="{escape(action.name)}">{escape(action.label)}</button>'
+            )
+            for action in actions
+        ]
+    )
     bulkbar = Raw(
-        '<div class="hn-bulkbar" data-hn-bulkbar><span><strong data-hn-selected-count>0</strong> selected</span>'
-        '<button class="hn-btn hn-danger-soft" type="submit" name="action" value="delete">Delete selected</button></div>'
+        '<div class="hn-bulkbar" data-hn-bulkbar>'
+        "<span><strong data-hn-selected-count>0</strong> selected</span>"
+        + "".join(bulk_buttons)
+        + "</div>"
         if bulk
         else ""
     )

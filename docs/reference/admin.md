@@ -10,6 +10,8 @@
       members: true
       show_if_no_docstring: true
 
+::: hinoki.admin.BulkAction
+
 ::: hinoki.admin.Theme
 
 ::: hinoki.admin.Avatar

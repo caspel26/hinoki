@@ -2,13 +2,30 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+import inspect
+import re
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass
 from typing import Any, ClassVar
 
 from hinoki.admin.parts import Badge, Fieldset, Stat, Tab
 from hinoki.auth import Caller
 from hinoki.errors import RegistrationError
 from hinoki.orm import Model, QuerySet
+
+_ACTION_NAME = re.compile(r"[a-z][a-z0-9-]{0,47}\Z")
+_MAX_ACTION_LABEL = 80
+_MAX_ACTION_CONFIRMATION = 240
+
+
+@dataclass(frozen=True, slots=True)
+class BulkAction[M: Model]:
+    """A confirmed action for selected rows in a model's admin list."""
+
+    name: str
+    label: str
+    confirm: str
+    handler: Callable[[tuple[M, ...], Caller[Any]], Awaitable[None]]
 
 
 class OutOfScope(Exception):
@@ -47,6 +64,7 @@ class ModelAdmin[M: Model]:
     per_page: ClassVar[int] = 20
     show_count: ClassVar[bool] = False
     bulk_delete: ClassVar[bool] = False
+    bulk_actions: ClassVar[tuple[BulkAction[Any], ...]] = ()
 
     def queryset(self, principal: Caller[Any]) -> QuerySet[M]:
         return self.model.all()
@@ -147,6 +165,7 @@ class ModelAdmin[M: Model]:
                 raise RegistrationError(
                     f"admin {slug!r}: {label} names unknown columns {unknown}"
                 )
+        self._validate_bulk_actions(slug)
         for tab in self.tabs:
             for column in tab.filters:
                 self.model.check_field(column.partition("__")[0])
@@ -156,3 +175,61 @@ class ModelAdmin[M: Model]:
                 raise RegistrationError(
                     f"admin {slug!r}: fieldset {fieldset.title!r} names {unknown}"
                 )
+
+    def _validate_bulk_actions(self, slug: str) -> None:
+        if not isinstance(self.bulk_actions, tuple):
+            raise RegistrationError(f"admin {slug!r}: bulk_actions must be a tuple")
+        action_names: set[str] = set()
+        for action in self.bulk_actions:
+            if not isinstance(action, BulkAction):
+                raise RegistrationError(
+                    f"admin {slug!r}: bulk_actions must contain BulkAction values"
+                )
+            _validate_bulk_action(action, slug, action_names)
+
+
+def _validate_bulk_action(action: BulkAction[Any], slug: str, names: set[str]) -> None:
+    if (
+        not isinstance(action.name, str)
+        or not _ACTION_NAME.fullmatch(action.name)
+        or action.name == "delete"
+    ):
+        raise RegistrationError(
+            f"admin {slug!r}: invalid or reserved bulk action name {action.name!r}"
+        )
+    if action.name in names:
+        raise RegistrationError(
+            f"admin {slug!r}: duplicate bulk action {action.name!r}"
+        )
+    names.add(action.name)
+    if (
+        not isinstance(action.label, str)
+        or not action.label.strip()
+        or len(action.label) > _MAX_ACTION_LABEL
+    ):
+        raise RegistrationError(
+            f"admin {slug!r}: bulk action {action.name!r} label must contain "
+            f"1 to {_MAX_ACTION_LABEL} characters"
+        )
+    if (
+        not isinstance(action.confirm, str)
+        or not action.confirm.strip()
+        or len(action.confirm) > _MAX_ACTION_CONFIRMATION
+    ):
+        raise RegistrationError(
+            f"admin {slug!r}: bulk action {action.name!r} confirmation must "
+            f"contain 1 to {_MAX_ACTION_CONFIRMATION} characters"
+        )
+    if not callable(action.handler):
+        raise RegistrationError(
+            f"admin {slug!r}: bulk action {action.name!r} handler must be "
+            "an async callable"
+        )
+    async_call = inspect.iscoroutinefunction(
+        getattr(type(action.handler), "__call__", None)  # noqa: B004 - detect async callable instances
+    )
+    if not inspect.iscoroutinefunction(action.handler) and not async_call:
+        raise RegistrationError(
+            f"admin {slug!r}: bulk action {action.name!r} handler must be "
+            "an async callable"
+        )
