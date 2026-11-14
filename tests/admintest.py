@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 from openapi_spec_validator import validate
@@ -30,13 +31,24 @@ from hinoki.admin.components import (
     icon_name,
     initials,
     page_window,
+    plain_text,
     sparkline,
 )
-from hinoki.admin.forms import FieldProblem, collect, convert, fields_for, label_of
+from hinoki.admin.forms import (
+    FieldProblem,
+    collect,
+    convert,
+    fields_for,
+    input_text,
+    label_of,
+    render_field,
+    to_datetime,
+)
 from hinoki.admin.templates import UI, Raw, TemplateError, Templates, escape
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import RegistrationError
 from hinoki.orm import Model, current_database, field, foreign_key, use_database
+from hinoki.settings import AppSettings
 from tests.harness import Client, Pool
 from tests.providers import TokenAuth
 
@@ -406,6 +418,41 @@ def test_unchanged_fields_are_never_rewritten_on_edit() -> None:
     changed = {**submitted, "title": "new", "rank": ""}
     values, errors = collect(fields, changed, original)
     assert values == {"title": "new", "rank": None} and errors == {}
+
+
+def test_admin_datetime_uses_app_timezone_and_rejects_dst_edges() -> None:
+    rome = ZoneInfo("Europe/Rome")
+    instant = datetime.datetime(2026, 7, 1, 8, 30, tzinfo=datetime.UTC)
+    assert input_text(instant, rome) == "2026-07-01T10:30:00"
+    assert plain_text(instant, rome) == "2026-07-01 10:30"
+    due_field = next(
+        field for field in fields_for(Note, creating=False) if field.name == "due"
+    )
+    rendered = str(render_field(Templates(), due_field, instant, None, zone=rome))
+    assert 'value="2026-07-01T10:30:00"' in rendered
+    assert to_datetime("2026-07-01T10:30", rome) == instant
+    assert to_datetime("2026-07-01T10:30+02:00", rome) == instant
+    with pytest.raises(FieldProblem, match="does not exist"):
+        to_datetime("2026-03-29T02:30", rome)
+    with pytest.raises(FieldProblem, match="ambiguous"):
+        to_datetime("2026-10-25T02:30", rome)
+
+    values, errors = collect([due_field], {"due": "2026-03-29T02:30"}, zone=rome)
+    assert values == {} and "due" in errors
+
+
+def test_admin_inherits_timezone_from_including_app() -> None:
+    admin = Admin(access=staff, secret=SECRET)
+    app = Hinoki(settings=AppSettings(timezone="Europe/Rome"))
+    app.include(admin.api())
+    assert admin.timezone == ZoneInfo("Europe/Rome")
+
+
+def test_admin_rejects_conflicting_app_timezones() -> None:
+    admin = Admin(access=staff, secret=SECRET)
+    admin.bind_timezone(ZoneInfo("Europe/Rome"))
+    with pytest.raises(RegistrationError, match="different timezones"):
+        admin.bind_timezone(ZoneInfo("America/New_York"))
 
 
 def test_small_ui_helpers() -> None:
