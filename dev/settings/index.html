@@ -639,6 +639,9 @@ BLOG_JWT_SECRET               file         ***
 <p>The <code>server</code> group (host, port, workers) is applied by <code>hinoki serve</code>/<code>dev</code> (<a href="../serving/">Running an application</a>). Hinoki does not connect to secret-manager services itself; use a provider that supplies environment values or secret files.</p>
 <h2 id="8-database-connection-ownership">8. Database connection ownership<a class="headerlink" href="#8-database-connection-ownership" title="Permanent link">&para;</a></h2>
 <p>For a server, put the connection details in <code>settings.DatabaseSettings</code> and list <code>DatabaseModule</code> in the app declaration (or install a configured module in a factory). The module opens a pool in each worker's startup lifespan, fails startup if PostgreSQL is unreachable, and closes that worker's pool on shutdown. It does not connect at module import or when models are imported. Each worker owns its own pool, so budget <code>replicas × workers × max_size</code> against the database's connection limit.</p>
+<p>PostgreSQL URLs accept <code>sslmode=disable</code>, <code>prefer</code>, <code>require</code>, <code>verify-ca</code> or <code>verify-full</code>, and <code>sslrootcert=/path/to/ca.pem</code>. <code>prefer</code> tries TLS first and falls back to plaintext only if the server declines TLS; a certificate or handshake error fails closed. All TLS connections verify the server certificate chain and hostname. <code>require</code>, <code>verify-ca</code> and <code>verify-full</code> require TLS; Hinoki's <code>verify-ca</code> also verifies the hostname. Trust uses Mozilla WebPKI roots plus any PEM certificates in <code>sslrootcert</code> (maximum file size 1 MiB). <code>sslmode=require</code> therefore requires a trusted certificate too. <code>sslmode=allow</code> is unsupported. Keep the URL in a secret setting, and mount the CA file where each worker can read it.</p>
+<div class="highlight"><pre><span></span><code>postgresql://app:password@db.example/app?sslmode=require&amp;sslrootcert=/run/secrets/db-ca.pem
+</code></pre></div>
 <div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"BLOG_"</span><span class="p">):</span>
     <span class="n">database</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">DatabaseSettings</span>
 
@@ -678,8 +681,8 @@ BLOG_JWT_SECRET               file         ***
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.18</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 16:32:42 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>7 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 17:47:59 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>8 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
