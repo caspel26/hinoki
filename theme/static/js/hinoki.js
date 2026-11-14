@@ -415,25 +415,9 @@
     else if (!e.target.closest("[data-popover]")) hidePopover();
   });
 
-  /* ---------- Sidebar hover highlight ---------- */
-  const scroller = $(".side__scroll");
-  if (scroller && !reduced()) {
-    const hl = document.createElement("span");
-    hl.className = "side__hl";
-    scroller.prepend(hl);
-    $$(".side__link", scroller).forEach((a) => {
-      a.addEventListener("pointerenter", () => {
-        hl.style.height = `${a.offsetHeight}px`;
-        hl.style.transform = `translateY(${a.offsetTop}px)`;
-        hl.style.opacity = "1";
-      });
-    });
-    scroller.addEventListener("pointerleave", () => {
-      hl.style.opacity = "0";
-    });
-    const active = $(".side__link.is-active", scroller);
-    active && active.scrollIntoView({ block: "center" });
-  }
+  const sideScroller = $(".side__scroll");
+  const activeSideLink = sideScroller && $(".side__link.is-active", sideScroller);
+  activeSideLink && activeSideLink.scrollIntoView({ block: "nearest" });
 
   /* ---------- Table of contents scroll-spy ---------- */
   const toc = $("[data-toc]");
