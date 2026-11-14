@@ -157,7 +157,13 @@ class Hinoki:
             routes = [route_of(handler) for handler in item.handlers]
             if any(route is None for route in routes):
                 raise RegistrationError("a RouteGroup contains an undecorated action")
-            return [route for route in routes if route is not None]
+            group_routes = [route for route in routes if route is not None]
+            replaced = next((route for route in group_routes if route.replaces), None)
+            if replaced is not None:
+                raise RegistrationError(
+                    f"{replaced.name}: replaces=... only works inside an API class"
+                )
+            return group_routes
         if isinstance(item, type) and issubclass(item, API):
             return list(item.routes())
         route = route_of(item)
