@@ -2721,6 +2721,9 @@ the rows so pages are stable.</p>
 
 
         <p>Strategy: <code>?page=N&amp;page_size=M</code> with a hard upper bound on the size.</p>
+<p>A size left out (<code>None</code>) comes from the application's <code>pagination</code>
+settings when the action is included, and from 20 / 100 without settings.
+A size given here always wins.</p>
 
 
 
@@ -2742,6 +2745,50 @@ the rows so pages are stable.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.pagination.PageNumberPagination.sizes" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">sizes</span>
+
+
+<a href="#hinoki.pagination.PageNumberPagination.sizes" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">sizes</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p><code>(page_size, max_page_size)</code> with the framework defaults filled in.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.pagination.PageNumberPagination.resolved" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">resolved</span>
+
+
+<a href="#hinoki.pagination.PageNumberPagination.resolved" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">resolved</span><span class="p">(</span>
+    <span class="n">page_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_PAGE_SIZE</span><span class="p">,</span>
+    <span class="n">max_page_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_MAX_PAGE_SIZE</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PageNumberPagination</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>This strategy with every size left out filled from the defaults given;
+sizes set on it are kept. Raises <code>ValueError</code> when the result is invalid.</p>
+
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-function">
 
@@ -2865,7 +2912,7 @@ articles: ClassVar[Related[list[Article]]]
           </li><li><a href="#hinoki.pagination.PageParams">PageParams</a></li><li><a href="#hinoki.pagination.Page">Page</a>
             <ul><li><a href="#hinoki.pagination.Page.items">items</a></li><li><a href="#hinoki.pagination.Page.page">page</a></li><li><a href="#hinoki.pagination.Page.page_size">page_size</a></li><li><a href="#hinoki.pagination.Page.total">total</a></li><li><a href="#hinoki.pagination.Page.pages">pages</a></li><li><a href="#hinoki.pagination.Page.__init__">__init__</a></li><li><a href="#hinoki.pagination.Page.of">of</a></li><li><a href="#hinoki.pagination.Page.map">map</a></li><li><a href="#hinoki.pagination.Page.dump">dump</a></li></ul>
           </li><li><a href="#hinoki.pagination.PageNumberPagination">PageNumberPagination</a>
-            <ul><li><a href="#hinoki.pagination.PageNumberPagination.parse">parse</a></li></ul>
+            <ul><li><a href="#hinoki.pagination.PageNumberPagination.sizes">sizes</a></li><li><a href="#hinoki.pagination.PageNumberPagination.resolved">resolved</a></li><li><a href="#hinoki.pagination.PageNumberPagination.parse">parse</a></li></ul>
           </li><li><a href="#hinoki.orm.Related">Related</a>
             <ul><li><a href="#hinoki.orm.Related.stale">stale</a></li></ul>
           </li></ul>

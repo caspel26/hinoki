@@ -371,14 +371,23 @@
       <article class="prose" style="--sheet: '3.12'">
         <p class="kicker" data-search-exclude>3.12 · Guides</p>
         <h1 id="pagination">Pagination<a class="headerlink" href="#pagination" title="Permanent link">&para;</a></h1>
-<p>An action opts into page-number pagination with <code>pagination=PageNumberPagination()</code>. The current built-in defaults are <code>page_size=20</code> and <code>max_page_size=100</code>. The framework parses and validates <code>page</code> and <code>page_size</code>, injects a <code>PageParams</code> value, and documents both query parameters in OpenAPI.</p>
+<p>An action opts into page-number pagination with <code>pagination=PageNumberPagination()</code>. A size you leave out comes from the application's <code>pagination</code> settings group; without settings the defaults are <code>page_size=20</code> and <code>max_page_size=100</code>. The framework parses and validates <code>page</code> and <code>page_size</code>, injects a <code>PageParams</code> value, and documents both query parameters in OpenAPI.</p>
 <div class="highlight"><pre><span></span><code><span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">pagination</span><span class="o">=</span><span class="n">PageNumberPagination</span><span class="p">())</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_tasks</span><span class="p">(</span><span class="n">page</span><span class="p">:</span> <span class="n">PageParams</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Page</span><span class="p">[</span><span class="n">TaskOut</span><span class="p">]:</span>
     <span class="n">rows</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">apaginate</span><span class="p">(</span><span class="n">page</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">rows</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">TaskOut</span><span class="o">.</span><span class="n">from_model</span><span class="p">)</span>
 </code></pre></div>
 <p>Pages are one-based. <code>page_size</code> defaults to the strategy's configured size and cannot exceed its maximum. Invalid values produce a validation response before the handler runs.</p>
-<p><code>Page</code> contains <code>items</code>, <code>page</code>, <code>page_size</code>, <code>total</code> and the computed <code>pages</code>. Empty result sets have zero pages; a page beyond the end has an empty <code>items</code> list. <code>Page.map()</code> converts each item while preserving the counts and requested page. These values currently come from the strategy passed to the action; global settings for these defaults are not available yet.</p>
+<p><code>Page</code> contains <code>items</code>, <code>page</code>, <code>page_size</code>, <code>total</code> and the computed <code>pages</code>. Empty result sets have zero pages; a page beyond the end has an empty <code>items</code> list. <code>Page.map()</code> converts each item while preserving the counts and requested page.</p>
+<h2 id="defaults-for-the-whole-application">Defaults for the whole application<a class="headerlink" href="#defaults-for-the-whole-application" title="Permanent link">&para;</a></h2>
+<p><code>settings.AppSettings</code> has a <code>pagination</code> group, set in code, in the environment (<code>BLOG_PAGINATION__PAGE_SIZE=25</code>, <code>BLOG_PAGINATION__MAX_PAGE_SIZE=200</code>) or in TOML:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"BLOG_"</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+<span class="c1"># BLOG_PAGINATION__PAGE_SIZE=25  BLOG_PAGINATION__MAX_PAGE_SIZE=200</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">BlogSettings</span><span class="p">,</span> <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">tasks</span><span class="p">])</span>
+</code></pre></div>
+<p>Precedence, from strongest to weakest: a size set on the action's <code>PageNumberPagination(...)</code>, the application's <code>pagination</code> settings, then 20 and 100. Each size is resolved separately, so <code>PageNumberPagination(page_size=10)</code> keeps its 10 and takes its maximum from the settings. The result must satisfy <code>1 &lt;= page_size &lt;= max_page_size</code>: invalid settings fail when they load, and an action whose own size does not fit the resolved other one (for example <code>PageNumberPagination(max_page_size=10)</code> under a settings <code>page_size</code> of 25) fails when it is included, naming the action. The generated OpenAPI parameters show the resolved values.</p>
 <p>Use the queryset's <code>apaginate</code>/<code>paginate</code> methods for database rows. <code>Page.of(rows, params)</code> slices an in-memory sequence and counts that sequence; it is not a substitute for database pagination on large tables.</p>
         
       </article>
@@ -397,14 +406,14 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#pagination">Pagination</a></li></ul>
+            <ul><li><a href="#defaults-for-the-whole-application">Defaults for the whole application</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.12</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 13:28:57 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:55:02 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/pagination.md">Edit on GitHub</a></dd></div>
         </dl>

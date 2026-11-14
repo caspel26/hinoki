@@ -590,6 +590,35 @@ module:app</code>); the first call freezes the declarations.</p>
 
 
 
+<h3 id="hinoki.app.Hinoki.pagination_defaults" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">pagination_defaults</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.app.Hinoki.pagination_defaults" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">pagination_defaults</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="p">(</span>
+        <span class="n">built_in</span><span class="o">.</span><span class="n">pagination</span><span class="o">.</span><span class="n">page_size</span><span class="p">,</span>
+        <span class="n">built_in</span><span class="o">.</span><span class="n">pagination</span><span class="o">.</span><span class="n">max_page_size</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">built_in</span>
+    <span class="k">else</span> <span class="p">(</span><span class="n">DEFAULT_PAGE_SIZE</span><span class="p">,</span> <span class="n">DEFAULT_MAX_PAGE_SIZE</span><span class="p">)</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="hinoki.app.Hinoki.errors" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">errors</span>
 
@@ -3602,7 +3631,7 @@ override them. <code>details</code> is public data, never internal state.</p>
           
           
             <ul><li><a href="#hinoki.app.Hinoki">Hinoki</a>
-            <ul><li><a href="#hinoki.app.Hinoki._timezone">_timezone</a></li><li><a href="#hinoki.app.Hinoki.settings">settings</a></li><li><a href="#hinoki.app.Hinoki.runtime">runtime</a></li><li><a href="#hinoki.app.Hinoki.title">title</a></li><li><a href="#hinoki.app.Hinoki.version">version</a></li><li><a href="#hinoki.app.Hinoki.openapi_url">openapi_url</a></li><li><a href="#hinoki.app.Hinoki.docs_url">docs_url</a></li><li><a href="#hinoki.app.Hinoki.redoc_url">redoc_url</a></li><li><a href="#hinoki.app.Hinoki.rules">rules</a></li><li><a href="#hinoki.app.Hinoki.enforce_rules">enforce_rules</a></li><li><a href="#hinoki.app.Hinoki.default_parsers">default_parsers</a></li><li><a href="#hinoki.app.Hinoki.default_renderers">default_renderers</a></li><li><a href="#hinoki.app.Hinoki.errors">errors</a></li><li><a href="#hinoki.app.Hinoki._routes">_routes</a></li><li><a href="#hinoki.app.Hinoki._bindings">_bindings</a></li><li><a href="#hinoki.app.Hinoki._modules">_modules</a></li><li><a href="#hinoki.app.Hinoki._commands">_commands</a></li><li><a href="#hinoki.app.Hinoki._included_groups">_included_groups</a></li><li><a href="#hinoki.app.Hinoki._router">_router</a></li><li><a href="#hinoki.app.Hinoki._adapter">_adapter</a></li><li><a href="#hinoki.app.Hinoki.routes">routes</a></li><li><a href="#hinoki.app.Hinoki.bindings">bindings</a></li><li><a href="#hinoki.app.Hinoki.modules">modules</a></li><li><a href="#hinoki.app.Hinoki.commands">commands</a></li><li><a href="#hinoki.app.Hinoki.__init__">__init__</a></li><li><a href="#hinoki.app.Hinoki.now">now</a></li><li><a href="#hinoki.app.Hinoki.module_of">module_of</a></li><li><a href="#hinoki.app.Hinoki.include">include</a></li><li><a href="#hinoki.app.Hinoki.routes_of">routes_of</a></li><li><a href="#hinoki.app.Hinoki.with_defaults">with_defaults</a></li><li><a href="#hinoki.app.Hinoki.install">install</a></li><li><a href="#hinoki.app.Hinoki.lookup">lookup</a></li><li><a href="#hinoki.app.Hinoki.resolve">resolve</a></li><li><a href="#hinoki.app.Hinoki.openapi">openapi</a></li><li><a href="#hinoki.app.Hinoki.asgi">asgi</a></li><li><a href="#hinoki.app.Hinoki.enforce">enforce</a></li><li><a href="#hinoki.app.Hinoki.__call__">__call__</a></li><li><a href="#hinoki.app.Hinoki._check_mutable">_check_mutable</a></li></ul>
+            <ul><li><a href="#hinoki.app.Hinoki._timezone">_timezone</a></li><li><a href="#hinoki.app.Hinoki.settings">settings</a></li><li><a href="#hinoki.app.Hinoki.runtime">runtime</a></li><li><a href="#hinoki.app.Hinoki.title">title</a></li><li><a href="#hinoki.app.Hinoki.version">version</a></li><li><a href="#hinoki.app.Hinoki.openapi_url">openapi_url</a></li><li><a href="#hinoki.app.Hinoki.docs_url">docs_url</a></li><li><a href="#hinoki.app.Hinoki.redoc_url">redoc_url</a></li><li><a href="#hinoki.app.Hinoki.rules">rules</a></li><li><a href="#hinoki.app.Hinoki.enforce_rules">enforce_rules</a></li><li><a href="#hinoki.app.Hinoki.default_parsers">default_parsers</a></li><li><a href="#hinoki.app.Hinoki.default_renderers">default_renderers</a></li><li><a href="#hinoki.app.Hinoki.pagination_defaults">pagination_defaults</a></li><li><a href="#hinoki.app.Hinoki.errors">errors</a></li><li><a href="#hinoki.app.Hinoki._routes">_routes</a></li><li><a href="#hinoki.app.Hinoki._bindings">_bindings</a></li><li><a href="#hinoki.app.Hinoki._modules">_modules</a></li><li><a href="#hinoki.app.Hinoki._commands">_commands</a></li><li><a href="#hinoki.app.Hinoki._included_groups">_included_groups</a></li><li><a href="#hinoki.app.Hinoki._router">_router</a></li><li><a href="#hinoki.app.Hinoki._adapter">_adapter</a></li><li><a href="#hinoki.app.Hinoki.routes">routes</a></li><li><a href="#hinoki.app.Hinoki.bindings">bindings</a></li><li><a href="#hinoki.app.Hinoki.modules">modules</a></li><li><a href="#hinoki.app.Hinoki.commands">commands</a></li><li><a href="#hinoki.app.Hinoki.__init__">__init__</a></li><li><a href="#hinoki.app.Hinoki.now">now</a></li><li><a href="#hinoki.app.Hinoki.module_of">module_of</a></li><li><a href="#hinoki.app.Hinoki.include">include</a></li><li><a href="#hinoki.app.Hinoki.routes_of">routes_of</a></li><li><a href="#hinoki.app.Hinoki.with_defaults">with_defaults</a></li><li><a href="#hinoki.app.Hinoki.install">install</a></li><li><a href="#hinoki.app.Hinoki.lookup">lookup</a></li><li><a href="#hinoki.app.Hinoki.resolve">resolve</a></li><li><a href="#hinoki.app.Hinoki.openapi">openapi</a></li><li><a href="#hinoki.app.Hinoki.asgi">asgi</a></li><li><a href="#hinoki.app.Hinoki.enforce">enforce</a></li><li><a href="#hinoki.app.Hinoki.__call__">__call__</a></li><li><a href="#hinoki.app.Hinoki._check_mutable">_check_mutable</a></li></ul>
           </li><li><a href="#hinoki.api.API">API</a>
             <ul><li><a href="#hinoki.api.API.prefix">prefix</a></li><li><a href="#hinoki.api.API.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.api.API.routes">routes</a></li><li><a href="#hinoki.api.API.apply_replacements">apply_replacements</a></li><li><a href="#hinoki.api.API.declared_route">declared_route</a></li><li><a href="#hinoki.api.API.mount">mount</a></li></ul>
           </li><li><a href="#hinoki.routing.RouteGroup">RouteGroup</a>
