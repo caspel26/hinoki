@@ -11,7 +11,7 @@
 <h3 align="center">Python APIs with architecture you can check.</h3>
 
 <p align="center">
-  Typed endpoints, declared access and transactions, a PostgreSQL ORM,<br>
+  Typed endpoints, declared access and transactions, a PostgreSQL and SQLite ORM,<br>
   and rules that fail the check when the code breaks them. Rust core.
 </p>
 
@@ -44,7 +44,7 @@ Hinoki is a Python framework for HTTP APIs, built around three ideas.
 
 | Declare | Check | Run |
 | --- | --- | --- |
-| Each endpoint states its types, who may call it, whether it runs in a transaction and which errors it returns. The same declaration drives validation, responses and the OpenAPI document. | You choose rules such as "every write runs in a transaction" or "the models never import the API layer". `hinoki check` reports a broken rule with its file, line and fix, and fails. | The app runs as ASGI under Granian. Its adapter and handlers run in Python; selected routing, parsing, schema, cryptography and PostgreSQL ORM work uses the Rust core. |
+| Each endpoint states its types, who may call it, whether it runs in a transaction and which errors it returns. The same declaration drives validation, responses and the OpenAPI document. | You choose rules such as "every write runs in a transaction" or "the models never import the API layer". `hinoki check` reports a broken rule with its file, line and fix, and fails. | The app runs as ASGI under Granian. Its adapter and handlers run in Python; selected routing, parsing, schema, cryptography and PostgreSQL/SQLite ORM work uses the Rust core. |
 
 ## What is in the box
 
@@ -53,7 +53,7 @@ Hinoki is a Python framework for HTTP APIs, built around three ideas.
 | **Endpoints** | `@http.get`, `post`, `put`, `patch`, `delete` and `query` on functions, route groups or classes, with typed path, query and body parameters |
 | **Schemas** | Strict validation without type coercion, response shaping, and schemas derived from a model |
 | **Access and errors** | Reusable access policies with permissions; declared errors that appear in OpenAPI |
-| **PostgreSQL ORM** | Models, relations loaded only when you ask, querysets, transactions, and migration files that you review and apply yourself |
+| **SQL ORM** | PostgreSQL and SQLite models, relations loaded only when you ask, querysets, transactions, and migration files that you review and apply yourself |
 | **Architecture rules** | `hinoki check` in a terminal or in CI, with waivers that must name a reason and an owner and can expire |
 | **Settings and modules** | Typed settings from the environment, files or TOML; per-worker resources with startup and shutdown |
 | **Tools** | OpenAPI with Swagger UI and ReDoc, in-process test clients, a project scaffold, an MCP server for coding agents, and an optional admin |
@@ -141,7 +141,7 @@ The bundled viewers work without a CDN. See the [OpenAPI guide](docs/openapi.md)
 
 ## Run it
 
-You need [uv](https://docs.astral.sh/uv/), a Rust toolchain (the core is built from source) and an empty PostgreSQL database that you can throw away.
+You need [uv](https://docs.astral.sh/uv/) and a Rust toolchain (the core is built from source). Local settings use a project-local SQLite database by default; configure a disposable PostgreSQL URL when following this example.
 
 ```sh
 git clone https://github.com/caspel26/hinoki
@@ -287,7 +287,7 @@ The optional admin (`hinoki.admin`) gives staff lists, search, forms, bulk actio
 
 Hinoki is pre-alpha and has no release. What exists is tested in CI on Python 3.12, 3.13 and 3.14 on Linux. The limits that matter most today:
 
-- PostgreSQL is the only supported database.
+- SQLite is the local-development default; PostgreSQL is also supported. Other SQL backends are planned but not supported yet.
 - The server path is ASGI on [Granian](https://github.com/emmett-framework/granian); a WSGI adapter exists and is verified with Granian only. Streaming responses and WebSockets are not available.
 - There is no general CORS middleware and no cursor pagination.
 - Many-to-many relations use an explicit join model.

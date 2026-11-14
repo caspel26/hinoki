@@ -3,6 +3,7 @@
 mod database;
 mod error;
 pub mod query;
+mod sqlite;
 mod tls;
 mod value;
 
