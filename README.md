@@ -1,32 +1,61 @@
 <p align="center">
-  <img src="assets/hinoki-banner.png" alt="Hinoki" width="760">
+  <a href="https://caspel26.github.io/hinoki/">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="assets/readme/lockup-dark.svg">
+      <source media="(prefers-color-scheme: light)" srcset="assets/readme/lockup-light.svg">
+      <img src="assets/readme/lockup-light.svg" alt="Hinoki" width="380">
+    </picture>
+  </a>
 </p>
 
-<p align="center"><strong>Python APIs with architecture you can check.</strong></p>
+<h3 align="center">Python APIs with architecture you can check.</h3>
 
 <p align="center">
-  <a href="https://github.com/caspel26/hinoki/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/caspel26/hinoki/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-b9a1f5">
-  <img alt="Pre-alpha" src="https://img.shields.io/badge/status-pre--alpha-orange">
-  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue"></a>
+  Typed endpoints, declared access and transactions, a PostgreSQL ORM,<br>
+  and rules that fail the check when the code breaks them. Rust core.
+</p>
+
+<p align="center">
+  <a href="https://caspel26.github.io/hinoki/"><strong>Documentation</strong></a> &nbsp;·&nbsp;
+  <a href="https://caspel26.github.io/hinoki/dev/quick-start/">Quick start</a> &nbsp;·&nbsp;
+  <a href="https://caspel26.github.io/hinoki/dev/tutorial/">Tutorial</a> &nbsp;·&nbsp;
+  <a href="examples">Examples</a> &nbsp;·&nbsp;
+  <a href="https://caspel26.github.io/hinoki/dev/status/">Status</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/caspel26/hinoki/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/caspel26/hinoki/ci.yml?branch=main&label=CI&labelColor=1d1a24"></a>
+  <img alt="Python 3.12, 3.13 and 3.14" src="https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-7a55c4?labelColor=1d1a24">
+  <a href="https://caspel26.github.io/hinoki/dev/status/"><img alt="Status: pre-alpha" src="https://img.shields.io/badge/status-pre--alpha-e3c29b?labelColor=1d1a24"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-7a55c4?labelColor=1d1a24"></a>
+</p>
+
+<p align="center">
+  <img src="assets/readme/check.svg" width="860" alt="hinoki check reports three rule violations, each with its file and line, a rule ID and a fix, then a summary: 2 rules, 3 violated">
 </p>
 
 > [!WARNING]
 > **Pre-alpha.** The API and the migration format may change, and Hinoki is not published on PyPI. Use a source checkout to evaluate it, with disposable data; do not run it in production.
 
-Hinoki is a Python framework for HTTP APIs. You declare each endpoint with its types, who may call it, whether it runs in a transaction and which errors it can return. Hinoki uses those declarations to validate requests, shape responses and generate the OpenAPI document, and it can check them against rules you choose, for example "every write runs in a transaction" or "the models never import the API layer". A broken rule is reported with the file and line and fails the check.
+## What Hinoki is
 
-Handlers are plain Python, sync or async. Routing, request parsing, schema validation and encoding, password and token cryptography, and the PostgreSQL driver and SQL compiler are implemented in Rust.
+Hinoki is a Python framework for HTTP APIs, built around three ideas.
+
+| Declare | Check | Run |
+| --- | --- | --- |
+| Each endpoint states its types, who may call it, whether it runs in a transaction and which errors it returns. The same declaration drives validation, responses and the OpenAPI document. | You choose rules such as "every write runs in a transaction" or "the models never import the API layer". `hinoki check` reports a broken rule with its file, line and fix, and fails. | Handlers are plain Python, sync or async. Routing, request parsing, schema validation and encoding, cryptography, the PostgreSQL driver and the SQL compiler are written in Rust. |
 
 ## What is in the box
 
-- **Endpoints**: `@http.get`, `post`, `put`, `patch`, `delete` and `query` on functions, route groups or classes, with typed path, query and body parameters.
-- **Schemas**: strict validation without type coercion, response shaping, and schemas derived from a model.
-- **Access and errors**: reusable access policies with permissions, and declared errors that appear in OpenAPI.
-- **PostgreSQL ORM**: models, relations loaded only when you ask, querysets, transactions, and migration files that you review and apply yourself.
-- **Architecture rules**: `hinoki check` in a terminal or in CI, with waivers that must name a reason and an owner and can expire.
-- **Settings and modules**: typed settings from the environment, files or TOML, and per-worker resources with startup and shutdown.
-- **Tools**: OpenAPI with Swagger UI and ReDoc, in-process test clients, a project scaffold, an MCP server for coding agents, and an optional admin.
+| Area | What you get |
+| --- | --- |
+| **Endpoints** | `@http.get`, `post`, `put`, `patch`, `delete` and `query` on functions, route groups or classes, with typed path, query and body parameters |
+| **Schemas** | Strict validation without type coercion, response shaping, and schemas derived from a model |
+| **Access and errors** | Reusable access policies with permissions; declared errors that appear in OpenAPI |
+| **PostgreSQL ORM** | Models, relations loaded only when you ask, querysets, transactions, and migration files that you review and apply yourself |
+| **Architecture rules** | `hinoki check` in a terminal or in CI, with waivers that must name a reason and an owner and can expire |
+| **Settings and modules** | Typed settings from the environment, files or TOML; per-worker resources with startup and shutdown |
+| **Tools** | OpenAPI with Swagger UI and ReDoc, in-process test clients, a project scaffold, an MCP server for coding agents, and an optional admin |
 
 ## A small API
 
@@ -155,17 +184,7 @@ TRACKER_DATABASE_URL=postgres://unused uv run hinoki check examples.tracker.app:
 7 rule(s): 0 violated, 0 unverifiable, 0 waived
 ```
 
-The check reads the application and its source; it does not connect to the database. When a promise is broken it says where and how to fix it, and exits with status 1. This is the output for a small application in the test suite that breaks two rules on purpose:
-
-```text
-tests/projects/rulesapp.py:7: HNK-ACC-001 [violated] GET /health (health) declares no access policy
-  fix: add access=<policy> to the action (or list it in except_ when it is public on purpose)
-tests/projects/rulesapp.py:12: HNK-ACC-001 [violated] POST /items (create) declares no access policy
-  fix: add access=<policy> to the action (or list it in except_ when it is public on purpose)
-tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does not declare transaction=True
-  fix: add transaction=True to the action (or declare it on a RouteGroup(..., atomic=True) group)
-2 rule(s): 3 violated, 0 unverifiable, 0 waived
-```
+The check reads the application and its source; it does not connect to the database. When a promise is broken it says where and how to fix it, and exits with status 1: the output at the top of this page is the real result for a small application in the test suite ([`tests/projects/rulesapp.py`](tests/projects/rulesapp.py)) that breaks two rules on purpose.
 
 Rules are optional. An application without a rule set runs the same way; see the [rules guide](https://caspel26.github.io/hinoki/dev/rules/).
 
@@ -209,11 +228,11 @@ The optional admin (`hinoki.admin`) gives staff lists, search, forms, bulk actio
 
 | Studio | Console |
 | --- | --- |
-| ![Studio admin](docs/screenshots/admin-studio-list-light.png) | ![Console admin](docs/screenshots/admin-console-list-light.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/admin-studio-list-dark.png"><img src="docs/screenshots/admin-studio-list-light.png" alt="Studio admin style: a list page"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/admin-console-list-dark.png"><img src="docs/screenshots/admin-console-list-light.png" alt="Console admin style: a list page"></picture> |
 
 | Paper | Bento |
 | --- | --- |
-| ![Paper admin](docs/screenshots/admin-paper-list-light.png) | ![Bento admin](docs/screenshots/admin-bento-list-light.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/admin-paper-list-dark.png"><img src="docs/screenshots/admin-paper-list-light.png" alt="Paper admin style: a list page"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/admin-bento-list-dark.png"><img src="docs/screenshots/admin-bento-list-light.png" alt="Bento admin style: a list page"></picture> |
 
 ## Status and limits
 
