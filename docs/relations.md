@@ -28,7 +28,7 @@ The `author_id` field is stored on `posts`. The forward relation is `post.author
 
 ## Load related rows explicitly
 
-Use `select_related` for a forward foreign key when a query needs one related row. Use `prefetch_related` for a reverse or collection relation; it issues a separate bounded query and attaches the results.
+Use `select_related` for a forward foreign key when a query needs one related row (one `LEFT JOIN` in the same statement; `acount()` and `apaginate()` leave that join out of their `COUNT`, since loading a to-one relation cannot change the row count, but keep a join that a filter such as `author__name=...` needs). Use `prefetch_related` for a reverse or collection relation; it issues a separate bounded query and attaches the results.
 
 ```python
 posts = await Post.all().select_related("author")
