@@ -25,6 +25,8 @@ when the class is declared or first used.
 from __future__ import annotations
 
 from collections.abc import Callable
+from functools import cached_property
+from types import CellType, FunctionType
 from typing import Any, cast
 
 from hinoki.errors import RegistrationError
@@ -90,7 +92,53 @@ def model(source: type) -> Callable[[type[Schema]], type[Schema]]:
                 chosen.get("optional", False),
             ),
         }
+        class_cells = {
+            id(cell): cell
+            for value in body.values()
+            for cell in _class_cells_for(value, cls)
+        }
+        if len(class_cells) > 1:
+            raise RegistrationError(
+                f"{cls.__name__}: methods contain multiple __class__ cells"
+            )
+        if class_cells:
+            body["__classcell__"] = next(iter(class_cells.values()))
         rebuilt: type[Schema] = type.__call__(type, cls.__name__, cls.__bases__, body)
         return rebuilt
 
     return apply
+
+
+def _class_cells_for(value: object, cls: type[Schema]) -> tuple[CellType, ...]:
+    """Find compiler-created ``__class__`` cells in class methods/descriptors."""
+    members: tuple[object | None, ...]
+    if isinstance(value, property):
+        members = (value.fget, value.fset, value.fdel)
+    elif isinstance(value, (classmethod, staticmethod)):
+        members = (value.__func__,)
+    elif isinstance(value, cached_property):
+        members = (value.func,)
+    elif isinstance(value, FunctionType):
+        cells = value.__closure__ or ()
+        names = value.__code__.co_freevars
+        if "__class__" in names:
+            cell = cells[names.index("__class__")]
+            try:
+                if cell.cell_contents is cls:
+                    wrapped = getattr(value, "__wrapped__", None)
+                    nested = (
+                        _class_cells_for(wrapped, cls) if wrapped is not None else ()
+                    )
+                    return (cell, *nested)
+            except ValueError:
+                pass
+        wrapped = getattr(value, "__wrapped__", None)
+        return _class_cells_for(wrapped, cls) if wrapped is not None else ()
+    else:
+        return ()
+    return tuple(
+        cell
+        for member in members
+        if member is not None
+        for cell in _class_cells_for(member, cls)
+    )
