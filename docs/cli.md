@@ -26,7 +26,18 @@ The `hinoki` command accepts a `module:attribute` target for an application, fac
 hinoki new notes --dir .
 ```
 
-`NAME` is a lowercase package name containing letters and digits. `--dir` chooses the parent directory and defaults to the current directory.
+`NAME` is a lowercase package name containing letters and digits. `--dir` chooses the parent directory and defaults to the current directory. The target `PATH/NAME` must not exist or must be empty; nothing is overwritten, and nothing is installed or run.
+
+Hinoki is pre-alpha and not published on PyPI (an unrelated `hinoki` is), so the generated `pyproject.toml` always names where `uv` finds it under `[tool.uv.sources]`:
+
+| Given | Source written |
+| --- | --- |
+| `--hinoki /path/to/checkout` | that checkout, editable |
+| `--hinoki https://github.com/caspel26/hinoki@REV` (or `git+https://...`) | that repository, pinned to `REV` when given |
+| nothing, running from a source checkout | the checkout you ran it from |
+| nothing, any other installation | the public repository, default branch |
+
+The result is `cd PATH/NAME && uv sync && uv run pytest`: the project has a health route, typed settings, rules, one test that needs no database, a `README.md`, `AGENTS.md` and `.mcp.json`.
 
 ### `dev` and `serve`
 

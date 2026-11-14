@@ -166,3 +166,30 @@ def test_the_catalogue_covers_what_the_framework_emits() -> None:
     ):
         assert explain(code) is not None
     assert all(meaning and fix for meaning, fix in CATALOG.values())
+
+
+def test_the_project_names_where_hinoki_comes_from(tmp_path: Path) -> None:
+    git = create("one", tmp_path, "git+https://example.org/h.git@v1")
+    assert (
+        'hinoki = { git = "https://example.org/h.git", rev = "v1" }'
+        in (git / "pyproject.toml").read_text()
+    )
+    ssh = files("two", "ssh://git@example.org/h.git")["pyproject.toml"]
+    assert 'git = "ssh://git@example.org/h.git" }' in ssh
+    here = Path(__file__).resolve().parents[1]
+    path = files("three", str(here))["pyproject.toml"]
+    assert f'hinoki = {{ path = "{here}", editable = true }}' in path
+    with pytest.raises(ScaffoldError, match="not a Hinoki source checkout"):
+        create("four", tmp_path, str(tmp_path))
+    assert not (tmp_path / "four").exists()  # nothing written on a bad source
+
+
+def test_the_project_has_a_readme_with_the_commands(tmp_path: Path) -> None:
+    readme = (create("shop", tmp_path) / "README.md").read_text()
+    assert "uv run hinoki dev shop.main:app" in readme and "uv run pytest" in readme
+    assert "not published on PyPI" in readme
+
+
+def test_an_empty_existing_directory_is_used(tmp_path: Path) -> None:
+    (tmp_path / "shop").mkdir()
+    assert (create("shop", tmp_path) / "pyproject.toml").is_file()
