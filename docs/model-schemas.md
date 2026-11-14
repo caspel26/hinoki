@@ -37,7 +37,7 @@ class PostPatch(Schema): ...
 | `@derive.exclude("a")` | take every column except these (without `only` or `exclude`, every column is taken) |
 | `@derive.partial()` | make every derived field optional (`UNSET` when absent), for partial updates; `@derive.partial("a")` only those |
 
-`only` and `exclude` cannot be combined. Model field types, maximum lengths, defaults and nullability are used. Annotations in the class body add fields or override a derived field, and methods and checks in the body are kept.
+`only` and `exclude` cannot be combined. Model field types, maximum lengths, defaults and nullability are used. Annotations in the class body add fields or override a derived field, and methods and checks in the body are kept. Methods can use zero-argument `super()` as usual.
 
 Unknown columns, a non-model, or `only` with `exclude` fail when the class is declared. `only`, `exclude` or `partial` without `@derive.model(...)` above them fail on first use with a message naming the missing decorator. Relations are not derived as nested values; declare the API shape explicitly.
 

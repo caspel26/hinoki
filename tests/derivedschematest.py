@@ -324,3 +324,22 @@ async def test_checks_run_on_request_bodies_and_answer_422() -> None:
         assert (first["path"], first["code"]) == ("data.again", "mismatch")
         body["again"] = "s3cret-pass"
         assert (await client.post("/signup", json=body)).status == 201
+
+
+class SchemaLabel(Schema):
+    def label(self) -> str:
+        return "base"
+
+
+@derive.model(Post)
+@derive.only("title", "slug", "body", "published")
+class DerivedLabel(SchemaLabel):
+    def label(self) -> str:
+        return f"{super().label()} derived"
+
+
+def test_derived_schema_methods_keep_zero_argument_super() -> None:
+    instance = DerivedLabel(  # type: ignore[call-arg]  # fields are derived at runtime
+        title="x", slug="x", body="x", published=False
+    )
+    assert instance.label() == "base derived"
