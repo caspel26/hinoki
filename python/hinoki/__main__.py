@@ -12,6 +12,7 @@ from hinoki.db import Database, DatabaseError
 from hinoki.errors import MigrationError
 from hinoki.orm import migrator
 from hinoki.orm.migrations import migration_files, models_of, plan
+from hinoki.settings import DatabaseSettings
 
 URL_VARIABLE = "HINOKI_DATABASE_URL"
 
@@ -32,6 +33,11 @@ def parser() -> argparse.ArgumentParser:
     planner.add_argument("--name", default="changes", help="migration name")
     planner.add_argument("--allow-destructive", action="store_true")
     planner.add_argument("--dry-run", action="store_true", help="print, write nothing")
+    planner.add_argument(
+        "--database",
+        default=os.environ.get(URL_VARIABLE),
+        help=f"target database URL; defaults to local SQLite or {URL_VARIABLE}",
+    )
     for name, text in (("apply", "apply pending migrations"), ("status", "list them")):
         sub = actions.add_parser(name, help=text)
         sub.add_argument(
@@ -46,12 +52,15 @@ def parser() -> argparse.ArgumentParser:
 
 
 def run_plan(args: argparse.Namespace) -> None:
+    database_url = args.database or DatabaseSettings().url.reveal()
+    dialect = "sqlite" if database_url.startswith("sqlite://") else "postgres"
     result = plan(
         models_of(args.models),
         Path(args.dir),
         args.name,
         allow_destructive=args.allow_destructive,
         write=not args.dry_run,
+        dialect=dialect,
     )
     if not result.operations:
         print("no changes")
@@ -64,9 +73,8 @@ def run_plan(args: argparse.Namespace) -> None:
 
 
 async def run_database(args: argparse.Namespace) -> None:
-    if not args.database:
-        raise MigrationError(f"pass --database or set {URL_VARIABLE}")
-    database = await Database.connect(args.database, max_size=1)
+    database_url = args.database or DatabaseSettings().url.reveal()
+    database = await Database.connect(database_url, max_size=1)
     try:
         if args.action == "apply":
             applied = await migrator.apply(database, Path(args.dir))

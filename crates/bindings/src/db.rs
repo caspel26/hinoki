@@ -189,6 +189,11 @@ pub struct PyDatabase {
 
 #[pymethods]
 impl PyDatabase {
+    #[getter]
+    fn dialect(&self) -> &'static str {
+        self.inner.dialect()
+    }
+
     #[staticmethod]
     #[pyo3(signature = (url, max_size=8, wait_ms=5000))]
     fn connect<'py>(
@@ -239,6 +244,18 @@ impl PyDatabase {
     fn begin<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let db = self.inner.clone();
         let fut = async move { db.begin().await };
+        bridge!(py, fut, |py2, tx| Ok(Py::new(
+            py2,
+            PyTransaction {
+                inner: Arc::new(Mutex::new(Some(tx)))
+            }
+        )?
+        .into_any()))
+    }
+
+    fn begin_migration<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let db = self.inner.clone();
+        let fut = async move { db.begin_migration().await };
         bridge!(py, fut, |py2, tx| Ok(Py::new(
             py2,
             PyTransaction {

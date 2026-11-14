@@ -744,9 +744,11 @@ class DocsSettings(Settings):
 
 
 class DatabaseSettings(Settings):
-    """For your own settings class: ``database: DatabaseSettings``."""
+    """Local SQLite by default; set ``url`` explicitly for a server database."""
 
-    url: Secret
+    url: Secret = dataclasses.field(
+        default_factory=lambda: Secret("sqlite://./.hinoki/local.sqlite3")
+    )
     max_size: int = 10
 
     def validate(self) -> None:

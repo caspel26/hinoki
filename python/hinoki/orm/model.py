@@ -500,13 +500,15 @@ class Model:
     async def insert(self) -> Self:
         cls = type(self).concrete()
         assignments = [(c, getattr(self, c)) for c in cls.__columns__]
+        database = current_database()
         sql, params = core.compile_query(
             "insert",
             cls.__table__,
             assignments=assignments,
             returning=list(cls.__columns__),
+            dialect=database.dialect,
         )
-        rows = await current_database().fetch(sql, *params)
+        rows = await database.fetch(sql, *params)
         self.refresh(cls.from_row(rows[0]))
         return self
 

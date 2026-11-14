@@ -8,7 +8,7 @@ related:
 
 # Models and queries
 
-`Model` maps a Python class to one PostgreSQL table. Its annotated fields define the columns; queries are explicit and do not load relations implicitly.
+`Model` maps a Python class to one database table. PostgreSQL and SQLite are supported. Its annotated fields define the columns; queries are explicit and do not load relations implicitly.
 
 ## Define a model
 
@@ -38,6 +38,8 @@ class Task(Model, table="tasks", label="Task", plural="Tasks"):
 `table=` is required. A model has exactly one primary key. Fields are keyword-only when constructing a model. Single-column uniqueness is `field(unique=True)`; use `@unique("a", "b")` for a composite constraint. There is no nested `class Meta`.
 
 Supported field metadata includes primary key, uniqueness, maximum string length, defaults and foreign-key behavior. Database types are inferred from annotations; unsupported types fail during model or migration validation.
+
+Hinoki stores PostgreSQL UUID, timestamp, JSON and byte values in their native column types. SQLite stores UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string `contains` matching follows SQLite's case-folding behavior (ASCII case-insensitive).
 
 ## Query rows
 

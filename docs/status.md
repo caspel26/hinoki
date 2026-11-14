@@ -12,7 +12,7 @@ The examples are the best way to see the pieces together: [Notes](https://github
 
 ## Current boundaries
 
-* PostgreSQL is the supported ORM database.
+* PostgreSQL and SQLite are supported ORM databases; SQLite is the local-development default. Additional SQL backends are not supported yet.
 * Hinoki does not open database connections at import or apply migrations automatically.
 * The ASGI path uses Python for server adaptation and handler calls; selected work is implemented in Rust.
 * Generated typing for some keyword-based ORM calls is less precise than model construction; see [typing](typing.md).

@@ -219,8 +219,11 @@ def test_models_of_finds_the_models_of_a_module() -> None:
 
 
 def test_command_line_plans_and_prints(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.chdir(tmp_path)
     args = ["migrations", "--dir", str(tmp_path)]
     plan_args = [*args, "plan", "--models", "examples.blog.models", "--name", "initial"]
     assert main([*plan_args, "--dry-run"]) == 0
@@ -231,9 +234,8 @@ def test_command_line_plans_and_prints(
     assert "create table blog_posts" in out
     assert "CREATE TABLE" in out
     assert main([*args, "sql", "9999-nope"]) == 1
-    assert main([*args, "apply"]) == 1  # no database configured
-    error = capsys.readouterr().err
-    assert "error:" in error and "fix:" in error
+    assert main([*args, "apply"]) == 0  # local SQLite default
+    assert (tmp_path / ".hinoki" / "local.sqlite3").is_file()
 
 
 def test_command_line_reports_a_failed_connection_without_a_traceback(

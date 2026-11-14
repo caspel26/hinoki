@@ -21,8 +21,14 @@ CREATE_LEDGER = (
     "name text PRIMARY KEY, checksum text NOT NULL, "
     "applied_at timestamptz NOT NULL DEFAULT now())"
 )
+CREATE_SQLITE_LEDGER = (
+    "CREATE TABLE IF NOT EXISTS hinoki_migrations ("
+    "name text PRIMARY KEY, checksum text NOT NULL, "
+    "applied_at text NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+)
 SELECT_LEDGER = "SELECT name, checksum FROM hinoki_migrations"
 INSERT_LEDGER = "INSERT INTO hinoki_migrations (name, checksum) VALUES ($1, $2)"
+INSERT_SQLITE_LEDGER = "INSERT INTO hinoki_migrations (name, checksum) VALUES (?1, ?2)"
 
 
 def checksum(path: Path) -> str:
@@ -37,7 +43,9 @@ async def recorded(database: Database) -> dict[str, str]:
 async def status(database: Database, directory: Path) -> list[tuple[str, str]]:
     """``(name, state)`` per migration: ``applied``, ``pending``, ``changed``
     (applied, but the file differs) or ``missing`` (applied, file gone)."""
-    await database.execute(CREATE_LEDGER)
+    await database.execute(
+        CREATE_SQLITE_LEDGER if database.dialect == "sqlite" else CREATE_LEDGER
+    )
     applied = await recorded(database)
     files = {p.stem: p for p in migration_files(directory)}
     result: list[tuple[str, str]] = []
@@ -71,8 +79,9 @@ async def apply(database: Database, directory: Path) -> list[str]:
 
 async def apply_one(database: Database, path: Path) -> bool:
     """One file, one transaction. False when it was already applied."""
-    async with database.transaction():
-        await database.fetch("SELECT pg_advisory_xact_lock($1)", LOCK_KEY)
+    async with database.migration():
+        if database.dialect == "postgres":
+            await database.fetch("SELECT pg_advisory_xact_lock($1)", LOCK_KEY)
         if path.stem in await recorded(database):
             return False
         try:
@@ -80,8 +89,15 @@ async def apply_one(database: Database, path: Path) -> bool:
                 await database.execute(statement)
         except DatabaseError as error:
             raise MigrationError(f"{path.stem} failed and was rolled back") from error
+        if database.dialect == "sqlite" and await database.fetch(
+            "PRAGMA foreign_key_check"
+        ):
+            raise MigrationError(
+                f"{path.stem} violates SQLite foreign key constraints "
+                "and was rolled back"
+            )
         await database.execute(
-            INSERT_LEDGER,
+            INSERT_SQLITE_LEDGER if database.dialect == "sqlite" else INSERT_LEDGER,
             path.stem,
             checksum(path),
         )
