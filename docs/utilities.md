@@ -33,14 +33,14 @@ The clock is a callable, so code that depends on time can accept a `Clock` and t
 Set an IANA timezone name in the app's global settings. It defaults to `UTC`; invalid names fail while settings are constructed:
 
 ```python
-from hinoki import FrameworkSettings, Hinoki
+from hinoki import Hinoki, settings
 
 
-class AppSettings(FrameworkSettings):
+class ProjectSettings(settings.AppSettings):
     timezone: str = "Europe/Rome"
 
 
-app = Hinoki(settings=AppSettings)
+app = Hinoki(settings=ProjectSettings)
 current_time = app.now()  # aware datetime in Europe/Rome
 ```
 

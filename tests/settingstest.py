@@ -8,18 +8,18 @@ from typing import Literal
 
 import pytest
 
-from hinoki import (
+from hinoki import Hinoki, Request, http
+from hinoki.__main__ import main
+from hinoki.settings import (
+    AppSettings,
     DatabaseSettings,
-    FrameworkSettings,
-    Hinoki,
-    Request,
+    JsonFormatter,
+    LoggingSettings,
     Secret,
     Settings,
     SettingsError,
-    http,
+    parse_dotenv,
 )
-from hinoki.__main__ import main
-from hinoki.settings import JsonFormatter, LoggingSettings, parse_dotenv
 from hinoki.testing import ASGIClient
 
 
@@ -33,7 +33,7 @@ class Mail(Settings):
     ratio: float = 0.5
 
 
-class AppSettings(FrameworkSettings):
+class SampleSettings(AppSettings):
     jwt_secret: Secret
     database: DatabaseSettings
     mail: Mail
@@ -46,8 +46,8 @@ BASE = {
 }
 
 
-def load(**extra: str) -> AppSettings:
-    return AppSettings.load(prefix="APP_", env={**BASE, **extra})
+def load(**extra: str) -> SampleSettings:
+    return SampleSettings.load(prefix="APP_", env={**BASE, **extra})
 
 
 def test_nested_groups_defaults_and_types_load_from_the_environment() -> None:
@@ -69,7 +69,7 @@ def test_precedence_is_overrides_then_environment_then_dotenv_then_default(
     dotenv = tmp_path / ".env"
     dotenv.write_text('APP_MAIL__PORT=1\nexport APP_MAIL__HOST="dot"\n# note\n')
     env = {**BASE, "APP_MAIL__PORT": "2"}
-    settings = AppSettings.load(
+    settings = SampleSettings.load(
         prefix="APP_",
         env=env,
         dotenv=dotenv,
@@ -95,7 +95,7 @@ def test_toml_is_typed_and_follows_dotenv_and_environment_precedence(
     dotenv.write_text("APP_MAIL__PORT=5000\nAPP_MAIL__HOST=dotenv\n")
     env = {**BASE, "APP_MAIL__PORT": "587"}
     del env["APP_MAIL__TAGS"]
-    settings = AppSettings.load(
+    settings = SampleSettings.load(
         prefix="APP_",
         env=env,
         dotenv=dotenv,
@@ -107,7 +107,7 @@ def test_toml_is_typed_and_follows_dotenv_and_environment_precedence(
     assert settings.mail.tags == ["one", "two"]
     assert settings.execution.sync_workers == 4
 
-    rows = AppSettings.explain(prefix="APP_", env=env, dotenv=dotenv, toml=toml)
+    rows = SampleSettings.explain(prefix="APP_", env=env, dotenv=dotenv, toml=toml)
     origins = {row.key: row.origin for row in rows}
     assert origins["APP_MAIL__PORT"] == "environment"
     assert origins["APP_MAIL__HOST"] == ".env"
@@ -121,7 +121,7 @@ def test_settings_class_and_cli_accept_the_declared_toml_source(
     toml = tmp_path / "settings.toml"
     toml.write_text("[mail]\nport = 6123\n")
 
-    class FileSettings(AppSettings, prefix="APP_", toml=str(toml)):
+    class FileSettings(SampleSettings, prefix="APP_", toml=str(toml)):
         pass
 
     assert FileSettings.load(env=BASE).mail.port == 6123
@@ -131,7 +131,7 @@ def test_settings_class_and_cli_accept_the_declared_toml_source(
         main(
             [
                 "settings",
-                "tests.settingstest:AppSettings",
+                "tests.settingstest:SampleSettings",
                 "--prefix",
                 "APP_",
                 "--toml",
@@ -148,25 +148,25 @@ def test_toml_errors_do_not_echo_values_or_secret_contents(tmp_path: Path) -> No
     malformed = tmp_path / "malformed.toml"
     malformed.write_text('port = "SECRET-SENTINEL')
     with pytest.raises(SettingsError) as error:
-        AppSettings.load(prefix="APP_", env=BASE, toml=malformed)
+        SampleSettings.load(prefix="APP_", env=BASE, toml=malformed)
     assert "cannot be read or parsed" in str(error.value)
     assert "SECRET-SENTINEL" not in str(error.value)
 
     secret = tmp_path / "secret.toml"
     secret.write_text('[database]\nurl = "SECRET-SENTINEL"\n')
     with pytest.raises(SettingsError) as error:
-        AppSettings.load(prefix="APP_", env=BASE, toml=secret)
+        SampleSettings.load(prefix="APP_", env=BASE, toml=secret)
     assert "secrets must come from environment" in str(error.value)
     assert "SECRET-SENTINEL" not in str(error.value)
 
     missing = tmp_path / "missing.toml"
     with pytest.raises(SettingsError, match="cannot be read or parsed"):
-        AppSettings.load(prefix="APP_", env=BASE, toml=missing)
+        SampleSettings.load(prefix="APP_", env=BASE, toml=missing)
 
     wrong_type = tmp_path / "wrong-type.toml"
     wrong_type.write_text('[mail]\nport = "587"\n')
     with pytest.raises(SettingsError, match="TOML value has an incompatible type"):
-        AppSettings.load(prefix="APP_", env=BASE, toml=wrong_type)
+        SampleSettings.load(prefix="APP_", env=BASE, toml=wrong_type)
 
 
 def test_toml_rejects_secrets_case_insensitively_and_tables_for_scalars(
@@ -189,7 +189,7 @@ def test_toml_rejects_secrets_case_insensitively_and_tables_for_scalars(
     table = tmp_path / "table.toml"
     table.write_text('[mail]\nport = { value = "587" }\n')
     with pytest.raises(SettingsError, match="TOML value has an incompatible type"):
-        AppSettings.load(prefix="APP_", env=BASE, toml=table)
+        SampleSettings.load(prefix="APP_", env=BASE, toml=table)
 
 
 def test_every_problem_is_reported_at_once_without_values() -> None:
@@ -202,7 +202,7 @@ def test_every_problem_is_reported_at_once_without_values() -> None:
         "APP_JWT_SECRET": "topsecret-SENTINEL",
     }
     with pytest.raises(SettingsError) as raised:
-        AppSettings.load(prefix="APP_", env=env)
+        SampleSettings.load(prefix="APP_", env=env)
     text = str(raised.value)
     for expected in (
         "APP_MAIL__PORT: must be an integer",
@@ -238,7 +238,7 @@ def test_float_and_int_reject_non_numbers_and_booleans() -> None:
         with pytest.raises(SettingsError):
             load(**{key: value})
     with pytest.raises(SettingsError):
-        AppSettings.load(prefix="APP_", env=BASE, overrides={"mail": {"port": True}})
+        SampleSettings.load(prefix="APP_", env=BASE, overrides={"mail": {"port": True}})
 
 
 @http.get("/ping")
@@ -252,7 +252,7 @@ async def echo(request: Request) -> dict[str, int]:
 
 
 async def test_framework_settings_drive_the_app() -> None:
-    settings = FrameworkSettings.load(
+    settings = AppSettings.load(
         prefix="X_",
         env={
             "X_DOCS__TITLE": "Mine",
@@ -294,7 +294,7 @@ def test_json_log_format_and_idempotent_apply() -> None:
 
 def test_review_findings_are_closed() -> None:
     # docs can be disabled from code even when the settings enable them
-    enabled = FrameworkSettings.load(
+    enabled = AppSettings.load(
         prefix="D_", env={"D_DOCS__OPENAPI_URL": "/o.json", "D_DOCS__DOCS_URL": "/docs"}
     )
     assert Hinoki(settings=enabled, docs_url=None).docs_url is None
@@ -302,8 +302,8 @@ def test_review_findings_are_closed() -> None:
     # a foreign key with the prefix is only fatal in strict mode
     foreign = {"B_OTHER": "1"}
     with pytest.raises(SettingsError, match="B_OTHER: unknown setting"):
-        FrameworkSettings.load(prefix="B_", env=foreign)
-    assert FrameworkSettings.load(prefix="B_", env=foreign, strict=False)
+        AppSettings.load(prefix="B_", env=foreign)
+    assert AppSettings.load(prefix="B_", env=foreign, strict=False)
     # strict numbers: no underscores, other scripts, hex, exponents on ints
     for bad in ("1_000", chr(0x665), "0x10", "1e3", "99999999999999999999"):
         with pytest.raises(SettingsError):
@@ -317,10 +317,10 @@ def test_review_findings_are_closed() -> None:
         ("X_EXECUTION__SYNC_WORKERS", "100000"),
     ):
         with pytest.raises(SettingsError):
-            FrameworkSettings.load(prefix="X_", env={key: value})
+            AppSettings.load(prefix="X_", env={key: value})
     # group overrides must be mappings; a Secret built in code is still a Secret
     with pytest.raises(SettingsError, match="must be a mapping"):
-        AppSettings.load(prefix="APP_", env=BASE, overrides={"database": "x"})
+        SampleSettings.load(prefix="APP_", env=BASE, overrides={"database": "x"})
     assert "plain" not in repr(DatabaseSettings(url="plain"))  # type: ignore[arg-type]
     assert parse_dotenv("D=a # c\nE='x # y'") == {"D": "a", "E": "x # y"}
 
@@ -335,9 +335,7 @@ def test_tuple_fields_are_immutable() -> None:
 
 
 async def test_content_length_above_the_limit_is_refused_before_reading() -> None:
-    settings = FrameworkSettings.load(
-        prefix="Y_", env={"Y_EXECUTION__MAX_BODY_BYTES": "10"}
-    )
+    settings = AppSettings.load(prefix="Y_", env={"Y_EXECUTION__MAX_BODY_BYTES": "10"})
     app = Hinoki(settings=settings)
     app.include(echo)
     async with ASGIClient(app) as client:
@@ -348,7 +346,7 @@ async def test_content_length_above_the_limit_is_refused_before_reading() -> Non
 def test_explain_says_where_every_value_comes_from(tmp_path: Path) -> None:
     dotenv = tmp_path / ".env"
     dotenv.write_text("APP_MAIL__HOST=fromdot\nAPP_MAIL__PORT=1\n")
-    rows = AppSettings.explain(
+    rows = SampleSettings.explain(
         prefix="APP_",
         env={**BASE, "APP_MAIL__PORT": "2"},
         dotenv=dotenv,
@@ -370,27 +368,27 @@ def test_secret_files_fill_a_variable_and_never_echo_content(tmp_path: Path) -> 
     env = {**BASE}
     del env["APP_JWT_SECRET"]
     env["APP_JWT_SECRET_FILE"] = str(secret)
-    settings = AppSettings.load(prefix="APP_", env=env)
+    settings = SampleSettings.load(prefix="APP_", env=env)
     assert settings.jwt_secret.reveal() == "file-secret-value"  # newline stripped
-    rows = AppSettings.explain(prefix="APP_", env=env)
+    rows = SampleSettings.explain(prefix="APP_", env=env)
     assert {r.key: r.origin for r in rows}["APP_JWT_SECRET"] == "file"
     both = {**BASE, "APP_JWT_SECRET_FILE": str(secret)}
     with pytest.raises(SettingsError, match="both directly and through"):
-        AppSettings.load(prefix="APP_", env=both)
+        SampleSettings.load(prefix="APP_", env=both)
     missing = {**env, "APP_JWT_SECRET_FILE": str(tmp_path / "nope")}
     with pytest.raises(SettingsError, match="regular file") as raised:
-        AppSettings.load(prefix="APP_", env=missing)
+        SampleSettings.load(prefix="APP_", env=missing)
     assert "file-secret" not in str(raised.value)
     big = tmp_path / "big"
     big.write_text("x" * 70_000)
     with pytest.raises(SettingsError, match="64 KiB"):
-        AppSettings.load(prefix="APP_", env={**env, "APP_JWT_SECRET_FILE": str(big)})
+        SampleSettings.load(prefix="APP_", env={**env, "APP_JWT_SECRET_FILE": str(big)})
     with pytest.raises(SettingsError, match="unknown setting"):
-        AppSettings.load(prefix="APP_", env={**BASE, "APP_NOPE_FILE": str(secret)})
+        SampleSettings.load(prefix="APP_", env={**BASE, "APP_NOPE_FILE": str(secret)})
 
 
 def test_the_env_example_lists_every_variable_with_its_type() -> None:
-    text = AppSettings.example("APP_")
+    text = SampleSettings.example("APP_")
     assert "APP_JWT_SECRET=\n" in text and "# secret, required" in text
     assert "APP_EXECUTION__SYNC_WORKERS=8" in text and "# integer" in text
     assert "APP_LOGGING__FORMAT=text" in text and "one of text|json" in text
@@ -402,7 +400,7 @@ def test_the_settings_command_prints_origins_and_failures(
 ) -> None:
     for key, value in BASE.items():
         monkeypatch.setenv(key, value)
-    target = "tests.settingstest:AppSettings"
+    target = "tests.settingstest:SampleSettings"
     assert main(["settings", target, "--prefix", "APP_"]) == 0
     out = capsys.readouterr().out
     assert "APP_JWT_SECRET" in out and "***" in out and "s3cr3t" not in out

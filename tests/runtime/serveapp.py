@@ -1,9 +1,10 @@
 """An application whose port comes from its own settings (for the serve test)."""
 
-from hinoki import FrameworkSettings, Hinoki, http
+from hinoki import Hinoki, http
+from hinoki.settings import AppSettings
 
 
-class ServeSettings(FrameworkSettings, prefix="SRV_"):
+class ServeSettings(AppSettings, prefix="SRV_"):
     pass
 
 

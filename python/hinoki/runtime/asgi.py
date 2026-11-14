@@ -45,7 +45,7 @@ from hinoki.runtime.responses import (
     error_response,
 )
 from hinoki.schema import encode
-from hinoki.settings import FrameworkSettings
+from hinoki.settings import AppSettings
 
 if TYPE_CHECKING:
     from hinoki.app import Hinoki
@@ -82,9 +82,7 @@ class ASGIAdapter:
                 )
         self.ctx = ModuleContext(app.settings)
         self.logging = (
-            app.settings.logging
-            if isinstance(app.settings, FrameworkSettings)
-            else None
+            app.settings.logging if isinstance(app.settings, AppSettings) else None
         )
         self.executor = SyncExecutor(app.runtime.sync_workers, app.runtime.sync_queue)
         needs_database = any(b.route.transaction for b in self.bindings)

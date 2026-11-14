@@ -10,11 +10,11 @@ BLOG_LOGGING__FORMAT=json             logging, docs (see docs/SETTINGS-DESIGN.md
 
 from typing import Literal
 
-from hinoki import FrameworkSettings, Secret
+from hinoki import settings
 
 
-class BlogSettings(FrameworkSettings, prefix="BLOG_"):
-    database_url: Secret
-    admin_secret: Secret
-    jwt_secret: Secret | None = None
+class BlogSettings(settings.AppSettings, prefix="BLOG_"):
+    database_url: settings.Secret
+    admin_secret: settings.Secret
+    jwt_secret: settings.Secret | None = None
     admin_theme: Literal["studio", "console", "paper", "grove"] = "studio"

@@ -1,6 +1,6 @@
 """Typed, immutable settings with environment loading (no Pydantic).
 
-    class BlogSettings(FrameworkSettings):
+    class BlogSettings(AppSettings):
         jwt_secret: Secret
         database: DatabaseSettings
 
@@ -94,7 +94,7 @@ class Settings:
         toml: str | None = None,
         **options: Any,
     ) -> None:
-        """``class BlogSettings(FrameworkSettings, prefix="BLOG_", dotenv=".env")``
+        """``class BlogSettings(AppSettings, prefix="BLOG_", dotenv=".env")``
         declares where the class reads its variables, so ``BlogSettings.load()``,
         ``hinoki settings`` and ``serve`` need no repeated arguments.
         A subclass inherits what its parent declared."""
@@ -774,7 +774,7 @@ class ServerSettings(Settings):
             raise ValueError("backlog must be positive")
 
 
-class FrameworkSettings(Settings):
+class AppSettings(Settings):
     """The built-in groups every application has; subclass to add your own."""
 
     execution: ExecutionSettings = dataclasses.field(default_factory=ExecutionSettings)

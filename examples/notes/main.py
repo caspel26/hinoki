@@ -5,12 +5,12 @@ The settings class reads the environment when the command loads this module.
 """
 
 from examples.notes.app import create, listing, one, remove
-from hinoki import DatabaseSettings, FrameworkSettings, Hinoki
+from hinoki import Hinoki, settings
 from hinoki.db import DatabaseModule
 
 
-class NotesSettings(FrameworkSettings, prefix="NOTES_"):
-    database: DatabaseSettings
+class NotesSettings(settings.AppSettings, prefix="NOTES_"):
+    database: settings.DatabaseSettings
 
 
 app = Hinoki(

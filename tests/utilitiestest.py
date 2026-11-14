@@ -7,9 +7,10 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import FrameworkSettings, Hinoki, RegistrationError
+from hinoki import Hinoki, RegistrationError
 from hinoki.db import Database
 from hinoki.orm import Model, field, timestamps, use_database
+from hinoki.settings import AppSettings
 from hinoki.utils import _read_utc, utc_now, utc_today
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -31,10 +32,10 @@ def test_utc_today_uses_utc_calendar_boundary() -> None:
 
 
 def test_app_now_uses_each_app_settings_without_shared_state() -> None:
-    class RomeSettings(FrameworkSettings):
+    class RomeSettings(AppSettings):
         timezone: str = "Europe/Rome"
 
-    class NewYorkSettings(FrameworkSettings):
+    class NewYorkSettings(AppSettings):
         timezone: str = "America/New_York"
 
     instant = datetime(2026, 1, 1, 23, 30, tzinfo=UTC)
@@ -47,9 +48,9 @@ def test_app_now_uses_each_app_settings_without_shared_state() -> None:
 def test_app_timezone_defaults_to_utc_and_settings_reject_invalid_zone() -> None:
     assert Hinoki().now(lambda: clock_values[0]).utcoffset() == timedelta(0)
     with pytest.raises(ValueError, match="IANA timezone"):
-        FrameworkSettings(timezone="Not/AZone")
+        AppSettings(timezone="Not/AZone")
     with pytest.raises(ValueError, match="IANA timezone"):
-        FrameworkSettings(timezone=None)  # type: ignore[arg-type]
+        AppSettings(timezone=None)  # type: ignore[arg-type]
 
 
 def test_app_now_rejects_a_naive_clock() -> None:
