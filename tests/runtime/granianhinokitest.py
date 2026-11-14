@@ -1,6 +1,7 @@
 """Hinoki's own adapter and lifespan under a real Granian process."""
 
 import json
+import os
 import signal
 import subprocess
 import threading
@@ -11,7 +12,15 @@ from pathlib import Path
 
 import pytest
 
-from tests.runtime.harness import events, fetch, free_port, names, spawn, wait_ready
+from tests.runtime.harness import (
+    events,
+    fetch,
+    free_port,
+    group_is_gone,
+    names,
+    spawn,
+    wait_ready,
+)
 
 pytestmark = pytest.mark.runtime
 
@@ -78,6 +87,18 @@ def test_two_workers_run_separate_lifespans(tmp_path: Path) -> None:
     finally:
         proc.kill()
         proc.wait()
+
+
+def test_killing_a_test_server_leaves_no_worker_behind(tmp_path: Path) -> None:
+    port = free_port()
+    proc = spawn(TARGET, tmp_path / "events.log", port, workers=2)
+    try:
+        wait_ready(port, "/fast")
+        assert os.getpgid(proc.pid) == proc.pid  # the server leads its own group
+    finally:
+        proc.kill()
+        proc.wait()
+    assert group_is_gone(proc.pid)
 
 
 def test_invalid_handler_signature_stops_the_server_instead_of_serving(
