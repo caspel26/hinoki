@@ -171,7 +171,7 @@ async def test_select_related_loads_in_one_query(
     ada = await Writer.acreate(name="Ada")
     await Article.acreate(writer_id=ada.id, title="One")
     statements.clear()
-    [article] = await Article.all().select_related("writer").aall()
+    [article] = await Article.all().select_related("writer")
     assert len(statements) == 1
     assert article.writer.name == "Ada"
     assert article.related("writer") is article.writer
@@ -186,14 +186,14 @@ async def test_prefetch_related_uses_one_extra_query_per_relation(
     for index in range(3):
         await Article.acreate(writer_id=ada.id, title=f"a{index}")
     statements.clear()
-    writers = await Writer.all().order_by("name").prefetch_related("articles").aall()
+    writers = await Writer.all().order_by("name").prefetch_related("articles")
     assert len(statements) == 2
     assert [len(w.articles) for w in writers] == [3, 0]
     assert {a.title for a in writers[0].articles} == {"a0", "a1", "a2"}
     assert writers[1].id == bob.id
 
     statements.clear()
-    articles = await Article.all().prefetch_related("writer").aall()
+    articles = await Article.all().prefetch_related("writer")
     assert len(statements) == 2
     assert {a.writer.name for a in articles} == {"Ada"}
 
@@ -204,18 +204,18 @@ async def test_filter_across_relation_and_nullable_keys(db: Database) -> None:
     bob = await Writer.acreate(name="Bob")
     article = await Article.acreate(writer_id=ada.id, title="Mine")
     await Article.acreate(writer_id=bob.id, title="Theirs")
-    found = await Article.filter(writer__name="Ada").aall()
+    found = await Article.filter(writer__name="Ada")
     assert [a.id for a in found] == [article.id]
     assert await Article.filter(writer__name__in=["Ada", "Bob"]).acount() == 2
 
     orphan = await Note.acreate(text="loose")
     attached = await Note.acreate(article_id=article.id, text="tied")
-    notes = await Note.all().select_related("article").order_by("text").aall()
+    notes = await Note.all().select_related("article").order_by("text")
     assert [n.id for n in notes] == [orphan.id, attached.id]
     assert notes[0].article is None
     assert notes[1].article is not None
     assert notes[1].article.title == "Mine"
-    prefetched = await Note.filter(id=orphan.id).prefetch_related("article").aall()
+    prefetched = await Note.filter(id=orphan.id).prefetch_related("article")
     assert prefetched[0].article is None
 
 
@@ -226,7 +226,7 @@ async def test_select_related_with_paging_keeps_total_and_rows(db: Database) -> 
         await Article.acreate(writer_id=ada.id, title=f"t{index}")
     query = Article.all().select_related("writer").order_by("title")
     assert await query.acount() == 5
-    page = await query.limit(2).offset(2).aall()
+    page = await query.limit(2).offset(2)
     assert [a.title for a in page] == ["t2", "t3"]
     assert all(a.writer.name == "Ada" for a in page)
 
@@ -376,7 +376,7 @@ async def test_a_loaded_relation_is_not_served_after_its_key_changed(
     ada = await Writer.acreate(name="Ada")
     bob = await Writer.acreate(name="Bob")
     await Article.acreate(writer_id=ada.id, title="t")
-    [article] = await Article.all().select_related("writer").aall()
+    [article] = await Article.all().select_related("writer")
     assert article.writer.name == "Ada"
     article.writer_id = bob.id
     with pytest.raises(RelationNotLoaded, match="another writer_id"):

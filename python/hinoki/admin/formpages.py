@@ -39,7 +39,7 @@ async def option_lists(
             # its rows. The field stays a plain id input.
             updated.append(field)
             continue
-        rows = await related.queryset(site.principal).limit(OPTION_LIMIT + 1).aall()
+        rows = await related.queryset(site.principal).limit(OPTION_LIMIT + 1)
         if len(rows) > OPTION_LIMIT:
             updated.append(field)
             continue

@@ -102,7 +102,7 @@ def test_instances_are_checked_dataclasses() -> None:
 
 async def test_models_need_an_active_database() -> None:
     with pytest.raises(RuntimeError, match="no database is active"):
-        await Post.all().aall()
+        await Post.all()
 
 
 @pytest.fixture
@@ -153,7 +153,7 @@ async def test_queries_filter_order_count_and_paginate(db: Database) -> None:
     for n in range(5):
         await Post.acreate(title=f"p{n}", stars=n, published=n % 2 == 0)
     published = Post.filter(published=True).order_by("-stars")
-    assert [p.title for p in await published.aall()] == ["p4", "p2", "p0"]
+    assert [p.title for p in await published] == ["p4", "p2", "p0"]
     assert await published.acount() == 3
     assert (await Post.filter(stars__in=[1, 3]).acount()) == 2
     assert (await Post.filter(stars__in=[]).acount()) == 0
@@ -203,3 +203,8 @@ async def test_models_follow_the_transaction_scope(db: Database) -> None:
     async with db.transaction():
         await Post.acreate(title="kept")
     assert await Post.all().acount() == 1
+
+
+def test_a_queryset_is_awaited_directly_and_has_no_aall() -> None:
+    assert hasattr(QuerySet, "__await__")
+    assert not hasattr(QuerySet, "aall")
