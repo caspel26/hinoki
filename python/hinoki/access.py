@@ -26,4 +26,6 @@ class Access:
         if not isinstance(auth, BaseAuth):
             raise TypeError("Access(auth=...) needs a BaseAuth provider")
         object.__setattr__(self, "auth", auth)
+        if isinstance(permissions, str | bytes):
+            raise TypeError("permissions is a list of names, not one string")
         object.__setattr__(self, "permissions", frozenset(str(p) for p in permissions))
