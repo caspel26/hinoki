@@ -3,6 +3,7 @@
 .prose {
   max-width: 740px;
   margin: 0 auto;
+  overflow-x: clip;
   counter-reset: h2 h3;
   color: var(--hn-text-2);
   font-size: var(--fs-base);
