@@ -40,6 +40,7 @@ dev = [
 ]
 lint = ["ruff==0.15.12"]
 docs = [
+    "mike==2.2.0",
     "mkdocs-git-revision-date-localized-plugin>=1.7.0",
     "mkdocs-material>=9.6",
     "mkdocstrings[python]>=0.27",
