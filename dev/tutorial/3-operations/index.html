@@ -265,7 +265,7 @@
 </code></pre></div>
 <p>The important line is the <code>WHERE</code>: the owner is part of the statement. There is no "read the row, check the owner, then update" gap, and another member's task looks exactly like a missing one (404), so nothing leaks.</p>
 <p>The business failures are named after the rule they report:</p>
-<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">TaskAlreadyDone</span><span class="p">(</span><span class="n">Conflict</span><span class="p">):</span>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">TaskAlreadyDone</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">Conflict</span><span class="p">):</span>
     <span class="n">code</span> <span class="o">=</span> <span class="s2">"task_already_done"</span>
     <span class="n">message</span> <span class="o">=</span> <span class="s2">"The task is already done."</span>
 </code></pre></div>
@@ -295,7 +295,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.4</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 13, 2026 20:51:20 UTC">November 13, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:48:24 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/3-operations.md">Edit on GitHub</a></dd></div>
         </dl>
