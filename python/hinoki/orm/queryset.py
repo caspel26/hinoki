@@ -175,7 +175,9 @@ class QuerySet[M: Model]:
             )
         return result
 
-    def compile(self, kind: str = "select") -> tuple[str, list[Any]]:
+    def compile(
+        self, kind: str = "select", dialect: str = "postgres"
+    ) -> tuple[str, list[Any]]:
         return core.compile_query(
             kind,
             self.model.__table__,
@@ -185,6 +187,7 @@ class QuerySet[M: Model]:
             limit=self.limit_to,
             offset=self.offset_by,
             joins=self.joins(counting=kind == "count"),
+            dialect=dialect,
         )
 
     def build(self, row: dict[str, Any]) -> M:
@@ -242,8 +245,9 @@ class QuerySet[M: Model]:
 
     async def fetch(self) -> list[M]:
         """Run the query and build the rows; what ``await queryset`` returns."""
-        sql, params = self.compile()
-        rows = await current_database().fetch(sql, *params)
+        database = current_database()
+        sql, params = self.compile(dialect=database.dialect)
+        rows = await database.fetch(sql, *params)
         instances = [self.build(row) for row in rows]
         await self.load(instances)
         return instances
@@ -278,14 +282,16 @@ class QuerySet[M: Model]:
             }
         if self.loading.joined:
             raise FieldError("updates cannot filter across a relation")
+        database = current_database()
         sql, params = core.compile_query(
             "update",
             self.model.__table__,
             assignments=list(values.items()),
             filters=list(self.filters),
             returning=list(self.model.__columns__),
+            dialect=database.dialect,
         )
-        rows = await current_database().fetch(sql, *params)
+        rows = await database.fetch(sql, *params)
         return [self.model.from_row(row) for row in rows]
 
     async def adelete(self) -> int:
@@ -299,10 +305,14 @@ class QuerySet[M: Model]:
             raise FieldError(
                 "adelete cannot filter across a relation; look the keys up first"
             )
+        database = current_database()
         sql, params = core.compile_query(
-            "delete", self.model.__table__, filters=list(self.filters)
+            "delete",
+            self.model.__table__,
+            filters=list(self.filters),
+            dialect=database.dialect,
         )
-        return await current_database().execute(sql, *params)
+        return await database.execute(sql, *params)
 
     def refuse_window(self, action: str) -> None:
         if self.limit_to is not None or self.offset_by is not None:
@@ -313,10 +323,11 @@ class QuerySet[M: Model]:
             )
 
     async def acount(self) -> int:
+        database = current_database()
         sql, params = self.derive(order=(), limit_to=None, offset_by=None).compile(
-            "count"
+            "count", database.dialect
         )
-        rows = await current_database().fetch(sql, *params)
+        rows = await database.fetch(sql, *params)
         return int(rows[0]["count"])
 
     async def aexists(self) -> bool:
