@@ -8,8 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from hinoki import FrameworkSettings, Hinoki
+from hinoki import Hinoki
 from hinoki.serve import load_target, server_settings
+from hinoki.settings import AppSettings
 from tests.runtime.harness import fetch, free_port, wait_ready
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -38,7 +39,7 @@ def test_the_server_group_comes_from_the_applications_settings(
     monkeypatch.setenv("SRV_SERVER__PORT", "0")
     with pytest.raises(SystemExit, match="port must be"):
         server_settings("tests.runtime.serveapp:create_app")
-    assert isinstance(FrameworkSettings.load().server.port, int)
+    assert isinstance(AppSettings.load().server.port, int)
     assert Hinoki().settings is None
 
 

@@ -6,7 +6,7 @@ Run the command from the application checkout and check both the module path and
 
 ## Settings report a missing or unknown variable
 
-Check the settings class's `prefix=` and nested field names. Nested groups use `__`, for example `APP_DATABASE__URL`. Run `hinoki settings module:SettingsClass --example` to inspect expected names. Secret values are redacted by design.
+Check the settings class's `prefix=` and nested field names. Nested groups use `__`, for example `APP_DATABASE__URL`. Run `hinoki settings module:SettingsClass --example` to inspect expected names. settings.Secret values are redacted by design.
 
 ## Database connection fails at startup
 

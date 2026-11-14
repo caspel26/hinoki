@@ -29,19 +29,19 @@ The [Notes example](examples/notes) is a small application. [Tracker](examples/t
 ## A declared application
 
 ```python
-from hinoki import DatabaseSettings, FrameworkSettings, Hinoki
+from hinoki import Hinoki, settings
 from hinoki import http
 from hinoki.db import DatabaseModule
 
-class AppSettings(FrameworkSettings, prefix="APP_"):
-    database: DatabaseSettings
+class ProjectSettings(settings.AppSettings, prefix="APP_"):
+    database: settings.DatabaseSettings
 
 @http.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
 app = Hinoki(
-    settings=AppSettings,
+    settings=ProjectSettings,
     include=[health],
     modules=[DatabaseModule],
 )

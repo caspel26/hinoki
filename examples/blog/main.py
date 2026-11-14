@@ -34,11 +34,11 @@ def create_app(
         "admin_secret": admin_secret,
         "jwt_secret": jwt_secret,
     }
-    settings = BlogSettings.load(
+    app_settings = BlogSettings.load(
         overrides={k: v for k, v in given.items() if v is not None}
     )
     app = Hinoki(
-        settings=settings,
+        settings=app_settings,
         title="Blog",
         version="0.1.0",
         openapi_url="/openapi.json",
@@ -49,11 +49,12 @@ def create_app(
     app.include(
         health,
         Posts,
-        build_admin(settings.admin_secret.reveal(), settings.admin_theme).api(),
+        build_admin(app_settings.admin_secret.reveal(), app_settings.admin_theme).api(),
     )
-    if settings.jwt_secret:  # password login is on only when a signing secret exists
-        actions, _hasher = build_accounts(settings.jwt_secret.reveal())
+    # password login is on only when a signing secret exists
+    if app_settings.jwt_secret:
+        actions, _hasher = build_accounts(app_settings.jwt_secret.reveal())
         app.include(*actions)
-    app.install(DatabaseModule(settings.database_url.reveal(), max_size=5))
+    app.install(DatabaseModule(app_settings.database_url.reveal(), max_size=5))
     app.errors.handle(UniqueViolation)(unique_to_conflict)
     return app

@@ -11,7 +11,7 @@
 
 ::: hinoki.settings.SettingsError
 
-::: hinoki.settings.FrameworkSettings
+::: hinoki.settings.AppSettings
     options:
       members: [execution, lifecycle, logging, docs, server, runtime_config]
       show_if_no_docstring: true
