@@ -147,9 +147,13 @@ The `server` group (host, port, workers) is applied by `hinoki serve`/`dev` ([Ru
 
 ## 8. Database connection ownership
 
-For a server, put the connection details in `settings.DatabaseSettings` and list `DatabaseModule` in the app declaration (or install a configured module in a factory). The module opens a pool in each worker's startup lifespan, fails startup if PostgreSQL is unreachable, and closes that worker's pool on shutdown. It does not connect at module import or when models are imported. Each worker owns its own pool, so budget `replicas × workers × max_size` against the database's connection limit.
+For local development, `DatabaseSettings.url` defaults to `sqlite://./.hinoki/local.sqlite3`. Hinoki creates the hidden directory and database file when the module starts; it does not connect at module import or when models are imported. Set the URL explicitly for a server database or deployment. Environment, dotenv, TOML and constructor values override the local default.
+
+For a server database, put its explicit connection URL in `settings.DatabaseSettings` and list `DatabaseModule` in the app declaration (or install a configured module in a factory). The module opens a pool in each worker's startup lifespan, fails startup if the database is unreachable, and closes that worker's pool on shutdown. Each worker owns its own pool, so budget `replicas × workers × max_size` against the server database's connection limit.
 
 PostgreSQL URLs accept `sslmode=disable`, `prefer`, `require`, `verify-ca` or `verify-full`, and `sslrootcert=/path/to/ca.pem`. `prefer` tries TLS first and falls back to plaintext only if the server declines TLS; a certificate or handshake error fails closed. All TLS connections verify the server certificate chain and hostname. `require`, `verify-ca` and `verify-full` require TLS; Hinoki's `verify-ca` also verifies the hostname. Trust uses Mozilla WebPKI roots plus any PEM certificates in `sslrootcert` (maximum file size 1 MiB). `sslmode=require` therefore requires a trusted certificate too. `sslmode=allow` is unsupported. Keep the URL in a secret setting, and mount the CA file where each worker can read it.
+
+SQLite accepts a file URL such as `sqlite:///srv/app/data.sqlite3`; relative paths are relative to the process working directory. In-memory databases are not supported because each pooled connection has an independent database. SQLite uses bundled SQLite 3.35 or newer, a bounded connection pool and a single-writer model. UUID and timestamp columns use text storage; JSON uses JSON text. SQLite `contains` matching is ASCII case-insensitive.
 
 ```text
 postgresql://app:password@db.example/app?sslmode=require&sslrootcert=/run/secrets/db-ca.pem

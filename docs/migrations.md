@@ -16,7 +16,7 @@ hinoki migrations --dir examples/blog/migrations plan \
   --models examples.blog.models --name add-published
 ```
 
-The planner writes a numbered `.sql` file and a matching `.state.json` file. Review both before applying the change. To inspect a plan without writing files, add `--dry-run`.
+The planner targets the local SQLite default unless a URL is provided through `HINOKI_DATABASE_URL` or `--database`. It writes a numbered `.sql` file and a matching `.state.json` file. Review both before applying the change. To inspect a plan without writing files, add `--dry-run`.
 
 ## Apply and inspect
 
@@ -27,9 +27,11 @@ hinoki migrations --dir examples/blog/migrations sql 0001-initial
 hinoki migrations --dir examples/blog/migrations apply
 ```
 
-`status` and `apply` connect to PostgreSQL. Set `HINOKI_DATABASE_URL`; `--database URL` overrides it, but an argument is visible in the process list and the shell history, so do not pass a URL that contains a password that way. A failed connection is reported as `error: database: …` with exit code 1, without the URL.
+With no URL, `status` and `apply` use `sqlite://./.hinoki/local.sqlite3`. Set `HINOKI_DATABASE_URL` or use `--database URL` to target another supported backend. A URL argument is visible in the process list and shell history, so do not pass a URL containing a password that way. A failed connection is reported as `error: database: …` with exit code 1, without the URL.
 
 Use a disposable database to review a migration before running it against important data.
+
+SQLite uses table rebuilds when a schema change cannot be expressed safely with `ALTER TABLE`. Review the generated SQL carefully. Dropping columns, changing types or constraints, and adding non-null columns can be destructive and require `--allow-destructive`. Hinoki holds the SQLite pool during a migration, suspends foreign-key enforcement on reserved connections, runs `PRAGMA foreign_key_check` before commit, and rolls the migration back if references are invalid.
 
 ## Destructive changes
 
