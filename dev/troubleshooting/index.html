@@ -242,7 +242,7 @@
 <h2 id="cannot-load-moduleattribute"><code>cannot load module:attribute</code><a class="headerlink" href="#cannot-load-moduleattribute" title="Permanent link">&para;</a></h2>
 <p>Run the command from the application checkout and check both the module path and attribute spelling. <code>hinoki</code> adds the current directory when importing targets, but the package still needs to be importable Python code.</p>
 <h2 id="settings-report-a-missing-or-unknown-variable">Settings report a missing or unknown variable<a class="headerlink" href="#settings-report-a-missing-or-unknown-variable" title="Permanent link">&para;</a></h2>
-<p>Check the settings class's <code>prefix=</code> and nested field names. Nested groups use <code>__</code>, for example <code>APP_DATABASE__URL</code>. Run <code>hinoki settings module:SettingsClass --example</code> to inspect expected names. Secret values are redacted by design.</p>
+<p>Check the settings class's <code>prefix=</code> and nested field names. Nested groups use <code>__</code>, for example <code>APP_DATABASE__URL</code>. Run <code>hinoki settings module:SettingsClass --example</code> to inspect expected names. settings.Secret values are redacted by design.</p>
 <h2 id="database-connection-fails-at-startup">Database connection fails at startup<a class="headerlink" href="#database-connection-fails-at-startup" title="Permanent link">&para;</a></h2>
 <p>The <code>DatabaseModule</code> opens a pool in each worker's startup. Confirm the URL, network reachability and PostgreSQL availability from the same environment as the worker. Use one worker and a small pool while debugging; total maximum connections are replicas × workers × pool size.</p>
 <h2 id="a-related-field-is-not-loaded">A related field is not loaded<a class="headerlink" href="#a-related-field-is-not-loaded" title="Permanent link">&para;</a></h2>
@@ -278,7 +278,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>6.5</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 13, 2026 22:52:53 UTC">November 13, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:11:46 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/troubleshooting.md">Edit on GitHub</a></dd></div>
         </dl>

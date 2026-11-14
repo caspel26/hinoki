@@ -430,10 +430,12 @@ hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<
 <p><code>dev</code> always runs one worker with reload. The settings command shows what is in effect: <code>hinoki settings blog.settings:BlogSettings</code>.</p>
 <h2 id="declaring-where-settings-are-read">Declaring where settings are read<a class="headerlink" href="#declaring-where-settings-are-read" title="Permanent link">&para;</a></h2>
 <p>The settings class says its own prefix and <code>.env</code> file, so nothing is repeated at the call site:</p>
-<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">FrameworkSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"BLOG_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>
-    <span class="n">database_url</span><span class="p">:</span> <span class="n">Secret</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
 
-<span class="n">settings</span> <span class="o">=</span> <span class="n">BlogSettings</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>          <span class="c1"># reads BLOG_* and .env</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"BLOG_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>
+    <span class="n">database_url</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">Secret</span>
+
+<span class="n">app_settings</span> <span class="o">=</span> <span class="n">BlogSettings</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>          <span class="c1"># reads BLOG_* and .env</span>
 </code></pre></div>
 <h2 id="other-runners">Other runners<a class="headerlink" href="#other-runners" title="Permanent link">&para;</a></h2>
 <p><code>dev</code> and <code>serve</code> are conveniences. The application is a plain ASGI app, so <code>granian --interface asgi --factory blog.main:create_app</code> (or another ASGI server) works too; then the <code>server</code> group is ignored, because only <code>hinoki serve</code> applies it.</p>
@@ -466,7 +468,7 @@ hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.19</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 01:30:16 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:11:46 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>

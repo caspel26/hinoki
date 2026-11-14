@@ -397,7 +397,7 @@
 <p><code>Caller[T]</code> is injected when annotated. Use <code>caller.user</code> for the application user and <code>caller.permissions</code> for the resolved permission set. Do not accept an owner id from untrusted input when it should come from the caller.</p>
 <p><code>RouteGroup</code> can provide a default policy for a function group. An action may override it intentionally. The <code>Actions.require_access</code> rule can flag routes with no policy.</p>
 <h2 id="passwords-and-jwt">Passwords and JWT<a class="headerlink" href="#passwords-and-jwt" title="Permanent link">&para;</a></h2>
-<p><code>hinoki.crypto.PasswordHasher</code> provides Argon2id hashing and verification; <code>JWTKey</code> and <code>JWTAuth</code> issue and verify configured token algorithms. Read keys from <code>Secret</code> settings and reveal them only when constructing the provider. Validate audience, issuer, expiry and key rotation settings for your deployment. See the <a href="../reference/auth/">crypto API reference</a>.</p>
+<p><code>hinoki.crypto.PasswordHasher</code> provides Argon2id hashing and verification; <code>JWTKey</code> and <code>JWTAuth</code> issue and verify configured token algorithms. Read keys from <code>settings.Secret</code> fields and reveal them only when constructing the provider. Validate audience, issuer, expiry and key rotation settings for your deployment. See the <a href="../reference/auth/">crypto API reference</a>.</p>
 <p>Hinoki does not create users, sessions or permission rules for your application. Those remain application data and policy.</p>
         
         <aside class="related" aria-label="Related pages">
@@ -428,7 +428,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.14</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 13:28:57 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:11:46 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/authentication.md">Edit on GitHub</a></dd></div>
         </dl>

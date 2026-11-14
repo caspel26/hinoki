@@ -371,7 +371,7 @@
       <article class="prose" style="--sheet: '3.27'">
         <p class="kicker" data-search-exclude>3.27 · Guides</p>
         <h1 id="sync-and-async-execution">Sync and async execution<a class="headerlink" href="#sync-and-async-execution" title="Permanent link">&para;</a></h1>
-<p>Hinoki runs on one event loop per worker. <strong>Async is the native way; sync is a supported way</strong>, not a second-class one: a plain <code>def</code> handler or hook runs on a bounded thread pool (<code>ExecutionSettings.sync_workers</code>, <code>sync_queue</code>; a full queue answers 503 <code>overloaded</code>, in handlers and in sync hooks), the request's context follows it, and the sync ORM methods hand their work back to the worker's loop and block that thread, never the loop.</p>
+<p>Hinoki runs on one event loop per worker. <strong>Async is the native way; sync is a supported way</strong>, not a second-class one: a plain <code>def</code> handler or hook runs on a bounded thread pool (<code>settings.ExecutionSettings.sync_workers</code>, <code>sync_queue</code>; a full queue answers 503 <code>overloaded</code>, in handlers and in sync hooks), the request's context follows it, and the sync ORM methods hand their work back to the worker's loop and block that thread, never the loop.</p>
 <h2 id="parity-table">Parity table<a class="headerlink" href="#parity-table" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -516,7 +516,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.27</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 02:07:13 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:11:46 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/sync-async.md">Edit on GitHub</a></dd></div>
         </dl>

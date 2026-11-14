@@ -373,12 +373,12 @@
         <h1 id="application-modules-and-resources">Application modules and resources<a class="headerlink" href="#application-modules-and-resources" title="Permanent link">&para;</a></h1>
 <p>Modules own resources whose lifetime belongs to a worker or a management command, such as a database pool. They are created during startup, made available through <code>ModuleContext</code>, and closed when that run ends.</p>
 <h2 id="declare-modules">Declare modules<a class="headerlink" href="#declare-modules" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">AppSettings</span><span class="p">(</span><span class="n">FrameworkSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"APP_"</span><span class="p">):</span>
-    <span class="n">database</span><span class="p">:</span> <span class="n">DatabaseSettings</span>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"APP_"</span><span class="p">):</span>
+    <span class="n">database</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">DatabaseSettings</span>
 
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
-    <span class="n">settings</span><span class="o">=</span><span class="n">AppSettings</span><span class="p">,</span>
+    <span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span>
     <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">health</span><span class="p">,</span> <span class="n">Tasks</span><span class="p">],</span>
     <span class="n">modules</span><span class="o">=</span><span class="p">[</span><span class="n">DatabaseModule</span><span class="p">],</span>
 <span class="p">)</span>
@@ -415,7 +415,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.16</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 05:12:10 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:11:46 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/modules.md">Edit on GitHub</a></dd></div>
         </dl>

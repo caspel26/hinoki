@@ -427,7 +427,7 @@
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>dev<span class="w"> </span>examples.notes.main:app<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">8000</span>
 hinoki<span class="w"> </span>serve<span class="w"> </span>examples.notes.main:app<span class="w"> </span>--workers<span class="w"> </span><span class="m">4</span>
 </code></pre></div>
-<p>Both commands accept <code>--host</code> and <code>--port</code>; they override <code>settings.server.host</code> and <code>.port</code>. <code>serve</code> also accepts <code>--workers</code>, overriding <code>.workers</code>. Otherwise values come from the app's <code>FrameworkSettings.server</code> group. <code>dev</code> enables reload and runs one worker. Granian is provided by the optional server extra.</p>
+<p>Both commands accept <code>--host</code> and <code>--port</code>; they override <code>settings.server.host</code> and <code>.port</code>. <code>serve</code> also accepts <code>--workers</code>, overriding <code>.workers</code>. Otherwise values come from the app's <code>settings.AppSettings.server</code> group. <code>dev</code> enables reload and runs one worker. Granian is provided by the optional server extra.</p>
 <h3 id="check"><code>check</code><a class="headerlink" href="#check" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>check<span class="w"> </span>examples.tracker.app:create_app<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--package<span class="w"> </span>examples.tracker<span class="w"> </span>--phase<span class="w"> </span>startup<span class="w"> </span>--format<span class="w"> </span>text
@@ -447,7 +447,7 @@ hinoki<span class="w"> </span>serve<span class="w"> </span>examples.notes.main:a
 <span class="w">  </span>--prefix<span class="w"> </span>BLOG_<span class="w"> </span>--dotenv<span class="w"> </span>.env<span class="w"> </span>--toml<span class="w"> </span>settings.toml<span class="w"> </span>--format<span class="w"> </span>json
 hinoki<span class="w"> </span>settings<span class="w"> </span>examples.blog.settings:BlogSettings<span class="w"> </span>--example<span class="w"> </span>&gt;<span class="w"> </span>.env.example
 </code></pre></div>
-<p><code>TARGET</code> can be a settings class or an app with typed settings. <code>--prefix</code>, <code>--dotenv</code> and <code>--toml</code> override sources declared by the settings class. <code>--format text|json</code> selects output; <code>--example</code> prints a <code>.env.example</code> with defaults and types, leaving secrets and required fields blank. Values of <code>Secret</code> are redacted.</p>
+<p><code>TARGET</code> can be a settings class or an app with typed settings. <code>--prefix</code>, <code>--dotenv</code> and <code>--toml</code> override sources declared by the settings class. <code>--format text|json</code> selects output; <code>--example</code> prints a <code>.env.example</code> with defaults and types, leaving secrets and required fields blank. Values of <code>settings.Secret</code> are redacted.</p>
 <h3 id="manage"><code>manage</code><a class="headerlink" href="#manage" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>manage<span class="w"> </span>examples.management:app<span class="w"> </span>--help
 hinoki<span class="w"> </span>manage<span class="w"> </span>examples.management:app<span class="w"> </span>greet<span class="w"> </span>Peppe
@@ -527,7 +527,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 13:55:40 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:11:46 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
