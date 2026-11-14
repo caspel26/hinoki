@@ -324,8 +324,8 @@ def page_parameters(strategy: PageNumberPagination) -> list[dict[str, Any]]:
             "schema": {
                 "type": "integer",
                 "minimum": 1,
-                "maximum": strategy.max_page_size,
-                "default": strategy.page_size,
+                "maximum": strategy.sizes()[1],
+                "default": strategy.sizes()[0],
             },
         },
     ]
