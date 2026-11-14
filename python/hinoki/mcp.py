@@ -42,6 +42,7 @@ from hinoki.rules import (
     where,
 )
 from hinoki.scenario import ScenarioError, run_scenario
+from hinoki.utils import utc_today
 from hinoki.waivers import NAME, apply_waivers, load_waivers
 
 TOOL_VERSION = 1
@@ -146,7 +147,7 @@ class DevProject:
     ) -> tuple[list[dict[str, str]], list[Diagnostic]]:
         """All diagnostics as data, and the ones that fail a build."""
         found = self.rules.run(Project(self.app, self.packages), phase)
-        today = self.today or datetime.date.today()
+        today = self.today or utc_today()
         found = apply_waivers(found, load_waivers(self.waivers), today)
         return [d.as_dict() for d in found], failing(found)
 

@@ -5,7 +5,9 @@ from __future__ import annotations
 import dataclasses
 import logging
 from collections.abc import MutableMapping, Sequence
+from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from hinoki.api import API
 from hinoki.docsui import pages as docs_pages
@@ -23,6 +25,7 @@ from hinoki.runtime.asgi import ASGIAdapter
 from hinoki.runtime.binding import Binding, bind
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.settings import DocsSettings, FrameworkSettings, Settings
+from hinoki.utils import Clock, _read_utc, utc_now
 
 log = logging.getLogger("hinoki")
 
@@ -57,6 +60,7 @@ class Hinoki:
             settings = settings.load()  # a class: read its variables now
         # An explicit argument wins over ``settings``, which wins over the default.
         built_in = settings if isinstance(settings, FrameworkSettings) else None
+        self._timezone = ZoneInfo(built_in.timezone) if built_in else UTC
         docs = built_in.docs if built_in else DocsSettings()
         self.settings = settings
         self.runtime = runtime or (
@@ -93,6 +97,10 @@ class Hinoki:
             self.install(*(self.module_of(m) for m in modules))
         if include:
             self.include(*include)
+
+    def now(self, clock: Clock = utc_now) -> datetime:
+        """Return an aware datetime in this application's configured timezone."""
+        return _read_utc(clock).astimezone(self._timezone)
 
     def module_of(self, module: Module | type[Module]) -> Module:
         """An instance as given, or a class built from this app's settings."""

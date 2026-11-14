@@ -28,6 +28,26 @@ class Event(Model, table="events"):
 
 The clock is a callable, so code that depends on time can accept a `Clock` and tests can supply a fixed function. No process-wide clock patch is needed.
 
+## Application timezone
+
+Set an IANA timezone name in the app's global settings. It defaults to `UTC`; invalid names fail while settings are constructed:
+
+```python
+from hinoki import FrameworkSettings, Hinoki
+
+
+class AppSettings(FrameworkSettings):
+    timezone: str = "Europe/Rome"
+
+
+app = Hinoki(settings=AppSettings)
+current_time = app.now()  # aware datetime in Europe/Rome
+```
+
+`app.now()` reads the timezone from that app's settings and returns an aware `datetime`. Apps in one process can use different settings. There is no `Hinoki(timezone=...)` argument. To make time-dependent code deterministic, pass a `Clock` to `app.now(clock)`.
+
+`utc_today(clock=utc_now)` returns the calendar date in UTC. The framework uses it for waiver expiry so the result does not depend on the machine's local timezone. For example, `2026-01-02 00:30+02:00` is `2026-01-01` in UTC.
+
 ## Model update timestamps
 
 Declare the columns explicitly and decorate the model with `@timestamps()` to refresh `updated_at` on each ORM update:
