@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime
 import re
 from collections.abc import Sequence
+from datetime import tzinfo
 from typing import Any
 
 from hinoki.admin.parts import TONES, Avatar, Badge, Stat
@@ -19,6 +20,7 @@ from hinoki.admin.templates import UI, Raw, Templates, escape
 ICONS = frozenset(re.findall(r'id="i-([a-z0-9-]+)"', (UI / "icons.svg").read_text()))
 CELL_LIMIT = 80
 WINDOW = 2
+UTC_ZONE = datetime.UTC
 
 
 def icon_name(name: str, fallback: str = "file-text") -> str:
@@ -37,8 +39,9 @@ def initials(name: str) -> str:
 class Components:
     """UI fragments for one admin (they share its templates)."""
 
-    def __init__(self, templates: Templates) -> None:
+    def __init__(self, templates: Templates, timezone: tzinfo = UTC_ZONE) -> None:
         self.t = templates
+        self.timezone = timezone
 
     def badge(self, badge: Badge) -> Raw:
         return self.t.render(
@@ -66,7 +69,7 @@ class Components:
             return self.avatar(value.name)
         if isinstance(value, Raw):
             return value
-        return escape(plain_text(value))
+        return escape(plain_text(value, self.timezone))
 
     def nav_item(
         self, href: str, label: str, icon: str, count: int | None, current: bool
@@ -116,14 +119,15 @@ class Components:
         return self.t.render("pagination", summary=summary, pages=Raw("".join(links)))
 
 
-def plain_text(value: Any) -> str:
+def plain_text(value: Any, timezone: tzinfo = UTC_ZONE) -> str:
     """Display text for a value (long text is cut)."""
     if value is None or value == "":
         return "—"
     if isinstance(value, bool):
         return "yes" if value else "no"
     if isinstance(value, datetime.datetime):
-        return value.astimezone(datetime.UTC).strftime("%Y-%m-%d %H:%M")
+        moment = value.replace(tzinfo=datetime.UTC) if value.tzinfo is None else value
+        return moment.astimezone(timezone).strftime("%Y-%m-%d %H:%M")
     text = str(value)
     return text if len(text) <= CELL_LIMIT else text[: CELL_LIMIT - 1] + "…"
 

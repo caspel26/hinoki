@@ -5,7 +5,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 from collections.abc import Iterator, MutableMapping, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 from types import ModuleType
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -30,6 +30,24 @@ from hinoki.settings import AppSettings, DocsSettings, Settings
 from hinoki.utils import Clock, _read_utc, utc_now
 
 log = logging.getLogger("hinoki")
+
+
+def bind_app_timezone(item: object, timezone: tzinfo) -> None:
+    """Bind timezone-aware integrations whether included as objects or API classes."""
+    admin = (
+        item
+        if callable(getattr(item, "bind_timezone", None))
+        else getattr(item, "admin", None)
+    )
+    bind_timezone = getattr(admin, "bind_timezone", None)
+    if callable(bind_timezone):
+        bind_timezone(timezone)
+
+
+def bind_app_timezones(items: Sequence[object], timezone: tzinfo) -> None:
+    """Bind integrations after the app has validated all routes."""
+    for item, _prefix in flatten(items):
+        bind_app_timezone(item, timezone)
 
 
 class Hinoki:
@@ -172,6 +190,7 @@ class Hinoki:
                 staged.add(route.method, route.path, len(self._routes) + offset)
             except ValueError as exc:
                 raise RegistrationError(f"{route.name}: {exc}") from exc
+        bind_app_timezones(items, self._timezone)
         self._router = staged
         self._routes.extend(pending)
         self._bindings.extend(bound)
