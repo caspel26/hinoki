@@ -1,3 +1,7 @@
+---
+status: implemented
+---
+
 # Command line
 
 The `hinoki` command accepts a `module:attribute` target for an application, factory, settings class or model module as documented by each subcommand. Targets are imported from the current project directory.

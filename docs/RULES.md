@@ -1,3 +1,11 @@
+---
+status: implemented
+related:
+  - AI-WORKFLOW.md
+  - AUTHENTICATION.md
+  - TRANSACTIONS.md
+---
+
 # Rules: architecture you can check
 
 Rules are optional, typed promises about your application that a tool checks and that fail with a stable ID, a location and an explanation. They are not a linter for style and not an AI prompt: each rule is a Python object with deterministic behaviour. Nothing runs unless you enable rules.
@@ -42,6 +50,18 @@ tests/projects/rulesapp.py:7: HNK-ACC-001 [violated] GET /health (health) declar
 tests/projects/rulesapp.py:12: HNK-ACC-001 [violated] POST /items (create) declares no access policy
 tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does not declare transaction=True
 2 rule(s): 3 violated, 0 unverifiable, 0 waived        (exit 1)
+```
+
+The other rules report the same way. This output comes from a small project whose `api.py` returns a `Model`, exposes `token` in a response `Schema`, and whose `models.py` imports `api`:
+
+```text
+shop/api.py:13: HNK-API-001 [violated] GET /members/{member_id} (one) returns the model Member; return a Schema
+  fix: return a Schema (for example PostOut.from_model(row)) instead of the Model
+shop/api.py:7: HNK-SCH-001 [violated] MemberOut.token is exposed by GET /members
+  fix: remove the field from the response Schema, or return a Schema that does not carry it
+shop/models.py:11: HNK-IMP-001 [violated] shop.models imports shop.api, which is forbidden for shop.models
+  fix: move the code to an allowed layer, or depend on it through the layer in between
+3 rule(s): 3 violated, 0 unverifiable, 0 waived        (exit 1)
 ```
 
 `--format json` prints the same diagnostics as versioned data (`schema_version`, `summary`, and per diagnostic `rule`, `severity`, `phase`, `status`, `message`, `location`, `explanation`, `subject`, `waiver`) for CI, editors and agents. `--phase static|startup` selects a phase; exit codes are 0 clean, 1 violations, 2 the check could not run.

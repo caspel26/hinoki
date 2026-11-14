@@ -1,3 +1,10 @@
+---
+status: implemented
+related:
+  - RULES.md
+  - ENDPOINTS.md
+---
+
 # Authentication and access policies
 
 Hinoki keeps credential parsing in an authentication provider and permission checks in an `Access` policy. Endpoints are public unless a policy is attached; protect each private action deliberately.

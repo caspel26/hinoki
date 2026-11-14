@@ -1,3 +1,10 @@
+---
+status: implemented
+related:
+  - SCHEMAS.md
+  - MODELS.md
+---
+
 # Schemas derived from models
 
 A `Schema` can take its fields and constraints from a `Model`. You still choose which fields cross the API boundary.

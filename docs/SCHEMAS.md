@@ -1,3 +1,11 @@
+---
+status: implemented
+related:
+  - MODEL-SCHEMAS.md
+  - ERRORS.md
+  - ENDPOINTS.md
+---
+
 # Schemas
 
 A `Schema` describes data that crosses the API boundary and validates it strictly. Models describe tables; a column reaches a client only when a `Schema` names it.

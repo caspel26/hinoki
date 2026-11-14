@@ -1,3 +1,7 @@
+---
+status: implemented
+---
+
 # Errors
 
 Hinoki separates malformed requests, authentication failures and application errors. Handlers may declare the application errors they can raise so clients and generated tools can inspect the contract.

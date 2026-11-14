@@ -1,3 +1,7 @@
+---
+status: implemented
+---
+
 # Relations and loading
 
 Hinoki stores relations as ordinary foreign-key columns and loads related rows only when a query asks for them. Attribute access never performs hidden I/O.

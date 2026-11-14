@@ -1,3 +1,10 @@
+---
+status: implemented
+related:
+  - MODELS.md
+  - CLI.md
+---
+
 # Migrations
 
 Hinoki compares the models in a module with the migration state recorded in files. It can write a migration plan, but never applies schema changes when an application starts.

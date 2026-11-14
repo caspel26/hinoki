@@ -1,3 +1,10 @@
+---
+status: implemented
+related:
+  - SETTINGS.md
+  - CLI.md
+---
+
 # Running an application
 
 ```sh

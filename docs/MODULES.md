@@ -1,3 +1,7 @@
+---
+status: implemented
+---
+
 # Application modules and resources
 
 Modules own resources whose lifetime belongs to a worker, such as a database pool. They are created during application startup, made available through `ModuleContext`, and closed when the worker shuts down.
