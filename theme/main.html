@@ -75,8 +75,14 @@
 
   {% if page and page.is_homepage %}
   <nav class="home-mobile-sheet" id="home-mobile-nav" aria-label="Documentation sections">
+    <div class="mobile-sheet__header">
+      <span class="mobile-sheet__handle" aria-hidden="true"></span>
+      <span class="mobile-sheet__title">Sections</span>
+      <button class="icon-btn mobile-sheet__close" type="button" aria-label="Close navigation" data-menu-close>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
+    </div>
     <div class="side__scroll">
-      <p class="side__label">Sections</p>
       <ul class="side__list">
         {% set mobile_ns = namespace(i=0) %}
         {% for item in nav %}
@@ -107,6 +113,13 @@
 
   <div class="shell" data-sheet="{{ sheet }}">
     <aside class="side" id="side" aria-label="Section navigation">
+      <div class="mobile-sheet__header">
+        <span class="mobile-sheet__handle" aria-hidden="true"></span>
+        <span class="mobile-sheet__title">Navigation</span>
+        <button class="icon-btn mobile-sheet__close" type="button" aria-label="Close navigation" data-menu-close>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </button>
+      </div>
       <div class="side__scroll">
         <nav class="side__sections" aria-label="Documentation sections">
           <p class="side__label">Sections</p>
