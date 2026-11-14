@@ -323,11 +323,13 @@ kbd {
   font: 500 11px/1 var(--hn-font-mono);
 }
 
-.side__sec--all {
-  margin-top: var(--sp-7);
+.side__label {
+  margin: 0 0 var(--sp-3) var(--sp-1);
   color: var(--hn-text-3);
   font-size: var(--fs-xs);
   font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .side__group {
@@ -938,7 +940,7 @@ kbd {
     top: var(--header-h);
     bottom: 0;
     left: 0;
-    z-index: 55;
+    z-index: 75;
     width: min(320px, 86vw);
     height: auto;
     border: 1px solid var(--hn-edge);

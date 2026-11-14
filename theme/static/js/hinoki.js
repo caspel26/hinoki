@@ -72,6 +72,17 @@
   };
   $$("[data-theme-toggle]").forEach((b) => b.addEventListener("click", toggleTheme));
 
+  const sectionNav = $(".top__nav");
+  const activeSection = sectionNav && $(".top__link.is-active", sectionNav);
+  if (sectionNav && activeSection && matchMedia("(max-width: 960px)").matches) {
+    const itemLeft =
+      activeSection.getBoundingClientRect().left -
+      sectionNav.getBoundingClientRect().left +
+      sectionNav.scrollLeft;
+    sectionNav.scrollLeft =
+      itemLeft - (sectionNav.clientWidth - activeSection.clientWidth) / 2;
+  }
+
   /* ---------- Drawer ---------- */
   const menu = $("[data-menu]");
   const closeMenu = () => {

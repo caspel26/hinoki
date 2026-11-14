@@ -294,7 +294,7 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--hn-edge-2);
-  border-radius: 24px 0 24px 24px;
+  border-radius: 24px;
   background: var(--hn-surface-1);
   box-shadow: var(--hn-raise), var(--hn-pop);
   animation: panel-in 900ms 300ms var(--hn-ease) both;
@@ -302,17 +302,6 @@
 
 @keyframes panel-in {
   from { opacity: 0; transform: translateY(24px) scale(0.985); }
-}
-
-.hn-panel::after {
-  content: "";
-  position: absolute;
-  top: -1px;
-  right: -1px;
-  z-index: 2;
-  width: 15px;
-  height: 15px;
-  background: linear-gradient(225deg, var(--hn-bg) 0 50%, var(--hn-brand-fill) 50% 100%);
 }
 
 .hn-rings {
@@ -1431,14 +1420,6 @@
     min-height: 44px;
   }
 
-}
-
-@media (forced-colors: active) {
-  .hn-panel::after {
-    background: none;
-    border-top: 14px solid CanvasText;
-    border-left: 14px solid transparent;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
