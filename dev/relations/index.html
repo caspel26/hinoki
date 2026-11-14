@@ -393,7 +393,7 @@
 </code></pre></div>
 <p>The <code>author_id</code> field is stored on <code>posts</code>. The forward relation is <code>post.author</code>; <code>author.posts</code> is the reverse relation. The foreign-key type must match the referenced primary-key type. Choose an <code>on_delete</code> rule explicitly: <code>restrict</code>, <code>cascade</code>, <code>set_null</code> or <code>no_action</code>. A nullable <code>set_null</code> field should use an optional annotation.</p>
 <h2 id="load-related-rows-explicitly">Load related rows explicitly<a class="headerlink" href="#load-related-rows-explicitly" title="Permanent link">&para;</a></h2>
-<p>Use <code>select_related</code> for a forward foreign key when a query needs one related row. Use <code>prefetch_related</code> for a reverse or collection relation; it issues a separate bounded query and attaches the results.</p>
+<p>Use <code>select_related</code> for a forward foreign key when a query needs one related row (one <code>LEFT JOIN</code> in the same statement; <code>acount()</code> and <code>apaginate()</code> leave that join out of their <code>COUNT</code>, since loading a to-one relation cannot change the row count, but keep a join that a filter such as <code>author__name=...</code> needs). Use <code>prefetch_related</code> for a reverse or collection relation; it issues a separate bounded query and attaches the results.</p>
 <div class="highlight"><pre><span></span><code><span class="n">posts</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">"author"</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">post</span> <span class="ow">in</span> <span class="n">posts</span><span class="p">:</span>
     <span class="nb">print</span><span class="p">(</span><span class="n">post</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
@@ -462,7 +462,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.7</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:18:21 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 15:45:21 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/relations.md">Edit on GitHub</a></dd></div>
         </dl>
