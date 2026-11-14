@@ -7,7 +7,7 @@ from http import HTTPStatus
 from typing import Any
 from urllib.parse import unquote
 
-from hinoki import native
+from hinoki import core
 from hinoki.auth import Caller, Credentials
 from hinoki.blocking import call_hook
 from hinoki.context import request_id
@@ -57,7 +57,7 @@ def header_map(scope: Scope) -> dict[str, str]:
     """Header values by lower-case name (joined in Rust). Repeated headers are
     joined with ``", "`` (HTTP list semantics), so a doubled credential header
     never resolves to just one of the values."""
-    return native.header_dict(scope.get("headers", []))
+    return core.header_dict(scope.get("headers", []))
 
 
 async def authorize(

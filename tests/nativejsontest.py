@@ -7,7 +7,7 @@ from urllib.parse import parse_qs
 
 import pytest
 
-from hinoki import native
+from hinoki import core
 
 
 @pytest.mark.parametrize(
@@ -24,22 +24,22 @@ from hinoki import native
     ],
 )
 def test_decode_matches_the_standard_library(text: str) -> None:
-    assert native.decode_json(text.encode()) == json.loads(text)
+    assert core.decode_json(text.encode()) == json.loads(text)
 
 
 def test_decode_pairs_surrogates_and_reads_a_marker_looking_key_as_a_key() -> None:
-    assert native.decode_json(b'"\\ud83d\\ude00"') == "\U0001f600"
+    assert core.decode_json(b'"\\ud83d\\ude00"') == "\U0001f600"
     odd = b'{"$serde_json::private::Number": "1"}'
-    assert native.decode_json(odd) == {"$serde_json::private::Number": "1"}
-    assert native.decode_json(b" \t\r\n[ 1 , 2 ]\n") == [1, 2]
+    assert core.decode_json(odd) == {"$serde_json::private::Number": "1"}
+    assert core.decode_json(b" \t\r\n[ 1 , 2 ]\n") == [1, 2]
 
 
 def test_decode_keeps_numeric_types() -> None:
-    assert type(native.decode_json(b"1")) is int
-    assert type(native.decode_json(b"1.0")) is float
-    assert type(native.decode_json(b"1e2")) is float
-    assert native.decode_json(b"[true, 1]") == [True, 1]
-    assert type(native.decode_json(b"[true]")[0]) is bool
+    assert type(core.decode_json(b"1")) is int
+    assert type(core.decode_json(b"1.0")) is float
+    assert type(core.decode_json(b"1e2")) is float
+    assert core.decode_json(b"[true, 1]") == [True, 1]
+    assert type(core.decode_json(b"[true]")[0]) is bool
 
 
 @pytest.mark.parametrize(
@@ -66,12 +66,12 @@ def test_decode_keeps_numeric_types() -> None:
 )
 def test_decode_rejects_invalid_documents(raw: bytes) -> None:
     with pytest.raises(ValueError):  # noqa: PT011 - any ValueError is the contract
-        native.decode_json(raw)
+        core.decode_json(raw)
 
 
 def test_decode_limits_nesting_instead_of_overflowing() -> None:
     with pytest.raises(ValueError):  # noqa: PT011
-        native.decode_json(b"[" * 100000 + b"]" * 100000)
+        core.decode_json(b"[" * 100000 + b"]" * 100000)
 
 
 @pytest.mark.parametrize(
@@ -88,25 +88,25 @@ def test_decode_limits_nesting_instead_of_overflowing() -> None:
     ],
 )
 def test_encode_round_trips_through_the_standard_library(value: Any) -> None:
-    assert json.loads(native.encode_json(value)) == value
+    assert json.loads(core.encode_json(value)) == value
 
 
 def test_encode_is_compact_utf8_and_coerces_like_json_dumps() -> None:
-    assert native.encode_json({"é": (1, 2)}) == '{"é":[1,2]}'.encode()
+    assert core.encode_json({"é": (1, 2)}) == '{"é":[1,2]}'.encode()
     for keys in ({1: "a", None: "c"}, {True: "b"}, {False: "d"}):
-        assert json.loads(native.encode_json(keys)) == json.loads(json.dumps(keys))
+        assert json.loads(core.encode_json(keys)) == json.loads(json.dumps(keys))
 
 
 @pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf, [math.nan]])
 def test_encode_refuses_non_finite_numbers(value: Any) -> None:
     with pytest.raises(ValueError, match="JSON compliant"):
-        native.encode_json(value)
+        core.encode_json(value)
 
 
 @pytest.mark.parametrize("value", [object(), {1, 2}, b"x", {(1, 2): 1}])
 def test_encode_refuses_what_json_cannot_hold(value: Any) -> None:
     with pytest.raises(TypeError):
-        native.encode_json(value)
+        core.encode_json(value)
 
 
 def test_encode_limits_nesting() -> None:
@@ -114,21 +114,21 @@ def test_encode_limits_nesting() -> None:
     for _ in range(5000):
         deep = [deep]
     with pytest.raises(ValueError, match="nested"):
-        native.encode_json(deep)
+        core.encode_json(deep)
 
 
 def test_query_strings_match_parse_qs_for_valid_input() -> None:
     raw = "a=1&b&c=&a=x%20y+z&&d=%zz&e=%41"
     expected = parse_qs(raw, keep_blank_values=True, errors="strict")
-    assert native.parse_query_string(raw.encode(), 100) == expected
+    assert core.parse_query_string(raw.encode(), 100) == expected
 
 
 def test_query_strings_reject_non_ascii_and_bad_utf8() -> None:
     for raw in ("é=1".encode(), b"a=%ff", b"%ff=1"):
         with pytest.raises(ValueError):  # noqa: PT011
-            native.parse_query_string(raw, 100)
+            core.parse_query_string(raw, 100)
 
 
 def test_header_dict_lowers_names_and_joins_repeats() -> None:
-    found = native.header_dict([(b"X-A", b"1"), (b"x-b", b"\xe9"), (b"x-a", b"3")])
+    found = core.header_dict([(b"X-A", b"1"), (b"x-b", b"\xe9"), (b"x-a", b"3")])
     assert found == {"x-a": "1, 3", "x-b": "é"}

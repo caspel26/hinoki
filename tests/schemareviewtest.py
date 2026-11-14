@@ -5,7 +5,7 @@ from typing import Annotated, Any
 
 import pytest
 
-from hinoki import Field, Hinoki, RegistrationError, Request, Schema, get, native
+from hinoki import Field, Hinoki, RegistrationError, Request, Schema, core, get
 from hinoki.fields import FieldInfo
 from hinoki.fieldtypes import check_limits
 from tests.harness import Pool
@@ -25,9 +25,9 @@ class Plain(Schema):
 
 
 def test_an_overridden_dump_decides_what_is_serialised() -> None:
-    assert json.loads(native.encode_json(Renamed(a=1))) == {"a": 1}
-    assert json.loads(native.encode_json({"x": [Renamed(a=2)]})) == {"x": [{"a": 2}]}
-    assert json.loads(native.encode_json(Plain(a=1))) == {"a": 1, "secret": "kept"}
+    assert json.loads(core.encode_json(Renamed(a=1))) == {"a": 1}
+    assert json.loads(core.encode_json({"x": [Renamed(a=2)]})) == {"x": [{"a": 2}]}
+    assert json.loads(core.encode_json(Plain(a=1))) == {"a": 1, "secret": "kept"}
 
 
 async def test_a_response_never_leaks_what_dump_hides(pool: Pool) -> None:

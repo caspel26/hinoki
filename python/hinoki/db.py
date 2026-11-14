@@ -17,18 +17,18 @@ from contextvars import ContextVar, Token
 from types import TracebackType
 from typing import TYPE_CHECKING
 
-from hinoki import native
-from hinoki.modules import Module, ModuleContext
-from hinoki.native import (
+from hinoki import core
+from hinoki.core import (
     CheckViolation,
     DatabaseError,
     ForeignKeyViolation,
     NotNullViolation,
     UniqueViolation,
 )
+from hinoki.modules import Module, ModuleContext
 
 if TYPE_CHECKING:
-    from hinoki.native import Param, Row
+    from hinoki.core import Param, Row
 
 __all__ = [
     "CheckViolation",
@@ -45,7 +45,7 @@ log = logging.getLogger("hinoki.db")
 class ActiveTransaction:
     """A native transaction, the task that owns it and its savepoint counter."""
 
-    def __init__(self, database: Database, native_tx: native.Transaction) -> None:
+    def __init__(self, database: Database, native_tx: core.Transaction) -> None:
         self.database = database
         self.native = native_tx
         self.owner = asyncio.current_task()
@@ -67,7 +67,7 @@ current: ContextVar[ActiveTransaction | None] = ContextVar(
 class Database:
     """A connection pool for one PostgreSQL database."""
 
-    def __init__(self, engine: native.Database) -> None:
+    def __init__(self, engine: core.Database) -> None:
         self.engine = engine
 
     @classmethod
@@ -75,7 +75,7 @@ class Database:
         cls, url: str, *, max_size: int = 8, wait: float = 5.0
     ) -> Database:
         """Open the pool and verify the server answers (fails fast at startup)."""
-        engine = await native.Database.connect(url, max_size, int(wait * 1000))
+        engine = await core.Database.connect(url, max_size, int(wait * 1000))
         return cls(engine)
 
     def active(self) -> ActiveTransaction | None:

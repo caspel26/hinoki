@@ -107,7 +107,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Build abi3 wheel
         run: uv build --wheel
-      - name: Verify the native extension has its matching stub
+      - name: Verify the core extension has its matching stub
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -116,8 +116,8 @@ jobs:
           wheel = next(Path("dist").glob("hinoki-*.whl"))
           with ZipFile(wheel) as archive:
               files = set(archive.namelist())
-          assert "hinoki/native.pyi" in files
-          assert any(name.startswith("hinoki/native.") and name.endswith(".so") for name in files)
+          assert "hinoki/core.pyi" in files
+          assert any(name.startswith("hinoki/core.") and name.endswith(".so") for name in files)
           PY
       - name: Smoke-test the wheel in a clean environment
         run: |
@@ -127,12 +127,12 @@ jobs:
           cd /tmp
           "${GITHUB_WORKSPACE}/.venv/bin/mypy" --config-file=/dev/null --strict \
             --python-executable=/tmp/wheel-env/bin/python \
-            "${GITHUB_WORKSPACE}/tests/typing/native.py"
+            "${GITHUB_WORKSPACE}/tests/typing/core.py"
           /tmp/wheel-env/bin/python -c "import hinoki; print(hinoki.__version__)"
       - name: Smoke-test the packaged data files and native features
         run: |
           /tmp/wheel-env/bin/python - <<'PY'
-          from hinoki import Schema, native
+          from hinoki import Schema, core
           from hinoki.admin.templates import Templates
           from hinoki.docsui import pages
 
@@ -140,10 +140,12 @@ jobs:
               name: str
 
           assert T.validate({"name": "x"}).name == "x"
-          assert native.encode_json(T(name="x")) == b'{"name":"x"}'
+          assert core.Router.__module__ == "hinoki.core"
+          assert core.DatabaseError.__module__ == "hinoki.core"
+          assert core.encode_json(T(name="x")) == b'{"name":"x"}'
           assert len(Templates(theme="console").stylesheet()) > 1000
           assert len(pages("/o", "/d", "/r")) == 6
-          assert native.verify_password("a", native.hash_password("a", 19456, 2, 1))
+          assert core.verify_password("a", core.hash_password("a", 19456, 2, 1))
           print("wheel smoke ok")
           PY
 

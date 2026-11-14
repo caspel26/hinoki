@@ -14,7 +14,7 @@ First observations (2026-11-13, one Linux laptop, Python 3.13, **debug-profile**
 
 | Router | Median per lookup | CV |
 | --- | --- | --- |
-| `hinoki.native.Router` | ≈ 0.3 µs | ≈ 1–5 % |
+| `hinoki.core.Router` | ≈ 0.3 µs | ≈ 1–5 % |
 | Python regex baseline (9 routes) | ≈ 0.6 µs | ≈ 3 % |
 
 A one-off release-profile build (`uvx maturin develop --release --uv`) gave a statistically indistinguishable result (≈ 0.33 µs vs ≈ 0.6 µs), so the cost is dominated by the Python↔Rust call, argument conversion and the result tuple, not by the matching itself. Consequences:
@@ -27,7 +27,7 @@ Not yet measured (RUNTIME-DESIGN V10): ASGI vs RSGI, extra Tokio threads per wor
 
 ## `requestbench.py` — JSON and query parsing, Python vs Rust
 
-Question: what does decoding a JSON body, encoding a response and parsing a query string cost through `hinoki.native` compared with `json.loads` / `json.dumps` / `urllib.parse.parse_qs`? One payload (about 1.2 KB: nested object, 20-item list, strings, numbers, booleans, null), 7 samples × 20 000 calls.
+Question: what does decoding a JSON body, encoding a response and parsing a query string cost through `hinoki.core` compared with `json.loads` / `json.dumps` / `urllib.parse.parse_qs`? One payload (about 1.2 KB: nested object, 20-item list, strings, numbers, booleans, null), 7 samples × 20 000 calls.
 
 ```sh
 uv run --locked python benchmarks/requestbench.py
@@ -69,5 +69,5 @@ Observation (2026-11-13, one 8-core Linux laptop, Python 3.14, debug-profile ext
 Question: does moving `from_model` (read each field from the row, convert nested models, build the instance) into Rust pay off? A model row with eight columns, 7 samples × 20 000 calls (2026-11-13, same machine, **release-profile extension**: `uvx maturin develop --release --uv`).
 
 * First version: the plan was re-extracted from Python tuples on every call, and the Rust path was **slower** (≈ 4.7 µs against ≈ 2.7 µs for the Python loop; 0.58×). It was not shipped in that form.
-* Final version: the plan is prepared once per class (`native.ModelPlan`), and when every field is present the instance is built directly, skipping the dataclass constructor: ≈ 1.8 µs against ≈ 2.65 µs, **1.46× faster** (CV 2–4 %). Not end to end.
+* Final version: the plan is prepared once per class (`core.ModelPlan`), and when every field is present the instance is built directly, skipping the dataclass constructor: ≈ 1.8 µs against ≈ 2.65 µs, **1.46× faster** (CV 2–4 %). Not end to end.
 * A debug-profile build makes the Rust path look slower than it is; measure releases.

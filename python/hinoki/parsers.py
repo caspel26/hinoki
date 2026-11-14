@@ -15,7 +15,7 @@ import re
 from collections.abc import Iterator, Mapping, Sequence
 from typing import ClassVar
 
-from hinoki import native
+from hinoki import core
 from hinoki.errors import InvalidBody
 
 DEFAULT_FIELDS = 1000
@@ -100,7 +100,7 @@ class JSONParser(Parser):
 
     def parse(self, raw: bytes, content_type: str) -> Parsed:  # noqa: ARG002
         try:
-            data = native.decode_json(raw)
+            data = core.decode_json(raw)
         except ValueError:
             raise InvalidBody("invalid_json", "the body is not valid JSON") from None
         return Parsed(self.prepare(data))  # a bug in the hook is not a bad body
@@ -139,7 +139,7 @@ class FormParser(Parser):
 
     def parse(self, raw: bytes, content_type: str) -> Parsed:  # noqa: ARG002
         try:
-            fields = native.parse_query_string(raw, self.max_fields)
+            fields = core.parse_query_string(raw, self.max_fields)
         except ValueError:
             raise InvalidBody("invalid_form", "malformed form body") from None
         return Parsed({name: values[-1] for name, values in fields.items()}, fields)
@@ -171,7 +171,7 @@ class MultiPartParser(Parser):
 
     def parse(self, raw: bytes, content_type: str) -> Parsed:
         try:
-            pairs, found = native.parse_multipart_body(
+            pairs, found = core.parse_multipart_body(
                 raw, boundary_of(content_type), self.max_parts, self.max_part_bytes
             )
         except ValueError as exc:

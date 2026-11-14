@@ -57,7 +57,7 @@ struct Definition {
 }
 
 /// A schema (and everything reachable from it) ready to validate.
-#[pyclass(name = "CompiledSchema", module = "hinoki.native")]
+#[pyclass(name = "CompiledSchema", module = "hinoki.core")]
 pub struct Compiled {
     definitions: Vec<Definition>,
     root: usize,
@@ -815,7 +815,7 @@ struct PlanField {
 }
 
 /// The fields of a schema as `from_model` reads them, prepared once per class.
-#[pyclass(name = "ModelPlan", module = "hinoki.native")]
+#[pyclass(name = "ModelPlan", module = "hinoki.core")]
 pub struct ModelPlan {
     class: Py<PyAny>,
     fields: Vec<PlanField>,

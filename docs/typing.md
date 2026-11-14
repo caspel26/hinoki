@@ -29,4 +29,4 @@ await task.asave()
 
 `Model.acreate(**values)` and some filter/update keyword calls cannot currently verify each field name against the model class. Use the constructor plus `asave()` when you want field-level checking on insertion. This limitation does not affect runtime validation of model fields or database constraints.
 
-The Python and Rust packages include typing metadata and the native module has a stub. See the [API reference](reference/index.md) for the public signatures.
+The Python package includes typing metadata, and the compiled `hinoki.core` module has a matching stub. See the [API reference](reference/index.md) for the public signatures.

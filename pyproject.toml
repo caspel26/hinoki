@@ -55,7 +55,7 @@ test = [
 
 [tool.maturin]
 python-source = "python"
-module-name = "hinoki.native"
+module-name = "hinoki.core"
 manifest-path = "crates/bindings/Cargo.toml"
 features = ["pyo3/extension-module"]
 
