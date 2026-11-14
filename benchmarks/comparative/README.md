@@ -34,6 +34,8 @@ Every service runs 4 server processes with a pool of 10 connections per process.
 
 **Nothing is measured unless verification passes.** `verify.py` compares each service with an oracle that reads the rows straight from PostgreSQL: the same status and the same data for the same requests (datetimes compared after parsing), and the same number of SQL statements per scenario, counted with `pg_stat_statements` after every worker has been warmed (PostgreSQL's own foreign-key trigger statements excluded). That is what prevents one framework from looking faster because it loads less, or slower because it issues an N+1.
 
+Transaction control statements are not counted, and the `create` handlers differ there: `hinoki_app.py` (`transaction=True`) and `fastapi_app.py` (session `commit()`) wrap their two statements in `BEGIN`/`COMMIT`, while `ninja_app.py` and `benchapp/api.py` (Bolt) use Django's autocommit. The recorded 2026-11-14 run has this difference; align the handlers (or count transaction control) before the next measured run.
+
 ## Reproduce
 
 ```sh

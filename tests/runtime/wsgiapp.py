@@ -25,9 +25,14 @@ async def echo(request: Request, data: Echo) -> Echo:
     return data
 
 
+@http.query("/find")
+def find(data: Echo) -> Echo:
+    return data
+
+
 def create_app() -> Hinoki:
     app = Hinoki()
-    app.include(ping, sync_ping, echo)
+    app.include(ping, sync_ping, echo, find)
     return app
 
 

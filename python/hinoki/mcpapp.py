@@ -31,12 +31,13 @@ from hinoki.mcp import (
     failure,
     reply,
 )
+from hinoki.openapi import operation_key
 from hinoki.reply import Reply
 from hinoki.request import Request
 from hinoki.routing import Route
 from hinoki.rules import qualified
 
-SAFE = frozenset({"GET", "HEAD"})
+SAFE = frozenset({"GET", "HEAD", "QUERY"})
 FORWARDED = ("authorization", "cookie", "x-api-key", "host", "x-forwarded-for")
 MAX_OUTPUT = 100_000
 MAX_MESSAGE = 1_000_000
@@ -190,7 +191,8 @@ def select(
             continue
         if route.method not in SAFE and not allow_writes:
             continue
-        operation = document["paths"].get(route.path, {}).get(route.method.lower())
+        key = operation_key(route.method)
+        operation = document["paths"].get(route.path, {}).get(key)
         if operation is None:
             raise ExposureError(f"{qualified(route)} is not in the OpenAPI document")
         chosen.append(Tool(route, operation, defs))

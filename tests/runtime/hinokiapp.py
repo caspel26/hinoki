@@ -57,6 +57,11 @@ async def echo(request: Request, name: str) -> dict[str, str]:
     return {"name": name}
 
 
+@http.query("/find")
+async def find(request: Request) -> dict[str, object]:
+    return {"method": request.method, "data": request.data}
+
+
 @http.get("/sync-slow")
 def sync_slow(request: Request) -> dict[str, int]:
     time.sleep(1.0)
@@ -72,5 +77,5 @@ async def async_slow(request: Request) -> dict[str, int]:
 
 
 app = Hinoki(runtime=RuntimeConfig(sync_workers=2, sync_queue=0))
-app.include(fast, echo, sync_slow, async_slow)
+app.include(fast, echo, find, sync_slow, async_slow)
 app.install(Gamma(), Alpha(), Beta())
