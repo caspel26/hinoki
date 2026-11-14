@@ -6,17 +6,7 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import (
-    Access,
-    Caller,
-    Conflict,
-    Hinoki,
-    Request,
-    Schema,
-    delete,
-    get,
-    post,
-)
+from hinoki import Access, Caller, Conflict, Hinoki, Request, Schema, http
 from hinoki.mcpapp import ExposureError, expose_as_mcp
 from hinoki.testing import ASGIClient
 from tests.providers import TokenAuth
@@ -38,27 +28,27 @@ class NoteOut(Schema):
     owner: str
 
 
-@get("/notes/{note_id}", access=reader)
+@http.get("/notes/{note_id}", access=reader)
 async def read_note(request: Request, note_id: str, caller: Caller[str]) -> NoteOut:
     """Read one note."""
     return NoteOut(title=note_id, owner=caller.id)
 
 
-@get("/search", access=reader)
+@http.get("/search", access=reader)
 async def search(request: Request, q: str, limit: int = 5) -> dict[str, Any]:
     return {"q": q, "limit": limit}
 
 
-@post("/notes", status=201, access=writer)
+@http.post("/notes", status=201, access=writer)
 async def add_note(request: Request, data: NoteIn, caller: Caller[str]) -> NoteOut:
     return NoteOut(title=data.title, owner=caller.id)
 
 
-@delete("/notes/{note_id}", status=204, access=writer)
+@http.delete("/notes/{note_id}", status=204, access=writer)
 async def drop_note(request: Request, note_id: str) -> None: ...
 
 
-@get("/secret")
+@http.get("/secret")
 async def public_secret(request: Request) -> dict[str, str]:
     return {"hidden": "yes"}
 
@@ -254,7 +244,7 @@ async def test_the_nested_request_sees_the_client_and_a_second_mount_is_hidden()
 ):
     seen: dict[str, Any] = {}
 
-    @get("/who", access=reader)
+    @http.get("/who", access=reader)
     async def who(request: Request) -> dict[str, str]:
         seen["client"], seen["host"] = request.client, request.headers.get("host")
         return {}
@@ -275,7 +265,7 @@ async def test_declared_errors_appear_in_the_tool_description() -> None:
     class Gone(Conflict):
         code = "gone_already"
 
-    @get("/gone", access=reader, errors=(Gone,))
+    @http.get("/gone", access=reader, errors=(Gone,))
     async def gone() -> None: ...
 
     app = Hinoki()

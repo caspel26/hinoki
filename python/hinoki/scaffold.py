@@ -68,14 +68,14 @@ class AppSettings(FrameworkSettings, prefix="{upper}_", dotenv=".env"):
 
 API = '''"""Endpoints. Protected actions name an Access policy; declare `request: Request` first only when you need it."""
 
-from hinoki import Schema, get
+from hinoki import Schema, http
 
 
 class Health(Schema):
     status: str
 
 
-@get("/health")
+@http.get("/health")
 def health() -> Health:
     """Liveness: answers while the worker runs."""
     return Health(status="ok")

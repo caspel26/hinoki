@@ -2,11 +2,11 @@
 
 import pytest
 
-from hinoki import Hinoki, HTMLRenderer, Reply, Request, get, post, set_cookie
+from hinoki import Hinoki, HTMLRenderer, Reply, Request, http, set_cookie
 from tests.harness import Client, Pool
 
 
-@get("/go")
+@http.get("/go")
 def go(request: Request) -> Reply:
     return Reply(
         303,
@@ -14,22 +14,22 @@ def go(request: Request) -> Reply:
     )
 
 
-@get("/page", renderers=[HTMLRenderer()])
+@http.get("/page", renderers=[HTMLRenderer()])
 def page(request: Request) -> str:
     return "<h1>hi</h1>"
 
 
-@get("/bad-page", renderers=[HTMLRenderer()])
+@http.get("/bad-page", renderers=[HTMLRenderer()])
 def bad_page(request: Request) -> dict[str, str]:
     return {"not": "a string"}
 
 
-@get("/text")
+@http.get("/text")
 def text(request: Request) -> Reply:
     return Reply(201, "ünï", content_type="text/plain; charset=utf-8")
 
 
-@post("/boom")
+@http.post("/boom")
 def boom(request: Request) -> Reply:
     return Reply(200, headers={"x-a": "line\r\nSet-Cookie: x=1"})
 

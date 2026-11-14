@@ -12,8 +12,7 @@ from hinoki import (
     Renderer,
     Request,
     core,
-    get,
-    post,
+    http,
 )
 from hinoki.parsers import boundary_of
 from tests.harness import Client, Pool
@@ -26,32 +25,32 @@ class SpacedCSV(Renderer):
         return b"a"
 
 
-@get("/cookies")
+@http.get("/cookies")
 def cookies(request: Request) -> dict[str, Any]:
     return {"cookies": request.COOKIES}
 
 
-@post("/echo")
+@http.post("/echo")
 def echo(request: Request) -> dict[str, Any]:
     return {"data": request.data}
 
 
-@post("/probe")
+@http.post("/probe")
 def probe(request: Request) -> dict[str, Any]:
     return {"post": dict(request.POST)}
 
 
-@post("/form", parsers=[FormParser(max_fields=3)])
+@http.post("/form", parsers=[FormParser(max_fields=3)])
 def form(request: Request) -> dict[str, Any]:
     return {"n": len(request.POST)}
 
 
-@get("/typed", renderers=[JSONRenderer(), SpacedCSV()])
+@http.get("/typed", renderers=[JSONRenderer(), SpacedCSV()])
 def typed(request: Request) -> dict[str, str]:
     return {}
 
 
-@post("/upload", parsers=[MultiPartParser()])
+@http.post("/upload", parsers=[MultiPartParser()])
 def upload(request: Request) -> dict[str, Any]:
     return {"filenames": [f.filename for f in request.FILES.getlist("f")]}
 

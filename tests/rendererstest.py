@@ -5,7 +5,7 @@ from typing import Any, cast
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import Hinoki, JSONRenderer, Renderer, Request, get
+from hinoki import Hinoki, JSONRenderer, Renderer, Request, http
 from tests.harness import Client, Pool
 
 
@@ -18,22 +18,22 @@ class CSVRenderer(Renderer):
         return "\n".join(lines).encode()
 
 
-@get("/default")
+@http.get("/default")
 def default(request: Request) -> dict[str, int]:
     return {"a": 1}
 
 
-@get("/many", renderers=[JSONRenderer(), CSVRenderer()])
+@http.get("/many", renderers=[JSONRenderer(), CSVRenderer()])
 def many(request: Request) -> list[dict[str, Any]]:
     return [{"a": 1, "b": "x"}, {"a": 2, "b": "y"}]
 
 
-@get("/csvonly", renderers=[CSVRenderer()])
+@http.get("/csvonly", renderers=[CSVRenderer()])
 def csvonly(request: Request) -> dict[str, int]:
     return {"a": 1}
 
 
-@get("/nothing", renderers=[CSVRenderer()])
+@http.get("/nothing", renderers=[CSVRenderer()])
 def nothing(request: Request) -> None: ...
 
 
@@ -108,4 +108,4 @@ def test_openapi_lists_the_media_types_of_the_renderers() -> None:
 )
 def test_renderer_lists_are_checked_at_declaration(renderers: list[Renderer]) -> None:
     with pytest.raises(ValueError, match="renderers must be"):
-        get("/x", renderers=renderers)(len)
+        http.get("/x", renderers=renderers)(len)

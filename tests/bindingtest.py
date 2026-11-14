@@ -1,22 +1,22 @@
 import pytest
 
-from hinoki import API, Hinoki, RegistrationError, core, get
+from hinoki import API, Hinoki, RegistrationError, core, http
 from hinoki.request import Request
 
 
-@get("/a/{x}/b/{x}")
+@http.get("/a/{x}/b/{x}")
 def repeated(request: Request, x: int) -> None: ...
 
 
-@get("/pos/{x}")
+@http.get("/pos/{x}")
 def positional_only(request: Request, x: int, /) -> None: ...
 
 
-@get("/star/{x}")
+@http.get("/star/{x}")
 def star_args(request: Request, *x: int) -> None: ...
 
 
-@get("/kw/{x}")
+@http.get("/kw/{x}")
 def star_kwargs(request: Request, **x: int) -> None: ...
 
 
@@ -24,15 +24,15 @@ class NeedsArgs(API, path="/needs"):
     def __init__(self, dependency: object) -> None:
         self.dependency = dependency
 
-    @get("/")
+    @http.get("/")
     def index(self, request: Request) -> None: ...
 
 
 class Base(API, path="/base"):
-    @get("/one")
+    @http.get("/one")
     def one(self, request: Request) -> None: ...
 
-    @get("/two")
+    @http.get("/two")
     def two(self, request: Request) -> None: ...
 
 
@@ -47,7 +47,7 @@ class Other(Base, path="/other"):
 
 class WithStatic(API, path="/static"):
     @staticmethod
-    @get("/x")
+    @http.get("/x")
     def only(request: Request) -> None: ...
 
 

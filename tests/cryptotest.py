@@ -15,7 +15,7 @@ from typing import Any, ClassVar
 
 import pytest
 
-from hinoki import Access, Caller, Hinoki, Request, core, get
+from hinoki import Access, Caller, Hinoki, Request, core, http
 from hinoki.crypto import (
     HashingBusy,
     JWTAuth,
@@ -282,7 +282,7 @@ async def test_without_keys_the_provider_refuses_to_run() -> None:
 async def test_the_provider_guards_an_action_over_http(pool: Pool) -> None:
     editor = Access(auth=Tokens(), permissions=["w"])
 
-    @get("/me", access=editor)
+    @http.get("/me", access=editor)
     def me(request: Request, principal: Caller[str]) -> dict[str, str]:
         return {"who": principal.id}
 

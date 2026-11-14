@@ -3,7 +3,7 @@
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import Hinoki, RegistrationError, Schema, get
+from hinoki import Hinoki, RegistrationError, Schema, http
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from hinoki.request import Request
 from tests.harness import Pool
@@ -16,17 +16,17 @@ class ItemOut(Schema):
     name: str
 
 
-@get("/items", pagination=strategy)
+@http.get("/items", pagination=strategy)
 async def items(request: Request, page: PageParams) -> Page[ItemOut]:
     return Page.of(ROWS, page).map(lambda name: ItemOut(name=name))
 
 
-@get("/orphan")
+@http.get("/orphan")
 async def orphan(request: Request, page: PageParams) -> Page[ItemOut]:
     raise NotImplementedError
 
 
-@get("/unused", pagination=strategy)
+@http.get("/unused", pagination=strategy)
 async def unused(request: Request) -> None: ...
 
 

@@ -15,8 +15,8 @@ from hinoki import (
     Schema,
     ValidationError,
     field_check,
+    http,
     object_check,
-    post,
 )
 from hinoki.orm import Model, field, foreign_key
 from hinoki.schema import graph_has_checks
@@ -255,7 +255,7 @@ def test_schemas_without_checks_pay_nothing() -> None:
 
 
 async def test_checks_run_on_request_bodies_and_answer_422() -> None:
-    @post("/signup", status=201)
+    @http.post("/signup", status=201)
     async def signup(data: SignUp) -> dict[str, str]:
         return {"ok": "yes"}
 

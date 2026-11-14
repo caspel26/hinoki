@@ -2,7 +2,7 @@
 
 import pytest
 
-from hinoki import APIError, BadRequest, Conflict, Hinoki, NotFound, get
+from hinoki import APIError, BadRequest, Conflict, Hinoki, NotFound, http
 from hinoki.errors import ObjectNotFound
 from hinoki.request import Request
 from tests.harness import Pool
@@ -24,42 +24,42 @@ class Teapot(APIError):
     code = "teapot"
 
 
-@get("/conflict")
+@http.get("/conflict")
 async def conflict(request: Request) -> None:
     raise PostAlreadyPublished()
 
 
-@get("/custom-message")
+@http.get("/custom-message")
 async def custom_message(request: Request) -> None:
     raise NotFound("No such post.", code="post_missing")
 
 
-@get("/details")
+@http.get("/details")
 async def details(request: Request) -> None:
     raise BadRequest(details=[{"field": "x"}], headers={"x-hint": "retry"})
 
 
-@get("/quota")
+@http.get("/quota")
 async def quota(request: Request) -> None:
     raise Quota("secret quota internals")
 
 
-@get("/hard-quota")
+@http.get("/hard-quota")
 def hard_quota(request: Request) -> None:
     raise HardQuota()
 
 
-@get("/missing-object")
+@http.get("/missing-object")
 async def missing_object(request: Request) -> None:
     raise ObjectNotFound("Post not found")
 
 
-@get("/teapot")
+@http.get("/teapot")
 async def teapot(request: Request) -> None:
     raise Teapot()
 
 
-@get("/broken-handler")
+@http.get("/broken-handler")
 async def broken_handler(request: Request) -> None:
     raise KeyError("x")
 

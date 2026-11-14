@@ -4,11 +4,11 @@ from typing import Any
 
 import pytest
 
-from hinoki import API, Hinoki, RegistrationError, Request, core, get, post
+from hinoki import API, Hinoki, RegistrationError, Request, core, http
 from tests.harness import Client, Pool
 
 
-@get("/echo/{name}")
+@http.get("/echo/{name}")
 async def echo(request: Request, name: str, tag: str = "") -> dict[str, Any]:
     return {
         "method": request.method,
@@ -25,7 +25,7 @@ async def echo(request: Request, name: str, tag: str = "") -> dict[str, Any]:
     }
 
 
-@post("/raw")
+@http.post("/raw")
 def raw(request: Request) -> dict[str, Any]:
     return {
         "length": len(request.body),
@@ -35,7 +35,7 @@ def raw(request: Request) -> dict[str, Any]:
 
 
 class Things(API, path="/things"):
-    @get("/")
+    @http.get("/")
     async def listing(self, request: Request) -> dict[str, str]:
         return {"method": request.method}
 
@@ -106,22 +106,22 @@ def test_cookie_parsing_is_forgiving_and_first_value_wins() -> None:
     }
 
 
-@get("/bare")
+@http.get("/bare")
 def bare() -> dict[str, str]:
     return {"declared": "no"}
 
 
-@get("/bare/{item}")
+@http.get("/bare/{item}")
 async def bare_path(item: int) -> dict[str, int]:
     return {"item": item}
 
 
 class Quiet(API, path="/quiet"):
-    @get("/")
+    @http.get("/")
     def index(self) -> dict[str, str]:
         return {"class": "no request"}
 
-    @get("/with")
+    @http.get("/with")
     def with_request(self, request: Request) -> dict[str, str]:
         return {"method": request.method}
 
@@ -139,16 +139,16 @@ async def test_the_request_is_optional_and_passed_only_when_declared(
 
 
 def test_a_declared_request_must_be_first_and_annotated() -> None:
-    @get("/late/{x}")
+    @http.get("/late/{x}")
     def late(x: int, request: Request) -> None: ...
 
-    @get("/api")
+    @http.get("/api")
     def untyped(request) -> None: ...  # type: ignore[no-untyped-def]
 
-    @get("/two")
+    @http.get("/two")
     def two(request: Request, other: Request) -> None: ...
 
-    @get("/wrong")
+    @http.get("/wrong")
     def wrong(request: int) -> None: ...
 
     for target, message in (

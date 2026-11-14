@@ -39,7 +39,7 @@ The corresponding `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` setti
 Add a useful docstring to each handler because it is the source for operation text:
 
 ```python
-@get("/tasks/{task_id}")
+@http.get("/tasks/{task_id}")
 async def get_task(task_id: UUID) -> TaskOutput:
     """Read one task.
 
