@@ -36,4 +36,4 @@ async with ASGIClient(create_app(URL), strict_errors=True) as client:
 
 ## Where next
 
-[Patterns and best practices](../PATTERNS.md), [the application MCP](../APP-MCP-DESIGN.md) (the tracker already exposes `list_tasks` to agents), and [building with an AI agent](../AI-WORKFLOW.md).
+[Patterns and best practices](../PATTERNS.md) and [building with an AI agent](../AI-WORKFLOW.md).

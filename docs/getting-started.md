@@ -49,5 +49,5 @@ Open `/docs` (Swagger UI) or `/redoc`.
 ## What next
 
 * Structure a real application: [Patterns and best practices](PATTERNS.md) and the layered `examples/tracker`.
-* Turn on the [rules](RULES.md) and configure with [settings](SETTINGS-DESIGN.md).
+* Turn on the [rules](RULES.md) and configure with [settings](SETTINGS.md).
 * Configure development tooling: [Build with an agent](AI-WORKFLOW.md).
