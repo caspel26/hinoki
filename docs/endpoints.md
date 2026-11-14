@@ -22,7 +22,7 @@ async def create_task(data: TaskInput) -> TaskOutput:
     return TaskOutput.from_model(row)
 ```
 
-Use `@http.get`, `@http.post`, `@http.put`, `@http.patch` or `@http.delete` (`from hinoki import http`). Supported arguments include `status`, `access`, `transaction`, `pagination`, `parsers`, `renderers`, `errors` and `replaces`. Each is checked when the route is declared or registered.
+Use `@http.get`, `@http.post`, `@http.put`, `@http.patch` or `@http.delete` (`from hinoki import http`). Hinoki also answers `HEAD` through each `GET` route: it runs the GET response path and returns the same status and representation headers without a body. The GET handler therefore runs for HEAD requests too. A `405` response's `Allow` header includes `HEAD` whenever `GET` is available. Supported decorator arguments include `status`, `access`, `transaction`, `pagination`, `parsers`, `renderers`, `errors` and `replaces`. Each is checked when the route is declared or registered.
 
 ## Bind request values
 

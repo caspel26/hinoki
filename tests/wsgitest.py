@@ -51,7 +51,15 @@ def call(
 def test_async_sync_and_body_handlers_answer_in_process() -> None:
     adapter = WSGIAdapter(create_app())
     try:
-        assert call(adapter, "GET", "/ping")[::2] == ("200 OK", {"pong": "async"})
+        get = call(adapter, "GET", "/ping")
+        head = call(adapter, "HEAD", "/ping")
+        assert head[0] == get[0] == "200 OK"
+        assert get[2] == {"pong": "async"}
+        assert head[2] is None
+        assert head[1]["content-length"] == get[1]["content-length"]
+        assert {
+            key: value for key, value in head[1].items() if key != "x-request-id"
+        } == {key: value for key, value in get[1].items() if key != "x-request-id"}
         assert call(adapter, "GET", "/sync")[::2] == ("200 OK", {"pong": "sync"})
         status, headers, body = call(adapter, "POST", "/echo", b'{"text":"hi"}')
         assert (status, body) == ("201 Created", {"text": "hi"})
@@ -131,7 +139,23 @@ def test_a_real_wsgi_server_serves_the_application() -> None:
         wait_ready(port, "/ping")
         base = f"http://127.0.0.1:{port}"
         with urllib.request.urlopen(f"{base}/sync") as reply:
-            assert json.load(reply) == {"pong": "sync"}
+            get_body = reply.read()
+            get_headers = dict(reply.headers.items())
+            assert json.loads(get_body) == {"pong": "sync"}
+        request = urllib.request.Request(f"{base}/sync", method="HEAD")
+        with urllib.request.urlopen(request) as reply:
+            assert (reply.status, reply.read()) == (200, b"")
+            head_headers = dict(reply.headers.items())
+        assert head_headers["content-length"] == str(len(get_body))
+        assert {
+            key: value
+            for key, value in head_headers.items()
+            if key.lower() not in {"date", "x-request-id"}
+        } == {
+            key: value
+            for key, value in get_headers.items()
+            if key.lower() not in {"date", "x-request-id"}
+        }
         request = urllib.request.Request(
             f"{base}/echo",
             data=b'{"text":"x"}',
