@@ -76,6 +76,7 @@ nav:
       - 5. Rules: tutorial/5-rules.md
       - 6. Run and test it: tutorial/6-run.md
   - Guides:
+      - Overview: GUIDES.md
       - Data:
           - Models and queries: MODELS.md
           - Schemas: SCHEMAS.md
