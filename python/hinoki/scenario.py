@@ -1,7 +1,7 @@
 """Run one HTTP request against the application in-process (no sockets).
 
 Used by the development MCP tool ``run_scenario``, which is off unless the owner
-starts the server with ``--scenarios read`` (GET/HEAD/OPTIONS only) or
+starts the server with ``--scenarios read`` (GET/HEAD/OPTIONS/QUERY only) or
 ``--scenarios write`` (any method). The application's lifespan runs, so a
 configured database is opened and handlers really execute: point it at a
 disposable database, never at real data.
@@ -16,7 +16,7 @@ from typing import Any
 
 from hinoki.app import Hinoki
 
-SAFE = frozenset({"GET", "HEAD", "OPTIONS"})
+SAFE = frozenset({"GET", "HEAD", "OPTIONS", "QUERY"})
 METHODS = SAFE | {"POST", "PUT", "PATCH", "DELETE"}
 MAX_BODY = 20_000
 TIMEOUT = 15
