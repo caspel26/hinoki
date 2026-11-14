@@ -1,6 +1,6 @@
 [package]
 name = "hinoki-bindings"
-description = "PyO3 bindings exposing the Hinoki native core to Python (hinoki.native)"
+description = "PyO3 bindings exposing the Hinoki native core to Python (hinoki.core)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

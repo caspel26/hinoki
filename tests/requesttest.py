@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import API, Hinoki, RegistrationError, Request, get, native, post
+from hinoki import API, Hinoki, RegistrationError, Request, core, get, post
 from tests.harness import Client, Pool
 
 
@@ -100,7 +100,7 @@ async def test_api_classes_receive_the_request_after_self(pool: Pool) -> None:
 
 
 def test_cookie_parsing_is_forgiving_and_first_value_wins() -> None:
-    assert native.parse_cookie_header('a=1; b="two"; a=3; junk; =x') == {
+    assert core.parse_cookie_header('a=1; b="two"; a=3; junk; =x') == {
         "a": "1",
         "b": "two",
     }

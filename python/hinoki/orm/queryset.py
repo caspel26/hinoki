@@ -8,7 +8,7 @@ import builtins
 import dataclasses
 from typing import TYPE_CHECKING, Any
 
-from hinoki import native
+from hinoki import core
 from hinoki.blocking import run_sync
 from hinoki.errors import FieldError, MultipleObjectsReturned
 from hinoki.orm.context import current_database
@@ -163,7 +163,7 @@ class QuerySet[M: Model]:
         return result
 
     def compile(self, kind: str = "select") -> tuple[str, list[Any]]:
-        return native.compile_query(
+        return core.compile_query(
             kind,
             self.model.__table__,
             columns=list(self.model.__columns__),
@@ -258,7 +258,7 @@ class QuerySet[M: Model]:
             }
         if self.loading.joined:
             raise FieldError("updates cannot filter across a relation")
-        sql, params = native.compile_query(
+        sql, params = core.compile_query(
             "update",
             self.model.__table__,
             assignments=list(values.items()),
@@ -277,7 +277,7 @@ class QuerySet[M: Model]:
             raise FieldError(
                 "adelete cannot filter across a relation; look the keys up first"
             )
-        sql, params = native.compile_query(
+        sql, params = core.compile_query(
             "delete", self.model.__table__, filters=list(self.filters)
         )
         return await current_database().execute(sql, *params)

@@ -10,6 +10,7 @@ from hinoki.auth import (
     Caller,
     HeaderAuth,
 )
+from hinoki.core import core_version
 from hinoki.errors import ModuleGraphError, RegistrationError, ValidationError
 from hinoki.httperrors import (
     APIError,
@@ -20,7 +21,6 @@ from hinoki.httperrors import (
     Unauthorized,
 )
 from hinoki.modules import Module, ModuleContext
-from hinoki.native import core_version
 from hinoki.parsers import FormParser, JSONParser, MultiPartParser, Parser
 from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer
 from hinoki.reply import Reply, set_cookie

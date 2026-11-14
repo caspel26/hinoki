@@ -1,6 +1,6 @@
-"""The packaged extension stub describes the ``hinoki.native`` module."""
+"""The packaged extension stub describes the ``hinoki.core`` module."""
 
-from hinoki.native import Router, core_version, encode_json
+from hinoki.core import Router, core_version, encode_json
 
 router = Router()
 router.add("GET", "/health", 0)

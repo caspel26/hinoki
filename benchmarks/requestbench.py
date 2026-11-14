@@ -11,7 +11,7 @@ import time
 from collections.abc import Callable
 from urllib.parse import parse_qs
 
-from hinoki import native
+from hinoki import core
 
 SAMPLES = 7
 LOOPS = 20000
@@ -44,14 +44,14 @@ def report(name: str, python: Callable[[], object], rust: Callable[[], object]) 
     print(f"{name:14} ratio   {statistics.median(py) / statistics.median(rs):8.2f}x")
 
 
-report("decode json", lambda: json.loads(RAW), lambda: native.decode_json(RAW))
+report("decode json", lambda: json.loads(RAW), lambda: core.decode_json(RAW))
 report(
     "encode json",
     lambda: json.dumps(PAYLOAD).encode(),
-    lambda: native.encode_json(PAYLOAD),
+    lambda: core.encode_json(PAYLOAD),
 )
 report(
     "parse query",
     lambda: parse_qs(QUERY.decode("ascii"), keep_blank_values=True, errors="strict"),
-    lambda: native.parse_query_string(QUERY),
+    lambda: core.parse_query_string(QUERY),
 )

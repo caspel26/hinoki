@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, field
 from http import HTTPStatus
 from typing import Any
 
-from hinoki import native
+from hinoki import core
 from hinoki.context import request_id
 from hinoki.errors import InvalidBody, ValidationError
 from hinoki.httperrors import APIError, ErrorRegistry
@@ -40,7 +40,7 @@ class Response:
         cls, status: int, payload: object, headers: Headers | None = None
     ) -> Response:
         head: Headers = [(b"content-type", b"application/json"), *(headers or [])]
-        return cls(status, native.encode_json(payload), head)
+        return cls(status, core.encode_json(payload), head)
 
 
 class HTTPError(Exception):

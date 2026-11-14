@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Any, get_args, get_origin
 from uuid import UUID
 
-from hinoki import native
+from hinoki import core
 from hinoki.errors import RegistrationError
 from hinoki.fields import FieldInfo, Unset
 
@@ -66,7 +66,7 @@ def check_pattern(pattern: str, where: str) -> None:
     """Valid in Python and in the Rust engine that enforces it (linear-time
     syntax: no look-around, back-references or verbose mode)."""
     try:
-        native.check_pattern(pattern)
+        core.check_pattern(pattern)
     except ValueError as exc:
         raise RegistrationError(f"{where}: unsupported pattern: {exc}") from exc
     try:

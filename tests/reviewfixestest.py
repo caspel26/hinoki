@@ -11,8 +11,8 @@ from hinoki import (
     MultiPartParser,
     Renderer,
     Request,
+    core,
     get,
-    native,
     post,
 )
 from hinoki.parsers import boundary_of
@@ -73,9 +73,9 @@ async def test_headers_given_as_lists_are_accepted(pool: Pool) -> None:
 
 
 def test_header_pairs_must_have_two_items() -> None:
-    assert native.header_dict([[b"A", b"1"], (b"b", b"2")]) == {"a": "1", "b": "2"}
+    assert core.header_dict([[b"A", b"1"], (b"b", b"2")]) == {"a": "1", "b": "2"}
     with pytest.raises(ValueError, match="pair"):
-        native.header_dict([[b"only"]])
+        core.header_dict([[b"only"]])
 
 
 async def test_repeated_cookie_headers_are_rejoined_with_semicolons(
@@ -108,8 +108,8 @@ def test_int_subclasses_cannot_inject_json() -> None:
         def __str__(self) -> str:
             return '1,"injected":true'
 
-    assert native.encode_json({"a": Wicked(1)}) == b'{"a":1}'
-    assert native.encode_json({Wicked(2): 1}) == b'{"2":1}'
+    assert core.encode_json({"a": Wicked(1)}) == b'{"a":1}'
+    assert core.encode_json({Wicked(2): 1}) == b'{"2":1}'
 
 
 async def test_two_content_types_are_refused(pool: Pool) -> None:

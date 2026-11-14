@@ -6,7 +6,7 @@ Status: Proposed · 2026-11-13
 
 **Decision.** Implement a small ASGI adapter (`hinoki.runtime.asgi`) and run it on Granian. Keep it thin so an RSGI adapter can be added as an alternative after measurement. No second HTTP server for the first release.
 
-**Consequences.** Every request crosses Python at the ASGI boundary; the path is not described as native. Portable to other ASGI servers for testing. We take a dependency on Granian's CLI/option names, pinned and validated per version.
+**Consequences.** Every request crosses Python at the ASGI boundary; the path is not described as core. Portable to other ASGI servers for testing. We take a dependency on Granian's CLI/option names, pinned and validated per version.
 
 **Alternatives.** RSGI first (fewer allocations, but server-specific and different failure semantics, unmeasured); own hyper server (two servers to maintain, no evidence it is needed).
 
