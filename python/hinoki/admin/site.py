@@ -306,9 +306,20 @@ async def guarded(operation: Awaitable[Any]) -> str:
     return ""
 
 
+KEY_TYPES: dict[type[Any], Any] = {}
+
+
+def key_type(model: type[Any]) -> Any:
+    """The primary key's annotation; resolved once per model, not per request."""
+    kind = KEY_TYPES.get(model)
+    if kind is None:
+        kind = KEY_TYPES[model] = typing.get_type_hints(model)[model.__primary_key__]
+    return kind
+
+
 def parse_key(entry: ModelAdmin[Any], raw: str) -> Any:
     """The primary key from its URL text, or ``None`` when it cannot be one."""
-    kind = typing.get_type_hints(entry.model)[entry.model.__primary_key__]
+    kind = key_type(entry.model)
     if "\x00" in raw:
         return None  # PostgreSQL cannot store or compare NUL: not a key
     try:

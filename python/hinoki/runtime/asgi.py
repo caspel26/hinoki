@@ -26,7 +26,7 @@ from hinoki.renderers import Renderer, negotiate
 from hinoki.reply import Reply
 from hinoki.request import Request
 from hinoki.routing import MethodNotAllowed
-from hinoki.runtime.binding import BODY_METHODS, Binding
+from hinoki.runtime.binding import BODY_METHODS, Binding, parse_query
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.lifespan import Lifespan
 from hinoki.runtime.requests import (
@@ -203,7 +203,12 @@ class ASGIAdapter:
         owner = binding.route.owner
         context.route_headers.set(getattr(owner, "response_headers", ()))
         headers = header_map(scope)
-        principal = await authorize(scope, binding, headers)
+        access = binding.route.access
+        query = principal = None
+        if access is not None:
+            # Parsed once: authentication and the request share the result.
+            query = parse_query(scope.get("query_string", b""))
+            principal = await authorize(access, headers, query)
         renderer = negotiate(headers.get("accept", ""), binding.route.renderers)
         if renderer is None:
             wanted = ", ".join(r.media_type for r in binding.route.renderers)
@@ -226,7 +231,7 @@ class ASGIAdapter:
             else b""
         )
         request, data = build_request(
-            scope, binding, path_params, headers, raw_body, principal
+            scope, binding, path_params, headers, raw_body, principal, query
         )
         return await self._invoke(binding, request, renderer, binding.collect(data))
 
