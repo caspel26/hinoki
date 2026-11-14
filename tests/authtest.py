@@ -2,7 +2,7 @@
 
 import pytest
 
-from hinoki import Access, APIKeyAuth, BearerAuth, Caller, Hinoki, Schema, http
+from hinoki import Access, APIKeyAuth, BearerAuth, Caller, Hinoki, Schema, core, http
 from hinoki.errors import RegistrationError
 from hinoki.request import Request
 from tests.harness import Client, Pool
@@ -37,6 +37,11 @@ async def create(request: Request, data: Draft) -> dict[str, str]:
     return {"title": data.title}
 
 
+@http.get("/tagged", access=any_user)
+async def tagged(request: Request, page: int = 1) -> dict[str, object]:
+    return {"page": page, "seen": request.GET.getlist("tag")}
+
+
 @http.get("/leak", access=any_user)
 async def leak(request: Request) -> None:
     raise RuntimeError("secret")
@@ -52,7 +57,7 @@ def authorization(token: str) -> list[tuple[bytes, bytes]]:
 
 async def start(pool: Pool) -> Client:
     app = Hinoki()
-    app.include(public, secure, whoami, create, leak)
+    app.include(public, secure, whoami, create, leak, tagged)
     return await pool.start(app)
 
 
@@ -61,6 +66,32 @@ async def test_actions_without_a_policy_are_public(pool: Pool) -> None:
     assert (await client.request("GET", "/public")).status == 200
     bearer = {"authorization": "Bearer nonsense"}
     assert (await client.request("GET", "/public", headers=bearer)).status == 200
+
+
+async def test_a_protected_request_parses_its_query_string_once(
+    pool: Pool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[bytes] = []
+
+    def counting(raw: bytes, limit: int) -> dict[str, list[str]]:
+        calls.append(raw)
+        return original(raw, limit)
+
+    original = core.parse_query_string
+    monkeypatch.setattr(core, "parse_query_string", counting)
+    client = await start(pool)
+    bearer = {"authorization": "Bearer editor-token"}
+    reply = await client.request(
+        "GET", "/tagged", query="tag=a&tag=b&page=3", headers=bearer
+    )
+    assert reply.status == 200 and reply.body == {"page": 3, "seen": ["a", "b"]}
+    assert calls == [b"tag=a&tag=b&page=3"]
+    calls.clear()
+    assert (await client.request("GET", "/public", query="x=1")).status == 200
+    assert calls == [b"x=1"]
+    # A malformed query is still refused before credentials are examined.
+    broken = await client.request("GET", "/tagged", query="a=%ff")
+    assert broken.status == 400 and broken.body["error"] == "invalid_query"
 
 
 async def test_missing_credentials_give_401_with_a_challenge(pool: Pool) -> None:
