@@ -30,7 +30,7 @@ Repository = "https://github.com/caspel26/hinoki"
 hinoki = "hinoki.__main__:main"
 
 [project.optional-dependencies]
-server = ["granian>=2.8,<3"]
+server = ["granian[reload]>=2.8,<3"]
 
 [dependency-groups]
 dev = [
@@ -51,7 +51,7 @@ test = [
     "pytest>=8.3",
     "pytest-asyncio>=1.0",
     "pytest-cov>=6.0",
-    "granian>=2.8,<3",
+    "granian[reload]>=2.8,<3",
     "openapi-spec-validator>=0.7",
 ]
 
