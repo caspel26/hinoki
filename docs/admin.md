@@ -27,7 +27,7 @@ admin.register(Post, PostAdmin, slug="posts")
 app.include(admin.api())
 ```
 
-Row visibility, field assignment and which columns are shown are decided in the admin class; hooks (`queryset`, `can`, `display`, `stats`, `check`, `save`, `remove`) override what you need. Mass assignment, excluded columns and out-of-scope rows are refused by the framework, and every form carries a signed CSRF token bound to the signed-in subject.
+Row visibility, field assignment and which columns are shown are decided in the admin class; hooks (`queryset`, `can`, `display`, `stats`, `check`, `save`, `remove`) override what you need. `queryset(principal)` is the primary way to decide which rows a caller sees: counts and page numbers come from it. `can(principal, "view", row)` is also applied row by row to what a list page or the dashboard fetched, so a denied row is not shown; it can only trim the page already fetched, so a page may hold fewer rows than `per_page` and the totals still count the queryset. Mass assignment, excluded columns and out-of-scope rows are refused by the framework, and every form carries a signed CSRF token bound to the signed-in subject.
 
 ## Bulk actions
 
@@ -95,3 +95,7 @@ Each theme sets navigation, list presentation, typography and color. All four us
     ![Bento on a phone: the rail becomes a bottom tab bar](screenshots/admin-bento-phone-light.png)
 
 Pick one with `Admin(theme="bento")`, or build your own: a `Theme` is a set of `--hn-*` design tokens for the two schemes plus a `layout` (`sidebar`, `topbar`, `index`, `rail`) and a `list_style` (`table`, `rows`, `cards`). The text and surface colour pairs of every built-in theme are tested against WCAG AA contrast. Bento's pages were checked in Chromium and Firefox at 1440, 390, 360 and 320 px; WebKit was not run.
+
+## Mounting under a prefix
+
+`Admin(prefix="/admin")` sets the admin's own path. The admin can also be included under a `Mount` (`Hinoki(include=[Mount("/ops", admin.api())])`): its links, assets and the CSRF cookie path then use `/ops/admin`, so the pages work at the mounted address.

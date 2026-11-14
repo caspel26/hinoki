@@ -69,6 +69,7 @@ class Admin:
         self.access = access
         self.csrf = Csrf(secret)
         self.prefix = prefix
+        self.mount = ""  # set when the admin is included under a ``Mount``
         self.site = site
         self.tagline = tagline
         self.workspace = workspace
@@ -124,9 +125,20 @@ class Admin:
             )
             declare = RouteDeclaration(method, path, options)
             namespace[name] = declare(clone(VIEWS[name], name))
+        namespace["bind_mount"] = staticmethod(self.bind_mount)
         return types.new_class(
             "AdminSite", (API,), {"path": self.prefix}, lambda ns: ns.update(namespace)
         )
+
+    @property
+    def base(self) -> str:
+        """The path the admin is reachable at: its own prefix under any ``Mount``."""
+        return self.mount + self.prefix
+
+    def bind_mount(self, mount: str) -> None:
+        """Called by ``Hinoki.include`` with the prefix of the ``Mount`` around the
+        admin, so generated links, assets and the CSRF cookie path match the routes."""
+        self.mount = mount
 
 
 def digest(data: bytes) -> str:

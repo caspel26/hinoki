@@ -110,7 +110,7 @@ class Site:
     # -- urls ---------------------------------------------------------------
 
     def url(self, *parts: str, **query: str) -> str:
-        path = "/".join([self.admin.prefix, *[quote(p, safe="") for p in parts]])
+        path = "/".join([self.admin.base, *[quote(p, safe="") for p in parts]])
         found = {k: v for k, v in query.items() if v}
         return path + ("?" + urlencode(found) if found else "")
 
@@ -247,7 +247,7 @@ class Site:
         if self.fresh:
             headers.append(
                 cookie_header(
-                    self.request, self.token, admin.prefix, secure=admin.secure_cookies
+                    self.request, self.token, admin.base, secure=admin.secure_cookies
                 )
             )
         return Reply(status, html, headers, "text/html; charset=utf-8")
