@@ -55,6 +55,12 @@ Generated OpenAPI is validated with `openapi-spec-validator` inside the Python t
 * **pre-commit** builds its own isolated environments for the hooks it fetches (e.g. `ruff-pre-commit`); these are *not* the project `.venv` and are not managed by uv. That is why the Ruff revision in `.pre-commit-config.yaml` must equal the `ruff==` pin in `pyproject.toml` (`uv.lock`).
 * Hooks never rewrite `sources/`-style historical snapshots (excluded globally). CI never applies fixes: it fails if a hook would change a file. `pre-commit install` is a manual step in a Git checkout, never triggered by importing the framework.
 
+## CI workflow hygiene
+
+* Third-party actions in `.github/workflows/` are pinned to a full commit SHA with the released tag in a trailing comment. To update one, resolve the new tag to its commit (`gh api repos/OWNER/REPO/git/ref/tags/TAG`), replace the SHA and the comment together, and let the PR's CI run prove it.
+* `ci.yml` checks out with `persist-credentials: false`: no CI job pushes. `deploy-docs.yml` keeps the token because it pushes to `gh-pages`.
+* The `audit` job checks `Cargo.lock` (`cargo audit`, `cargo deny check`) and `uv.lock` (`uv export` of every group and extra, then `pip-audit --require-hashes --disable-pip`). Locally: `uv export --locked --all-groups --all-extras --no-emit-project --format requirements-txt -o /tmp/requirements.txt && uvx pip-audit==2.10.1 --require-hashes --disable-pip -r /tmp/requirements.txt`.
+
 ## Native extension: editable install, rebuild, wheel
 
 | Task | Command | Notes |
