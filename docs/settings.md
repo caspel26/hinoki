@@ -18,7 +18,7 @@ from hinoki import settings
 class BlogSettings(settings.AppSettings):          # keeps the built-in groups
     database: settings.DatabaseSettings                   # url: settings.Secret, max_size: int
     jwt_secret: settings.Secret | None = None             # optional secret
-    admin_theme: Literal["studio", "console", "paper", "grove"] = "studio"
+    admin_theme: Literal["studio", "console", "paper", "bento"] = "studio"
 ```
 
 Settings types live in the `hinoki.settings` namespace: `from hinoki import settings`, then `settings.AppSettings`, `settings.DatabaseSettings`, `settings.Secret`, `settings.Settings` and `settings.SettingsError`. Name your own subclass for your project (`BlogSettings` above) and keep a loaded value in a variable such as `app_settings`, so the namespace is not shadowed. Earlier revisions exported these types from `hinoki` itself and called the base class `FrameworkSettings`; `from hinoki import FrameworkSettings` now raises `ImportError`.

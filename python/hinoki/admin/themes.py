@@ -15,11 +15,12 @@ dark scheme (the user's system preference decides, and the toggle overrides it):
   with sticky headers, square corners, neon-cyan accent (dark) / teal (light).
 * ``paper``: a quiet text index on the left and one centred reading column, serif
   type, the list as a document index of rows, terracotta accent, edit on a page.
-* ``grove``: a familiar sidebar, open row list, green accents and page-based
-  editing, with a light lichen palette and a dark pine palette.
+* ``bento``: a dark icon rail (a bottom tab bar on phones), records as a grid of
+  cards, hard ink outlines with offset shadows, solid colour stat tiles, bold
+  type and a yellow accent; the edit form is a page.
 
-``layout`` (``"sidebar"``, ``"topbar"``, ``"index"``) and ``list_style``
-(``"table"``, ``"rows"``) choose the structure; the tokens choose the look.
+``layout`` (``"sidebar"``, ``"topbar"``, ``"index"``, ``"rail"``) and ``list_style``
+(``"table"``, ``"rows"``, ``"cards"``) choose the structure; the tokens choose the look.
 To make your own, build a ``Theme`` and pass it as ``Admin(theme=...)``.
 """
 
@@ -28,8 +29,8 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Mapping
 
-LAYOUTS = {"sidebar", "topbar", "index"}
-LIST_STYLES = {"table", "rows"}
+LAYOUTS = {"sidebar", "topbar", "index", "rail"}
+LIST_STYLES = {"table", "rows", "cards"}
 COLOR_TOKENS = (
     "bg", "surface", "surface-2", "sidebar-bg", "topbar-bg", "text", "muted", "line",
     "line-strong", "hover", "accent", "accent-hover", "accent-ink", "accent-text",
@@ -58,8 +59,8 @@ class Theme:
     fixed: Mapping[str, str]
     default_mode: str = "light"
     extra_css: str = ""
-    layout: str = "sidebar"  # "sidebar", "topbar" or "index" (see base.css)
-    list_style: str = "table"  # "table" or "rows"
+    layout: str = "sidebar"  # "sidebar", "topbar", "index" or "rail" (see base.css)
+    list_style: str = "table"  # "table", "rows" or "cards"
 
     def check(self) -> None:
         """Fail at configuration time, not on a half-styled page."""
@@ -173,29 +174,27 @@ CONSOLE_LIGHT = {
     "accent-hover": "#155e75", "accent-text": "#155e75", "accent-soft": "#cdeff7",
     "accent-soft-ink": "#0b4a5c", "avatar-bg": "#b6e3ee", "avatar-ink": "#0b4a5c",
 }  # fmt: skip
-GROVE_LIGHT = {
-    "bg": "#f2f5ef", "surface": "#fbfcf9", "surface-2": "#e6ede4",
-    "sidebar-bg": "#e9f0e6", "topbar-bg": "#fbfcf9", "text": "#1f2d24",
-    "muted": "#536456", "line": "#d7e0d4", "line-strong": "#aab9a8",
-    "hover": "#eaf1e8", "accent": "#2f6b4e", "accent-hover": "#25583e",
-    "accent-ink": "#ffffff", "accent-text": "#225b3d", "accent-soft": "#dcebdd",
-    "accent-soft-ink": "#1e5034", "ok-bg": "#e2f1e5", "ok-ink": "#245e36",
-    "warn-bg": "#f5eccf", "warn-ink": "#684400", "danger": "#b42318",
-    "danger-on": "#ffffff", "danger-bg": "#fde7e5", "danger-ink": "#912018",
-    "focus": "#1d4ed8", "avatar-bg": "#cfe1ce", "avatar-ink": "#294f32",
-    "shadow": "0 1px 2px rgba(31,65,40,.04)",
+BENTO_LIGHT = {
+    "bg": "#f4ecdc", "surface": "#fffdf8", "surface-2": "#f8efd9", "sidebar-bg": "#16130e",
+    "topbar-bg": "#f4ecdc", "text": "#16130e", "muted": "#5a5244", "line": "#cfc4a8",
+    "line-strong": "#16130e", "hover": "#efe3c6", "accent": "#ffb703", "accent-hover": "#ffc933",
+    "accent-ink": "#16130e", "accent-text": "#a13d00", "accent-soft": "#ffe08a",
+    "accent-soft-ink": "#4a3300", "ok-bg": "#c7f0c9", "ok-ink": "#0b4a1a",
+    "warn-bg": "#ffd9a8", "warn-ink": "#6b3300", "danger": "#c1121f", "danger-on": "#ffffff",
+    "danger-bg": "#ffd6d6", "danger-ink": "#8a0b13", "focus": "#1d4ed8",
+    "avatar-bg": "#ffb703", "avatar-ink": "#16130e", "shadow": "none",
+    "sidebar-ink": "#f4ecdc", "sidebar-muted": "#c9bfa6",
 }  # fmt: skip
-GROVE_DARK = {
-    "bg": "#111a14", "surface": "#19251c", "surface-2": "#243329",
-    "sidebar-bg": "#141f17", "topbar-bg": "#19251c", "text": "#edf4ed",
-    "muted": "#b6c7b8", "line": "#314435", "line-strong": "#4b6250",
-    "hover": "#26362a", "accent": "#8fc99c", "accent-hover": "#a4d9af",
-    "accent-ink": "#102016", "accent-text": "#9bd2a6", "accent-soft": "#263c2c",
-    "accent-soft-ink": "#d1e8d4", "ok-bg": "#203b29", "ok-ink": "#9edaac",
-    "warn-bg": "#403513", "warn-ink": "#f0d88c", "danger": "#ff8b8b",
-    "danger-on": "#330b0b", "danger-bg": "#441c1b", "danger-ink": "#ffb8af",
-    "focus": "#91c5ff", "avatar-bg": "#365a3d", "avatar-ink": "#d9edd9",
-    "shadow": "none",
+BENTO_DARK = {
+    "bg": "#100f0d", "surface": "#1b1a16", "surface-2": "#25231d", "sidebar-bg": "#0a0908",
+    "topbar-bg": "#100f0d", "text": "#f4ecdc", "muted": "#b9b09c", "line": "#3a362c",
+    "line-strong": "#f4ecdc", "hover": "#2a2820", "accent": "#ffb703", "accent-hover": "#ffc933",
+    "accent-ink": "#16130e", "accent-text": "#ffc84d", "accent-soft": "#3d3210",
+    "accent-soft-ink": "#ffe08a", "ok-bg": "#123a1c", "ok-ink": "#8de8a0",
+    "warn-bg": "#4a2e0a", "warn-ink": "#ffcf8a", "danger": "#ff6b6b", "danger-on": "#1a0505",
+    "danger-bg": "#4a1519", "danger-ink": "#ffb3b3", "focus": "#7db3ff",
+    "avatar-bg": "#ffb703", "avatar-ink": "#16130e", "shadow": "none",
+    "sidebar-ink": "#f4ecdc", "sidebar-muted": "#b9b09c",
 }  # fmt: skip
 
 STUDIO = Theme(
@@ -242,33 +241,47 @@ CONSOLE = Theme(
         ".hn-card{box-shadow:none}\n.hn-stat-value{font-size:1.5rem}\n"
     ),
 )  # fmt: skip
-GROVE = Theme(
-    "grove", "Grove", "page", GROVE_LIGHT, GROVE_DARK,
+BENTO = Theme(
+    "bento", "Bento", "page", BENTO_LIGHT, BENTO_DARK,
     {
-        "font": SYSTEM_FONT, "font-size": "15px", "radius": "8px", "radius-sm": "5px",
-        "radius-lg": "12px", "nav-pad": ".55rem .75rem", "cell-pad": ".7rem .75rem",
-        "h1": "1.85rem", "sidebar-w": "15rem", "drawer-w": "26rem",
+        "font": SYSTEM_FONT, "font-size": "15px", "radius": "14px", "radius-sm": "10px",
+        "radius-lg": "22px", "nav-pad": ".5rem .2rem", "cell-pad": ".7rem .8rem",
+        "h1": "2.7rem", "sidebar-w": "5.75rem", "drawer-w": "26rem",
     },
-    layout="sidebar", list_style="rows",
+    layout="rail", list_style="cards",
     extra_css=(
-        ".hn-card{box-shadow:none}\n"
-        ".hn-nav-item[aria-current=page]{border-left:3px solid var(--hn-accent);"
-        "border-radius:0 var(--hn-radius-sm) var(--hn-radius-sm) 0}\n"
-        ".hn-pageheader{border-bottom:1px solid var(--hn-line-strong);padding-bottom:1rem}\n"
-        ".hn-list-rows .hn-table tr{padding:.85rem .4rem}\n"
-        ".hn-list-rows .hn-table td:not(.hn-check){min-width:0;white-space:normal;"
-        "overflow-wrap:anywhere}\n"
-        "@media(max-width:42rem){"
-        ".hn-list-rows .hn-table tr{display:grid;"
-        "grid-template-columns:1.5rem minmax(0,1fr);align-items:start;gap:.35rem .65rem}\n"
-        ".hn-list-rows .hn-table td{grid-column:2}\n"
-        ".hn-list-rows .hn-table td.hn-check{grid-column:1;grid-row:1;width:auto;align-self:start}\n"
-        ".hn-list-rows .hn-table td:has(.hn-rowlink){grid-row:1;font-size:1.05em}\n"
-        "}\n"
+        # A dark icon rail whatever the scheme; everything inside reads the rail ink.
+        ".hn-sidebar{--hn-text:var(--hn-sidebar-ink);--hn-muted:var(--hn-sidebar-muted);"
+        "--hn-hover:rgba(255,255,255,.1);--hn-line:rgba(255,255,255,.18)}\n"
+        ".hn-nav-item[aria-current=page]{background:var(--hn-accent);color:var(--hn-accent-ink);"
+        "box-shadow:3px 3px 0 var(--hn-sidebar-ink);font-weight:700}\n"
+        ".hn-count{background:var(--hn-sidebar-ink);color:var(--hn-sidebar-bg)}\n"
+        # Hard ink outlines and offset shadows instead of soft elevation.
+        ".hn-card,.hn-fieldset,.hn-list-cards .hn-table tr,.hn-drawer{border:2px solid var(--hn-line-strong);"
+        "box-shadow:5px 5px 0 var(--hn-line-strong)}\n"
+        ".hn-btn,input,select,textarea,.hn-search,.hn-gsearch,.hn-iconbtn,.hn-page{border:2px solid var(--hn-line-strong)}\n"
+        ".hn-btn,.hn-iconbtn,.hn-page{box-shadow:3px 3px 0 var(--hn-line-strong);font-weight:700;"
+        "transition:transform .08s,box-shadow .08s}\n"
+        ".hn-btn:hover,.hn-iconbtn:hover,.hn-page:hover{transform:translate(-1px,-1px);"
+        "box-shadow:4px 4px 0 var(--hn-line-strong)}\n"
+        ".hn-btn:active,.hn-iconbtn:active,.hn-page:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--hn-line-strong)}\n"
+        ".hn-primary{background:var(--hn-accent);color:var(--hn-accent-ink)}\n"
+        ".hn-pageheader h1{font-weight:900;letter-spacing:-.035em;line-height:1}\n"
+        ".hn-pageheader p{font-size:1.05rem}\n"
+        ".hn-panel-head h2,.hn-card h2{font-weight:800;letter-spacing:-.01em}\n"
+        # Stat tiles are solid colour blocks.
+        ".hn-stat{background:var(--hn-tone-bg);color:var(--hn-tone-ink)}\n"
+        ".hn-stat-value{font-size:2.4rem;font-weight:900;letter-spacing:-.03em}\n"
+        ".hn-tab{border:2px solid transparent;border-radius:999px;font-weight:700}\n"
+        ".hn-tab[aria-selected=true]{border-color:var(--hn-line-strong);background:var(--hn-accent);color:var(--hn-accent-ink)}\n"
+        ".hn-badge{border:2px solid currentColor;font-weight:700}\n"
+        ".hn-list-cards .hn-table tr:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 var(--hn-line-strong)}\n"
+        ".hn-list-cards .hn-table tr.is-selected{background:var(--hn-accent-soft)}\n"
+        ".hn-topbar{background:transparent;border-bottom:0}\n"
     ),
 )  # fmt: skip
 
-THEMES: dict[str, Theme] = {t.name: t for t in (STUDIO, CONSOLE, PAPER, GROVE)}
+THEMES: dict[str, Theme] = {t.name: t for t in (STUDIO, CONSOLE, PAPER, BENTO)}
 for built_in in THEMES.values():
     built_in.check()
 

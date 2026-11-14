@@ -70,7 +70,7 @@ Each theme sets navigation, list presentation, typography and color. All four us
 | **Studio** (default) | sidebar | cards with a table | drawer beside the list | soft violet, rounded |
 | **Console** | horizontal top bar | dense monospaced grid | drawer | neon cyan / teal, square |
 | **Paper** | quiet text index, centred column | document rows | its own page | serif type, terracotta |
-| **Grove** | sidebar | open rows | its own page | evergreen and lichen, sans-serif |
+| **Bento** | dark icon rail (bottom tab bar on phones) | a grid of cards | its own page | hard ink outlines and offset shadows, bold type, solid colour tiles, yellow accent |
 
 === "Studio"
 
@@ -87,10 +87,11 @@ Each theme sets navigation, list presentation, typography and color. All four us
     ![Paper, light](screenshots/admin-paper-list-light.png)
     ![Paper, dark](screenshots/admin-paper-list-dark.png)
 
-=== "Grove"
+=== "Bento"
 
-    ![Grove, light](screenshots/admin-grove-list-light.png)
-    ![Grove, dark](screenshots/admin-grove-list-dark.png)
-    ![Grove edit form in dark mode](screenshots/admin-grove-edit-dark.png)
+    ![Bento, light](screenshots/admin-bento-list-light.png)
+    ![Bento, dark](screenshots/admin-bento-list-dark.png)
+    ![Bento edit form in dark mode](screenshots/admin-bento-edit-dark.png)
+    ![Bento on a phone: the rail becomes a bottom tab bar](screenshots/admin-bento-phone-light.png)
 
-Pick one with `Admin(theme="grove")`, or build your own: a `Theme` is a set of `--hn-*` design tokens for the two schemes plus a `layout` (`sidebar`, `topbar`, `index`) and a `list_style` (`table`, `rows`). The text and surface colour pairs of every built-in theme are tested against WCAG AA contrast. Grove's pages were checked in Chromium and Firefox at 1440, 390, 360 and 320 px; WebKit was not run.
+Pick one with `Admin(theme="bento")`, or build your own: a `Theme` is a set of `--hn-*` design tokens for the two schemes plus a `layout` (`sidebar`, `topbar`, `index`, `rail`) and a `list_style` (`table`, `rows`, `cards`). The text and surface colour pairs of every built-in theme are tested against WCAG AA contrast. Bento's pages were checked in Chromium and Firefox at 1440, 390, 360 and 320 px; WebKit was not run.
