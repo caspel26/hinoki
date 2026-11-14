@@ -9,6 +9,7 @@ use tokio_postgres::NoTls;
 use tokio_postgres_rustls::MakeRustlsConnect;
 
 use crate::error::{DbError, ErrorKind};
+use crate::sqlite::{connect_path, SqliteLease, SqlitePool};
 use crate::tls::{connector, extract_options};
 use crate::value::Value;
 
@@ -17,8 +18,9 @@ pub type Row = Vec<(String, Value)>;
 
 #[derive(Clone)]
 pub struct Database {
-    pool: deadpool_postgres::Pool,
+    pool: Option<deadpool_postgres::Pool>,
     tls: Option<MakeRustlsConnect>,
+    sqlite: Option<SqlitePool>,
 }
 
 fn params(values: &[Value]) -> Vec<&(dyn ToSql + Sync)> {
@@ -192,6 +194,14 @@ impl Database {
     /// Create a pool. No connection is opened until first use, so call
     /// [`Database::check`] to fail fast at startup.
     pub fn connect(url: &str, max_size: usize, wait: Duration) -> Result<Self, DbError> {
+        if url.starts_with("sqlite://") {
+            let path = connect_path(url)?;
+            return Ok(Self {
+                pool: None,
+                tls: None,
+                sqlite: Some(SqlitePool::open(&path, max_size, wait)?),
+            });
+        }
         let (url, tls_options) = extract_options(url)
             .map_err(|_| DbError::new(ErrorKind::Connect, "invalid database TLS configuration"))?;
         let mut config = Config::new();
@@ -217,11 +227,17 @@ impl Database {
             None => config.create_pool(Some(Runtime::Tokio1), NoTls),
         }
         .map_err(|_| DbError::new(ErrorKind::Connect, "invalid database configuration"))?;
-        Ok(Self { pool, tls })
+        Ok(Self {
+            pool: Some(pool),
+            tls,
+            sqlite: None,
+        })
     }
 
     async fn acquire(&self) -> Result<Lease, DbError> {
         self.pool
+            .as_ref()
+            .ok_or_else(|| DbError::new(ErrorKind::Other, "PostgreSQL pool is unavailable"))?
             .get()
             .await
             .map(|conn| Lease::new(conn, self.tls.clone()))
@@ -240,6 +256,9 @@ impl Database {
     }
 
     pub async fn fetch(&self, sql: &str, values: &[Value]) -> Result<Vec<Row>, DbError> {
+        if let Some(sqlite) = &self.sqlite {
+            return sqlite.acquire().await?.fetch(sql, values).await;
+        }
         let lease = self.acquire().await?;
         let outcome = fetch_with_recovery(lease.get(), sql, values).await;
         lease.release();
@@ -247,6 +266,9 @@ impl Database {
     }
 
     pub async fn execute(&self, sql: &str, values: &[Value]) -> Result<u64, DbError> {
+        if let Some(sqlite) = &self.sqlite {
+            return sqlite.acquire().await?.execute(sql, values).await;
+        }
         let lease = self.acquire().await?;
         let outcome = execute_with_recovery(lease.get(), sql, values).await;
         lease.release();
@@ -257,6 +279,11 @@ impl Database {
     /// this future is dropped while `BEGIN` is in flight the connection is
     /// abandoned, never returned to the pool inside a transaction.
     pub async fn begin(&self) -> Result<Transaction, DbError> {
+        if let Some(sqlite) = &self.sqlite {
+            let mut lease = sqlite.acquire().await?;
+            lease.begin("BEGIN IMMEDIATE").await?;
+            return Ok(Transaction::new_sqlite(lease));
+        }
         let lease = self.acquire().await?;
         lease
             .get()
@@ -267,13 +294,41 @@ impl Database {
         Ok(Transaction::new(conn, tls))
     }
 
+    pub async fn begin_migration(&self) -> Result<Transaction, DbError> {
+        if let Some(sqlite) = &self.sqlite {
+            let (mut primary, reserved) = sqlite.acquire_for_migration().await?;
+            primary.begin("BEGIN IMMEDIATE").await?;
+            return Ok(Transaction::new_sqlite_migration(primary, reserved));
+        }
+        self.begin().await
+    }
+
     pub fn close(&self) {
-        self.pool.close();
+        if let Some(pool) = &self.pool {
+            pool.close();
+        }
+        if let Some(pool) = &self.sqlite {
+            pool.close();
+        }
+    }
+
+    pub fn dialect(&self) -> &'static str {
+        if self.sqlite.is_some() {
+            "sqlite"
+        } else {
+            "postgres"
+        }
     }
 
     pub fn status(&self) -> (usize, usize) {
-        let status = self.pool.status();
-        (status.size, status.available)
+        if let Some(pool) = &self.sqlite {
+            pool.status()
+        } else if let Some(pool) = &self.pool {
+            let status = pool.status();
+            (status.size, status.available)
+        } else {
+            (0, 0)
+        }
     }
 }
 
@@ -302,6 +357,8 @@ impl Drop for Flight<'_> {
 pub struct Transaction {
     conn: Option<Object>,
     tls: Option<MakeRustlsConnect>,
+    sqlite: Option<SqliteLease>,
+    sqlite_reserved: Vec<SqliteLease>,
     /// A statement failed: PostgreSQL will refuse to commit (until a
     /// `ROLLBACK TO SAVEPOINT` recovers it).
     failed: AtomicBool,
@@ -314,6 +371,30 @@ impl Transaction {
         Self {
             conn: Some(conn),
             tls,
+            sqlite: None,
+            sqlite_reserved: Vec::new(),
+            failed: AtomicBool::new(false),
+            poisoned: AtomicBool::new(false),
+        }
+    }
+
+    fn new_sqlite(sqlite: SqliteLease) -> Self {
+        Self {
+            conn: None,
+            tls: None,
+            sqlite: Some(sqlite),
+            sqlite_reserved: Vec::new(),
+            failed: AtomicBool::new(false),
+            poisoned: AtomicBool::new(false),
+        }
+    }
+
+    fn new_sqlite_migration(sqlite: SqliteLease, reserved: Vec<SqliteLease>) -> Self {
+        Self {
+            conn: None,
+            tls: None,
+            sqlite: Some(sqlite),
+            sqlite_reserved: reserved,
             failed: AtomicBool::new(false),
             poisoned: AtomicBool::new(false),
         }
@@ -350,6 +431,11 @@ impl Transaction {
     }
 
     pub async fn fetch(&self, sql: &str, values: &[Value]) -> Result<Vec<Row>, DbError> {
+        if let Some(sqlite) = &self.sqlite {
+            let outcome = sqlite.fetch(sql, values).await;
+            self.settle(sql, &outcome);
+            return outcome;
+        }
         let conn = self.conn()?;
         let mut flight = Flight {
             poisoned: &self.poisoned,
@@ -364,6 +450,11 @@ impl Transaction {
     }
 
     pub async fn execute(&self, sql: &str, values: &[Value]) -> Result<u64, DbError> {
+        if let Some(sqlite) = &self.sqlite {
+            let outcome = sqlite.execute(sql, values).await;
+            self.settle(sql, &outcome);
+            return outcome;
+        }
         let conn = self.conn()?;
         let mut flight = Flight {
             poisoned: &self.poisoned,
@@ -407,6 +498,18 @@ impl Transaction {
     }
 
     async fn finish(&mut self, statement: &str) -> Result<(), DbError> {
+        if self.sqlite.is_some() {
+            // Transactional leases are discarded by Drop unless commit/rollback
+            // completes successfully.
+            let sqlite = self.sqlite.as_mut().expect("checked above");
+            sqlite.finish(statement).await?;
+            for reserved in &mut self.sqlite_reserved {
+                reserved.set_foreign_keys(true).await?;
+            }
+            self.sqlite = None;
+            self.sqlite_reserved.clear();
+            return Ok(());
+        }
         let conn = self.conn()?;
         // On failure the state is unknown: `conn` stays set so Drop discards it.
         conn.batch_execute(statement)
@@ -419,6 +522,12 @@ impl Transaction {
 
 impl Drop for Transaction {
     fn drop(&mut self) {
+        if let Some(mut sqlite) = self.sqlite.take() {
+            sqlite.discard();
+        }
+        for mut sqlite in self.sqlite_reserved.drain(..) {
+            sqlite.discard();
+        }
         if let Some(conn) = self.conn.take() {
             abandon(conn, self.tls.clone());
         }

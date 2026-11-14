@@ -128,7 +128,7 @@ hinoki migrations --dir examples/blog/migrations apply
 hinoki migrations --dir examples/blog/migrations sql 0001-initial
 ```
 
-`plan` requires `--models MODULE`; `--name` defaults to `changes`. `--dry-run` prints operations without writing files. Destructive operations require `--allow-destructive`. `status` and `apply` read the connection URL from `HINOKI_DATABASE_URL`. `--database URL` overrides it, but a URL given as an argument is visible in the process list and the shell history, so keep a URL that contains a password in the variable. When the connection fails, the command prints `error: database: …` with a `fix:` line and exits 1; the URL is not printed. `sql NAME` prints a migration's SQL. `status` and `apply` connect to PostgreSQL; use a disposable database while reviewing migrations.
+`plan` requires `--models MODULE`; `--name` defaults to `changes`. `--dry-run` prints operations without writing files. Destructive operations require `--allow-destructive`. Without `HINOKI_DATABASE_URL`, plan/status/apply target the local SQLite file at `.hinoki/local.sqlite3`; `--database URL` selects another supported backend. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints `error: database: …` with a `fix:` line and exits 1; the URL is not printed. `sql NAME` prints a migration's SQL. Use a disposable database while reviewing migrations.
 
 ### `mcp`
 
