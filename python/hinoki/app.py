@@ -18,6 +18,7 @@ from hinoki.fields import UNSET, Unset
 from hinoki.management import Command, _normalize_commands
 from hinoki.modules import Module, order_modules
 from hinoki.openapi import OpenAPIBuilder
+from hinoki.pagination import DEFAULT_MAX_PAGE_SIZE, DEFAULT_PAGE_SIZE
 from hinoki.parsers import DEFAULT_PARSERS, Parser, check_parsers
 from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers
 from hinoki.routing import Found, MethodNotAllowed, Mount, Route, RouteGroup, route_of
@@ -86,6 +87,11 @@ class Hinoki:
         self.default_parsers = None if parsers is None else check_parsers(parsers)
         self.default_renderers = (
             None if renderers is None else check_renderers(renderers)
+        )
+        self.pagination_defaults = (
+            (built_in.pagination.page_size, built_in.pagination.max_page_size)
+            if built_in
+            else (DEFAULT_PAGE_SIZE, DEFAULT_MAX_PAGE_SIZE)
         )
         self.errors = ErrorRegistry()
         self._routes: list[Route] = []
@@ -216,6 +222,13 @@ class Hinoki:
             changes["parsers"] = self.default_parsers
         if self.default_renderers is not None and route.renderers is DEFAULT_RENDERERS:
             changes["renderers"] = self.default_renderers
+        if route.pagination is not None:
+            try:
+                changes["pagination"] = route.pagination.resolved(
+                    *self.pagination_defaults
+                )
+            except ValueError as exc:
+                raise RegistrationError(f"{route.name}: pagination {exc}") from exc
         return dataclasses.replace(route, **changes) if changes else route
 
     def install(self, *modules: Module) -> None:

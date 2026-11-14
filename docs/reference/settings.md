@@ -37,6 +37,8 @@
       show_if_no_docstring: true
 
 ::: hinoki.settings.ServerSettings
+
+::: hinoki.settings.PaginationSettings
     options:
       members: [host, port, workers, runtime_threads, backlog, access_log]
       show_if_no_docstring: true

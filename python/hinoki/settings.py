@@ -774,6 +774,17 @@ class ServerSettings(Settings):
             raise ValueError("backlog must be positive")
 
 
+class PaginationSettings(Settings):
+    """Defaults for ``PageNumberPagination`` that an action does not set itself."""
+
+    page_size: int = 20
+    max_page_size: int = 100
+
+    def validate(self) -> None:
+        if not 1 <= self.page_size <= self.max_page_size:
+            raise ValueError("need 1 <= page_size <= max_page_size")
+
+
 class AppSettings(Settings):
     """The built-in groups every application has; subclass to add your own."""
 
@@ -782,6 +793,9 @@ class AppSettings(Settings):
     logging: LoggingSettings = dataclasses.field(default_factory=LoggingSettings)
     docs: DocsSettings = dataclasses.field(default_factory=DocsSettings)
     server: ServerSettings = dataclasses.field(default_factory=ServerSettings)
+    pagination: PaginationSettings = dataclasses.field(
+        default_factory=PaginationSettings
+    )
     timezone: str = "UTC"
 
     def validate(self) -> None:
