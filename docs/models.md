@@ -45,11 +45,11 @@ Class methods and querysets offer sync and async variants for common operations.
 
 ```python
 task = await Task.aget(id=task_id)
-tasks = await Task.all().filter(owner_id=member_id, done=False).order_by("title").aall()
+tasks = await Task.all().filter(owner_id=member_id, done=False).order_by("title")
 page = await Task.all().filter(done=False).apaginate(PageParams(page=1, page_size=20))
 ```
 
-Filters accept validated field names and supported comparison/membership operators. Values are bound parameters; SQL identifiers are compiled from model metadata. Query methods do not issue SQL until an evaluation method such as `aall`, `aget`, `acount`, `aupdate` or `adelete` is called.
+Filters accept validated field names and supported comparison/membership operators. Values are bound parameters; SQL identifiers are compiled from model metadata. Query methods do not issue SQL until an evaluation method such as awaiting the query, `aget`, `acount`, `aupdate` or `adelete` is called.
 
 `@ordered_by` supplies ordering only when a query does not specify `order_by`. An explicit order replaces it. Counts and bulk updates do not inherit default ordering.
 

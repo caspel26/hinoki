@@ -106,7 +106,7 @@ class PostAdmin(ModelAdmin[Post]):
         total = await self.queryset(principal).acount()
         published = await self.queryset(principal).filter(published=True).acount()
         since = utc_now() - datetime.timedelta(days=DAYS)
-        week = await Post.filter(created_at__gte=since).aall()
+        week = await Post.filter(created_at__gte=since)
         return [
             Stat("Posts", total, "file-text", "accent", per_day(week)),
             Stat(
@@ -156,13 +156,7 @@ def verb(row: Post) -> str:
 
 async def recent_activity(principal: Caller[Any]) -> list[Event]:
     """The latest posts, as activity (derived from real rows, not invented)."""
-    rows = (
-        await Post.all()
-        .select_related("author")
-        .order_by("-created_at")
-        .limit(3)
-        .aall()
-    )
+    rows = await Post.all().select_related("author").order_by("-created_at").limit(3)
     return [
         Event(
             f"{row.author.name} {verb(row)} “{row.title}”",

@@ -118,7 +118,7 @@ async def test_default_ordering_applies_to_queries_and_pages(marks: Database) ->
     base = datetime(2026, 1, 1).astimezone()
     for day in (1, 3, 2):
         await Mark.acreate(owner="a", url=f"u{day}", created=base.replace(day=day))
-    rows = await Mark.all().aall()
+    rows = await Mark.all()
     assert [r.url for r in rows] == ["u3", "u2", "u1"]  # newest first, no order_by
-    assert (await Mark.all().order_by("url").aall())[0].url == "u1"
+    assert (await Mark.all().order_by("url"))[0].url == "u1"
     assert await Mark.all().acount() == 3

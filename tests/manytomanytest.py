@@ -107,7 +107,7 @@ async def test_tags_load_through_the_join_model_and_pairs_are_unique(
         await PostTag.acreate(post_id=post.id, tag_id=red.id)
     loaded = await Post.all().prefetch_related("links").aget()
     assert len(loaded.links) == 2  # type: ignore[attr-defined]
-    links = await PostTag.filter(post_id=loaded.id).select_related("tag").aall()
+    links = await PostTag.filter(post_id=loaded.id).select_related("tag")
     assert {link.tag.label for link in links} == {"red", "blue"}  # type: ignore[attr-defined]
-    tagged = await PostTag.filter(tag__label="red").select_related("post").aall()
+    tagged = await PostTag.filter(tag__label="red").select_related("post")
     assert [link.post.title for link in tagged] == ["p"]  # type: ignore[attr-defined]
