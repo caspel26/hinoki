@@ -6,7 +6,7 @@ import os
 import sys
 from pathlib import Path
 
-from hinoki import serve, settingscli
+from hinoki import routescli, serve, settingscli
 from hinoki.checkcli import add_arguments, run_check
 from hinoki.db import Database
 from hinoki.errors import MigrationError
@@ -21,6 +21,7 @@ def parser() -> argparse.ArgumentParser:
     commands = root.add_subparsers(dest="group", required=True)
     add_arguments(commands)
     settingscli.add_arguments(commands)
+    routescli.add_arguments(commands)
     serve.add_arguments(commands)
     commands.add_parser("manage", help="run an app's management commands")
     group = commands.add_parser("migrations", help="plan, apply and inspect migrations")
@@ -136,6 +137,7 @@ def main(argv: list[str] | None = None) -> int:
         "new": run_new,
         "mcp": run_mcp_command,
         "migrations": run_migrations,
+        "routes": routescli.run_routes,
         "settings": settingscli.run_settings,
         "dev": serve.run_dev,
         "serve": serve.run_serve,

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from collections.abc import MutableMapping, Sequence
+from collections.abc import Iterator, MutableMapping, Sequence
 from datetime import UTC, datetime
+from types import ModuleType
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -130,14 +131,15 @@ class Hinoki:
 
     def include(self, *items: object) -> None:
         """Register decorated functions, ``API`` subclasses and objects that expose
-        an ``api()`` (the admin).
+        an ``api()`` (the admin). Lists and tuples of those are flattened, so a
+        feature package can export one ``routes`` list.
 
         All-or-nothing per call: on conflict the application is unchanged.
         """
         self._check_mutable()
         pending: list[Route] = []
         groups: list[RouteGroup] = []
-        for item in items:
+        for item in flatten(items):
             if isinstance(item, RouteGroup):
                 if item in self._included_groups or item in groups:
                     raise RegistrationError("a RouteGroup can be included only once")
@@ -184,8 +186,13 @@ class Hinoki:
             return list(item.routes())
         route = route_of(item)
         if route is None:
+            hint = (
+                "; export a list of its routes and include that"
+                if isinstance(item, ModuleType)
+                else ""
+            )
             raise RegistrationError(
-                f"{item!r} is neither an API class nor a decorated function"
+                f"{item!r} is neither an API class nor a decorated function{hint}"
             )
         if route.replaces:
             raise RegistrationError(
@@ -276,3 +283,12 @@ class Hinoki:
     def _check_mutable(self) -> None:
         if self._adapter is not None:
             raise RegistrationError("application is already serving; it is frozen")
+
+
+def flatten(items: Sequence[object]) -> Iterator[object]:
+    """The items of ``include``, with nested lists and tuples spread in place."""
+    for item in items:
+        if isinstance(item, list | tuple):
+            yield from flatten(item)
+        else:
+            yield item

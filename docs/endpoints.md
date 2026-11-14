@@ -133,6 +133,38 @@ functions are a better fit, especially when several actions share access,
 transaction defaults, or declared errors. A group must contain at least one
 action and becomes immutable after successful inclusion.
 
+## Organising a large application
+
+Give each feature one module that owns its routes and exports them as a list. The root declaration then names features, not individual actions:
+
+```python
+# tasks/routes.py
+routes = [tasks_group, TaskReports, export_tasks]
+
+# billing/routes.py
+routes = [Invoices, Payments]
+
+# main.py
+from billing.routes import routes as billing
+from tasks.routes import routes as tasks
+
+app = Hinoki(include=[tasks, billing, health])
+```
+
+`include` spreads nested lists and tuples in place, so order is the order you wrote. Each item keeps its own prefix, so the full path of an action is still visible next to it. A `RouteGroup` reached twice, a duplicate route, or an item that is not an action, class or group fails at declaration time and names the offending route; passing a module itself is refused with a hint to export a list.
+
+To see the resulting map without starting the server, run `hinoki routes examples.blog.main:create_app --path /posts` (the blog example):
+
+```text
+GET     /posts                    public                   examples.blog.api.Posts.listing
+POST    /posts                    TokenAuth[posts:write]   hinoki.crud.create
+DELETE  /posts/{item_id}          TokenAuth[posts:write]   hinoki.crud.delete
+GET     /posts/{item_id}          public                   examples.blog.api.Posts.one
+POST    /posts/{item_id}/publish  TokenAuth[posts:write]   examples.blog.api.Posts.publish
+```
+
+Use `--path` or `--method` to narrow it, and `--format json` for scripts. The list is sorted by path.
+
 ## Responses, errors and pagination
 
 Return a value matching the declared response type, or return `Reply` when the handler needs to set an explicit status, headers or body. Declare expected `APIError` subclasses in `errors=(...)`; their status, stable code and message feed the OpenAPI document and strict test client.
