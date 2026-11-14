@@ -190,7 +190,7 @@ kbd {
   position: absolute;
   z-index: 70;
   top: calc(100% + 12px);
-  left: 0;
+  right: 0;
   display: grid;
   min-width: 196px;
   max-width: min(260px, calc(100vw - 24px));
