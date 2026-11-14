@@ -6,6 +6,7 @@ import signal
 import subprocess
 import threading
 import time
+import urllib.error
 import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
@@ -144,3 +145,23 @@ def test_head_matches_get_through_granian(
         for key, value in get_headers.items()
         if key.lower() not in {"date", "x-request-id"}
     }
+
+
+def test_query_requests_carry_a_body_through_granian(
+    server: tuple[subprocess.Popen[bytes], int, Path],
+) -> None:
+    _, port, _ = server
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}/find",
+        data=b'{"text":"hinoki"}',
+        headers={"content-type": "application/json"},
+        method="QUERY",
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        assert response.status == 200
+        assert json.load(response) == {"method": "QUERY", "data": {"text": "hinoki"}}
+    wrong = urllib.request.Request(f"http://127.0.0.1:{port}/fast", method="QUERY")
+    with pytest.raises(urllib.error.HTTPError) as refused:
+        urllib.request.urlopen(wrong, timeout=10)
+    assert refused.value.code == 405
+    assert refused.value.headers["allow"] == "GET, HEAD"
