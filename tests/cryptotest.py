@@ -15,7 +15,7 @@ from typing import Any, ClassVar
 
 import pytest
 
-from hinoki import Access, Caller, Hinoki, Request, get, native
+from hinoki import Access, Caller, Hinoki, Request, core, get
 from hinoki.crypto import (
     HashingBusy,
     JWTAuth,
@@ -148,7 +148,7 @@ def test_random_tokens() -> None:
     for bad in (0, 1025):
         with pytest.raises(ValueError, match="between"):
             random_token(bad)
-    assert native.constant_time_equal(b"a", b"a") and not native.constant_time_equal(
+    assert core.constant_time_equal(b"a", b"a") and not core.constant_time_equal(
         b"a", b"b"
     )
 

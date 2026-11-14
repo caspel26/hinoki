@@ -8,7 +8,7 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import Hinoki, Request, Schema, get, native, post
+from hinoki import Hinoki, Request, Schema, core, get, post
 from hinoki.parsers import JSONParser, TextParser
 from hinoki.renderers import DEFAULT_RENDERERS, JSONRenderer, TextRenderer
 from hinoki.testing import ASGIClient
@@ -21,22 +21,22 @@ class Item(Schema):
 
 def test_the_rust_encoder_has_indent_sort_keys_and_a_default_hook() -> None:
     value = {"b": [1, {"y": 2, "x": None}], "a": "é"}
-    assert native.encode_json(value) == b'{"b":[1,{"y":2,"x":null}],"a":"\xc3\xa9"}'
-    assert native.encode_json(value, None, True) == (
+    assert core.encode_json(value) == b'{"b":[1,{"y":2,"x":null}],"a":"\xc3\xa9"}'
+    assert core.encode_json(value, None, True) == (
         b'{"a":"\xc3\xa9","b":[1,{"x":null,"y":2}]}'
     )
-    assert native.encode_json({"k": [1, 2], "e": {}, "l": []}, 2) == (
+    assert core.encode_json({"k": [1, 2], "e": {}, "l": []}, 2) == (
         b'{\n  "k": [\n    1,\n    2\n  ],\n  "e": {},\n  "l": []\n}'
     )
-    assert json.loads(native.encode_json(value, 4, True)) == value
-    assert native.encode_json({"d": Decimal("1.5")}, None, False, str) == b'{"d":"1.5"}'
+    assert json.loads(core.encode_json(value, 4, True)) == value
+    assert core.encode_json({"d": Decimal("1.5")}, None, False, str) == b'{"d":"1.5"}'
     with pytest.raises(TypeError):
-        native.encode_json({"d": Decimal("1.5")})
+        core.encode_json({"d": Decimal("1.5")})
     with pytest.raises(ValueError, match="same object"):
-        native.encode_json(Decimal("1"), None, False, lambda v: v)
+        core.encode_json(Decimal("1"), None, False, lambda v: v)
     item = Item(id=UUID(int=1), name="n")
-    assert native.encode_json(item, None, True).startswith(b'{"id":')
-    assert json.loads(native.encode_json([item], 2)) == [item.dump()]
+    assert core.encode_json(item, None, True).startswith(b'{"id":')
+    assert json.loads(core.encode_json([item], 2)) == [item.dump()]
 
 
 def test_renderer_options_are_validated() -> None:
@@ -137,11 +137,9 @@ class Dumper:
 
 
 def test_replacements_keep_the_indentation_of_the_value_they_replace() -> None:
-    pretty = native.encode_json([Dumper()], 2)
+    pretty = core.encode_json([Dumper()], 2)
     assert pretty == json.dumps([Dumper().dump()], indent=2).encode()
-    hooked = native.encode_json(
-        {"k": [Decimal("1")]}, 2, False, lambda v: {"d": str(v)}
-    )
+    hooked = core.encode_json({"k": [Decimal("1")]}, 2, False, lambda v: {"d": str(v)})
     assert hooked == json.dumps({"k": [{"d": "1"}]}, indent=2).encode()
 
 
@@ -151,14 +149,14 @@ def test_endless_replacements_and_absurd_indents_are_refused_cleanly() -> None:
             return Forever()
 
     with pytest.raises(ValueError, match="deeply"):
-        native.encode_json(Forever())
+        core.encode_json(Forever())
     with pytest.raises(ValueError, match="deeply"):
-        native.encode_json(Decimal(1), None, False, lambda _v: Decimal(2))
+        core.encode_json(Decimal(1), None, False, lambda _v: Decimal(2))
     for bad in (257, 2**40):
         with pytest.raises(ValueError, match="indent"):
-            native.encode_json([[1]], bad)
+            core.encode_json([[1]], bad)
     with pytest.raises(OverflowError):
-        native.encode_json([[1]], -1)
+        core.encode_json([[1]], -1)
 
 
 def test_random_trees_round_trip_with_every_option() -> None:
@@ -184,7 +182,7 @@ def test_random_trees_round_trip_with_every_option() -> None:
         value = tree(4)
         for indent in (None, 0, 2, 16):
             for sort in (False, True):
-                assert json.loads(native.encode_json(value, indent, sort)) == value
+                assert json.loads(core.encode_json(value, indent, sort)) == value
 
 
 class WithPostInit(Schema):

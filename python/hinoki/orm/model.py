@@ -13,7 +13,7 @@ import inspect
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, dataclass_transform
 
-from hinoki import native
+from hinoki import core
 from hinoki.blocking import run_sync
 from hinoki.errors import (
     FieldError,
@@ -259,7 +259,7 @@ class Model:
     async def insert(self) -> Self:
         cls = type(self)
         assignments = [(c, getattr(self, c)) for c in cls.__columns__]
-        sql, params = native.compile_query(
+        sql, params = core.compile_query(
             "insert",
             cls.__table__,
             assignments=assignments,

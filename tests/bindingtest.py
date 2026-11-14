@@ -1,6 +1,6 @@
 import pytest
 
-from hinoki import API, Hinoki, RegistrationError, get
+from hinoki import API, Hinoki, RegistrationError, core, get
 from hinoki.request import Request
 
 
@@ -70,3 +70,8 @@ def test_subclass_without_path_inherits_the_prefix() -> None:
 
 def test_subclass_can_choose_its_own_prefix() -> None:
     assert [r.path for r in Other.routes()] == ["/other/one", "/other/two"]
+
+
+def test_extension_types_report_the_renamed_module() -> None:
+    assert core.Router.__module__ == "hinoki.core"
+    assert core.DatabaseError.__module__ == "hinoki.core"

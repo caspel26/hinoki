@@ -21,7 +21,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from uuid import UUID
 
-from hinoki import native
+from hinoki import core
 from hinoki.auth import Caller
 from hinoki.errors import (
     ErrorDetail,
@@ -95,7 +95,7 @@ CONVERTERS: dict[object, Callable[[str], object]] = {
 def parse_query(raw: bytes) -> dict[str, list[str]]:
     """Parse a query string (in Rust); malformed input raises ``InvalidBody``."""
     try:
-        return native.parse_query_string(raw, MAX_FIELDS)
+        return core.parse_query_string(raw, MAX_FIELDS)
     except ValueError:
         raise InvalidBody("invalid_query", "malformed query string") from None
 

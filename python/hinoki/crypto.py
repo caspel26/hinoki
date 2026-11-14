@@ -23,7 +23,7 @@ from collections.abc import Awaitable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, ClassVar
 
-from hinoki import native
+from hinoki import core
 from hinoki.auth import BearerAuth, Caller
 from hinoki.blocking import call_hook
 from hinoki.httperrors import APIError
@@ -87,13 +87,11 @@ class PasswordHasher:
 
     def hash_sync(self, password: str) -> str:
         """Blocking hash (for scripts and sync handlers)."""
-        return native.hash_password(
-            password, self.memory_kib, self.time_cost, self.lanes
-        )
+        return core.hash_password(password, self.memory_kib, self.time_cost, self.lanes)
 
     def verify_sync(self, password: str, stored: str) -> bool:
         """``False`` for a wrong password; ``ValueError`` for a malformed hash."""
-        return native.verify_password(password, stored)
+        return core.verify_password(password, stored)
 
     async def run(self, work: Any, *arguments: Any) -> Any:
         if self.pending >= self.max_pending:
@@ -114,7 +112,7 @@ class PasswordHasher:
 
     def needs_rehash(self, stored: str) -> bool:
         """True when ``stored`` was made with other parameters than these."""
-        return native.password_needs_rehash(
+        return core.password_needs_rehash(
             stored, self.memory_kib, self.time_cost, self.lanes
         )
 
@@ -124,7 +122,7 @@ class PasswordHasher:
 
 def random_token(size: int = 32) -> str:
     """``size`` random bytes (1 to 1024) as URL-safe text, from the OS CSPRNG."""
-    return native.make_token(size)
+    return core.make_token(size)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -234,12 +232,12 @@ class JWTAuth[T](BearerAuth[T]):
     async def resolve_token(self, token: str) -> Caller[T] | None:
         rules = (self.now(), self.leeway, self.issuer, self.audience, self.require_exp)
         try:
-            payload = native.jwt_decode(token, [k.spec() for k in self.keys], rules)
+            payload = core.jwt_decode(token, [k.spec() for k in self.keys], rules)
         except ValueError as reason:
             log.debug("token rejected: %s", reason)
             return None
         try:
-            claims = native.decode_json(payload)
+            claims = core.decode_json(payload)
         except ValueError:
             log.debug("token rejected: payload is not decodable")
             return None
@@ -261,4 +259,4 @@ class JWTAuth[T](BearerAuth[T]):
             body.setdefault("iss", self.issuer)
         if self.audience is not None:
             body.setdefault("aud", self.audience)
-        return native.jwt_encode(native.encode_json(body), signer.spec())
+        return core.jwt_encode(core.encode_json(body), signer.spec())

@@ -10,7 +10,7 @@ from typing import Any, ClassVar
 
 from examples.blog.models import Post, User
 from examples.blog.security import WRITE
-from hinoki import Access, Caller, native
+from hinoki import Access, Caller, core
 from hinoki.admin import (
     Admin,
     Avatar,
@@ -37,7 +37,7 @@ class CookieAuth(BaseAuth[User]):
         return {"type": "apiKey", "in": "cookie", "name": COOKIE}
 
     async def authenticate(self, credentials: Credentials) -> Caller[User] | None:
-        cookies = native.parse_cookie_header(credentials.headers.get("cookie", ""))
+        cookies = core.parse_cookie_header(credentials.headers.get("cookie", ""))
         token = cookies.get(COOKIE)
         if not token:
             return None

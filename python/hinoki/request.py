@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping, Sequence
 from typing import Any
 
-from hinoki import native
+from hinoki import core
 from hinoki.errors import InvalidBody
 from hinoki.parsers import (
     DEFAULT_PARSERS,
@@ -87,7 +87,7 @@ class Request:
         self.client = client
         self.headers = Headers(headers)
         self.GET = QueryDict(query)
-        self.COOKIES = native.parse_cookie_header(self.headers.get("cookie", ""))
+        self.COOKIES = core.parse_cookie_header(self.headers.get("cookie", ""))
         self.body = body
         self.path_params = dict(path_params)
         self.user = user

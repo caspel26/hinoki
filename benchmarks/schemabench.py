@@ -13,7 +13,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from hinoki import Field, Schema
-from hinoki import native as nat
+from hinoki import core as nat
 from hinoki.fieldtypes import FieldType
 from hinoki.schema import encode
 from tests.oracle.validation import Validator

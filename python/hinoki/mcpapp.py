@@ -20,6 +20,7 @@ import hinoki
 from hinoki import context
 from hinoki.access import Access
 from hinoki.app import Hinoki
+from hinoki.core import decode_json
 from hinoki.mcp import (
     INVALID_PARAMS,
     NO_METHOD,
@@ -30,7 +31,6 @@ from hinoki.mcp import (
     failure,
     reply,
 )
-from hinoki.native import decode_json
 from hinoki.reply import Reply
 from hinoki.request import Request
 from hinoki.routing import Route, post

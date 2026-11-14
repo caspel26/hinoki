@@ -22,7 +22,8 @@ from typing import (
 )
 from uuid import UUID
 
-from hinoki import native
+from hinoki import core
+from hinoki.core import dump_instance
 from hinoki.errors import (
     ErrorDetail,
     RegistrationError,
@@ -30,7 +31,6 @@ from hinoki.errors import (
 )
 from hinoki.fields import UNSET, Field, FieldInfo, Unset
 from hinoki.fieldtypes import FieldType, parse_annotation
-from hinoki.native import dump_instance
 
 __all__ = [
     "UNSET",
@@ -110,7 +110,7 @@ class Schema:
 
     __hinoki_schema__: ClassVar[bool] = True
     __specs__: ClassVar[dict[str, FieldSpec] | None] = None
-    __native__: ClassVar[native.CompiledSchema | None] = None
+    __native__: ClassVar[core.CompiledSchema | None] = None
     __native_dump__: ClassVar[bool] = True
     __checks__: ClassVar[tuple[tuple[str, tuple[str, ...], str], ...]] = ()
 
@@ -183,7 +183,7 @@ class Schema:
         return specs
 
     @classmethod
-    def native_schema(cls) -> native.CompiledSchema:
+    def native_schema(cls) -> core.CompiledSchema:
         """The Rust validator for this schema and everything it refers to,
         compiled on first use and cached on the class."""
         cached = cls.__dict__.get("__native__")
@@ -392,7 +392,7 @@ def node_of(
     return (ftype.kind, ftype.nullable, ftype.info.constraints(), item, index)
 
 
-def compile_native(root: type[Schema]) -> native.CompiledSchema:
+def compile_native(root: type[Schema]) -> core.CompiledSchema:
     """Table of every schema reachable from ``root``, compiled by the Rust core."""
     index_of: dict[type[Schema], int] = {root: 0}
     queue = [root]
@@ -406,7 +406,7 @@ def compile_native(root: type[Schema]) -> native.CompiledSchema:
             for name, spec in current.specs().items()
         ]
         definitions.append((current, fields))
-    return native.compile_schemas(
+    return core.compile_schemas(
         definitions, 0, uuid.UUID, dt.datetime.fromisoformat, UNSET
     )
 
@@ -440,11 +440,11 @@ def conversion_of(ftype: FieldType) -> tuple[Any, Any]:
     return (ftype.schema, inner)
 
 
-def model_plan(cls: type[Schema]) -> native.ModelPlan:
+def model_plan(cls: type[Schema]) -> core.ModelPlan:
     """The Rust plan of ``from_model`` for this class, built once."""
     cached = cls.__dict__.get("__model_plan__")
     if cached is None:
-        cached = native.ModelPlan(
+        cached = core.ModelPlan(
             cls,
             [
                 (name, spec.required, conversion_of(spec.ftype))
@@ -453,7 +453,7 @@ def model_plan(cls: type[Schema]) -> native.ModelPlan:
             uses_generated_init(cls),
         )
         cls.__model_plan__ = cached  # type: ignore[attr-defined]
-    return cast(native.ModelPlan, cached)
+    return cast(core.ModelPlan, cached)
 
 
 def from_row(ftype: FieldType, value: Any) -> Any:
