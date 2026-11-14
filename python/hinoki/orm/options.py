@@ -11,6 +11,10 @@ they are needed when the class is created; constraints and behaviour are
 decorators that validate their column names when applied and return the same
 class. Apply them before the model is used: they change what the migration
 planner, the query layer and the admin see.
+
+A model inherits the options of its abstract bases. A decorator applied to the
+subclass replaces what was inherited for that kind of option; it does not add
+to it.
 """
 
 from __future__ import annotations
@@ -46,9 +50,10 @@ def unique[M: type[Model]](*columns: str) -> Callable[[M], M]:
                 "field(unique=True) for one"
             )
         known(model, columns, "unique")
-        if columns in model.__unique__:
+        current = () if model.replace_inherited("unique") else model.__unique__
+        if columns in current:
             raise RegistrationError(f"{model.__name__}: @unique{columns} twice")
-        model.__unique__ = (columns, *model.__unique__)  # top-to-bottom order
+        model.__unique__ = (columns, *current)  # top-to-bottom order
         return model
 
     return apply
@@ -60,9 +65,10 @@ def indexed[M: type[Model]](*columns: str) -> Callable[[M], M]:
 
     def apply(model: M) -> M:
         known(model, columns, "indexed")
-        if columns in model.__indexes__:
+        current = () if model.replace_inherited("indexes") else model.__indexes__
+        if columns in current:
             raise RegistrationError(f"{model.__name__}: @indexed{columns} twice")
-        model.__indexes__ = (columns, *model.__indexes__)  # top-to-bottom order
+        model.__indexes__ = (columns, *current)  # top-to-bottom order
         return model
 
     return apply
@@ -77,6 +83,7 @@ def ordered_by[M: type[Model]](*names: str) -> Callable[[M], M]:
 
     def apply(model: M) -> M:
         known(model, tuple(n.removeprefix("-") for n in names), "ordered_by")
+        model.replace_inherited("ordering")
         model.__ordering__ = tuple(names)
         return model
 
@@ -112,6 +119,7 @@ def timestamps[M: type[Model]](
             raise RegistrationError(
                 f"{model.__name__}: timestamps field {updated_at!r} must be datetime"
             )
+        model.replace_inherited("timestamps")
         model.__updated_at__ = updated_at
         model.__clock__ = clock
         return model

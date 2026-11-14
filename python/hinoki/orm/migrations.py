@@ -75,7 +75,9 @@ def models_of(module_name: str) -> list[type[Model]]:
     found = [
         member
         for _, member in inspect.getmembers(module, inspect.isclass)
-        if issubclass(member, Model) and member.__module__ == module_name
+        if issubclass(member, Model)
+        and member.__module__ == module_name
+        and not member.__abstract__  # no table: nothing to migrate
     ]
     return sorted(found, key=lambda m: inspect.getsourcelines(m)[1])
 
