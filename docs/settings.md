@@ -18,7 +18,7 @@ from hinoki import DatabaseSettings, FrameworkSettings, Secret
 class BlogSettings(FrameworkSettings):          # keeps the built-in groups
     database: DatabaseSettings                   # url: Secret, max_size: int
     jwt_secret: Secret | None = None             # optional secret
-    admin_theme: Literal["studio", "console", "paper"] = "studio"
+    admin_theme: Literal["studio", "console", "paper", "grove"] = "studio"
 ```
 
 `FrameworkSettings` brings five groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs) and `server` (host, port and workers). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](request-lifecycle.md).
