@@ -1,5 +1,6 @@
 """The admin extra: templates, themes, forms, CSRF and the pages (PostgreSQL)."""
 
+import asyncio
 import datetime
 import os
 import re
@@ -13,7 +14,17 @@ import pytest
 from openapi_spec_validator import validate
 
 from hinoki import Access, Caller, Hinoki, RegistrationError
-from hinoki.admin import THEMES, Admin, Badge, Fieldset, ModelAdmin, Tab, Theme, csrf
+from hinoki.admin import (
+    THEMES,
+    Admin,
+    Badge,
+    BulkAction,
+    Fieldset,
+    ModelAdmin,
+    Tab,
+    Theme,
+    csrf,
+)
 from hinoki.admin.components import icon_name, initials, page_window, sparkline
 from hinoki.admin.forms import FieldProblem, collect, convert, fields_for, label_of
 from hinoki.admin.templates import Raw, TemplateError, Templates, escape
@@ -47,12 +58,59 @@ class Note(Model, table="admin_notes"):
     owner_id: int | None = foreign_key(Owner, on_delete="set_null", default=None)
 
 
+async def mark_notes_done(rows: tuple[Note, ...], _principal: Caller[Any]) -> None:
+    await Note.filter(id__in=[row.id for row in rows]).aupdate({"done": True})
+
+
+async def fail_after_marking_notes(
+    rows: tuple[Note, ...], principal: Caller[Any]
+) -> None:
+    await mark_notes_done(rows, principal)
+    raise RuntimeError("simulated action failure")
+
+
+class CallableActionHandler:
+    async def __call__(self, _rows: tuple[Note, ...], _principal: Caller[Any]) -> None:
+        return None
+
+
+class RaceActionState:
+    started: ClassVar[asyncio.Event | None] = None
+    release: ClassVar[asyncio.Event | None] = None
+
+
+async def wait_and_mark_notes(rows: tuple[Note, ...], _principal: Caller[Any]) -> None:
+    assert RaceActionState.started is not None
+    assert RaceActionState.release is not None
+    RaceActionState.started.set()
+    await RaceActionState.release.wait()
+    await Note.filter(id__in=[row.id for row in rows]).aupdate({"done": True})
+
+
+def sync_action_handler(_rows: tuple[Note, ...], _principal: Caller[Any]) -> None:
+    return None
+
+
 class NoteAdmin(ModelAdmin[Note]):
     label = "Notes"
     columns = ("title", "done", "rank")
     search = ("title",)
     per_page = 2
     bulk_delete = True
+    bulk_actions: ClassVar[tuple[BulkAction[Any], ...]] = (
+        BulkAction(
+            name="mark-done",
+            label="Mark selected done",
+            confirm="Mark these notes as done?",
+            handler=mark_notes_done,
+        ),
+        BulkAction(
+            name="fail-after-marking",
+            label="Fail after marking",
+            confirm="Run the failing test action?",
+            handler=fail_after_marking_notes,
+        ),
+    )
     show_count = True
     badges: ClassVar[dict[str, Any]] = {
         "done": {True: Badge("Done", "ok"), False: Badge("Open", "warn", "pencil")}
@@ -60,6 +118,28 @@ class NoteAdmin(ModelAdmin[Note]):
     tabs = (Tab("Done", {"done": True}), Tab("Open", {"done": False}))
     fieldsets = (Fieldset("Organization", ("owner_id",)),)
     modified_field = "due"
+
+    def can(self, principal: Caller[Any], action: str, row: Note | None = None) -> bool:
+        return not (
+            action == "mark-done" and row is not None and row.title == "blocked"
+        )
+
+
+class RaceNoteAdmin(NoteAdmin):
+    bulk_actions: ClassVar[tuple[BulkAction[Any], ...]] = (
+        *NoteAdmin.bulk_actions,
+        BulkAction(
+            name="race-update",
+            label="Update selected",
+            confirm="Update the selected notes?",
+            handler=wait_and_mark_notes,
+        ),
+    )
+
+    def can(self, principal: Caller[Any], action: str, row: Note | None = None) -> bool:
+        return super().can(principal, action, row) and not (
+            action == "race-update" and row is not None and row.title == "blocked"
+        )
 
 
 class Secret(Model, table="admin_secrets"):
@@ -84,11 +164,15 @@ class SecretAdmin(ModelAdmin[Secret]):
         return await super().save(values, principal, row)
 
 
-def build(theme: str = "studio", templates: str | None = None) -> Hinoki:
+def build(
+    theme: str = "studio",
+    templates: str | None = None,
+    note_admin: type[ModelAdmin[Note]] = NoteAdmin,
+) -> Hinoki:
     admin = Admin(
         access=staff, secret=SECRET, theme=theme, templates=templates, site="Test Admin"
     )
-    admin.register(Note, NoteAdmin, slug="notes")
+    admin.register(Note, note_admin, slug="notes")
     admin.register(Secret, SecretAdmin, slug="secrets")
     admin.register(Owner, slug="owners")
     app = Hinoki(openapi_url="/openapi.json")
@@ -205,6 +289,63 @@ def test_csrf_needs_cookie_field_signature_and_same_site() -> None:
     assert guard.valid(FakeRequest(good, good, origin="http://app.test"), "ann")  # type: ignore[arg-type]
     assert guard.valid(FakeRequest(good, good, sec_fetch_site="same-origin"), "ann")  # type: ignore[arg-type]
     assert not guard.valid(FakeRequest(good, good), "bob")  # type: ignore[arg-type]
+
+
+def test_bulk_action_declarations_are_validated_on_registration() -> None:
+    async def noop(_rows: tuple[Note, ...], _principal: Caller[Any]) -> None:
+        return None
+
+    class DuplicateActions(ModelAdmin[Note]):
+        bulk_actions = (
+            BulkAction("publish", "Publish", "Publish?", noop),
+            BulkAction("publish", "Publish again", "Publish again?", noop),
+        )
+
+    class ReservedAction(ModelAdmin[Note]):
+        bulk_actions = (BulkAction("delete", "Delete", "Delete?", noop),)
+
+    class SyncAction(ModelAdmin[Note]):
+        bulk_actions = (
+            BulkAction(
+                "publish",
+                "Publish",
+                "Publish?",
+                sync_action_handler,  # type: ignore[arg-type]
+            ),
+        )
+
+    class MissingHandler(ModelAdmin[Note]):
+        bulk_actions = (
+            BulkAction("missing", "Missing", "Run?", None),  # type: ignore[arg-type]
+        )
+
+    class NonCallableHandler(ModelAdmin[Note]):
+        bulk_actions = (
+            BulkAction("invalid", "Invalid", "Run?", 42),  # type: ignore[arg-type]
+        )
+
+    class CallableActions(ModelAdmin[Note]):
+        bulk_actions = (
+            BulkAction(
+                "callable",
+                "Callable action",
+                "Run callable?",
+                CallableActionHandler(),
+            ),
+        )
+
+    for admin_class, reason in (
+        (DuplicateActions, "duplicate bulk action"),
+        (ReservedAction, "reserved bulk action name"),
+        (SyncAction, "handler must be an async callable"),
+        (MissingHandler, "handler must be an async callable"),
+        (NonCallableHandler, "handler must be an async callable"),
+    ):
+        admin = Admin(access=staff, secret=SECRET)
+        with pytest.raises(RegistrationError, match=reason):
+            admin.register(Note, admin_class, slug="notes")
+
+    Admin(access=staff, secret=SECRET).register(Note, CallableActions, slug="notes")
 
 
 def test_forms_follow_the_model_and_convert_strictly() -> None:
@@ -365,6 +506,23 @@ async def note_id(db: Database, title: str = "n") -> UUID:
         title,
     )
     return key
+
+
+async def postgres_update_is_waiting(db: Database, pid: int) -> bool:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + 3
+    while loop.time() < deadline:
+        activity = await db.fetch_one(
+            "SELECT wait_event_type, query FROM pg_stat_activity WHERE pid = $1", pid
+        )
+        if (
+            activity is not None
+            and activity["wait_event_type"] == "Lock"
+            and "UPDATE admin_notes" in activity["query"]
+        ):
+            return True
+        await asyncio.sleep(0.01)
+    return False
 
 
 @needs_database
@@ -761,6 +919,248 @@ async def test_bulk_delete_asks_first_and_deletes_only_what_is_listed(
     assert done.status == 303
     left = await db.fetch("SELECT id FROM admin_notes")
     assert [r["id"] for r in left] == [keys[2]]
+
+
+@needs_database
+async def test_custom_bulk_action_confirms_then_shows_a_success_notice(
+    site: tuple[Client, Database],
+) -> None:
+    client, db = site
+    selected = [await note_id(db, "first"), await note_id(db, "second")]
+    await note_id(db, "untouched")
+    token, headers = await session(client, "/admin/notes")
+
+    ask = await submit(
+        client,
+        "/admin/notes/bulk",
+        {
+            "csrf": token,
+            "action": "mark-done",
+            "ids": str(selected[0]),
+        },
+        headers,
+    )
+    assert ask.status == 200
+    assert "Mark these notes as done?" in ask.body
+    assert "(1 selected)" in ask.body
+    assert ">Mark selected done</button>" in ask.body
+    assert 'name="action" value="mark-done"' in ask.body
+    assert not any(
+        row["done"] for row in await db.fetch("SELECT done FROM admin_notes")
+    )
+
+    done = await submit(
+        client,
+        "/admin/notes/bulk",
+        {
+            "csrf": token,
+            "action": "mark-done",
+            "confirmed": "1",
+            "ids": str(selected[0]),
+        },
+        headers,
+    )
+    assert done.status == 303
+    assert "done=action%3Anotes%3Amark-done" in done.headers["location"]
+    notice = await client.request(
+        "GET",
+        "/admin/notes",
+        query="done=action%3Anotes%3Amark-done",
+        headers=STAFF,
+    )
+    assert notice.status == 200 and "Mark selected done completed." in notice.body
+    states = {
+        str(row["id"]): row["done"]
+        for row in await db.fetch("SELECT id, done FROM admin_notes")
+    }
+    assert states[str(selected[0])] is True
+    assert states[str(selected[1])] is False
+
+
+@needs_database
+async def test_custom_bulk_action_holds_row_lock_through_the_handler(
+    pool: Pool, site: tuple[Client, Database]
+) -> None:
+    """A concurrent permission-field change waits until the action commits."""
+    _, db = site
+    key = await note_id(db, "race")
+    client = await pool.start(build(note_admin=RaceNoteAdmin))
+    token, headers = await session(client, "/admin/notes")
+    RaceActionState.started = asyncio.Event()
+    RaceActionState.release = asyncio.Event()
+    writer = await Database.connect(URL or "", max_size=1)
+    action_task = asyncio.create_task(
+        submit(
+            client,
+            "/admin/notes/bulk",
+            {
+                "csrf": token,
+                "action": "race-update",
+                "confirmed": "1",
+                "ids": str(key),
+            },
+            headers,
+        )
+    )
+    update_done = asyncio.Event()
+    writer_ready = asyncio.Event()
+    writer_pid: int | None = None
+
+    async def change_permission_field() -> None:
+        nonlocal writer_pid
+        async with writer.transaction():
+            row = await writer.fetch_one("SELECT pg_backend_pid() AS pid")
+            assert row is not None
+            writer_pid = int(row["pid"])
+            writer_ready.set()
+            await writer.execute(
+                "UPDATE admin_notes SET title = 'blocked' WHERE id = $1", key
+            )
+        update_done.set()
+
+    update_task: asyncio.Task[None] | None = None
+    try:
+        assert RaceActionState.started is not None
+        await asyncio.wait_for(RaceActionState.started.wait(), timeout=3)
+        update_task = asyncio.create_task(change_permission_field())
+        await asyncio.wait_for(writer_ready.wait(), timeout=3)
+        assert writer_pid is not None
+        assert await postgres_update_is_waiting(db, writer_pid), (
+            "the concurrent permission update did not wait on a row lock"
+        )
+        RaceActionState.release.set()
+        response = await asyncio.wait_for(action_task, timeout=3)
+        assert response.status == 303
+        await asyncio.wait_for(update_task, timeout=3)
+    finally:
+        if RaceActionState.release is not None:
+            RaceActionState.release.set()
+        if not action_task.done():
+            await action_task
+        if update_task is not None and not update_task.done():
+            await update_task
+        RaceActionState.started = None
+        RaceActionState.release = None
+        writer.close()
+
+    row = (await db.fetch("SELECT title, done FROM admin_notes WHERE id = $1", key))[0]
+    assert row == {"title": "blocked", "done": True}
+
+
+@needs_database
+async def test_custom_bulk_action_rechecks_all_row_permissions_and_ids(
+    site: tuple[Client, Database],
+) -> None:
+    client, db = site
+    allowed = await note_id(db, "allowed")
+    denied = await note_id(db, "blocked")
+    token, headers = await session(client, "/admin/notes")
+
+    forbidden = await client.request(
+        "POST",
+        "/admin/notes/bulk",
+        urlencode(
+            [
+                ("csrf", token),
+                ("action", "mark-done"),
+                ("ids", str(allowed)),
+                ("ids", str(denied)),
+            ]
+        ).encode(),
+        content_type=FORM,
+        headers=headers,
+    )
+    assert forbidden.status == 404
+    assert not any(
+        row["done"] for row in await db.fetch("SELECT done FROM admin_notes")
+    )
+
+    duplicate = await client.request(
+        "POST",
+        "/admin/notes/bulk",
+        urlencode(
+            [
+                ("csrf", token),
+                ("action", "mark-done"),
+                ("ids", str(allowed)),
+                ("ids", str(allowed)),
+            ]
+        ).encode(),
+        content_type=FORM,
+        headers=headers,
+    )
+    assert duplicate.status == 400
+
+    stale = await submit(
+        client,
+        "/admin/notes/bulk",
+        {"csrf": token, "action": "mark-done", "ids": str(uuid4())},
+        headers,
+    )
+    assert stale.status == 404
+
+
+@needs_database
+async def test_custom_bulk_action_rechecks_permissions_on_confirmation_and_rolls_back(
+    site: tuple[Client, Database],
+) -> None:
+    client, db = site
+    changed = await note_id(db, "allowed")
+    token, headers = await session(client, "/admin/notes")
+    forged = await submit(
+        client,
+        "/admin/notes/bulk",
+        {"csrf": "0" * 65, "action": "mark-done", "ids": str(changed)},
+        headers,
+    )
+    assert forged.status == 403
+    ask = await submit(
+        client,
+        "/admin/notes/bulk",
+        {"csrf": token, "action": "mark-done", "ids": str(changed)},
+        headers,
+    )
+    assert ask.status == 200
+    await db.execute("UPDATE admin_notes SET title = 'blocked' WHERE id = $1", changed)
+    refused = await submit(
+        client,
+        "/admin/notes/bulk",
+        {
+            "csrf": token,
+            "action": "mark-done",
+            "confirmed": "1",
+            "ids": str(changed),
+        },
+        headers,
+    )
+    assert refused.status == 404
+    assert (await db.fetch("SELECT done FROM admin_notes WHERE id = $1", changed))[0][
+        "done"
+    ] is False
+
+    failing = await note_id(db, "fails")
+    failed = await submit(
+        client,
+        "/admin/notes/bulk",
+        {"csrf": token, "action": "fail-after-marking", "ids": str(failing)},
+        headers,
+    )
+    assert failed.status == 200
+    response = await submit(
+        client,
+        "/admin/notes/bulk",
+        {
+            "csrf": token,
+            "action": "fail-after-marking",
+            "confirmed": "1",
+            "ids": str(failing),
+        },
+        headers,
+    )
+    assert response.status == 500
+    assert (await db.fetch("SELECT done FROM admin_notes WHERE id = $1", failing))[0][
+        "done"
+    ] is False
 
 
 @needs_database
