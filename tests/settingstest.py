@@ -63,6 +63,13 @@ def test_nested_groups_defaults_and_types_load_from_the_environment() -> None:
     assert settings.database.max_size == 10 and settings.logging.level == "info"
 
 
+def test_database_settings_default_to_local_sqlite() -> None:
+    settings = DatabaseSettings()
+    assert settings.url.reveal() == "sqlite://./.hinoki/local.sqlite3"
+    configured = DatabaseSettings(url=Secret("postgres://db/app"))
+    assert configured.url.reveal() == "postgres://db/app"
+
+
 def test_precedence_is_overrides_then_environment_then_dotenv_then_default(
     tmp_path: Path,
 ) -> None:
@@ -210,7 +217,6 @@ def test_every_problem_is_reported_at_once_without_values() -> None:
         "APP_MAIL__TLS: must be true or false",
         "APP_EXECUTION: sync_workers must be >= 1",
         "APP_TYPO: unknown setting",
-        "APP_DATABASE__URL: required, not set",
         "APP_MAIL__TAGS: required, not set",
     ):
         assert expected in text, expected

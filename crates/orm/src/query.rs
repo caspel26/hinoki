@@ -118,6 +118,14 @@ impl std::error::Error for QueryError {}
 
 pub type Compiled<V> = Result<(String, Vec<V>), QueryError>;
 
+/// SQL behavior selected for one explicit database backend.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Dialect {
+    #[default]
+    Postgres,
+    Sqlite,
+}
+
 /// `name` must be `[A-Za-z_][A-Za-z0-9_]*`; the result is double-quoted.
 pub fn quote(name: &str) -> Result<String, QueryError> {
     let mut chars = name.chars();
@@ -145,10 +153,15 @@ fn column_ref(name: &str, base: Option<&str>) -> Result<String, QueryError> {
     }
 }
 
-fn like(column: &str, holder: &str) -> String {
-    format!(
-        "{column}::text ILIKE '%' || replace(replace(replace({holder}::text, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%'"
-    )
+fn like(column: &str, holder: &str, dialect: Dialect) -> String {
+    match dialect {
+        Dialect::Postgres => format!(
+            "{column}::text ILIKE '%' || replace(replace(replace({holder}::text, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%'"
+        ),
+        Dialect::Sqlite => format!(
+            "CAST({column} AS TEXT) LIKE '%' || replace(replace(replace({holder}, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%' ESCAPE '\\'"
+        ),
+    }
 }
 
 fn quote_all(names: &[String]) -> Result<String, QueryError> {
@@ -164,20 +177,25 @@ struct Builder<V> {
     params: Vec<V>,
     /// Table that qualifies bare column names (set when the query joins).
     base: Option<String>,
+    dialect: Dialect,
 }
 
 impl<V: Clone> Builder<V> {
-    fn new(sql: String) -> Self {
+    fn new(sql: String, dialect: Dialect) -> Self {
         Self {
             sql,
             params: Vec::new(),
             base: None,
+            dialect,
         }
     }
 
     fn placeholder(&mut self, value: V) -> String {
         self.params.push(value);
-        format!("${}", self.params.len())
+        match self.dialect {
+            Dialect::Postgres => format!("${}", self.params.len()),
+            Dialect::Sqlite => format!("?{}", self.params.len()),
+        }
     }
 
     fn filters(&mut self, filters: &[Filter<V>]) -> Result<(), QueryError> {
@@ -240,7 +258,7 @@ impl<V: Clone> Builder<V> {
             )));
         };
         let holder = self.placeholder(value.clone());
-        Ok(like(column, &holder))
+        Ok(like(column, &holder, self.dialect))
     }
 
     /// One value matched against every listed column, joined with `OR`.
@@ -256,7 +274,10 @@ impl<V: Clone> Builder<V> {
             columns.push(column_ref(name, self.base.as_deref())?);
         }
         let holder = self.placeholder(value.clone());
-        let clauses: Vec<String> = columns.iter().map(|c| like(c, &holder)).collect();
+        let clauses: Vec<String> = columns
+            .iter()
+            .map(|c| like(c, &holder, self.dialect))
+            .collect();
         Ok(format!("({})", clauses.join(" OR ")))
     }
 
@@ -328,10 +349,17 @@ fn join_clauses<V>(q: &Select<V>) -> Result<String, QueryError> {
 }
 
 pub fn compile_select<V: Clone>(q: &Select<V>) -> Compiled<V> {
+    compile_select_with(q, Dialect::Postgres)
+}
+
+pub fn compile_select_with<V: Clone>(q: &Select<V>, dialect: Dialect) -> Compiled<V> {
     let table = quote(&q.table)?;
     let joined = !q.joins.is_empty();
-    let columns = select_list(q, joined)?;
-    let mut b = Builder::new(format!("SELECT {columns} FROM {table}"));
+    let mut columns = select_list(q, joined)?;
+    if q.count && dialect == Dialect::Sqlite {
+        columns.push_str(" AS \"count\"");
+    }
+    let mut b = Builder::new(format!("SELECT {columns} FROM {table}"), dialect);
     b.sql.push_str(&join_clauses(q)?);
     if joined {
         b.base = Some(q.table.clone());
@@ -363,14 +391,18 @@ pub fn compile_select<V: Clone>(q: &Select<V>) -> Compiled<V> {
 }
 
 pub fn compile_insert<V: Clone>(q: &Insert<V>) -> Compiled<V> {
+    compile_insert_with(q, Dialect::Postgres)
+}
+
+pub fn compile_insert_with<V: Clone>(q: &Insert<V>, dialect: Dialect) -> Compiled<V> {
     let table = quote(&q.table)?;
     if q.assignments.is_empty() {
-        let mut b = Builder::new(format!("INSERT INTO {table} DEFAULT VALUES"));
+        let mut b = Builder::new(format!("INSERT INTO {table} DEFAULT VALUES"), dialect);
         b.returning(&q.returning)?;
         return Ok((b.sql, b.params));
     }
     let names: Vec<String> = q.assignments.iter().map(|(c, _)| c.clone()).collect();
-    let mut b = Builder::new(String::new());
+    let mut b = Builder::new(String::new(), dialect);
     let holders: Vec<String> = q
         .assignments
         .iter()
@@ -386,11 +418,15 @@ pub fn compile_insert<V: Clone>(q: &Insert<V>) -> Compiled<V> {
 }
 
 pub fn compile_update<V: Clone>(q: &Update<V>) -> Compiled<V> {
+    compile_update_with(q, Dialect::Postgres)
+}
+
+pub fn compile_update_with<V: Clone>(q: &Update<V>, dialect: Dialect) -> Compiled<V> {
     let table = quote(&q.table)?;
     if q.assignments.is_empty() {
         return Err(QueryError::Empty("assignments"));
     }
-    let mut b = Builder::new(String::new());
+    let mut b = Builder::new(String::new(), dialect);
     let mut sets = Vec::new();
     for (column, value) in &q.assignments {
         sets.push(format!(
@@ -406,7 +442,11 @@ pub fn compile_update<V: Clone>(q: &Update<V>) -> Compiled<V> {
 }
 
 pub fn compile_delete<V: Clone>(q: &Delete<V>) -> Compiled<V> {
-    let mut b = Builder::new(format!("DELETE FROM {}", quote(&q.table)?));
+    compile_delete_with(q, Dialect::Postgres)
+}
+
+pub fn compile_delete_with<V: Clone>(q: &Delete<V>, dialect: Dialect) -> Compiled<V> {
+    let mut b = Builder::new(format!("DELETE FROM {}", quote(&q.table)?), dialect);
     b.filters(&q.filters)?;
     Ok((b.sql, b.params))
 }
@@ -539,6 +579,35 @@ mod tests {
             compile_delete(&delete).unwrap().0,
             "DELETE FROM \"posts\" WHERE \"id\" <> $1"
         );
+    }
+
+    #[test]
+    fn sqlite_dialect_uses_numbered_question_mark_holders() {
+        let query = select(vec![f("title", Op::Eq, &[1]), f("id", Op::In, &[2, 3])]);
+        let (sql, params) = compile_select_with(&query, Dialect::Sqlite).unwrap();
+        assert_eq!(
+            sql,
+            "SELECT \"id\", \"title\" FROM \"posts\" WHERE \"title\" = ?1 AND \"id\" IN (?2, ?3)"
+        );
+        assert_eq!(params, vec![1, 2, 3]);
+
+        let insert = Insert {
+            table: "posts".into(),
+            assignments: vec![("title".into(), 1)],
+            returning: vec!["id".into()],
+        };
+        assert_eq!(
+            compile_insert_with(&insert, Dialect::Sqlite).unwrap().0,
+            "INSERT INTO \"posts\" (\"title\") VALUES (?1) RETURNING \"id\""
+        );
+    }
+
+    #[test]
+    fn sqlite_contains_uses_cast_like_and_explicit_escape() {
+        let query = select(vec![f("title", Op::Contains, &[1])]);
+        let sql = compile_select_with(&query, Dialect::Sqlite).unwrap().0;
+        assert!(sql.contains("CAST(\"title\" AS TEXT) LIKE"));
+        assert!(sql.ends_with("ESCAPE '\\'"));
     }
 
     #[test]

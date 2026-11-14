@@ -76,6 +76,43 @@ impl DbError {
             sqlstate: Some(code.code().to_owned()),
         }
     }
+
+    pub(crate) fn from_sqlite(err: rusqlite::Error) -> Self {
+        use rusqlite::Error::SqliteFailure;
+        let extended_code = match &err {
+            SqliteFailure(code, _) => code.extended_code,
+            _ => {
+                let kind = if matches!(err, rusqlite::Error::ToSqlConversionFailure(_)) {
+                    ErrorKind::Type
+                } else {
+                    ErrorKind::Other
+                };
+                return Self::new(kind, "database request failed");
+            }
+        };
+        let kind = match extended_code {
+            rusqlite::ffi::SQLITE_CONSTRAINT_PRIMARYKEY
+            | rusqlite::ffi::SQLITE_CONSTRAINT_UNIQUE => ErrorKind::Unique,
+            rusqlite::ffi::SQLITE_CONSTRAINT_FOREIGNKEY => ErrorKind::ForeignKey,
+            rusqlite::ffi::SQLITE_CONSTRAINT_NOTNULL => ErrorKind::NotNull,
+            rusqlite::ffi::SQLITE_CONSTRAINT_CHECK => ErrorKind::Check,
+            _ => ErrorKind::Other,
+        };
+        Self {
+            kind,
+            message: match kind {
+                ErrorKind::Unique => "unique constraint violated",
+                ErrorKind::ForeignKey => "foreign key constraint violated",
+                ErrorKind::NotNull => "not-null constraint violated",
+                ErrorKind::Check => "check constraint violated",
+                _ => "database request failed",
+            }
+            .to_owned(),
+            constraint: None,
+            table: None,
+            sqlstate: Some(format!("SQLITE_{extended_code}")),
+        }
+    }
 }
 
 impl fmt::Display for DbError {
