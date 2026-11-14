@@ -91,6 +91,28 @@ Question: does moving `from_model` (read each field from the row, convert nested
 * Final version: the plan is prepared once per class (`core.ModelPlan`), and when every field is present the instance is built directly, skipping the dataclass constructor: ≈ 1.8 µs against ≈ 2.65 µs, **1.46× faster** (CV 2–4 %). Not end to end.
 * A debug-profile build makes the Rust path look slower than it is; measure releases.
 
+## `ormcompilebench.py` — PostgreSQL ORM SQL compilation
+
+Question: what does the current Python-to-Rust compiler path cost for representative select, insert, update and delete statements, without a database or network? The query shapes are constructed once; each sample repeatedly calls the compiler in a release-profile extension. This isolates compilation overhead from driver, pool and server latency.
+
+```sh
+uv run --locked maturin develop --release
+uv run --locked python benchmarks/ormcompilebench.py \
+  --samples 5 --iterations 50000 \
+  --output benchmarks/results/orm-compile-postgres-before-stage0.json
+```
+
+Pre-Stage-0 baseline (2026-11-14, Python 3.13.18, Arch Linux x86_64, Rust extension release profile; five samples × 50,000 calls):
+
+| Statement | Median per compilation | CV |
+| --- | ---: | ---: |
+| Select with filters, ordering and pagination | 5.210 µs | 1.5% |
+| Insert with six assignments and `RETURNING` | 2.403 µs | 0.6% |
+| Update with a filter and `RETURNING` | 1.972 µs | 1.9% |
+| Delete with a filter | 4.784 µs | 2.0% |
+
+Raw samples and environment metadata are retained in [`results/orm-compile-postgres-before-stage0.json`](results/orm-compile-postgres-before-stage0.json). These are compiler-only values; they do not predict database latency or SQLite performance.
+
 ## `comparative/` — one service on four frameworks
 
 Hinoki, FastAPI, Django Ninja and Django Bolt implementing the same small API against the same PostgreSQL data, with a verifier for behaviour and statement counts. See `comparative/README.md` for the method and limits and the [benchmarks page](../docs/benchmarks.md) for the first measured run (2026-11-14).
