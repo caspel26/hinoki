@@ -123,6 +123,22 @@ app = Hinoki(
 
 The model says what is stored. The schemas say what may come in and what goes out, so a column never leaves the application unless a schema names it. `DatabaseModule` opens a connection pool when a worker starts and closes it when the worker stops; nothing connects at import.
 
+## OpenAPI and interactive API docs
+
+Hinoki generates an OpenAPI 3.1 document from registered routes, type annotations, request and response `Schema`s, declared errors, and authentication schemes. JSON, Swagger UI and ReDoc routes are opt-in:
+
+```python
+from hinoki import Hinoki
+
+app = Hinoki(
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+```
+
+The bundled viewers work without a CDN. See the [OpenAPI guide](docs/openapi.md) for document contents and current limits, including how the custom `QUERY` method is represented.
+
 ## Run it
 
 You need [uv](https://docs.astral.sh/uv/), a Rust toolchain (the core is built from source) and an empty PostgreSQL database that you can throw away.
