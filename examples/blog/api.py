@@ -86,6 +86,8 @@ class Posts(CrudAPI, path="/posts", resource=POSTS):
     )
     async def publish(self, item_id: UUID, principal: Caller[User]) -> PostOut:
         """Publish an own draft. Publishing twice is a conflict."""
+        # This example preserves a distinct 403 for another author's post.
+        # Prefer a conditional update for operations whose state can race.
         post = await owned_post(item_id, principal)
         if post.published:
             raise PostAlreadyPublished()
