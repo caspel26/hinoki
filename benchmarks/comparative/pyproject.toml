@@ -1,0 +1,22 @@
+[project]
+name = "hinoki-comparative-bench"
+version = "0.0.0"
+requires-python = ">=3.13"
+dependencies = [
+    "hinoki",
+    "granian>=2.8,<3",
+    "fastapi==0.162.7",
+    "uvicorn==0.54.0",
+    "sqlalchemy[asyncio]==2.1.8",
+    "asyncpg==0.32.0",
+    "django-ninja==1.8.0",
+    "django==6.1.3",
+    "django-bolt==0.13.0",
+    "psycopg[binary,pool]==3.3.9",
+]
+
+[tool.uv.sources]
+hinoki = { path = "../..", editable = true }
+
+[tool.uv]
+package = false
