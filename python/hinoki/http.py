@@ -6,9 +6,10 @@
     async def one(task_id: UUID) -> TaskOut: ...
 
 The implementation lives in ``hinoki.routing`` with the route model; this module
-is the public surface for the five verbs.
+is the public surface for the verbs. ``query`` is the HTTP QUERY method: a
+safe request that carries a body.
 """
 
-from hinoki.routing import delete, get, patch, post, put
+from hinoki.routing import delete, get, patch, post, put, query
 
-__all__ = ["delete", "get", "patch", "post", "put"]
+__all__ = ["delete", "get", "patch", "post", "put", "query"]
