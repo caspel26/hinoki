@@ -43,6 +43,17 @@ TYPES: dict[Any, str] = {
     dict: "jsonb",
     list: "jsonb",
 }
+SQLITE_TYPES: dict[Any, str] = {
+    UUID: "UUID",
+    str: "text",
+    int: "integer",
+    float: "real",
+    bool: "boolean",
+    datetime: "timestamptz",
+    bytes: "blob",
+    dict: "jsonb",
+    list: "jsonb",
+}
 EMPTY: dict[str, Any] = {"tables": {}}
 
 State = dict[str, Any]
@@ -93,9 +104,12 @@ def base_type(model: type[Model], name: str, hint: Any) -> tuple[Any, bool]:
     return get_origin(rest[0]) or rest[0], len(rest) != len(args)
 
 
-def column_state(model: type[Model], name: str, hint: Any, meta: FieldMeta) -> State:
+def column_state(
+    model: type[Model], name: str, hint: Any, meta: FieldMeta, dialect: str
+) -> State:
     kind, nullable = base_type(model, name, hint)
-    sql = TYPES.get(kind)
+    types = SQLITE_TYPES if dialect == "sqlite" else TYPES
+    sql = types.get(kind)
     if sql is None:
         label = getattr(kind, "__name__", kind)
         raise MigrationError(f"{model.__name__}.{name}: no SQL type for {label}")
@@ -119,12 +133,14 @@ def column_state(model: type[Model], name: str, hint: Any, meta: FieldMeta) -> S
     }
 
 
-def table_state(model: type[Model]) -> State:
+def table_state(model: type[Model], dialect: str = "postgres") -> State:
     hints = get_type_hints(model)
     columns: State = {}
     for item in dataclasses.fields(model):  # type: ignore[arg-type]
         meta: FieldMeta = item.metadata.get(MARK, FieldMeta())
-        columns[item.name] = column_state(model, item.name, hints[item.name], meta)
+        columns[item.name] = column_state(
+            model, item.name, hints[item.name], meta, dialect
+        )
     return {
         "columns": columns,
         "unique": [list(group) for group in model.__unique__],
@@ -155,8 +171,8 @@ def check_references(state: State) -> None:
                 )
 
 
-def state_of(models: list[type[Model]]) -> State:
-    tables = {m.__table__: table_state(m) for m in models}
+def state_of(models: list[type[Model]], dialect: str = "postgres") -> State:
+    tables = {m.__table__: table_state(m, dialect) for m in models}
     state: State = {"tables": tables}
     check_references(state)
     return state
@@ -205,16 +221,20 @@ def column_sql(name: str, column: State) -> str:
 
 
 def create_table(name: str, spec: State) -> Operation:
+    statement = create_table_sql(name, spec)
+    for columns in spec.get("indexes", []):
+        statement += "\n" + create_index_sql(name, columns)
+    return Operation(f"create table {name}", statement)
+
+
+def create_table_sql(name: str, spec: State) -> str:
     lines = [f"    {column_sql(c, s)}" for c, s in spec["columns"].items()]
     lines.extend(
         f"    UNIQUE ({', '.join(quote(c) for c in group)})"
         for group in spec.get("unique", [])
     )
     text = ",\n".join(lines)
-    statement = f"CREATE TABLE {quote(name)} (\n{text}\n);"
-    for columns in spec.get("indexes", []):
-        statement += "\n" + create_index_sql(name, columns)
-    return Operation(f"create table {name}", statement)
+    return f"CREATE TABLE {quote(name)} (\n{text}\n);"
 
 
 def index_name(table: str, columns: list[str]) -> str:
@@ -302,7 +322,80 @@ def index_changes(table: str, old: State, new: State) -> list[Operation]:
     return operations
 
 
-def table_changes(table: str, old: State, new: State) -> list[Operation]:
+def _sqlite_rebuild_warnings(old: State, new: State) -> list[str]:
+    destructive: list[str] = []
+    for name, column in new["columns"].items():
+        previous = old["columns"].get(name)
+        if previous is None:
+            if not column["nullable"]:
+                destructive.append(f"adding {name} requires values for existing rows")
+        elif previous is not None:
+            destructive.extend(_sqlite_column_warnings(name, previous, column))
+    destructive.extend(
+        f"dropping {name} loses its data"
+        for name in old["columns"]
+        if name not in new["columns"]
+    )
+    if old.get("unique", []) != new.get("unique", []):
+        destructive.append(
+            "changing composite unique constraints may reject existing rows"
+        )
+    return destructive
+
+
+def _sqlite_column_warnings(
+    name: str, previous: dict[str, Any], column: dict[str, Any]
+) -> list[str]:
+    warnings: list[str] = []
+    if previous == column:
+        return warnings
+    if previous["type"] != column["type"]:
+        warnings.append(f"changing {name} to {column['type']} may convert values")
+    if previous["nullable"] and not column["nullable"]:
+        warnings.append(f"requiring {name} fails when existing rows contain NULL")
+    warnings.extend(
+        f"changing {key} on {name} may reject existing rows"
+        for key in ("primary_key", "unique", "references")
+        if previous[key] != column[key]
+    )
+    return warnings
+
+
+def sqlite_rebuild(table: str, old: State, new: State) -> Operation:
+    digest = hashlib.sha1(table.encode()).hexdigest()[:8]  # noqa: S324 - temporary table name
+    temporary = f"__hinoki_{digest}"
+    statements = [create_table_sql(temporary, new)]
+    common = [name for name in old["columns"] if name in new["columns"]]
+    destructive = _sqlite_rebuild_warnings(old, new)
+    if common:
+        columns = ", ".join(quote(name) for name in common)
+        statements.append(
+            f"INSERT INTO {quote(temporary)} ({columns}) "  # noqa: S608 - quoted identifiers
+            f"SELECT {columns} FROM {quote(table)};"
+        )
+    statements.extend(
+        [
+            f"DROP TABLE {quote(table)};",
+            f"ALTER TABLE {quote(temporary)} RENAME TO {quote(table)};",
+        ]
+    )
+    statements.extend(
+        create_index_sql(table, columns) for columns in new.get("indexes", [])
+    )
+    return Operation(
+        f"rebuild table {table}",
+        "\n".join(statements),
+        "; ".join(destructive),
+    )
+
+
+def table_changes(table: str, old: State, new: State, dialect: str) -> list[Operation]:
+    if dialect == "sqlite":
+        if old["columns"] != new["columns"] or old.get("unique", []) != new.get(
+            "unique", []
+        ):
+            return [sqlite_rebuild(table, old, new)]
+        return index_changes(table, old, new)
     operations: list[Operation] = []
     if old.get("unique", []) != new.get("unique", []):
         raise MigrationError(
@@ -323,7 +416,7 @@ def table_changes(table: str, old: State, new: State) -> list[Operation]:
     return operations
 
 
-def diff(old: State, new: State) -> list[Operation]:
+def diff(old: State, new: State, dialect: str = "postgres") -> list[Operation]:
     operations = [
         create_table(name, new["tables"][name])
         for name in creation_order(new["tables"])
@@ -331,7 +424,7 @@ def diff(old: State, new: State) -> list[Operation]:
     ]
     for name, spec in new["tables"].items():
         if name in old["tables"]:
-            operations.extend(table_changes(name, old["tables"][name], spec))
+            operations.extend(table_changes(name, old["tables"][name], spec, dialect))
     operations.extend(
         Operation(
             f"drop table {name}",
@@ -382,6 +475,7 @@ def plan(
     *,
     allow_destructive: bool = False,
     write: bool = True,
+    dialect: str = "postgres",
 ) -> Plan:
     """Operations needed to bring the recorded state to ``models``.
 
@@ -391,8 +485,10 @@ def plan(
     """
     if not NAME.fullmatch(name):
         raise MigrationError("migration names use lowercase letters, digits and -")
-    new = state_of(models)
-    operations = diff(latest_state(directory), new)
+    if dialect not in {"postgres", "sqlite"}:
+        raise MigrationError(f"unsupported migration dialect {dialect!r}")
+    new = state_of(models, dialect)
+    operations = diff(latest_state(directory), new, dialect)
     risky = [f"{o.description}: {o.destructive}" for o in operations if o.destructive]
     if risky and not allow_destructive:
         raise DestructiveMigration(
