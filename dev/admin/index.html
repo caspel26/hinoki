@@ -392,6 +392,32 @@
 <span class="n">app</span><span class="o">.</span><span class="n">include</span><span class="p">(</span><span class="n">admin</span><span class="o">.</span><span class="n">api</span><span class="p">())</span>
 </code></pre></div>
 <p>Row visibility, field assignment and which columns are shown are decided in the admin class; hooks (<code>queryset</code>, <code>can</code>, <code>display</code>, <code>stats</code>, <code>check</code>, <code>save</code>, <code>remove</code>) override what you need. Mass assignment, excluded columns and out-of-scope rows are refused by the framework, and every form carries a signed CSRF token bound to the signed-in subject.</p>
+<h2 id="bulk-actions">Bulk actions<a class="headerlink" href="#bulk-actions" title="Permanent link">&para;</a></h2>
+<p>Add an async handler and declare it with <code>BulkAction</code> on the model admin. The list shows its action button after rows are selected:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Caller</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">BulkAction</span><span class="p">,</span> <span class="n">ModelAdmin</span>
+
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">publish</span><span class="p">(</span><span class="n">posts</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Post</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">_principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="p">[</span><span class="n">post</span><span class="o">.</span><span class="n">id</span> <span class="k">for</span> <span class="n">post</span> <span class="ow">in</span> <span class="n">posts</span><span class="p">])</span><span class="o">.</span><span class="n">aupdate</span><span class="p">(</span>
+        <span class="p">{</span><span class="s2">"published"</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+    <span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">PostAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">[</span><span class="n">Post</span><span class="p">]):</span>
+    <span class="n">bulk_actions</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">BulkAction</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="s2">"publish"</span><span class="p">,</span>
+            <span class="n">label</span><span class="o">=</span><span class="s2">"Publish selected"</span><span class="p">,</span>
+            <span class="n">confirm</span><span class="o">=</span><span class="s2">"Publish the selected posts?"</span><span class="p">,</span>
+            <span class="n">handler</span><span class="o">=</span><span class="n">publish</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+</code></pre></div>
+<p>The action name is also the permission checked by <code>ModelAdmin.can(principal, name, row)</code>. Hinoki checks model access before showing the button and checks every selected row against the scoped queryset and row permission both before confirmation and before execution. The confirmation includes the selected row count. If any selected row is unavailable or denied, the whole action is refused. The handler receives only the selected rows and the caller. During execution, Hinoki locks the selected model rows until the action transaction finishes, so another transaction cannot change their row-level authorization fields between the check and the handler's writes. Handlers should still apply their domain conditions to writes, especially when those conditions involve related records or external state.</p>
+<p>Each action requires confirmation and runs inside the admin write transaction. A failure rolls back the selected work; successful actions redirect to the list with a notice. Actions accept at most 200 distinct rows. <code>bulk_delete = True</code> adds the built-in delete action.</p>
 <h2 id="three-styles-each-with-light-and-dark">Three styles, each with light and dark<a class="headerlink" href="#three-styles-each-with-light-and-dark" title="Permanent link">&para;</a></h2>
 <p>A theme is not a colour set: it chooses the navigation, the list presentation, the type and the shape. All three share one set of base components and ship a complete light and dark scheme (the system decides; the toggle overrides it).</p>
 <table>
@@ -462,15 +488,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#three-styles-each-with-light-and-dark">Three styles, each with light and dark</a></li></ul>
+            <ul><li><a href="#bulk-actions">Bulk actions</a></li><li><a href="#three-styles-each-with-light-and-dark">Three styles, each with light and dark</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 01:30:16 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>2 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 05:49:45 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
