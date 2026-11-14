@@ -237,9 +237,10 @@
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/notes/migrations<span class="w"> </span>sql<span class="w"> </span><span class="m">0001</span>-initial
 </code></pre></div>
 <p>Review the SQL, then apply it explicitly:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/notes/migrations<span class="w"> </span>apply<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--database<span class="w"> </span><span class="s2">"</span><span class="nv">$NOTES_DATABASE__URL</span><span class="s2">"</span>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$NOTES_DATABASE__URL</span><span class="s2">"</span>
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/notes/migrations<span class="w"> </span>apply
 </code></pre></div>
+<p>The migration commands read the connection URL from <code>HINOKI_DATABASE_URL</code>, so the password does not appear in the command line.</p>
 <h2 id="start-the-app-and-send-a-request">Start the app and send a request<a class="headerlink" href="#start-the-app-and-send-a-request" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w"> </span>examples.notes.main:app
 </code></pre></div>
@@ -281,7 +282,7 @@ curl<span class="w"> </span>http://127.0.0.1:8000/notes
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>1.2</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 02:07:13 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 18:28:34 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/quick-start.md">Edit on GitHub</a></dd></div>
         </dl>
