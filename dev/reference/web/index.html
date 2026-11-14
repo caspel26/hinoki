@@ -2660,7 +2660,11 @@ MCP tool description then show.</p>
   </span>
 
 <a href="#hinoki.request.Request.headers" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">headers</span> <span class="o">=</span> <span class="n">Headers</span><span class="p">(</span><span class="n">headers</span><span class="p">)</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">headers</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">headers</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">headers</span><span class="p">,</span> <span class="n">Headers</span><span class="p">)</span>
+    <span class="k">else</span> <span class="n">Headers</span><span class="p">(</span><span class="n">headers</span><span class="p">)</span>
+<span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
