@@ -24,9 +24,8 @@ from typing import Any, ClassVar
 from hinoki.access import Access
 from hinoki.api import API
 from hinoki.auth import Caller
-from hinoki.errors import RegistrationError
+from hinoki.errors import Forbidden, RegistrationError
 from hinoki.fields import UNSET
-from hinoki.httperrors import Forbidden
 from hinoki.orm import Model, QuerySet
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from hinoki.request import Request

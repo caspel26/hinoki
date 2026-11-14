@@ -11,8 +11,7 @@ from hinoki import core
 from hinoki.auth import Caller, Credentials
 from hinoki.blocking import call_hook
 from hinoki.context import request_id
-from hinoki.errors import InvalidBody
-from hinoki.httperrors import Forbidden, Unauthorized
+from hinoki.errors import Forbidden, InvalidBody, Unauthorized
 from hinoki.request import Request
 from hinoki.runtime.binding import (
     MISSING,

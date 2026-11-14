@@ -15,7 +15,7 @@ from uuid import UUID
 
 from examples.blog.models import User
 from examples.blog.security import WRITE
-from hinoki import Access, Caller, Field, Schema, Unauthorized, http
+from hinoki import Access, Caller, Field, Schema, errors, http
 from hinoki.crypto import JWTAuth, JWTKey, PasswordHasher
 
 SESSION_SECONDS = 15 * 60
@@ -74,7 +74,9 @@ def build_accounts(secret: str) -> tuple[list[Callable[..., Any]], PasswordHashe
         stored = user.password_hash if user and user.password_hash else unknown_user
         genuine = await hasher.verify(data.password, stored)
         if user is None or not user.password_hash or not genuine:
-            raise Unauthorized("Invalid credentials.")  # one answer for every cause
+            raise errors.Unauthorized(
+                "Invalid credentials."
+            )  # one answer for every cause
         token = sessions.issue({"sub": str(user.id)}, ttl=SESSION_SECONDS)
         return SessionOut(
             access_token=token,

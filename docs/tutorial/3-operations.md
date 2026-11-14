@@ -28,7 +28,7 @@ The important line is the `WHERE`: the owner is part of the statement. There is 
 The business failures are named after the rule they report:
 
 ```python
-class TaskAlreadyDone(Conflict):
+class TaskAlreadyDone(errors.Conflict):
     code = "task_already_done"
     message = "The task is already done."
 ```

@@ -13,11 +13,10 @@ Hinoki endpoints are ordinary Python functions decorated with an HTTP method. Th
 ## Declare an action
 
 ```python
-from hinoki import NotFound
-from hinoki import http
+from hinoki import errors, http
 
 
-@http.post("/tasks", status=201, transaction=True, errors=(NotFound,))
+@http.post("/tasks", status=201, transaction=True, errors=(errors.NotFound,))
 async def create_task(data: TaskInput) -> TaskOutput:
     row = await Task.acreate(data)
     return TaskOutput.from_model(row)

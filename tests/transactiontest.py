@@ -8,8 +8,9 @@ from typing import ClassVar
 
 import pytest
 
-from hinoki import Conflict, Hinoki, Module, RuntimeConfig, Schema, http
+from hinoki import Hinoki, Module, RuntimeConfig, Schema, http
 from hinoki.db import Database, DatabaseModule, UniqueViolation
+from hinoki.errors import Conflict
 from hinoki.modules import ModuleContext
 from hinoki.request import Request
 from tests.harness import Client, Pool

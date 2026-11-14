@@ -13,7 +13,7 @@ from uuid import UUID, uuid4
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import Access, Caller, Hinoki, RegistrationError
+from hinoki import Access, Caller, Hinoki
 from hinoki.admin import (
     THEMES,
     Admin,
@@ -35,6 +35,7 @@ from hinoki.admin.components import (
 from hinoki.admin.forms import FieldProblem, collect, convert, fields_for, label_of
 from hinoki.admin.templates import UI, Raw, TemplateError, Templates, escape
 from hinoki.db import Database, DatabaseModule
+from hinoki.errors import RegistrationError
 from hinoki.orm import Model, current_database, field, foreign_key, use_database
 from tests.harness import Client, Pool
 from tests.providers import TokenAuth

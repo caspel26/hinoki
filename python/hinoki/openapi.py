@@ -14,9 +14,8 @@ import typing
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, get_args, get_origin
 
-from hinoki.errors import RegistrationError
+from hinoki.errors import APIError, RegistrationError
 from hinoki.fieldtypes import FieldType
-from hinoki.httperrors import APIError
 from hinoki.pagination import Page, PageNumberPagination
 from hinoki.runtime.binding import Binding, Param
 from hinoki.schema import Schema

@@ -5,13 +5,13 @@ from uuid import UUID
 from examples.blog.models import Post, User
 from examples.blog.schemas import HealthOut, PostCreate, PostOut
 from examples.blog.security import editor
-from hinoki import Caller, Conflict, Forbidden, http
+from hinoki import Caller, errors, http
 from hinoki.crud import CrudAPI, Resource
 from hinoki.orm import QuerySet
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 
 
-class PostAlreadyPublished(Conflict):
+class PostAlreadyPublished(errors.Conflict):
     code = "post_already_published"
     message = "The post is already published."
 
@@ -30,7 +30,7 @@ async def owned_post(item_id: UUID, principal: Caller[User]) -> Post:
     """The post, if the caller wrote it. Scopes alone never grant row access."""
     post = await Post.aget(id=item_id)
     if post.author_id != principal.user.id:
-        raise Forbidden("You cannot change this post.")
+        raise errors.Forbidden("You cannot change this post.")
     return post
 
 
@@ -82,7 +82,7 @@ class Posts(CrudAPI, path="/posts", resource=POSTS):
         "/{item_id}/publish",
         access=editor,
         transaction=True,
-        errors=(Forbidden, PostAlreadyPublished),
+        errors=(errors.Forbidden, PostAlreadyPublished),
     )
     async def publish(self, item_id: UUID, principal: Caller[User]) -> PostOut:
         """Publish an own draft. Publishing twice is a conflict."""

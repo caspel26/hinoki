@@ -7,8 +7,9 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import Hinoki, RegistrationError
+from hinoki import Hinoki
 from hinoki.db import Database
+from hinoki.errors import RegistrationError
 from hinoki.orm import Model, field, timestamps, use_database
 from hinoki.settings import AppSettings
 from hinoki.utils import _read_utc, utc_now, utc_today

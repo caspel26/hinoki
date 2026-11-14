@@ -2,16 +2,8 @@
 
 import pytest
 
-from hinoki import (
-    Access,
-    APIKeyAuth,
-    BearerAuth,
-    Caller,
-    Hinoki,
-    RegistrationError,
-    Schema,
-    http,
-)
+from hinoki import Access, APIKeyAuth, BearerAuth, Caller, Hinoki, Schema, http
+from hinoki.errors import RegistrationError
 from hinoki.request import Request
 from tests.harness import Client, Pool
 from tests.providers import TokenAuth
