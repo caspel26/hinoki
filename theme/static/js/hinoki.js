@@ -26,7 +26,7 @@
       phase: "startup",
       title: "No action returns a Model; responses are Schema classes",
       decl: "Actions.forbid_model_responses(match, except_)",
-      fix: "return a Schema (for example PostOut.from_model(row)) instead of the Model",
+      fix: "return a Schema such as PostOut.from_model(row)",
     },
     "HNK-SCH-001": {
       phase: "startup",
@@ -497,7 +497,7 @@
   /* ---------- Scrollable regions reachable by keyboard ---------- */
   const focusables = () => {
     $$("pre, pre code, .prose table, .tabbed-labels, .hn-walk__tabs, .top__nav, .hn-index__pages ul").forEach((el) => {
-      const scrolls = el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
+      const scrolls = el.matches("pre") || el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
       if (scrolls && !el.hasAttribute("tabindex")) {
         el.tabIndex = 0;
         el.dataset.autoFocusable = "";
