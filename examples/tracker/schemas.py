@@ -3,7 +3,7 @@
 from typing import Annotated
 
 from examples.tracker.models import Task
-from hinoki import Field, Schema
+from hinoki import Field, Schema, derive
 
 
 class TaskIn(Schema):
@@ -12,5 +12,7 @@ class TaskIn(Schema):
     title: Annotated[str, Field(min_length=1, max_length=120)]
 
 
-class TaskOut(Schema, model=Task, exclude=["owner_id"]):
+@derive.model(Task)
+@derive.exclude("owner_id")
+class TaskOut(Schema):
     """Every column of a task except its owner (derived from the model)."""

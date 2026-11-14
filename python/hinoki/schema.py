@@ -113,22 +113,14 @@ class Schema:
     __native__: ClassVar[core.CompiledSchema | None] = None
     __native_dump__: ClassVar[bool] = True
     __checks__: ClassVar[tuple[tuple[str, tuple[str, ...], str], ...]] = ()
+    __source__: ClassVar[dict[str, Any]] = {}
 
-    def __init_subclass__(
-        cls,
-        model: type | None = None,
-        fields: Iterable[str] | None = None,
-        exclude: Iterable[str] = (),
-        optional: bool | Iterable[str] = False,
-        **kwargs: object,
-    ) -> None:
+    def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
-        if model is not None:
-            derive_from_model(cls, model, fields, tuple(exclude), optional)
-        elif fields is not None or tuple(exclude) or optional:
-            raise RegistrationError(
-                f"{cls.__name__}: fields/exclude/optional need model=..."
-            )
+        cls.__source__ = class_source(cls)
+        plan = cls.__dict__.get("__derivation__")
+        if plan is not None:
+            derive_from_model(cls, *plan)
         cls.__checks__ = collect_checks(cls)
         for name in inspect.get_annotations(cls):
             cls.apply_default(name)
@@ -158,6 +150,11 @@ class Schema:
     @classmethod
     def specs(cls) -> dict[str, FieldSpec]:
         """Field descriptions, resolving forward references on first use."""
+        if "__pending__" in cls.__dict__:
+            raise RegistrationError(
+                f"{cls.__name__}: @derive.only/exclude/partial need "
+                "@derive.model(Model) above them"
+            )
         cached = cls.__dict__.get("__specs__")
         if cached is None:
             cached = cls.build_specs(final=True)
@@ -341,6 +338,23 @@ def call_check(
     except Invalid as refusal:
         return [ErrorDetail(refusal.path or where, refusal.code, refusal.message)]
     return []
+
+
+SOURCE_SKIP = frozenset(
+    {
+        "__dict__", "__weakref__", "__annotations__", "__annotate__",
+        "__annotate_func__", "__annotations_cache__", "__source__",
+        "__derivation__", "__pending__",
+    }
+)  # fmt: skip
+
+
+def class_source(cls: type) -> dict[str, Any]:
+    """The class body as written (own annotations included), so a derivation can
+    build the class again with model columns added."""
+    body = {k: v for k, v in cls.__dict__.items() if k not in SOURCE_SKIP}
+    body["__annotations__"] = dict(inspect.get_annotations(cls))
+    return body
 
 
 def derive_from_model(

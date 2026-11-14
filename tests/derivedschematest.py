@@ -1,4 +1,4 @@
-"""Schemas derived from models: ``class PostOut(Schema, model=Post, ...)``."""
+"""Schemas derived from models with ``@derive.model`` and friends."""
 
 from datetime import datetime
 from typing import Annotated
@@ -14,6 +14,7 @@ from hinoki import (
     RegistrationError,
     Schema,
     ValidationError,
+    derive,
     field_check,
     http,
     object_check,
@@ -39,19 +40,28 @@ class Post(Model, table="ds_posts"):
     created_at: datetime = field(default_factory=datetime.now)
 
 
-class PostCreate(Schema, model=Post, fields=["title", "slug", "body", "published"]):
+@derive.model(Post)
+@derive.only("title", "slug", "body", "published")
+class PostCreate(Schema):
     pass
 
 
-class PostOut(Schema, model=Post, exclude=["note"]):
+@derive.model(Post)
+@derive.exclude("note")
+class PostOut(Schema):
     author_name: str
 
 
-class PostPatch(Schema, model=Post, fields=["title", "body", "note"], optional=True):
+@derive.model(Post)
+@derive.only("title", "body", "note")
+@derive.partial()
+class PostPatch(Schema):
     pass
 
 
-class Overridden(Schema, model=Post, fields=["title", "body"]):
+@derive.model(Post)
+@derive.only("title", "body")
+class Overridden(Schema):
     title: Annotated[str, Field(min_length=3, max_length=10)]
 
 
@@ -99,31 +109,77 @@ def test_declared_fields_override_derived_ones() -> None:
     assert Overridden.validate({"title": "abc", "body": "b"}).title == "abc"
 
 
-def test_mistakes_fail_when_the_class_is_created() -> None:
+def test_mistakes_fail_when_the_class_is_declared_or_first_used() -> None:
     with pytest.raises(RegistrationError, match="no columns"):
 
-        class A(Schema, model=Post, fields=["nope"]):
+        @derive.model(Post)
+        @derive.only("nope")
+        class A(Schema):
             pass
 
     with pytest.raises(RegistrationError, match="not both"):
 
-        class B(Schema, model=Post, fields=["title"], exclude=["body"]):
+        @derive.model(Post)
+        @derive.only("title")
+        @derive.exclude("body")
+        class B(Schema):
             pass
 
     with pytest.raises(RegistrationError, match="unknown fields"):
 
-        class C(Schema, model=Post, fields=["title"], optional=["body"]):
-            pass
-
-    with pytest.raises(RegistrationError, match="need model"):
-
-        class D(Schema, fields=["title"]):
+        @derive.model(Post)
+        @derive.only("title")
+        @derive.partial("body")
+        class C(Schema):
             pass
 
     with pytest.raises(RegistrationError, match="Model class"):
 
-        class E(Schema, model=int):
+        @derive.model(int)
+        class E(Schema):
             pass
+
+    @derive.only("title")
+    class D(Schema):
+        pass
+
+    with pytest.raises(RegistrationError, match=r"need @derive\.model"):
+        D.specs()
+
+
+def test_without_a_selection_every_column_is_taken_and_partial_can_name_fields() -> (
+    None
+):
+    @derive.model(Post)
+    class Everything(Schema):
+        pass
+
+    assert list(Everything.specs()) == list(Post.__columns__)
+
+    @derive.model(Post)
+    @derive.only("title", "body")
+    @derive.partial("body")
+    class Some(Schema):
+        pass
+
+    assert Some.specs()["title"].required and not Some.specs()["body"].required
+
+
+def test_checks_and_methods_in_the_class_body_survive_the_derivation() -> None:
+    @derive.model(Post)
+    @derive.only("title", "body")
+    class Checked(Schema):
+        @field_check("title")
+        def not_shouting(self, value: str) -> None:
+            if value.isupper():
+                raise Invalid("shouting", "no shouting")
+
+        def shout(self) -> str:
+            return str(self.title).upper()  # type: ignore[attr-defined]
+
+    assert Checked.validate({"title": "ok", "body": "b"}).shout() == "OK"
+    with pytest.raises(ValidationError):
+        Checked.validate({"title": "LOUD", "body": "b"})
 
 
 def test_derived_schemas_work_with_the_native_engine_and_the_model() -> None:

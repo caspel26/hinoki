@@ -21,3 +21,11 @@
 ::: hinoki.errors.ValidationError
 
 ::: hinoki.fields.UNSET
+
+::: hinoki.derive.model
+
+::: hinoki.derive.only
+
+::: hinoki.derive.exclude
+
+::: hinoki.derive.partial
