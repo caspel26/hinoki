@@ -1,3 +1,10 @@
+---
+status: implemented
+related:
+  - SERVING.md
+  - MODULES.md
+---
+
 # Settings: how configuration, secrets and database pools work
 
 Hinoki uses **typed, immutable settings classes**. The declared app form loads its settings class while constructing the app; a factory can call `Settings.load()` itself. Secrets are redacted. Database connection pools have a separate worker lifecycle: settings describe how to connect, and a module opens and closes the pool.

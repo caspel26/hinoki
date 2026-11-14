@@ -1,3 +1,11 @@
+---
+status: implemented
+related:
+  - RELATIONS.md
+  - MIGRATIONS.md
+  - MODEL-OPTIONS.md
+---
+
 # Models and queries
 
 `Model` maps a Python class to one PostgreSQL table. Its annotated fields define the columns; queries are explicit and do not load relations implicitly.

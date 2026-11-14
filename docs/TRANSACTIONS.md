@@ -1,3 +1,10 @@
+---
+status: implemented
+related:
+  - ENDPOINTS.md
+  - RULES.md
+---
+
 # Transactions
 
 An action opts into a database transaction with `transaction=True`. The transaction is opened for the request and commits only after the handler and response validation succeed.

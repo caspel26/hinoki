@@ -1,3 +1,7 @@
+---
+status: implemented
+---
+
 # Pagination
 
 An action opts into page-number pagination with `pagination=PageNumberPagination(...)`. The framework parses and validates `page` and `page_size`, injects a `PageParams` value, and documents both query parameters in OpenAPI.

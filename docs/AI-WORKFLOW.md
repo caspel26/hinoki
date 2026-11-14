@@ -1,3 +1,10 @@
+---
+status: implemented
+related:
+  - RULES.md
+  - APP-MCP.md
+---
+
 # Building a backend with an AI agent and Hinoki
 
 What exists today (2026-11-13), what it guarantees, and what it does not.

@@ -1,3 +1,7 @@
+---
+status: implemented
+---
+
 # Parsers and renderers
 
 A **parser** turns a request body into Python data; a **renderer** turns a handler's result into response bytes. The built-in ones run in Rust and are the base classes you inherit from.

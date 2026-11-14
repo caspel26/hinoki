@@ -1,3 +1,7 @@
+---
+status: implemented
+---
+
 # The admin
 
 An optional extra (`hinoki.admin`) that gives staff a list, search, create, edit, bulk delete and a dashboard for your models, with the same access policies and CSRF protection as the rest of the app. Nothing is mounted unless you ask, and importing it never touches a database.

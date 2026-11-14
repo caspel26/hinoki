@@ -1,3 +1,11 @@
+---
+status: implemented
+related:
+  - AUTHENTICATION.md
+  - ERRORS.md
+  - TRANSACTIONS.md
+---
+
 # Endpoints
 
 Hinoki endpoints are ordinary Python functions decorated with an HTTP method. The decorator records metadata; `Hinoki.include(...)` registers the function or an `API` class.

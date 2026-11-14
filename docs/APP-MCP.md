@@ -1,3 +1,10 @@
+---
+status: implemented
+related:
+  - AI-WORKFLOW.md
+  - AUTHENTICATION.md
+---
+
 # Expose an application over MCP
 
 `expose_as_mcp` turns selected HTTP actions into tools for an MCP client. It is opt-in and uses an explicit allowlist. A call is dispatched through the app's ASGI adapter, so the action's authentication, access policy, validation and transaction still apply.

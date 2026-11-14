@@ -1,3 +1,10 @@
+---
+status: implemented
+related:
+  - SYNC-ASYNC.md
+  - ENDPOINTS.md
+---
+
 # Testing
 
 Hinoki has two useful levels of application tests: call the operation functions directly, then exercise the app through its ASGI interface.
