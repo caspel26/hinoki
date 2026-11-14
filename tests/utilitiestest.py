@@ -2,15 +2,15 @@
 
 import os
 from collections.abc import AsyncIterator, Iterator
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta, timezone, tzinfo
 from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import RegistrationError
+from hinoki import FrameworkSettings, Hinoki, RegistrationError
 from hinoki.db import Database
 from hinoki.orm import Model, field, timestamps, use_database
-from hinoki.utils import _read_utc, utc_now
+from hinoki.utils import _read_utc, utc_now, utc_today
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(URL is None, reason="no database")
@@ -22,6 +22,67 @@ def test_clock_values_are_aware_and_normalized_to_utc() -> None:
     assert _read_utc(lambda: clock_values[0]) == datetime(2026, 1, 2, 1, 4, tzinfo=UTC)
     with pytest.raises(ValueError, match="timezone-aware"):
         _read_utc(lambda: datetime(2026, 1, 2))
+
+
+def test_utc_today_uses_utc_calendar_boundary() -> None:
+    value = datetime(2026, 1, 2, 0, 30, tzinfo=timezone(timedelta(hours=2)))
+    assert utc_today(lambda: value) == date(2026, 1, 1)
+    assert isinstance(utc_today(), date)
+
+
+def test_app_now_uses_each_app_settings_without_shared_state() -> None:
+    class RomeSettings(FrameworkSettings):
+        timezone: str = "Europe/Rome"
+
+    class NewYorkSettings(FrameworkSettings):
+        timezone: str = "America/New_York"
+
+    instant = datetime(2026, 1, 1, 23, 30, tzinfo=UTC)
+    rome = Hinoki(settings=RomeSettings)
+    new_york = Hinoki(settings=NewYorkSettings())
+    assert rome.now(lambda: instant).isoformat() == "2026-01-02T00:30:00+01:00"
+    assert new_york.now(lambda: instant).isoformat() == "2026-01-01T18:30:00-05:00"
+
+
+def test_app_timezone_defaults_to_utc_and_settings_reject_invalid_zone() -> None:
+    assert Hinoki().now(lambda: clock_values[0]).utcoffset() == timedelta(0)
+    with pytest.raises(ValueError, match="IANA timezone"):
+        FrameworkSettings(timezone="Not/AZone")
+    with pytest.raises(ValueError, match="IANA timezone"):
+        FrameworkSettings(timezone=None)  # type: ignore[arg-type]
+
+
+def test_app_now_rejects_a_naive_clock() -> None:
+    with pytest.raises(ValueError, match="timezone-aware"):
+        Hinoki().now(lambda: datetime(2026, 1, 2))
+
+
+def test_app_now_rejects_a_clock_with_an_invalid_timezone() -> None:
+    class InvalidTimezone(tzinfo):
+        def utcoffset(self, dt: datetime | None) -> timedelta | None:
+            raise ValueError("invalid offset")
+
+        def dst(self, dt: datetime | None) -> timedelta | None:
+            return None
+
+        def tzname(self, dt: datetime | None) -> str | None:
+            return None
+
+    with pytest.raises(ValueError, match="invalid timezone"):
+        Hinoki().now(lambda: datetime(2026, 1, 2, tzinfo=InvalidTimezone()))
+
+    class NoOffsetTimezone(tzinfo):
+        def utcoffset(self, dt: datetime | None) -> timedelta | None:
+            return None
+
+        def dst(self, dt: datetime | None) -> timedelta | None:
+            return None
+
+        def tzname(self, dt: datetime | None) -> str | None:
+            return None
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        Hinoki().now(lambda: datetime(2026, 1, 2, tzinfo=NoOffsetTimezone()))
 
 
 @pytest.fixture(autouse=True)
