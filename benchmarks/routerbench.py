@@ -18,7 +18,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import hinoki
-from hinoki.native import Router
+from hinoki.core import Router
 
 ROUTES = [
     ("GET", "/health"),

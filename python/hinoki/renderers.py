@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Any, ClassVar
 
-from hinoki import native
+from hinoki import core
 from hinoki.request import Request
 
 MAX_INDENT = 16
@@ -61,7 +61,7 @@ class JSONRenderer(Renderer):
         return value
 
     def render(self, value: object, request: Request) -> bytes:
-        return native.encode_json(
+        return core.encode_json(
             self.prepare(value, request), self.indent, self.sort_keys, self.default
         )
 
@@ -105,5 +105,5 @@ def check_renderers(renderers: Sequence[Renderer]) -> tuple[Renderer, ...]:
 
 def negotiate(accept: str, renderers: Sequence[Renderer]) -> Renderer | None:
     """The renderer that best fits ``accept`` (``None`` means 406)."""
-    index = native.negotiate_media(accept, [r.media_type for r in renderers])
+    index = core.negotiate_media(accept, [r.media_type for r in renderers])
     return None if index is None else renderers[index]

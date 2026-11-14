@@ -10,12 +10,12 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from hinoki.api import API
+from hinoki.core import Router
 from hinoki.docsui import pages as docs_pages
 from hinoki.errors import RegistrationError
 from hinoki.fields import UNSET, Unset
 from hinoki.httperrors import ErrorRegistry
 from hinoki.modules import Module, order_modules
-from hinoki.native import Router
 from hinoki.openapi import OpenAPIBuilder
 from hinoki.parsers import DEFAULT_PARSERS, Parser, check_parsers
 from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers

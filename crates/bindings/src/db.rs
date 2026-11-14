@@ -11,11 +11,11 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString};
 use tokio::sync::Mutex;
 
-pyo3::create_exception!(native, DatabaseError, pyo3::exceptions::PyException);
-pyo3::create_exception!(native, UniqueViolation, DatabaseError);
-pyo3::create_exception!(native, ForeignKeyViolation, DatabaseError);
-pyo3::create_exception!(native, NotNullViolation, DatabaseError);
-pyo3::create_exception!(native, CheckViolation, DatabaseError);
+pyo3::create_exception!(core, DatabaseError, pyo3::exceptions::PyException);
+pyo3::create_exception!(core, UniqueViolation, DatabaseError);
+pyo3::create_exception!(core, ForeignKeyViolation, DatabaseError);
+pyo3::create_exception!(core, NotNullViolation, DatabaseError);
+pyo3::create_exception!(core, CheckViolation, DatabaseError);
 
 static WORKER_THREADS: AtomicUsize = AtomicUsize::new(1);
 static RUNTIME: Once = Once::new();
@@ -182,7 +182,7 @@ macro_rules! bridge {
 
 /// A connection pool. Create it with `await Database.connect(...)` inside the
 /// worker (module lifespan), never at import.
-#[pyclass(name = "Database", module = "hinoki.native")]
+#[pyclass(name = "Database", module = "hinoki.core")]
 pub struct PyDatabase {
     inner: Database,
 }
@@ -261,7 +261,7 @@ impl PyDatabase {
 /// A transaction owning one connection. One statement at a time: concurrent
 /// use raises instead of interleaving. Dropping it unfinished discards the
 /// connection.
-#[pyclass(name = "Transaction", module = "hinoki.native")]
+#[pyclass(name = "Transaction", module = "hinoki.core")]
 pub struct PyTransaction {
     inner: Arc<Mutex<Option<Transaction>>>,
 }
@@ -337,6 +337,16 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyDatabase>()?;
     m.add_class::<PyTransaction>()?;
     m.add_function(wrap_pyfunction!(configure_runtime, m)?)?;
+    let module_name = m.getattr("__name__")?;
+    for exception in [
+        py.get_type::<DatabaseError>(),
+        py.get_type::<UniqueViolation>(),
+        py.get_type::<ForeignKeyViolation>(),
+        py.get_type::<NotNullViolation>(),
+        py.get_type::<CheckViolation>(),
+    ] {
+        exception.setattr("__module__", &module_name)?;
+    }
     m.add("DatabaseError", py.get_type::<DatabaseError>())?;
     m.add("UniqueViolation", py.get_type::<UniqueViolation>())?;
     m.add("ForeignKeyViolation", py.get_type::<ForeignKeyViolation>())?;
