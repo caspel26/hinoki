@@ -16,7 +16,13 @@ from hinoki.admin.formpages import (
 from hinoki.admin.forms import (
     collect,
 )
-from hinoki.admin.lists import apply_state, list_page, table_head, table_rows
+from hinoki.admin.lists import (
+    apply_state,
+    list_page,
+    matching,
+    table_head,
+    table_rows,
+)
 from hinoki.admin.modeladmin import BulkAction, ModelAdmin
 from hinoki.admin.parts import Avatar, Badge, Event, Fieldset, Link, Stat, Tab
 from hinoki.admin.site import (
@@ -140,9 +146,7 @@ async def search(self: API, request: Request, principal: Caller[Any]) -> Reply:
         for slug, entry in site.admin.models.items():
             if not entry.search or not entry.can(principal, "view"):
                 continue
-            query = entry.queryset(principal).filter(
-                **{f"{entry.search[0]}__contains": text}
-            )
+            query = matching(entry, entry.queryset(principal), text)
             rows = await query.limit(SEARCH_HITS)
             links = "".join(
                 f'<li><a href="{escape(site.url(slug, str(getattr(r, entry.model.__primary_key__))))}">{escape(entry.title_of(r))}</a></li>'
