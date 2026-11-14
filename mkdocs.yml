@@ -3,6 +3,10 @@ site_description: A Python API framework that checks its own architecture.
 site_url: https://caspel26.github.io/hinoki/
 docs_dir: docs
 strict: true
+exclude_docs: |
+  **/*-DESIGN.md
+  IDENTITY.md
+  adr/**
 validation:
   links:
     absolute_links: relative_to_docs
@@ -94,7 +98,6 @@ nav:
       - Data:
           - Schemas: SCHEMAS.md
           - Model options: MODEL-OPTIONS.md
-          - Schemas from models and validators: MODEL-SCHEMA-DESIGN.md
       - Endpoints:
           - Parsers and renderers: CODECS.md
           - Patterns and best practices: PATTERNS.md
@@ -107,13 +110,11 @@ nav:
           - Toolchain and CI: TOOLCHAIN.md
       - Working with AI:
           - Build with an agent: AI-WORKFLOW.md
-          - Application MCP: APP-MCP-DESIGN.md
       - Admin:
           - The admin: ADMIN.md
   - Concepts:
       - Sync and async: SYNC-ASYNC.md
       - Glossary: GLOSSARY.md
-      - Identity: IDENTITY.md
   - Reference:
       - Overview: reference/index.md
       - Routing and requests: reference/web.md
@@ -122,20 +123,3 @@ nav:
       - Auth and crypto: reference/auth.md
       - Settings: reference/settings.md
       - Testing: reference/testing.md
-  - Design:
-      - Runtime: RUNTIME-DESIGN.md
-      - Request, parsers, renderers: REQUEST-DESIGN.md
-      - Schema: SCHEMA-DESIGN.md
-      - Schema ergonomics: SCHEMA-ERGONOMICS-DESIGN.md
-      - Schema in Rust: SCHEMA-RUST-DESIGN.md
-      - ORM: ORM-DESIGN.md
-      - Relations: RELATIONS-DESIGN.md
-      - Rules engine: RULES-DESIGN.md
-      - Admin: ADMIN-DESIGN.md
-      - Crypto: CRYPTO-DESIGN.md
-      - Settings: SETTINGS-DESIGN.md
-  - Decisions:
-      - "0001 ASGI on Granian": adr/0001-server-adapter-asgi-on-granian.md
-      - "0002 Resources per worker": adr/0002-resource-ownership-per-worker.md
-      - "0003 Bounded sync executor": adr/0003-bounded-sync-executor.md
-      - "0004 Python and build backend": adr/0004-python-version-and-build-backend.md

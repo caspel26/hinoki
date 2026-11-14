@@ -27,7 +27,7 @@ The generated project contains a health route, **rules that are already on** (`H
 
 ## 4. Limits (what this does not do)
 
-* The development MCP describes and checks a project; to let an agent *use* a running app, publish selected actions with `hinoki.mcpapp.expose_as_mcp` (allowlist, caller's own credentials, reads by default; see `docs/APP-MCP-DESIGN.md`).
+* The development MCP describes and checks a project; to let an agent *use* a running app, publish selected actions with `hinoki.mcpapp.expose_as_mcp` (allowlist, caller's own credentials, reads by default).
 * The development MCP was exercised with the official `mcp` Python client (`tests/mcpclient/verify.py`: initialize, `tools/list`, `tools/call`); other clients are untested.
 * `propose_model` is a starting point: it can scope rows to an owner (`owner=`), paginates the list and takes `unique_together`, but business rules, state transitions and relations beyond the owner are yours to write.
 * Rules decide declarations, not what a function body does; static import rules read the project's own files and report dynamic imports as unverifiable.
