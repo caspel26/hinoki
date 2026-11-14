@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import builtins
 import dataclasses
+from collections.abc import Generator
 from typing import TYPE_CHECKING, Any
 
 from hinoki import core
@@ -224,7 +225,11 @@ class QuerySet[M: Model]:
         for instance in instances:
             store(instance, relation.name, children.get(getattr(instance, key), []))
 
-    async def aall(self) -> list[M]:
+    def __await__(self) -> Generator[Any, None, builtins.list[M]]:
+        return self.fetch().__await__()
+
+    async def fetch(self) -> list[M]:
+        """Run the query and build the rows; what ``await queryset`` returns."""
         sql, params = self.compile()
         rows = await current_database().fetch(sql, *params)
         instances = [self.build(row) for row in rows]
@@ -232,11 +237,11 @@ class QuerySet[M: Model]:
         return instances
 
     async def afirst(self) -> M | None:
-        rows = await self.limit(1).aall()
+        rows = await self.limit(1)
         return rows[0] if rows else None
 
     async def aget(self) -> M:
-        rows = await self.limit(2).aall()
+        rows = await self.limit(2)
         if not rows:
             raise self.model.NotFound(f"{self.model.__name__} not found")
         if len(rows) > 1:
@@ -293,8 +298,8 @@ class QuerySet[M: Model]:
         return await self.afirst() is not None
 
     def list(self) -> builtins.list[M]:
-        """Sync ``aall`` for sync handlers."""
-        return run_sync(self.aall())
+        """Sync ``await queryset`` for sync handlers."""
+        return run_sync(self.fetch())
 
     def first(self) -> M | None:
         return run_sync(self.afirst())
@@ -325,7 +330,7 @@ class QuerySet[M: Model]:
         ordered = self if self.order else self.order_by(self.model.__primary_key__)
         total = await self.acount()
         window = ordered.limit(params.page_size).offset(params.offset)
-        return Page(await window.aall(), params.page, params.page_size, total)
+        return Page(await window, params.page, params.page_size, total)
 
 
 def condition(model: type[Model], key: str, value: Any) -> tuple[str, str, list[Any]]:
@@ -351,5 +356,5 @@ async def fetch_in(model: type[Model], column: str, values: list[Any]) -> list[A
     found: list[Model] = []
     for start in range(0, len(values), IN_CHUNK):
         chunk = values[start : start + IN_CHUNK]
-        found.extend(await QuerySet(model).filter(**{f"{column}__in": chunk}).aall())
+        found.extend(await QuerySet(model).filter(**{f"{column}__in": chunk}))
     return found

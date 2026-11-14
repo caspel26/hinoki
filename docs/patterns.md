@@ -42,7 +42,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 ## 4. Relations and queries
 
 * Relations are never lazy. Load what the response shows (`select_related` for single values, `prefetch_related` for collections) in the same place that builds the response, so the cost is visible in one function.
-* Paginate every list (`pagination=…` + `PageParams`). Never return an unbounded list; never `aall()` a table to count or aggregate (use `acount()`, filters, or SQL).
+* Paginate every list (`pagination=…` + `PageParams`). Never return an unbounded list; never `await` a whole table to count or aggregate (use `acount()`, filters, or SQL).
 * Filter and order only by names you choose; never pass client-supplied column names to `filter` or `order_by` (the admin only sorts by its displayed columns for this reason).
 
 ## 5. Sync and async

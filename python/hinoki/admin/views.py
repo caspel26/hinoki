@@ -83,10 +83,8 @@ async def index(self: API, request: Request, principal: Caller[Any]) -> Reply:
         entry = site.entry(slug)
         if entry is None:
             continue
-        rows = (
-            await apply_state(entry, entry.queryset(principal), ListState())
-            .limit(RECENT)
-            .aall()
+        rows = await apply_state(entry, entry.queryset(principal), ListState()).limit(
+            RECENT
         )
         table = admin.templates.render(
             "table",
@@ -145,7 +143,7 @@ async def search(self: API, request: Request, principal: Caller[Any]) -> Reply:
             query = entry.queryset(principal).filter(
                 **{f"{entry.search[0]}__contains": text}
             )
-            rows = await query.limit(SEARCH_HITS).aall()
+            rows = await query.limit(SEARCH_HITS)
             links = "".join(
                 f'<li><a href="{escape(site.url(slug, str(getattr(r, entry.model.__primary_key__))))}">{escape(entry.title_of(r))}</a></li>'
                 for r in rows

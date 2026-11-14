@@ -6,6 +6,18 @@ status: implemented
 
 Hinoki runs on one event loop per worker. **Async is the native way; sync is a supported way**, not a second-class one: a plain `def` handler or hook runs on a bounded thread pool (`settings.ExecutionSettings.sync_workers`, `sync_queue`; a full queue answers 503 `overloaded`, in handlers and in sync hooks), the request's context follows it, and the sync ORM methods hand their work back to the worker's loop and block that thread, never the loop.
 
+## Naming convention
+
+A name with the `a` prefix awaits the database (`aget`, `acreate`, `acount`); the same name without it is the blocking twin for sync handlers. A query builder is lazy until you evaluate it, and awaiting the queryset itself is the async twin of `.list()`:
+
+```python
+posts = await Post.filter(published=True).order_by("-created")   # async
+posts = Post.filter(published=True).order_by("-created").list()  # sync handler
+first = await Post.all().afirst()
+```
+
+`aall()` was removed: `await Post.all()` replaces `await Post.all().aall()`.
+
 ## Parity table
 
 | Surface | Async | Sync | Notes |
@@ -13,7 +25,7 @@ Hinoki runs on one event loop per worker. **Async is the native way; sync is a s
 | Action handlers | `async def` | `def` | Sync runs on the executor |
 | Auth providers (`authenticate`, `resolve`, `resolve_token`, JWT `resolve_claims`) | `async def` | `def` | Sync hooks run on the executor, so sync model calls are safe inside them |
 | Model: create / get / update / delete | `acreate`, `aget`, `aget_or_none`, `aupdate`, `aupdate_where`, `adelete`, `asave`, `aupdate_from` | `create`, `get`, `get_or_none`, `update`, `update_where`, `delete`, `save`, `update_from` | Sync calls only work inside a sync handler or hook served by Hinoki |
-| QuerySet: read | `aall`, `afirst`, `aget`, `acount`, `aexists`, `apaginate` | `list`, `first`, `get`, `count`, `exists`, `paginate` | |
+| QuerySet: read | `await queryset`, `afirst`, `aget`, `acount`, `aexists`, `apaginate` | `list`, `first`, `get`, `count`, `exists`, `paginate` | |
 | QuerySet: write | `aupdate`, `adelete` | `update`, `delete` | |
 | Relations | explicit loading (`select_related`, `prefetch_related`) | same | never lazy, so no hidden I/O in either style |
 | Raw SQL (`Database.fetch`, `fetch_one`, `execute`) | async | none | Use the model/queryset methods from sync code; raw SQL is an async-only escape hatch |
