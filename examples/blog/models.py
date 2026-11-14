@@ -1,15 +1,12 @@
 """Persistent models. Tables are created by ``blog.tables.SQL`` (no migrations yet)."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import ClassVar
 from uuid import UUID, uuid4
 
 from hinoki.orm import Model, field, foreign_key
 from hinoki.orm.relations import Related
-
-
-def now() -> datetime:
-    return datetime.now(UTC)
+from hinoki.utils import utc_now
 
 
 class User(Model, table="blog_users"):
@@ -29,5 +26,5 @@ class Post(Model, table="blog_posts"):
     slug: str = field(unique=True, max_length=180)
     body: str
     published: bool = False
-    created_at: datetime = field(default_factory=now)
+    created_at: datetime = field(default_factory=utc_now)
     author: ClassVar[Related[User]]

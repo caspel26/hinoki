@@ -14,6 +14,7 @@ from hinoki.errors import FieldError, MultipleObjectsReturned
 from hinoki.orm.context import current_database
 from hinoki.orm.relations import ALIAS_PREFIX, Relation, store
 from hinoki.pagination import Page, PageParams
+from hinoki.utils import _read_utc
 
 if TYPE_CHECKING:
     from hinoki.orm.model import Model
@@ -249,6 +250,12 @@ class QuerySet[M: Model]:
             raise FieldError("aupdate needs filters and values")
         for name in values:
             self.model.check_field(name)
+        timestamp = self.model.__updated_at__
+        if timestamp is not None:
+            values = {
+                **values,
+                timestamp: _read_utc(self.model.__clock__),
+            }
         if self.loading.joined:
             raise FieldError("updates cannot filter across a relation")
         sql, params = native.compile_query(
