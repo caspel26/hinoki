@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from collections.abc import MutableMapping, Sequence
+from collections.abc import Iterator, MutableMapping, Sequence
 from datetime import UTC, datetime
+from types import ModuleType
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -20,7 +21,7 @@ from hinoki.modules import Module, order_modules
 from hinoki.openapi import OpenAPIBuilder
 from hinoki.parsers import DEFAULT_PARSERS, Parser, check_parsers
 from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers
-from hinoki.routing import Found, MethodNotAllowed, Route, RouteGroup, route_of
+from hinoki.routing import Found, MethodNotAllowed, Mount, Route, RouteGroup, route_of
 from hinoki.rules import Phase, Project, RuleSet, failing
 from hinoki.runtime.asgi import ASGIAdapter
 from hinoki.runtime.binding import Binding, bind
@@ -130,19 +131,29 @@ class Hinoki:
 
     def include(self, *items: object) -> None:
         """Register decorated functions, ``API`` subclasses and objects that expose
-        an ``api()`` (the admin).
+        an ``api()`` (the admin). Lists and tuples of those are flattened, so a
+        feature package can export one ``routes`` list, and ``Mount(prefix, ...)``
+        places a feature under a path chosen here.
 
         All-or-nothing per call: on conflict the application is unchanged.
         """
         self._check_mutable()
         pending: list[Route] = []
         groups: list[RouteGroup] = []
-        for item in items:
+        for item, prefix in flatten(items):
             if isinstance(item, RouteGroup):
                 if item in self._included_groups or item in groups:
                     raise RegistrationError("a RouteGroup can be included only once")
                 groups.append(item)
-            pending.extend(self.routes_of(item))
+            found = self.routes_of(item)
+            pending.extend(
+                dataclasses.replace(
+                    route, path=prefix + ("" if route.path == "/" else route.path)
+                )
+                if prefix
+                else route
+                for route in found
+            )
         pending = [self.with_defaults(route) for route in pending]
         bound = [bind(route) for route in pending]  # bad signatures fail here
         staged = Router()
@@ -184,8 +195,13 @@ class Hinoki:
             return list(item.routes())
         route = route_of(item)
         if route is None:
+            hint = (
+                "; export a list of its routes and include that"
+                if isinstance(item, ModuleType)
+                else ""
+            )
             raise RegistrationError(
-                f"{item!r} is neither an API class nor a decorated function"
+                f"{item!r} is neither an API class nor a decorated function{hint}"
             )
         if route.replaces:
             raise RegistrationError(
@@ -276,3 +292,15 @@ class Hinoki:
     def _check_mutable(self) -> None:
         if self._adapter is not None:
             raise RegistrationError("application is already serving; it is frozen")
+
+
+def flatten(items: Sequence[object], prefix: str = "") -> Iterator[tuple[object, str]]:
+    """``(item, prefix)`` for the items of ``include``: nested lists and tuples are
+    spread in place and a ``Mount`` adds its prefix to what it holds."""
+    for item in items:
+        if isinstance(item, Mount):
+            yield from flatten(item.items, prefix + item.prefix)
+        elif isinstance(item, list | tuple):
+            yield from flatten(item, prefix)
+        else:
+            yield item, prefix
