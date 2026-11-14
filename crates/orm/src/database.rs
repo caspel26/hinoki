@@ -18,9 +18,16 @@ pub type Row = Vec<(String, Value)>;
 
 #[derive(Clone)]
 pub struct Database {
-    pool: Option<deadpool_postgres::Pool>,
-    tls: Option<MakeRustlsConnect>,
-    sqlite: Option<SqlitePool>,
+    backend: DatabaseBackend,
+}
+
+#[derive(Clone)]
+enum DatabaseBackend {
+    Postgres {
+        pool: deadpool_postgres::Pool,
+        tls: Option<MakeRustlsConnect>,
+    },
+    Sqlite(SqlitePool),
 }
 
 fn params(values: &[Value]) -> Vec<&(dyn ToSql + Sync)> {
@@ -197,9 +204,7 @@ impl Database {
         if url.starts_with("sqlite://") {
             let path = connect_path(url)?;
             return Ok(Self {
-                pool: None,
-                tls: None,
-                sqlite: Some(SqlitePool::open(&path, max_size, wait)?),
+                backend: DatabaseBackend::Sqlite(SqlitePool::open(&path, max_size, wait)?),
             });
         }
         let (url, tls_options) = extract_options(url)
@@ -228,19 +233,20 @@ impl Database {
         }
         .map_err(|_| DbError::new(ErrorKind::Connect, "invalid database configuration"))?;
         Ok(Self {
-            pool: Some(pool),
-            tls,
-            sqlite: None,
+            backend: DatabaseBackend::Postgres { pool, tls },
         })
     }
 
     async fn acquire(&self) -> Result<Lease, DbError> {
-        self.pool
-            .as_ref()
-            .ok_or_else(|| DbError::new(ErrorKind::Other, "PostgreSQL pool is unavailable"))?
-            .get()
+        let DatabaseBackend::Postgres { pool, tls } = &self.backend else {
+            return Err(DbError::new(
+                ErrorKind::Other,
+                "PostgreSQL pool is unavailable for this backend",
+            ));
+        };
+        pool.get()
             .await
-            .map(|conn| Lease::new(conn, self.tls.clone()))
+            .map(|conn| Lease::new(conn, tls.clone()))
             .map_err(|e| match e {
                 deadpool_postgres::PoolError::Timeout(_) => DbError::new(
                     ErrorKind::Pool,
@@ -256,7 +262,7 @@ impl Database {
     }
 
     pub async fn fetch(&self, sql: &str, values: &[Value]) -> Result<Vec<Row>, DbError> {
-        if let Some(sqlite) = &self.sqlite {
+        if let DatabaseBackend::Sqlite(sqlite) = &self.backend {
             return sqlite.acquire().await?.fetch(sql, values).await;
         }
         let lease = self.acquire().await?;
@@ -266,7 +272,7 @@ impl Database {
     }
 
     pub async fn execute(&self, sql: &str, values: &[Value]) -> Result<u64, DbError> {
-        if let Some(sqlite) = &self.sqlite {
+        if let DatabaseBackend::Sqlite(sqlite) = &self.backend {
             return sqlite.acquire().await?.execute(sql, values).await;
         }
         let lease = self.acquire().await?;
@@ -279,7 +285,7 @@ impl Database {
     /// this future is dropped while `BEGIN` is in flight the connection is
     /// abandoned, never returned to the pool inside a transaction.
     pub async fn begin(&self) -> Result<Transaction, DbError> {
-        if let Some(sqlite) = &self.sqlite {
+        if let DatabaseBackend::Sqlite(sqlite) = &self.backend {
             let mut lease = sqlite.acquire().await?;
             lease.begin("BEGIN IMMEDIATE").await?;
             return Ok(Transaction::new_sqlite(lease));
@@ -295,7 +301,7 @@ impl Database {
     }
 
     pub async fn begin_migration(&self) -> Result<Transaction, DbError> {
-        if let Some(sqlite) = &self.sqlite {
+        if let DatabaseBackend::Sqlite(sqlite) = &self.backend {
             let (mut primary, reserved) = sqlite.acquire_for_migration().await?;
             primary.begin("BEGIN IMMEDIATE").await?;
             return Ok(Transaction::new_sqlite_migration(primary, reserved));
@@ -304,30 +310,26 @@ impl Database {
     }
 
     pub fn close(&self) {
-        if let Some(pool) = &self.pool {
-            pool.close();
-        }
-        if let Some(pool) = &self.sqlite {
-            pool.close();
+        match &self.backend {
+            DatabaseBackend::Postgres { pool, .. } => pool.close(),
+            DatabaseBackend::Sqlite(pool) => pool.close(),
         }
     }
 
     pub fn dialect(&self) -> &'static str {
-        if self.sqlite.is_some() {
-            "sqlite"
-        } else {
-            "postgres"
+        match &self.backend {
+            DatabaseBackend::Postgres { .. } => "postgres",
+            DatabaseBackend::Sqlite(_) => "sqlite",
         }
     }
 
     pub fn status(&self) -> (usize, usize) {
-        if let Some(pool) = &self.sqlite {
-            pool.status()
-        } else if let Some(pool) = &self.pool {
-            let status = pool.status();
-            (status.size, status.available)
-        } else {
-            (0, 0)
+        match &self.backend {
+            DatabaseBackend::Sqlite(pool) => pool.status(),
+            DatabaseBackend::Postgres { pool, .. } => {
+                let status = pool.status();
+                (status.size, status.available)
+            }
         }
     }
 }
@@ -355,10 +357,7 @@ impl Drop for Flight<'_> {
 /// statement was abandoned mid-flight, discards the connection instead of
 /// returning one in an unknown state to the pool.
 pub struct Transaction {
-    conn: Option<Object>,
-    tls: Option<MakeRustlsConnect>,
-    sqlite: Option<SqliteLease>,
-    sqlite_reserved: Vec<SqliteLease>,
+    backend: TransactionBackend,
     /// A statement failed: PostgreSQL will refuse to commit (until a
     /// `ROLLBACK TO SAVEPOINT` recovers it).
     failed: AtomicBool,
@@ -366,13 +365,25 @@ pub struct Transaction {
     poisoned: AtomicBool,
 }
 
+enum TransactionBackend {
+    Postgres {
+        conn: Option<Object>,
+        tls: Option<MakeRustlsConnect>,
+    },
+    Sqlite {
+        primary: SqliteLease,
+        reserved: Vec<SqliteLease>,
+    },
+    Finished,
+}
+
 impl Transaction {
     fn new(conn: Object, tls: Option<MakeRustlsConnect>) -> Self {
         Self {
-            conn: Some(conn),
-            tls,
-            sqlite: None,
-            sqlite_reserved: Vec::new(),
+            backend: TransactionBackend::Postgres {
+                conn: Some(conn),
+                tls,
+            },
             failed: AtomicBool::new(false),
             poisoned: AtomicBool::new(false),
         }
@@ -380,10 +391,10 @@ impl Transaction {
 
     fn new_sqlite(sqlite: SqliteLease) -> Self {
         Self {
-            conn: None,
-            tls: None,
-            sqlite: Some(sqlite),
-            sqlite_reserved: Vec::new(),
+            backend: TransactionBackend::Sqlite {
+                primary: sqlite,
+                reserved: Vec::new(),
+            },
             failed: AtomicBool::new(false),
             poisoned: AtomicBool::new(false),
         }
@@ -391,10 +402,10 @@ impl Transaction {
 
     fn new_sqlite_migration(sqlite: SqliteLease, reserved: Vec<SqliteLease>) -> Self {
         Self {
-            conn: None,
-            tls: None,
-            sqlite: Some(sqlite),
-            sqlite_reserved: reserved,
+            backend: TransactionBackend::Sqlite {
+                primary: sqlite,
+                reserved,
+            },
             failed: AtomicBool::new(false),
             poisoned: AtomicBool::new(false),
         }
@@ -407,9 +418,17 @@ impl Transaction {
                 "transaction was interrupted",
             ));
         }
-        self.conn
-            .as_ref()
-            .ok_or_else(|| DbError::new(ErrorKind::Other, "transaction already finished"))
+        match &self.backend {
+            TransactionBackend::Postgres {
+                conn: Some(conn), ..
+            } => Ok(conn),
+            TransactionBackend::Postgres { conn: None, .. }
+            | TransactionBackend::Sqlite { .. }
+            | TransactionBackend::Finished => Err(DbError::new(
+                ErrorKind::Other,
+                "transaction connection is unavailable for this operation",
+            )),
+        }
     }
 
     fn settle<T>(&self, sql: &str, outcome: &Result<T, DbError>) {
@@ -431,41 +450,57 @@ impl Transaction {
     }
 
     pub async fn fetch(&self, sql: &str, values: &[Value]) -> Result<Vec<Row>, DbError> {
-        if let Some(sqlite) = &self.sqlite {
-            let outcome = sqlite.fetch(sql, values).await;
-            self.settle(sql, &outcome);
-            return outcome;
+        match &self.backend {
+            TransactionBackend::Sqlite { primary, .. } => {
+                let outcome = primary.fetch(sql, values).await;
+                self.settle(sql, &outcome);
+                outcome
+            }
+            TransactionBackend::Finished => Err(DbError::new(
+                ErrorKind::Other,
+                "transaction already finished",
+            )),
+            TransactionBackend::Postgres { tls, .. } => {
+                let conn = self.conn()?;
+                let mut flight = Flight {
+                    poisoned: &self.poisoned,
+                    token: conn.cancel_token(),
+                    tls: tls.clone(),
+                    armed: true,
+                };
+                let outcome = run_fetch(conn, sql, values).await;
+                flight.armed = false;
+                self.settle(sql, &outcome);
+                outcome
+            }
         }
-        let conn = self.conn()?;
-        let mut flight = Flight {
-            poisoned: &self.poisoned,
-            token: conn.cancel_token(),
-            tls: self.tls.clone(),
-            armed: true,
-        };
-        let outcome = run_fetch(conn, sql, values).await;
-        flight.armed = false;
-        self.settle(sql, &outcome);
-        outcome
     }
 
     pub async fn execute(&self, sql: &str, values: &[Value]) -> Result<u64, DbError> {
-        if let Some(sqlite) = &self.sqlite {
-            let outcome = sqlite.execute(sql, values).await;
-            self.settle(sql, &outcome);
-            return outcome;
+        match &self.backend {
+            TransactionBackend::Sqlite { primary, .. } => {
+                let outcome = primary.execute(sql, values).await;
+                self.settle(sql, &outcome);
+                outcome
+            }
+            TransactionBackend::Finished => Err(DbError::new(
+                ErrorKind::Other,
+                "transaction already finished",
+            )),
+            TransactionBackend::Postgres { tls, .. } => {
+                let conn = self.conn()?;
+                let mut flight = Flight {
+                    poisoned: &self.poisoned,
+                    token: conn.cancel_token(),
+                    tls: tls.clone(),
+                    armed: true,
+                };
+                let outcome = run_execute(conn, sql, values).await;
+                flight.armed = false;
+                self.settle(sql, &outcome);
+                outcome
+            }
         }
-        let conn = self.conn()?;
-        let mut flight = Flight {
-            poisoned: &self.poisoned,
-            token: conn.cancel_token(),
-            tls: self.tls.clone(),
-            armed: true,
-        };
-        let outcome = run_execute(conn, sql, values).await;
-        flight.armed = false;
-        self.settle(sql, &outcome);
-        outcome
     }
 
     /// Commit. A transaction aborted by an earlier statement error is rolled
@@ -498,38 +533,52 @@ impl Transaction {
     }
 
     async fn finish(&mut self, statement: &str) -> Result<(), DbError> {
-        if self.sqlite.is_some() {
-            // Transactional leases are discarded by Drop unless commit/rollback
-            // completes successfully.
-            let sqlite = self.sqlite.as_mut().expect("checked above");
-            sqlite.finish(statement).await?;
-            for reserved in &mut self.sqlite_reserved {
-                reserved.set_foreign_keys(true).await?;
+        match &mut self.backend {
+            TransactionBackend::Sqlite { primary, reserved } => {
+                // Transactional leases are discarded by Drop unless commit/rollback
+                // completes successfully.
+                primary.finish(statement).await?;
+                for connection in reserved {
+                    connection.set_foreign_keys(true).await?;
+                }
+                self.backend = TransactionBackend::Finished;
+                Ok(())
             }
-            self.sqlite = None;
-            self.sqlite_reserved.clear();
-            return Ok(());
+            TransactionBackend::Finished => Err(DbError::new(
+                ErrorKind::Other,
+                "transaction already finished",
+            )),
+            TransactionBackend::Postgres { conn, .. } => {
+                let connection = conn.as_ref().ok_or_else(|| {
+                    DbError::new(ErrorKind::Other, "transaction already finished")
+                })?;
+                // On failure the connection stays owned so Drop discards it.
+                connection
+                    .batch_execute(statement)
+                    .await
+                    .map_err(|e| DbError::from_driver(&e))?;
+                self.backend = TransactionBackend::Finished;
+                Ok(())
+            }
         }
-        let conn = self.conn()?;
-        // On failure the state is unknown: `conn` stays set so Drop discards it.
-        conn.batch_execute(statement)
-            .await
-            .map_err(|e| DbError::from_driver(&e))?;
-        self.conn = None; // back to the pool
-        Ok(())
     }
 }
 
 impl Drop for Transaction {
     fn drop(&mut self) {
-        if let Some(mut sqlite) = self.sqlite.take() {
-            sqlite.discard();
-        }
-        for mut sqlite in self.sqlite_reserved.drain(..) {
-            sqlite.discard();
-        }
-        if let Some(conn) = self.conn.take() {
-            abandon(conn, self.tls.clone());
+        match &mut self.backend {
+            TransactionBackend::Postgres { conn, tls } => {
+                if let Some(conn) = conn.take() {
+                    abandon(conn, tls.clone());
+                }
+            }
+            TransactionBackend::Sqlite { primary, reserved } => {
+                primary.discard();
+                for connection in reserved {
+                    connection.discard();
+                }
+            }
+            TransactionBackend::Finished => {}
         }
     }
 }
