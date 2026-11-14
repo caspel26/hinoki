@@ -316,6 +316,7 @@ docker<span class="w"> </span>rm<span class="w"> </span>-f<span class="w"> </spa
 <h2 id="ci-workflow-hygiene">CI workflow hygiene<a class="headerlink" href="#ci-workflow-hygiene" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Third-party actions in <code>.github/workflows/</code> are pinned to a full commit SHA with the released tag in a trailing comment. To update one, resolve the new tag to its commit (<code>gh api repos/OWNER/REPO/git/ref/tags/TAG</code>), replace the SHA and the comment together, and let the PR's CI run prove it.</li>
+<li>Each <code>Python X</code> job sets <code>UV_PYTHON</code> to its matrix version and asserts the interpreter before testing. Without it <code>uv run</code> follows <code>.python-version</code> and every job would test 3.13. Locally, run another version with <code>uv run --locked --python 3.14 pytest</code> (use <code>UV_PROJECT_ENVIRONMENT</code> to keep its environment apart).</li>
 <li><code>ci.yml</code> checks out with <code>persist-credentials: false</code>: no CI job pushes. <code>deploy-docs.yml</code> keeps the token because it pushes to <code>gh-pages</code>.</li>
 <li>The <code>audit</code> job checks <code>Cargo.lock</code> (<code>cargo audit</code>, <code>cargo deny check</code>) and <code>uv.lock</code> (<code>uv export</code> of every group and extra, then <code>pip-audit --require-hashes --disable-pip</code>). Locally: <code>uv export --locked --all-groups --all-extras --no-emit-project --format requirements-txt -o /tmp/requirements.txt &amp;&amp; uvx pip-audit==2.10.1 --require-hashes --disable-pip -r /tmp/requirements.txt</code>.</li>
 </ul>
@@ -387,7 +388,7 @@ docker<span class="w"> </span>rm<span class="w"> </span>-f<span class="w"> </spa
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>6.6</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 18:31:13 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 19:39:56 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/toolchain.md">Edit on GitHub</a></dd></div>
         </dl>
