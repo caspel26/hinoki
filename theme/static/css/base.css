@@ -270,6 +270,18 @@ kbd {
   display: none;
 }
 
+.menu-icon-close {
+  display: none;
+}
+
+body.menu-open .menu-icon-open {
+  display: none;
+}
+
+body.menu-open .menu-icon-close {
+  display: block;
+}
+
 [data-theme="dark"] .i-moon,
 [data-theme="light"] .i-sun {
   display: none;
@@ -937,19 +949,20 @@ body.menu-open .overlay {
     position: fixed;
     top: var(--header-h);
     right: 0;
-    bottom: 0;
+    bottom: auto;
     left: 0;
     z-index: 75;
     width: 100%;
-    height: calc(100vh - var(--header-h));
-    height: calc(100dvh - var(--header-h));
+    height: auto;
+    max-height: calc(100vh - var(--header-h) - 12px);
+    max-height: calc(100dvh - var(--header-h) - 12px);
     border: 0;
     border-top: 1px solid var(--hn-edge);
-    border-radius: 0;
+    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
     background: var(--hn-surface-1);
     box-shadow: 0 16px 36px rgb(0 0 0 / 0.28);
     visibility: hidden;
-    transform: translateY(104%);
+    transform: translateY(calc(-100% - 12px));
     transition: transform 240ms var(--hn-ease), visibility 0s linear 240ms;
   }
 
@@ -957,16 +970,19 @@ body.menu-open .overlay {
     position: fixed;
     top: var(--header-h);
     right: 0;
-    bottom: 0;
+    bottom: auto;
     left: 0;
     z-index: 75;
     display: block;
+    max-height: calc(100vh - var(--header-h) - 12px);
+    max-height: calc(100dvh - var(--header-h) - 12px);
     overflow: hidden;
     border-top: 1px solid var(--hn-edge);
+    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
     background: var(--hn-surface-1);
     box-shadow: 0 16px 36px rgb(0 0 0 / 0.28);
     visibility: hidden;
-    transform: translateY(104%);
+    transform: translateY(calc(-100% - 12px));
     transition: transform 240ms var(--hn-ease), visibility 0s linear 240ms;
   }
 
@@ -983,17 +999,19 @@ body.menu-open .overlay {
   }
 
   .side__scroll {
-    height: 100%;
-    max-height: calc(100vh - var(--header-h));
-    max-height: calc(100dvh - var(--header-h));
+    height: auto;
+    max-height: calc(100vh - var(--header-h) - 12px);
+    max-height: calc(100dvh - var(--header-h) - 12px);
     padding: var(--sp-4) var(--sp-5) var(--sp-7);
+    overflow-y: auto;
   }
 
   .home-mobile-sheet .side__scroll {
-    height: 100%;
-    max-height: calc(100vh - var(--header-h));
-    max-height: calc(100dvh - var(--header-h));
+    height: auto;
+    max-height: calc(100vh - var(--header-h) - 12px);
+    max-height: calc(100dvh - var(--header-h) - 12px);
     padding: var(--sp-4) var(--sp-5) var(--sp-7);
+    overflow-y: auto;
   }
 
   .side__sections {
