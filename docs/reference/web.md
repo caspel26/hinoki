@@ -12,6 +12,8 @@
       show_if_no_docstring: true
 
 ::: hinoki.routing.RouteGroup
+
+::: hinoki.routing.Mount
     options:
       members: true
       show_if_no_docstring: true

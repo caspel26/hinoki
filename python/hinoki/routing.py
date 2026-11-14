@@ -235,6 +235,29 @@ def delete(
     return RouteDeclaration("DELETE", path, options)
 
 
+class Mount:
+    """Places routes under a path prefix chosen where the application is declared.
+
+        Hinoki(include=[
+            health,
+            Mount("/tasks", tasks.routes),
+            Mount("/billing", billing.routes),
+        ])
+
+    The feature keeps paths relative to itself (``/`` and ``/{id}``) and the root
+    declaration shows where each feature lives. Items are anything ``include``
+    accepts, including lists and other mounts; prefixes join outside in.
+    """
+
+    def __init__(self, prefix: str, *items: object) -> None:
+        if not prefix.startswith("/") or prefix.endswith("/") or prefix == "":
+            raise ValueError("a mount prefix starts with '/' and does not end with one")
+        if not items:
+            raise ValueError("a Mount needs at least one item")
+        self.prefix = prefix
+        self.items = items
+
+
 class RouteGroup:
     """A function-based route group with a shared path prefix and defaults.
 

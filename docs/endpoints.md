@@ -135,23 +135,29 @@ action and becomes immutable after successful inclusion.
 
 ## Organising a large application
 
-Give each feature one module that owns its routes and exports them as a list. The root declaration then names features, not individual actions:
+Give each feature one module that owns its routes and exports them as a list, with paths relative to the feature. Choose where each feature lives in the root declaration with `Mount`, so the paths stay visible in one place:
 
 ```python
-# tasks/routes.py
+# tasks/routes.py (paths are relative: "/" and "/{task_id}")
 routes = [tasks_group, TaskReports, export_tasks]
 
-# billing/routes.py
-routes = [Invoices, Payments]
-
 # main.py
+from hinoki import Hinoki, Mount
 from billing.routes import routes as billing
 from tasks.routes import routes as tasks
 
-app = Hinoki(include=[tasks, billing, health])
+app = Hinoki(
+    include=[
+        health,
+        Mount("/tasks", tasks),
+        Mount("/billing", billing),
+    ]
+)
 ```
 
-`include` spreads nested lists and tuples in place, so order is the order you wrote. Each item keeps its own prefix, so the full path of an action is still visible next to it. A `RouteGroup` reached twice, a duplicate route, or an item that is not an action, class or group fails at declaration time and names the offending route; passing a module itself is refused with a hint to export a list.
+`include` spreads nested lists and tuples in place, so order is the order you wrote. `Mount(prefix, *items)` prepends its prefix to every route it holds; mounts nest and prefixes join from the outside in. The prefix starts with `/` and does not end with one. Items you do not mount keep their own paths, so small apps can stay a flat list. Mounting changes only the path: access, errors and transactions are unchanged, and a route that ends up at the same method and path as another still fails at declaration time. A `RouteGroup` reached twice, an item that is not an action, class or group, or a module passed instead of its list is refused and named; a module gets a hint to export a list.
+
+If a feature declares its own prefix (a `RouteGroup("/tasks")` or `API, path="/tasks"`), mounting adds to it. Pick one place for each prefix: feature-relative paths with `Mount` at the root is the layout that keeps the whole map readable in `main.py`.
 
 To see the resulting map without starting the server, run `hinoki routes examples.blog.main:create_app --path /posts` (the blog example):
 
