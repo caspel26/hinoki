@@ -247,7 +247,7 @@
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Task</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Schema</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">derive</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">TaskIn</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
@@ -256,12 +256,14 @@
     <span class="n">title</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">)]</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">TaskOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Task</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">[</span><span class="s2">"owner_id"</span><span class="p">]):</span>
+<span class="nd">@derive</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">Task</span><span class="p">)</span>
+<span class="nd">@derive</span><span class="o">.</span><span class="n">exclude</span><span class="p">(</span><span class="s2">"owner_id"</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TaskOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Every column of a task except its owner (derived from the model)."""</span>
 </code></pre></div>
 <ul>
 <li><code>TaskIn</code> is strict: no coercion, no unknown keys, every problem reported with its path. Validation runs in Rust before your code does.</li>
-<li><code>TaskOut</code> takes the columns of <code>Task</code> with <code>model=</code>: types and limits come from the model, <code>exclude</code> keeps <code>owner_id</code> out. Relations are never derived; you name them on purpose.</li>
+<li><code>TaskOut</code> takes the columns of <code>Task</code> with <code>@derive.model(Task)</code>: types and limits come from the model, <code>@derive.exclude("owner_id")</code> keeps <code>owner_id</code> out. Relations are never derived; you name them on purpose.</li>
 <li>Because the owner is not a field of <code>TaskIn</code>, a client cannot choose it. If it were, <code>Task.acreate(data, owner_id=me)</code> would still win (server values beat the client's), and a schema can never carry the primary key.</li>
 </ul>
 <p>More: <a href="../../schemas/">Schemas</a>, <a href="../../model-schemas/">model-derived schemas and validators</a>.</p>
@@ -290,7 +292,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.3</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 03:28:41 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:40:12 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/2-schemas.md">Edit on GitHub</a></dd></div>
         </dl>
