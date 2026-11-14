@@ -2,7 +2,7 @@
 
 ## Settings and serving
 
-The app is built by a factory that loads its typed settings ([settings guide](../SETTINGS.md)) and installs the database module:
+The app is built by a factory that loads its typed settings ([settings guide](../settings.md)) and installs the database module:
 
 ```python
 def create_app(database_url: str | None = None) -> Hinoki:
@@ -17,7 +17,7 @@ def create_app(database_url: str | None = None) -> Hinoki:
 TRACKER_DATABASE_URL=postgres://... hinoki dev examples.tracker.app:create_app
 ```
 
-`dev` reloads on change; `serve` runs without reload and takes host, port and workers from the `server` settings ([serving](../SERVING.md)). Open `/docs` or `/redoc`.
+`dev` reloads on change; `serve` runs without reload and takes host, port and workers from the `server` settings ([serving](../serving.md)). Open `/docs` or `/redoc`.
 
 ## Test it
 
@@ -36,4 +36,4 @@ async with ASGIClient(create_app(URL), strict_errors=True) as client:
 
 ## Where next
 
-[Patterns and best practices](../PATTERNS.md), [the application MCP](../APP-MCP.md) (the tracker already exposes `list_tasks` to MCP clients), and [development tools](../AI-WORKFLOW.md).
+[Patterns and best practices](../patterns.md), [the application MCP](../app-mcp.md) (the tracker already exposes `list_tasks` to MCP clients), and [development tools](../ai-workflow.md).

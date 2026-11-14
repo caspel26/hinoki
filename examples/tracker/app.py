@@ -6,7 +6,7 @@ the app in a factory before exposing the allowlisted action.
     TRACKER_DATABASE_URL=postgres://... \
       hinoki dev examples.tracker.app:create_app
 
-Layers (see docs/PATTERNS.md): ``api`` -> ``operations`` -> ``models``.
+Layers (see docs/patterns.md): ``api`` -> ``operations`` -> ``models``.
 """
 
 import os

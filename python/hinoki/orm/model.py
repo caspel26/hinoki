@@ -2,7 +2,7 @@
 
 Typing note: construction (``Post(title=...)``) is checked statically;
 keyword-style helpers such as ``Post.acreate(**values)`` are not (see
-docs/TYPING.md) until generated stubs exist.
+docs/typing.md) until generated stubs exist.
 """
 
 from __future__ import annotations

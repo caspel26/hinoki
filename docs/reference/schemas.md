@@ -17,3 +17,7 @@
 ::: hinoki.schema.field_check
 
 ::: hinoki.schema.object_check
+
+::: hinoki.errors.ValidationError
+
+::: hinoki.fields.UNSET

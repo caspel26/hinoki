@@ -6,7 +6,7 @@ The HTTP layer maps requests to operations and operations to responses. It conta
 tasks = RouteGroup("/tasks", access=member_only, atomic=True)   # stated once
 
 
-@tasks.get("/", pagination=PageNumberPagination(page_size=10, max_page_size=50))
+@tasks.get("/", pagination=PageNumberPagination())
 async def list_tasks(page: PageParams, caller: Caller[Member]) -> Page[TaskOut]:
     """Your tasks, newest first."""
     return (await operations.list_tasks(caller.user.id, page)).map(out)
