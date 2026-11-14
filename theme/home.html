@@ -2,6 +2,7 @@
 {% block bodyclass %}is-home{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ 'static/css/home.css' | url }}">{% endblock %}
 {% block content %}
+{% import "macros.html" as m %}
 <main class="home" id="main">
   <div class="home__inner">
 
@@ -21,7 +22,7 @@
       <div class="hn-panel ide" data-hn-panel data-autoplay>
         <div class="ide__bar">
           <div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i><span data-hn-file>rulesapp.py</span></span></div>
-          <div class="hn-switch" role="group" aria-label="Scenario">
+          <div class="hn-switch" data-slider role="group" aria-label="Scenario">
             <button type="button" data-state="before" data-file="rulesapp.py" data-count="3" data-tone="bad" data-problems="✕ 3 problems" aria-pressed="true">violations</button>
             <button type="button" data-state="after" data-file="rulesapp.py" data-count="0" data-tone="ok" data-problems="✓ no problems" aria-pressed="false">fixed</button>
             <button type="button" data-state="waived" data-file="hinoki-rules.toml" data-count="2" data-tone="warn" data-problems="✕ 2 problems · 1 waived" aria-pressed="false">waived</button>
@@ -93,7 +94,7 @@
       <div class="hn-index" data-stagger data-hn-index>
       {% for item in nav %}{% if not item.is_homepage and (item.children or item.url) %}{% set idx.i = idx.i + 1 %}{% set pn = namespace(i=0) %}
         <article class="hn-index__card reveal">
-          <a class="hn-index__head" href="{{ (item.children | first).url if item.children and (item.children | first).url else item.url | default('', true) | url }}">
+          <a class="hn-index__head" href="{{ m.first_url(item) | url }}">
             <b>{{ '%02d' % idx.i }}</b><h3>{{ item.title }}</h3><span aria-hidden="true">→</span>
           </a>
           <p>{{ summaries.get(item.title, '') }}</p>
@@ -120,7 +121,7 @@
       <h2 id="hn-walk-title" class="reveal">One project, end to end.</h2>
       <p class="hn-sub reveal">The same files the Notes and Tracker examples ship with, with their real line numbers. Nothing is rewritten for this page.</p>
       <div class="hn-walk hn-walk--bench reveal" data-hn-tabs data-autoplay>
-        <div class="hn-walk__tabs" role="tablist" aria-label="Project steps"><button type="button" role="tab" id="hn-w-model" aria-controls="hn-wp-model" aria-selected="true" data-tab="model"><i>01</i><span><b>Model</b><small>Describe the table</small></span><em class="hn-walk__bar"></em></button><button type="button" role="tab" id="hn-w-schema" aria-controls="hn-wp-schema" aria-selected="false" tabindex=-1 data-tab="schema"><i>02</i><span><b>Schema</b><small>State what crosses the boundary</small></span><em class="hn-walk__bar"></em></button><button type="button" role="tab" id="hn-w-endpoint" aria-controls="hn-wp-endpoint" aria-selected="false" tabindex=-1 data-tab="endpoint"><i>03</i><span><b>Endpoint</b><small>Declare the behaviour</small></span><em class="hn-walk__bar"></em></button><button type="button" role="tab" id="hn-w-check" aria-controls="hn-wp-check" aria-selected="false" tabindex=-1 data-tab="check"><i>04</i><span><b>Check and migrate</b><small>Run the rules, review the SQL</small></span><em class="hn-walk__bar"></em></button></div>
+        <div class="hn-walk__tabs" data-slider role="tablist" aria-label="Project steps"><button type="button" role="tab" id="hn-w-model" aria-controls="hn-wp-model" aria-selected="true" data-tab="model"><i>01</i><span><b>Model</b><small>Describe the table</small></span><em class="hn-walk__bar"></em></button><button type="button" role="tab" id="hn-w-schema" aria-controls="hn-wp-schema" aria-selected="false" tabindex=-1 data-tab="schema"><i>02</i><span><b>Schema</b><small>State what crosses the boundary</small></span><em class="hn-walk__bar"></em></button><button type="button" role="tab" id="hn-w-endpoint" aria-controls="hn-wp-endpoint" aria-selected="false" tabindex=-1 data-tab="endpoint"><i>03</i><span><b>Endpoint</b><small>Declare the behaviour</small></span><em class="hn-walk__bar"></em></button><button type="button" role="tab" id="hn-w-check" aria-controls="hn-wp-check" aria-selected="false" tabindex=-1 data-tab="check"><i>04</i><span><b>Check and migrate</b><small>Run the rules, review the SQL</small></span><em class="hn-walk__bar"></em></button></div>
 
           <div class="hn-walk__panel" role="tabpanel" id="hn-wp-model" aria-labelledby="hn-w-model" data-panel="model">
             <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i>app.py</span></div><span class="ide__path">examples/notes</span></div><pre><code><span class="hn-ln" data-line="19"><span class="nd">@indexed</span><span class="p">(</span><span class="s2">"title"</span><span class="p">)</span></span><span class="hn-ln" data-line="20"><span class="nd">@ordered_by</span><span class="p">(</span><span class="s2">"title"</span><span class="p">)</span></span><span class="hn-ln" data-line="21"><span class="k">class</span><span class="w"> </span><span class="nc">Note</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"notes"</span><span class="p">):</span></span><span class="hn-ln" data-line="22">    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span></span><span class="hn-ln" data-line="23">    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">)</span></span><span class="hn-ln" data-line="24">    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span></span></code></pre></div></div>
@@ -179,7 +180,7 @@
       <p class="hn-label reveal"><b>05</b> Rules</p>
       <h2 id="hn-rules-title">Five rules ship today. All are optional.</h2>
       <div class="hn-explorer" data-hn-explorer>
-        <div class="hn-explorer__filters" role="group" aria-label="Filter rules by phase">
+        <div class="hn-explorer__filters" data-slider role="group" aria-label="Filter rules by phase">
           <button type="button" data-phase="all" aria-pressed="true">all <span>5</span></button>
           <button type="button" data-phase="startup" aria-pressed="false">startup <span>4</span></button>
           <button type="button" data-phase="static" aria-pressed="false">static <span>1</span></button>
@@ -252,7 +253,7 @@
       <h2 id="hn-start-title">Start from a checkout.</h2>
       <p class="hn-sub">Hinoki is not published on PyPI. These commands come from the README and the quick start.</p>
       <div class="hn-walk" data-hn-tabs>
-        <div class="hn-walk__tabs" role="tablist" aria-label="Commands">
+        <div class="hn-walk__tabs" data-slider role="tablist" aria-label="Commands">
           <button type="button" role="tab" id="hn-c-install" aria-controls="hn-cp-install" aria-selected="true" data-tab="install">Install</button>
           <button type="button" role="tab" id="hn-c-run" aria-controls="hn-cp-run" aria-selected="false" tabindex="-1" data-tab="run">Run an example</button>
           <button type="button" role="tab" id="hn-c-check" aria-controls="hn-cp-check" aria-selected="false" tabindex="-1" data-tab="check">Check rules</button>

@@ -32,6 +32,7 @@
   <link rel="stylesheet" href="{{ 'static/css/prose.css' | url }}">
   {% block styles %}{% endblock %}
 </head>
+{% import "macros.html" as m %}
 <body class="{% block bodyclass %}is-doc{% endblock %}" data-base="{{ base_url }}">
   <a class="skip" href="#main">Skip to content</a>
   <div class="meter" aria-hidden="true"><i></i></div>
@@ -51,7 +52,7 @@
         {% for item in nav %}
           {% if not item.is_homepage and (item.children or item.url) %}
             {% set ns.i = ns.i + 1 %}
-            <a class="top__link{% if item.active %} is-active{% endif %}" href="{{ (item.children | first).url if item.children and (item.children | first).url else item.url | default('', true) | url }}"><b>{{ '%02d' % ns.i }}</b>{{ item.title }}</a>
+            <a class="top__link{% if item.active %} is-active{% endif %}" href="{{ m.first_url(item) | url }}"><b>{{ '%02d' % ns.i }}</b>{{ item.title }}</a>
           {% endif %}
         {% endfor %}
       </nav>
@@ -72,6 +73,7 @@
   </header>
 
   {% block content %}
+  {% import "macros.html" as m %}
   {#- Sheet number: section index and page index inside the section. -#}
   {% set sec = namespace(n=0, active=None, page_n=0, count=0, found=False) %}
   {% set top = namespace(i=0) %}
@@ -112,7 +114,7 @@
           {% for item in nav %}
             {% if not item.is_homepage and (item.children or item.url) %}
               {% set t2.i = t2.i + 1 %}
-              <li><a class="side__link{% if item.active %} is-active{% endif %}" href="{{ (item.children | first).url if item.children and (item.children | first).url else item.url | default('', true) | url }}"><i>{{ '%02d' % t2.i }}</i><span>{{ item.title }}</span></a></li>
+              <li><a class="side__link{% if item.active %} is-active{% endif %}" href="{{ m.first_url(item) | url }}"><i>{{ '%02d' % t2.i }}</i><span>{{ item.title }}</span></a></li>
             {% endif %}
           {% endfor %}
         </ul>
