@@ -1,6 +1,8 @@
 """Helpers to run an ASGI target under a real Granian process."""
 
+import contextlib
 import os
+import signal
 import socket
 import subprocess
 import sys
@@ -17,6 +19,28 @@ def free_port() -> int:
         return int(sock.getsockname()[1])
 
 
+class Server(subprocess.Popen[bytes]):
+    """A Granian process in its own process group. ``kill`` ends the whole
+    group: killing only the supervisor would leave its workers running after
+    the test."""
+
+    def kill(self) -> None:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(self.pid, signal.SIGKILL)
+
+
+def group_is_gone(pid: int) -> bool:
+    """No process of the group ``pid`` led is left (zombies aside)."""
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        try:
+            os.killpg(pid, 0)
+        except ProcessLookupError:
+            return True
+        time.sleep(0.05)
+    return False
+
+
 def spawn(
     target: str,
     log: Path,
@@ -25,15 +49,19 @@ def spawn(
     factory: bool = False,
     cwd: Path = HERE,
     **env: str,
-) -> subprocess.Popen[bytes]:
+) -> Server:
     environment = {**os.environ, "EXP_LOG": str(log), **env}
     command = [
         sys.executable, "-m", "granian", "--interface", "asgi",
         "--workers", str(workers), "--port", str(port),
         "--no-log", *(["--factory"] if factory else []), target,
     ]  # fmt: skip
-    return subprocess.Popen(
-        command, cwd=cwd, env=environment, stdout=subprocess.DEVNULL
+    return Server(
+        command,
+        cwd=cwd,
+        env=environment,
+        stdout=subprocess.DEVNULL,
+        start_new_session=True,
     )
 
 

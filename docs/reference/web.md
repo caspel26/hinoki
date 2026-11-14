@@ -40,6 +40,8 @@ Import the namespace and decorate actions: `from hinoki import http`, then `@htt
 
 ::: hinoki.http.delete
 
+::: hinoki.http.query
+
 ## Request, response and errors
 
 ::: hinoki.request.Request

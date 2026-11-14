@@ -20,7 +20,7 @@ mcp_routes = expose_as_mcp(
 app.include(*mcp_routes)
 ```
 
-By default, only `GET` and `HEAD` actions are exposed. Set `allow_writes=True` only when write tools are intended and the configured access policy permits them. The allowlist must match included actions; a bad or empty selection fails during setup.
+By default, only `GET`, `HEAD` and `QUERY` actions are exposed; a `QUERY` action is declared as a read and its tool takes the request body. Set `allow_writes=True` only when write tools are intended and the configured access policy permits them. The allowlist must match included actions; a bad or empty selection fails during setup.
 
 The tool name, description, path/query parameters and JSON body shape come from the action's OpenAPI operation. Path values are encoded as path segments, unknown arguments are rejected, and output is bounded. The MCP route cannot expose itself as a tool.
 
