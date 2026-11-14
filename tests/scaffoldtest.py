@@ -48,7 +48,19 @@ def test_the_project_has_what_an_agent_needs(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["", "Shop", "my_shop", "my-shop", "1shop", "a b", "../x"]
+    "name",
+    [
+        "",
+        "Shop",
+        "my_shop",
+        "my-shop",
+        "1shop",
+        "a b",
+        "../x",
+        "hinoki",
+        "json",
+        "asyncio",
+    ],
 )
 def test_bad_project_names_are_refused(tmp_path: Path, name: str) -> None:
     with pytest.raises(ScaffoldError, match="name must be"):
