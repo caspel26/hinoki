@@ -16,6 +16,8 @@
 
 ::: hinoki.orm.ordered_by
 
+::: hinoki.orm.timestamps
+
 ::: hinoki.orm.QuerySet
     options:
       members: true
