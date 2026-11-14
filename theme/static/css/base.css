@@ -920,6 +920,7 @@ body.menu-open .overlay {
 @media (max-width: 960px) {
   :root {
     --header-h: 66px;
+    --mobile-panel-inset: var(--sp-4);
   }
 
   .top__inner {
@@ -948,11 +949,11 @@ body.menu-open .overlay {
   .side {
     position: fixed;
     top: var(--header-h);
-    right: 0;
+    right: var(--mobile-panel-inset);
     bottom: auto;
-    left: 0;
+    left: var(--mobile-panel-inset);
     z-index: 75;
-    width: 100%;
+    width: auto;
     height: auto;
     max-height: calc(100vh - var(--header-h) - 12px);
     max-height: calc(100dvh - var(--header-h) - 12px);
@@ -969,9 +970,9 @@ body.menu-open .overlay {
   .home-mobile-sheet {
     position: fixed;
     top: var(--header-h);
-    right: 0;
+    right: var(--mobile-panel-inset);
     bottom: auto;
-    left: 0;
+    left: var(--mobile-panel-inset);
     z-index: 75;
     display: block;
     max-height: calc(100vh - var(--header-h) - 12px);
@@ -1010,8 +1011,30 @@ body.menu-open .overlay {
     height: auto;
     max-height: calc(100vh - var(--header-h) - 12px);
     max-height: calc(100dvh - var(--header-h) - 12px);
-    padding: var(--sp-4) var(--sp-5) var(--sp-7);
+    padding: var(--sp-4) var(--sp-5) 12px;
     overflow-y: auto;
+  }
+
+  .side__scroll {
+    padding-bottom: 12px;
+  }
+
+  .side__link {
+    min-height: 46px;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    font-size: 16px;
+  }
+
+  .side__link i {
+    min-width: 28px;
+    font-size: 12px;
+  }
+
+  .side__label {
+    margin-bottom: 8px;
+    font-size: 12px;
   }
 
   .side__sections {
@@ -1044,6 +1067,7 @@ body.menu-open .overlay {
 @media (max-width: 560px) {
   :root {
     --header-h: 64px;
+    --mobile-panel-inset: var(--sp-2);
   }
 
   .pager {
