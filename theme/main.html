@@ -92,6 +92,7 @@
       <div class="side__scroll">
         {% if sec.active %}
           <p class="side__sec"><b>{{ '%02d' % sec.n }}</b>{{ sec.active.title }}</p>
+          <p class="side__label">In this section</p>
           {% macro render(items, leaf_list, secn) %}
             {% for i in items %}
               {% if i.children %}
@@ -108,16 +109,6 @@
             <ul class="side__list">{{ render(sec.active.children or [], leaf_list, sec.n) }}</ul>
           {% endif %}
         {% endif %}
-        <p class="side__sec side__sec--all">All sections</p>
-        <ul class="side__list side__list--all">
-          {% set t2 = namespace(i=0) %}
-          {% for item in nav %}
-            {% if not item.is_homepage and (item.children or item.url) %}
-              {% set t2.i = t2.i + 1 %}
-              <li><a class="side__link{% if item.active %} is-active{% endif %}" href="{{ m.first_url(item) | url }}"><i>{{ '%02d' % t2.i }}</i><span>{{ item.title }}</span></a></li>
-            {% endif %}
-          {% endfor %}
-        </ul>
       </div>
     </aside>
 
