@@ -7,41 +7,39 @@ related:
 
 # Schemas derived from models
 
-A `Schema` can take its fields and constraints from a `Model`. You still choose which fields cross the API boundary. The choices are separate decorators, read top to bottom like [model options](model-options.md); there is no `class Meta` and no class keyword.
+A `Schema` can take its fields and constraints from a `Model`. Put the source model on the class; use one `@derive(...)` decorator when you need to select or make fields optional. Without the decorator, every model column is derived.
 
 ```python
 from hinoki import Schema, derive
 
 
-@derive.model(Post)
-@derive.only("title", "slug", "body")
-class PostCreate(Schema): ...
+@derive(only=("title", "slug", "body"))
+class PostCreate(Schema, model=Post): ...
 
 
-@derive.model(Post)
-@derive.exclude("author_id", "internal_note")
-class PostOut(Schema):
+@derive(exclude=("author_id", "internal_note"))
+class PostOut(Schema, model=Post):
     author_name: str
 
 
-@derive.model(Post)
-@derive.only("title", "body")
-@derive.partial()
-class PostPatch(Schema): ...
+@derive(only=("title", "body"), partial=True)
+class PostPatch(Schema, model=Post): ...
+
+
+class PostAll(Schema, model=Post): ...
 ```
 
-| Decorator | Effect |
+| Option | Effect |
 | --- | --- |
-| `@derive.model(Post)` | the source model; put it **on top**, it reads the decorators below and builds the schema |
-| `@derive.only("a", "b")` | take exactly these columns |
-| `@derive.exclude("a")` | take every column except these (without `only` or `exclude`, every column is taken) |
-| `@derive.partial()` | make every derived field optional (`UNSET` when absent), for partial updates; `@derive.partial("a")` only those |
+| `model=Post` | source model; with no decorator, derives every column |
+| `only=("a", "b")` | take exactly these columns |
+| `exclude=("a",)` | take every column except these |
+| `partial=True` | make every selected derived field optional (`UNSET` when absent) |
+| `partial=("a",)` | make only the named selected fields optional |
 
-`only` and `exclude` cannot be combined. Model field types, maximum lengths, defaults and nullability are used. Annotations in the class body add fields or override a derived field, and methods and checks in the body are kept. Methods can use zero-argument `super()` as usual.
+`only` and `exclude` cannot be combined. An empty `only=()` is invalid; `exclude=()` is equivalent to selecting all columns. Model field types, maximum lengths, defaults and nullability are used. Annotations in the class body add fields or override a derived field, and methods and checks in the body are kept. Methods can use zero-argument `super()` as usual.
 
-Unknown columns, a non-model, or `only` with `exclude` fail when the class is declared. `only`, `exclude` or `partial` without `@derive.model(...)` above them fail on first use with a message naming the missing decorator. Relations are not derived as nested values; declare the API shape explicitly.
-
-Earlier revisions took `model=`, `fields=`, `exclude=` and `optional=` as class keywords; they are removed, and `class PostOut(Schema, model=Post)` now raises `TypeError`.
+Unknown columns, a non-model, an empty `only`, or optional names outside the selection fail when the class is declared. Selection options require `model=` on the class. Relations are not derived as nested values; declare the API shape explicitly. Model derivation is explicit but includes all columns by default, so use `only` or `exclude` when the API must omit private fields.
 
 ## Add validation checks
 

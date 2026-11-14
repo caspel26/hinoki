@@ -32,6 +32,8 @@ from hinoki.errors import (
 from hinoki.fields import UNSET, Field, FieldInfo, Unset
 from hinoki.fieldtypes import FieldType, parse_annotation
 
+_NO_MODEL = object()
+
 __all__ = [
     "UNSET",
     "Field",
@@ -114,13 +116,20 @@ class Schema:
     __native_dump__: ClassVar[bool] = True
     __checks__: ClassVar[tuple[tuple[str, tuple[str, ...], str], ...]] = ()
     __source__: ClassVar[dict[str, Any]] = {}
+    __derivation__: ClassVar[tuple[Any, ...] | None] = None
+    __derived_model__: ClassVar[type | None] = None
 
-    def __init_subclass__(cls, **kwargs: object) -> None:
+    def __init_subclass__(cls, model: object = _NO_MODEL, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
         cls.__source__ = class_source(cls)
         plan = cls.__dict__.get("__derivation__")
         if plan is not None:
             derive_from_model(cls, *plan)
+        elif model is not _NO_MODEL:
+            source = cast(type, model)
+            cls.__derived_model__ = source
+            cls.__derivation__ = (source, None, (), False)
+            derive_from_model(cls, source, None, (), False)
         cls.__checks__ = collect_checks(cls)
         for name in inspect.get_annotations(cls):
             cls.apply_default(name)
@@ -150,11 +159,6 @@ class Schema:
     @classmethod
     def specs(cls) -> dict[str, FieldSpec]:
         """Field descriptions, resolving forward references on first use."""
-        if "__pending__" in cls.__dict__:
-            raise RegistrationError(
-                f"{cls.__name__}: @derive.only/exclude/partial need "
-                "@derive.model(Model) above them"
-            )
         cached = cls.__dict__.get("__specs__")
         if cached is None:
             cached = cls.build_specs(final=True)
@@ -344,7 +348,7 @@ SOURCE_SKIP = frozenset(
     {
         "__dict__", "__weakref__", "__annotations__", "__annotate__",
         "__annotate_func__", "__annotations_cache__", "__source__",
-        "__derivation__", "__pending__",
+        "__derivation__", "__derived_model__",
     }
 )  # fmt: skip
 
