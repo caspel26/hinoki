@@ -459,6 +459,7 @@ hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<
 <li><strong>Shutdown</strong> runs on <code>WSGIAdapter.close()</code> or, otherwise, at interpreter exit. A server that kills workers without exiting normally skips it, as it would any <code>atexit</code> hook.</li>
 <li><strong>Async handlers</strong> run on the adapter's loop and <strong>sync handlers</strong> on the bounded executor, as under ASGI. Each WSGI server thread blocks for the duration of its request, so concurrency is the server's thread count rather than the event loop.</li>
 <li><strong>Bodies are buffered.</strong> Request bodies are read up to <code>max_body_bytes</code> plus one byte, so an oversized upload still answers <code>413</code>. Responses are complete before they are sent; streaming responses are not available, and a client disconnect is not reported to the handler.</li>
+<li><strong>Paths.</strong> The server decodes the path once and the adapter passes it on without decoding again, so a client's <code>%2520</code> reaches the handler as <code>%20</code>, as under ASGI. A percent-encoded slash (<code>%2F</code>) cannot be told apart from a real one in WSGI and is not available inside a path parameter. A bad <code>Content-Length</code> answers <code>400</code>.</li>
 <li><strong>One protocol per process.</strong> Do not serve the same application object over ASGI and WSGI in one process; the adapter owns its own loop and module lifespan. Run two processes if you need both.</li>
 </ul>
 <p>The path is checked against Granian's WSGI interface (<code>--interface wsgi</code>, with one and two workers), not against every WSGI server.</p>
@@ -491,7 +492,7 @@ hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.19</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:32:05 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 16:02:39 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
