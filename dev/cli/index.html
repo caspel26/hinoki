@@ -406,6 +406,10 @@
 <td>Plan, inspect and apply database migrations.</td>
 </tr>
 <tr>
+<td><code>hinoki manage TARGET COMMAND</code></td>
+<td>Run an app-defined command with its declared module resources.</td>
+</tr>
+<tr>
 <td><code>hinoki mcp TARGET</code></td>
 <td>Serve project context to an MCP client over stdio. Scenario tools are off by default.</td>
 </tr>
@@ -440,6 +444,33 @@ hinoki<span class="w"> </span>serve<span class="w"> </span>examples.notes.main:a
 hinoki<span class="w"> </span>settings<span class="w"> </span>examples.blog.settings:BlogSettings<span class="w"> </span>--example<span class="w"> </span>&gt;<span class="w"> </span>.env.example
 </code></pre></div>
 <p><code>TARGET</code> can be a settings class or an app with typed settings. <code>--prefix</code>, <code>--dotenv</code> and <code>--toml</code> override sources declared by the settings class. <code>--format text|json</code> selects output; <code>--example</code> prints a <code>.env.example</code> with defaults and types, leaving secrets and required fields blank. Values of <code>Secret</code> are redacted.</p>
+<h3 id="manage"><code>manage</code><a class="headerlink" href="#manage" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>manage<span class="w"> </span>examples.management:app<span class="w"> </span>--help
+hinoki<span class="w"> </span>manage<span class="w"> </span>examples.management:app<span class="w"> </span>greet<span class="w"> </span>Peppe
+</code></pre></div>
+<p>Commands are declared on the app with <code>Hinoki(commands=[...])</code>. Each command subclasses <code>hinoki.management.Command</code>, gives itself a lower-case name, and adds arguments through <code>add_arguments(parser)</code>. <code>--help</code> after the app target lists its commands; <code>--help</code> after a command shows that command's arguments.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">argparse</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArgumentParser</span><span class="p">,</span> <span class="n">Namespace</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.management</span><span class="w"> </span><span class="kn">import</span> <span class="n">Command</span><span class="p">,</span> <span class="n">CommandContext</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Greet</span><span class="p">(</span><span class="n">Command</span><span class="p">):</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="s2">"greet"</span>
+    <span class="n">help</span> <span class="o">=</span> <span class="s2">"print a greeting"</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parser</span><span class="p">:</span> <span class="n">ArgumentParser</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s2">"?"</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">"world"</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">handle</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_context</span><span class="p">:</span> <span class="n">CommandContext</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Hello, </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">!"</span><span class="p">)</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">commands</span><span class="o">=</span><span class="p">[</span><span class="n">Greet</span><span class="p">])</span>
+</code></pre></div>
+<p>The same example is in <code>examples/management.py</code> and can be run from the repository root.</p>
+<p><code>handle(context, args)</code> may be synchronous or asynchronous. A sync handler runs on Hinoki's bounded executor. It can read <code>context.settings</code> and retrieve resources with <code>context.get(Type)</code> or <code>context.find(Type)</code>. Declare module classes in the command's <code>requires</code> tuple; Hinoki starts those modules and their dependencies for the command, then closes them before it exits. Other app modules are not started. A command with no requirements starts no app modules.</p>
+<p>Commands run inside the project process and can modify data. Use disposable databases when developing or testing a command that writes. A handler returns <code>None</code> for success or an exit code from 0 through 255. Unknown commands and invalid arguments exit 2; a command failure exits nonzero. App settings load when Hinoki constructs the app, but module resources open only for the selected command.</p>
 <h3 id="migrations"><code>migrations</code><a class="headerlink" href="#migrations" title="Permanent link">&para;</a></h3>
 <p><code>--dir</code> belongs immediately after <code>migrations</code> and defaults to <code>migrations/</code>:</p>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/blog/migrations<span class="w"> </span>plan<span class="w"> </span><span class="se">\</span>
@@ -484,7 +515,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
           
           
             <ul><li><a href="#commands-and-options">Commands and options</a>
-            <ul><li><a href="#new">new</a></li><li><a href="#dev-and-serve">dev and serve</a></li><li><a href="#check">check</a></li><li><a href="#settings">settings</a></li><li><a href="#migrations">migrations</a></li><li><a href="#mcp">mcp</a></li></ul>
+            <ul><li><a href="#new">new</a></li><li><a href="#dev-and-serve">dev and serve</a></li><li><a href="#check">check</a></li><li><a href="#settings">settings</a></li><li><a href="#manage">manage</a></li><li><a href="#migrations">migrations</a></li><li><a href="#mcp">mcp</a></li></ul>
           </li><li><a href="#import-target-examples">Import target examples</a></li></ul>
           
         </nav>
@@ -492,8 +523,8 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 02:07:08 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 05:12:10 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

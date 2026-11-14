@@ -642,6 +642,344 @@ locator: one instance per worker, keyed by type.</p>
 
 
 
+<h2 id="hinoki.management.Command" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.management.Command</span>
+
+
+<a href="#hinoki.management.Command" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A project command with explicit arguments and module requirements.</p>
+<p>Set <code>name</code> and optionally <code>help</code>/<code>requires</code> on a subclass. Override
+<code>add_arguments</code> to define CLI arguments and <code>handle</code> to execute the
+command. A synchronous or asynchronous <code>handle</code> is supported.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.management.Command.name" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">name</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.management.Command.name" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.management.Command.help" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">help</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.management.Command.help" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">help</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.management.Command.requires" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">requires</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.management.Command.requires" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">requires</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">Module</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.management.Command.add_arguments" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">add_arguments</span>
+
+
+<a href="#hinoki.management.Command.add_arguments" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">add_arguments</span><span class="p">(</span><span class="n">parser</span><span class="p">:</span> <span class="n">ArgumentParser</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Add command-specific arguments to the parser.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.management.Command.handle" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">handle</span>
+
+
+<a href="#hinoki.management.Command.handle" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">handle</span><span class="p">(</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">CommandContext</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">Namespace</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CommandResult</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Run the command; return an optional process exit code.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.management.CommandContext" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.management.CommandContext</span>
+
+
+<a href="#hinoki.management.CommandContext" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Settings and resources available during one command invocation.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.management.CommandContext.settings" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">settings</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.management.CommandContext.settings" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">settings</span> <span class="o">=</span> <span class="n">settings</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.management.CommandContext._modules" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">_modules</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.management.CommandContext._modules" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">_modules</span> <span class="o">=</span> <span class="n">modules</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.management.CommandContext.__init__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">__init__</span>
+
+
+<a href="#hinoki.management.CommandContext.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span>
+    <span class="n">settings</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">modules</span><span class="p">:</span> <span class="n">ModuleContext</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.management.CommandContext.get" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get</span>
+
+
+<a href="#hinoki.management.CommandContext.get" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">get</span><span class="p">(</span><span class="n">kind</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">T</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">T</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return a module resource or raise <code>LookupError</code> if unavailable.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.management.CommandContext.find" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">find</span>
+
+
+<a href="#hinoki.management.CommandContext.find" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">find</span><span class="p">(</span><span class="n">kind</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">T</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">T</span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return a module resource, or <code>None</code> when it is unavailable.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.management.CommandError" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.management.CommandError</span>
+
+
+<a href="#hinoki.management.CommandError" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="Exception">Exception</span></code></p>
+
+
+
+        <p>The command could not start or returned an invalid result.</p>
+
+
+
+
+
+
+
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
 <h2 id="hinoki.runtime.config.RuntimeConfig" class="doc doc-heading">
             <span class="doc doc-object-name doc-class-name">hinoki.runtime.config.RuntimeConfig</span>
 
@@ -768,14 +1106,18 @@ locator: one instance per worker, keyed by type.</p>
             <ul><li><a href="#hinoki.modules.Module.name">name</a></li><li><a href="#hinoki.modules.Module.requires">requires</a></li><li><a href="#hinoki.modules.Module.apis">apis</a></li><li><a href="#hinoki.modules.Module.from_settings">from_settings</a></li><li><a href="#hinoki.modules.Module.lifespan">lifespan</a></li></ul>
           </li><li><a href="#hinoki.modules.ModuleContext">ModuleContext</a>
             <ul><li><a href="#hinoki.modules.ModuleContext.settings">settings</a></li><li><a href="#hinoki.modules.ModuleContext.tasks">tasks</a></li><li><a href="#hinoki.modules.ModuleContext._provided">_provided</a></li><li><a href="#hinoki.modules.ModuleContext.__init__">__init__</a></li><li><a href="#hinoki.modules.ModuleContext.reset">reset</a></li><li><a href="#hinoki.modules.ModuleContext.provide">provide</a></li><li><a href="#hinoki.modules.ModuleContext.find">find</a></li><li><a href="#hinoki.modules.ModuleContext.get">get</a></li></ul>
-          </li><li><a href="#hinoki.runtime.config.RuntimeConfig">RuntimeConfig</a></li><li><a href="#hinoki.errors.ModuleGraphError">ModuleGraphError</a></li><li><a href="#hinoki.errors.RegistrationError">RegistrationError</a></li></ul>
+          </li><li><a href="#hinoki.management.Command">Command</a>
+            <ul><li><a href="#hinoki.management.Command.name">name</a></li><li><a href="#hinoki.management.Command.help">help</a></li><li><a href="#hinoki.management.Command.requires">requires</a></li><li><a href="#hinoki.management.Command.add_arguments">add_arguments</a></li><li><a href="#hinoki.management.Command.handle">handle</a></li></ul>
+          </li><li><a href="#hinoki.management.CommandContext">CommandContext</a>
+            <ul><li><a href="#hinoki.management.CommandContext.settings">settings</a></li><li><a href="#hinoki.management.CommandContext._modules">_modules</a></li><li><a href="#hinoki.management.CommandContext.__init__">__init__</a></li><li><a href="#hinoki.management.CommandContext.get">get</a></li><li><a href="#hinoki.management.CommandContext.find">find</a></li></ul>
+          </li><li><a href="#hinoki.management.CommandError">CommandError</a></li><li><a href="#hinoki.runtime.config.RuntimeConfig">RuntimeConfig</a></li><li><a href="#hinoki.errors.ModuleGraphError">ModuleGraphError</a></li><li><a href="#hinoki.errors.RegistrationError">RegistrationError</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.10</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 01:31:38 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 05:12:10 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/runtime.md">Edit on GitHub</a></dd></div>
         </dl>

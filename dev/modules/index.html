@@ -371,7 +371,7 @@
       <article class="prose" style="--sheet: '3.16'">
         <p class="kicker" data-search-exclude>3.16 · Guides</p>
         <h1 id="application-modules-and-resources">Application modules and resources<a class="headerlink" href="#application-modules-and-resources" title="Permanent link">&para;</a></h1>
-<p>Modules own resources whose lifetime belongs to a worker, such as a database pool. They are created during application startup, made available through <code>ModuleContext</code>, and closed when the worker shuts down.</p>
+<p>Modules own resources whose lifetime belongs to a worker or a management command, such as a database pool. They are created during startup, made available through <code>ModuleContext</code>, and closed when that run ends.</p>
 <h2 id="declare-modules">Declare modules<a class="headerlink" href="#declare-modules" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">AppSettings</span><span class="p">(</span><span class="n">FrameworkSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"APP_"</span><span class="p">):</span>
     <span class="n">database</span><span class="p">:</span> <span class="n">DatabaseSettings</span>
@@ -388,7 +388,8 @@
 <p>A module calls <code>ctx.provide(Type, value)</code> during lifespan startup. Other modules can declare dependencies and retrieve the provided value with <code>ctx.get(Type)</code>. Dependencies determine startup and shutdown order. Missing, duplicate or circular providers fail application startup.</p>
 <p>Module lifespan hooks are async. Keep startup bounded, fail fast when a required service is unavailable, and close each owned resource in <code>finally</code>.</p>
 <h2 id="standalone-scripts">Standalone scripts<a class="headerlink" href="#standalone-scripts" title="Permanent link">&para;</a></h2>
-<p>Scripts outside the server have no worker lifespan. Open their own <code>Database</code> and close it explicitly; do not import a module-global pool or start the whole web application to seed data. The blog seed script demonstrates this pattern.</p>
+<p>For app maintenance tasks, declare a <a href="../cli/#manage">management command</a> and list its required module classes in <code>Command.requires</code>. Hinoki starts only those modules and their dependencies for one command run, so a database module is opened and closed without starting the HTTP server or unrelated modules.</p>
+<p>Standalone scripts outside Hinoki's server or management-command runner have no module lifespan. Open their own <code>Database</code> and close it explicitly; do not import a module-global pool. The blog seed script demonstrates this pattern.</p>
 <p>See <a href="../settings/#8-database-connection-ownership">settings and database ownership</a>, <a href="../serving/">serving</a> and <a href="../sync-async/">sync and async</a>.</p>
         
       </article>
@@ -414,7 +415,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.16</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 01:30:16 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 05:12:10 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/modules.md">Edit on GitHub</a></dd></div>
         </dl>
