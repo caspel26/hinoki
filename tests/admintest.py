@@ -13,7 +13,7 @@ from uuid import UUID, uuid4
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import Access, Caller, Hinoki
+from hinoki import Access, Caller, Hinoki, Mount
 from hinoki.admin import (
     THEMES,
     Admin,
@@ -175,6 +175,7 @@ def build(
     theme: str = "studio",
     templates: str | None = None,
     note_admin: type[ModelAdmin[Note]] = NoteAdmin,
+    mount: str = "",
 ) -> Hinoki:
     admin = Admin(
         access=staff, secret=SECRET, theme=theme, templates=templates, site="Test Admin"
@@ -183,7 +184,7 @@ def build(
     admin.register(Secret, SecretAdmin, slug="secrets")
     admin.register(Owner, slug="owners")
     app = Hinoki(openapi_url="/openapi.json")
-    app.include(admin.api())
+    app.include(Mount(mount, admin.api()) if mount else admin.api())
     if URL:
         app.install(DatabaseModule(URL, max_size=3))
     return app
@@ -1221,3 +1222,47 @@ def test_shared_stylesheet_keeps_form_text_and_boundaries_legible() -> None:
 def test_pagination_gap_marker_is_not_dimmed_as_a_control() -> None:
     html = str(Components(Templates()).pagination([("", "…", False)], "1"))
     assert 'class="hn-page hn-gap"' in html
+
+
+class HidingNotes(NoteAdmin):
+    def can(self, principal: Any, action: str, row: Note | None = None) -> bool:
+        if action == "view" and row is not None and row.title.startswith("hide"):
+            return False
+        return super().can(principal, action, row)
+
+
+@needs_database
+async def test_rows_the_caller_may_not_view_are_not_listed(
+    site: tuple[Client, Database], pool: Pool
+) -> None:
+    _, db = site
+    await note_id(db, "show-me")
+    await note_id(db, "hide-me")
+    client = await pool.start(build(note_admin=HidingNotes))
+    for path in ("/admin/notes", "/admin"):
+        page = await client.request("GET", path, headers=STAFF)
+        assert page.status == 200
+        assert "hide-me" not in page.body
+    assert (
+        "show-me" in (await client.request("GET", "/admin/notes", headers=STAFF)).body
+    )
+
+
+@needs_database
+async def test_the_admin_under_a_mount_builds_every_url_from_the_prefix(
+    site: tuple[Client, Database], pool: Pool
+) -> None:
+    client = await pool.start(build(mount="/ops"))
+    page = await client.request("GET", "/ops/admin", headers=STAFF)
+    assert page.status == 200
+    assert 'href="/ops/admin/notes' in page.body
+    assert 'href="/admin' not in page.body and 'src="/admin' not in page.body
+    assert "Path=/ops/admin" in page.headers["set-cookie"]
+    asset = re.search(r'href="(/ops/admin/static/admin\.css[^"]*)"', page.body)
+    assert asset is not None
+    assert (await client.request("GET", asset.group(1).split("?")[0])).status == 200
+    token, headers = await session(client, "/ops/admin/notes/add")
+    saved = await submit(
+        client, "/ops/admin/notes/add", {"csrf": token, "title": "mounted"}, headers
+    )
+    assert saved.status in {200, 302, 303}
