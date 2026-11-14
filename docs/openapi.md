@@ -1,10 +1,10 @@
 ---
 status: implemented
 related:
-  - ENDPOINTS.md
-  - SCHEMAS.md
-  - SETTINGS.md
-  - ERRORS.md
+  - endpoints.md
+  - schemas.md
+  - settings.md
+  - errors.md
 ---
 
 # OpenAPI document
@@ -50,4 +50,4 @@ async def get_task(task_id: UUID) -> TaskOutput:
 
 ## Current limits
 
-Per-action `tags`, `deprecated`, a caller-supplied `operation_id` and `include_in_schema` controls are not implemented. Response bodies are generated from annotations; runtime response validation against those annotations is not implemented. See [project status](STATUS.md) for other API boundaries.
+Per-action `tags`, `deprecated`, a caller-supplied `operation_id` and `include_in_schema` controls are not implemented. Response bodies are generated from annotations; runtime response validation against those annotations is not implemented. See [project status](status.md) for other API boundaries.

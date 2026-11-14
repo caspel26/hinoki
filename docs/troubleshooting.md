@@ -22,10 +22,10 @@ The rule could not establish its promise. Read the diagnostic explanation and an
 
 ## A sync handler or auth provider stalls
 
-Sync code runs on a bounded executor and can saturate. Prefer async database and network calls in async handlers. See [sync and async](SYNC-ASYNC.md) for limits and [server settings](SERVING.md) for worker configuration.
+Sync code runs on a bounded executor and can saturate. Prefer async database and network calls in async handlers. See [sync and async](sync-async.md) for limits and [server settings](serving.md) for worker configuration.
 
 ## A migration is marked destructive
 
-Review the generated SQL and the data it may remove. Test the change against a disposable database backup before using `--allow-destructive`. See [migrations](MIGRATIONS.md).
+Review the generated SQL and the data it may remove. Test the change against a disposable database backup before using `--allow-destructive`. See [migrations](migrations.md).
 
 If the issue persists, include the Hinoki version, the command or route, the complete diagnostic, and a minimal example. Remove credentials and user data first.

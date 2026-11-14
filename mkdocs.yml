@@ -66,7 +66,7 @@ nav:
   - Home: index.md
   - Get started:
       - Installation: getting-started.md
-      - Quick start: QUICK-START.md
+      - Quick start: quick-start.md
   - Tutorial:
       - Overview: tutorial/index.md
       - 1. Models: tutorial/1-models.md
@@ -76,44 +76,44 @@ nav:
       - 5. Rules: tutorial/5-rules.md
       - 6. Run and test it: tutorial/6-run.md
   - Guides:
-      - Overview: GUIDES.md
+      - Overview: guides.md
       - Data:
-          - Models and queries: MODELS.md
-          - Schemas: SCHEMAS.md
-          - Model-derived schemas: MODEL-SCHEMAS.md
-          - Model options: MODEL-OPTIONS.md
-          - Utilities: UTILITIES.md
-          - Relations: RELATIONS.md
-          - Migrations: MIGRATIONS.md
+          - Models and queries: models.md
+          - Schemas: schemas.md
+          - Model-derived schemas: model-schemas.md
+          - Model options: model-options.md
+          - Utilities: utilities.md
+          - Relations: relations.md
+          - Migrations: migrations.md
       - Endpoints:
-          - Endpoint declarations: ENDPOINTS.md
-          - OpenAPI: OPENAPI.md
-          - Errors: ERRORS.md
-          - Pagination: PAGINATION.md
-          - Parsers and renderers: CODECS.md
+          - Endpoint declarations: endpoints.md
+          - OpenAPI: openapi.md
+          - Errors: errors.md
+          - Pagination: pagination.md
+          - Parsers and renderers: codecs.md
       - Security and checks:
-          - Authentication and access: AUTHENTICATION.md
-          - Rules: RULES.md
+          - Authentication and access: authentication.md
+          - Rules: rules.md
       - Runtime:
-          - Application modules: MODULES.md
-          - Transactions: TRANSACTIONS.md
-          - Settings: SETTINGS.md
-          - Serving: SERVING.md
-          - Testing: TESTING.md
-          - Command line: CLI.md
-          - Typing: TYPING.md
+          - Application modules: modules.md
+          - Transactions: transactions.md
+          - Settings: settings.md
+          - Serving: serving.md
+          - Testing: testing.md
+          - Command line: cli.md
+          - Typing: typing.md
       - Integrations:
-          - Admin: ADMIN.md
-          - Application MCP: APP-MCP.md
-          - Development MCP: DEV-MCP.md
-          - Development tools: AI-WORKFLOW.md
+          - Admin: admin.md
+          - Application MCP: app-mcp.md
+          - Development MCP: dev-mcp.md
+          - Development tools: ai-workflow.md
       - Operating:
-          - Sync and async: SYNC-ASYNC.md
+          - Sync and async: sync-async.md
   - Concepts:
-      - Overview: CONCEPTS.md
-      - Request lifecycle: REQUEST-LIFECYCLE.md
-      - Architecture patterns: PATTERNS.md
-      - Glossary: GLOSSARY.md
+      - Overview: concepts.md
+      - Request lifecycle: request-lifecycle.md
+      - Architecture patterns: patterns.md
+      - Glossary: glossary.md
   - Reference:
       - Overview: reference/index.md
       - Core API: reference/web.md
@@ -130,8 +130,8 @@ nav:
       - Testing: reference/testing.md
       - Utilities: reference/utilities.md
   - Project:
-      - Status: STATUS.md
+      - Status: status.md
       - Roadmap: https://github.com/caspel26/hinoki/blob/main/ROADMAP.md
       - Contributing: https://github.com/caspel26/hinoki/blob/main/CONTRIBUTING.md
-      - Troubleshooting: TROUBLESHOOTING.md
-      - Toolchain and CI: TOOLCHAIN.md
+      - Troubleshooting: troubleshooting.md
+      - Toolchain and CI: toolchain.md

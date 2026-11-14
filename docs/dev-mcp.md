@@ -1,9 +1,9 @@
 ---
 status: implemented
 related:
-  - CLI.md
-  - AI-WORKFLOW.md
-  - APP-MCP.md
+  - cli.md
+  - ai-workflow.md
+  - app-mcp.md
 ---
 
 # Development MCP
@@ -36,4 +36,4 @@ The server returns each result as JSON in `structuredContent` and in a text cont
 
 Scenarios run the real app lifespan and handlers in-process. `read` accepts GET, HEAD and OPTIONS; a GET handler may still change data. `write` also accepts POST, PUT, PATCH and DELETE. Scenario requests have a 15-second limit and response bodies are capped at 20,000 bytes. The tool is marked as effectful. Enable it only under owner control and use a disposable database.
 
-See [CLI options](CLI.md#mcp) for startup configuration and [application MCP](APP-MCP.md) for exposing selected routes as remote tools.
+See [CLI options](cli.md#mcp) for startup configuration and [application MCP](app-mcp.md) for exposing selected routes as remote tools.

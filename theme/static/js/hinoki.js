@@ -85,7 +85,11 @@
 
   /* ---------- Drawer ---------- */
   const menu = $("[data-menu]");
-  const closeMenu = () => {
+  const menuPanel = () => {
+    const id = menu?.getAttribute("aria-controls") || "side";
+    return $(`#${CSS.escape(id)}`);
+  };
+  const closeMenu = (restoreFocus = false) => {
     document.body.classList.remove("menu-open");
     if (menu) {
       menu.setAttribute("aria-expanded", "false");
@@ -93,6 +97,7 @@
     }
     const ov = $("[data-overlay]");
     if (ov && !paletteOpen) ov.hidden = true;
+    if (restoreFocus) menu?.focus();
   };
   if (menu) {
     menu.addEventListener("click", () => {
@@ -102,12 +107,36 @@
       menu.setAttribute("aria-label", open ? "Close navigation" : "Open navigation");
       const ov = $("[data-overlay]");
       if (ov) ov.hidden = !open;
+      if (open) {
+        const firstLink = $("a[href]", menuPanel());
+        firstLink?.focus();
+      }
     });
   }
-  addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && document.body.classList.contains("menu-open")) {
-      closeMenu();
-      menu && menu.focus();
+  document.addEventListener("keydown", (event) => {
+    if (!document.body.classList.contains("menu-open") || !menu) return;
+    if (event.key === "Escape") {
+      closeMenu(true);
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const panel = menuPanel();
+    const focusable = panel ? $$('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])', panel) : [];
+    const items = [menu, ...focusable];
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (!event.shiftKey && document.activeElement === menu && focusable.length) {
+      event.preventDefault();
+      focusable[0].focus();
+    } else if (event.shiftKey && document.activeElement === focusable[0]) {
+      event.preventDefault();
+      menu.focus();
+    } else if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
     }
   });
 
@@ -153,9 +182,9 @@
   };
 
   const commands = () => [
-    { title: "Quick start", hint: "Get started", href: url("QUICK-START/") },
-    { title: "Rules guide", hint: "Architecture checks", href: url("RULES/") },
-    { title: "Project status", hint: "What works today", href: url("STATUS/") },
+    { title: "Quick start", hint: "Get started", href: url("quick-start/") },
+    { title: "Rules guide", hint: "Architecture checks", href: url("rules/") },
+    { title: "Project status", hint: "What works today", href: url("status/") },
     { title: "Toggle light / dark theme", hint: "Appearance", run: toggleTheme },
     { title: "Open the repository on GitHub", hint: "caspel26/hinoki", href: (window.HN && window.HN.repo) || "#" },
   ];
@@ -268,7 +297,7 @@
     input.addEventListener("input", render);
     overlay.addEventListener("click", () => {
       closePalette();
-      closeMenu();
+      closeMenu(true);
     });
     palette.addEventListener("click", (e) => {
       if (e.target === palette) closePalette();
@@ -366,7 +395,7 @@
       `<p class="popover__id">${el.dataset.rule} · ${rule.phase}</p>` +
       `<p class="popover__title">${esc(rule.title)}</p><code>${esc(rule.decl)}</code>` +
       `<p class="popover__fix">fix: ${esc(rule.fix)}</p>` +
-      `<a class="popover__more" href="${url("RULES/")}">Read the Rules guide →</a>`;
+      `<a class="popover__more" href="${url("rules/")}">Read the Rules guide →</a>`;
     pop.hidden = false;
     const r = el.getBoundingClientRect();
     const w = pop.offsetWidth;

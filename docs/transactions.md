@@ -1,8 +1,8 @@
 ---
 status: implemented
 related:
-  - ENDPOINTS.md
-  - RULES.md
+  - endpoints.md
+  - rules.md
 ---
 
 # Transactions
@@ -19,6 +19,6 @@ async def create_task(data: TaskInput) -> TaskOutput:
 
 If the handler raises, response validation fails, the request times out, or the task is cancelled, the transaction rolls back before the error response is translated. Do not send email or perform another irreversible side effect inside the transaction; arrange it after the transaction commits, or use an outbox owned by the application.
 
-Nested `db.transaction()` scopes in the same owning task use savepoints. A child task cannot share its parent's active transaction. Raw database operations are async-only; see [sync and async](SYNC-ASYNC.md).
+Nested `db.transaction()` scopes in the same owning task use savepoints. A child task cannot share its parent's active transaction. Raw database operations are async-only; see [sync and async](sync-async.md).
 
 For a function route group, `RouteGroup(..., atomic=True)` makes write methods transactional by default. An individual action can opt out explicitly with `transaction=False`.

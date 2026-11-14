@@ -1,8 +1,8 @@
 ---
 status: implemented
 related:
-  - MODELS.md
-  - TESTING.md
+  - models.md
+  - testing.md
 ---
 
 # Utilities

@@ -13,7 +13,7 @@ The examples are the best way to see the pieces together: [Notes](https://github
 * PostgreSQL is the supported ORM database.
 * Hinoki does not open database connections at import or apply migrations automatically.
 * The ASGI path uses Python for server adaptation and handler calls; selected work is implemented in Rust.
-* Generated typing for some keyword-based ORM calls is less precise than model construction; see [typing](TYPING.md).
+* Generated typing for some keyword-based ORM calls is less precise than model construction; see [typing](typing.md).
 * Many-to-many links use an explicit model with two foreign keys and a composite uniqueness constraint. Implicit join models, direct collection access such as `post.tags`, and advanced relation paths are not available.
 * Additional database backends and end-to-end performance claims are not available.
 * The server adapter is ASGI. WSGI support is not available.

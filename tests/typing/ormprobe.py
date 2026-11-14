@@ -1,7 +1,7 @@
 """Probe: what can a type checker verify about ORM-style model signatures?
 
 The ``Model`` below is a typing-only prototype local to this fixture; it is
-NOT the Hinoki ORM. It records the strategy findings used in docs/TYPING.md.
+NOT the Hinoki ORM. It records the strategy findings used in docs/typing.md.
 """
 
 from dataclasses import dataclass, field

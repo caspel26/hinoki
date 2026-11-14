@@ -4,7 +4,7 @@ Status: adopted 2026-11-13 and adapted for the public Hinoki repository.
 
 **Document locations.** User guides and API reference live in `docs/`; `ROADMAP.md` is the public project status. Final architecture decisions for contributors live in `docs/adr/`. Detailed working designs, identity notes and the handoff are local-only; do not publish them unless the owner selects a specific document for contributors.
 
-**Toolchain.** `uv` for Python (`uv run --locked`), Ruff for lint+format, mypy for types, Cargo for Rust, maturin as build backend. See `docs/TOOLCHAIN.md`.
+**Toolchain.** `uv` for Python (`uv run --locked`), Ruff for lint+format, mypy for types, Cargo for Rust, maturin as build backend. See `docs/toolchain.md`.
 
 ## Read first
 
@@ -22,7 +22,7 @@ The project name is **Hinoki** (owner decision, supersedes the earlier "Aptum" i
 - Do not reintroduce declaration blocks such as `with get/post`, or inline `get(query=...)`/`lookup=...` endpoint assignments. CRUD generation remains required, but its advanced syntax is still provisional.
 - Differentiate Hinoki through deterministic optional rules, structured AI/MCP context, coherent customization and explicit modules, not extra syntax machinery.
 - Typed built-in settings, automatic/customizable docs and pagination.
-- Vocabulary: write `Schema` (code font) for the Hinoki class; use "table state"/"migration state", "OpenAPI document" and "JSON Schema" for the other meanings (`docs/GLOSSARY.md`). The old `Contract` alias no longer exists.
+- Vocabulary: write `Schema` (code font) for the Hinoki class; use "table state"/"migration state", "OpenAPI document" and "JSON Schema" for the other meanings (`docs/glossary.md`). The old `Contract` alias no longer exists.
 - Optional admin extra with explicit activation and migrations; installation/import never mutates a database.
 - Explicit application modules and dependencies; defined worker lifespan, bounded sync execution, startup and graceful shutdown. Granian is the first server candidate, pending integration validation.
 - Modules within a service may share local contracts. Remote services do not share ORM joins or pretend to share local transactions.
@@ -97,7 +97,7 @@ Public-facing documentation, the README and the docsite describe Hinoki's own AP
 
 Update docs for user-facing API changes and provide minimal examples, including sync/async differences and errors. Verify the examples against the actual implementation once it exists. Keep generated docs and runtime contracts consistent.
 
-Every added or changed user-facing API, setting, CLI/MCP option, runtime behavior or admin feature must update its linked guide/reference in the docsite in the same work item. Keep the navigation, `GUIDES.md`, page status metadata and rendered examples aligned; run a strict site build and link validation before completion.
+Every added or changed user-facing API, setting, CLI/MCP option, runtime behavior or admin feature must update its linked guide/reference in the docsite in the same work item. Keep the navigation, `guides.md`, page status metadata and rendered examples aligned; run a strict site build and link validation before completion.
 
 ## Releases
 

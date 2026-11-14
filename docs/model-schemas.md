@@ -1,8 +1,8 @@
 ---
 status: implemented
 related:
-  - SCHEMAS.md
-  - MODELS.md
+  - schemas.md
+  - models.md
 ---
 
 # Schemas derived from models
@@ -41,4 +41,4 @@ class SignUp(Schema):
             raise Invalid("mismatch", "passwords do not match", path="confirmation")
 ```
 
-Structural errors are reported before custom checks. All applicable check failures are returned together. See [schemas](SCHEMAS.md) for the validation contract and conversion methods.
+Structural errors are reported before custom checks. All applicable check failures are returned together. See [schemas](schemas.md) for the validation contract and conversion methods.

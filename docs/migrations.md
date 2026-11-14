@@ -1,8 +1,8 @@
 ---
 status: implemented
 related:
-  - MODELS.md
-  - CLI.md
+  - models.md
+  - cli.md
 ---
 
 # Migrations
@@ -32,4 +32,4 @@ hinoki migrations --dir examples/blog/migrations apply --database "$BLOG_DATABAS
 
 Operations that can remove data are reported as destructive and are not written unless `--allow-destructive` is passed to `plan`. Read the generated migration before opting in. Changing a constraint on an existing column may require a hand-written migration.
 
-Migrations are files committed with the application. Do not run them from every server worker's startup hook. For the connection lifecycle, see [settings](SETTINGS.md#8-database-connection-ownership).
+Migrations are files committed with the application. Do not run them from every server worker's startup hook. For the connection lifecycle, see [settings](settings.md#8-database-connection-ownership).

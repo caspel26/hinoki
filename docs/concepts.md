@@ -24,7 +24,7 @@ Rules inspect declared routes, schemas, imports or other known project structure
 
 ## Where to continue
 
-* [Request lifecycle](REQUEST-LIFECYCLE.md)
-* [Transactions](TRANSACTIONS.md)
-* [Sync and async](SYNC-ASYNC.md)
-* [Architecture patterns](PATTERNS.md)
+* [Request lifecycle](request-lifecycle.md)
+* [Transactions](transactions.md)
+* [Sync and async](sync-async.md)
+* [Architecture patterns](patterns.md)

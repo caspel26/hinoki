@@ -1,8 +1,8 @@
 ---
 status: implemented
 related:
-  - RULES.md
-  - APP-MCP.md
+  - rules.md
+  - app-mcp.md
 ---
 
 # Building a backend with an AI agent and Hinoki
@@ -25,7 +25,7 @@ The generated project contains a health route, **rules that are already on** (`H
 * **Optional `run_scenario`**, off by default: `hinoki mcp --scenarios read` lets the agent send GET/HEAD/OPTIONS requests to the app in-process and see status and body; `--scenarios write` allows any method. It runs the real handlers and the app's lifespan even in `read` mode (a GET handler may write), so it is not annotated read-only and should only face a disposable database. A failed startup is reported without its message (which may hold a connection string); the details go to the server's stderr. Only the owner can switch it on; the agent cannot.
 * **Errors that say what to do**: validation errors list every problem with its path and a stable code; `explain_error` maps a code to its meaning and fix; a registration error names the action and parameter.
 
-See the [development MCP guide](DEV-MCP.md) for tool arguments, result shapes and the effectful scenario option.
+See the [development MCP guide](dev-mcp.md) for tool arguments, result shapes and the effectful scenario option.
 
 ## 3. The loop
 
@@ -36,7 +36,7 @@ See the [development MCP guide](DEV-MCP.md) for tool arguments, result shapes an
 
 ## 4. Limits (what this does not do)
 
-* The development MCP describes and checks a project; to let an agent use a running app, publish selected actions with `hinoki.mcpapp.expose_as_mcp` (allowlist, caller's own credentials, reads by default; see [Application MCP](APP-MCP.md)).
+* The development MCP describes and checks a project; to let an agent use a running app, publish selected actions with `hinoki.mcpapp.expose_as_mcp` (allowlist, caller's own credentials, reads by default; see [Application MCP](app-mcp.md)).
 * The development MCP was exercised with the official `mcp` Python client (`tests/mcpclient/verify.py`: initialize, `tools/list`, `tools/call`); other clients are untested.
 * `propose_model` is a starting point: it can scope rows to an owner (`owner=`), paginates the list and takes `unique_together`, but business rules, state transitions and relations beyond the owner are yours to write.
 * Rules decide declarations, not what a function body does; static import rules read the project's own files and report dynamic imports as unverifiable.

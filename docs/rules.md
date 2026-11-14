@@ -1,9 +1,9 @@
 ---
 status: implemented
 related:
-  - AI-WORKFLOW.md
-  - AUTHENTICATION.md
-  - TRANSACTIONS.md
+  - ai-workflow.md
+  - authentication.md
+  - transactions.md
 ---
 
 # Rules: architecture you can check
@@ -94,4 +94,4 @@ Subclass `hinoki.rules.Rule` with a stable `id`, a `phase`, an `explanation` and
 
 ## Seeing them from an agent
 
-The development MCP (`hinoki mcp`) exposes project inspection and rule diagnostics as read-only tools. See [development tools](AI-WORKFLOW.md). Rules inspect declarations and source structure; they do not prove what every function body does.
+The development MCP (`hinoki mcp`) exposes project inspection and rule diagnostics as read-only tools. See [development tools](ai-workflow.md). Rules inspect declarations and source structure; they do not prove what every function body does.

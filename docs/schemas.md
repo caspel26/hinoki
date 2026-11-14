@@ -1,9 +1,9 @@
 ---
 status: implemented
 related:
-  - MODEL-SCHEMAS.md
-  - ERRORS.md
-  - ENDPOINTS.md
+  - model-schemas.md
+  - errors.md
+  - endpoints.md
 ---
 
 # Schemas
@@ -29,4 +29,4 @@ class NoteOut(Schema):
 
 `Schema.validate(data)` reports structural problems together. Values are not coerced. Declare field constraints with `Field(...)`; use `@field_check` and `@object_check` for synchronous checks that depend on validated schema values.
 
-See also the [glossary](GLOSSARY.md) for what "schema" does and does not mean in these docs.
+See also the [glossary](glossary.md) for what "schema" does and does not mean in these docs.

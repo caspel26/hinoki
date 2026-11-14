@@ -28,7 +28,7 @@ class Task(Model, table="tracker_tasks", label="Task", plural="Tasks"):
 ```
 
 * `table=` is a class keyword because it is needed when the class is created.
-* `@indexed` and `@ordered_by` are decorators that state facts about the model below them ([model options](../MODEL-OPTIONS.md)). The default order applies to every query that does not call `order_by`.
+* `@indexed` and `@ordered_by` are decorators that state facts about the model below them ([model options](../model-options.md)). The default order applies to every query that does not call `order_by`.
 * `foreign_key(Member, ...)` is a column holding the owner's id; the relation (`task.owner`) is never fetched by accident.
 
 ## The migration

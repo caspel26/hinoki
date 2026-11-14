@@ -23,4 +23,4 @@ uv run pytest
 
 The generated project includes a health route and a development MCP configuration. Review `AGENTS.md` for its project commands and conventions.
 
-Continue with the [Quick start](QUICK-START.md) to run the Notes API, create its table with a reviewed migration and make a request.
+Continue with the [Quick start](quick-start.md) to run the Notes API, create its table with a reviewed migration and make a request.
