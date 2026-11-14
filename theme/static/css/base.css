@@ -907,7 +907,7 @@ body.menu-open .overlay {
 
 @media (max-width: 960px) {
   :root {
-    --header-h: 68px;
+    --header-h: 66px;
   }
 
   .top__inner {
@@ -928,24 +928,6 @@ body.menu-open .overlay {
     display: none;
   }
 
-  .is-home {
-    --header-h: 122px;
-  }
-
-  .is-home .top__nav {
-    display: flex;
-    order: 3;
-    width: 100%;
-    margin: 0;
-    padding: 2px 0 8px;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .is-home .top__nav::-webkit-scrollbar {
-    display: none;
-  }
-
   .shell {
     display: block;
     width: 100%;
@@ -959,21 +941,55 @@ body.menu-open .overlay {
     left: 0;
     z-index: 75;
     width: 100%;
-    height: auto;
+    height: calc(100vh - var(--header-h));
+    height: calc(100dvh - var(--header-h));
     border: 0;
     border-top: 1px solid var(--hn-edge);
     border-radius: 0;
     background: var(--hn-surface-1);
     box-shadow: 0 16px 36px rgb(0 0 0 / 0.28);
+    visibility: hidden;
     transform: translateY(104%);
-    transition: transform 240ms var(--hn-ease);
+    transition: transform 240ms var(--hn-ease), visibility 0s linear 240ms;
+  }
+
+  .home-mobile-sheet {
+    position: fixed;
+    top: var(--header-h);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 75;
+    display: block;
+    overflow: hidden;
+    border-top: 1px solid var(--hn-edge);
+    background: var(--hn-surface-1);
+    box-shadow: 0 16px 36px rgb(0 0 0 / 0.28);
+    visibility: hidden;
+    transform: translateY(104%);
+    transition: transform 240ms var(--hn-ease), visibility 0s linear 240ms;
+  }
+
+  body.menu-open .home-mobile-sheet {
+    visibility: visible;
+    transform: none;
+    transition: transform 240ms var(--hn-ease), visibility 0s;
   }
 
   body.menu-open .side {
+    visibility: visible;
     transform: none;
+    transition: transform 240ms var(--hn-ease), visibility 0s;
   }
 
   .side__scroll {
+    height: 100%;
+    max-height: calc(100vh - var(--header-h));
+    max-height: calc(100dvh - var(--header-h));
+    padding: var(--sp-4) var(--sp-5) var(--sp-7);
+  }
+
+  .home-mobile-sheet .side__scroll {
     height: 100%;
     max-height: calc(100vh - var(--header-h));
     max-height: calc(100dvh - var(--header-h));
@@ -1008,6 +1024,10 @@ body.menu-open .overlay {
 }
 
 @media (max-width: 560px) {
+  :root {
+    --header-h: 64px;
+  }
+
   .pager {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1018,7 +1038,46 @@ body.menu-open .overlay {
 }
 
 @media (max-width: 400px) {
+  :root {
+    --header-h: 64px;
+  }
+
+  .top__inner {
+    gap: var(--sp-2);
+    padding-inline: var(--sp-2);
+  }
+
+  .brand {
+    gap: 6px;
+  }
+
+  .status-chip {
+    padding-inline: 8px;
+  }
+
+  .top__actions {
+    gap: 0;
+  }
+
+  .search-btn {
+    width: 40px;
+    min-width: 40px;
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .search-btn span,
+  .search-btn kbd {
+    display: none;
+  }
+
   .brand__word {
+    display: none;
+  }
+}
+
+@media (min-width: 961px) {
+  .home-mobile-sheet {
     display: none;
   }
 }
@@ -1032,11 +1091,6 @@ body.menu-open .overlay {
     transition-duration: 0ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-/* The home page has no section sidebar, so no drawer button either. */
-.is-home .top__menu {
-  display: none !important;
 }
 
 /* ---------- Sliding thumb (segmented controls, tabs, filter pills) ---------- */

@@ -39,7 +39,7 @@
 
   <header class="top">
     <div class="top__inner">
-      <button class="icon-btn top__menu" type="button" aria-label="Open navigation" aria-expanded="false" data-menu>
+      <button class="icon-btn top__menu" type="button" aria-label="Open navigation" aria-controls="{% if page and page.is_homepage %}home-mobile-nav{% else %}side{% endif %}" aria-expanded="false" data-menu>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
       </button>
       <a class="brand" href="{{ nav.homepage.url | default('.', true) | url }}" aria-label="{{ config.site_name }} home">
@@ -71,6 +71,23 @@
       </div>
     </div>
   </header>
+
+  {% if page and page.is_homepage %}
+  <nav class="home-mobile-sheet" id="home-mobile-nav" aria-label="Documentation sections">
+    <div class="side__scroll">
+      <p class="side__label">Sections</p>
+      <ul class="side__list">
+        {% set mobile_ns = namespace(i=0) %}
+        {% for item in nav %}
+          {% if not item.is_homepage and (item.children or item.url) %}
+            {% set mobile_ns.i = mobile_ns.i + 1 %}
+            <li><a class="side__link" href="{{ m.first_url(item) | url }}"><i>{{ '%02d' % mobile_ns.i }}</i><span>{{ item.title }}</span></a></li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </div>
+  </nav>
+  {% endif %}
 
   {% block content %}
   {% import "macros.html" as m %}
