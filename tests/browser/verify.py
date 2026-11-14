@@ -9,6 +9,9 @@ and Playwright, which is deliberately not a project dependency.
     uvx --from playwright python tests/browser/verify.py \
         --base http://127.0.0.1:8765 --out docs/screenshots
 
+Run once more with `BLOG_ADMIN_THEME=grove` on the server to include the Grove
+row-title check.
+
 Checks run in every engine (Chromium, Firefox, WebKit): the Swagger UI and ReDoc
 pages render the application's document; the admin lists, searches, validates,
 creates, edits and deletes through real form submissions; a forged CSRF token is
@@ -74,6 +77,23 @@ def unlabeled(page: Page) -> list[str]:
     )
 
 
+def clipped_row_titles(page: Page) -> list[str]:
+    return list(
+        page.evaluate(
+            """() => [...document.querySelectorAll('.hn-list-rows a.hn-rowlink')]
+              .filter(link => {
+                const row = link.closest('tr');
+                const bounds = row.getBoundingClientRect();
+                const range = document.createRange();
+                range.selectNodeContents(link);
+                return [...range.getClientRects()].some(rect =>
+                  rect.left < bounds.left - 1 || rect.right > bounds.right + 1);
+              })
+              .map(link => link.textContent || '')"""
+        )
+    )
+
+
 def docs(browser: Browser, base: str, shots: Path | None, name: str) -> None:
     print(f"  [{name}] API documentation")
     page = context(browser, base, VIEWPORTS["desktop"]).new_page()
@@ -104,6 +124,14 @@ def layout(browser: Browser, base: str, shots: Path | None, name: str) -> None:
             where = f"{label} {size[0]}x{size[1]} {path}"
             check(not overflow(page), f"{where}: no horizontal page scroll")
             check(unlabeled(page) == [], f"{where}: every input has a label")
+            if (
+                path == "/admin/posts"
+                and page.locator('html[data-theme="grove"]').count()
+            ):
+                check(
+                    clipped_row_titles(page) == [],
+                    f"{where}: row titles fit inside the Grove list",
+                )
         page.close()
 
 
