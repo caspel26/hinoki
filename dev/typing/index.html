@@ -415,6 +415,7 @@
 <div class="highlight"><pre><span></span><code><span class="n">task</span> <span class="o">=</span> <span class="n">Task</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Write docs"</span><span class="p">)</span>  <span class="c1"># constructor fields and values are checked</span>
 <span class="k">await</span> <span class="n">task</span><span class="o">.</span><span class="n">asave</span><span class="p">()</span>
 </code></pre></div>
+<p>Fields inherited from an abstract model are part of the checked constructor. Fields that come from a plain (non-model) mixin exist at run time but are not constructor arguments for a type checker; use an abstract model when you need them checked.</p>
 <p><code>Model.acreate(**values)</code> and some filter/update keyword calls cannot currently verify each field name against the model class. Use the constructor plus <code>asave()</code> when you want field-level checking on insertion. This limitation does not affect runtime validation of model fields or database constraints.</p>
 <p>The Python package includes typing metadata, and the compiled <code>hinoki.core</code> module has a matching stub. See the <a href="../reference/">API reference</a> for the public signatures.</p>
         
@@ -441,8 +442,8 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.22</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 04:14:59 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 18:59:01 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/typing.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -392,6 +392,20 @@
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
 </code></pre></div>
 <p>The <code>author_id</code> field is stored on <code>posts</code>. The forward relation is <code>post.author</code>; <code>author.posts</code> is the reverse relation. The foreign-key type must match the referenced primary-key type. Choose an <code>on_delete</code> rule explicitly: <code>restrict</code>, <code>cascade</code>, <code>set_null</code> or <code>no_action</code>. A nullable <code>set_null</code> field should use an optional annotation.</p>
+<h2 id="foreign-keys-in-abstract-models-and-mixins">Foreign keys in abstract models and mixins<a class="headerlink" href="#foreign-keys-in-abstract-models-and-mixins" title="Permanent link">&para;</a></h2>
+<p>A foreign key declared in an <a href="../models/#share-fields-abstract-models-and-mixins">abstract model or a mixin</a> is registered once for each table model that inherits it. The forward relation keeps its name on every model. The reverse name must differ, so write it with the <code>{model}</code> placeholder, which becomes the inheriting class's name in lower case:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Owned</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">abstract</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="n">team_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span><span class="n">Team</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="s2">"cascade"</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"</span><span class="si">{model}</span><span class="s2">_set"</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Article</span><span class="p">(</span><span class="n">Owned</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"articles"</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Page</span><span class="p">(</span><span class="n">Owned</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"pages"</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+</code></pre></div>
+<p><code>Team</code> gets the reverse relations <code>article_set</code> and <code>page_set</code>. With a fixed <code>related_name</code>, the second model that inherits the field is refused with an error naming both models. A table model that subclasses another table model copies the column and the forward relation; it gets a reverse relation of its own only when the name uses the placeholder, because a fixed name already belongs to its parent. A foreign key cannot reference an abstract model, which has no table. <code>{model}</code> is the only placeholder. Without <code>related_name</code> there is no reverse relation and nothing can collide.</p>
 <h2 id="load-related-rows-explicitly">Load related rows explicitly<a class="headerlink" href="#load-related-rows-explicitly" title="Permanent link">&para;</a></h2>
 <p>Use <code>select_related</code> for a forward foreign key when a query needs one related row (one <code>LEFT JOIN</code> in the same statement; <code>acount()</code> and <code>apaginate()</code> leave that join out of their <code>COUNT</code>, since loading a to-one relation cannot change the row count, but keep a join that a filter such as <code>author__name=...</code> needs). Use <code>prefetch_related</code> for a reverse or collection relation; it issues a separate bounded query and attaches the results.</p>
 <div class="highlight"><pre><span></span><code><span class="n">posts</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">"author"</span><span class="p">)</span>
@@ -455,15 +469,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#declare-a-foreign-key">Declare a foreign key</a></li><li><a href="#load-related-rows-explicitly">Load related rows explicitly</a></li><li><a href="#model-a-many-to-many-relationship">Model a many-to-many relationship</a></li></ul>
+            <ul><li><a href="#declare-a-foreign-key">Declare a foreign key</a></li><li><a href="#foreign-keys-in-abstract-models-and-mixins">Foreign keys in abstract models and mixins</a></li><li><a href="#load-related-rows-explicitly">Load related rows explicitly</a></li><li><a href="#model-a-many-to-many-relationship">Model a many-to-many relationship</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.7</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 15:45:21 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>2 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 19:31:56 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/relations.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

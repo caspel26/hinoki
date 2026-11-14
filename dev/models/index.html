@@ -467,6 +467,40 @@
 </code></pre></div>
 <p>Server-supplied keywords take precedence over values from a <code>Schema</code>. A loaded model remembers its stored values; <code>asave()</code> updates changed columns and refuses primary-key changes. For a conditional write, use <code>aupdate_where</code> so ownership and state checks are part of the SQL condition.</p>
 <p>The model constructor is statically typed. Some keyword-based model methods still have broader type-checker signatures; see <a href="../typing/">typing</a>.</p>
+<h2 id="share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins<a class="headerlink" href="#share-fields-abstract-models-and-mixins" title="Permanent link">&para;</a></h2>
+<p>Fields, options and methods that several models need can live in a base class. An <strong>abstract model</strong> has no table of its own: it is not migrated, cannot be queried or saved, and exists to be subclassed.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">indexed</span><span class="p">,</span> <span class="n">ordered_by</span><span class="p">,</span> <span class="n">timestamps</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">utc_now</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Keyed</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">abstract</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+
+
+<span class="nd">@timestamps</span><span class="p">()</span>
+<span class="nd">@indexed</span><span class="p">(</span><span class="s2">"updated_at"</span><span class="p">)</span>
+<span class="nd">@ordered_by</span><span class="p">(</span><span class="s2">"-updated_at"</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Tracked</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">abstract</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
+    <span class="n">updated_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Article</span><span class="p">(</span><span class="n">Keyed</span><span class="p">,</span> <span class="n">Tracked</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"articles"</span><span class="p">):</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
+</code></pre></div>
+<p><code>Article</code> has the columns <code>created_at</code>, <code>updated_at</code>, <code>id</code> and <code>title</code>, is ordered by <code>-updated_at</code>, has the index and refreshes <code>updated_at</code> on every update. <code>Tracked.all()</code> raises <code>ModelError</code>: query <code>Article</code>.</p>
+<ul>
+<li><code>abstract=True</code> is not inherited. A subclass is a table model (and needs <code>table=</code>) unless it says <code>abstract=True</code> again. An abstract model needs no primary key; a table model needs exactly one, its own or an inherited one.</li>
+<li><strong>Options</strong> declared on abstract bases are inherited: every base's <code>@unique</code> constraints and <code>@indexed</code> indexes, and the order and timestamp column of the first base (in the order the bases resolve) that sets one. Applying a decorator on the subclass <em>replaces</em> what was inherited for that kind of option; it does not add to it. To keep an inherited index while adding one, declare both on the subclass. Options you do not touch stay inherited. A replacement made in an abstract base holds for everything below it: a model reads its options from the abstract bases it lists, and each of those already carries what it inherited and replaced.</li>
+<li><strong>Plain mixins</strong> work too: a class that is not a model contributes the fields it annotates, <code>field(...)</code> and <code>foreign_key(...)</code> included, and its methods. An annotation marked <code>ClassVar</code> is not a field. A type checker does not see a plain mixin's fields as constructor arguments, so prefer an abstract model when you construct instances with those fields.</li>
+<li><strong>One name, two types.</strong> If two bases give the same field name different types and the class does not declare that field itself, the class is refused with an error naming both bases. The same type from two bases is accepted, and a class (or an abstract subclass) that redeclares a field decides its type. A type checker still reports a redeclaration with an incompatible type, as it does for any class.</li>
+<li><strong>Subclassing a table model</strong> is allowed: the subclass needs its own <code>table=</code> and gets a copy of the parent's columns in a separate table, which <code>hinoki migrations plan</code> shows. The two tables are unrelated: there is no join between them and a query on the parent does not return the subclass's rows. A table model does not pass its options on; only abstract bases do.</li>
+<li><strong>Column order</strong> follows Python's dataclass rules: the fields of model bases come first, starting from the last base listed, then the fields of plain mixins, then the class's own. Hinoki does not depend on the order; a new table is created with it.</li>
+</ul>
+<p>A foreign key in an abstract model or a mixin needs a reverse name that differs per subclass; see <a href="../relations/#foreign-keys-in-abstract-models-and-mixins">relations</a>.</p>
 <h2 id="relations">Relations<a class="headerlink" href="#relations" title="Permanent link">&para;</a></h2>
 <p>Declare a foreign-key column with <code>foreign_key(OtherModel, ...)</code>. It creates the <code>other_id</code> column and a named relation (<code>row.other</code>), but reading the relation does not fetch data. Load it explicitly with <code>select_related</code> or <code>prefetch_related</code>. For many-to-many data, declare an association model with two foreign keys and a composite <code>@unique</code> constraint; see <a href="../relations/">relations and loading</a>.</p>
 <h2 id="schema-options">Schema options<a class="headerlink" href="#schema-options" title="Permanent link">&para;</a></h2>
@@ -495,15 +529,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#define-a-model">Define a model</a></li><li><a href="#query-rows">Query rows</a></li><li><a href="#reusable-queries">Reusable queries</a></li><li><a href="#create-and-update">Create and update</a></li><li><a href="#relations">Relations</a></li><li><a href="#schema-options">Schema options</a></li><li><a href="#migrations">Migrations</a></li></ul>
+            <ul><li><a href="#define-a-model">Define a model</a></li><li><a href="#query-rows">Query rows</a></li><li><a href="#reusable-queries">Reusable queries</a></li><li><a href="#create-and-update">Create and update</a></li><li><a href="#share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins</a></li><li><a href="#relations">Relations</a></li><li><a href="#schema-options">Schema options</a></li><li><a href="#migrations">Migrations</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.2</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:24:05 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 19:31:56 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

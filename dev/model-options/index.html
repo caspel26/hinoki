@@ -437,7 +437,8 @@
 </table>
 <ul>
 <li>Column names are checked when the decorator is applied; a typo fails at import with the model and the unknown names.</li>
-<li>Stacked decorators are stored in reading order (top to bottom). A subclass does not inherit its parent's options.</li>
+<li>Stacked decorators are stored in reading order (top to bottom).</li>
+<li>A model inherits the options of its <a href="../models/#share-fields-abstract-models-and-mixins">abstract bases</a>. A decorator on the subclass replaces everything inherited for that kind of option (<code>@indexed</code> replaces the inherited indexes, and so on) and leaves the other kinds inherited. A model that subclasses a table model does not inherit that parent's options.</li>
 <li>Apply options before the model is used: the migration planner, the query layer and the admin read them from the class.</li>
 <li>Index names are <code>ix_&lt;table&gt;_&lt;columns&gt;</code>, shortened deterministically (with a hash) past PostgreSQL's 63 bytes.</li>
 </ul>
@@ -466,7 +467,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.5</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 01:30:16 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 18:59:01 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-options.md">Edit on GitHub</a></dd></div>
         </dl>
