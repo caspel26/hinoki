@@ -102,6 +102,18 @@ def test_select_related_compiles_one_join() -> None:
     assert params == []
 
 
+def test_a_count_does_not_join_a_relation_only_selected_for_loading() -> None:
+    loaded = Article.filter(title="t").select_related("writer")
+    sql, params = loaded.derive(order=(), limit_to=None, offset_by=None).compile(
+        "count"
+    )
+    assert "JOIN" not in sql and params == ["t"]
+    filtered = Article.filter(writer__name="x").select_related("writer")
+    counted, _ = filtered.compile("count")
+    assert 'LEFT JOIN "rel_writers" AS "rel_writer"' in counted  # the filter needs it
+    assert 'AS "rel_writer__' not in counted
+
+
 def test_filtering_across_a_relation_joins_without_selecting() -> None:
     sql, params = Article.filter(writer__name__ne="x", title="t").compile()
     assert 'LEFT JOIN "rel_writers" AS "rel_writer"' in sql
