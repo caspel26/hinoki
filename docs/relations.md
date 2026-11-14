@@ -26,6 +26,25 @@ class Post(Model, table="posts"):
 
 The `author_id` field is stored on `posts`. The forward relation is `post.author`; `author.posts` is the reverse relation. The foreign-key type must match the referenced primary-key type. Choose an `on_delete` rule explicitly: `restrict`, `cascade`, `set_null` or `no_action`. A nullable `set_null` field should use an optional annotation.
 
+## Foreign keys in abstract models and mixins
+
+A foreign key declared in an [abstract model or a mixin](models.md#share-fields-abstract-models-and-mixins) is registered once for each table model that inherits it. The forward relation keeps its name on every model. The reverse name must differ, so write it with the `{model}` placeholder, which becomes the inheriting class's name in lower case:
+
+```python
+class Owned(Model, abstract=True):
+    team_id: UUID = foreign_key(Team, on_delete="cascade", related_name="{model}_set")
+
+
+class Article(Owned, table="articles"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+
+
+class Page(Owned, table="pages"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+```
+
+`Team` gets the reverse relations `article_set` and `page_set`. With a fixed `related_name`, the second model that inherits the field is refused with an error naming both models. `{model}` is the only placeholder. Without `related_name` there is no reverse relation and nothing can collide.
+
 ## Load related rows explicitly
 
 Use `select_related` for a forward foreign key when a query needs one related row (one `LEFT JOIN` in the same statement; `acount()` and `apaginate()` leave that join out of their `COUNT`, since loading a to-one relation cannot change the row count, but keep a join that a filter such as `author__name=...` needs). Use `prefetch_related` for a reverse or collection relation; it issues a separate bounded query and attaches the results.

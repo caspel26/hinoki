@@ -36,7 +36,8 @@ class Bookmark(Model, table="bookmarks", label="Bookmark", plural="Bookmarks"):
 | update timestamp | `@timestamps()` | refresh a declared `updated_at: datetime` field for every ORM update statement; use `@timestamps("modified_at", clock=...)` to customize |
 
 * Column names are checked when the decorator is applied; a typo fails at import with the model and the unknown names.
-* Stacked decorators are stored in reading order (top to bottom). A subclass does not inherit its parent's options.
+* Stacked decorators are stored in reading order (top to bottom).
+* A model inherits the options of its [abstract bases](models.md#share-fields-abstract-models-and-mixins). A decorator on the subclass replaces everything inherited for that kind of option (`@indexed` replaces the inherited indexes, and so on) and leaves the other kinds inherited. A model that subclasses a table model does not inherit that parent's options.
 * Apply options before the model is used: the migration planner, the query layer and the admin read them from the class.
 * Index names are `ix_<table>_<columns>`, shortened deterministically (with a hash) past PostgreSQL's 63 bytes.
 

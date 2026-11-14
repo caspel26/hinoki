@@ -22,3 +22,23 @@ async def checked() -> None:
     Item()  # type: ignore[call-arg]
     Item(title="x", nope=1)  # type: ignore[call-arg]
     print(saved.titel)  # type: ignore[attr-defined]
+
+
+class Keyed(Model, abstract=True):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+
+
+class Named(Model, abstract=True):
+    name: str = field(max_length=40)
+
+
+class Product(Keyed, Named, table="products"):
+    price: int = 0
+
+
+def inherited() -> None:
+    product = Product(name="Desk", price=3)
+    print(product.id.hex, product.name.upper(), product.price + 1)
+
+    Product(price=3)  # type: ignore[call-arg]
+    Product(name=3)  # type: ignore[arg-type]

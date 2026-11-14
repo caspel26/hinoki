@@ -92,6 +92,11 @@ class Resource:
         """Fail at class creation, not on the first request."""
         name = self.model.__name__
         columns = set(self.model.__columns__)
+        if self.model.__abstract__:
+            raise RegistrationError(
+                f"{name} is abstract and has no table; generate CRUD for a model "
+                "that subclasses it"
+            )
         if self.writes() and self.access is None and not self.public_writes:
             raise RegistrationError(
                 f"{name}: write actions need access=... (or public_writes=True)"
