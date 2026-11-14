@@ -3,9 +3,11 @@
 Needs a disposable PostgreSQL (HINOKI_TEST_DATABASE_URL); skipped otherwise.
 """
 
+import asyncio
 import json
 import os
 from collections.abc import AsyncIterator
+from typing import Any
 from uuid import UUID
 
 import pytest
@@ -14,7 +16,7 @@ from openapi_spec_validator import validate
 from examples.blog.main import create_app
 from examples.blog.models import Post, User
 from hinoki.db import Database
-from hinoki.orm import use_database
+from hinoki.orm import QuerySet, use_database
 from tests.blogschema import drop, reset
 from tests.harness import Client, Pool
 
@@ -84,6 +86,36 @@ async def test_the_full_publishing_flow(blog: Client) -> None:
 
     again = await blog.request("POST", f"/posts/{post_id}/publish", headers=EDITOR)
     assert (again.status, again.body["error"]) == (409, "post_already_published")
+
+
+async def test_concurrent_publish_has_one_winner(
+    blog: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original_update = QuerySet.aupdate
+    arrived = 0
+    both_ready = asyncio.Event()
+    arrivals = asyncio.Lock()
+
+    async def synchronize_updates(
+        queryset: QuerySet[Post], values: dict[str, Any]
+    ) -> list[Post]:
+        nonlocal arrived
+        if queryset.model is Post and values.get("published") is True:
+            async with arrivals:
+                arrived += 1
+                if arrived == 2:
+                    both_ready.set()
+            await asyncio.wait_for(both_ready.wait(), timeout=2)
+        return await original_update(queryset, values)
+
+    monkeypatch.setattr(QuerySet, "aupdate", synchronize_updates)
+    post_id = await create(blog)
+    first, second = await asyncio.gather(
+        blog.request("POST", f"/posts/{post_id}/publish", headers=EDITOR),
+        blog.request("POST", f"/posts/{post_id}/publish", headers=EDITOR),
+    )
+    assert arrived == 2
+    assert sorted((first.status, second.status)) == [200, 409]
 
 
 async def test_authentication_and_authorization(blog: Client) -> None:

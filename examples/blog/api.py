@@ -86,8 +86,17 @@ class Posts(CrudAPI, path="/posts", resource=POSTS):
     )
     async def publish(self, item_id: UUID, principal: Caller[User]) -> PostOut:
         """Publish an own draft. Publishing twice is a conflict."""
-        post = await owned_post(item_id, principal)
-        if post.published:
+        changed = await Post.aupdate_where(
+            {
+                "id": item_id,
+                "author_id": principal.user.id,
+                "published": False,
+            },
+            {"published": True},
+        )
+        if not changed:
+            # Keep the API's distinct 403 for another author and 404 for a
+            # missing row. If it is still ours, the draft was already published.
+            await owned_post(item_id, principal)
             raise PostAlreadyPublished()
-        await Post.aupdate(id=post.id, published=True)
-        return to_out(await with_author(Post.filter(id=post.id)).aget())
+        return to_out(await with_author(Post.filter(id=item_id)).aget())
