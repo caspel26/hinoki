@@ -9,7 +9,7 @@
     <section class="hn-hero" aria-labelledby="hn-hero-title">
       <div class="hn-hero__bg" aria-hidden="true"><b></b><b></b><b></b><i></i><i></i><i></i><i></i></div>
       <div class="hn-hero__copy">
-        <p class="hn-kicker">hinoki check</p>
+        <p class="hn-kicker"><span aria-hidden="true">$</span> hinoki check</p>
         <h1 class="hn-hero__title" id="hn-hero-title" aria-label="A Python API framework that checks its own architecture."><span class="hn-w" style="--w:0">A</span> <span class="hn-w" style="--w:1">Python</span> <span class="hn-w" style="--w:2">API</span> <span class="hn-w" style="--w:3">framework</span> <span class="hn-w" style="--w:4">that</span> <span class="hn-w" style="--w:5">checks</span> <span class="hn-w" style="--w:6">its</span> <span class="hn-w" style="--w:7">own</span> <span class="hn-w hn-w--accent" style="--w:8">architecture.</span></h1>
         <p class="hn-hero__lead">Typed Python declarations become one contract shared by routing, validation, access policies, transactions, OpenAPI and development tools. Optional rules check the architectural promises you make.</p>
         <p class="hn-hero__meta">pre-alpha · Python 3.12+ · PostgreSQL · MIT</p>
@@ -54,6 +54,8 @@
               <p class="hn-sum hn-sum--bad">2 rule(s): 3 violated, 0 unverifiable, 0 waived <span>exit 1</span></p>
             </div>
             <div data-state-view="after" hidden>
+              <p class="hn-pass">✓ HNK-ACC-001 access policy declared</p>
+              <p class="hn-pass">✓ HNK-TXN-001 write is atomic</p>
               <p class="hn-sum hn-sum--ok">2 rule(s): 0 violated, 0 unverifiable, 0 waived <span>exit 0</span></p>
             </div>
             <div data-state-view="waived" hidden>

@@ -90,6 +90,18 @@
   <div class="shell" data-sheet="{{ sheet }}">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="side__scroll">
+        <nav class="side__sections" aria-label="Documentation sections">
+          <p class="side__label">Sections</p>
+          <ul class="side__list">
+            {% set mobile_ns = namespace(i=0) %}
+            {% for item in nav %}
+              {% if not item.is_homepage and (item.children or item.url) %}
+                {% set mobile_ns.i = mobile_ns.i + 1 %}
+                <li><a class="side__link{% if item.active %} is-active{% endif %}" href="{{ m.first_url(item) | url }}"><i>{{ '%02d' % mobile_ns.i }}</i><span>{{ item.title }}</span></a></li>
+              {% endif %}
+            {% endfor %}
+          </ul>
+        </nav>
         {% if sec.active %}
           <p class="side__sec"><b>{{ '%02d' % sec.n }}</b>{{ sec.active.title }}</p>
           <p class="side__label">In this section</p>

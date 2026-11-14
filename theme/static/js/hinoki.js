@@ -87,7 +87,10 @@
   const menu = $("[data-menu]");
   const closeMenu = () => {
     document.body.classList.remove("menu-open");
-    menu && menu.setAttribute("aria-expanded", "false");
+    if (menu) {
+      menu.setAttribute("aria-expanded", "false");
+      menu.setAttribute("aria-label", "Open navigation");
+    }
     const ov = $("[data-overlay]");
     if (ov && !paletteOpen) ov.hidden = true;
   };
@@ -96,10 +99,17 @@
       const open = !document.body.classList.contains("menu-open");
       document.body.classList.toggle("menu-open", open);
       menu.setAttribute("aria-expanded", String(open));
+      menu.setAttribute("aria-label", open ? "Close navigation" : "Open navigation");
       const ov = $("[data-overlay]");
       if (ov) ov.hidden = !open;
     });
   }
+  addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && document.body.classList.contains("menu-open")) {
+      closeMenu();
+      menu && menu.focus();
+    }
+  });
 
   /* ---------- Header glass on scroll ---------- */
   const bar = $(".top");
