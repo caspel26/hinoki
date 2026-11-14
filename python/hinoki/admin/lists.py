@@ -81,7 +81,9 @@ def table_rows(
     columns = entry.shown_columns()
     key_name = entry.model.__primary_key__
     out = []
-    for row in rows:
+    # A row the caller may not view is not listed. This filters the rows fetched for
+    # this page only; counts and page numbers still come from ``queryset()``.
+    for row in (r for r in rows if entry.can(site.principal, "view", r)):
         key = str(getattr(row, key_name))
         cells = []
         if bulk:
