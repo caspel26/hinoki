@@ -37,6 +37,8 @@ The project name is **Hinoki** (owner decision, supersedes the earlier "Aptum" i
 6. Obtain an independent, read-only review for data, authentication, authorization, privacy, migrations, concurrency or similarly high-impact changes. Require concrete defects, file/line, severity and a failing scenario. Fix findings and re-run affected checks.
 7. When commits are in scope, make scoped local commits, include the applicable `Co-Authored-By` trailer and update the relevant status document. Do not push, publish or deploy without the owner's authorization. Previously given authorization remains valid within its scope.
 
+Branches use `<type>/<short-kebab-case-topic>` with the same type vocabulary as scoped commits (`feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`). Delete branches after they are merged unless they hold active local-only work.
+
 No feature freeze or Shiori deployment flow is imported into this project. A future freeze or branch policy must be recorded explicitly.
 
 ## Agent/model split inherited from Shiori
