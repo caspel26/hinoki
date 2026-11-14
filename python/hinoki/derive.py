@@ -1,112 +1,77 @@
-"""Schemas that take their fields from a model, declared with decorators.
-
-    @derive.model(Post)
-    @derive.only("title", "slug", "body")
-    class PostCreate(Schema): ...
-
-    @derive.model(Post)
-    @derive.exclude("author_id")
-    class PostOut(Schema):
-        author_name: str
-
-    @derive.model(Post)
-    @derive.only("title", "body")
-    @derive.partial()
-    class PostPatch(Schema): ...
-
-``model`` goes on top: it reads what the decorators below it chose and builds
-the schema. Without ``only`` or ``exclude`` every column is taken. ``partial()``
-makes every derived field optional (``UNSET`` when absent), ``partial("a", "b")``
-only those. Fields declared in the class body win over derived ones. Mistakes
-(unknown columns, ``only`` with ``exclude``, a selection without ``model``) fail
-when the class is declared or first used.
-"""
+"""The parameterized decorator for fields derived from an ORM model."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from functools import cached_property
 from types import CellType, FunctionType
-from typing import Any, cast
 
 from hinoki.errors import RegistrationError
 from hinoki.schema import Schema
 
-
-def pending(cls: type[Schema]) -> dict[str, object]:
-    found: Any = cls.__dict__.get("__pending__")
-    if found is None:
-        found = {}
-        setattr(cls, "__pending__", found)  # noqa: B010 - not a declared attribute
-    return cast(dict[str, object], found)
+Derivation = tuple[
+    type, tuple[str, ...] | None, tuple[str, ...], bool | tuple[str, ...]
+]
 
 
-def only(*names: str) -> Callable[[type[Schema]], type[Schema]]:
-    """Take exactly these model columns."""
-
-    def apply(cls: type[Schema]) -> type[Schema]:
-        pending(cls)["fields"] = names
-        return cls
-
-    return apply
-
-
-def exclude(*names: str) -> Callable[[type[Schema]], type[Schema]]:
-    """Take every model column except these."""
-
-    def apply(cls: type[Schema]) -> type[Schema]:
-        pending(cls)["exclude"] = names
-        return cls
-
-    return apply
-
-
-def partial(*names: str) -> Callable[[type[Schema]], type[Schema]]:
-    """Make the derived fields optional: all of them, or only the named ones."""
-
-    def apply(cls: type[Schema]) -> type[Schema]:
-        pending(cls)["optional"] = names or True
-        return cls
-
-    return apply
-
-
-def model(source: type) -> Callable[[type[Schema]], type[Schema]]:
-    """Derive the schema's fields from ``source``; the decorators below choose
-    which columns and which of them are optional."""
+def derive(
+    *,
+    only: tuple[str, ...] | None = None,
+    exclude: tuple[str, ...] | None = None,
+    partial: bool | tuple[str, ...] = False,
+) -> Callable[[type[Schema]], type[Schema]]:
+    """Select and mark optional the model fields on a Schema with ``model=``."""
+    if only is not None and not isinstance(only, tuple):
+        raise RegistrationError("derive: only must be a tuple of field names")
+    if exclude is not None and not isinstance(exclude, tuple):
+        raise RegistrationError("derive: exclude must be a tuple of field names")
+    names = (
+        *(only if only is not None else ()),
+        *(exclude if exclude is not None else ()),
+    )
+    if any(not isinstance(name, str) for name in names):
+        raise RegistrationError("derive: field names must be strings")
+    if only is not None and exclude is not None:
+        raise RegistrationError("derive: only and exclude cannot be combined")
+    if only == ():
+        raise RegistrationError("derive: only=() selects no columns")
+    if not isinstance(partial, (bool, tuple)):
+        raise RegistrationError("derive: partial must be bool or a tuple of names")
+    if isinstance(partial, tuple) and any(
+        not isinstance(name, str) for name in partial
+    ):
+        raise RegistrationError("derive: field names must be strings")
 
     def apply(cls: type[Schema]) -> type[Schema]:
-        chosen = cls.__dict__.get("__pending__", {})
-        fields = chosen.get("fields")
-        omitted = chosen.get("exclude", ())
-        if fields is not None and omitted:
+        source = cls.__dict__.get("__derived_model__")
+        if source is None:
             raise RegistrationError(
-                f"{cls.__name__}: use derive.only or derive.exclude, not both"
+                f"{cls.__name__}: @derive requires model=Model on the Schema class"
             )
-        body = {
-            **cls.__source__,
-            "__derivation__": (
-                source,
-                fields,
-                tuple(omitted),
-                chosen.get("optional", False),
-            ),
-        }
-        class_cells = {
-            id(cell): cell
-            for value in body.values()
-            for cell in _class_cells_for(value, cls)
-        }
-        if len(class_cells) > 1:
-            raise RegistrationError(
-                f"{cls.__name__}: methods contain multiple __class__ cells"
-            )
-        if class_cells:
-            body["__classcell__"] = next(iter(class_cells.values()))
-        rebuilt: type[Schema] = type.__call__(type, cls.__name__, cls.__bases__, body)
-        return rebuilt
+        return rebuild(
+            cls,
+            (source, only, exclude or (), True if partial is True else partial),
+        )
 
     return apply
+
+
+def rebuild(cls: type[Schema], plan: Derivation) -> type[Schema]:
+    """Recreate a schema from its source class, keeping compiler-created cells."""
+    body = {**cls.__source__, "__derivation__": plan}
+    class_cells = {
+        id(cell): cell
+        for value in body.values()
+        for cell in _class_cells_for(value, cls)
+    }
+    if len(class_cells) > 1:
+        raise RegistrationError(
+            f"{cls.__name__}: methods contain multiple __class__ cells"
+        )
+    if class_cells:
+        body["__classcell__"] = next(iter(class_cells.values()))
+    rebuilt: type[Schema] = type.__call__(type, cls.__name__, cls.__bases__, body)
+    return rebuilt
 
 
 def _class_cells_for(value: object, cls: type[Schema]) -> tuple[CellType, ...]:

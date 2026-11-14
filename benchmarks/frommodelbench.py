@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from hinoki import Schema, derive
+from hinoki import Schema
 from hinoki.orm import Model, field
 from hinoki.schema import from_row
 
@@ -30,8 +30,7 @@ class Post(Model, table="bench_posts"):
     created: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
-@derive.model(Post)
-class PostOut(Schema):
+class PostOut(Schema, model=Post):
     pass
 
 

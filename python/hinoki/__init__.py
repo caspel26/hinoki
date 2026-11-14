@@ -1,6 +1,6 @@
 """Hinoki: a typed Python API framework with a native Rust core."""
 
-from hinoki import derive, errors, http, settings
+from hinoki import errors, http, settings
 from hinoki.access import Access
 from hinoki.api import API
 from hinoki.app import Hinoki
@@ -12,6 +12,7 @@ from hinoki.auth import (
     HeaderAuth,
 )
 from hinoki.core import core_version
+from hinoki.derive import derive
 from hinoki.modules import Module, ModuleContext
 from hinoki.parsers import FormParser, JSONParser, MultiPartParser, Parser
 from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer
