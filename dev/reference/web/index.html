@@ -1776,6 +1776,24 @@ The result is an ordinary action: rules, OpenAPI and the MCP see no difference.<
 
 </div>
 
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.routing.RouteGroup.query" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">query</span>
+
+
+<a href="#hinoki.routing.RouteGroup.query" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">query</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_GroupRouteDeclaration</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
 
 
   </div>
@@ -2455,6 +2473,42 @@ MCP tool description then show.</p>
     <div class="doc doc-contents first">
 
         <p>Declare a DELETE action. <code>errors</code> lists the <code>APIError</code> subclasses the
+action may raise; each carries its own status and code, which OpenAPI and the
+MCP tool description then show.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.http.query" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.http.query</span>
+
+
+<a href="#hinoki.http.query" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">query</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">transaction</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RouteDeclaration</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Declare a QUERY action: a safe, idempotent request that carries a body
+(a search too large or too structured for a query string). It binds its
+body like POST and is never wrapped in a transaction unless asked.
+<code>errors</code> lists the <code>APIError</code> subclasses the
 action may raise; each carries its own status and code, which OpenAPI and the
 MCP tool description then show.</p>
 
@@ -3641,12 +3695,12 @@ override them. <code>details</code> is public data, never internal state.</p>
           </li><li><a href="#hinoki.api.API">API</a>
             <ul><li><a href="#hinoki.api.API.prefix">prefix</a></li><li><a href="#hinoki.api.API.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.api.API.routes">routes</a></li><li><a href="#hinoki.api.API.apply_replacements">apply_replacements</a></li><li><a href="#hinoki.api.API.declared_route">declared_route</a></li><li><a href="#hinoki.api.API.mount">mount</a></li></ul>
           </li><li><a href="#hinoki.routing.RouteGroup">RouteGroup</a>
-            <ul><li><a href="#hinoki.routing.RouteGroup.prefix">prefix</a></li><li><a href="#hinoki.routing.RouteGroup.access">access</a></li><li><a href="#hinoki.routing.RouteGroup.atomic">atomic</a></li><li><a href="#hinoki.routing.RouteGroup.errors">errors</a></li><li><a href="#hinoki.routing.RouteGroup._handlers">_handlers</a></li><li><a href="#hinoki.routing.RouteGroup._included">_included</a></li><li><a href="#hinoki.routing.RouteGroup.handlers">handlers</a></li><li><a href="#hinoki.routing.RouteGroup.__init__">__init__</a></li><li><a href="#hinoki.routing.RouteGroup._include">_include</a></li><li><a href="#hinoki.routing.RouteGroup._decorate">_decorate</a></li><li><a href="#hinoki.routing.RouteGroup.declare">declare</a></li><li><a href="#hinoki.routing.RouteGroup.get">get</a></li><li><a href="#hinoki.routing.RouteGroup.post">post</a></li><li><a href="#hinoki.routing.RouteGroup.put">put</a></li><li><a href="#hinoki.routing.RouteGroup.patch">patch</a></li><li><a href="#hinoki.routing.RouteGroup.delete">delete</a></li></ul>
+            <ul><li><a href="#hinoki.routing.RouteGroup.prefix">prefix</a></li><li><a href="#hinoki.routing.RouteGroup.access">access</a></li><li><a href="#hinoki.routing.RouteGroup.atomic">atomic</a></li><li><a href="#hinoki.routing.RouteGroup.errors">errors</a></li><li><a href="#hinoki.routing.RouteGroup._handlers">_handlers</a></li><li><a href="#hinoki.routing.RouteGroup._included">_included</a></li><li><a href="#hinoki.routing.RouteGroup.handlers">handlers</a></li><li><a href="#hinoki.routing.RouteGroup.__init__">__init__</a></li><li><a href="#hinoki.routing.RouteGroup._include">_include</a></li><li><a href="#hinoki.routing.RouteGroup._decorate">_decorate</a></li><li><a href="#hinoki.routing.RouteGroup.declare">declare</a></li><li><a href="#hinoki.routing.RouteGroup.get">get</a></li><li><a href="#hinoki.routing.RouteGroup.post">post</a></li><li><a href="#hinoki.routing.RouteGroup.put">put</a></li><li><a href="#hinoki.routing.RouteGroup.patch">patch</a></li><li><a href="#hinoki.routing.RouteGroup.delete">delete</a></li><li><a href="#hinoki.routing.RouteGroup.query">query</a></li></ul>
           </li><li><a href="#hinoki.routing.Mount">Mount</a>
             <ul><li><a href="#hinoki.routing.Mount.prefix">prefix</a></li><li><a href="#hinoki.routing.Mount.items">items</a></li><li><a href="#hinoki.routing.Mount.__init__">__init__</a></li></ul>
           </li><li><a href="#hinoki.routing.Route">Route</a>
             <ul><li><a href="#hinoki.routing.Route.method">method</a></li><li><a href="#hinoki.routing.Route.path">path</a></li><li><a href="#hinoki.routing.Route.handler">handler</a></li><li><a href="#hinoki.routing.Route.status">status</a></li><li><a href="#hinoki.routing.Route.access">access</a></li><li><a href="#hinoki.routing.Route.transaction">transaction</a></li><li><a href="#hinoki.routing.Route.owner">owner</a></li><li><a href="#hinoki.routing.Route.pagination">pagination</a></li><li><a href="#hinoki.routing.Route.replaces">replaces</a></li><li><a href="#hinoki.routing.Route.parsers">parsers</a></li><li><a href="#hinoki.routing.Route.renderers">renderers</a></li><li><a href="#hinoki.routing.Route.errors">errors</a></li><li><a href="#hinoki.routing.Route.is_async">is_async</a></li><li><a href="#hinoki.routing.Route.name">name</a></li><li><a href="#hinoki.routing.Route.__init__">__init__</a></li></ul>
-          </li><li><a href="#http-method-decorators">HTTP method decorators</a></li><li><a href="#hinoki.http.get">get</a></li><li><a href="#hinoki.http.post">post</a></li><li><a href="#hinoki.http.put">put</a></li><li><a href="#hinoki.http.patch">patch</a></li><li><a href="#hinoki.http.delete">delete</a></li><li><a href="#request-response-and-errors">Request, response and errors</a></li><li><a href="#hinoki.request.Request">Request</a>
+          </li><li><a href="#http-method-decorators">HTTP method decorators</a></li><li><a href="#hinoki.http.get">get</a></li><li><a href="#hinoki.http.post">post</a></li><li><a href="#hinoki.http.put">put</a></li><li><a href="#hinoki.http.patch">patch</a></li><li><a href="#hinoki.http.delete">delete</a></li><li><a href="#hinoki.http.query">query</a></li><li><a href="#request-response-and-errors">Request, response and errors</a></li><li><a href="#hinoki.request.Request">Request</a>
             <ul><li><a href="#hinoki.request.Request.__slots__">__slots__</a></li><li><a href="#hinoki.request.Request.method">method</a></li><li><a href="#hinoki.request.Request.path">path</a></li><li><a href="#hinoki.request.Request.scheme">scheme</a></li><li><a href="#hinoki.request.Request.host">host</a></li><li><a href="#hinoki.request.Request.client">client</a></li><li><a href="#hinoki.request.Request.headers">headers</a></li><li><a href="#hinoki.request.Request.GET">GET</a></li><li><a href="#hinoki.request.Request.COOKIES">COOKIES</a></li><li><a href="#hinoki.request.Request.body">body</a></li><li><a href="#hinoki.request.Request.path_params">path_params</a></li><li><a href="#hinoki.request.Request.user">user</a></li><li><a href="#hinoki.request.Request.request_id">request_id</a></li><li><a href="#hinoki.request.Request.parsers">parsers</a></li><li><a href="#hinoki.request.Request.cached">cached</a></li><li><a href="#hinoki.request.Request.content_type">content_type</a></li><li><a href="#hinoki.request.Request.data">data</a></li><li><a href="#hinoki.request.Request.POST">POST</a></li><li><a href="#hinoki.request.Request.FILES">FILES</a></li><li><a href="#hinoki.request.Request.__init__">__init__</a></li><li><a href="#hinoki.request.Request.parsed">parsed</a></li><li><a href="#hinoki.request.Request.accepts_form">accepts_form</a></li></ul>
           </li><li><a href="#hinoki.reply.Reply">Reply</a>
             <ul><li><a href="#hinoki.reply.Reply.__slots__">__slots__</a></li><li><a href="#hinoki.reply.Reply.status">status</a></li><li><a href="#hinoki.reply.Reply.body">body</a></li><li><a href="#hinoki.reply.Reply.headers">headers</a></li><li><a href="#hinoki.reply.Reply.__init__">__init__</a></li></ul>
@@ -3659,7 +3713,7 @@ override them. <code>details</code> is public data, never internal state.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.2</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:48:24 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 18:47:28 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/web.md">Edit on GitHub</a></dd></div>
         </dl>

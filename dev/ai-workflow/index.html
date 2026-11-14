@@ -385,7 +385,7 @@
 <ul>
 <li><strong><code>AGENTS.md</code></strong>: the same conventions this repository uses: public unless protected on purpose, <code>transaction=True</code> for writes, <code>Schema</code> classes in responses, no model responses, explicit relation loading, create from a <code>Schema</code> with server values winning, migrations as reviewed SQL.</li>
 <li><strong>The development MCP</strong> (<code>hinoki mcp</code>, read only): <code>inspect_project</code> (the real registry), <code>list_rules</code>, <code>explain_action</code> (signature, <code>Schema</code> types, access, diagnostics for one action), <code>check_project</code> (rule diagnostics with stable IDs and locations) <code>explain_error</code> (what a validation or HTTP error code means and how to fix it) and <code>propose_model</code> (source text for a model, its In/Patch/Out <code>Schema</code> classes and CRUD actions from a field list; returned, never written). The tools never write code, rules or waivers.</li>
-<li><strong>Optional <code>run_scenario</code></strong>, off by default: <code>hinoki mcp --scenarios read</code> lets the agent send GET/HEAD/OPTIONS requests to the app in-process and see status and body; <code>--scenarios write</code> allows any method. It runs the real handlers and the app's lifespan even in <code>read</code> mode (a GET handler may write), so it is not annotated read-only and should only face a disposable database. A failed startup is reported without its message (which may hold a connection string); the details go to the server's stderr. Only the owner can switch it on; the agent cannot.</li>
+<li><strong>Optional <code>run_scenario</code></strong>, off by default: <code>hinoki mcp --scenarios read</code> lets the agent send GET/HEAD/OPTIONS/QUERY requests to the app in-process and see status and body; <code>--scenarios write</code> allows any method. It runs the real handlers and the app's lifespan even in <code>read</code> mode (a GET handler may write), so it is not annotated read-only and should only face a disposable database. A failed startup is reported without its message (which may hold a connection string); the details go to the server's stderr. Only the owner can switch it on; the agent cannot.</li>
 <li><strong>Errors that say what to do</strong>: validation errors list every problem with its path and a stable code; <code>explain_error</code> maps a code to its meaning and fix; a registration error names the action and parameter.</li>
 </ul>
 <p>See the <a href="../dev-mcp/">development MCP guide</a> for tool arguments, result shapes and the effectful scenario option.</p>
@@ -433,7 +433,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.26</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 02:07:13 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 18:47:28 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/ai-workflow.md">Edit on GitHub</a></dd></div>
         </dl>

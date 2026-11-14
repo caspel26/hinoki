@@ -385,7 +385,33 @@
     <span class="n">row</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">TaskOutput</span><span class="o">.</span><span class="n">from_model</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
 </code></pre></div>
-<p>Use <code>@http.get</code>, <code>@http.post</code>, <code>@http.put</code>, <code>@http.patch</code> or <code>@http.delete</code> (<code>from hinoki import http</code>). Hinoki also answers <code>HEAD</code> through each <code>GET</code> route: it runs the GET response path and returns the same status and representation headers without a body. The GET handler therefore runs for HEAD requests too. A <code>405</code> response's <code>Allow</code> header includes <code>HEAD</code> whenever <code>GET</code> is available. Supported decorator arguments include <code>status</code>, <code>access</code>, <code>transaction</code>, <code>pagination</code>, <code>parsers</code>, <code>renderers</code>, <code>errors</code> and <code>replaces</code>. Each is checked when the route is declared or registered.</p>
+<p>Use <code>@http.get</code>, <code>@http.post</code>, <code>@http.put</code>, <code>@http.patch</code>, <code>@http.delete</code> or <code>@http.query</code> (<code>from hinoki import http</code>). Hinoki also answers <code>HEAD</code> through each <code>GET</code> route: it runs the GET response path and returns the same status and representation headers without a body. The GET handler therefore runs for HEAD requests too. A <code>405</code> response's <code>Allow</code> header includes <code>HEAD</code> whenever <code>GET</code> is available. Supported decorator arguments include <code>status</code>, <code>access</code>, <code>transaction</code>, <code>pagination</code>, <code>parsers</code>, <code>renderers</code>, <code>errors</code> and <code>replaces</code>. Each is checked when the route is declared or registered.</p>
+<h2 id="read-with-a-body-httpquery">Read with a body: <code>@http.query</code><a class="headerlink" href="#read-with-a-body-httpquery" title="Permanent link">&para;</a></h2>
+<p><code>QUERY</code> is the HTTP method for a read whose input does not fit a query string: it is safe and idempotent like <code>GET</code>, and carries a body like <code>POST</code>. Declare it the same way as the other methods:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TaskSearch</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">"/tasks/search"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">search_tasks</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">TaskSearch</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">TaskOutput</span><span class="p">]:</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">title__contains</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">text</span><span class="p">)</span><span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">limit</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">TaskOutput</span><span class="o">.</span><span class="n">from_model</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>QUERY<span class="w"> </span>http://127.0.0.1:8000/tasks/search<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">'content-type: application/json'</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">'{"text": "docs"}'</span>
+</code></pre></div>
+<ul>
+<li>The body is bound, parsed and validated exactly as for <code>POST</code>: the same parsers, size limit and <code>400</code>/<code>413</code>/<code>415</code>/<code>422</code> answers.</li>
+<li>A <code>QUERY</code> action must not change state. Hinoki does not wrap it in a transaction: <code>RouteGroup(atomic=True)</code> applies to <code>POST</code>, <code>PUT</code>, <code>PATCH</code> and <code>DELETE</code> only. Pass <code>transaction=True</code> on the action if the read needs one.</li>
+<li><code>RouteGroup.query(...)</code> and <code>@http.query</code> inside an <code>API</code> class work like the other methods. A <code>405</code> answer lists <code>QUERY</code> in <code>Allow</code> where it is available. <code>HEAD</code> is answered through <code>GET</code> routes only.</li>
+<li>Hinoki sends no <code>Accept-Query</code> or cache headers by itself; add them to the response where they matter.</li>
+<li>The method is recent. Granian passes it through to Hinoki over ASGI and WSGI (both are tested), but a proxy, gateway, firewall or HTTP client in front of your service may reject a method it does not know, and browsers send a CORS preflight for it. Check the path your traffic takes, and keep a <code>GET</code> or <code>POST</code> route beside it when clients cannot send <code>QUERY</code>.</li>
+<li>In the OpenAPI document a <code>QUERY</code> operation appears under the path's <code>x-query</code> field; see <a href="../openapi/#query-operations">OpenAPI</a>.</li>
+</ul>
 <h2 id="bind-request-values">Bind request values<a class="headerlink" href="#bind-request-values" title="Permanent link">&para;</a></h2>
 <p>Typed path parameters are taken from the path, query parameters from the query string, and a body parameter from the request body. A handler may declare <code>request: Request</code> as its first parameter when it needs headers, cookies or raw request data. The request is injected only when that parameter is explicitly annotated.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
@@ -546,15 +572,15 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   examples.blog.api.Pos
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#declare-an-action">Declare an action</a></li><li><a href="#bind-request-values">Bind request values</a></li><li><a href="#group-related-paths">Group related paths</a></li><li><a href="#organising-a-large-application">Organising a large application</a></li><li><a href="#responses-errors-and-pagination">Responses, errors and pagination</a></li><li><a href="#migrating-from-the-top-level-decorators">Migrating from the top-level decorators</a></li></ul>
+            <ul><li><a href="#declare-an-action">Declare an action</a></li><li><a href="#read-with-a-body-httpquery">Read with a body: @http.query</a></li><li><a href="#bind-request-values">Bind request values</a></li><li><a href="#group-related-paths">Group related paths</a></li><li><a href="#organising-a-large-application">Organising a large application</a></li><li><a href="#responses-errors-and-pagination">Responses, errors and pagination</a></li><li><a href="#migrating-from-the-top-level-decorators">Migrating from the top-level decorators</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.9</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 18:16:25 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>4 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 18:47:28 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
