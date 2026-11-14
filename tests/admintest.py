@@ -25,9 +25,15 @@ from hinoki.admin import (
     Theme,
     csrf,
 )
-from hinoki.admin.components import icon_name, initials, page_window, sparkline
+from hinoki.admin.components import (
+    Components,
+    icon_name,
+    initials,
+    page_window,
+    sparkline,
+)
 from hinoki.admin.forms import FieldProblem, collect, convert, fields_for, label_of
-from hinoki.admin.templates import Raw, TemplateError, Templates, escape
+from hinoki.admin.templates import UI, Raw, TemplateError, Templates, escape
 from hinoki.db import Database, DatabaseModule
 from hinoki.orm import Model, current_database, field, foreign_key, use_database
 from tests.harness import Client, Pool
@@ -1204,8 +1210,6 @@ def test_the_current_database_helper_is_importable() -> None:
 
 
 def test_shared_stylesheet_keeps_form_text_and_boundaries_legible() -> None:
-    from hinoki.admin.templates import UI
-
     css = (UI / "base.css").read_text(encoding="utf-8")
     assert "::placeholder { color: var(--hn-muted); opacity: 1; }" in css
     assert "border: 1px solid var(--hn-field)" in css
@@ -1214,8 +1218,5 @@ def test_shared_stylesheet_keeps_form_text_and_boundaries_legible() -> None:
 
 
 def test_pagination_gap_marker_is_not_dimmed_as_a_control() -> None:
-    from hinoki.admin.components import Components
-    from hinoki.admin.templates import Templates
-
     html = str(Components(Templates()).pagination([("", "…", False)], "1"))
     assert 'class="hn-page hn-gap"' in html
