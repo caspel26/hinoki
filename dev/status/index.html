@@ -47,7 +47,14 @@
         <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg>
         <svg class="brand__word" viewBox="0 0 655 184" role="img" aria-label="hinoki"><use href="../static/hinoki-logo.svg#wordmark"/></svg>
       </a>
-      <span class="status-chip">pre-alpha</span>
+      <span class="status-chip" data-project-stage>pre-alpha</span>
+      <div class="docs-version" data-docs-version hidden>
+        <button class="status-chip docs-version__trigger" type="button" data-docs-version-trigger aria-controls="docs-version-menu" aria-expanded="false" aria-label="Choose documentation version">
+          <span data-docs-version-current>dev</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <nav class="docs-version__menu" id="docs-version-menu" data-docs-version-menu aria-label="Documentation versions" hidden></nav>
+      </div>
       <nav class="top__nav" aria-label="Sections">
         
         
@@ -203,19 +210,23 @@
               
             
               
-                <li><a class="side__link" href="https://github.com/caspel26/hinoki/blob/main/ROADMAP.md"><i>6.2</i><span>Roadmap</span></a></li>
+                <li><a class="side__link" href="../documentation-versions/"><i>6.2</i><span>Documentation versions</span></a></li>
               
             
               
-                <li><a class="side__link" href="https://github.com/caspel26/hinoki/blob/main/CONTRIBUTING.md"><i>6.3</i><span>Contributing</span></a></li>
+                <li><a class="side__link" href="https://github.com/caspel26/hinoki/blob/main/ROADMAP.md"><i>6.3</i><span>Roadmap</span></a></li>
               
             
               
-                <li><a class="side__link" href="../troubleshooting/"><i>6.4</i><span>Troubleshooting</span></a></li>
+                <li><a class="side__link" href="https://github.com/caspel26/hinoki/blob/main/CONTRIBUTING.md"><i>6.4</i><span>Contributing</span></a></li>
               
             
               
-                <li><a class="side__link" href="../toolchain/"><i>6.5</i><span>Toolchain and CI</span></a></li>
+                <li><a class="side__link" href="../troubleshooting/"><i>6.5</i><span>Troubleshooting</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../toolchain/"><i>6.6</i><span>Toolchain and CI</span></a></li>
               
             
             </ul>
@@ -229,6 +240,7 @@
         <p class="kicker" data-search-exclude>6.1 · Project</p>
         <h1 id="project-status">Project status<a class="headerlink" href="#project-status" title="Permanent link">&para;</a></h1>
 <p>Hinoki is pre-alpha. The public API and migration format may change; it is not published on PyPI. Use a checkout for evaluation and test against disposable data.</p>
+<p>The <a href="../documentation-versions/">documentation site</a> separates current development docs from release-tagged versions. Until the first release, the site root points to the <code>dev</code> docs.</p>
 <h2 id="implemented-and-exercised">Implemented and exercised<a class="headerlink" href="#implemented-and-exercised" title="Permanent link">&para;</a></h2>
 <p>The repository includes typed function and class APIs; request binding and strict schemas; access policies and declared errors; optional architecture rules; settings and worker modules; PostgreSQL models, relations, querysets and file-based migrations; sync and async handlers; OpenAPI, parsers, renderers, development and application MCP; and an optional admin with three styles.</p>
 <p>The examples are the best way to see the pieces together: <a href="https://github.com/caspel26/hinoki/tree/main/examples/notes">Notes</a> for a small declared app, <a href="https://github.com/caspel26/hinoki/tree/main/examples/tracker">Tracker</a> for layers, ownership and rules, and <a href="https://github.com/caspel26/hinoki/tree/main/examples/blog">Blog</a> for relations, auth and admin.</p>
@@ -252,7 +264,7 @@
 
       <nav class="pager" aria-label="Previous and next page">
         <a class="pager__link pager__link--prev" href="../reference/utilities/"><small>Previous</small><span>Utilities</span></a>
-        <a class="pager__link pager__link--next" href="../troubleshooting/"><small>Next</small><span>Troubleshooting</span></a>
+        <a class="pager__link pager__link--next" href="../documentation-versions/"><small>Next</small><span>Documentation versions</span></a>
       </nav>
     </main>
 
@@ -272,7 +284,7 @@
           <div><dt>Sheet</dt><dd>6.1</dd></div>
           
           <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 02:38:41 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/status.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
@@ -282,7 +294,7 @@
 
   <footer class="foot">
     <div class="foot__inner">
-      <span>hinoki v0.0.1 · pre-alpha · MIT · © 2026 caspel26</span>
+      <span>hinoki <span data-docs-version-footer>v0.0.1</span> · pre-alpha · MIT · © 2026 caspel26</span>
       <a href="https://github.com/caspel26/hinoki">GitHub</a>
     </div>
   </footer>
@@ -302,7 +314,7 @@
   <div class="toast" data-toast role="status" aria-live="polite"></div>
   <div class="popover" data-popover role="tooltip" hidden></div>
 
-  <script>window.HN = { base: "..", repo: "https://github.com/caspel26/hinoki" };</script>
+  <script>window.HN = { base: "..", repo: "https://github.com/caspel26/hinoki", site: "https://caspel26.github.io/hinoki/dev" };</script>
   <script src="../static/js/hinoki.js" defer></script>
   
 </body>

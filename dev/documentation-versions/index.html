@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Documentation versions · Hinoki</title>
+  <meta name="description" content="A Python API framework that checks its own architecture.">
+  <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="../static/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hinoki">
+  <meta property="og:title" content="Documentation versions · Hinoki">
+  <meta property="og:description" content="A Python API framework that checks its own architecture.">
+  <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://caspel26.github.io/hinoki/dev/documentation-versions/">
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("hn-theme"); } catch (e) {}
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      }
+      document.documentElement.dataset.theme = t;
+      document.documentElement.classList.add("js");
+    })();
+  </script>
+  <link rel="stylesheet" href="../static/css/tokens.css">
+  <link rel="stylesheet" href="../static/css/base.css">
+  <link rel="stylesheet" href="../static/css/prose.css">
+  
+</head>
+
+<body class="is-doc" data-base="..">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="meter" aria-hidden="true"><i></i></div>
+
+  <header class="top">
+    <div class="top__inner">
+      <button class="icon-btn top__menu" type="button" aria-label="Open navigation" aria-controls="side" aria-expanded="false" data-menu>
+        <svg class="menu-icon-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <svg class="menu-icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
+      <a class="brand" href=".." aria-label="Hinoki home">
+        <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg>
+        <svg class="brand__word" viewBox="0 0 655 184" role="img" aria-label="hinoki"><use href="../static/hinoki-logo.svg#wordmark"/></svg>
+      </a>
+      <span class="status-chip" data-project-stage>pre-alpha</span>
+      <div class="docs-version" data-docs-version hidden>
+        <button class="status-chip docs-version__trigger" type="button" data-docs-version-trigger aria-controls="docs-version-menu" aria-expanded="false" aria-label="Choose documentation version">
+          <span data-docs-version-current>dev</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <nav class="docs-version__menu" id="docs-version-menu" data-docs-version-menu aria-label="Documentation versions" hidden></nav>
+      </div>
+      <nav class="top__nav" aria-label="Sections">
+        
+        
+          
+        
+          
+            
+            <a class="top__link" href="../getting-started/"><b>01</b>Get started</a>
+          
+        
+          
+            
+            <a class="top__link" href="../tutorial/"><b>02</b>Tutorial</a>
+          
+        
+          
+            
+            <a class="top__link" href="../guides/"><b>03</b>Guides</a>
+          
+        
+          
+            
+            <a class="top__link" href="../concepts/"><b>04</b>Concepts</a>
+          
+        
+          
+            
+            <a class="top__link" href="../reference/"><b>05</b>Reference</a>
+          
+        
+          
+            
+            <a class="top__link is-active" href="../status/"><b>06</b>Project</a>
+          
+        
+      </nav>
+      <div class="top__actions">
+        <button class="search-btn" type="button" data-search aria-label="Search the documentation">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span>Search</span><kbd>/</kbd>
+        </button>
+        <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch colour theme">
+          <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        </button>
+        <a class="icon-btn" href="https://github.com/caspel26/hinoki" aria-label="Source on GitHub">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  
+
+  
+  
+  
+  
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+  
+  
+  
+
+  <div class="shell" data-sheet="6.2">
+    <aside class="side" id="side" aria-label="Section navigation">
+      <div class="mobile-sheet__header">
+        <span class="mobile-sheet__handle" aria-hidden="true"></span>
+        <span class="mobile-sheet__title">Navigation</span>
+        <button class="icon-btn mobile-sheet__close" type="button" aria-label="Close navigation" data-menu-close>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="side__scroll">
+        <nav class="side__sections" aria-label="Documentation sections">
+          <p class="side__label">Sections</p>
+          <ul class="side__list">
+            
+            
+              
+            
+              
+                
+                <li><a class="side__link" href="../getting-started/"><i>01</i><span>Get started</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../tutorial/"><i>02</i><span>Tutorial</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../guides/"><i>03</i><span>Guides</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../concepts/"><i>04</i><span>Concepts</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../reference/"><i>05</i><span>Reference</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link is-active" href="../status/"><i>06</i><span>Project</span></a></li>
+              
+            
+          </ul>
+        </nav>
+        
+          <p class="side__sec"><b>06</b>Project</p>
+          <p class="side__label">In this section</p>
+          
+          
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../status/"><i>6.1</i><span>Status</span></a></li>
+              
+            
+              
+                <li><a class="side__link is-active" href="./"><i>6.2</i><span>Documentation versions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="https://github.com/caspel26/hinoki/blob/main/ROADMAP.md"><i>6.3</i><span>Roadmap</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="https://github.com/caspel26/hinoki/blob/main/CONTRIBUTING.md"><i>6.4</i><span>Contributing</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../troubleshooting/"><i>6.5</i><span>Troubleshooting</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../toolchain/"><i>6.6</i><span>Toolchain and CI</span></a></li>
+              
+            
+            </ul>
+          
+        
+      </div>
+    </aside>
+
+    <main class="main" id="main">
+      <article class="prose" style="--sheet: '6.2'">
+        <p class="kicker" data-search-exclude>6.2 · Project</p>
+        <h1 id="documentation-versions">Documentation versions<a class="headerlink" href="#documentation-versions" title="Permanent link">&para;</a></h1>
+<p>Hinoki keeps unreleased documentation separate from release documentation.</p>
+<h2 id="development">Development<a class="headerlink" href="#development" title="Permanent link">&para;</a></h2>
+<p>The <a href="https://caspel26.github.io/hinoki/dev/"><code>dev</code> documentation</a> follows <code>main</code> and may change at any time. Before the first release, the site root redirects here. Treat it as documentation for the current pre-release code.</p>
+<h2 id="releases">Releases<a class="headerlink" href="#releases" title="Permanent link">&para;</a></h2>
+<p>Each release is built from its matching <code>vX.Y.Z</code> tag. Release pages remain available at their versioned path; <code>stable</code> and <code>latest</code> point to the most recent release. Changes merged to <code>main</code> update only <code>dev</code> and do not replace a released version.</p>
+<p>Use the version menu in the header to move between available docs. When a page does not exist in an older version, the menu opens that version's home page.</p>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../status/">Status</a></li><li><a href="../toolchain/">Toolchain and CI</a></li></ul>
+        </aside>
+        
+      </article>
+
+      <nav class="pager" aria-label="Previous and next page">
+        <a class="pager__link pager__link--prev" href="../status/"><small>Previous</small><span>Status</span></a>
+        <a class="pager__link pager__link--next" href="../troubleshooting/"><small>Next</small><span>Troubleshooting</span></a>
+      </nav>
+    </main>
+
+    <aside class="margin" aria-label="On this page">
+      <div class="margin__sticky">
+        
+        <p class="margin__label">On this page</p>
+        <nav class="toc" data-toc>
+          <span class="toc__marker" aria-hidden="true"></span>
+          
+          
+            <ul><li><a href="#development">Development</a></li><li><a href="#releases">Releases</a></li></ul>
+          
+        </nav>
+        
+        <dl class="titleblock">
+          <div><dt>Sheet</dt><dd>6.2</dd></div>
+          <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 04:29:48 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/documentation-versions.md">Edit on GitHub</a></dd></div>
+        </dl>
+      </div>
+    </aside>
+  </div>
+  
+
+  <footer class="foot">
+    <div class="foot__inner">
+      <span>hinoki <span data-docs-version-footer>v0.0.1</span> · pre-alpha · MIT · © 2026 caspel26</span>
+      <a href="https://github.com/caspel26/hinoki">GitHub</a>
+    </div>
+  </footer>
+
+  <div class="overlay" data-overlay hidden></div>
+  <div class="palette" data-palette role="dialog" aria-modal="true" aria-label="Search" hidden>
+    <div class="palette__box">
+      <div class="palette__bar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <input type="text" data-palette-input placeholder="Search docs, rules, commands…" autocomplete="off" spellcheck="false" aria-label="Search">
+        <kbd>esc</kbd>
+      </div>
+      <ul class="palette__list" data-palette-list role="listbox" aria-label="Results"></ul>
+      <div class="palette__foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></div>
+    </div>
+  </div>
+  <div class="toast" data-toast role="status" aria-live="polite"></div>
+  <div class="popover" data-popover role="tooltip" hidden></div>
+
+  <script>window.HN = { base: "..", repo: "https://github.com/caspel26/hinoki", site: "https://caspel26.github.io/hinoki/dev" };</script>
+  <script src="../static/js/hinoki.js" defer></script>
+  
+</body>
+</html>

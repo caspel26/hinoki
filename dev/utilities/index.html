@@ -47,7 +47,14 @@
         <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg>
         <svg class="brand__word" viewBox="0 0 655 184" role="img" aria-label="hinoki"><use href="../static/hinoki-logo.svg#wordmark"/></svg>
       </a>
-      <span class="status-chip">pre-alpha</span>
+      <span class="status-chip" data-project-stage>pre-alpha</span>
+      <div class="docs-version" data-docs-version hidden>
+        <button class="status-chip docs-version__trigger" type="button" data-docs-version-trigger aria-controls="docs-version-menu" aria-expanded="false" aria-label="Choose documentation version">
+          <span data-docs-version-current>dev</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <nav class="docs-version__menu" id="docs-version-menu" data-docs-version-menu aria-label="Documentation versions" hidden></nav>
+      </div>
       <nav class="top__nav" aria-label="Sections">
         
         
@@ -460,7 +467,7 @@
 
   <footer class="foot">
     <div class="foot__inner">
-      <span>hinoki v0.0.1 · pre-alpha · MIT · © 2026 caspel26</span>
+      <span>hinoki <span data-docs-version-footer>v0.0.1</span> · pre-alpha · MIT · © 2026 caspel26</span>
       <a href="https://github.com/caspel26/hinoki">GitHub</a>
     </div>
   </footer>
@@ -480,7 +487,7 @@
   <div class="toast" data-toast role="status" aria-live="polite"></div>
   <div class="popover" data-popover role="tooltip" hidden></div>
 
-  <script>window.HN = { base: "..", repo: "https://github.com/caspel26/hinoki" };</script>
+  <script>window.HN = { base: "..", repo: "https://github.com/caspel26/hinoki", site: "https://caspel26.github.io/hinoki/dev" };</script>
   <script src="../static/js/hinoki.js" defer></script>
   
 </body>
