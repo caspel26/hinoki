@@ -14,7 +14,8 @@ The examples are the best way to see the pieces together: [Notes](https://github
 * Hinoki does not open database connections at import or apply migrations automatically.
 * The ASGI path uses Python for server adaptation and handler calls; selected work is implemented in Rust.
 * Generated typing for some keyword-based ORM calls is less precise than model construction; see [typing](TYPING.md).
-* Advanced relation paths, implicit many-to-many, additional database backends, and end-to-end performance claims are not available.
+* Many-to-many links use an explicit model with two foreign keys and a composite uniqueness constraint. Implicit join models, direct collection access such as `post.tags`, and advanced relation paths are not available.
+* Additional database backends and end-to-end performance claims are not available.
 * The server adapter is ASGI. WSGI support is not available.
 * General CORS middleware is not available; application MCP has its own allowed-origin check. Cursor pagination is not available; pagination currently uses page numbers.
 * Pagination page-size defaults are `20` and `100` on `PageNumberPagination`; app-wide settings for overriding them are not available yet.

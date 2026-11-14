@@ -67,7 +67,7 @@ The model constructor is statically typed. Some keyword-based model methods stil
 
 ## Relations
 
-Declare a foreign-key column with `foreign_key(OtherModel, ...)`. It creates the `other_id` column and a named relation (`row.other`), but reading the relation does not fetch data. Load it explicitly with `select_related` or `prefetch_related`; see [relations and loading](RELATIONS.md).
+Declare a foreign-key column with `foreign_key(OtherModel, ...)`. It creates the `other_id` column and a named relation (`row.other`), but reading the relation does not fetch data. Load it explicitly with `select_related` or `prefetch_related`. For many-to-many data, declare an association model with two foreign keys and a composite `@unique` constraint; see [relations and loading](RELATIONS.md).
 
 ## Schema options
 
