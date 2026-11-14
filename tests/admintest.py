@@ -101,7 +101,7 @@ def sync_action_handler(_rows: tuple[Note, ...], _principal: Caller[Any]) -> Non
 class NoteAdmin(ModelAdmin[Note]):
     label = "Notes"
     columns = ("title", "done", "rank")
-    search = ("title",)
+    search = ("title", "body")
     per_page = 2
     bulk_delete = True
     bulk_actions: ClassVar[tuple[BulkAction[Any], ...]] = (
@@ -1182,6 +1182,43 @@ async def test_custom_bulk_action_rechecks_permissions_on_confirmation_and_rolls
     assert (await db.fetch("SELECT done FROM admin_notes WHERE id = $1", failing))[0][
         "done"
     ] is False
+
+
+@needs_database
+async def test_search_looks_in_every_configured_column(
+    site: tuple[Client, Database],
+) -> None:
+    client, db = site
+    for title, body, done in (
+        ("first", "needle in the body", True),
+        ("second", "needle again", False),
+        ("needle title", "", False),
+        ("other", "50%_off", False),
+    ):
+        await db.execute(
+            "INSERT INTO admin_notes VALUES ($1, $2, $3, $4, NULL, NULL, NULL)",
+            uuid4(),
+            title,
+            body,
+            done,
+        )
+
+    async def listed(**query: str) -> str:
+        reply = await client.request(
+            "GET", "/admin/notes", query=urlencode(query), headers=STAFF
+        )
+        assert reply.status == 200
+        return str(reply.body)
+
+    everywhere = await listed(q="NEEDLE")
+    assert "of 3" in everywhere and "other" not in everywhere
+    # The tab narrows the match; it is not an alternative to it.
+    open_only = await listed(q="needle", view="2")
+    assert "of 2" in open_only and "first" not in open_only
+    literal = await listed(q="%_")
+    assert "other" in literal and "of 1" in literal
+    found = await client.request("GET", "/admin/search", query="q=again", headers=STAFF)
+    assert "second" in found.body and "first" not in found.body
 
 
 @needs_database
