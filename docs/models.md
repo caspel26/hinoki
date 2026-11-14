@@ -53,6 +53,47 @@ Filters accept validated field names and supported comparison/membership operato
 
 `@ordered_by` supplies ordering only when a query does not specify `order_by`. An explicit order replaces it. Counts and bulk updates do not inherit default ordering.
 
+## Reusable queries
+
+A reusable query is a typed class method that returns a `QuerySet`. Hinoki has no hidden default manager: `Model.all()` always means every row.
+
+```python
+class Task(Model, table="tasks"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    title: str = field(max_length=200)
+    done: bool = False
+    deleted_at: datetime | None = None
+
+    @classmethod
+    def active(cls) -> QuerySet[Self]:
+        return cls.filter(deleted_at=None)
+
+
+open_tasks = await Task.active().filter(done=False).order_by("title")
+everything = await Task.all()           # the explicit way around the policy
+```
+
+Pass the method where the framework asks for a base query, so every operation built on it sees the same rows:
+
+```python
+Resource(model=Task, read=TaskOut, queryset=Task.active)   # list, read, update, delete
+
+
+class TaskAdmin(ModelAdmin[Task]):
+    def queryset(self, principal):
+        return Task.active()
+```
+
+Choose the place by what the rule is:
+
+| Rule | Where | Why |
+| --- | --- | --- |
+| Row order | `@ordered_by(...)` ([model options](model-options.md)) | declared once, replaced by any explicit `order_by` |
+| A policy the whole app shares, such as hiding soft-deleted rows | a named class method such as `Task.active()`, passed as `queryset=` or used in the admin's `queryset()` | visible at each call site and in review; nothing is hidden implicitly |
+| Rows that depend on the caller | `Resource(owner=...)` or `ModelAdmin.queryset(principal)` | the caller is available there; model-level code never sees it |
+
+Authorization must not depend on a default that a call to `all()` or a raw query can skip: keep ownership and permission checks in `access=`, `owner=` and `ModelAdmin.can()`, and treat a reusable query as convenience, not as the security boundary.
+
 ## Create and update
 
 ```python
