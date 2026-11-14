@@ -26,7 +26,7 @@ The `hinoki` command accepts a `module:attribute` target for an application, fac
 hinoki new notes --dir .
 ```
 
-`NAME` is a lowercase package name containing letters and digits. `--dir` chooses the parent directory and defaults to the current directory. The target `PATH/NAME` must not exist or must be empty; nothing is overwritten, and nothing is installed or run.
+`NAME` is a lowercase package name containing letters and digits; it cannot be `hinoki` or a Python standard-library module name, because those names would shadow imports used by the generated project. `--dir` chooses the parent directory and defaults to the current directory. The target `PATH/NAME` must not exist or must be empty; nothing is overwritten, and nothing is installed or run.
 
 Hinoki is pre-alpha and not published on PyPI (an unrelated `hinoki` is), so the generated `pyproject.toml` always names where `uv` finds it under `[tool.uv.sources]`:
 
