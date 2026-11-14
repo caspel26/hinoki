@@ -4,7 +4,7 @@
     hinoki settings blog.settings:BlogSettings --prefix BLOG_ --example
 
 Prints each variable with its effective value (secrets as ``***``) and its
-origin: ``override``, ``environment``, ``.env``, ``file`` (a ``*_FILE``
+origin: ``override``, ``environment``, ``.env``, ``toml``, ``file`` (a ``*_FILE``
 variable) or ``default``. An invalid configuration prints every problem, with
 variable names and reasons but never values, and exits 1.
 """
@@ -31,6 +31,7 @@ def add_arguments(
         "--prefix", default=None, help="variable prefix (default: the class's own)"
     )
     sub.add_argument("--dotenv", help="a .env file (default: the class's own)")
+    sub.add_argument("--toml", help="a TOML file (default: the class's own)")
     sub.add_argument("--format", choices=["text", "json"], default="text")
     sub.add_argument(
         "--example", action="store_true", help="print a .env.example instead"
@@ -59,11 +60,12 @@ def run_settings(args: argparse.Namespace) -> int:
         print(cls.example(args.prefix))
         return 0
     try:
-        rows = cls.explain(prefix=args.prefix, dotenv=args.dotenv)
+        rows = cls.explain(prefix=args.prefix, dotenv=args.dotenv, toml=args.toml)
     except SettingsError as error:
         print(f"error: {error}", file=sys.stderr)
         print(
-            "  fix: set the named variables or correct the .env file, then rerun "
+            "  fix: set the named variables or correct the selected settings "
+            "source, then rerun "
             "`hinoki settings`",
             file=sys.stderr,
         )
