@@ -418,8 +418,8 @@
 </code></pre></div>
 <p>The action name is also the permission checked by <code>ModelAdmin.can(principal, name, row)</code>. Hinoki checks model access before showing the button and checks every selected row against the scoped queryset and row permission both before confirmation and before execution. The confirmation includes the selected row count. If any selected row is unavailable or denied, the whole action is refused. The handler receives only the selected rows and the caller. During execution, Hinoki locks the selected model rows until the action transaction finishes, so another transaction cannot change their row-level authorization fields between the check and the handler's writes. Handlers should still apply their domain conditions to writes, especially when those conditions involve related records or external state.</p>
 <p>Each action requires confirmation and runs inside the admin write transaction. A failure rolls back the selected work; successful actions redirect to the list with a notice. Actions accept at most 200 distinct rows. <code>bulk_delete = True</code> adds the built-in delete action.</p>
-<h2 id="three-styles-each-with-light-and-dark">Three styles, each with light and dark<a class="headerlink" href="#three-styles-each-with-light-and-dark" title="Permanent link">&para;</a></h2>
-<p>A theme is not a colour set: it chooses the navigation, the list presentation, the type and the shape. All three share one set of base components and ship a complete light and dark scheme (the system decides; the toggle overrides it).</p>
+<h2 id="four-styles-each-with-light-and-dark">Four styles, each with light and dark<a class="headerlink" href="#four-styles-each-with-light-and-dark" title="Permanent link">&para;</a></h2>
+<p>Each theme sets navigation, list presentation, typography and color. All four use the same components and provide light and dark modes; the system preference selects the initial mode, and the toggle overrides it.</p>
 <table>
 <thead>
 <tr>
@@ -452,9 +452,16 @@
 <td>its own page</td>
 <td>serif type, terracotta</td>
 </tr>
+<tr>
+<td><strong>Grove</strong></td>
+<td>sidebar</td>
+<td>open rows</td>
+<td>its own page</td>
+<td>evergreen and lichen, sans-serif</td>
+</tr>
 </tbody>
 </table>
-<div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Studio</label><label for="__tabbed_1_2">Console</label><label for="__tabbed_1_3">Paper</label></div>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:4"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><input id="__tabbed_1_4" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Studio</label><label for="__tabbed_1_2">Console</label><label for="__tabbed_1_3">Paper</label><label for="__tabbed_1_4">Grove</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <p><img alt="Studio, light" src="../screenshots/admin-studio-list-light.png" />
@@ -468,9 +475,14 @@
 <p><img alt="Paper, light" src="../screenshots/admin-paper-list-light.png" />
 <img alt="Paper, dark" src="../screenshots/admin-paper-list-dark.png" /></p>
 </div>
+<div class="tabbed-block">
+<p><img alt="Grove, light" src="../screenshots/admin-grove-list-light.png" />
+<img alt="Grove, dark" src="../screenshots/admin-grove-list-dark.png" />
+<img alt="Grove edit form in dark mode" src="../screenshots/admin-grove-edit-dark.png" /></p>
 </div>
 </div>
-<p>Pick one with <code>Admin(theme="console")</code>, or build your own: a <code>Theme</code> is a set of <code>--hn-*</code> design tokens for the two schemes plus a <code>layout</code> (<code>sidebar</code>, <code>topbar</code>, <code>index</code>) and a <code>list_style</code> (<code>table</code>, <code>rows</code>). Every built-in theme is tested for WCAG AA contrast, and the pages were checked in Chromium and Firefox at 1440, 390, 360 and 320 px.</p>
+</div>
+<p>Pick one with <code>Admin(theme="grove")</code>, or build your own: a <code>Theme</code> is a set of <code>--hn-*</code> design tokens for the two schemes plus a <code>layout</code> (<code>sidebar</code>, <code>topbar</code>, <code>index</code>) and a <code>list_style</code> (<code>table</code>, <code>rows</code>). The text and surface colour pairs of every built-in theme are tested against WCAG AA contrast. Grove's pages were checked in Chromium and Firefox at 1440, 390, 360 and 320 px; WebKit was not run.</p>
         
       </article>
 
@@ -488,14 +500,14 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#bulk-actions">Bulk actions</a></li><li><a href="#three-styles-each-with-light-and-dark">Three styles, each with light and dark</a></li></ul>
+            <ul><li><a href="#bulk-actions">Bulk actions</a></li><li><a href="#four-styles-each-with-light-and-dark">Four styles, each with light and dark</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 05:49:45 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 13:31:40 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>

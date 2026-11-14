@@ -379,7 +379,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">FrameworkSettings</span><span class="p">):</span>          <span class="c1"># keeps the built-in groups</span>
     <span class="n">database</span><span class="p">:</span> <span class="n">DatabaseSettings</span>                   <span class="c1"># url: Secret, max_size: int</span>
     <span class="n">jwt_secret</span><span class="p">:</span> <span class="n">Secret</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>             <span class="c1"># optional secret</span>
-    <span class="n">admin_theme</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"studio"</span><span class="p">,</span> <span class="s2">"console"</span><span class="p">,</span> <span class="s2">"paper"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"studio"</span>
+    <span class="n">admin_theme</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"studio"</span><span class="p">,</span> <span class="s2">"console"</span><span class="p">,</span> <span class="s2">"paper"</span><span class="p">,</span> <span class="s2">"grove"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"studio"</span>
 </code></pre></div>
 <p><code>FrameworkSettings</code> brings five groups every app has: <code>execution</code> (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit), <code>lifecycle</code> (30-second startup and 10-second shutdown limits), <code>logging</code> (level, text or JSON), <code>docs</code> (title, version and optional OpenAPI/Swagger/ReDoc URLs) and <code>server</code> (host, port and workers). A field without a default is <strong>required</strong>. Request IDs and timeout responses are described in the <a href="../request-lifecycle/">request lifecycle</a>.</p>
 <p><code>docs.openapi_url</code>, <code>docs.docs_url</code> and <code>docs.redoc_url</code> default to <code>None</code>, so no API document or viewer route is served until configured. Swagger UI or ReDoc requires an <code>openapi_url</code>. The same values can be supplied as <code>Hinoki(...)</code> arguments; explicit arguments win over <code>docs</code> settings, and <code>None</code> disables a page.</p>
@@ -673,7 +673,7 @@ BLOG_JWT_SECRET               file         ***
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.18</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 03:57:53 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 13:31:40 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
