@@ -1,6 +1,6 @@
 """Hinoki: a typed Python API framework with a native Rust core."""
 
-from hinoki import http, settings
+from hinoki import derive, http, settings
 from hinoki.access import Access
 from hinoki.api import API
 from hinoki.app import Hinoki
@@ -84,6 +84,7 @@ __all__ = [
     "Unset",
     "ValidationError",
     "__version__",
+    "derive",
     "field_check",
     "http",
     "object_check",
