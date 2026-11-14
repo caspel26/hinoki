@@ -22,6 +22,7 @@ def parser() -> argparse.ArgumentParser:
     add_arguments(commands)
     settingscli.add_arguments(commands)
     serve.add_arguments(commands)
+    commands.add_parser("manage", help="run an app's management commands")
     group = commands.add_parser("migrations", help="plan, apply and inspect migrations")
     group.add_argument("--dir", default="migrations", help="migrations directory")
     actions = group.add_subparsers(dest="action", required=True)
@@ -124,7 +125,12 @@ def run_migrations(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = parser().parse_args(argv)
+    arguments = sys.argv[1:] if argv is None else argv
+    if arguments and arguments[0] == "manage":
+        from hinoki.managementcli import run  # noqa: PLC0415 - only for `manage`
+
+        return run(arguments[1:])
+    args = parser().parse_args(arguments)
     commands = {
         "check": run_check,
         "new": run_new,

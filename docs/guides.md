@@ -36,7 +36,7 @@ One page for each part of an application. Start with the data and endpoint guide
 - [Settings](settings.md): Typed, immutable settings classes with environment, dotenv and TOML sources, and redacted secrets.
 - [Serving](serving.md): Run an application with `hinoki dev` while you work and `hinoki serve` in production-style runs.
 - [Testing](testing.md): Hinoki has two useful levels of application tests: call the operation functions directly, then exercise the app through its ASGI interface.
-- [Command line](cli.md): The hinoki command accepts a module:attribute target for an application, factory, settings class or model module as documented by each subcommand.
+- [Command line](cli.md): Run framework tools and app-defined management commands from the project directory.
 - [Typing](typing.md): Hinoki's public APIs use Python annotations so a type checker can catch mistakes in handlers, decorators and schema construction.
 
 ## Integrations
