@@ -27,7 +27,7 @@ def create_app() -> Hinoki:
     app = Hinoki(settings=settings, ...)
 ```
 
-`load` is the only place variables are read. Where a value comes from, highest first:
+`load` is the only place configuration files and environment variables are read. Where a value comes from, highest first:
 
 | Source | Example |
 | --- | --- |
@@ -35,7 +35,19 @@ def create_app() -> Hinoki:
 | the process environment | `BLOG_ADMIN_THEME=paper` |
 | a `*_FILE` variable (container secrets) | `BLOG_JWT_SECRET_FILE=/run/secrets/jwt` |
 | the `.env` file you named | `BLOG_ADMIN_THEME=paper` in `.env` |
+| the TOML file you named | `admin_theme = "paper"` in `settings.toml` |
 | the default in the class | `admin_theme: ... = "studio"` |
+
+TOML tables map to settings groups. For example, `[database]` with `max_size = 12` sets `database.max_size`. Arrays remain typed arrays. Environment and dotenv values still use the strict text conversion described below. TOML cannot contain `Secret` values; put secrets in environment variables, `*_FILE` files, or a secret manager that exports one of those sources.
+
+```python
+class BlogSettings(FrameworkSettings, prefix="BLOG_", toml="settings.toml"):
+    ...
+
+settings = BlogSettings.load()  # reads the declared file by default
+```
+
+Pass `toml="path/to/settings.toml"` to `load` or `explain` to override the class path. An explicitly selected TOML file must exist and parse correctly.
 
 ## 3. Names
 
@@ -72,7 +84,7 @@ invalid settings:
 ## 6. See what is in effect
 
 ```sh
-hinoki settings blog.settings:BlogSettings --prefix BLOG_ --dotenv .env
+hinoki settings blog.settings:BlogSettings --prefix BLOG_ --dotenv .env --toml settings.toml
 ```
 
 ```text
@@ -82,7 +94,7 @@ BLOG_EXECUTION__SYNC_WORKERS  default      8
 BLOG_JWT_SECRET               file         ***
 ```
 
-The second column is where each value came from: `override`, `environment`, `.env`, `file` or `default`. `--format json` prints the same for tools. `--example` prints a ready `.env.example` (every variable with its default and type; secrets and required values blank):
+The second column is where each value came from: `override`, `environment`, `.env`, `toml`, `file` or `default`. `--format json` prints the same for tools. `--example` prints a ready `.env.example` (every variable with its default and type; secrets and required values blank):
 
 ```sh
 hinoki settings blog.settings:BlogSettings --prefix BLOG_ --example > .env.example
@@ -92,7 +104,7 @@ hinoki settings blog.settings:BlogSettings --prefix BLOG_ --example > .env.examp
 
 `Hinoki(settings=settings)` derives the runtime limits, the docs URLs and the logging setup from the built-in groups (an explicit argument such as `title=` still wins). Your own fields are on `app.settings`, and modules reach them as `ctx.settings` in their lifespan.
 
-The `server` group (host, port, workers) is applied by `hinoki serve`/`dev` ([Running an application](SERVING.md)). Not included yet: TOML files and secret-manager clients as sources.
+The `server` group (host, port, workers) is applied by `hinoki serve`/`dev` ([Running an application](SERVING.md)). Hinoki does not connect to secret-manager services itself; use a provider that supplies environment values or secret files.
 
 ## 8. Database connection ownership
 
