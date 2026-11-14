@@ -10,6 +10,6 @@
 | JSON Schema | The standard of that name, which the OpenAPI document uses to describe bodies. Always with its proper name. |
 | `Model` | A class that maps to a table (`class Note(Model, table="notes")`). Not a `Schema`: a column reaches a client only when a `Schema` names it. |
 | `Access`, `Caller` | The access policy of an action, and who is making the request. |
-| action | One declared endpoint (`@get`, `@post`, ...), plain function or API-class method. |
+| action | One declared endpoint (`@http.get`, `@http.post`, ...), plain function or API-class method. |
 
 When you write about the rule `HNK-SCH-001`, say "a response `Schema`", not "a response schema".

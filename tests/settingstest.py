@@ -16,8 +16,7 @@ from hinoki import (
     Secret,
     Settings,
     SettingsError,
-    get,
-    post,
+    http,
 )
 from hinoki.__main__ import main
 from hinoki.settings import JsonFormatter, LoggingSettings, parse_dotenv
@@ -242,12 +241,12 @@ def test_float_and_int_reject_non_numbers_and_booleans() -> None:
         AppSettings.load(prefix="APP_", env=BASE, overrides={"mail": {"port": True}})
 
 
-@get("/ping")
+@http.get("/ping")
 async def ping(request: Request) -> dict[str, str]:
     return {"ok": "yes"}
 
 
-@post("/echo")
+@http.post("/echo")
 async def echo(request: Request) -> dict[str, int]:
     return {"size": len(request.body)}
 

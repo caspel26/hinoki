@@ -9,7 +9,7 @@ Run: ``uv run --locked python benchmarks/requestobjectbench.py``.
 import statistics
 import time
 
-from hinoki import Hinoki, Request, get
+from hinoki import Hinoki, Request, http
 from hinoki.runtime.binding import bind
 from hinoki.runtime.requests import build_request, header_map
 
@@ -17,7 +17,7 @@ SAMPLES = 7
 LOOPS = 20000
 
 
-@get("/items/{item_id}")
+@http.get("/items/{item_id}")
 def item(request: Request, item_id: int) -> dict[str, int]:
     return {"id": item_id}
 

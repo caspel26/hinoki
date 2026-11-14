@@ -7,7 +7,7 @@ status: implemented
 An action opts into page-number pagination with `pagination=PageNumberPagination()`. The current built-in defaults are `page_size=20` and `max_page_size=100`. The framework parses and validates `page` and `page_size`, injects a `PageParams` value, and documents both query parameters in OpenAPI.
 
 ```python
-@get("/tasks", pagination=PageNumberPagination())
+@http.get("/tasks", pagination=PageNumberPagination())
 async def list_tasks(page: PageParams) -> Page[TaskOut]:
     rows = await Task.all().apaginate(page)
     return rows.map(TaskOut.from_model)

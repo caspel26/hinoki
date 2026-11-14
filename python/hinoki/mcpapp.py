@@ -17,7 +17,7 @@ from typing import Any
 from urllib.parse import quote, unquote, urlencode
 
 import hinoki
-from hinoki import context
+from hinoki import context, http
 from hinoki.access import Access
 from hinoki.app import Hinoki
 from hinoki.core import decode_json
@@ -33,7 +33,7 @@ from hinoki.mcp import (
 )
 from hinoki.reply import Reply
 from hinoki.request import Request
-from hinoki.routing import Route, post
+from hinoki.routing import Route
 from hinoki.rules import qualified
 
 SAFE = frozenset({"GET", "HEAD"})
@@ -367,7 +367,7 @@ def expose_as_mcp(
             cache.extend(found)
         return {t.name: t for t in cache}
 
-    @post(path, access=access)
+    @http.post(path, access=access)
     async def mcp_endpoint(request: Request) -> Reply:
         """Model Context Protocol endpoint (JSON-RPC over POST)."""
         refused = refuse(request, origins)

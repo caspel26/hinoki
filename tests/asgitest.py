@@ -9,79 +9,79 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import API, Hinoki, RegistrationError, RuntimeConfig, context, get, post
+from hinoki import API, Hinoki, RegistrationError, RuntimeConfig, context, http
 from hinoki.request import Request
 from tests.harness import Client, Pool
 
 release = threading.Event()
 
 
-@get("/ping")
+@http.get("/ping")
 def ping(request: Request) -> dict[str, str]:
     return {"pong": "yes"}
 
 
-@get("/items/{item_id}")
+@http.get("/items/{item_id}")
 async def item(request: Request, item_id: int) -> dict[str, int]:
     return {"id": item_id}
 
 
-@get("/rid")
+@http.get("/rid")
 def request_id_in_thread(request: Request) -> dict[str, str | None]:
     return {"rid": context.request_id.get()}
 
 
-@get("/boom")
+@http.get("/boom")
 async def boom(request: Request) -> None:
     raise RuntimeError("secret internal detail")
 
 
-@get("/slow-async")
+@http.get("/slow-async")
 async def slow_async(request: Request) -> None:
     await asyncio.sleep(5)
 
 
-@get("/block")
+@http.get("/block")
 def block(request: Request) -> None:
     release.wait(5)
 
 
-@post("/made", status=201)
+@http.post("/made", status=201)
 async def made(request: Request) -> dict[str, bool]:
     return {"ok": True}
 
 
-@get("/nothing")
+@http.get("/nothing")
 async def nothing(request: Request) -> None:
     return None
 
 
-@get("/echo/{name}")
+@http.get("/echo/{name}")
 async def echo(request: Request, name: str) -> dict[str, str]:
     return {"name": name}
 
 
-@get("/gone", status=204)
+@http.get("/gone", status=204)
 async def gone(request: Request) -> dict[str, str]:
     return {"ignored": "body"}
 
 
-@get("/ratio/{value}")
+@http.get("/ratio/{value}")
 async def ratio(request: Request, value: float) -> dict[str, float]:
     return {"value": value}
 
 
 class Things(API, path="/things"):
-    @get("/{thing_id}")
+    @http.get("/{thing_id}")
     def one(self, request: Request, thing_id: UUID) -> dict[str, str]:
         return {"id": str(thing_id)}
 
 
-@get("/p/{p}")
+@http.get("/p/{p}")
 def wrong_name(request: Request, q: str) -> None: ...
 
 
-@get("/t/{t}")
+@http.get("/t/{t}")
 def bad_type(request: Request, t: list[int]) -> None: ...
 
 

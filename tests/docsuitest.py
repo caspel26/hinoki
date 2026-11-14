@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from hinoki import Hinoki, Request, get
+from hinoki import Hinoki, Request, http
 from hinoki.docsui import STATIC
 from tests.harness import Client, Pool
 
 
-@get("/ping")
+@http.get("/ping")
 def ping(request: Request) -> dict[str, str]:
     return {"pong": "yes"}
 

@@ -29,7 +29,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 | Input validation | The `Schema` (types, constraints, patterns) | Strict, no coercion, validated in Rust before your code runs |
 | Business rules | Operations | Testable without HTTP |
 | Transactions | `transaction=True` on the action (writes) | Commit after the response is encoded, rollback before the error becomes HTTP. **Rule:** `Transactions.require_atomic` |
-| Errors | Raise `APIError` subclasses and **declare them on the action**: `@post(..., errors=(PostAlreadyPublished, Forbidden))`. Translate database errors once with `app.errors.handle(...)` | Failures are exceptions. The declaration (status and code come from the class) feeds OpenAPI, the MCP tool description and, in tests, `ASGIClient(app, strict_errors=True)`, which fails on an error answer the action did not declare. **A returned `Reply` commits the transaction** |
+| Errors | Raise `APIError` subclasses and **declare them on the action**: `@http.post(..., errors=(PostAlreadyPublished, Forbidden))`. Translate database errors once with `app.errors.handle(...)` | Failures are exceptions. The declaration (status and code come from the class) feeds OpenAPI, the MCP tool description and, in tests, `ASGIClient(app, strict_errors=True)`, which fails on an error answer the action did not declare. **A returned `Reply` commits the transaction** |
 | Secrets | Settings/environment, passed to `JWTKey`, `Admin(secret=…)`, never defaults | Nothing to leak from the repository |
 
 ## 3. `Schema` classes and models

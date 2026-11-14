@@ -10,8 +10,7 @@ from hinoki import (
     Hinoki,
     RegistrationError,
     Schema,
-    get,
-    post,
+    http,
 )
 from hinoki.request import Request
 from tests.harness import Client, Pool
@@ -26,32 +25,32 @@ class Draft(Schema):
     title: str
 
 
-@get("/public")
+@http.get("/public")
 async def public(request: Request) -> dict[str, bool]:
     return {"ok": True}
 
 
-@get("/secure", access=editor)
+@http.get("/secure", access=editor)
 async def secure(request: Request) -> dict[str, bool]:
     return {"ok": True}
 
 
-@get("/whoami", access=any_user)
+@http.get("/whoami", access=any_user)
 async def whoami(request: Request, principal: Caller[str]) -> dict[str, object]:
     return {"subject": principal.id, "scopes": sorted(principal.permissions)}
 
 
-@post("/drafts", access=editor)
+@http.post("/drafts", access=editor)
 async def create(request: Request, data: Draft) -> dict[str, str]:
     return {"title": data.title}
 
 
-@get("/leak", access=any_user)
+@http.get("/leak", access=any_user)
 async def leak(request: Request) -> None:
     raise RuntimeError("secret")
 
 
-@get("/anonymous-principal")
+@http.get("/anonymous-principal")
 async def anonymous(request: Request, principal: Caller[str]) -> None: ...
 
 
@@ -209,7 +208,7 @@ class SyncTokens(BearerAuth[str]):
 sync_access = Access(auth=SyncTokens(), permissions=["w"])
 
 
-@get("/sync-secure", access=sync_access)
+@http.get("/sync-secure", access=sync_access)
 async def sync_secure(request: Request, caller: Caller[str]) -> dict[str, str]:
     return {"id": caller.id}
 

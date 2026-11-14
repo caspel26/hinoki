@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import Hinoki, RuntimeConfig, get, post
+from hinoki import Hinoki, RuntimeConfig, http
 from hinoki.blocking import run_sync
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import FieldError
@@ -30,7 +30,7 @@ class Gadget(Model, table="sync_gadgets"):
     stock: int = 0
 
 
-@post("/gadgets", status=201, transaction=True)
+@http.post("/gadgets", status=201, transaction=True)
 def add(request: Request, name: str) -> dict[str, Any]:
     made = Gadget.create(name=name)
     if name == "boom":
@@ -38,18 +38,18 @@ def add(request: Request, name: str) -> dict[str, Any]:
     return {"id": str(made.id), "count": Gadget.all().count()}
 
 
-@get("/gadgets/{gadget_id}")
+@http.get("/gadgets/{gadget_id}")
 def show(request: Request, gadget_id: UUID) -> dict[str, Any]:
     return {"name": Gadget.get(id=gadget_id).name}
 
 
-@get("/gadgets", pagination=PageNumberPagination(page_size=2))
+@http.get("/gadgets", pagination=PageNumberPagination(page_size=2))
 def listing(request: Request, page: PageParams) -> Page[dict[str, str]]:
     found = Gadget.all().order_by("name").paginate(page)
     return found.map(lambda g: {"name": g.name})
 
 
-@post("/gadgets/{gadget_id}/stock")
+@http.post("/gadgets/{gadget_id}/stock")
 def restock(request: Request, gadget_id: UUID) -> dict[str, Any]:
     gadget = Gadget.get(id=gadget_id)
     gadget.stock += 5
@@ -65,7 +65,7 @@ def restock(request: Request, gadget_id: UUID) -> dict[str, Any]:
     }
 
 
-@get("/loop-guard")
+@http.get("/loop-guard")
 async def blocking_on_the_loop(request: Request) -> dict[str, str]:
     Gadget.all().count()
     return {}
@@ -196,7 +196,7 @@ def statements(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return seen
 
 
-@post("/slow", transaction=True)
+@http.post("/slow", transaction=True)
 def slow(request: Request) -> dict[str, str]:
     run_sync(current_database().fetch("SELECT pg_sleep(4)"))
     return {}

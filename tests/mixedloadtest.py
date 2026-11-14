@@ -9,7 +9,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from hinoki import Hinoki, Request, get
+from hinoki import Hinoki, Request, http
 from hinoki.db import Database, DatabaseModule
 from hinoki.orm import Model, field, use_database
 from hinoki.runtime.config import RuntimeConfig
@@ -24,19 +24,19 @@ class Counter2(Model, table="ml_rows"):
     n: int = 0
 
 
-@get("/sync")
+@http.get("/sync")
 def sync_one(request: Request) -> dict[str, int]:
     time.sleep(0.01)  # blocking work, allowed in a sync handler
     return {"n": Counter2.get(id=1).n}
 
 
-@get("/async")
+@http.get("/async")
 async def async_one(request: Request) -> dict[str, int]:
     await asyncio.sleep(0.01)
     return {"n": (await Counter2.aget(id=1)).n}
 
 
-@get("/slow")
+@http.get("/slow")
 def slow(request: Request) -> dict[str, str]:
     time.sleep(1.5)
     return {"done": "yes"}

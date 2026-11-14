@@ -5,7 +5,7 @@ from uuid import UUID
 from examples.blog.models import Post, User
 from examples.blog.schemas import HealthOut, PostCreate, PostOut
 from examples.blog.security import editor
-from hinoki import Caller, Conflict, Forbidden, get, post
+from hinoki import Caller, Conflict, Forbidden, http
 from hinoki.crud import CrudAPI, Resource
 from hinoki.orm import QuerySet
 from hinoki.pagination import Page, PageNumberPagination, PageParams
@@ -34,7 +34,7 @@ async def owned_post(item_id: UUID, principal: Caller[User]) -> Post:
     return post
 
 
-@get("/health")
+@http.get("/health")
 def health() -> HealthOut:
     """Liveness: answers while the worker runs."""
     return HealthOut(status="ok")
@@ -59,7 +59,7 @@ POSTS = Resource(
 class Posts(CrudAPI, path="/posts", resource=POSTS):
     """Generated create and delete (owner enforced), handwritten reads."""
 
-    @get(
+    @http.get(
         "/",
         replaces="list",
         pagination=PageNumberPagination(page_size=10, max_page_size=50),
@@ -73,12 +73,12 @@ class Posts(CrudAPI, path="/posts", resource=POSTS):
         )
         return found.map(to_out)
 
-    @get("/{item_id}", replaces="retrieve")
+    @http.get("/{item_id}", replaces="retrieve")
     async def one(self, item_id: UUID) -> PostOut:
         """A published post; unpublished posts are not found."""
         return to_out(await with_author(Post.filter(id=item_id, published=True)).aget())
 
-    @post(
+    @http.post(
         "/{item_id}/publish",
         access=editor,
         transaction=True,

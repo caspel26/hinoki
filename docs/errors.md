@@ -16,7 +16,7 @@ class TaskAlreadyDone(Conflict):
     message = "The task is already done."
 
 
-@post("/tasks/{task_id}/complete", errors=(NotFound, TaskAlreadyDone))
+@http.post("/tasks/{task_id}/complete", errors=(NotFound, TaskAlreadyDone))
 async def complete(task_id: UUID) -> TaskOutput:
     ...
 ```

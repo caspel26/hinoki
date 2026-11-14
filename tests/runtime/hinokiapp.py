@@ -9,7 +9,7 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from hinoki import Hinoki, Module, ModuleContext, RuntimeConfig, get
+from hinoki import Hinoki, Module, ModuleContext, RuntimeConfig, http
 from hinoki.request import Request
 
 LOG = os.environ.get("EXP_LOG", os.devnull)
@@ -47,23 +47,23 @@ class Gamma(Recording):
     requires = (Beta,)
 
 
-@get("/fast")
+@http.get("/fast")
 async def fast(request: Request) -> dict[str, int]:
     return {"pid": os.getpid()}
 
 
-@get("/echo/{name}")
+@http.get("/echo/{name}")
 async def echo(request: Request, name: str) -> dict[str, str]:
     return {"name": name}
 
 
-@get("/sync-slow")
+@http.get("/sync-slow")
 def sync_slow(request: Request) -> dict[str, int]:
     time.sleep(1.0)
     return {"pid": os.getpid()}
 
 
-@get("/async-slow")
+@http.get("/async-slow")
 async def async_slow(request: Request) -> dict[str, int]:
     record("slow-start")
     await asyncio.sleep(1.5)

@@ -14,8 +14,7 @@ from hinoki import (
     NotFound,
     RegistrationError,
     RouteGroup,
-    get,
-    post,
+    http,
 )
 from hinoki.crud import Crud
 from hinoki.request import Request
@@ -32,31 +31,31 @@ def twice[**P](fn: Callable[P, int]) -> Callable[P, int]:
     return wrapper
 
 
-@get("/health")
+@http.get("/health")
 def health(request: Request) -> dict[str, str]:
     return {"status": "ok"}
 
 
-@get("/duplicate-health")
+@http.get("/duplicate-health")
 def duplicate(request: Request) -> None: ...
 
 
-@get("/n")
+@http.get("/n")
 @twice
 def answer(request: Request) -> int:
     return 21
 
 
 class Posts(API, path="/posts"):
-    @get("/")
+    @http.get("/")
     async def list(self, request: Request) -> list[int]:
         return []
 
-    @get("/{post_id}")
+    @http.get("/{post_id}")
     def retrieve(self, request: Request, post_id: int) -> int:
         return post_id
 
-    @post("/{post_id}/publish", status=202, access=editor, transaction=True)
+    @http.post("/{post_id}/publish", status=202, access=editor, transaction=True)
     async def publish(self, request: Request, post_id: int) -> int:
         return post_id
 
@@ -106,7 +105,7 @@ def test_unknown_path_and_wrong_method_do_not_resolve() -> None:
 def test_duplicate_route_fails_and_leaves_app_unchanged() -> None:
     app = make_app()
     before = len(app.routes)
-    clash = get("/health")(lambda: None)
+    clash = http.get("/health")(lambda: None)
     with pytest.raises(RegistrationError, match="duplicate"):
         app.include(clash)
     assert len(app.routes) == before
@@ -127,9 +126,9 @@ def test_user_decorators_keep_behaviour_under_a_route() -> None:
 @pytest.mark.parametrize(
     ("build", "message"),
     [
-        (lambda: get("no-slash"), "start with"),
-        (lambda: get("/x", status=99), "status"),
-        (lambda: get("/a")(get("/b")(lambda: None)), "already declares"),
+        (lambda: http.get("no-slash"), "start with"),
+        (lambda: http.get("/x", status=99), "status"),
+        (lambda: http.get("/a")(http.get("/b")(lambda: None)), "already declares"),
     ],
 )
 def test_invalid_declarations_fail_at_decoration_time(
@@ -154,13 +153,13 @@ def test_errors_option_validates_what_it_is_given() -> None:
     class Ok(Conflict):
         code = "ok_conflict"
 
-    assert get("/a", errors=(Ok, Ok)).options.errors == (
+    assert http.get("/a", errors=(Ok, Ok)).options.errors == (
         Ok,
         Ok,
     )
     with pytest.raises(ValueError, match="APIError"):
 
-        @get("/b", errors=(ValueError,))  # type: ignore[arg-type]
+        @http.get("/b", errors=(ValueError,))  # type: ignore[arg-type]
         def b() -> None: ...
 
 
@@ -219,7 +218,7 @@ def test_failed_route_group_include_does_not_freeze_group() -> None:
     @group.get("/health")
     def one() -> None: ...
 
-    app = Hinoki(include=[get("/group/health")(lambda: None)])
+    app = Hinoki(include=[http.get("/group/health")(lambda: None)])
     with pytest.raises(RegistrationError, match="duplicate"):
         app.include(group)
 
@@ -250,7 +249,7 @@ def test_standalone_outer_decorator_is_used_for_dispatch() -> None:
         return wrapper
 
     @denied
-    @get("/private")
+    @http.get("/private")
     def private() -> str:
         return "sensitive"
 

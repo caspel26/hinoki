@@ -15,8 +15,7 @@ from hinoki import (
     Hinoki,
     RegistrationError,
     Schema,
-    get,
-    post,
+    http,
 )
 from hinoki.request import Request
 from hinoki.schema import Field
@@ -54,7 +53,7 @@ class Tree(Schema):
 editor = Access(auth=TokenAuth(), permissions=["posts:write"])
 
 
-@get("/health")
+@http.get("/health")
 def health(request: Request) -> dict[str, str]:
     """Liveness probe.
 
@@ -64,28 +63,28 @@ def health(request: Request) -> dict[str, str]:
 
 
 class Posts(API, path="/posts"):
-    @get("/")
+    @http.get("/")
     async def search(self, request: Request, q: str, limit: int = 10) -> list[PostOut]:
         return []
 
-    @get("/{post_id}")
+    @http.get("/{post_id}")
     def retrieve(self, request: Request, post_id: UUID) -> PostOut:
         raise NotImplementedError
 
-    @post("/", status=201, access=editor)
+    @http.post("/", status=201, access=editor)
     async def create(self, request: Request, data: PostCreate) -> PostOut:
         raise NotImplementedError
 
-    @post("/{post_id}/publish")
+    @http.post("/{post_id}/publish")
     async def publish(self, request: Request, post_id: UUID) -> None: ...
 
 
-@get("/tree")
+@http.get("/tree")
 def tree(request: Request) -> Tree:
     raise NotImplementedError
 
 
-@get("/stats")
+@http.get("/stats")
 def stats(request: Request) -> dict[str, int]:
     return {}
 
@@ -207,7 +206,7 @@ def test_recursive_schemas_do_not_loop() -> None:
 def test_same_name_different_schemas_are_rejected() -> None:
     clash = type("PostOut", (Schema,), {"__annotations__": {"x": int}})
 
-    @get("/clash")
+    @http.get("/clash")
     def other(request: Request) -> clash:  # type: ignore[valid-type]
         raise NotImplementedError
 
@@ -238,15 +237,15 @@ class Pattern(Schema):
     slug: Annotated[str, Field(pattern="[a-z]+")]
 
 
-@get("/me", access=editor)
+@http.get("/me", access=editor)
 async def me(request: Request, principal: Caller[str]) -> None: ...
 
 
-@get("/remove/{item}", status=200)
+@http.get("/remove/{item}", status=200)
 async def remove(request: Request, item: str) -> None: ...
 
 
-@post("/pat")
+@http.post("/pat")
 async def pat(request: Request, data: Pattern) -> None: ...
 
 
@@ -283,7 +282,7 @@ def test_declared_errors_become_responses_with_their_codes() -> None:
         code = "locked"
         message = "The item is locked."
 
-    @get("/x", errors=(AlreadyDone, Locked, Forbidden))
+    @http.get("/x", errors=(AlreadyDone, Locked, Forbidden))
     def x() -> dict[str, str]:
         return {}
 

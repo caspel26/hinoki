@@ -14,8 +14,7 @@ from hinoki import (
     Schema,
     Schemas,
     Transactions,
-    get,
-    post,
+    http,
 )
 from hinoki.orm import Model, field
 from hinoki.rules import (
@@ -47,23 +46,23 @@ class AccountOut(Schema):
     password_hash: str
 
 
-@get("/health")
+@http.get("/health")
 def health(request: Request) -> dict[str, str]:
     return {}
 
 
 class Posts(API, path="/posts"):
-    @get("/")
+    @http.get("/")
     def listing(self, request: Request) -> list[UserOut]:
         return []
 
-    @post("/", access=editor)
+    @http.post("/", access=editor)
     def create(self, request: Request) -> AccountOut:
         raise NotImplementedError
 
 
 class Safe(API, path="/safe"):
-    @post("/", access=editor, transaction=True)
+    @http.post("/", access=editor, transaction=True)
     def create(self, request: Request) -> dict[str, str]:
         return {}
 
@@ -220,17 +219,17 @@ class RowOut(Schema):
     id: UUID
 
 
-@get("/rows")
+@http.get("/rows")
 async def leaky(request: Request) -> list[Row]:
     return []
 
 
-@get("/rows/one")
+@http.get("/rows/one")
 async def leaky_page(request: Request) -> Row | None:
     return None
 
 
-@get("/rows/safe")
+@http.get("/rows/safe")
 async def tidy(request: Request) -> list[RowOut]:
     return []
 

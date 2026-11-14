@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import Actions, Hinoki, Imports, Request, Schema, Schemas, get, mcp
+from hinoki import Actions, Hinoki, Imports, Request, Schema, Schemas, http, mcp
 from hinoki.__main__ import main
 from hinoki.imports import imports_of
 from hinoki.mcp import DevProject, Server, serve
@@ -137,12 +137,12 @@ class Private(Public):
     password_hash: str
 
 
-@get("/who")
+@http.get("/who")
 def who(request: Request) -> Public:
     return Private(name="a", password_hash="secret")  # noqa: S106
 
 
-@get("/mystery")
+@http.get("/mystery")
 def mystery(request: Request):  # type: ignore[no-untyped-def]
     return {}
 

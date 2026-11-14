@@ -18,7 +18,7 @@ The project name is **Hinoki** (owner decision, supersedes the earlier "Aptum" i
 - Substantial Rust core for request processing/routing and ORM execution. Document the real server/binding boundary; do not call an ASGI path entirely native if it crosses Python objects.
 - Own public schema/settings interfaces; no Pydantic dependency introduced as a convenience.
 - Function and class APIs, multiple custom methods per API, optional CRUD generation, optional architectural rules, public authentication default.
-- Confirmed base syntax: `@get`, `@post`, `@put`, `@patch`, `@delete`; reusable typed `Access` policies; `access` and `transaction` options on the HTTP decorator. Preserve normal Python and decorator composition.
+- Confirmed base syntax: `@http.get`, `@http.post`, `@http.put`, `@http.patch`, `@http.delete` (`from hinoki import http`); reusable typed `Access` policies; `access` and `transaction` options on the HTTP decorator. Preserve normal Python and decorator composition.
 - Do not reintroduce declaration blocks such as `with get/post`, or inline `get(query=...)`/`lookup=...` endpoint assignments. CRUD generation remains required, but its advanced syntax is still provisional.
 - Differentiate Hinoki through deterministic optional rules, structured AI/MCP context, coherent customization and explicit modules, not extra syntax machinery.
 - Typed built-in settings, automatic/customizable docs and pagination.

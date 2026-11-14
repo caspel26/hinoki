@@ -1,13 +1,13 @@
 """An application whose port comes from its own settings (for the serve test)."""
 
-from hinoki import FrameworkSettings, Hinoki, get
+from hinoki import FrameworkSettings, Hinoki, http
 
 
 class ServeSettings(FrameworkSettings, prefix="SRV_"):
     pass
 
 
-@get("/ping")
+@http.get("/ping")
 async def ping() -> dict[str, str]:
     return {"pong": "ok"}
 
