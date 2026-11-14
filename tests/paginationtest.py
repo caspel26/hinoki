@@ -1,8 +1,10 @@
 import pytest
 
-from hinoki.errors import ValidationError
+from hinoki import Hinoki, http
+from hinoki.errors import RegistrationError, ValidationError
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from hinoki.schema import encode
+from hinoki.settings import AppSettings, SettingsError
 
 strategy = PageNumberPagination(page_size=2, max_page_size=5)
 
@@ -70,3 +72,65 @@ def test_encode_renders_the_page_contract() -> None:
 def test_strategy_rejects_inconsistent_limits() -> None:
     with pytest.raises(ValueError, match="page_size"):
         PageNumberPagination(page_size=10, max_page_size=5)
+
+
+def app_with(env: dict[str, str], strategy: PageNumberPagination) -> Hinoki:
+    @http.get("/items", pagination=strategy)
+    def items(page: PageParams) -> Page[int]:
+        return Page.of(list(range(300)), page)
+
+    app = Hinoki(settings=AppSettings.load(prefix="T_", env=env))
+    app.include(items)
+    return app
+
+
+def test_settings_supply_the_sizes_an_action_leaves_out() -> None:
+    app = app_with(
+        {"T_PAGINATION__PAGE_SIZE": "25", "T_PAGINATION__MAX_PAGE_SIZE": "200"},
+        PageNumberPagination(),
+    )
+    assert app.routes[0].pagination == PageNumberPagination(25, 200)
+    assert app.routes[0].pagination.sizes() == (25, 200)
+
+
+def test_a_size_on_the_action_beats_the_settings_and_each_size_resolves_alone() -> None:
+    env = {"T_PAGINATION__PAGE_SIZE": "25", "T_PAGINATION__MAX_PAGE_SIZE": "200"}
+    assert app_with(env, PageNumberPagination(page_size=10)).routes[
+        0
+    ].pagination == PageNumberPagination(10, 200)
+    assert app_with(env, PageNumberPagination(10, 50)).routes[
+        0
+    ].pagination == PageNumberPagination(10, 50)
+
+
+def test_without_settings_the_framework_defaults_apply() -> None:
+    app = Hinoki()
+
+    @http.get("/n", pagination=PageNumberPagination())
+    def n(page: PageParams) -> Page[int]:
+        return Page.of([], page)
+
+    app.include(n)
+    assert app.routes[0].pagination == PageNumberPagination(20, 100)
+
+
+def test_an_action_that_does_not_fit_the_settings_fails_when_included() -> None:
+    with pytest.raises(RegistrationError, match=r"items.*page_size"):
+        app_with(
+            {"T_PAGINATION__PAGE_SIZE": "25"}, PageNumberPagination(max_page_size=10)
+        )
+    with pytest.raises(SettingsError):
+        AppSettings.load(
+            prefix="T_",
+            env={
+                "T_PAGINATION__PAGE_SIZE": "500",
+                "T_PAGINATION__MAX_PAGE_SIZE": "100",
+            },
+        )
+
+
+def test_openapi_shows_the_resolved_sizes() -> None:
+    app = app_with({"T_PAGINATION__PAGE_SIZE": "25"}, PageNumberPagination())
+    parameters = app.openapi()["paths"]["/items"]["get"]["parameters"]
+    size = next(p for p in parameters if p["name"] == "page_size")["schema"]
+    assert (size["default"], size["maximum"]) == (25, 100)

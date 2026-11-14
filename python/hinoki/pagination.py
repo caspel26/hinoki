@@ -21,24 +21,61 @@ class PageParams:
         return (self.page - 1) * self.page_size
 
 
+DEFAULT_PAGE_SIZE = 20
+DEFAULT_MAX_PAGE_SIZE = 100
+
+
 @dataclass(frozen=True, slots=True)
 class PageNumberPagination:
-    """Strategy: ``?page=N&page_size=M`` with a hard upper bound on the size."""
+    """Strategy: ``?page=N&page_size=M`` with a hard upper bound on the size.
 
-    page_size: int = 20
-    max_page_size: int = 100
+    A size left out (``None``) comes from the application's ``pagination``
+    settings when the action is included, and from 20 / 100 without settings.
+    A size given here always wins.
+    """
+
+    page_size: int | None = None
+    max_page_size: int | None = None
 
     def __post_init__(self) -> None:
-        if not 1 <= self.page_size <= self.max_page_size:
+        if self.page_size is not None and self.max_page_size is not None:
+            self.check(self.page_size, self.max_page_size)
+
+    @staticmethod
+    def check(page_size: int, max_page_size: int) -> None:
+        if not 1 <= page_size <= max_page_size:
             raise ValueError("need 1 <= page_size <= max_page_size")
+
+    def sizes(self) -> tuple[int, int]:
+        """``(page_size, max_page_size)`` with the framework defaults filled in."""
+        return self.resolved().limits
+
+    @property
+    def limits(self) -> tuple[int, int]:
+        size = DEFAULT_PAGE_SIZE if self.page_size is None else self.page_size
+        upper = (
+            DEFAULT_MAX_PAGE_SIZE if self.max_page_size is None else self.max_page_size
+        )
+        return size, upper
+
+    def resolved(
+        self,
+        page_size: int = DEFAULT_PAGE_SIZE,
+        max_page_size: int = DEFAULT_MAX_PAGE_SIZE,
+    ) -> PageNumberPagination:
+        """This strategy with every size left out filled from the defaults given;
+        sizes set on it are kept. Raises ``ValueError`` when the result is invalid."""
+        size = page_size if self.page_size is None else self.page_size
+        upper = max_page_size if self.max_page_size is None else self.max_page_size
+        self.check(size, upper)
+        return PageNumberPagination(size, upper)
 
     def parse(self, query: dict[str, list[str]]) -> PageParams:
         """Read and validate the query; every problem is reported at once."""
         errors: list[ErrorDetail] = []
+        default_size, upper = self.sizes()
         page = self.number(query, "page", 1, None, errors)
-        size = self.number(
-            query, "page_size", self.page_size, self.max_page_size, errors
-        )
+        size = self.number(query, "page_size", default_size, upper, errors)
         if errors:
             raise ValidationError(errors)
         return PageParams(page, size)
