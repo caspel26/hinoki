@@ -44,6 +44,9 @@ markdown_extensions:
 
 plugins:
   - search
+  - mike:
+      alias_type: redirect
+      version_selector: false
   - git-revision-date-localized:
       enable_creation_date: false
       fallback_to_build_date: true
@@ -131,6 +134,7 @@ nav:
       - Utilities: reference/utilities.md
   - Project:
       - Status: status.md
+      - Documentation versions: documentation-versions.md
       - Roadmap: https://github.com/caspel26/hinoki/blob/main/ROADMAP.md
       - Contributing: https://github.com/caspel26/hinoki/blob/main/CONTRIBUTING.md
       - Troubleshooting: troubleshooting.md
