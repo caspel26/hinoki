@@ -134,7 +134,7 @@ def test_principal_parameter_needs_an_access_policy() -> None:
 
 def test_access_needs_a_provider() -> None:
     with pytest.raises(TypeError):
-        Access(auth=object())
+        Access(auth=object())  # type: ignore[arg-type]
 
 
 async def test_repeated_credential_headers_never_resolve_to_one_of_them(
