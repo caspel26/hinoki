@@ -15,14 +15,13 @@ class TaskIn(Schema):
     title: Annotated[str, Field(min_length=1, max_length=120)]
 
 
-@derive.model(Task)
-@derive.exclude("owner_id")
-class TaskOut(Schema):
+@derive(exclude=("owner_id",))
+class TaskOut(Schema, model=Task):
     """Every column of a task except its owner (derived from the model)."""
 ```
 
 * `TaskIn` is strict: no coercion, no unknown keys, every problem reported with its path. Validation runs in Rust before your code does.
-* `TaskOut` takes the columns of `Task` with `@derive.model(Task)`: types and limits come from the model, `@derive.exclude("owner_id")` keeps `owner_id` out. Relations are never derived; you name them on purpose.
+* `TaskOut` takes the columns of `Task`: types and limits come from the model, and `exclude=("owner_id",)` keeps `owner_id` out. Relations are never derived; you name them on purpose.
 * Because the owner is not a field of `TaskIn`, a client cannot choose it. If it were, `Task.acreate(data, owner_id=me)` would still win (server values beat the client's), and a schema can never carry the primary key.
 
 More: [Schemas](../schemas.md), [model-derived schemas and validators](../model-schemas.md).
