@@ -270,6 +270,10 @@ kbd {
   display: none;
 }
 
+.mobile-sheet__header {
+  display: none;
+}
+
 .menu-icon-close {
   display: none;
 }
@@ -948,75 +952,126 @@ body.menu-open .overlay {
 
   .side {
     position: fixed;
-    top: var(--header-h);
+    top: auto;
     right: var(--mobile-panel-inset);
-    bottom: auto;
+    bottom: 12px;
     left: var(--mobile-panel-inset);
     z-index: 75;
     width: auto;
     height: auto;
-    max-height: calc(100vh - var(--header-h) - 12px);
-    max-height: calc(100dvh - var(--header-h) - 12px);
+    max-height: calc(100vh - var(--header-h) - 24px);
+    max-height: calc(100dvh - var(--header-h) - 24px);
     border: 0;
-    border-top: 1px solid var(--hn-edge);
-    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+    border: 1px solid var(--hn-edge);
+    border-radius: var(--radius-xl);
     background: var(--hn-surface-1);
-    box-shadow: 0 16px 36px rgb(0 0 0 / 0.28);
+    box-shadow: 0 24px 72px rgb(0 0 0 / 0.4);
+    overflow: hidden;
     visibility: hidden;
-    transform: translateY(calc(-100% - 12px));
-    transition: transform 240ms var(--hn-ease), visibility 0s linear 240ms;
+    transform: translateY(calc(100% + 24px));
+    transition: transform 320ms var(--hn-ease), visibility 0s linear 320ms;
   }
 
   .home-mobile-sheet {
     position: fixed;
-    top: var(--header-h);
+    top: auto;
     right: var(--mobile-panel-inset);
-    bottom: auto;
+    bottom: 12px;
     left: var(--mobile-panel-inset);
     z-index: 75;
     display: block;
-    max-height: calc(100vh - var(--header-h) - 12px);
-    max-height: calc(100dvh - var(--header-h) - 12px);
+    max-height: calc(100vh - var(--header-h) - 24px);
+    max-height: calc(100dvh - var(--header-h) - 24px);
     overflow: hidden;
-    border-top: 1px solid var(--hn-edge);
-    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+    border: 1px solid var(--hn-edge);
+    border-radius: var(--radius-xl);
     background: var(--hn-surface-1);
-    box-shadow: 0 16px 36px rgb(0 0 0 / 0.28);
+    box-shadow: 0 24px 72px rgb(0 0 0 / 0.4);
     visibility: hidden;
-    transform: translateY(calc(-100% - 12px));
-    transition: transform 240ms var(--hn-ease), visibility 0s linear 240ms;
+    transform: translateY(calc(100% + 24px));
+    transition: transform 320ms var(--hn-ease), visibility 0s linear 320ms;
   }
 
   body.menu-open .home-mobile-sheet {
     visibility: visible;
     transform: none;
-    transition: transform 240ms var(--hn-ease), visibility 0s;
+    transition: transform 320ms var(--hn-ease), visibility 0s;
   }
 
   body.menu-open .side {
     visibility: visible;
     transform: none;
-    transition: transform 240ms var(--hn-ease), visibility 0s;
+    transition: transform 320ms var(--hn-ease), visibility 0s;
+  }
+
+  body.menu-open .overlay {
+    z-index: 60;
+    background: rgb(8 7 6 / 0.58);
+    backdrop-filter: blur(9px);
+    -webkit-backdrop-filter: blur(9px);
+  }
+
+  .mobile-sheet__header {
+    position: relative;
+    display: flex;
+    min-height: 62px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 16px 4px;
+  }
+
+  .mobile-sheet__handle {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    display: grid;
+    width: 52px;
+    height: 28px;
+    place-items: center;
+    cursor: grab;
+    touch-action: none;
+    transform: translateX(-50%);
+  }
+
+  .mobile-sheet__handle::before {
+    width: 34px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--hn-edge-2);
+    content: "";
+  }
+
+  .mobile-sheet__title {
+    color: var(--hn-text);
+    font-size: 15px;
+    font-weight: 650;
+  }
+
+  .mobile-sheet__close {
+    width: 38px;
+    height: 38px;
+  }
+
+  .mobile-sheet__close svg {
+    width: 18px;
+    height: 18px;
   }
 
   .side__scroll {
     height: auto;
-    max-height: calc(100vh - var(--header-h) - 12px);
-    max-height: calc(100dvh - var(--header-h) - 12px);
-    padding: var(--sp-4) var(--sp-5) var(--sp-7);
+    max-height: calc(100vh - var(--header-h) - 92px);
+    max-height: calc(100dvh - var(--header-h) - 92px);
+    padding: 0 var(--sp-4) 12px;
     overflow-y: auto;
   }
 
   .home-mobile-sheet .side__scroll {
     height: auto;
-    max-height: calc(100vh - var(--header-h) - 12px);
-    max-height: calc(100dvh - var(--header-h) - 12px);
-    padding: var(--sp-4) var(--sp-5) 12px;
+    max-height: calc(100vh - var(--header-h) - 92px);
+    max-height: calc(100dvh - var(--header-h) - 92px);
+    padding: 0 var(--sp-4) 12px;
     overflow-y: auto;
-  }
-
-  .side__scroll {
-    padding-bottom: 12px;
   }
 
   .side__link {

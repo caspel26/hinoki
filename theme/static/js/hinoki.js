@@ -91,6 +91,9 @@
   };
   const closeMenu = (restoreFocus = false) => {
     document.body.classList.remove("menu-open");
+    const panel = menuPanel();
+    panel?.removeAttribute("role");
+    panel?.removeAttribute("aria-modal");
     if (menu) {
       menu.setAttribute("aria-expanded", "false");
       menu.setAttribute("aria-label", "Open navigation");
@@ -105,12 +108,33 @@
       document.body.classList.toggle("menu-open", open);
       menu.setAttribute("aria-expanded", String(open));
       menu.setAttribute("aria-label", open ? "Close navigation" : "Open navigation");
+      const panel = menuPanel();
+      if (panel && open) {
+        panel.setAttribute("role", "dialog");
+        panel.setAttribute("aria-modal", "true");
+      }
       const ov = $("[data-overlay]");
       if (ov) ov.hidden = !open;
       if (open) {
-        const firstLink = $("a[href]", menuPanel());
-        firstLink?.focus();
+        const firstControl = $("[data-menu-close], a[href]", panel);
+        firstControl?.focus();
       }
+    });
+  }
+  $("[data-menu-close]")?.addEventListener("click", () => closeMenu(true));
+  const sheetHandle = $(".mobile-sheet__handle", menuPanel());
+  if (sheetHandle) {
+    let dragStartY = null;
+    sheetHandle.addEventListener("pointerdown", (event) => {
+      dragStartY = event.clientY;
+      sheetHandle.setPointerCapture(event.pointerId);
+    });
+    sheetHandle.addEventListener("pointerup", (event) => {
+      if (dragStartY !== null && event.clientY - dragStartY > 64) closeMenu(true);
+      dragStartY = null;
+    });
+    sheetHandle.addEventListener("pointercancel", () => {
+      dragStartY = null;
     });
   }
   document.addEventListener("keydown", (event) => {
@@ -122,16 +146,9 @@
     if (event.key !== "Tab") return;
     const panel = menuPanel();
     const focusable = panel ? $$('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])', panel) : [];
-    const items = [menu, ...focusable];
-    const first = items[0];
-    const last = items[items.length - 1];
-    if (!event.shiftKey && document.activeElement === menu && focusable.length) {
-      event.preventDefault();
-      focusable[0].focus();
-    } else if (event.shiftKey && document.activeElement === focusable[0]) {
-      event.preventDefault();
-      menu.focus();
-    } else if (event.shiftKey && document.activeElement === first) {
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
       last.focus();
     } else if (!event.shiftKey && document.activeElement === last) {
