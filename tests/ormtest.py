@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from hinoki import core
 from hinoki.db import Database, UniqueViolation
 from hinoki.errors import (
     FieldError,
@@ -54,6 +55,26 @@ def test_filters_order_and_paging_compile_to_parameterised_sql() -> None:
         'ORDER BY "stars" DESC, "title" ASC LIMIT 5 OFFSET 10'
     )
     assert params == [True, 3, "a", "b"]
+
+
+def test_sqlite_dialect_compiles_numbered_holders() -> None:
+    sql, params = core.compile_query(
+        "select",
+        "orm_posts",
+        columns=["id", "title"],
+        filters=[("published", "eq", [True]), ("title", "in", ["a", "b"])],
+        dialect="sqlite",
+    )
+    assert sql == (
+        'SELECT "id", "title" FROM "orm_posts" WHERE "published" = ?1 '
+        'AND "title" IN (?2, ?3)'
+    )
+    assert params == [True, "a", "b"]
+
+
+def test_sql_compiler_rejects_unknown_dialects() -> None:
+    with pytest.raises(ValueError, match="unknown SQL dialect"):
+        core.compile_query("select", "orm_posts", dialect="mysql")
 
 
 def test_none_and_isnull_become_null_checks() -> None:
