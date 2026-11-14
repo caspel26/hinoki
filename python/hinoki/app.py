@@ -258,7 +258,9 @@ class Hinoki:
         if isinstance(head, int) and isinstance(tail, dict):
             return Found(head, tail)
         if isinstance(head, str) and isinstance(tail, list):
-            if method.upper() == "HEAD" and "GET" in tail:
+            # Method names are case-sensitive: only an exact HEAD borrows GET,
+            # which is also the only spelling the adapter strips the body for.
+            if method == "HEAD" and "GET" in tail:
                 return self.lookup("GET", path)
             allowed = [*tail, "HEAD"] if "GET" in tail else tail
             return MethodNotAllowed(sorted(allowed))
