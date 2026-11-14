@@ -10,7 +10,7 @@ related:
 An action opts into a database transaction with `transaction=True`. The transaction is opened for the request and commits only after the handler and response validation succeed.
 
 ```python
-@post("/tasks", transaction=True, status=201)
+@http.post("/tasks", transaction=True, status=201)
 async def create_task(data: TaskInput) -> TaskOutput:
     task = await Task.acreate(data)
     await AuditEvent.acreate(task_id=task.id, action="created")

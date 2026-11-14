@@ -23,15 +23,17 @@
 
 ## HTTP method decorators
 
-::: hinoki.routing.get
+Import the namespace and decorate actions: `from hinoki import http`, then `@http.get(...)`. The names are not available at the top level of `hinoki`.
 
-::: hinoki.routing.post
+::: hinoki.http.get
 
-::: hinoki.routing.put
+::: hinoki.http.post
 
-::: hinoki.routing.patch
+::: hinoki.http.put
 
-::: hinoki.routing.delete
+::: hinoki.http.patch
+
+::: hinoki.http.delete
 
 ## Request, response and errors
 

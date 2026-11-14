@@ -73,7 +73,7 @@ class Options:
 
 
 class RouteDeclaration:
-    """Decorator produced by ``@get(...)`` and friends.
+    """Decorator produced by ``@http.get(...)`` and friends.
 
     Validates the declaration eagerly and attaches the route to the function
     it decorates, returning that function unchanged.

@@ -1,6 +1,6 @@
 """Request body parsers, chosen by ``Content-Type``.
 
-``@post("/x", parsers=[JSONParser(), FormParser(), MultiPartParser()])`` lists
+``@http.post("/x", parsers=[JSONParser(), FormParser(), MultiPartParser()])`` lists
 what an action accepts; the default is JSON only. The built-in parsers decode in
 Rust. A custom parser is a ``Parser`` subclass with a ``media_type`` and a
 ``parse`` method (Python, so the slow path): it returns ``Parsed`` and may raise

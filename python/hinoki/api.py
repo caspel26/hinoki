@@ -14,7 +14,7 @@ class API:
     """Base class for a resource: several methods, standard or custom.
 
     ``class Posts(API, path='/posts')``. Instances hold no per-request state;
-    methods declared with ``@get``/``@post``/... become actions.
+    methods declared with ``@http.get``/``@http.post``/... become actions.
     """
 
     prefix: ClassVar[str] = ""

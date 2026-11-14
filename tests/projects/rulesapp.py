@@ -1,15 +1,15 @@
 """An application that deliberately breaks two rules, for the check CLI tests."""
 
-from hinoki import Actions, Hinoki, Request, Transactions, get, post
+from hinoki import Actions, Hinoki, Request, Transactions, http
 from hinoki.rules import Diagnostic, Project, Rule, RuleSet
 
 
-@get("/health")
+@http.get("/health")
 def health(request: Request) -> dict[str, str]:
     return {}
 
 
-@post("/items")
+@http.post("/items")
 def create(request: Request) -> dict[str, str]:
     return {}
 

@@ -13,7 +13,7 @@ from hinoki import (
     Parser,
     Request,
     Schema,
-    post,
+    http,
 )
 from hinoki.errors import InvalidBody
 from hinoki.parsers import Parsed
@@ -28,17 +28,17 @@ class Note(Schema):
     title: str
 
 
-@post("/json")
+@http.post("/json")
 def plain(request: Request) -> dict[str, Any]:
     return {"data": request.data}
 
 
-@post("/note", parsers=[JSONParser(), FormParser()])
+@http.post("/note", parsers=[JSONParser(), FormParser()])
 def note(request: Request, data: Note) -> dict[str, str]:
     return {"title": data.title}
 
 
-@post("/form", parsers=[FormParser()])
+@http.post("/form", parsers=[FormParser()])
 def form(request: Request) -> dict[str, Any]:
     return {
         "data": request.data,
@@ -48,7 +48,7 @@ def form(request: Request) -> dict[str, Any]:
     }
 
 
-@post("/upload", parsers=[MultiPartParser(max_parts=3, max_part_bytes=20)])
+@http.post("/upload", parsers=[MultiPartParser(max_parts=3, max_part_bytes=20)])
 def upload(request: Request) -> dict[str, Any]:
     files = request.FILES.getlist("doc")
     return {
@@ -68,7 +68,7 @@ class CsvParser(Parser):
         return Parsed([line.split(",") for line in raw.decode().splitlines()])
 
 
-@post("/csv", parsers=[CsvParser()])
+@http.post("/csv", parsers=[CsvParser()])
 def csv(request: Request) -> dict[str, Any]:
     return {"rows": request.data}
 
@@ -186,7 +186,7 @@ async def test_custom_parsers_plug_in(pool: Pool) -> None:
 
 
 async def test_form_accessors_are_empty_for_json(pool: Pool) -> None:
-    @post("/probe")
+    @http.post("/probe")
     def probe(request: Request) -> dict[str, Any]:
         return {"post": dict(request.POST), "files": len(request.FILES)}
 
@@ -209,7 +209,7 @@ def test_openapi_lists_the_media_types_of_the_parsers() -> None:
 @pytest.mark.parametrize("parsers", [[], [JSONParser(), JSONParser()], [Parser()]])
 def test_parser_lists_are_checked_at_declaration(parsers: list[Parser]) -> None:
     with pytest.raises(ValueError, match="parsers must be"):
-        post("/x", parsers=parsers)(len)
+        http.post("/x", parsers=parsers)(len)
 
 
 def test_multipart_limits_must_be_positive() -> None:

@@ -4,7 +4,7 @@ import pytest
 
 from examples.blog.main import create_app
 from examples.blog.rules import blog_rules
-from hinoki import Actions, Hinoki, Request, delete
+from hinoki import Actions, Hinoki, Request, http
 from hinoki.__main__ import main
 from hinoki.rules import Project, RuleSet, failing
 
@@ -44,7 +44,7 @@ def test_the_blog_app_enforces_them_at_startup() -> None:
 def test_a_new_unprotected_write_would_be_caught() -> None:
     app = create_app("postgres://unused", SECRET)
 
-    @delete("/posts/purge")
+    @http.delete("/posts/purge")
     def purge(request: Request) -> None: ...
 
     purge.__module__ = "examples.blog.api"

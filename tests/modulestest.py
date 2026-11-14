@@ -1,6 +1,6 @@
 import pytest
 
-from hinoki import API, Hinoki, Module, ModuleGraphError, RegistrationError, get
+from hinoki import API, Hinoki, Module, ModuleGraphError, RegistrationError, http
 from hinoki.modules import order_modules
 from hinoki.request import Request
 
@@ -24,7 +24,7 @@ class Standalone(Module):
 
 
 class Things(API, path="/things"):
-    @get("/")
+    @http.get("/")
     def listing(self, request: Request) -> list[int]:
         return []
 

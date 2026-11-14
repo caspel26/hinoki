@@ -1,13 +1,13 @@
 """Two APIs inheriting one unprotected action, for the identity regression."""
 
-from hinoki import API, Hinoki, Request, delete, get
+from hinoki import API, Hinoki, Request, http
 
 
 class Base(API):
-    @delete("/{item_id}")
+    @http.delete("/{item_id}")
     def remove(self, request: Request, item_id: int) -> None: ...
 
-    @get("/open")
+    @http.get("/open")
     def untyped(self, request: Request):  # type: ignore[no-untyped-def]
         return {}
 

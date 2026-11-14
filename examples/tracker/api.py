@@ -7,7 +7,7 @@ from examples.tracker.errors import DoneTasksAreKept, TaskAlreadyDone
 from examples.tracker.models import Member, Task
 from examples.tracker.schemas import TaskIn, TaskOut
 from examples.tracker.security import member_only
-from hinoki import Caller, NotFound, RouteGroup, get
+from hinoki import Caller, NotFound, RouteGroup, http
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 
 
@@ -15,7 +15,7 @@ def out(task: Task) -> TaskOut:
     return TaskOut.from_model(task)
 
 
-@get("/health")
+@http.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 

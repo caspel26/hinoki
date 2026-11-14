@@ -5,7 +5,7 @@ from typing import Annotated, Any
 
 import pytest
 
-from hinoki import Field, Hinoki, RegistrationError, Request, Schema, core, get
+from hinoki import Field, Hinoki, RegistrationError, Request, Schema, core, http
 from hinoki.fields import FieldInfo
 from hinoki.fieldtypes import check_limits
 from tests.harness import Pool
@@ -31,7 +31,7 @@ def test_an_overridden_dump_decides_what_is_serialised() -> None:
 
 
 async def test_a_response_never_leaks_what_dump_hides(pool: Pool) -> None:
-    @get("/renamed")
+    @http.get("/renamed")
     def renamed(request: Request) -> Renamed:
         return Renamed(a=1)
 

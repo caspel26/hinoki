@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from hinoki import Access, BearerAuth, Caller, Hinoki, Request, Schema, get, post
+from hinoki import Access, BearerAuth, Caller, Hinoki, Request, Schema, http
 from hinoki.db import Database, DatabaseModule
 from hinoki.orm import Model, field, use_database
 from hinoki.runtime.config import RuntimeConfig
@@ -41,24 +41,24 @@ class Tokens(BearerAuth[str]):
 guard = Access(auth=Tokens())
 
 
-@get("/sync/{item_id}", access=guard)
+@http.get("/sync/{item_id}", access=guard)
 def read_sync(request: Request, item_id: int) -> ItemOut:
     return ItemOut.from_model(Item.get(id=item_id))
 
 
-@get("/async/{item_id}", access=guard)
+@http.get("/async/{item_id}", access=guard)
 async def read_async(request: Request, item_id: int) -> ItemOut:
     return ItemOut.from_model(await Item.aget(id=item_id))
 
 
-@post("/sync/{item_id}/hit", transaction=True)
+@http.post("/sync/{item_id}/hit", transaction=True)
 def hit_sync(request: Request, item_id: int) -> ItemOut:
     (row,) = Item.update_where({"id": item_id}, {"hits": 5})
     Item.filter(id=item_id).update({"hits": row.hits + 1})
     return ItemOut.from_model(Item.get(id=item_id))
 
 
-@post("/async/{item_id}/hit", transaction=True)
+@http.post("/async/{item_id}/hit", transaction=True)
 async def hit_async(request: Request, item_id: int) -> ItemOut:
     (row,) = await Item.aupdate_where({"id": item_id}, {"hits": 5})
     await Item.filter(id=item_id).aupdate({"hits": row.hits + 1})
@@ -124,7 +124,7 @@ class SlowTokens(BearerAuth[str]):
         return Caller(id=token, user=token, permissions=frozenset())
 
 
-@get("/slow-auth", access=Access(auth=SlowTokens()))
+@http.get("/slow-auth", access=Access(auth=SlowTokens()))
 async def slow_auth(request: Request) -> dict[str, bool]:
     return {"ok": True}
 

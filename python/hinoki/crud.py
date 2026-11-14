@@ -3,7 +3,7 @@
 ``class Posts(CrudAPI, path="/posts", resource=Resource(...))`` adds ``list``,
 ``retrieve`` and, depending on the resource, ``create``, ``update`` and
 ``delete`` to the class. They are real declarations: they appear in OpenAPI,
-a method of the same name overrides one, and ``@get(..., replaces=Crud.LIST)``
+a method of the same name overrides one, and ``@http.get(..., replaces=Crud.LIST)``
 (or the plain string ``"list"``) swaps one for a handwritten route. Generated
 CRUD never invents security: write actions need an ``Access`` policy (or
 ``public_writes=True``), clients cannot send a field the server assigns, and an

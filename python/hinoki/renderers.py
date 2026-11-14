@@ -1,6 +1,6 @@
 """Response renderers, chosen from the request's ``Accept`` header.
 
-``@get("/x", renderers=[JSONRenderer(), CSVRenderer()])`` lists what an action
+``@http.get("/x", renderers=[JSONRenderer(), CSVRenderer()])`` lists what an action
 can answer; the default is JSON only. Negotiation (quality values, wildcards,
 specificity) runs in Rust; with no acceptable renderer the answer is 406 before
 the handler runs. A renderer receives the JSON-compatible form of the handler's

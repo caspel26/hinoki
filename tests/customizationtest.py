@@ -8,7 +8,7 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import Hinoki, Request, Schema, core, get, post
+from hinoki import Hinoki, Request, Schema, core, http
 from hinoki.parsers import JSONParser, TextParser
 from hinoki.renderers import DEFAULT_RENDERERS, JSONRenderer, TextRenderer
 from hinoki.testing import ASGIClient
@@ -63,27 +63,27 @@ class SnakeIn(JSONParser):
         return data
 
 
-@get("/pretty", renderers=[JSONRenderer(indent=2, sort_keys=True)])
+@http.get("/pretty", renderers=[JSONRenderer(indent=2, sort_keys=True)])
 async def pretty() -> dict[str, int]:
     return {"b": 1, "a": 2}
 
 
-@get("/wrapped", renderers=[Envelope()])
+@http.get("/wrapped", renderers=[Envelope()])
 async def wrapped(request: Request) -> dict[str, int]:
     return {"n": 1}
 
 
-@get("/money", renderers=[JSONRenderer(default=str)])
+@http.get("/money", renderers=[JSONRenderer(default=str)])
 async def money() -> dict[str, Decimal]:
     return {"price": Decimal("9.50")}
 
 
-@post("/echo", parsers=[SnakeIn(), TextParser()])
+@http.post("/echo", parsers=[SnakeIn(), TextParser()])
 async def echo(request: Request) -> dict[str, object]:
     return {"got": request.data}
 
 
-@get("/text", renderers=[TextRenderer()])
+@http.get("/text", renderers=[TextRenderer()])
 async def text() -> str:
     return "plain ✓"
 
@@ -114,7 +114,7 @@ async def test_customised_and_subclassed_codecs_work_through_the_stack() -> None
 
 
 async def test_application_wide_defaults_apply_unless_an_action_chooses() -> None:
-    @get("/plain")
+    @http.get("/plain")
     async def plain() -> dict[str, int]:
         return {"z": 1, "a": 2}
 
@@ -203,11 +203,11 @@ def test_from_model_still_runs_custom_initialisation() -> None:
 def test_explicit_default_renderers_are_not_overridden_by_application_defaults() -> (
     None
 ):
-    @get("/chosen", renderers=DEFAULT_RENDERERS)
+    @http.get("/chosen", renderers=DEFAULT_RENDERERS)
     async def chosen() -> dict[str, int]:
         return {"z": 1, "a": 2}
 
-    @get("/unchosen")
+    @http.get("/unchosen")
     async def unchosen() -> dict[str, int]:
         return {"z": 1, "a": 2}
 
@@ -223,7 +223,7 @@ async def test_a_buggy_prepare_hook_is_not_reported_as_invalid_json() -> None:
         def prepare(self, data: object) -> object:
             raise ValueError("my bug")
 
-    @post("/p", parsers=[Broken()])
+    @http.post("/p", parsers=[Broken()])
     async def p(request: Request) -> dict[str, object]:
         return {"d": request.data}
 

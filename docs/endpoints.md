@@ -13,16 +13,17 @@ Hinoki endpoints are ordinary Python functions decorated with an HTTP method. Th
 ## Declare an action
 
 ```python
-from hinoki import NotFound, post
+from hinoki import NotFound
+from hinoki import http
 
 
-@post("/tasks", status=201, transaction=True, errors=(NotFound,))
+@http.post("/tasks", status=201, transaction=True, errors=(NotFound,))
 async def create_task(data: TaskInput) -> TaskOutput:
     row = await Task.acreate(data)
     return TaskOutput.from_model(row)
 ```
 
-Use `@get`, `@post`, `@put`, `@patch` or `@delete`. Supported arguments include `status`, `access`, `transaction`, `pagination`, `parsers`, `renderers`, `errors` and `replaces`. Each is checked when the route is declared or registered.
+Use `@http.get`, `@http.post`, `@http.put`, `@http.patch` or `@http.delete` (`from hinoki import http`). Supported arguments include `status`, `access`, `transaction`, `pagination`, `parsers`, `renderers`, `errors` and `replaces`. Each is checked when the route is declared or registered.
 
 ## Bind request values
 
@@ -31,7 +32,8 @@ Typed path parameters are taken from the path, query parameters from the query s
 ```python
 from uuid import UUID
 
-from hinoki import Request, Schema, get
+from hinoki import Request, Schema
+from hinoki import http
 
 
 class TaskView(Schema):
@@ -39,7 +41,7 @@ class TaskView(Schema):
     locale: str
 
 
-@get("/tasks/{task_id}")
+@http.get("/tasks/{task_id}")
 async def get_task(request: Request, task_id: UUID) -> TaskView:
     locale = request.headers.get("accept-language", "en")
     return TaskView(id=task_id, locale=locale)
@@ -102,7 +104,8 @@ For class-based APIs, put a shared path on the class and keep actions together:
 ```python
 from uuid import UUID, uuid4
 
-from hinoki import API, Schema, get, post
+from hinoki import API, Schema
+from hinoki import http
 
 
 class TaskInput(Schema):
@@ -115,11 +118,11 @@ class TaskOutput(Schema):
 
 
 class Tasks(API, path="/tasks"):
-    @get("/")
+    @http.get("/")
     async def listing(self) -> list[TaskOutput]:
         return []
 
-    @post("/", status=201)
+    @http.post("/", status=201)
     async def create(self, data: TaskInput) -> TaskOutput:
         return TaskOutput(id=uuid4(), title=data.title)
 ```
@@ -137,3 +140,23 @@ Return a value matching the declared response type, or return `Reply` when the h
 Paginated actions declare a pagination policy. See [pagination](pagination.md) for the query parameters and response envelope.
 
 See [authentication](authentication.md), [parsers and renderers](codecs.md), and [error handling](errors.md).
+
+## Migrating from the top-level decorators
+
+Earlier revisions exported `get`, `post`, `put`, `patch` and `delete` from `hinoki`. They now live in the `hinoki.http` namespace:
+
+```python
+# before
+from hinoki import get
+
+@get("/tasks")
+async def listing() -> list[TaskOut]: ...
+
+# now
+from hinoki import http
+
+@http.get("/tasks")
+async def listing() -> list[TaskOut]: ...
+```
+
+`from hinoki import get` raises `ImportError`. If a module also needs the standard library's `http` (for `HTTPStatus`), import it explicitly: `from http import HTTPStatus`.
