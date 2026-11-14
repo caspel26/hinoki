@@ -191,6 +191,21 @@ async def test_adelete_refuses_to_wipe_a_table(db: Database) -> None:
 
 
 @needs_database
+async def test_bulk_writes_refuse_a_limit_or_an_offset(db: Database) -> None:
+    for n in range(3):
+        await Post.acreate(title=f"p{n}", stars=1)
+    matching = Post.filter(stars=1)
+    with pytest.raises(FieldError, match="limit/offset"):
+        await matching.limit(1).adelete()
+    with pytest.raises(FieldError, match="limit/offset"):
+        await matching.order_by("title").offset(1).aupdate({"stars": 2})
+    assert await matching.acount() == 3  # nothing was touched
+    first = await matching.order_by("title").limit(1)
+    assert await Post.filter(id__in=[row.id for row in first]).adelete() == 1
+    assert await matching.acount() == 2
+
+
+@needs_database
 async def test_constraint_errors_surface_as_typed_database_errors(db: Database) -> None:
     await Author.acreate(name="ada")
     with pytest.raises(UniqueViolation):
