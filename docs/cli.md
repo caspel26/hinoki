@@ -16,6 +16,7 @@ The `hinoki` command accepts a `module:attribute` target for an application, fac
 | `hinoki check TARGET` | Run the application's configured rules; `--rules` and `--package` select rule and source targets. |
 | `hinoki settings TARGET` | Show effective settings and their source, with secrets redacted. `--dotenv` and `--toml` select optional files. |
 | `hinoki migrations ...` | Plan, inspect and apply database migrations. |
+| `hinoki manage TARGET COMMAND` | Run an app-defined command with its declared module resources. |
 | `hinoki mcp TARGET` | Serve project context to an MCP client over stdio. Scenario tools are off by default. |
 
 ### `new`
@@ -62,6 +63,42 @@ hinoki settings examples.blog.settings:BlogSettings --example > .env.example
 ```
 
 `TARGET` can be a settings class or an app with typed settings. `--prefix`, `--dotenv` and `--toml` override sources declared by the settings class. `--format text|json` selects output; `--example` prints a `.env.example` with defaults and types, leaving secrets and required fields blank. Values of `Secret` are redacted.
+
+### `manage`
+
+```sh
+hinoki manage examples.management:app --help
+hinoki manage examples.management:app greet Peppe
+```
+
+Commands are declared on the app with `Hinoki(commands=[...])`. Each command subclasses `hinoki.management.Command`, gives itself a lower-case name, and adds arguments through `add_arguments(parser)`. `--help` after the app target lists its commands; `--help` after a command shows that command's arguments.
+
+```python
+from argparse import ArgumentParser, Namespace
+
+from hinoki import Hinoki
+from hinoki.management import Command, CommandContext
+
+
+class Greet(Command):
+    name = "greet"
+    help = "print a greeting"
+
+    def add_arguments(self, parser: ArgumentParser) -> None:
+        parser.add_argument("name", nargs="?", default="world")
+
+    def handle(self, _context: CommandContext, args: Namespace) -> None:
+        print(f"Hello, {args.name}!")
+
+
+app = Hinoki(commands=[Greet])
+```
+
+The same example is in `examples/management.py` and can be run from the repository root.
+
+`handle(context, args)` may be synchronous or asynchronous. A sync handler runs on Hinoki's bounded executor. It can read `context.settings` and retrieve resources with `context.get(Type)` or `context.find(Type)`. Declare module classes in the command's `requires` tuple; Hinoki starts those modules and their dependencies for the command, then closes them before it exits. Other app modules are not started. A command with no requirements starts no app modules.
+
+Commands run inside the project process and can modify data. Use disposable databases when developing or testing a command that writes. A handler returns `None` for success or an exit code from 0 through 255. Unknown commands and invalid arguments exit 2; a command failure exits nonzero. App settings load when Hinoki constructs the app, but module resources open only for the selected command.
 
 ### `migrations`
 
