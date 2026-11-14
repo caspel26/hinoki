@@ -5,7 +5,7 @@
 
 ``TARGET`` is ``module:name`` where ``name`` is an application (``Hinoki``) or
 a function returning one. The host, port and worker count come from the
-application's ``server`` settings group (``FrameworkSettings.server``), and the
+application's ``server`` settings group (``AppSettings.server``), and the
 flags below override them. Granian is an optional dependency
 (``pip install hinoki[server]``); nothing else in the framework needs it.
 """
@@ -19,7 +19,7 @@ from typing import Any
 
 from hinoki.app import Hinoki
 from hinoki.routing import ROUTE_ATTR
-from hinoki.settings import FrameworkSettings, ServerSettings, SettingsError
+from hinoki.settings import AppSettings, ServerSettings, SettingsError
 from hinoki.target import load_target as import_target
 
 
@@ -67,7 +67,7 @@ def server_settings(target: str) -> ServerSettings:
     except SettingsError as error:
         raise SystemExit(str(error)) from None
     settings = getattr(app, "settings", None)
-    if isinstance(settings, FrameworkSettings):
+    if isinstance(settings, AppSettings):
         return settings.server
     return ServerSettings()
 

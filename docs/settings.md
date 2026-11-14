@@ -13,15 +13,17 @@ Hinoki uses **typed, immutable settings classes**. The declared app form loads i
 
 ```python
 from typing import Literal
-from hinoki import DatabaseSettings, FrameworkSettings, Secret
+from hinoki import settings
 
-class BlogSettings(FrameworkSettings):          # keeps the built-in groups
-    database: DatabaseSettings                   # url: Secret, max_size: int
-    jwt_secret: Secret | None = None             # optional secret
+class BlogSettings(settings.AppSettings):          # keeps the built-in groups
+    database: settings.DatabaseSettings                   # url: settings.Secret, max_size: int
+    jwt_secret: settings.Secret | None = None             # optional secret
     admin_theme: Literal["studio", "console", "paper", "grove"] = "studio"
 ```
 
-`FrameworkSettings` brings five groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs) and `server` (host, port and workers). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](request-lifecycle.md).
+Settings types live in the `hinoki.settings` namespace: `from hinoki import settings`, then `settings.AppSettings`, `settings.DatabaseSettings`, `settings.Secret`, `settings.Settings` and `settings.SettingsError`. Name your own subclass for your project (`BlogSettings` above) and keep a loaded value in a variable such as `app_settings`, so the namespace is not shadowed. Earlier revisions exported these types from `hinoki` itself and called the base class `FrameworkSettings`; `from hinoki import FrameworkSettings` now raises `ImportError`.
+
+`settings.AppSettings` brings five groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs) and `server` (host, port and workers). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](request-lifecycle.md).
 
 `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` default to `None`, so no API document or viewer route is served until configured. Swagger UI or ReDoc requires an `openapi_url`. The same values can be supplied as `Hinoki(...)` arguments; explicit arguments win over `docs` settings, and `None` disables a page.
 
@@ -50,17 +52,17 @@ class BlogSettings(FrameworkSettings):          # keeps the built-in groups
 | `server` | `access_log` | `false` | Enables Granian access logging |
 | `timezone` | `UTC` | IANA timezone name used by `app.now()` |
 
-`DatabaseSettings` is an optional field you declare in your own settings class, not a `FrameworkSettings` group. Its `url` is required and its `max_size` defaults to `10` connections per worker; the value must be at least `1`.
+`settings.DatabaseSettings` is an optional field you declare in your own settings class, not a `settings.AppSettings` group. Its `url` is required and its `max_size` defaults to `10` connections per worker; the value must be at least `1`.
 
 ## 2. Load them when the app is built
 
 ```python
-class BlogSettings(FrameworkSettings, prefix="BLOG_", dotenv=".env"):  # where to read
+class BlogSettings(settings.AppSettings, prefix="BLOG_", dotenv=".env"):  # where to read
     ...
 
 def create_app() -> Hinoki:
-    settings = BlogSettings.load()
-    app = Hinoki(settings=settings, ...)
+    app_settings = BlogSettings.load()
+    app = Hinoki(settings=app_settings, ...)
 ```
 
 `load` is the only place configuration files and environment variables are read. Where a value comes from, highest first:
@@ -74,13 +76,13 @@ def create_app() -> Hinoki:
 | the TOML file you named | `admin_theme = "paper"` in `settings.toml` |
 | the default in the class | `admin_theme: ... = "studio"` |
 
-TOML tables map to settings groups. For example, `[database]` with `max_size = 12` sets `database.max_size`. Arrays remain typed arrays. Environment and dotenv values still use the strict text conversion described below. TOML cannot contain `Secret` values; put secrets in environment variables, `*_FILE` files, or a secret manager that exports one of those sources.
+TOML tables map to settings groups. For example, `[database]` with `max_size = 12` sets `database.max_size`. Arrays remain typed arrays. Environment and dotenv values still use the strict text conversion described below. TOML cannot contain `settings.Secret` values; put secrets in environment variables, `*_FILE` files, or a secret manager that exports one of those sources.
 
 ```python
-class BlogSettings(FrameworkSettings, prefix="BLOG_", toml="settings.toml"):
+class BlogSettings(settings.AppSettings, prefix="BLOG_", toml="settings.toml"):
     ...
 
-settings = BlogSettings.load()  # reads the declared file by default
+app_settings = BlogSettings.load()  # reads the declared file by default
 ```
 
 Pass `toml="path/to/settings.toml"` to `load` or `explain` to override the class path. An explicitly selected TOML file must exist and parse correctly.
@@ -113,7 +115,7 @@ invalid settings:
 
 ## 5. Secrets
 
-* Declare them as `Secret` (or `Secret | None`). A `Secret` prints as `***` in `repr`, `str`, logs, error messages, `describe()` and the settings command; you get the real text only with `secret.reveal()`, at the one place that needs it (`JWTKey(..., settings.jwt_secret.reveal())`).
+* Declare them as `settings.Secret` (or `settings.Secret | None`). A `settings.Secret` prints as `***` in `repr`, `str`, logs, error messages, `describe()` and the settings command; you get the real text only with `secret.reveal()`, at the one place that needs it (`JWTKey(..., settings.jwt_secret.reveal())`).
 * Put secrets in the environment, a secret manager that exports variables, or **files**: with Docker or Kubernetes secrets set `BLOG_JWT_SECRET_FILE=/run/secrets/jwt`; the file's content (without the trailing newline) is the value. Only a regular file up to 64 KiB is read; setting both `BLOG_JWT_SECRET` and `BLOG_JWT_SECRET_FILE` is an error.
 * A `.env` file is for development; never commit it. Pickling or serialising a settings object stores its secrets in plain text, so don't.
 * A `validate()` method you add to a group shows its message in errors, so never put a field's value in it.
@@ -139,17 +141,17 @@ hinoki settings blog.settings:BlogSettings --prefix BLOG_ --example > .env.examp
 
 ## 7. Use them
 
-`Hinoki(settings=settings)` derives the runtime limits, the docs URLs, logging setup and application timezone from the built-in settings (an explicit argument such as `title=` still wins). `app.now()` returns an aware `datetime` in the configured timezone; it defaults to UTC. The timezone is configured in settings, not as a `Hinoki(...)` argument. Your own fields are on `app.settings`, and modules reach them as `ctx.settings` in their lifespan.
+`Hinoki(settings=app_settings)` derives the runtime limits, the docs URLs, logging setup and application timezone from the built-in settings (an explicit argument such as `title=` still wins). `app.now()` returns an aware `datetime` in the configured timezone; it defaults to UTC. The timezone is configured in settings, not as a `Hinoki(...)` argument. Your own fields are on `app.settings`, and modules reach them as `ctx.settings` in their lifespan.
 
 The `server` group (host, port, workers) is applied by `hinoki serve`/`dev` ([Running an application](serving.md)). Hinoki does not connect to secret-manager services itself; use a provider that supplies environment values or secret files.
 
 ## 8. Database connection ownership
 
-For a server, put the connection details in `DatabaseSettings` and list `DatabaseModule` in the app declaration (or install a configured module in a factory). The module opens a pool in each worker's startup lifespan, fails startup if PostgreSQL is unreachable, and closes that worker's pool on shutdown. It does not connect at module import or when models are imported. Each worker owns its own pool, so budget `replicas × workers × max_size` against the database's connection limit.
+For a server, put the connection details in `settings.DatabaseSettings` and list `DatabaseModule` in the app declaration (or install a configured module in a factory). The module opens a pool in each worker's startup lifespan, fails startup if PostgreSQL is unreachable, and closes that worker's pool on shutdown. It does not connect at module import or when models are imported. Each worker owns its own pool, so budget `replicas × workers × max_size` against the database's connection limit.
 
 ```python
-class BlogSettings(FrameworkSettings, prefix="BLOG_"):
-    database: DatabaseSettings
+class BlogSettings(settings.AppSettings, prefix="BLOG_"):
+    database: settings.DatabaseSettings
 
 app = Hinoki(settings=BlogSettings, include=[health, Posts], modules=[DatabaseModule])
 ```

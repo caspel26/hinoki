@@ -45,6 +45,6 @@ async def list_tasks(caller: Caller[Member]) -> list[TaskOutput]:
 
 ## Passwords and JWT
 
-`hinoki.crypto.PasswordHasher` provides Argon2id hashing and verification; `JWTKey` and `JWTAuth` issue and verify configured token algorithms. Read keys from `Secret` settings and reveal them only when constructing the provider. Validate audience, issuer, expiry and key rotation settings for your deployment. See the [crypto API reference](reference/auth.md).
+`hinoki.crypto.PasswordHasher` provides Argon2id hashing and verification; `JWTKey` and `JWTAuth` issue and verify configured token algorithms. Read keys from `settings.Secret` fields and reveal them only when constructing the provider. Validate audience, issuer, expiry and key rotation settings for your deployment. See the [crypto API reference](reference/auth.md).
 
 Hinoki does not create users, sessions or permission rules for your application. Those remain application data and policy.

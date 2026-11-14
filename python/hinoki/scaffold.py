@@ -40,10 +40,10 @@ from hinoki import Hinoki
 
 from {name}.api import health
 from {name}.rules import project_rules
-from {name}.settings import AppSettings
+from {name}.settings import ProjectSettings
 
 app = Hinoki(
-    settings=AppSettings,  # {upper}_* variables and .env, declared on the class
+    settings=ProjectSettings,  # {upper}_* variables and .env, declared on the class
     title="{title}",
     openapi_url="/openapi.json",
     docs_url="/docs",
@@ -56,13 +56,13 @@ SETTINGS = '''"""Typed settings. Built-in groups (execution, lifecycle, logging,
 the framework; add your own fields here and read them from ``app.settings``.
 
     {upper}_LOGGING__FORMAT=json   {upper}_EXECUTION__SYNC_WORKERS=16
-    {upper}_DATABASE__URL=...      (after you add: database: DatabaseSettings)
+    {upper}_DATABASE__URL=...      (after you add: database: settings.DatabaseSettings)
 """
 
-from hinoki import FrameworkSettings
+from hinoki import settings
 
 
-class AppSettings(FrameworkSettings, prefix="{upper}_", dotenv=".env"):
+class ProjectSettings(settings.AppSettings, prefix="{upper}_", dotenv=".env"):
     pass
 '''
 
@@ -148,7 +148,7 @@ uv run hinoki check {name}.main:app --rules {name}.rules:project_rules --package
 uv run hinoki dev {name}.main:app      # reload; `serve` runs it for production
 ```
 
-`check` and the MCP server build the app without opening a database, but settings are still loaded: once you add a required field such as `database: DatabaseSettings`, run them with a dummy value (`{upper}_DATABASE__URL=postgres://unused uv run hinoki check ...`, and add it under `env` in `.mcp.json`). Tests that touch the database need a real disposable one in `HINOKI_TEST_DATABASE_URL`.
+`check` and the MCP server build the app without opening a database, but settings are still loaded: once you add a required field such as `database: settings.DatabaseSettings`, run them with a dummy value (`{upper}_DATABASE__URL=postgres://unused uv run hinoki check ...`, and add it under `env` in `.mcp.json`). Tests that touch the database need a real disposable one in `HINOKI_TEST_DATABASE_URL`.
 
 `check` runs the project's rules and prints diagnostics with stable IDs
 (`HNK-ACC-001` access, `HNK-TXN-001` transactions, `HNK-SCH-001` exposed fields,
@@ -163,7 +163,7 @@ uv run hinoki dev {name}.main:app      # reload; `serve` runs it for production
 * Relations are loaded explicitly (`select_related` / `prefetch_related`); there is no lazy loading.
 * Create from a schema with `Model.acreate(data, owner_id=me)`: keyword values set by the server win over the client's. Build responses with `Out.from_model(row)`.
 * Schema changes go through migrations (`hinoki migrations plan ...`), reviewed as SQL. Never apply them at startup.
-* Configuration is typed settings (`{name}/settings.py`, loaded from `{upper}_*` environment variables); add fields there instead of reading `os.environ` in code. Secrets are `Secret` fields.
+* Configuration is typed settings (`{name}/settings.py`, loaded from `{upper}_*` environment variables); add fields there instead of reading `os.environ` in code. Secrets are `settings.Secret` fields.
 * No underscores in file names; tests are `*test.py`.
 
 ## Adding a database and a protected resource

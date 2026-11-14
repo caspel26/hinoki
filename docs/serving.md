@@ -38,10 +38,12 @@ From the application's **`server` settings group** ([settings guide](settings.md
 The settings class says its own prefix and `.env` file, so nothing is repeated at the call site:
 
 ```python
-class BlogSettings(FrameworkSettings, prefix="BLOG_", dotenv=".env"):
-    database_url: Secret
+from hinoki import settings
 
-settings = BlogSettings.load()          # reads BLOG_* and .env
+class BlogSettings(settings.AppSettings, prefix="BLOG_", dotenv=".env"):
+    database_url: settings.Secret
+
+app_settings = BlogSettings.load()          # reads BLOG_* and .env
 ```
 
 ## Other runners

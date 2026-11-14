@@ -9,12 +9,12 @@ Modules own resources whose lifetime belongs to a worker or a management command
 ## Declare modules
 
 ```python
-class AppSettings(FrameworkSettings, prefix="APP_"):
-    database: DatabaseSettings
+class ProjectSettings(settings.AppSettings, prefix="APP_"):
+    database: settings.DatabaseSettings
 
 
 app = Hinoki(
-    settings=AppSettings,
+    settings=ProjectSettings,
     include=[health, Tasks],
     modules=[DatabaseModule],
 )
