@@ -13,6 +13,7 @@ flags below override them. Granian is an optional dependency
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import inspect
 import sys
 from typing import Any
@@ -80,6 +81,14 @@ def run(args: argparse.Namespace, reload: bool) -> int:
         print(
             "error: Granian is not installed; install the server extra: "
             "pip install 'hinoki[server]'",
+            file=sys.stderr,
+        )
+        return 2
+    if reload and importlib.util.find_spec("watchfiles") is None:
+        print(
+            "error: `hinoki dev` reloads with watchfiles, which is not installed; "
+            "install the server extra: pip install 'hinoki[server]' "
+            "(or run `hinoki serve`, which does not reload)",
             file=sys.stderr,
         )
         return 2
