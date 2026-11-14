@@ -60,6 +60,13 @@ INPUTS = {"path", "query", "page"}
 BODYLESS_STATUSES = {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}
 
 
+def operation_key(method: str) -> str:
+    """The path item field holding a method's operation. OpenAPI 3.1 has no
+    ``query`` operation (3.2 adds it), so QUERY uses the ``x-query`` extension
+    field with the same operation object."""
+    return "x-query" if method == "QUERY" else method.lower()
+
+
 def ref(name: str) -> dict[str, str]:
     return {"$ref": f"#/components/schemas/{name}"}
 
@@ -83,7 +90,7 @@ class OpenAPIBuilder:
             if getattr(route.owner, "hide_from_docs", False):
                 continue  # HTML pages (the admin) are not part of the API contract
             path = paths.setdefault(route.path, {})
-            path[route.method.lower()] = self.operation(binding)
+            path[operation_key(route.method)] = self.operation(binding)
         document: dict[str, Any] = {
             "openapi": "3.1.0",
             "info": {"title": self.title, "version": self.version},
