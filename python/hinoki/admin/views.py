@@ -17,7 +17,7 @@ from hinoki.admin.forms import (
     collect,
 )
 from hinoki.admin.lists import apply_state, list_page, table_head, table_rows
-from hinoki.admin.modeladmin import ModelAdmin
+from hinoki.admin.modeladmin import BulkAction, ModelAdmin
 from hinoki.admin.parts import Avatar, Badge, Event, Fieldset, Link, Stat, Tab
 from hinoki.admin.site import (
     DASHBOARD_STATS,
@@ -29,10 +29,12 @@ from hinoki.admin.site import (
     Site,
     find_row,
     guarded,
+    parse_key,
 )
 from hinoki.admin.templates import Raw, escape
 from hinoki.api import API
 from hinoki.auth import Caller
+from hinoki.orm.context import current_database
 from hinoki.reply import Reply
 from hinoki.request import Request
 
@@ -283,6 +285,8 @@ async def delete_form(
         csrf=site.token,
         hidden=Raw(""),
         message=f"Delete {entry.title_of(row)}? This cannot be undone.",
+        button_class="hn-btn hn-danger",
+        button_label="Delete",
         cancel=site.url(model, **site.state.query(done="")),
     )
     return await site.page(
@@ -324,50 +328,170 @@ async def remove_all(
         await entry.remove(row, principal)
 
 
+def bulk_keys(
+    entry: ModelAdmin[Any], chosen: list[str], action: str | None
+) -> list[Any] | None:
+    keys = []
+    seen: set[object] = set()
+    for raw in chosen:
+        key = parse_key(entry, raw)
+        if key is None:
+            if action is not None:
+                return None
+            continue
+        if key in seen:
+            return None
+        seen.add(key)
+        keys.append(key)
+    return keys
+
+
+def authorize_bulk_rows(
+    entry: ModelAdmin[Any],
+    principal: Caller[Any],
+    keys: list[Any],
+    found: list[Any],
+    action: str | None,
+) -> list[Any] | None:
+    key_name = entry.model.__primary_key__
+    by_key = {getattr(row, key_name): row for row in found}
+    rows = []
+    for key in keys:
+        row = by_key.get(key)
+        if row is None:
+            if action is not None:
+                return None
+            continue
+        allowed = entry.can(principal, "view", row) and entry.can(
+            principal, action or "delete", row
+        )
+        if not allowed:
+            if action is not None:
+                return None
+            continue
+        rows.append(row)
+    return rows
+
+
+async def bulk_rows(
+    site: Site,
+    entry: ModelAdmin[Any],
+    chosen: list[str],
+    action: str | None,
+) -> list[Any] | None:
+    """Resolve selected rows, failing custom actions closed on any denied row."""
+    keys = bulk_keys(entry, chosen, action)
+    if keys is None:
+        return None
+    if not keys:
+        return []
+    key_name = entry.model.__primary_key__
+    query = entry.queryset(site.principal).filter(**{f"{key_name}__in": keys})
+    sql, params = query.compile()
+    # Custom callbacks can write by ID. Lock the scoped rows through the
+    # callback's transaction so ownership and row permissions cannot change
+    # between this check and the callback's writes.
+    sql += f' FOR UPDATE OF "{entry.model.__table__}"'
+    raw_rows = await current_database().fetch(sql, *params)
+    found = [query.build(row) for row in raw_rows]
+    await query.load(found)
+    return authorize_bulk_rows(entry, site.principal, keys, found, action)
+
+
+def authorized_bulk_action(
+    entry: ModelAdmin[Any], principal: Caller[Any], name: str
+) -> tuple[bool, BulkAction[Any] | None] | None:
+    if name == "delete":
+        return (
+            (True, None) if entry.bulk_delete and entry.can(principal, name) else None
+        )
+    action = next((item for item in entry.bulk_actions if item.name == name), None)
+    if action is None or not entry.can(principal, action.name):
+        return None
+    return False, action
+
+
+async def bulk_confirmation(
+    site: Site,
+    model: str,
+    entry: ModelAdmin[Any],
+    rows: list[Any],
+    selected_action: str,
+    action: BulkAction[Any] | None,
+) -> Reply:
+    hidden = Raw(
+        '<input type="hidden" name="confirmed" value="1">'
+        f'<input type="hidden" name="action" value="{escape(selected_action)}">'
+        + "".join(
+            f'<input type="hidden" name="ids" value="{escape(getattr(row, entry.model.__primary_key__))}">'
+            for row in rows
+        )
+    )
+    message = (
+        f"Delete {len(rows)} selected {entry.plural().lower()}? This cannot be undone."
+        if action is None
+        else f"{action.confirm} ({len(rows)} selected)"
+    )
+    button_label = "Delete" if action is None else action.label
+    button_class = "hn-btn hn-danger" if action is None else "hn-btn hn-primary"
+    content = site.admin.templates.render(
+        "confirm",
+        action=site.url(model, "bulk"),
+        csrf=site.token,
+        hidden=hidden,
+        message=message,
+        button_class=button_class,
+        button_label=button_label,
+        cancel=site.url(model),
+    )
+    title = "Delete selected" if action is None else action.label
+    return await site.page(title, content, active=model)
+
+
+async def run_bulk_action(
+    entry: ModelAdmin[Any],
+    rows: list[Any],
+    principal: Caller[Any],
+    action: BulkAction[Any] | None,
+) -> str:
+    if action is None:
+        return await guarded(remove_all(entry, rows, principal))
+    return await guarded(action.handler(tuple(rows), principal))
+
+
 async def bulk(
     self: API, request: Request, principal: Caller[Any], model: str
 ) -> Reply:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry = site.entry(model)
-    if entry is None or not entry.bulk_delete or not entry.can(principal, "delete"):
+    if entry is None:
         return await site.problem(404, "No such model.")
+    selected_action = request.POST.get("action", "delete")
+    resolved = authorized_bulk_action(entry, principal, selected_action)
+    if resolved is None:
+        return await site.problem(404, "No such action.")
+    is_delete, action = resolved
     if not site.csrf_ok():
         return await site.problem(
             403, "The form expired or is invalid. Reload and try again."
         )
-    chosen = request.POST.getlist("ids")[:OPTION_LIMIT]
-    rows = []
-    for raw in chosen:
-        row = await find_row(site, entry, raw)
-        if (
-            row is not None
-            and entry.can(principal, "view", row)
-            and entry.can(principal, "delete", row)
-        ):
-            rows.append(row)
+    chosen = request.POST.getlist("ids")
+    if len(chosen) > OPTION_LIMIT or len(set(chosen)) != len(chosen):
+        return await site.problem(400, "Select up to 200 distinct rows.")
+    rows = await bulk_rows(site, entry, chosen, None if is_delete else selected_action)
+    if rows is None:
+        return await site.problem(404, "One or more selected rows are unavailable.")
     if not rows:
         return Reply(303, headers=[("location", site.url(model))])
     if request.POST.get("confirmed") != "1":
-        hidden = Raw(
-            '<input type="hidden" name="confirmed" value="1">'
-            + "".join(
-                f'<input type="hidden" name="ids" value="{escape(getattr(r, entry.model.__primary_key__))}">'
-                for r in rows
-            )
+        return await bulk_confirmation(
+            site, model, entry, rows, selected_action, action
         )
-        content = site.admin.templates.render(
-            "confirm",
-            action=site.url(model, "bulk"),
-            csrf=site.token,
-            hidden=hidden,
-            message=f"Delete {len(rows)} selected {entry.plural().lower()}? This cannot be undone.",
-            cancel=site.url(model),
-        )
-        return await site.page("Delete selected", content, active=model)
-    failed = await guarded(remove_all(entry, rows, principal))
+    failed = await run_bulk_action(entry, rows, principal, action)
     if failed:
         return await site.problem(409, failed)
-    return Reply(303, headers=[("location", site.url(model, done="deleted"))])
+    done = "deleted" if action is None else f"action:{model}:{action.name}"
+    return Reply(303, headers=[("location", site.url(model, done=done))])
 
 
 VIEWS: dict[str, Callable[..., Any]] = {
