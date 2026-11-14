@@ -48,6 +48,7 @@ class BlogSettings(FrameworkSettings):          # keeps the built-in groups
 | `server` | `runtime_threads` | `1` | Must be positive |
 | `server` | `backlog` | `1024` | Must be positive |
 | `server` | `access_log` | `false` | Enables Granian access logging |
+| `timezone` | `UTC` | IANA timezone name used by `app.now()` |
 
 `DatabaseSettings` is an optional field you declare in your own settings class, not a `FrameworkSettings` group. Its `url` is required and its `max_size` defaults to `10` connections per worker; the value must be at least `1`.
 
@@ -95,6 +96,7 @@ The variable is the prefix plus the field name in capitals; a group nests with a
 | `database.url` | `BLOG_DATABASE__URL` |
 | `execution.sync_workers` | `BLOG_EXECUTION__SYNC_WORKERS` |
 | `logging.format` | `BLOG_LOGGING__FORMAT` |
+| `timezone` | `BLOG_TIMEZONE` |
 
 Values are converted strictly: integers are ASCII digits (no `1_000`, no `0x10`), booleans are `true/false/yes/no/on/off/1/0`, lists are comma separated (use `tuple[str, ...]` to keep them immutable), `Literal[...]` takes one of its choices, and an empty value for `X | None` means `None`.
 
@@ -137,7 +139,7 @@ hinoki settings blog.settings:BlogSettings --prefix BLOG_ --example > .env.examp
 
 ## 7. Use them
 
-`Hinoki(settings=settings)` derives the runtime limits, the docs URLs and the logging setup from the built-in groups (an explicit argument such as `title=` still wins). Your own fields are on `app.settings`, and modules reach them as `ctx.settings` in their lifespan.
+`Hinoki(settings=settings)` derives the runtime limits, the docs URLs, logging setup and application timezone from the built-in settings (an explicit argument such as `title=` still wins). `app.now()` returns an aware `datetime` in the configured timezone; it defaults to UTC. The timezone is configured in settings, not as a `Hinoki(...)` argument. Your own fields are on `app.settings`, and modules reach them as `ctx.settings` in their lifespan.
 
 The `server` group (host, port, workers) is applied by `hinoki serve`/`dev` ([Running an application](serving.md)). Hinoki does not connect to secret-manager services itself; use a provider that supplies environment values or secret files.
 
