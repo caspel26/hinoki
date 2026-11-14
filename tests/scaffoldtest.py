@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -182,6 +183,23 @@ def test_the_project_names_where_hinoki_comes_from(tmp_path: Path) -> None:
     with pytest.raises(ScaffoldError, match="not a Hinoki source checkout"):
         create("four", tmp_path, str(tmp_path))
     assert not (tmp_path / "four").exists()  # nothing written on a bad source
+
+
+def test_scaffold_toml_escapes_checkout_paths_and_git_values(tmp_path: Path) -> None:
+    checkout = tmp_path / 'hinoki "quoted"\\checkout'
+    (checkout / "crates").mkdir(parents=True)
+    (checkout / "pyproject.toml").write_text("[project]\n")
+
+    path_project = create("pathapp", tmp_path, str(checkout))
+    path_config = tomllib.loads((path_project / "pyproject.toml").read_text())
+    assert path_config["tool"]["uv"]["sources"]["hinoki"]["path"] == str(checkout)
+
+    git_project = create("gitapp", tmp_path, 'https://example.org/a"b.git@rev\\x')
+    git_config = tomllib.loads((git_project / "pyproject.toml").read_text())
+    assert git_config["tool"]["uv"]["sources"]["hinoki"] == {
+        "git": 'https://example.org/a"b.git',
+        "rev": "rev\\x",
+    }
 
 
 def test_the_project_has_a_readme_with_the_commands(tmp_path: Path) -> None:

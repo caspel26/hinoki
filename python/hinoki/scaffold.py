@@ -8,6 +8,7 @@ the read-only development MCP, and a test. Nothing is installed or executed.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -221,8 +222,8 @@ def git_source(spec: str) -> str:
     revision = ""
     if separator and tail and "/" not in tail and ":" not in tail:
         url, revision = head, tail
-    extra = f', rev = "{revision}"' if revision else ""
-    return f'\n[tool.uv.sources]\nhinoki = {{ git = "{url}"{extra} }}\n'
+    extra = f", rev = {json.dumps(revision)}" if revision else ""
+    return f"\n[tool.uv.sources]\nhinoki = {{ git = {json.dumps(url)}{extra} }}\n"
 
 
 def framework_source(source: str | None = None) -> str:
@@ -236,12 +237,12 @@ def framework_source(source: str | None = None) -> str:
         root = Path(source).expanduser().resolve()
         if not (root / "pyproject.toml").is_file() or not (root / "crates").is_dir():
             raise ScaffoldError(f"{root} is not a Hinoki source checkout")
-        return f'\n[tool.uv.sources]\nhinoki = {{ path = "{root}", editable = true }}\n'
+        return f"\n[tool.uv.sources]\nhinoki = {{ path = {json.dumps(str(root))}, editable = true }}\n"
     import hinoki  # noqa: PLC0415 - only needed to find the checkout
 
     root = Path(hinoki.__file__).resolve().parents[2]
     if (root / "crates").is_dir() and (root / "pyproject.toml").is_file():
-        return f'\n[tool.uv.sources]\nhinoki = {{ path = "{root}", editable = true }}\n'
+        return f"\n[tool.uv.sources]\nhinoki = {{ path = {json.dumps(str(root))}, editable = true }}\n"
     return git_source(REPOSITORY)
 
 
