@@ -140,9 +140,21 @@ class QuerySet[M: Model]:
     def offset(self, count: int) -> QuerySet[M]:
         return self.derive(offset_by=count)
 
-    def joins(self) -> list[tuple[str, str, str, str, bool, list[str]]]:
-        """Joins for selected relations (with columns) and filtered ones (without)."""
-        names = dict.fromkeys((*self.loading.selected, *self.loading.joined))
+    def joins(
+        self, counting: bool = False
+    ) -> list[tuple[str, str, str, str, bool, list[str]]]:
+        """Joins for selected relations (with columns) and filtered ones (without).
+        A count needs only the filtered ones: loading a to-one relation cannot
+        change the number of rows."""
+        wanted = (
+            self.loading.joined
+            if counting
+            else (
+                *self.loading.selected,
+                *self.loading.joined,
+            )
+        )
+        names = dict.fromkeys(wanted)
         result = []
         for name in names:
             relation = self.forward(name)
@@ -172,7 +184,7 @@ class QuerySet[M: Model]:
             order=list(self.order),
             limit=self.limit_to,
             offset=self.offset_by,
-            joins=self.joins(),
+            joins=self.joins(counting=kind == "count"),
         )
 
     def build(self, row: dict[str, Any]) -> M:

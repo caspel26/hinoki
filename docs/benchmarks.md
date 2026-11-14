@@ -73,6 +73,7 @@ Intel(R) Core(TM) i5-10300H CPU @ 2.50GHz, 8 logical CPUs; servers pinned to CPU
 * The data is small and warm in PostgreSQL's cache; `detail` hits one row and `list` one page. Nothing here measures cold data, large tables, long-running connections, memory, or other payloads.
 * Loopback networking only; no TLS, no proxy, no authentication, no compression.
 * Each application is written once, by the Hinoki project, from each framework's documentation. Another author could tune any of them further; settings that were changed on purpose are in the code (for example the Django time zone is set to the server's so Django does not issue a `SET TimeZone` per connection).
+* In this run Hinoki's page count query carried a join to the authors table that it did not need; the verifier's recorded statements show it. That was fixed afterwards and the `list` row was not measured again, so it predates the fix.
 * Hinoki's native extension was built in release mode (`maturin develop --release`). The default development build is much slower.
 
 ## Reproduce
