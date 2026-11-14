@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import inspect
 import re
-import typing
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, get_args, get_origin
 
 from hinoki.errors import APIError, RegistrationError
 from hinoki.fieldtypes import FieldType
+from hinoki.handlerhints import hints_of
 from hinoki.pagination import Page, PageNumberPagination
 from hinoki.runtime.binding import Binding, Param
 from hinoki.schema import Schema
@@ -210,7 +210,7 @@ class OpenAPIBuilder:
 
     def responses(self, binding: Binding) -> dict[str, Any]:
         route = binding.route
-        annotation = typing.get_type_hints(route.handler).get("return")
+        annotation = hints_of(route.handler).get("return")
         empty = annotation in {None, type(None)} or route.status in BODYLESS_STATUSES
         status = 204 if empty and route.status == HTTPStatus.OK else route.status
         success: dict[str, Any] = {"description": "Successful response"}
