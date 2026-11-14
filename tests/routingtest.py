@@ -8,6 +8,7 @@ import hinoki
 from hinoki import API, Access, Hinoki, RouteGroup, http
 from hinoki.crud import Crud
 from hinoki.errors import Conflict, Forbidden, NotFound, RegistrationError
+from hinoki.handlerhints import hints_of, module_scope_hints, signature_of
 from hinoki.request import Request
 from tests.providers import TokenAuth
 
@@ -247,3 +248,14 @@ def test_standalone_outer_decorator_is_used_for_dispatch() -> None:
     handler = Hinoki(include=[private]).routes[0].handler
     with pytest.raises(PermissionError, match="forbidden"):
         handler()
+
+
+def test_handler_hints_can_be_resolved_from_source_text_in_module_scope() -> None:
+    # What Python 3.14 needs when a method is named like a builtin that its
+    # own annotations use (`async def list(self) -> list[int]` in a class).
+    async def handler(count: int) -> None: ...
+
+    written = {"count": "int", "return": "list[int]"}
+    assert module_scope_hints(handler, written) == {"count": int, "return": list[int]}
+    assert list(signature_of(handler).parameters) == ["count"]
+    assert hints_of(handler) == {"count": int, "return": type(None)}

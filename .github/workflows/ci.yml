@@ -27,6 +27,8 @@ jobs:
           --health-timeout 5s --health-retries 10
     env:
       HINOKI_TEST_DATABASE_URL: postgres://postgres:hinoki@localhost:5432/hinoki
+      # Without this, `uv run` follows .python-version and every job runs on 3.13.
+      UV_PYTHON: ${{ matrix.python }}
     strategy:
       fail-fast: false
       matrix:
@@ -42,7 +44,9 @@ jobs:
       - name: Verify lock is up to date
         run: uv lock --check
       - name: Install
-        run: uv sync --locked --python ${{ matrix.python }}
+        run: uv sync --locked
+      - name: The environment runs the matrix interpreter
+        run: uv run --locked python -c "import sys; assert sys.version_info[:2] == tuple(map(int, '${{ matrix.python }}'.split('.'))), sys.version"
       - name: Lint
         run: uv run --locked ruff check .
       - name: Format
