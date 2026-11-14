@@ -58,6 +58,7 @@ Generated OpenAPI is validated with `openapi-spec-validator` inside the Python t
 ## CI workflow hygiene
 
 * Third-party actions in `.github/workflows/` are pinned to a full commit SHA with the released tag in a trailing comment. To update one, resolve the new tag to its commit (`gh api repos/OWNER/REPO/git/ref/tags/TAG`), replace the SHA and the comment together, and let the PR's CI run prove it.
+* Each `Python X` job sets `UV_PYTHON` to its matrix version and asserts the interpreter before testing. Without it `uv run` follows `.python-version` and every job would test 3.13. Locally, run another version with `uv run --locked --python 3.14 pytest` (use `UV_PROJECT_ENVIRONMENT` to keep its environment apart).
 * `ci.yml` checks out with `persist-credentials: false`: no CI job pushes. `deploy-docs.yml` keeps the token because it pushes to `gh-pages`.
 * The `audit` job checks `Cargo.lock` (`cargo audit`, `cargo deny check`) and `uv.lock` (`uv export` of every group and extra, then `pip-audit --require-hashes --disable-pip`). Locally: `uv export --locked --all-groups --all-extras --no-emit-project --format requirements-txt -o /tmp/requirements.txt && uvx pip-audit==2.10.1 --require-hashes --disable-pip -r /tmp/requirements.txt`.
 
