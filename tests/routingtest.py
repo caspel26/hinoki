@@ -5,18 +5,9 @@ from typing import cast
 import pytest
 
 import hinoki
-from hinoki import (
-    API,
-    Access,
-    Conflict,
-    Forbidden,
-    Hinoki,
-    NotFound,
-    RegistrationError,
-    RouteGroup,
-    http,
-)
+from hinoki import API, Access, Hinoki, RouteGroup, http
 from hinoki.crud import Crud
+from hinoki.errors import Conflict, Forbidden, NotFound, RegistrationError
 from hinoki.request import Request
 from tests.providers import TokenAuth
 

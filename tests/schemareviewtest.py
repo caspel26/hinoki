@@ -5,7 +5,8 @@ from typing import Annotated, Any
 
 import pytest
 
-from hinoki import Field, Hinoki, RegistrationError, Request, Schema, core, http
+from hinoki import Field, Hinoki, Request, Schema, core, http
+from hinoki.errors import RegistrationError
 from hinoki.fields import FieldInfo
 from hinoki.fieldtypes import check_limits
 from tests.harness import Pool

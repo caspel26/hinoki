@@ -7,9 +7,10 @@ from urllib.parse import urlencode
 
 import pytest
 
-from hinoki import Access, Caller, Hinoki, RegistrationError
+from hinoki import Access, Caller, Hinoki
 from hinoki.admin import Admin, ModelAdmin
 from hinoki.db import Database, DatabaseModule
+from hinoki.errors import RegistrationError
 from hinoki.orm import Model, field, foreign_key
 from tests.admintest import FORM, SECRET, STAFF, session, submit
 from tests.harness import Client, Pool

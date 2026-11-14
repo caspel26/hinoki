@@ -1,9 +1,11 @@
 """HTTP error hierarchy and application error handlers."""
 
+import importlib
+
 import pytest
 
-from hinoki import APIError, BadRequest, Conflict, Hinoki, NotFound, http
-from hinoki.errors import ObjectNotFound
+from hinoki import Hinoki, http
+from hinoki.errors import APIError, BadRequest, Conflict, NotFound, ObjectNotFound
 from hinoki.request import Request
 from tests.harness import Pool
 
@@ -150,3 +152,14 @@ async def test_model_not_found_maps_to_404_without_leaking_the_message(
     reply = await client.request("GET", "/missing-object")
     assert (reply.status, reply.body["error"]) == (404, "not_found")
     assert "Post" not in str(reply.body)
+
+
+def test_errors_live_in_one_namespace_and_not_at_the_package_root() -> None:
+    import hinoki  # noqa: PLC0415
+
+    for name in ("NotFound", "Conflict", "APIError", "RegistrationError"):
+        assert hasattr(hinoki.errors, name)
+        assert not hasattr(hinoki, name)
+    assert hinoki.errors.NotFound.status == 404
+    with pytest.raises(ImportError):
+        importlib.import_module("hinoki.httperrors")

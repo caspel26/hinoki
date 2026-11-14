@@ -8,8 +8,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import RegistrationError
 from hinoki.db import Database
+from hinoki.errors import RegistrationError
 from hinoki.orm import Model, field, indexed, ordered_by, unique, use_database
 from hinoki.orm.migrations import index_name, plan, state_of
 

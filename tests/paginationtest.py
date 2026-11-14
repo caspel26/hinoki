@@ -1,6 +1,6 @@
 import pytest
 
-from hinoki import ValidationError
+from hinoki.errors import ValidationError
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from hinoki.schema import encode
 

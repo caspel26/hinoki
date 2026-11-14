@@ -9,20 +9,10 @@ from uuid import UUID, uuid4
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import (
-    UNSET,
-    Access,
-    BearerAuth,
-    Caller,
-    Hinoki,
-    RegistrationError,
-    Schema,
-    Unset,
-    http,
-)
+from hinoki import UNSET, Access, BearerAuth, Caller, Hinoki, Schema, Unset, http
 from hinoki.crud import CrudAPI, Resource
 from hinoki.db import Database, DatabaseModule
-from hinoki.httperrors import Forbidden
+from hinoki.errors import Forbidden, RegistrationError
 from hinoki.orm import Model, QuerySet, field, use_database
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from hinoki.request import Request

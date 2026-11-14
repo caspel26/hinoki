@@ -11,14 +11,13 @@ from hinoki import (
     Field,
     Hinoki,
     Invalid,
-    RegistrationError,
     Schema,
-    ValidationError,
     derive,
     field_check,
     http,
     object_check,
 )
+from hinoki.errors import RegistrationError, ValidationError
 from hinoki.orm import Model, field, foreign_key
 from hinoki.schema import graph_has_checks
 from hinoki.testing import ASGIClient

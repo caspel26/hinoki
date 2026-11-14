@@ -8,15 +8,18 @@ Hinoki separates malformed requests, authentication failures and application err
 
 ## Built-in HTTP errors
 
-The public package exports `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound` and `Conflict`, each derived from `APIError`. They carry an HTTP status and a stable `code`. Raise them when the response is an expected part of the API:
+Every public error type lives in one namespace: `from hinoki import errors`. It holds `errors.BadRequest`, `errors.Unauthorized`, `errors.Forbidden`, `errors.NotFound` and `errors.Conflict`, each derived from `errors.APIError`, plus the framework's own failures (`errors.RegistrationError`, `errors.ValidationError`, `errors.ObjectNotFound`, `errors.ErrorRegistry` and the others listed in the [reference](reference/web.md)). They carry an HTTP status and a stable `code`. Raise them when the response is an expected part of the API:
 
 ```python
-class TaskAlreadyDone(Conflict):
+from hinoki import errors, http
+
+
+class TaskAlreadyDone(errors.Conflict):
     code = "task_already_done"
     message = "The task is already done."
 
 
-@http.post("/tasks/{task_id}/complete", errors=(NotFound, TaskAlreadyDone))
+@http.post("/tasks/{task_id}/complete", errors=(errors.NotFound, TaskAlreadyDone))
 async def complete(task_id: UUID) -> TaskOutput:
     ...
 ```
@@ -32,3 +35,5 @@ Every HTTP request receives a generated request ID. The response includes it in 
 ## Check the contract
 
 Use `ASGIClient(..., strict_errors=True)` in tests to fail if a handler returns an error that it did not declare. `hinoki check` can also enforce rules about access and transaction declarations; see [rules](rules.md).
+
+Earlier revisions exported these names from `hinoki` itself and kept the HTTP errors in `hinoki.httperrors`; both are gone. Use `errors.<Name>`; `from hinoki import NotFound` raises `ImportError`.

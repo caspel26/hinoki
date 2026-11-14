@@ -7,9 +7,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import RegistrationError
 from hinoki.db import Database, ForeignKeyViolation
-from hinoki.errors import FieldError, RelationNotLoaded
+from hinoki.errors import FieldError, RegistrationError, RelationNotLoaded
 from hinoki.orm import Model, field, foreign_key, use_database
 from hinoki.orm.relations import Related
 
