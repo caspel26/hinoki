@@ -28,6 +28,18 @@ class Server(subprocess.Popen[bytes]):
         with contextlib.suppress(ProcessLookupError):
             os.killpg(self.pid, signal.SIGKILL)
 
+    def wait(self, timeout: float | None = None) -> int:
+        """Wait for the supervisor, then end whatever is left of its group: a
+        supervisor that exits by itself may leave workers behind. A timeout
+        kills the group before it is reported."""
+        try:
+            code = super().wait(timeout)
+        except subprocess.TimeoutExpired:
+            self.kill()
+            raise
+        self.kill()
+        return code
+
 
 def group_is_gone(pid: int) -> bool:
     """No process of the group ``pid`` led is left (zombies aside)."""
