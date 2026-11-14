@@ -69,6 +69,7 @@ def render_fields(
             values.get(field.name),
             errors.get(field.name),
             options.get(field.name),
+            site.admin.timezone,
         )
 
     rendered = [one(f) for f in fields if f.name not in grouped]
@@ -127,9 +128,11 @@ async def form_response(site: Site, view: FormView) -> Reply:
         summary = site.parts.notice("error", "Please correct the highlighted fields.")
     meta = Raw("")
     if row is not None and entry.modified_field:
-        when = input_text(getattr(row, entry.modified_field)).replace("T", " ")
+        when = input_text(
+            getattr(row, entry.modified_field), site.admin.timezone
+        ).replace("T", " ")
         meta = Raw(
-            f'<p class="hn-meta"><svg class="hn-icon" aria-hidden="true"><use href="#i-clock"/></svg><span>{escape(entry.modified_label)}: {escape(when)} UTC</span></p>'
+            f'<p class="hn-meta"><svg class="hn-icon" aria-hidden="true"><use href="#i-clock"/></svg><span>{escape(entry.modified_label)}: {escape(when)} {escape(str(site.admin.timezone))}</span></p>'
         )
     delete = Raw("")
     if row is not None and entry.can(site.principal, "delete", row):
