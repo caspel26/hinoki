@@ -105,7 +105,7 @@ kbd {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-3);
-  max-width: 1280px;
+  max-width: 1440px;
   min-height: 56px;
   margin: 0 auto;
   padding: 0 var(--sp-2) 0 var(--sp-5);
@@ -285,6 +285,7 @@ kbd {
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr) 248px;
   max-width: 1440px;
+  width: min(1440px, calc(100% - 32px));
   margin: 0 auto;
 }
 
@@ -305,6 +306,8 @@ kbd {
   height: 100%;
   padding: var(--sp-6) var(--sp-4) var(--sp-8) var(--sp-5);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: var(--hn-edge) transparent;
 }
@@ -333,7 +336,13 @@ kbd {
 }
 
 .side__group {
-  margin: var(--sp-5) 0 var(--sp-1);
+  margin: var(--sp-4) 0 0;
+  list-style: none;
+}
+
+.side__group > span {
+  display: block;
+  padding: var(--sp-2) 6px var(--sp-1);
   color: var(--hn-text-3);
   font-size: var(--fs-xs);
   font-weight: 600;
@@ -357,7 +366,7 @@ kbd {
   font-size: var(--fs-m);
   line-height: 1.4;
   text-decoration: none;
-  transition: color 120ms var(--hn-ease);
+  transition: color 120ms var(--hn-ease), background 160ms var(--hn-ease);
 }
 
 .side__link i {
@@ -369,6 +378,7 @@ kbd {
 
 .side__link:hover {
   color: var(--hn-text);
+  background: var(--hn-surface-2);
 }
 
 .side__link.is-active {
@@ -382,18 +392,6 @@ kbd {
 
 .side__link.is-active {
   background: var(--hn-tint-brand);
-}
-
-.side__hl {
-  position: absolute;
-  z-index: 0;
-  left: var(--sp-5);
-  right: var(--sp-4);
-  border-radius: 999px;
-  background: var(--hn-surface-2);
-  opacity: 0;
-  pointer-events: none;
-  transition: transform 220ms var(--hn-ease), height 220ms var(--hn-ease), opacity 160ms;
 }
 
 .main {
@@ -933,16 +931,18 @@ kbd {
 
   .shell {
     display: block;
+    width: 100%;
   }
 
   .side {
     position: fixed;
     top: var(--header-h);
-    bottom: 0;
+    bottom: auto;
     left: 0;
     z-index: 75;
     width: min(320px, 86vw);
-    height: auto;
+    height: calc(100vh - var(--header-h));
+    height: calc(100dvh - var(--header-h));
     border: 1px solid var(--hn-edge);
     border-left: 0;
     border-radius: 0 var(--radius-xl) var(--radius-xl) 0;

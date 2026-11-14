@@ -94,20 +94,17 @@
           <p class="side__sec"><b>{{ '%02d' % sec.n }}</b>{{ sec.active.title }}</p>
           <p class="side__label">In this section</p>
           {% macro render(items, leaf_list, secn) %}
+            <ul class="side__list">
             {% for i in items %}
               {% if i.children %}
-                <p class="side__group">{{ i.title }}</p>
-                <ul class="side__list">{{ render(i.children, leaf_list, secn) }}</ul>
+                <li class="side__group"><span>{{ i.title }}</span>{{ render(i.children, leaf_list, secn) }}</li>
               {% elif i.url %}
                 <li><a class="side__link{% if i.active %} is-active{% endif %}" href="{{ i.url | url }}"><i>{{ secn }}.{{ leaf_list.index(i.url) + 1 }}</i><span>{{ i.title }}</span></a></li>
               {% endif %}
             {% endfor %}
+            </ul>
           {% endmacro %}
-          {% if sec.active.children and sec.active.children | selectattr('children') | list %}
-            {{ render(sec.active.children, leaf_list, sec.n) }}
-          {% else %}
-            <ul class="side__list">{{ render(sec.active.children or [], leaf_list, sec.n) }}</ul>
-          {% endif %}
+          {{ render(sec.active.children or [], leaf_list, sec.n) }}
         {% endif %}
       </div>
     </aside>
