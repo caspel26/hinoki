@@ -61,15 +61,16 @@ The action name is also the permission checked by `ModelAdmin.can(principal, nam
 
 Each action requires confirmation and runs inside the admin write transaction. A failure rolls back the selected work; successful actions redirect to the list with a notice. Actions accept at most 200 distinct rows. `bulk_delete = True` adds the built-in delete action.
 
-## Three styles, each with light and dark
+## Four styles, each with light and dark
 
-A theme is not a colour set: it chooses the navigation, the list presentation, the type and the shape. All three share one set of base components and ship a complete light and dark scheme (the system decides; the toggle overrides it).
+Each theme sets navigation, list presentation, typography and color. All four use the same components and provide light and dark modes; the system preference selects the initial mode, and the toggle overrides it.
 
 | Style | Navigation | List | Edit | Look |
 | --- | --- | --- | --- | --- |
 | **Studio** (default) | sidebar | cards with a table | drawer beside the list | soft violet, rounded |
 | **Console** | horizontal top bar | dense monospaced grid | drawer | neon cyan / teal, square |
 | **Paper** | quiet text index, centred column | document rows | its own page | serif type, terracotta |
+| **Grove** | sidebar | open rows | its own page | evergreen and lichen, sans-serif |
 
 === "Studio"
 
@@ -86,4 +87,10 @@ A theme is not a colour set: it chooses the navigation, the list presentation, t
     ![Paper, light](screenshots/admin-paper-list-light.png)
     ![Paper, dark](screenshots/admin-paper-list-dark.png)
 
-Pick one with `Admin(theme="console")`, or build your own: a `Theme` is a set of `--hn-*` design tokens for the two schemes plus a `layout` (`sidebar`, `topbar`, `index`) and a `list_style` (`table`, `rows`). Every built-in theme is tested for WCAG AA contrast, and the pages were checked in Chromium and Firefox at 1440, 390, 360 and 320 px.
+=== "Grove"
+
+    ![Grove, light](screenshots/admin-grove-list-light.png)
+    ![Grove, dark](screenshots/admin-grove-list-dark.png)
+    ![Grove edit form in dark mode](screenshots/admin-grove-edit-dark.png)
+
+Pick one with `Admin(theme="grove")`, or build your own: a `Theme` is a set of `--hn-*` design tokens for the two schemes plus a `layout` (`sidebar`, `topbar`, `index`) and a `list_style` (`table`, `rows`). The text and surface colour pairs of every built-in theme are tested against WCAG AA contrast. Grove's pages were checked in Chromium and Firefox at 1440, 390, 360 and 320 px; WebKit was not run.

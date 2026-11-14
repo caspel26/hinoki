@@ -6,7 +6,7 @@ for a light and a dark scheme (plus optional extra CSS). ``edit`` chooses where
 the edit form opens: ``"drawer"`` (beside the list) or ``"page"``.
 A theme whose ``default_mode`` is ``"dark"`` is dark unless the user switches.
 
-Built in, three deliberately different *styles*, each with a complete light and
+Built in, four deliberately different *styles*, each with a complete light and
 dark scheme (the user's system preference decides, and the toggle overrides it):
 
 * ``studio`` (default): sidebar navigation, cards, soft violet, rounded, the
@@ -15,6 +15,8 @@ dark scheme (the user's system preference decides, and the toggle overrides it):
   with sticky headers, square corners, neon-cyan accent (dark) / teal (light).
 * ``paper``: a quiet text index on the left and one centred reading column, serif
   type, the list as a document index of rows, terracotta accent, edit on a page.
+* ``grove``: a familiar sidebar, open row list, green accents and page-based
+  editing, with a light lichen palette and a dark pine palette.
 
 ``layout`` (``"sidebar"``, ``"topbar"``, ``"index"``) and ``list_style``
 (``"table"``, ``"rows"``) choose the structure; the tokens choose the look.
@@ -171,6 +173,30 @@ CONSOLE_LIGHT = {
     "accent-hover": "#155e75", "accent-text": "#155e75", "accent-soft": "#cdeff7",
     "accent-soft-ink": "#0b4a5c", "avatar-bg": "#b6e3ee", "avatar-ink": "#0b4a5c",
 }  # fmt: skip
+GROVE_LIGHT = {
+    "bg": "#f2f5ef", "surface": "#fbfcf9", "surface-2": "#e6ede4",
+    "sidebar-bg": "#e9f0e6", "topbar-bg": "#fbfcf9", "text": "#1f2d24",
+    "muted": "#536456", "line": "#d7e0d4", "line-strong": "#aab9a8",
+    "hover": "#eaf1e8", "accent": "#2f6b4e", "accent-hover": "#25583e",
+    "accent-ink": "#ffffff", "accent-text": "#225b3d", "accent-soft": "#dcebdd",
+    "accent-soft-ink": "#1e5034", "ok-bg": "#e2f1e5", "ok-ink": "#245e36",
+    "warn-bg": "#f5eccf", "warn-ink": "#684400", "danger": "#b42318",
+    "danger-on": "#ffffff", "danger-bg": "#fde7e5", "danger-ink": "#912018",
+    "focus": "#1d4ed8", "avatar-bg": "#cfe1ce", "avatar-ink": "#294f32",
+    "shadow": "0 1px 2px rgba(31,65,40,.04)",
+}  # fmt: skip
+GROVE_DARK = {
+    "bg": "#111a14", "surface": "#19251c", "surface-2": "#243329",
+    "sidebar-bg": "#141f17", "topbar-bg": "#19251c", "text": "#edf4ed",
+    "muted": "#b6c7b8", "line": "#314435", "line-strong": "#4b6250",
+    "hover": "#26362a", "accent": "#8fc99c", "accent-hover": "#a4d9af",
+    "accent-ink": "#102016", "accent-text": "#9bd2a6", "accent-soft": "#263c2c",
+    "accent-soft-ink": "#d1e8d4", "ok-bg": "#203b29", "ok-ink": "#9edaac",
+    "warn-bg": "#403513", "warn-ink": "#f0d88c", "danger": "#ff8b8b",
+    "danger-on": "#330b0b", "danger-bg": "#441c1b", "danger-ink": "#ffb8af",
+    "focus": "#91c5ff", "avatar-bg": "#365a3d", "avatar-ink": "#d9edd9",
+    "shadow": "none",
+}  # fmt: skip
 
 STUDIO = Theme(
     "studio", "Studio", "drawer", STUDIO_LIGHT, STUDIO_DARK,
@@ -216,8 +242,33 @@ CONSOLE = Theme(
         ".hn-card{box-shadow:none}\n.hn-stat-value{font-size:1.5rem}\n"
     ),
 )  # fmt: skip
+GROVE = Theme(
+    "grove", "Grove", "page", GROVE_LIGHT, GROVE_DARK,
+    {
+        "font": SYSTEM_FONT, "font-size": "15px", "radius": "8px", "radius-sm": "5px",
+        "radius-lg": "12px", "nav-pad": ".55rem .75rem", "cell-pad": ".7rem .75rem",
+        "h1": "1.85rem", "sidebar-w": "15rem", "drawer-w": "26rem",
+    },
+    layout="sidebar", list_style="rows",
+    extra_css=(
+        ".hn-card{box-shadow:none}\n"
+        ".hn-nav-item[aria-current=page]{border-left:3px solid var(--hn-accent);"
+        "border-radius:0 var(--hn-radius-sm) var(--hn-radius-sm) 0}\n"
+        ".hn-pageheader{border-bottom:1px solid var(--hn-line-strong);padding-bottom:1rem}\n"
+        ".hn-list-rows .hn-table tr{padding:.85rem .4rem}\n"
+        ".hn-list-rows .hn-table td:not(.hn-check){min-width:0;white-space:normal;"
+        "overflow-wrap:anywhere}\n"
+        "@media(max-width:42rem){"
+        ".hn-list-rows .hn-table tr{display:grid;"
+        "grid-template-columns:1.5rem minmax(0,1fr);align-items:start;gap:.35rem .65rem}\n"
+        ".hn-list-rows .hn-table td{grid-column:2}\n"
+        ".hn-list-rows .hn-table td.hn-check{grid-column:1;grid-row:1;width:auto;align-self:start}\n"
+        ".hn-list-rows .hn-table td:has(.hn-rowlink){grid-row:1;font-size:1.05em}\n"
+        "}\n"
+    ),
+)  # fmt: skip
 
-THEMES: dict[str, Theme] = {t.name: t for t in (STUDIO, CONSOLE, PAPER)}
+THEMES: dict[str, Theme] = {t.name: t for t in (STUDIO, CONSOLE, PAPER, GROVE)}
 for built_in in THEMES.values():
     built_in.check()
 
