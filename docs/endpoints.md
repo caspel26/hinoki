@@ -22,7 +22,38 @@ async def create_task(data: TaskInput) -> TaskOutput:
     return TaskOutput.from_model(row)
 ```
 
-Use `@http.get`, `@http.post`, `@http.put`, `@http.patch` or `@http.delete` (`from hinoki import http`). Hinoki also answers `HEAD` through each `GET` route: it runs the GET response path and returns the same status and representation headers without a body. The GET handler therefore runs for HEAD requests too. A `405` response's `Allow` header includes `HEAD` whenever `GET` is available. Supported decorator arguments include `status`, `access`, `transaction`, `pagination`, `parsers`, `renderers`, `errors` and `replaces`. Each is checked when the route is declared or registered.
+Use `@http.get`, `@http.post`, `@http.put`, `@http.patch`, `@http.delete` or `@http.query` (`from hinoki import http`). Hinoki also answers `HEAD` through each `GET` route: it runs the GET response path and returns the same status and representation headers without a body. The GET handler therefore runs for HEAD requests too. A `405` response's `Allow` header includes `HEAD` whenever `GET` is available. Supported decorator arguments include `status`, `access`, `transaction`, `pagination`, `parsers`, `renderers`, `errors` and `replaces`. Each is checked when the route is declared or registered.
+
+## Read with a body: `@http.query`
+
+`QUERY` is the HTTP method for a read whose input does not fit a query string: it is safe and idempotent like `GET`, and carries a body like `POST`. Declare it the same way as the other methods:
+
+```python
+from hinoki import Schema, http
+
+
+class TaskSearch(Schema):
+    text: str
+    limit: int = 20
+
+
+@http.query("/tasks/search")
+async def search_tasks(data: TaskSearch) -> list[TaskOutput]:
+    rows = await Task.filter(title__contains=data.text).limit(data.limit)
+    return [TaskOutput.from_model(row) for row in rows]
+```
+
+```sh
+curl -X QUERY http://127.0.0.1:8000/tasks/search \
+  -H 'content-type: application/json' -d '{"text": "docs"}'
+```
+
+* The body is bound, parsed and validated exactly as for `POST`: the same parsers, size limit and `400`/`413`/`415`/`422` answers.
+* A `QUERY` action must not change state. Hinoki does not wrap it in a transaction: `RouteGroup(atomic=True)` applies to `POST`, `PUT`, `PATCH` and `DELETE` only. Pass `transaction=True` on the action if the read needs one.
+* `RouteGroup.query(...)` and `@http.query` inside an `API` class work like the other methods. A `405` answer lists `QUERY` in `Allow` where it is available. `HEAD` is answered through `GET` routes only.
+* Hinoki sends no `Accept-Query` or cache headers by itself; add them to the response where they matter.
+* The method is recent. Granian passes it through to Hinoki over ASGI and WSGI (both are tested), but a proxy, gateway, firewall or HTTP client in front of your service may reject a method it does not know, and browsers send a CORS preflight for it. Check the path your traffic takes, and keep a `GET` or `POST` route beside it when clients cannot send `QUERY`.
+* In the OpenAPI document a `QUERY` operation appears under the path's `x-query` field; see [OpenAPI](openapi.md#query-operations).
 
 ## Bind request values
 
