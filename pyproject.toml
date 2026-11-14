@@ -94,6 +94,7 @@ max-branches = 8
 "examples/blog/seed.py" = ["S106"]  # synthetic demo tokens
 "examples/blog/adminsite.py" = ["ARG001", "ARG002"]  # overrides of admin hooks
 "benchmarks/**" = ["ARG001", "S101"]  # benchmark handlers ignore the request
+"benchmarks/comparative/*.py" = ["E501", "PLR2004", "S603", "S607", "S310", "S105", "S608", "PLC0415"]  # run by hand with its own environment: subprocesses, a demo password, loopback URLs
 "python/hinoki/crud.py" = ["ARG001"]
 "python/hinoki/admin/themes.py" = ["E501"]  # token tables
 "python/hinoki/scaffold.py" = ["E501"]  # file templates

@@ -71,3 +71,7 @@ Question: does moving `from_model` (read each field from the row, convert nested
 * First version: the plan was re-extracted from Python tuples on every call, and the Rust path was **slower** (≈ 4.7 µs against ≈ 2.7 µs for the Python loop; 0.58×). It was not shipped in that form.
 * Final version: the plan is prepared once per class (`core.ModelPlan`), and when every field is present the instance is built directly, skipping the dataclass constructor: ≈ 1.8 µs against ≈ 2.65 µs, **1.46× faster** (CV 2–4 %). Not end to end.
 * A debug-profile build makes the Rust path look slower than it is; measure releases.
+
+## `comparative/` — one service on four frameworks
+
+Hinoki, FastAPI, Django Ninja and Django Bolt implementing the same small API against the same PostgreSQL data, with a verifier for behaviour and statement counts. See `comparative/README.md` for the method and limits and the [benchmarks page](../docs/benchmarks.md) for the first measured run (2026-11-14).
