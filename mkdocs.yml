@@ -13,44 +13,20 @@ validation:
     unrecognized_links: warn
 
 theme:
-  name: material
-  logo: assets/hinoki-mark.png
-  features:
-    - navigation.tabs
-    - navigation.instant
-    - navigation.tracking
-    - navigation.sections
-    - navigation.top
-    - navigation.footer
-    - search.suggest
-    - search.highlight
-    - content.code.copy
-    - content.tabs.link
-  palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: custom
-      accent: custom
-      toggle: {icon: material/weather-night, name: Dark mode}
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: custom
-      accent: custom
-      toggle: {icon: material/weather-sunny, name: Light mode}
-  font:
-    text: Inter
-    code: JetBrains Mono
-  icon:
-    repo: fontawesome/brands/github
+  name: null
+  custom_dir: theme
 
-extra_css:
-  - stylesheets/extra.css
+hooks:
+  - docsite/hooks.py
 
 extra:
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/caspel26/hinoki
-      name: Hinoki on GitHub
+  generator: false
+  hn_version: "0.0.1"
+
+repo_url: https://github.com/caspel26/hinoki
+repo_name: caspel26/hinoki
+edit_uri: edit/main/docs/
+copyright: hinoki v0.0.1 · pre-alpha · MIT · &copy; 2026 caspel26
 
 markdown_extensions:
   - admonition
@@ -61,7 +37,6 @@ markdown_extensions:
       permalink: true
   - pymdownx.details
   - pymdownx.highlight:
-      anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.superfences
   - pymdownx.tabbed:
@@ -69,23 +44,29 @@ markdown_extensions:
 
 plugins:
   - search
+  - git-revision-date-localized:
+      enable_creation_date: false
+      fallback_to_build_date: true
+      type: date
   - mkdocstrings:
       handlers:
         python:
           paths: [python]
           options:
             show_source: false
+            filters: ["!^_[^_]"]
             show_root_heading: true
-            heading_level: 3
+            heading_level: 2
             docstring_style: google
             members_order: source
             show_signature_annotations: true
             separate_signature: true
 
 nav:
+  - Home: index.md
   - Get started:
-      - Home: index.md
-      - Getting started: getting-started.md
+      - Installation: getting-started.md
+      - Quick start: QUICK-START.md
   - Tutorial:
       - Overview: tutorial/index.md
       - 1. Models: tutorial/1-models.md
@@ -96,32 +77,58 @@ nav:
       - 6. Run and test it: tutorial/6-run.md
   - Guides:
       - Data:
+          - Models and queries: MODELS.md
           - Schemas: SCHEMAS.md
+          - Model-derived schemas: MODEL-SCHEMAS.md
           - Model options: MODEL-OPTIONS.md
           - Utilities: UTILITIES.md
+          - Relations: RELATIONS.md
+          - Migrations: MIGRATIONS.md
       - Endpoints:
+          - Endpoint declarations: ENDPOINTS.md
+          - Errors: ERRORS.md
+          - Pagination: PAGINATION.md
           - Parsers and renderers: CODECS.md
-          - Patterns and best practices: PATTERNS.md
       - Security and checks:
+          - Authentication and access: AUTHENTICATION.md
           - Rules: RULES.md
-      - Operating:
+      - Runtime:
+          - Application modules: MODULES.md
+          - Transactions: TRANSACTIONS.md
           - Settings: SETTINGS.md
-          - Running an application: SERVING.md
+          - Serving: SERVING.md
+          - Testing: TESTING.md
+          - Command line: CLI.md
           - Typing: TYPING.md
-          - Toolchain and CI: TOOLCHAIN.md
-      - Working with AI:
-          - Build with an agent: AI-WORKFLOW.md
-      - Admin:
-          - The admin: ADMIN.md
+      - Integrations:
+          - Admin: ADMIN.md
+          - Application MCP: APP-MCP.md
+          - Development tools: AI-WORKFLOW.md
+      - Operating:
+          - Sync and async: SYNC-ASYNC.md
   - Concepts:
-      - Sync and async: SYNC-ASYNC.md
+      - Overview: CONCEPTS.md
+      - Request lifecycle: REQUEST-LIFECYCLE.md
+      - Architecture patterns: PATTERNS.md
       - Glossary: GLOSSARY.md
   - Reference:
       - Overview: reference/index.md
-      - Routing and requests: reference/web.md
+      - Core API: reference/web.md
       - Schemas: reference/schemas.md
       - Models and queries: reference/orm.md
+      - Parsers and renderers: reference/codecs.md
       - Auth and crypto: reference/auth.md
+      - Database: reference/database.md
       - Settings: reference/settings.md
+      - Rules: reference/rules.md
+      - Modules and runtime: reference/runtime.md
+      - MCP and scaffold: reference/tools.md
+      - Admin: reference/admin.md
       - Testing: reference/testing.md
       - Utilities: reference/utilities.md
+  - Project:
+      - Status: STATUS.md
+      - Roadmap: https://github.com/caspel26/hinoki/blob/main/ROADMAP.md
+      - Contributing: https://github.com/caspel26/hinoki/blob/main/CONTRIBUTING.md
+      - Troubleshooting: TROUBLESHOOTING.md
+      - Toolchain and CI: TOOLCHAIN.md

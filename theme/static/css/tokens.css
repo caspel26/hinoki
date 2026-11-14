@@ -1,0 +1,218 @@
+/* Hinoki design tokens. Dark by default; light follows the system or the toggle. */
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("../fonts/plex-sans-latin-wght.woff2") format("woff2");
+  font-weight: 100 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../fonts/ibm-plex-mono-latin-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../fonts/ibm-plex-mono-latin-400-italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../fonts/ibm-plex-mono-latin-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --hn-font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --hn-font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --hn-radius-s: 8px;
+  --hn-radius-m: 12px;
+  --hn-radius-l: 20px;
+  --hn-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --hn-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+  --sp-9: 96px;
+
+  --fs-xs: 12px;
+  --fs-s: 13px;
+  --fs-m: 14px;
+  --fs-base: 16px;
+  --fs-l: 18px;
+  --fs-xl: 24px;
+  --fs-2xl: 32px;
+  --fs-3xl: 44px;
+
+  --radius-xl: 28px;
+  --header-h: 76px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --hn-bg: #0d0d10;
+  --hn-sunken: #131317;
+  --hn-surface-1: #17171c;
+  --hn-surface-2: #1e1e24;
+  --hn-surface-3: #26262d;
+  --hn-edge: #2c2c34;
+  --hn-edge-2: #3a3a44;
+  --hn-edge-control: #6b6b78;
+  --hn-text: #eeedf2;
+  --hn-text-2: #cfcdd8;
+  --hn-text-3: #9d9ca9;
+  --hn-brand: #b9a0e7;
+  --hn-brand-fill: #6d4bc4;
+  --hn-wood: #e3c29b;
+  --hn-info: #8fb8e0;
+  --hn-green: #86cfb3;
+  --hn-amber: #e0bc7d;
+  --hn-red: #ff7a8a;
+  --hn-tint-brand: #2a2734;
+  --hn-tint-info: #252a34;
+  --hn-tint-success: #242d2e;
+  --hn-tint-warning: #2f2b28;
+  --hn-tint-error: #332329;
+  --hn-tint-wood: #2f2c2b;
+  --hn-brand-tint: rgb(185 160 231 / 0.12);
+  --hn-raise: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  --hn-pop: 0 24px 48px -24px rgb(0 0 0 / 0.6);
+  --hn-soft: 0 10px 30px -12px rgb(0 0 0 / 0.55);
+  --orb-1: rgb(122 85 196 / 0.42);
+  --orb-2: rgb(185 160 231 / 0.22);
+  --orb-3: rgb(227 194 155 / 0.14);
+  --ring: rgb(185 160 231 / 0.26);
+  --ring-wood: rgb(227 194 155 / 0.28);
+  --hn-mark-shade: #7a55c4;
+  --hn-mark-light: #cdaefc;
+  --hn-mark-dot: #b9a0e7;
+
+  --hn-syn-keyword: #b9a0e7;
+  --hn-syn-string: #e3c29b;
+  --hn-syn-comment: #9d9ca9;
+  --hn-syn-number: #86cfb3;
+  --hn-syn-decorator: #e7a6e0;
+  --hn-syn-function: #e9e4f7;
+  --hn-syn-name: #eeedf2;
+  --hn-syn-operator: #cfcdd8;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --hn-bg: #f4f1ec;
+  --hn-sunken: #faf8f5;
+  --hn-surface-1: #ffffff;
+  --hn-surface-2: #ebe6df;
+  --hn-surface-3: #e3ddd4;
+  --hn-edge: #ddd6cb;
+  --hn-edge-2: #cdc5b8;
+  --hn-edge-control: #8a8176;
+  --hn-text: #1d1a24;
+  --hn-text-2: #4d4859;
+  --hn-text-3: #5f596a;
+  --hn-brand: #5f3da5;
+  --hn-brand-fill: #5f3da5;
+  --hn-wood: #87522a;
+  --hn-info: #386b99;
+  --hn-green: #28745d;
+  --hn-amber: #8a5d16;
+  --hn-red: #b44058;
+  --hn-tint-brand: #efecf6;
+  --hn-tint-info: #ebf0f5;
+  --hn-tint-success: #eaf1ef;
+  --hn-tint-warning: #f3efe8;
+  --hn-tint-error: #f8ecee;
+  --hn-tint-wood: #f3eeea;
+  --hn-brand-tint: rgb(95 61 165 / 0.08);
+  --hn-raise: inset 0 1px 0 #ffffff, 0 1px 2px #1d1a2410;
+  --hn-pop: 0 20px 40px -20px #1d1a2440;
+  --hn-soft: 0 10px 28px -14px #1d1a2440;
+  --orb-1: rgb(95 61 165 / 0.20);
+  --orb-2: rgb(154 123 224 / 0.20);
+  --orb-3: rgb(135 82 42 / 0.12);
+  --ring: rgb(95 61 165 / 0.22);
+  --ring-wood: rgb(135 82 42 / 0.24);
+  --hn-mark-shade: #5f3da5;
+  --hn-mark-light: #9a7be0;
+  --hn-mark-dot: #5f3da5;
+
+  --hn-syn-keyword: #5f3da5;
+  --hn-syn-string: #87522a;
+  --hn-syn-comment: #5f596a;
+  --hn-syn-number: #28745d;
+  --hn-syn-decorator: #9a2f8c;
+  --hn-syn-function: #3b2470;
+  --hn-syn-name: #1d1a24;
+  --hn-syn-operator: #4d4859;
+}
+
+/* Code surfaces use the Lilac Nights editor palette in both site themes. */
+.ide,
+.highlight,
+.hn-explorer__detail,
+.hn-cmdblock {
+  --ide-bg: #211a2e;
+  --ide-chrome: #15111f;
+  --ide-side: #1a1526;
+  --ide-line: #2b2340;
+  --ide-sel: #453863;
+  --ide-edge: #31274a;
+  --ide-ln: #716490;
+  --ide-ln-on: #d7b8ff;
+  --ide-fg: #e6e0f5;
+  --ide-muted: #a99bcc;
+  --ide-accent: #b98cff;
+  --ide-red: #ff6b85;
+  --hn-brand: #b98cff;
+  --hn-text: #e6e0f5;
+  --hn-text-2: #cfc6ea;
+  --hn-text-3: #9183b6;
+  --hn-red: #ff6b85;
+  --hn-green: #8fdc98;
+  --hn-amber: #ffcc80;
+  --hn-wood: #ffcc80;
+  --hn-edge: #31274a;
+  --hn-edge-2: #3d3059;
+  --hn-tint-error: rgb(255 107 133 / 0.14);
+  --hn-tint-success: rgb(143 220 152 / 0.12);
+  --hn-brand-tint: rgb(185 140 255 / 0.16);
+  color: var(--ide-fg);
+}
+
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.c, .c1, .cm, .cp, .ch, .cs) { color: #9183b6; font-style: italic; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.k, .kn, .kd, .kp, .kr, .ow) { color: #b98cff; font-weight: 600; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .kt { color: #ffcc80; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.kc, .m, .mi, .mf, .mh, .mo, .il) { color: #ff9d7a; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.kc) { font-style: italic; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.nb, .fm) { color: #8ec5ff; font-style: italic; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .bp { color: #b98cff; font-style: italic; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.nf, .f) { color: #8ec5ff; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.nc, .nn, .ne, .t) { color: #ffcc80; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.nd, .d) { color: #f18ce8; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.s, .s1, .s2, .sa, .sb, .sc, .sd, .sh, .si, .sx, .ss) { color: #8fdc98; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.se, .sr) { color: #5fe3d4; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .o { color: #5fe3d4; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .p { color: #9183b6; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.n, .nv, .vm) { color: #e6e0f5; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.na, .nx, .nl, .py) { color: #d7b8ff; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .gp { color: #9183b6; user-select: none; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .go { color: #cfc6ea; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .gi { display: inline-block; width: 100%; background: rgb(143 220 152 / 0.12); color: #8fdc98; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .gd { display: inline-block; width: 100%; background: rgb(255 107 133 / 0.14); color: #ff6b85; }
+:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .b { color: #8ec5ff; font-style: italic; }
