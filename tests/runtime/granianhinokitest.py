@@ -1,17 +1,27 @@
 """Hinoki's own adapter and lifespan under a real Granian process."""
 
 import json
+import os
 import signal
 import subprocess
 import threading
 import time
+import urllib.error
 import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
-from tests.runtime.harness import events, fetch, free_port, names, spawn, wait_ready
+from tests.runtime.harness import (
+    events,
+    fetch,
+    free_port,
+    group_is_gone,
+    names,
+    spawn,
+    wait_ready,
+)
 
 pytestmark = pytest.mark.runtime
 
@@ -80,6 +90,18 @@ def test_two_workers_run_separate_lifespans(tmp_path: Path) -> None:
         proc.wait()
 
 
+def test_killing_a_test_server_leaves_no_worker_behind(tmp_path: Path) -> None:
+    port = free_port()
+    proc = spawn(TARGET, tmp_path / "events.log", port, workers=2)
+    try:
+        wait_ready(port, "/fast")
+        assert os.getpgid(proc.pid) == proc.pid  # the server leads its own group
+    finally:
+        proc.kill()
+        proc.wait()
+    assert group_is_gone(proc.pid)
+
+
 def test_invalid_handler_signature_stops_the_server_instead_of_serving(
     tmp_path: Path,
 ) -> None:
@@ -123,3 +145,23 @@ def test_head_matches_get_through_granian(
         for key, value in get_headers.items()
         if key.lower() not in {"date", "x-request-id"}
     }
+
+
+def test_query_requests_carry_a_body_through_granian(
+    server: tuple[subprocess.Popen[bytes], int, Path],
+) -> None:
+    _, port, _ = server
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}/find",
+        data=b'{"text":"hinoki"}',
+        headers={"content-type": "application/json"},
+        method="QUERY",
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        assert response.status == 200
+        assert json.load(response) == {"method": "QUERY", "data": {"text": "hinoki"}}
+    wrong = urllib.request.Request(f"http://127.0.0.1:{port}/fast", method="QUERY")
+    with pytest.raises(urllib.error.HTTPError) as refused:
+        urllib.request.urlopen(wrong, timeout=10)
+    assert refused.value.code == 405
+    assert refused.value.headers["allow"] == "GET, HEAD"
