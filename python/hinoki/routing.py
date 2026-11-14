@@ -3,14 +3,16 @@
 Decorators only attach metadata; nothing is registered, opened or started
 until the function or API class is passed to ``Hinoki.include``. They
 return the original callable unchanged, so signatures stay visible to type
-checkers and decorators compose in any order.
+checkers. For standalone actions, ``Hinoki.include`` uses the final decorated
+callable. In a ``RouteGroup``, put the HTTP decorator outermost so the group
+captures the final callable.
 """
 
 from __future__ import annotations
 
 import inspect
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, ParamSpec, TypeVar
 
 from hinoki.access import Access
@@ -361,5 +363,11 @@ class MethodNotAllowed:
 
 
 def route_of(obj: object) -> Route | None:
+    if not callable(obj):
+        return None
     found = getattr(obj, ROUTE_ATTR, None)
-    return found if isinstance(found, Route) else None
+    if not isinstance(found, Route):
+        return None
+    # functools.wraps copies route metadata, but the stored declaration still
+    # points at the original function. Dispatch through the final wrapper.
+    return found if found.handler is obj else replace(found, handler=obj)

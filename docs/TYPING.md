@@ -16,7 +16,7 @@ uv run --locked mypy
 | `Schema` classes | Generated constructors check required, unknown and mistyped fields; `Field(default_factory=...)` preserves the value type. |
 | Application and route groups | `Hinoki.include`, `API` classes and `RouteGroup` provide typed declarations. Unknown include items fail at app construction. |
 | Authentication context | Annotate a parameter as `Caller[User]` to receive the typed caller and application user. |
-| Decorator composition | User decorators should preserve signatures with `functools.wraps`, `ParamSpec` and `TypeVar`. |
+| Decorator composition | User decorators should preserve signatures with `functools.wraps`, `ParamSpec` and `TypeVar`. For standalone handlers the final decorated function is dispatched. With `RouteGroup`, put the HTTP decorator outermost so it captures the final handler. |
 
 ## ORM method signatures
 

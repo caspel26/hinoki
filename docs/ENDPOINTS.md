@@ -75,6 +75,20 @@ async def create(data: TaskInput) -> TaskOutput:
 app = Hinoki(include=[tasks])
 ```
 
+When composing a group action with another decorator, put the HTTP decorator
+outside it. The group records the callable when `@tasks.get` runs:
+
+```python
+@tasks.get("/audited")
+@audit
+async def audited() -> str:
+    return "ok"
+```
+
+For a standalone function passed directly to `Hinoki.include`, the final
+decorated function is dispatched, so either order works with wrappers that use
+`functools.wraps`.
+
 For class-based APIs, put a shared path on the class and keep actions together:
 
 ```python
