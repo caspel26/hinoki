@@ -309,7 +309,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 <h2 id="4-relations-and-queries">4. Relations and queries<a class="headerlink" href="#4-relations-and-queries" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Relations are never lazy. Load what the response shows (<code>select_related</code> for single values, <code>prefetch_related</code> for collections) in the same place that builds the response, so the cost is visible in one function.</li>
-<li>Paginate every list (<code>pagination=…</code> + <code>PageParams</code>). Never return an unbounded list; never <code>aall()</code> a table to count or aggregate (use <code>acount()</code>, filters, or SQL).</li>
+<li>Paginate every list (<code>pagination=…</code> + <code>PageParams</code>). Never return an unbounded list; never <code>await</code> a whole table to count or aggregate (use <code>acount()</code>, filters, or SQL).</li>
 <li>Filter and order only by names you choose; never pass client-supplied column names to <code>filter</code> or <code>order_by</code> (the admin only sorts by its displayed columns for this reason).</li>
 </ul>
 <h2 id="5-sync-and-async">5. Sync and async<a class="headerlink" href="#5-sync-and-async" title="Permanent link">&para;</a></h2>
@@ -374,7 +374,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.3</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 13:28:57 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:18:21 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/patterns.md">Edit on GitHub</a></dd></div>
         </dl>

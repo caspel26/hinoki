@@ -372,6 +372,13 @@
         <p class="kicker" data-search-exclude>3.27 · Guides</p>
         <h1 id="sync-and-async-execution">Sync and async execution<a class="headerlink" href="#sync-and-async-execution" title="Permanent link">&para;</a></h1>
 <p>Hinoki runs on one event loop per worker. <strong>Async is the native way; sync is a supported way</strong>, not a second-class one: a plain <code>def</code> handler or hook runs on a bounded thread pool (<code>settings.ExecutionSettings.sync_workers</code>, <code>sync_queue</code>; a full queue answers 503 <code>overloaded</code>, in handlers and in sync hooks), the request's context follows it, and the sync ORM methods hand their work back to the worker's loop and block that thread, never the loop.</p>
+<h2 id="naming-convention">Naming convention<a class="headerlink" href="#naming-convention" title="Permanent link">&para;</a></h2>
+<p>A name with the <code>a</code> prefix awaits the database (<code>aget</code>, <code>acreate</code>, <code>acount</code>); the same name without it is the blocking twin for sync handlers. A query builder is lazy until you evaluate it, and awaiting the queryset itself is the async twin of <code>.list()</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="n">posts</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">published</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"-created"</span><span class="p">)</span>   <span class="c1"># async</span>
+<span class="n">posts</span> <span class="o">=</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">published</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"-created"</span><span class="p">)</span><span class="o">.</span><span class="n">list</span><span class="p">()</span>  <span class="c1"># sync handler</span>
+<span class="n">first</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">afirst</span><span class="p">()</span>
+</code></pre></div>
+<p><code>aall()</code> was removed: <code>await Post.all()</code> replaces <code>await Post.all().aall()</code>.</p>
 <h2 id="parity-table">Parity table<a class="headerlink" href="#parity-table" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -403,7 +410,7 @@
 </tr>
 <tr>
 <td>QuerySet: read</td>
-<td><code>aall</code>, <code>afirst</code>, <code>aget</code>, <code>acount</code>, <code>aexists</code>, <code>apaginate</code></td>
+<td><code>await queryset</code>, <code>afirst</code>, <code>aget</code>, <code>acount</code>, <code>aexists</code>, <code>apaginate</code></td>
 <td><code>list</code>, <code>first</code>, <code>get</code>, <code>count</code>, <code>exists</code>, <code>paginate</code></td>
 <td></td>
 </tr>
@@ -509,15 +516,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#parity-table">Parity table</a></li><li><a href="#limits-to-know">Limits to know</a></li><li><a href="#rules-of-thumb">Rules of thumb</a></li><li><a href="#verified">Verified</a></li></ul>
+            <ul><li><a href="#naming-convention">Naming convention</a></li><li><a href="#parity-table">Parity table</a></li><li><a href="#limits-to-know">Limits to know</a></li><li><a href="#rules-of-thumb">Rules of thumb</a></li><li><a href="#verified">Verified</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.27</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:11:46 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:18:21 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/sync-async.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

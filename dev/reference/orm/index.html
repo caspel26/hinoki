@@ -2049,19 +2049,39 @@ and migrations. Declare their creation defaults with <code>utc_now</code>.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.orm.QuerySet.aall" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">aall</span>
+<h3 id="hinoki.orm.QuerySet.__await__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">__await__</span>
+
+
+<a href="#hinoki.orm.QuerySet.__await__" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">__await__</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">builtins</span><span class="o">.</span><span class="n">list</span><span class="p">[</span><span class="n">M</span><span class="p">]]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.orm.QuerySet.fetch" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">fetch</span>
 
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-async"><code>async</code></small>
   </span>
 
-<a href="#hinoki.orm.QuerySet.aall" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">aall</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">M</span><span class="p">]</span>
+<a href="#hinoki.orm.QuerySet.fetch" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">fetch</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">M</span><span class="p">]</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
+
+        <p>Run the query and build the rows; what <code>await queryset</code> returns.</p>
 
 
     </div>
@@ -2219,7 +2239,7 @@ without filters is refused so it cannot wipe the table.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Sync <code>aall</code> for sync handlers.</p>
+        <p>Sync <code>await queryset</code> for sync handlers.</p>
 
 
     </div>
@@ -2841,7 +2861,7 @@ articles: ClassVar[Related[list[Article]]]
             <ul><li><a href="#hinoki.orm.Model">Model</a>
             <ul><li><a href="#hinoki.orm.Model.__table__">__table__</a></li><li><a href="#hinoki.orm.Model.__columns__">__columns__</a></li><li><a href="#hinoki.orm.Model.__primary_key__">__primary_key__</a></li><li><a href="#hinoki.orm.Model.__relations__">__relations__</a></li><li><a href="#hinoki.orm.Model.__unique__">__unique__</a></li><li><a href="#hinoki.orm.Model.__indexes__">__indexes__</a></li><li><a href="#hinoki.orm.Model.__ordering__">__ordering__</a></li><li><a href="#hinoki.orm.Model.__label__">__label__</a></li><li><a href="#hinoki.orm.Model.__plural__">__plural__</a></li><li><a href="#hinoki.orm.Model.__updated_at__">__updated_at__</a></li><li><a href="#hinoki.orm.Model.__clock__">__clock__</a></li><li><a href="#hinoki.orm.Model.NotFound">NotFound</a></li><li><a href="#hinoki.orm.Model.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.orm.Model.check_unique">check_unique</a></li><li><a href="#hinoki.orm.Model.check_names">check_names</a></li><li><a href="#hinoki.orm.Model.register_relations">register_relations</a></li><li><a href="#hinoki.orm.Model.check_attach">check_attach</a></li><li><a href="#hinoki.orm.Model.attach">attach</a></li><li><a href="#hinoki.orm.Model.from_row">from_row</a></li><li><a href="#hinoki.orm.Model.remember">remember</a></li><li><a href="#hinoki.orm.Model.asave">asave</a></li><li><a href="#hinoki.orm.Model.insert">insert</a></li><li><a href="#hinoki.orm.Model.refresh">refresh</a></li><li><a href="#hinoki.orm.Model.save">save</a></li><li><a href="#hinoki.orm.Model.related">related</a></li><li><a href="#hinoki.orm.Model.filter">filter</a></li><li><a href="#hinoki.orm.Model.all">all</a></li><li><a href="#hinoki.orm.Model.from_schema">from_schema</a></li><li><a href="#hinoki.orm.Model.acreate">acreate</a></li><li><a href="#hinoki.orm.Model.assign">assign</a></li><li><a href="#hinoki.orm.Model.aupdate_from">aupdate_from</a></li><li><a href="#hinoki.orm.Model.aget">aget</a></li><li><a href="#hinoki.orm.Model.aget_or_none">aget_or_none</a></li><li><a href="#hinoki.orm.Model.aupdate">aupdate</a></li><li><a href="#hinoki.orm.Model.aupdate_where">aupdate_where</a></li><li><a href="#hinoki.orm.Model.adelete">adelete</a></li><li><a href="#hinoki.orm.Model.create">create</a></li><li><a href="#hinoki.orm.Model.update_from">update_from</a></li><li><a href="#hinoki.orm.Model.update_where">update_where</a></li><li><a href="#hinoki.orm.Model.get">get</a></li><li><a href="#hinoki.orm.Model.get_or_none">get_or_none</a></li><li><a href="#hinoki.orm.Model.update">update</a></li><li><a href="#hinoki.orm.Model.delete">delete</a></li><li><a href="#hinoki.orm.Model.merged_values">merged_values</a></li><li><a href="#hinoki.orm.Model.check_field">check_field</a></li></ul>
           </li><li><a href="#hinoki.orm.field">field</a></li><li><a href="#hinoki.orm.foreign_key">foreign_key</a></li><li><a href="#hinoki.orm.unique">unique</a></li><li><a href="#hinoki.orm.indexed">indexed</a></li><li><a href="#hinoki.orm.ordered_by">ordered_by</a></li><li><a href="#hinoki.orm.timestamps">timestamps</a></li><li><a href="#hinoki.orm.QuerySet">QuerySet</a>
-            <ul><li><a href="#hinoki.orm.QuerySet.model">model</a></li><li><a href="#hinoki.orm.QuerySet.filters">filters</a></li><li><a href="#hinoki.orm.QuerySet.order">order</a></li><li><a href="#hinoki.orm.QuerySet.limit_to">limit_to</a></li><li><a href="#hinoki.orm.QuerySet.offset_by">offset_by</a></li><li><a href="#hinoki.orm.QuerySet.loading">loading</a></li><li><a href="#hinoki.orm.QuerySet.__init__">__init__</a></li><li><a href="#hinoki.orm.QuerySet.derive">derive</a></li><li><a href="#hinoki.orm.QuerySet.filter">filter</a></li><li><a href="#hinoki.orm.QuerySet.with_condition">with_condition</a></li><li><a href="#hinoki.orm.QuerySet.select_related">select_related</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_related">prefetch_related</a></li><li><a href="#hinoki.orm.QuerySet.relation">relation</a></li><li><a href="#hinoki.orm.QuerySet.forward">forward</a></li><li><a href="#hinoki.orm.QuerySet.order_by">order_by</a></li><li><a href="#hinoki.orm.QuerySet.limit">limit</a></li><li><a href="#hinoki.orm.QuerySet.offset">offset</a></li><li><a href="#hinoki.orm.QuerySet.joins">joins</a></li><li><a href="#hinoki.orm.QuerySet.compile">compile</a></li><li><a href="#hinoki.orm.QuerySet.build">build</a></li><li><a href="#hinoki.orm.QuerySet.load">load</a></li><li><a href="#hinoki.orm.QuerySet.prefetch">prefetch</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_forward">prefetch_forward</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_reverse">prefetch_reverse</a></li><li><a href="#hinoki.orm.QuerySet.aall">aall</a></li><li><a href="#hinoki.orm.QuerySet.afirst">afirst</a></li><li><a href="#hinoki.orm.QuerySet.aget">aget</a></li><li><a href="#hinoki.orm.QuerySet.aupdate">aupdate</a></li><li><a href="#hinoki.orm.QuerySet.adelete">adelete</a></li><li><a href="#hinoki.orm.QuerySet.acount">acount</a></li><li><a href="#hinoki.orm.QuerySet.aexists">aexists</a></li><li><a href="#hinoki.orm.QuerySet.list">list</a></li><li><a href="#hinoki.orm.QuerySet.first">first</a></li><li><a href="#hinoki.orm.QuerySet.get">get</a></li><li><a href="#hinoki.orm.QuerySet.update">update</a></li><li><a href="#hinoki.orm.QuerySet.delete">delete</a></li><li><a href="#hinoki.orm.QuerySet.count">count</a></li><li><a href="#hinoki.orm.QuerySet.exists">exists</a></li><li><a href="#hinoki.orm.QuerySet.paginate">paginate</a></li><li><a href="#hinoki.orm.QuerySet.apaginate">apaginate</a></li></ul>
+            <ul><li><a href="#hinoki.orm.QuerySet.model">model</a></li><li><a href="#hinoki.orm.QuerySet.filters">filters</a></li><li><a href="#hinoki.orm.QuerySet.order">order</a></li><li><a href="#hinoki.orm.QuerySet.limit_to">limit_to</a></li><li><a href="#hinoki.orm.QuerySet.offset_by">offset_by</a></li><li><a href="#hinoki.orm.QuerySet.loading">loading</a></li><li><a href="#hinoki.orm.QuerySet.__init__">__init__</a></li><li><a href="#hinoki.orm.QuerySet.derive">derive</a></li><li><a href="#hinoki.orm.QuerySet.filter">filter</a></li><li><a href="#hinoki.orm.QuerySet.with_condition">with_condition</a></li><li><a href="#hinoki.orm.QuerySet.select_related">select_related</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_related">prefetch_related</a></li><li><a href="#hinoki.orm.QuerySet.relation">relation</a></li><li><a href="#hinoki.orm.QuerySet.forward">forward</a></li><li><a href="#hinoki.orm.QuerySet.order_by">order_by</a></li><li><a href="#hinoki.orm.QuerySet.limit">limit</a></li><li><a href="#hinoki.orm.QuerySet.offset">offset</a></li><li><a href="#hinoki.orm.QuerySet.joins">joins</a></li><li><a href="#hinoki.orm.QuerySet.compile">compile</a></li><li><a href="#hinoki.orm.QuerySet.build">build</a></li><li><a href="#hinoki.orm.QuerySet.load">load</a></li><li><a href="#hinoki.orm.QuerySet.prefetch">prefetch</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_forward">prefetch_forward</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_reverse">prefetch_reverse</a></li><li><a href="#hinoki.orm.QuerySet.__await__">__await__</a></li><li><a href="#hinoki.orm.QuerySet.fetch">fetch</a></li><li><a href="#hinoki.orm.QuerySet.afirst">afirst</a></li><li><a href="#hinoki.orm.QuerySet.aget">aget</a></li><li><a href="#hinoki.orm.QuerySet.aupdate">aupdate</a></li><li><a href="#hinoki.orm.QuerySet.adelete">adelete</a></li><li><a href="#hinoki.orm.QuerySet.acount">acount</a></li><li><a href="#hinoki.orm.QuerySet.aexists">aexists</a></li><li><a href="#hinoki.orm.QuerySet.list">list</a></li><li><a href="#hinoki.orm.QuerySet.first">first</a></li><li><a href="#hinoki.orm.QuerySet.get">get</a></li><li><a href="#hinoki.orm.QuerySet.update">update</a></li><li><a href="#hinoki.orm.QuerySet.delete">delete</a></li><li><a href="#hinoki.orm.QuerySet.count">count</a></li><li><a href="#hinoki.orm.QuerySet.exists">exists</a></li><li><a href="#hinoki.orm.QuerySet.paginate">paginate</a></li><li><a href="#hinoki.orm.QuerySet.apaginate">apaginate</a></li></ul>
           </li><li><a href="#hinoki.pagination.PageParams">PageParams</a></li><li><a href="#hinoki.pagination.Page">Page</a>
             <ul><li><a href="#hinoki.pagination.Page.items">items</a></li><li><a href="#hinoki.pagination.Page.page">page</a></li><li><a href="#hinoki.pagination.Page.page_size">page_size</a></li><li><a href="#hinoki.pagination.Page.total">total</a></li><li><a href="#hinoki.pagination.Page.pages">pages</a></li><li><a href="#hinoki.pagination.Page.__init__">__init__</a></li><li><a href="#hinoki.pagination.Page.of">of</a></li><li><a href="#hinoki.pagination.Page.map">map</a></li><li><a href="#hinoki.pagination.Page.dump">dump</a></li></ul>
           </li><li><a href="#hinoki.pagination.PageNumberPagination">PageNumberPagination</a>
