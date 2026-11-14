@@ -41,7 +41,7 @@ KEYWORD_KINDS = {
     inspect.Parameter.POSITIONAL_OR_KEYWORD,
     inspect.Parameter.KEYWORD_ONLY,
 }
-BODY_METHODS = {"POST", "PUT", "PATCH"}
+BODY_METHODS = {"POST", "PUT", "PATCH", "QUERY"}
 EMPTY = inspect.Parameter.empty
 MAX_FIELDS = 1000
 MISSING = object()
@@ -258,7 +258,7 @@ def special_param(
         if name in PATH_PARAM.findall(route.path) or route.method not in BODY_METHODS:
             raise RegistrationError(
                 f"{where}: schema parameter {name!r} must be a JSON body of a "
-                "POST/PUT/PATCH action, not a path or query parameter"
+                "POST/PUT/PATCH/QUERY action, not a path or query parameter"
             )
         annotation.specs()  # unresolvable annotations fail now, not per request
         return Param(name, "body", schema=annotation)

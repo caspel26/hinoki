@@ -235,6 +235,30 @@ def delete(
     return RouteDeclaration("DELETE", path, options)
 
 
+def query(
+    path: str,
+    *,
+    status: int = 200,
+    access: Access | None = None,
+    transaction: bool = False,
+    pagination: PageNumberPagination | None = None,
+    replaces: str = "",
+    parsers: Sequence[Parser] | None = None,
+    renderers: Sequence[Renderer] | None = None,
+    errors: Sequence[type[APIError]] = (),
+) -> RouteDeclaration:
+    """Declare a QUERY action: a safe, idempotent request that carries a body
+    (a search too large or too structured for a query string). It binds its
+    body like POST and is never wrapped in a transaction unless asked.
+    ``errors`` lists the ``APIError`` subclasses the
+    action may raise; each carries its own status and code, which OpenAPI and the
+    MCP tool description then show."""
+    options = Options(
+        status, access, transaction, pagination, replaces, parsers, renderers, errors
+    )
+    return RouteDeclaration("QUERY", path, options)
+
+
 class Mount:
     """Places routes under a path prefix chosen where the application is declared.
 
@@ -357,6 +381,9 @@ class RouteGroup:
 
     def delete(self, path: str, **options: Any) -> _GroupRouteDeclaration:
         return _GroupRouteDeclaration(self, self.declare("DELETE", path, options))
+
+    def query(self, path: str, **options: Any) -> _GroupRouteDeclaration:
+        return _GroupRouteDeclaration(self, self.declare("QUERY", path, options))
 
 
 class _GroupRouteDeclaration:
