@@ -1,6 +1,6 @@
 """Hinoki: a typed Python API framework with a native Rust core."""
 
-from hinoki import http
+from hinoki import http, settings
 from hinoki.access import Access
 from hinoki.api import API
 from hinoki.app import Hinoki
@@ -38,18 +38,6 @@ from hinoki.schema import (
     field_check,
     object_check,
 )
-from hinoki.settings import (
-    DatabaseSettings,
-    DocsSettings,
-    ExecutionSettings,
-    FrameworkSettings,
-    LifecycleSettings,
-    LoggingSettings,
-    Secret,
-    ServerSettings,
-    Settings,
-    SettingsError,
-)
 
 __version__ = core_version()
 
@@ -65,13 +53,9 @@ __all__ = [
     "BearerAuth",
     "Caller",
     "Conflict",
-    "DatabaseSettings",
-    "DocsSettings",
-    "ExecutionSettings",
     "Field",
     "Forbidden",
     "FormParser",
-    "FrameworkSettings",
     "HTMLRenderer",
     "HeaderAuth",
     "Hinoki",
@@ -79,8 +63,6 @@ __all__ = [
     "Invalid",
     "JSONParser",
     "JSONRenderer",
-    "LifecycleSettings",
-    "LoggingSettings",
     "Module",
     "ModuleContext",
     "ModuleGraphError",
@@ -97,10 +79,6 @@ __all__ = [
     "RuntimeConfig",
     "Schema",
     "Schemas",
-    "Secret",
-    "ServerSettings",
-    "Settings",
-    "SettingsError",
     "Transactions",
     "Unauthorized",
     "Unset",
@@ -110,4 +88,5 @@ __all__ = [
     "http",
     "object_check",
     "set_cookie",
+    "settings",
 ]

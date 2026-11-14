@@ -26,7 +26,7 @@ from hinoki.rules import Phase, Project, RuleSet, failing
 from hinoki.runtime.asgi import ASGIAdapter
 from hinoki.runtime.binding import Binding, bind
 from hinoki.runtime.config import RuntimeConfig
-from hinoki.settings import DocsSettings, FrameworkSettings, Settings
+from hinoki.settings import AppSettings, DocsSettings, Settings
 from hinoki.utils import Clock, _read_utc, utc_now
 
 log = logging.getLogger("hinoki")
@@ -62,7 +62,7 @@ class Hinoki:
         if isinstance(settings, type) and issubclass(settings, Settings):
             settings = settings.load()  # a class: read its variables now
         # An explicit argument wins over ``settings``, which wins over the default.
-        built_in = settings if isinstance(settings, FrameworkSettings) else None
+        built_in = settings if isinstance(settings, AppSettings) else None
         self._timezone = ZoneInfo(built_in.timezone) if built_in else UTC
         docs = built_in.docs if built_in else DocsSettings()
         self.settings = settings

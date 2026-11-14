@@ -2,11 +2,12 @@
 
 import pytest
 
-from hinoki import API, DatabaseSettings, FrameworkSettings, Hinoki, Module, http
+from hinoki import API, Hinoki, Module, http
 from hinoki.db import DatabaseModule
+from hinoki.settings import AppSettings, DatabaseSettings
 
 
-class Declared(FrameworkSettings, prefix="DECL_"):
+class Declared(AppSettings, prefix="DECL_"):
     database: DatabaseSettings
 
 
@@ -48,5 +49,5 @@ def test_declaration_mistakes_are_clear(monkeypatch: pytest.MonkeyPatch) -> None
     with pytest.raises(TypeError, match="cannot be built from settings"):
         Hinoki(settings=Declared, modules=[Module])
     with pytest.raises(TypeError, match="database: DatabaseSettings"):
-        Hinoki(settings=FrameworkSettings, modules=[DatabaseModule])
+        Hinoki(settings=AppSettings, modules=[DatabaseModule])
     assert Hinoki(modules=[DatabaseModule("postgres://x")]).modules  # an instance works

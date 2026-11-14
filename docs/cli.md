@@ -35,7 +35,7 @@ hinoki dev examples.notes.main:app --host 127.0.0.1 --port 8000
 hinoki serve examples.notes.main:app --workers 4
 ```
 
-Both commands accept `--host` and `--port`; they override `settings.server.host` and `.port`. `serve` also accepts `--workers`, overriding `.workers`. Otherwise values come from the app's `FrameworkSettings.server` group. `dev` enables reload and runs one worker. Granian is provided by the optional server extra.
+Both commands accept `--host` and `--port`; they override `settings.server.host` and `.port`. `serve` also accepts `--workers`, overriding `.workers`. Otherwise values come from the app's `settings.AppSettings.server` group. `dev` enables reload and runs one worker. Granian is provided by the optional server extra.
 
 ### `check`
 
@@ -63,7 +63,7 @@ hinoki settings examples.blog.settings:BlogSettings \
 hinoki settings examples.blog.settings:BlogSettings --example > .env.example
 ```
 
-`TARGET` can be a settings class or an app with typed settings. `--prefix`, `--dotenv` and `--toml` override sources declared by the settings class. `--format text|json` selects output; `--example` prints a `.env.example` with defaults and types, leaving secrets and required fields blank. Values of `Secret` are redacted.
+`TARGET` can be a settings class or an app with typed settings. `--prefix`, `--dotenv` and `--toml` override sources declared by the settings class. `--format text|json` selects output; `--example` prints a `.env.example` with defaults and types, leaving secrets and required fields blank. Values of `settings.Secret` are redacted.
 
 ### `manage`
 
