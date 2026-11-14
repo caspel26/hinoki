@@ -34,6 +34,14 @@ class Headers(Mapping[str, str]):
     def __init__(self, items: Mapping[str, str]) -> None:
         self.items_ = {name.lower(): value for name, value in items.items()}
 
+    @classmethod
+    def lowered(cls, items: Mapping[str, str]) -> Headers:
+        """Headers from names that are already lower-case (the server adapter's
+        header map): copied, not converted again."""
+        headers = cls.__new__(cls)
+        headers.items_ = dict(items)
+        return headers
+
     def __getitem__(self, name: str) -> str:
         return self.items_[name.lower()]
 
@@ -85,7 +93,7 @@ class Request:
         self.scheme = scheme
         self.host = host
         self.client = client
-        self.headers = Headers(headers)
+        self.headers = headers if isinstance(headers, Headers) else Headers(headers)
         self.GET = QueryDict(query)
         self.COOKIES = core.parse_cookie_header(self.headers.get("cookie", ""))
         self.body = body
