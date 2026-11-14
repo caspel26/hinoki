@@ -404,6 +404,58 @@
 </code></pre></div>
 <p>Filters accept validated field names and supported comparison/membership operators. Values are bound parameters; SQL identifiers are compiled from model metadata. Query methods do not issue SQL until an evaluation method such as awaiting the query, <code>aget</code>, <code>acount</code>, <code>aupdate</code> or <code>adelete</code> is called.</p>
 <p><code>@ordered_by</code> supplies ordering only when a query does not specify <code>order_by</code>. An explicit order replaces it. Counts and bulk updates do not inherit default ordering.</p>
+<h2 id="reusable-queries">Reusable queries<a class="headerlink" href="#reusable-queries" title="Permanent link">&para;</a></h2>
+<p>A reusable query is a typed class method that returns a <code>QuerySet</code>. Hinoki has no hidden default manager: <code>Model.all()</code> always means every row.</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Task</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"tasks"</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
+    <span class="n">done</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">deleted_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">active</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Self</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">deleted_at</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+
+<span class="n">open_tasks</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">active</span><span class="p">()</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">done</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"title"</span><span class="p">)</span>
+<span class="n">everything</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>           <span class="c1"># the explicit way around the policy</span>
+</code></pre></div>
+<p>Pass the method where the framework asks for a base query, so every operation built on it sees the same rows:</p>
+<div class="highlight"><pre><span></span><code><span class="n">Resource</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Task</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">TaskOut</span><span class="p">,</span> <span class="n">queryset</span><span class="o">=</span><span class="n">Task</span><span class="o">.</span><span class="n">active</span><span class="p">)</span>   <span class="c1"># list, read, update, delete</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TaskAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">[</span><span class="n">Task</span><span class="p">]):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Task</span><span class="o">.</span><span class="n">active</span><span class="p">()</span>
+</code></pre></div>
+<p>Choose the place by what the rule is:</p>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Where</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Row order</td>
+<td><code>@ordered_by(...)</code> (<a href="../model-options/">model options</a>)</td>
+<td>declared once, replaced by any explicit <code>order_by</code></td>
+</tr>
+<tr>
+<td>A policy the whole app shares, such as hiding soft-deleted rows</td>
+<td>a named class method such as <code>Task.active()</code>, passed as <code>queryset=</code> or used in the admin's <code>queryset()</code></td>
+<td>visible at each call site and in review; nothing is hidden implicitly</td>
+</tr>
+<tr>
+<td>Rows that depend on the caller</td>
+<td><code>Resource(owner=...)</code> or <code>ModelAdmin.queryset(principal)</code></td>
+<td>the caller is available there; model-level code never sees it</td>
+</tr>
+</tbody>
+</table>
+<p>Authorization must not depend on a default that a call to <code>all()</code> or a raw query can skip: keep ownership and permission checks in <code>access=</code>, <code>owner=</code> and <code>ModelAdmin.can()</code>, and treat a reusable query as convenience, not as the security boundary.</p>
 <h2 id="create-and-update">Create and update<a class="headerlink" href="#create-and-update" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="n">task</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">TaskInput</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Write docs"</span><span class="p">),</span> <span class="n">owner_id</span><span class="o">=</span><span class="n">member_id</span><span class="p">)</span>
 <span class="n">task</span><span class="o">.</span><span class="n">done</span> <span class="o">=</span> <span class="kc">True</span>
@@ -439,15 +491,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#define-a-model">Define a model</a></li><li><a href="#query-rows">Query rows</a></li><li><a href="#create-and-update">Create and update</a></li><li><a href="#relations">Relations</a></li><li><a href="#schema-options">Schema options</a></li><li><a href="#migrations">Migrations</a></li></ul>
+            <ul><li><a href="#define-a-model">Define a model</a></li><li><a href="#query-rows">Query rows</a></li><li><a href="#reusable-queries">Reusable queries</a></li><li><a href="#create-and-update">Create and update</a></li><li><a href="#relations">Relations</a></li><li><a href="#schema-options">Schema options</a></li><li><a href="#migrations">Migrations</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.2</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:18:21 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>2 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:24:05 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
