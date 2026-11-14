@@ -3,7 +3,7 @@
 BLOG_DATABASE_URL=postgres://...      required
 BLOG_ADMIN_SECRET=...                 required, 32+ bytes
 BLOG_JWT_SECRET=...                   optional: switches on /auth/login
-BLOG_ADMIN_THEME=studio|console|paper
+BLOG_ADMIN_THEME=studio|console|paper|grove
 BLOG_EXECUTION__SYNC_WORKERS=16       any built-in group: execution, lifecycle,
 BLOG_LOGGING__FORMAT=json             logging, docs (see docs/SETTINGS-DESIGN.md)
 """
@@ -17,4 +17,4 @@ class BlogSettings(FrameworkSettings, prefix="BLOG_"):
     database_url: Secret
     admin_secret: Secret
     jwt_secret: Secret | None = None
-    admin_theme: Literal["studio", "console", "paper"] = "studio"
+    admin_theme: Literal["studio", "console", "paper", "grove"] = "studio"

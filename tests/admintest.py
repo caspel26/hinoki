@@ -225,8 +225,8 @@ def test_application_templates_and_css_override_the_built_in_set(
     assert 'data-theme="paper"' in css and "prefers-color-scheme: dark" in css
 
 
-def test_three_themes_share_the_component_set_and_validate() -> None:
-    assert set(THEMES) == {"studio", "console", "paper"}
+def test_four_themes_share_the_component_set_and_validate() -> None:
+    assert set(THEMES) == {"studio", "console", "paper", "grove"}
     assert {t.edit for t in THEMES.values()} == {"drawer", "page"}
     for name in THEMES:
         css = Templates(theme=name).stylesheet().decode()
@@ -237,6 +237,11 @@ def test_three_themes_share_the_component_set_and_validate() -> None:
         assert "[data-mode=dark]" in css and "[data-mode=light]" in css
     assert {t.layout for t in THEMES.values()} == {"sidebar", "topbar", "index"}
     assert {t.list_style for t in THEMES.values()} == {"table", "rows"}
+    assert THEMES["studio"].layout == "sidebar"
+    assert THEMES["studio"].list_style == "table"
+    assert THEMES["grove"].layout == "sidebar"
+    assert THEMES["grove"].list_style == "rows"
+    assert THEMES["grove"].edit == "page"
     with pytest.raises(ValueError, match="unknown theme"):
         Templates(theme="nope")
     broken = Theme("mine", "Mine", "page", {"bg": "#fff"}, {}, {})
@@ -794,6 +799,14 @@ async def test_edit_opens_beside_the_list_in_drawer_themes_and_on_a_page_otherwi
         "hn-drawer" not in page.body
         and "hn-page-form" in page.body
         and 'data-theme="paper"' in page.body
+    )
+    grove = await (await pool.start(build("grove"))).request(
+        "GET", f"/admin/notes/{key}", headers=STAFF
+    )
+    assert (
+        "hn-drawer" not in grove.body
+        and "hn-page-form" in grove.body
+        and 'data-theme="grove"' in grove.body
     )
 
 
