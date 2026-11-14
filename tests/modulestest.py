@@ -1,6 +1,7 @@
 import pytest
 
-from hinoki import API, Hinoki, Module, ModuleGraphError, RegistrationError, http
+from hinoki import API, Hinoki, Module, http
+from hinoki.errors import ModuleGraphError, RegistrationError
 from hinoki.modules import order_modules
 from hinoki.request import Request
 

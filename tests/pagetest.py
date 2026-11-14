@@ -3,7 +3,8 @@
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import Hinoki, RegistrationError, Schema, http
+from hinoki import Hinoki, Schema, http
+from hinoki.errors import RegistrationError
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from hinoki.request import Request
 from tests.harness import Pool

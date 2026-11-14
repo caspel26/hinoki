@@ -1,6 +1,7 @@
 import pytest
 
-from hinoki import API, Hinoki, RegistrationError, core, http
+from hinoki import API, Hinoki, core, http
+from hinoki.errors import RegistrationError
 from hinoki.request import Request
 
 

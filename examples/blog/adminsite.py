@@ -24,7 +24,7 @@ from hinoki.admin import (
     Tab,
 )
 from hinoki.auth import BaseAuth, Credentials
-from hinoki.httperrors import Unauthorized
+from hinoki.errors import Unauthorized
 from hinoki.utils import utc_now
 
 COOKIE = "blog_token"

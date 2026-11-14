@@ -26,7 +26,7 @@ from typing import Any, ClassVar
 from hinoki import core
 from hinoki.auth import BearerAuth, Caller
 from hinoki.blocking import call_hook
-from hinoki.httperrors import APIError
+from hinoki.errors import APIError
 
 log = logging.getLogger("hinoki.crypto")
 

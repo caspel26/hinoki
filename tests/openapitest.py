@@ -6,17 +6,8 @@ from uuid import UUID
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import (
-    API,
-    Access,
-    Caller,
-    Conflict,
-    Forbidden,
-    Hinoki,
-    RegistrationError,
-    Schema,
-    http,
-)
+from hinoki import API, Access, Caller, Hinoki, Schema, http
+from hinoki.errors import Conflict, Forbidden, RegistrationError
 from hinoki.request import Request
 from hinoki.schema import Field
 from tests.harness import Pool

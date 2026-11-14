@@ -7,9 +7,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import RegistrationError
 from hinoki.db import Database, UniqueViolation
-from hinoki.errors import MigrationError
+from hinoki.errors import MigrationError, RegistrationError
 from hinoki.orm import Model, field, foreign_key, migrator, use_database
 from hinoki.orm.migrations import plan
 

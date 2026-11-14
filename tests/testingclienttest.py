@@ -2,7 +2,8 @@
 
 import pytest
 
-from hinoki import Conflict, Hinoki, Request, Schema, http
+from hinoki import Hinoki, Request, Schema, http
+from hinoki.errors import Conflict
 from hinoki.modules import Module
 from hinoki.testing import ASGIClient
 

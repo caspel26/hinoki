@@ -16,8 +16,8 @@ from dataclasses import dataclass, replace
 from typing import Any, ParamSpec, TypeVar
 
 from hinoki.access import Access
+from hinoki.errors import APIError
 from hinoki.fields import UNSET, Unset
-from hinoki.httperrors import APIError
 from hinoki.pagination import PageNumberPagination
 from hinoki.parsers import DEFAULT_PARSERS, Parser, check_parsers
 from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers

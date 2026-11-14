@@ -13,9 +13,8 @@ from zoneinfo import ZoneInfo
 from hinoki.api import API
 from hinoki.core import Router
 from hinoki.docsui import pages as docs_pages
-from hinoki.errors import RegistrationError
+from hinoki.errors import ErrorRegistry, RegistrationError
 from hinoki.fields import UNSET, Unset
-from hinoki.httperrors import ErrorRegistry
 from hinoki.management import Command, _normalize_commands
 from hinoki.modules import Module, order_modules
 from hinoki.openapi import OpenAPIBuilder

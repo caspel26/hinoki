@@ -4,7 +4,8 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import UNSET, Field, RegistrationError, Schema, Unset, ValidationError
+from hinoki import UNSET, Field, Schema, Unset
+from hinoki.errors import RegistrationError, ValidationError
 from tests.oracle.validation import MAX_ERRORS
 
 
