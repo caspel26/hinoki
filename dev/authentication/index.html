@@ -390,7 +390,7 @@
 <h2 id="attach-a-policy">Attach a policy<a class="headerlink" href="#attach-a-policy" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="n">member_only</span> <span class="o">=</span> <span class="n">Access</span><span class="p">(</span><span class="n">SessionAuth</span><span class="p">(),</span> <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="s2">"tasks:read"</span><span class="p">])</span>
 
-<span class="nd">@get</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">member_only</span><span class="p">)</span>
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">member_only</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_tasks</span><span class="p">(</span><span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">TaskOutput</span><span class="p">]:</span>
     <span class="o">...</span>
 </code></pre></div>
@@ -428,7 +428,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.14</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 01:30:16 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 13:28:57 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/authentication.md">Edit on GitHub</a></dd></div>
         </dl>

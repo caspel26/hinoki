@@ -1192,7 +1192,7 @@ method is not allowed (use <code>lookup</code> to tell them apart).</p>
 
         <p>Base class for a resource: several methods, standard or custom.</p>
 <p><code>class Posts(API, path='/posts')</code>. Instances hold no per-request state;
-methods declared with <code>@get</code>/<code>@post</code>/... become actions.</p>
+methods declared with <code>@http.get</code>/<code>@http.post</code>/... become actions.</p>
 
 
 
@@ -2145,16 +2145,17 @@ The result is an ordinary action: rules, OpenAPI and the MCP see no difference.<
     </div>
 
 </div><h2 id="http-method-decorators">HTTP method decorators<a class="headerlink" href="#http-method-decorators" title="Permanent link">&para;</a></h2>
+<p>Import the namespace and decorate actions: <code>from hinoki import http</code>, then <code>@http.get(...)</code>. The names are not available at the top level of <code>hinoki</code>.</p>
 
 
 <div class="doc doc-object doc-function">
 
 
-<h2 id="hinoki.routing.get" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">hinoki.routing.get</span>
+<h2 id="hinoki.http.get" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.http.get</span>
 
 
-<a href="#hinoki.routing.get" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#hinoki.http.get" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">get</span><span class="p">(</span>
     <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -2183,11 +2184,11 @@ MCP tool description then show.</p>
 <div class="doc doc-object doc-function">
 
 
-<h2 id="hinoki.routing.post" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">hinoki.routing.post</span>
+<h2 id="hinoki.http.post" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.http.post</span>
 
 
-<a href="#hinoki.routing.post" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#hinoki.http.post" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">post</span><span class="p">(</span>
     <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -2216,11 +2217,11 @@ MCP tool description then show.</p>
 <div class="doc doc-object doc-function">
 
 
-<h2 id="hinoki.routing.put" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">hinoki.routing.put</span>
+<h2 id="hinoki.http.put" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.http.put</span>
 
 
-<a href="#hinoki.routing.put" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#hinoki.http.put" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">put</span><span class="p">(</span>
     <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -2249,11 +2250,11 @@ MCP tool description then show.</p>
 <div class="doc doc-object doc-function">
 
 
-<h2 id="hinoki.routing.patch" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">hinoki.routing.patch</span>
+<h2 id="hinoki.http.patch" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.http.patch</span>
 
 
-<a href="#hinoki.routing.patch" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#hinoki.http.patch" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">patch</span><span class="p">(</span>
     <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -2282,11 +2283,11 @@ MCP tool description then show.</p>
 <div class="doc doc-object doc-function">
 
 
-<h2 id="hinoki.routing.delete" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">hinoki.routing.delete</span>
+<h2 id="hinoki.http.delete" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.http.delete</span>
 
 
-<a href="#hinoki.routing.delete" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#hinoki.http.delete" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">delete</span><span class="p">(</span>
     <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -3489,7 +3490,7 @@ override them. <code>details</code> is public data, never internal state.</p>
             <ul><li><a href="#hinoki.routing.RouteGroup.prefix">prefix</a></li><li><a href="#hinoki.routing.RouteGroup.access">access</a></li><li><a href="#hinoki.routing.RouteGroup.atomic">atomic</a></li><li><a href="#hinoki.routing.RouteGroup.errors">errors</a></li><li><a href="#hinoki.routing.RouteGroup._handlers">_handlers</a></li><li><a href="#hinoki.routing.RouteGroup._included">_included</a></li><li><a href="#hinoki.routing.RouteGroup.handlers">handlers</a></li><li><a href="#hinoki.routing.RouteGroup.__init__">__init__</a></li><li><a href="#hinoki.routing.RouteGroup._include">_include</a></li><li><a href="#hinoki.routing.RouteGroup._decorate">_decorate</a></li><li><a href="#hinoki.routing.RouteGroup.declare">declare</a></li><li><a href="#hinoki.routing.RouteGroup.get">get</a></li><li><a href="#hinoki.routing.RouteGroup.post">post</a></li><li><a href="#hinoki.routing.RouteGroup.put">put</a></li><li><a href="#hinoki.routing.RouteGroup.patch">patch</a></li><li><a href="#hinoki.routing.RouteGroup.delete">delete</a></li></ul>
           </li><li><a href="#hinoki.routing.Route">Route</a>
             <ul><li><a href="#hinoki.routing.Route.method">method</a></li><li><a href="#hinoki.routing.Route.path">path</a></li><li><a href="#hinoki.routing.Route.handler">handler</a></li><li><a href="#hinoki.routing.Route.status">status</a></li><li><a href="#hinoki.routing.Route.access">access</a></li><li><a href="#hinoki.routing.Route.transaction">transaction</a></li><li><a href="#hinoki.routing.Route.owner">owner</a></li><li><a href="#hinoki.routing.Route.pagination">pagination</a></li><li><a href="#hinoki.routing.Route.replaces">replaces</a></li><li><a href="#hinoki.routing.Route.parsers">parsers</a></li><li><a href="#hinoki.routing.Route.renderers">renderers</a></li><li><a href="#hinoki.routing.Route.errors">errors</a></li><li><a href="#hinoki.routing.Route.is_async">is_async</a></li><li><a href="#hinoki.routing.Route.name">name</a></li><li><a href="#hinoki.routing.Route.__init__">__init__</a></li></ul>
-          </li><li><a href="#http-method-decorators">HTTP method decorators</a></li><li><a href="#hinoki.routing.get">get</a></li><li><a href="#hinoki.routing.post">post</a></li><li><a href="#hinoki.routing.put">put</a></li><li><a href="#hinoki.routing.patch">patch</a></li><li><a href="#hinoki.routing.delete">delete</a></li><li><a href="#request-response-and-errors">Request, response and errors</a></li><li><a href="#hinoki.request.Request">Request</a>
+          </li><li><a href="#http-method-decorators">HTTP method decorators</a></li><li><a href="#hinoki.http.get">get</a></li><li><a href="#hinoki.http.post">post</a></li><li><a href="#hinoki.http.put">put</a></li><li><a href="#hinoki.http.patch">patch</a></li><li><a href="#hinoki.http.delete">delete</a></li><li><a href="#request-response-and-errors">Request, response and errors</a></li><li><a href="#hinoki.request.Request">Request</a>
             <ul><li><a href="#hinoki.request.Request.__slots__">__slots__</a></li><li><a href="#hinoki.request.Request.method">method</a></li><li><a href="#hinoki.request.Request.path">path</a></li><li><a href="#hinoki.request.Request.scheme">scheme</a></li><li><a href="#hinoki.request.Request.host">host</a></li><li><a href="#hinoki.request.Request.client">client</a></li><li><a href="#hinoki.request.Request.headers">headers</a></li><li><a href="#hinoki.request.Request.GET">GET</a></li><li><a href="#hinoki.request.Request.COOKIES">COOKIES</a></li><li><a href="#hinoki.request.Request.body">body</a></li><li><a href="#hinoki.request.Request.path_params">path_params</a></li><li><a href="#hinoki.request.Request.user">user</a></li><li><a href="#hinoki.request.Request.request_id">request_id</a></li><li><a href="#hinoki.request.Request.parsers">parsers</a></li><li><a href="#hinoki.request.Request.cached">cached</a></li><li><a href="#hinoki.request.Request.content_type">content_type</a></li><li><a href="#hinoki.request.Request.data">data</a></li><li><a href="#hinoki.request.Request.POST">POST</a></li><li><a href="#hinoki.request.Request.FILES">FILES</a></li><li><a href="#hinoki.request.Request.__init__">__init__</a></li><li><a href="#hinoki.request.Request.parsed">parsed</a></li><li><a href="#hinoki.request.Request.accepts_form">accepts_form</a></li></ul>
           </li><li><a href="#hinoki.reply.Reply">Reply</a>
             <ul><li><a href="#hinoki.reply.Reply.__slots__">__slots__</a></li><li><a href="#hinoki.reply.Reply.status">status</a></li><li><a href="#hinoki.reply.Reply.body">body</a></li><li><a href="#hinoki.reply.Reply.headers">headers</a></li><li><a href="#hinoki.reply.Reply.__init__">__init__</a></li></ul>
@@ -3502,7 +3503,7 @@ override them. <code>details</code> is public data, never internal state.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.2</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 02:07:08 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 13:28:57 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/web.md">Edit on GitHub</a></dd></div>
         </dl>

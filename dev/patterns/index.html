@@ -289,7 +289,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 </tr>
 <tr>
 <td>Errors</td>
-<td>Raise <code>APIError</code> subclasses and <strong>declare them on the action</strong>: <code>@post(..., errors=(PostAlreadyPublished, Forbidden))</code>. Translate database errors once with <code>app.errors.handle(...)</code></td>
+<td>Raise <code>APIError</code> subclasses and <strong>declare them on the action</strong>: <code>@http.post(..., errors=(PostAlreadyPublished, Forbidden))</code>. Translate database errors once with <code>app.errors.handle(...)</code></td>
 <td>Failures are exceptions. The declaration (status and code come from the class) feeds OpenAPI, the MCP tool description and, in tests, <code>ASGIClient(app, strict_errors=True)</code>, which fails on an error answer the action did not declare. <strong>A returned <code>Reply</code> commits the transaction</strong></td>
 </tr>
 <tr>
@@ -374,7 +374,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.3</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 02:07:13 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 13:28:57 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/patterns.md">Edit on GitHub</a></dd></div>
         </dl>
