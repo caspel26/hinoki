@@ -31,7 +31,7 @@ The `author_id` field is stored on `posts`. The forward relation is `post.author
 Use `select_related` for a forward foreign key when a query needs one related row. Use `prefetch_related` for a reverse or collection relation; it issues a separate bounded query and attaches the results.
 
 ```python
-posts = await Post.all().select_related("author").aall()
+posts = await Post.all().select_related("author")
 for post in posts:
     print(post.author.name)
 ```
@@ -78,7 +78,7 @@ post = await Post.acreate(title="Release notes")
 tag = await Tag.acreate(name="docs")
 await PostTag.acreate(post_id=post.id, tag_id=tag.id)
 
-links = await PostTag.filter(post_id=post.id).select_related("tag").aall()
+links = await PostTag.filter(post_id=post.id).select_related("tag")
 tag_names = [link.tag.name for link in links]
 ```
 
