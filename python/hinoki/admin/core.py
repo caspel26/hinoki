@@ -95,6 +95,10 @@ class Admin:
         *,
         slug: str | None = None,
     ) -> None:
+        if model.__abstract__:
+            raise RegistrationError(
+                f"admin: {model.__name__} is abstract; register a model with a table"
+            )
         name = slug or model.__table__.replace("_", "-").lower()
         if not SLUG.fullmatch(name) or name in RESERVED or name in self.models:
             raise RegistrationError(f"admin: invalid or duplicate slug {name!r}")

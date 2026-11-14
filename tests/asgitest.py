@@ -149,6 +149,11 @@ async def test_head_uses_get_status_headers_and_representation_length(
     } == {key: value for key, value in get.headers.items() if key != "x-request-id"}
     assert head.headers["x-request-id"] != get.headers["x-request-id"]
 
+    # Only the exact method name is HEAD; another spelling is not served as GET.
+    lower = await client.request("head", "/ping")
+    assert (lower.status, lower.headers["allow"]) == (405, "GET, HEAD")
+    assert "pong" not in str(lower.body)
+
     gone = await client.request("HEAD", "/gone")
     assert gone.status == 204 and gone.body is None
     assert "content-length" not in gone.headers

@@ -20,6 +20,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from hinoki.handlerhints import hints_of
 from hinoki.imports import imports_of, package_modules, within
 from hinoki.routing import Route
 from hinoki.schema import Schema
@@ -380,7 +381,7 @@ class ForbidExposure(Rule):
 
     def check(self, project: Project) -> Iterator[Diagnostic]:
         for route in project.app.routes:
-            hints = typing.get_type_hints(route.handler)
+            hints = hints_of(route.handler)
             annotation = hints.get("return", None)
             if "return" not in hints or is_open(annotation):
                 yield self.diagnostic(
@@ -435,7 +436,7 @@ class ForbidModelResponses(Rule):
         for route in project.app.routes:
             if not matches(route, [self.match]) or matches(route, self.exceptions):
                 continue
-            annotation = typing.get_type_hints(route.handler).get("return")
+            annotation = hints_of(route.handler).get("return")
             for model in models_in(annotation):
                 yield self.diagnostic(
                     f"{route.method} {route.path} ({route.handler.__qualname__}) "

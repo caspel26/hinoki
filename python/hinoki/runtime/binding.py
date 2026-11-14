@@ -29,6 +29,7 @@ from hinoki.errors import (
     RegistrationError,
     ValidationError,
 )
+from hinoki.handlerhints import hints_of, signature_of
 from hinoki.pagination import PageNumberPagination, PageParams
 from hinoki.request import Request
 from hinoki.routing import Route
@@ -197,7 +198,7 @@ class Binding:
 def handler_parameters(route: Route) -> list[inspect.Parameter]:
     """Every parameter after ``self``; the request is checked by ``bind``."""
     try:
-        parameters = list(inspect.signature(route.handler).parameters.values())
+        parameters = list(signature_of(route.handler).parameters.values())
     except (TypeError, ValueError) as exc:
         raise RegistrationError(
             f"{route.name}: cannot inspect signature: {exc}"
@@ -316,7 +317,7 @@ def bind(route: Route) -> Binding:
     parameters = handler_parameters(route)
     check_owner(route)
     try:
-        hints = typing.get_type_hints(route.handler)
+        hints = hints_of(route.handler)
     except (NameError, TypeError) as exc:
         raise RegistrationError(
             f"{route.name}: cannot resolve annotations: {exc}"
