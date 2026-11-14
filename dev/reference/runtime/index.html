@@ -1085,6 +1085,90 @@ command. A synchronous or asynchronous <code>handle</code> is supported.</p>
     </div>
 
 </div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.wsgi.WSGIAdapter" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.wsgi.WSGIAdapter</span>
+
+
+<a href="#hinoki.wsgi.WSGIAdapter" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.wsgi.WSGIAdapter.start" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">start</span>
+
+
+<a href="#hinoki.wsgi.WSGIAdapter.start" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">start</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Start the loop and the application's startup; safe to call twice.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.wsgi.WSGIAdapter.close" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">close</span>
+
+
+<a href="#hinoki.wsgi.WSGIAdapter.close" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">close</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Run the application's shutdown and stop the loop; idempotent.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
         
       </article>
 
@@ -1110,14 +1194,16 @@ command. A synchronous or asynchronous <code>handle</code> is supported.</p>
             <ul><li><a href="#hinoki.management.Command.name">name</a></li><li><a href="#hinoki.management.Command.help">help</a></li><li><a href="#hinoki.management.Command.requires">requires</a></li><li><a href="#hinoki.management.Command.add_arguments">add_arguments</a></li><li><a href="#hinoki.management.Command.handle">handle</a></li></ul>
           </li><li><a href="#hinoki.management.CommandContext">CommandContext</a>
             <ul><li><a href="#hinoki.management.CommandContext.settings">settings</a></li><li><a href="#hinoki.management.CommandContext._modules">_modules</a></li><li><a href="#hinoki.management.CommandContext.__init__">__init__</a></li><li><a href="#hinoki.management.CommandContext.get">get</a></li><li><a href="#hinoki.management.CommandContext.find">find</a></li></ul>
-          </li><li><a href="#hinoki.management.CommandError">CommandError</a></li><li><a href="#hinoki.runtime.config.RuntimeConfig">RuntimeConfig</a></li><li><a href="#hinoki.errors.ModuleGraphError">ModuleGraphError</a></li><li><a href="#hinoki.errors.RegistrationError">RegistrationError</a></li></ul>
+          </li><li><a href="#hinoki.management.CommandError">CommandError</a></li><li><a href="#hinoki.runtime.config.RuntimeConfig">RuntimeConfig</a></li><li><a href="#hinoki.errors.ModuleGraphError">ModuleGraphError</a></li><li><a href="#hinoki.errors.RegistrationError">RegistrationError</a></li><li><a href="#hinoki.wsgi.WSGIAdapter">WSGIAdapter</a>
+            <ul><li><a href="#hinoki.wsgi.WSGIAdapter.start">start</a></li><li><a href="#hinoki.wsgi.WSGIAdapter.close">close</a></li></ul>
+          </li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.10</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 05:12:10 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:32:05 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/runtime.md">Edit on GitHub</a></dd></div>
         </dl>

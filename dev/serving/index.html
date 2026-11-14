@@ -439,6 +439,25 @@ hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<
 </code></pre></div>
 <h2 id="other-runners">Other runners<a class="headerlink" href="#other-runners" title="Permanent link">&para;</a></h2>
 <p><code>dev</code> and <code>serve</code> are conveniences. The application is a plain ASGI app, so <code>granian --interface asgi --factory blog.main:create_app</code> (or another ASGI server) works too; then the <code>server</code> group is ignored, because only <code>hinoki serve</code> applies it.</p>
+<h2 id="wsgi">WSGI<a class="headerlink" href="#wsgi" title="Permanent link">&para;</a></h2>
+<p>ASGI is the intended way to serve Hinoki. When a deployment can only run WSGI, wrap the application:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># wsgi.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.wsgi</span><span class="w"> </span><span class="kn">import</span> <span class="n">WSGIAdapter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blog.main</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_app</span>
+
+<span class="n">wsgi_app</span> <span class="o">=</span> <span class="n">WSGIAdapter</span><span class="p">(</span><span class="n">create_app</span><span class="p">())</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="gp">$ </span>granian<span class="w"> </span>--interface<span class="w"> </span>wsgi<span class="w"> </span>wsgi:wsgi_app
+</code></pre></div>
+<p>The adapter drives the same ASGI callable on a background event loop that it owns, so routing, binding, access, errors, limits and the OpenAPI document behave as under ASGI. Specifics:</p>
+<ul>
+<li><strong>Startup is lazy.</strong> Modules (including the database pool) start on the first request of each worker process, so a pre-forking server can import the file in its master process. If startup fails, every request answers <code>503</code> with <code>not_ready</code> and the error is logged.</li>
+<li><strong>Shutdown</strong> runs on <code>WSGIAdapter.close()</code> or, otherwise, at interpreter exit. A server that kills workers without exiting normally skips it, as it would any <code>atexit</code> hook.</li>
+<li><strong>Async handlers</strong> run on the adapter's loop and <strong>sync handlers</strong> on the bounded executor, as under ASGI. Each WSGI server thread blocks for the duration of its request, so concurrency is the server's thread count rather than the event loop.</li>
+<li><strong>Bodies are buffered.</strong> Request bodies are read up to <code>max_body_bytes</code> plus one byte, so an oversized upload still answers <code>413</code>. Responses are complete before they are sent; streaming responses are not available, and a client disconnect is not reported to the handler.</li>
+<li><strong>One protocol per process.</strong> Do not serve the same application object over ASGI and WSGI in one process; the adapter owns its own loop and module lifespan. Run two processes if you need both.</li>
+</ul>
+<p>The path is checked against Granian's WSGI interface (<code>--interface wsgi</code>, with one and two workers), not against every WSGI server.</p>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
@@ -461,15 +480,15 @@ hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#where-host-port-and-workers-come-from">Where host, port and workers come from</a></li><li><a href="#declaring-where-settings-are-read">Declaring where settings are read</a></li><li><a href="#other-runners">Other runners</a></li></ul>
+            <ul><li><a href="#where-host-port-and-workers-come-from">Where host, port and workers come from</a></li><li><a href="#declaring-where-settings-are-read">Declaring where settings are read</a></li><li><a href="#other-runners">Other runners</a></li><li><a href="#wsgi">WSGI</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.19</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:11:46 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:32:05 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
