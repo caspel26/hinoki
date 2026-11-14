@@ -74,4 +74,4 @@ Subclass `hinoki.rules.Rule` with a stable `id`, a `phase`, an `explanation` and
 
 ## Seeing them from an agent
 
-The development MCP (`hinoki mcp`) exposes `list_rules`, `check_project` and `explain_error` (which also explains rule IDs), read only. See [AI-WORKFLOW.md](AI-WORKFLOW.md). Rules inspect declarations and source structure; they do not prove what every function body does.
+The development MCP (`hinoki mcp`) exposes project inspection and rule diagnostics as read-only tools. See [development tools](AI-WORKFLOW.md). Rules inspect declarations and source structure; they do not prove what every function body does.
