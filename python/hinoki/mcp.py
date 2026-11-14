@@ -27,6 +27,7 @@ import hinoki
 from hinoki.app import Hinoki
 from hinoki.checkcli import USAGE_ERRORS, build_app, build_rules, default_packages
 from hinoki.errorcatalog import CATALOG, explain
+from hinoki.handlerhints import signature_of
 from hinoki.openapi import operation_key
 from hinoki.orm import Model
 from hinoki.orm.migrations import models_of
@@ -201,7 +202,7 @@ def tool_explain_action(project: DevProject, args: dict[str, Any]) -> dict[str, 
     subject = qualified(route)
     return {
         **describe_action(route),
-        "signature": str(inspect.signature(route.handler)),
+        "signature": str(signature_of(route.handler)),
         "documentation": inspect.getdoc(route.handler) or "",
         "operation": operation,
         "diagnostics": [
