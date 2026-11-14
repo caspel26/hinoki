@@ -93,7 +93,11 @@ Treat test failures under load as evidence to investigate: rerun in isolation wh
 
 Use shared components and tokens; new variants need a reason. Inspect hierarchy, spacing, alignment, repetition and the framework's own visual identity. Do not import Shiori-specific branding, provider restrictions or catalog rules.
 
+Public-facing documentation, the README and the docsite describe Hinoki's own APIs and behavior directly. Do not add sections or claims comparing Hinoki with other frameworks or libraries; cross-framework comparisons belong only in evidence-backed benchmark reports.
+
 Update docs for user-facing API changes and provide minimal examples, including sync/async differences and errors. Verify the examples against the actual implementation once it exists. Keep generated docs and runtime contracts consistent.
+
+Every added or changed user-facing API, setting, CLI/MCP option, runtime behavior or admin feature must update its linked guide/reference in the docsite in the same work item. Keep the navigation, `GUIDES.md`, page status metadata and rendered examples aligned; run a strict site build and link validation before completion.
 
 ## Releases
 
