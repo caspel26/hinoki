@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MCP and scaffold · Hinoki</title>
+  <meta name="description" content="A Python API framework that checks its own architecture.">
+  <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="../../static/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../../static/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hinoki">
+  <meta property="og:title" content="MCP and scaffold · Hinoki">
+  <meta property="og:description" content="A Python API framework that checks its own architecture.">
+  <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://caspel26.github.io/hinoki/dev/reference/tools/">
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("hn-theme"); } catch (e) {}
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      }
+      document.documentElement.dataset.theme = t;
+      document.documentElement.classList.add("js");
+    })();
+  </script>
+  <link rel="stylesheet" href="../../static/css/tokens.css">
+  <link rel="stylesheet" href="../../static/css/base.css">
+  <link rel="stylesheet" href="../../static/css/prose.css">
+  
+</head>
+
+<body class="is-doc" data-base="../..">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="meter" aria-hidden="true"><i></i></div>
+
+  <header class="top">
+    <div class="top__inner">
+      <button class="icon-btn top__menu" type="button" aria-label="Open navigation" aria-controls="side" aria-expanded="false" data-menu>
+        <svg class="menu-icon-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <svg class="menu-icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
+      <a class="brand" href="../.." aria-label="Hinoki home">
+        <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../../static/hinoki-logo.svg#mark"/></svg>
+        <svg class="brand__word" viewBox="0 0 655 184" role="img" aria-label="hinoki"><use href="../../static/hinoki-logo.svg#wordmark"/></svg>
+      </a>
+      <span class="status-chip">pre-alpha</span>
+      <nav class="top__nav" aria-label="Sections">
+        
+        
+          
+        
+          
+            
+            <a class="top__link" href="../../getting-started/"><b>01</b>Get started</a>
+          
+        
+          
+            
+            <a class="top__link" href="../../tutorial/"><b>02</b>Tutorial</a>
+          
+        
+          
+            
+            <a class="top__link" href="../../guides/"><b>03</b>Guides</a>
+          
+        
+          
+            
+            <a class="top__link" href="../../concepts/"><b>04</b>Concepts</a>
+          
+        
+          
+            
+            <a class="top__link is-active" href="../"><b>05</b>Reference</a>
+          
+        
+          
+            
+            <a class="top__link" href="../../status/"><b>06</b>Project</a>
+          
+        
+      </nav>
+      <div class="top__actions">
+        <button class="search-btn" type="button" data-search aria-label="Search the documentation">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span>Search</span><kbd>/</kbd>
+        </button>
+        <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch colour theme">
+          <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        </button>
+        <a class="icon-btn" href="https://github.com/caspel26/hinoki" aria-label="Source on GitHub">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  
+
+  
+  
+  
+  
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+  
+  
+  
+
+  <div class="shell" data-sheet="5.11">
+    <aside class="side" id="side" aria-label="Section navigation">
+      <div class="mobile-sheet__header">
+        <span class="mobile-sheet__handle" aria-hidden="true"></span>
+        <span class="mobile-sheet__title">Navigation</span>
+        <button class="icon-btn mobile-sheet__close" type="button" aria-label="Close navigation" data-menu-close>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="side__scroll">
+        <nav class="side__sections" aria-label="Documentation sections">
+          <p class="side__label">Sections</p>
+          <ul class="side__list">
+            
+            
+              
+            
+              
+                
+                <li><a class="side__link" href="../../getting-started/"><i>01</i><span>Get started</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../../tutorial/"><i>02</i><span>Tutorial</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../../guides/"><i>03</i><span>Guides</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../../concepts/"><i>04</i><span>Concepts</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link is-active" href="../"><i>05</i><span>Reference</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../../status/"><i>06</i><span>Project</span></a></li>
+              
+            
+          </ul>
+        </nav>
+        
+          <p class="side__sec"><b>05</b>Reference</p>
+          <p class="side__label">In this section</p>
+          
+          
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../"><i>5.1</i><span>Overview</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../web/"><i>5.2</i><span>Core API</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schemas/"><i>5.3</i><span>Schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../orm/"><i>5.4</i><span>Models and queries</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../codecs/"><i>5.5</i><span>Parsers and renderers</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../auth/"><i>5.6</i><span>Auth and crypto</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../database/"><i>5.7</i><span>Database</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../settings/"><i>5.8</i><span>Settings</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rules/"><i>5.9</i><span>Rules</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../runtime/"><i>5.10</i><span>Modules and runtime</span></a></li>
+              
+            
+              
+                <li><a class="side__link is-active" href="./"><i>5.11</i><span>MCP and scaffold</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../admin/"><i>5.12</i><span>Admin</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../testing/"><i>5.13</i><span>Testing</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../utilities/"><i>5.14</i><span>Utilities</span></a></li>
+              
+            
+            </ul>
+          
+        
+      </div>
+    </aside>
+
+    <main class="main" id="main">
+      <article class="prose" style="--sheet: '5.11'">
+        <p class="kicker" data-search-exclude>5.11 · Reference</p>
+        <h1 id="application-mcp-and-scaffold-api">Application MCP and scaffold API<a class="headerlink" href="#application-mcp-and-scaffold-api" title="Permanent link">&para;</a></h1>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.mcpapp.expose_as_mcp" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.mcpapp.expose_as_mcp</span>
+
+
+<a href="#hinoki.mcpapp.expose_as_mcp" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">expose_as_mcp</span><span class="p">(</span>
+    <span class="n">app</span><span class="p">:</span> <span class="n">Hinoki</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">tools</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"/mcp"</span><span class="p">,</span>
+    <span class="n">allow_writes</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">public</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">allowed_origins</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The MCP action to <code>app.include(...)</code>, publishing the matching actions.</p>
+<p><code>tools</code> are <code>fnmatch</code> patterns over qualified action names; call this
+after the exposed actions are included. <code>access</code> protects the endpoint
+(<code>None</code> only with <code>public=True</code>).</p>
+<p>The endpoint answers only <code>application/json</code> POSTs and refuses a request
+that carries an <code>Origin</code> outside <code>allowed_origins</code> (browsers send one;
+agents and CLI clients do not) or <code>Sec-Fetch-Site: cross-site</code>: this keeps
+a web page from driving the tools with the user's cookie and covers the MCP
+DNS-rebinding rule. Cookie authentication together with <code>allow_writes</code> is
+still a risky combination; prefer bearer credentials.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.mcpapp.ExposureError" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.mcpapp.ExposureError</span>
+
+
+<a href="#hinoki.mcpapp.ExposureError" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="ValueError">ValueError</span></code></p>
+
+
+
+        <p>The MCP exposure is configured wrongly (raised when it is built).</p>
+
+
+
+
+
+
+
+
+
+    </div>
+
+</div><p>Project scaffolding is a command-line interface; see <a href="../../cli/">command line</a>. For the stdio development server and its tools, see the <a href="../../dev-mcp/">development MCP guide</a>. Application MCP is mounted separately on selected routes.</p>
+        
+      </article>
+
+      <nav class="pager" aria-label="Previous and next page">
+        <a class="pager__link pager__link--prev" href="../runtime/"><small>Previous</small><span>Modules and runtime</span></a>
+        <a class="pager__link pager__link--next" href="../admin/"><small>Next</small><span>Admin</span></a>
+      </nav>
+    </main>
+
+    <aside class="margin" aria-label="On this page">
+      <div class="margin__sticky">
+        
+        <p class="margin__label">On this page</p>
+        <nav class="toc" data-toc>
+          <span class="toc__marker" aria-hidden="true"></span>
+          
+          
+            <ul><li><a href="#hinoki.mcpapp.expose_as_mcp">expose_as_mcp</a></li><li><a href="#hinoki.mcpapp.ExposureError">ExposureError</a></li></ul>
+          
+        </nav>
+        
+        <dl class="titleblock">
+          <div><dt>Sheet</dt><dd>5.11</dd></div>
+          
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 03:28:41 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/tools.md">Edit on GitHub</a></dd></div>
+        </dl>
+      </div>
+    </aside>
+  </div>
+  
+
+  <footer class="foot">
+    <div class="foot__inner">
+      <span>hinoki v0.0.1 · pre-alpha · MIT · © 2026 caspel26</span>
+      <a href="https://github.com/caspel26/hinoki">GitHub</a>
+    </div>
+  </footer>
+
+  <div class="overlay" data-overlay hidden></div>
+  <div class="palette" data-palette role="dialog" aria-modal="true" aria-label="Search" hidden>
+    <div class="palette__box">
+      <div class="palette__bar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <input type="text" data-palette-input placeholder="Search docs, rules, commands…" autocomplete="off" spellcheck="false" aria-label="Search">
+        <kbd>esc</kbd>
+      </div>
+      <ul class="palette__list" data-palette-list role="listbox" aria-label="Results"></ul>
+      <div class="palette__foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></div>
+    </div>
+  </div>
+  <div class="toast" data-toast role="status" aria-live="polite"></div>
+  <div class="popover" data-popover role="tooltip" hidden></div>
+
+  <script>window.HN = { base: "../..", repo: "https://github.com/caspel26/hinoki" };</script>
+  <script src="../../static/js/hinoki.js" defer></script>
+  
+</body>
+</html>

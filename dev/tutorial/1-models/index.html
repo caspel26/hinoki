@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>1. Models · Hinoki</title>
+  <meta name="description" content="A Python API framework that checks its own architecture.">
+  <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="../../static/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../../static/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hinoki">
+  <meta property="og:title" content="1. Models · Hinoki">
+  <meta property="og:description" content="A Python API framework that checks its own architecture.">
+  <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://caspel26.github.io/hinoki/dev/tutorial/1-models/">
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("hn-theme"); } catch (e) {}
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      }
+      document.documentElement.dataset.theme = t;
+      document.documentElement.classList.add("js");
+    })();
+  </script>
+  <link rel="stylesheet" href="../../static/css/tokens.css">
+  <link rel="stylesheet" href="../../static/css/base.css">
+  <link rel="stylesheet" href="../../static/css/prose.css">
+  
+</head>
+
+<body class="is-doc" data-base="../..">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="meter" aria-hidden="true"><i></i></div>
+
+  <header class="top">
+    <div class="top__inner">
+      <button class="icon-btn top__menu" type="button" aria-label="Open navigation" aria-controls="side" aria-expanded="false" data-menu>
+        <svg class="menu-icon-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <svg class="menu-icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
+      <a class="brand" href="../.." aria-label="Hinoki home">
+        <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../../static/hinoki-logo.svg#mark"/></svg>
+        <svg class="brand__word" viewBox="0 0 655 184" role="img" aria-label="hinoki"><use href="../../static/hinoki-logo.svg#wordmark"/></svg>
+      </a>
+      <span class="status-chip">pre-alpha</span>
+      <nav class="top__nav" aria-label="Sections">
+        
+        
+          
+        
+          
+            
+            <a class="top__link" href="../../getting-started/"><b>01</b>Get started</a>
+          
+        
+          
+            
+            <a class="top__link is-active" href="../"><b>02</b>Tutorial</a>
+          
+        
+          
+            
+            <a class="top__link" href="../../guides/"><b>03</b>Guides</a>
+          
+        
+          
+            
+            <a class="top__link" href="../../concepts/"><b>04</b>Concepts</a>
+          
+        
+          
+            
+            <a class="top__link" href="../../reference/"><b>05</b>Reference</a>
+          
+        
+          
+            
+            <a class="top__link" href="../../status/"><b>06</b>Project</a>
+          
+        
+      </nav>
+      <div class="top__actions">
+        <button class="search-btn" type="button" data-search aria-label="Search the documentation">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span>Search</span><kbd>/</kbd>
+        </button>
+        <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch colour theme">
+          <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        </button>
+        <a class="icon-btn" href="https://github.com/caspel26/hinoki" aria-label="Source on GitHub">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  
+
+  
+  
+  
+  
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+  
+  
+  
+
+  <div class="shell" data-sheet="2.2">
+    <aside class="side" id="side" aria-label="Section navigation">
+      <div class="mobile-sheet__header">
+        <span class="mobile-sheet__handle" aria-hidden="true"></span>
+        <span class="mobile-sheet__title">Navigation</span>
+        <button class="icon-btn mobile-sheet__close" type="button" aria-label="Close navigation" data-menu-close>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="side__scroll">
+        <nav class="side__sections" aria-label="Documentation sections">
+          <p class="side__label">Sections</p>
+          <ul class="side__list">
+            
+            
+              
+            
+              
+                
+                <li><a class="side__link" href="../../getting-started/"><i>01</i><span>Get started</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link is-active" href="../"><i>02</i><span>Tutorial</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../../guides/"><i>03</i><span>Guides</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../../concepts/"><i>04</i><span>Concepts</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../../reference/"><i>05</i><span>Reference</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../../status/"><i>06</i><span>Project</span></a></li>
+              
+            
+          </ul>
+        </nav>
+        
+          <p class="side__sec"><b>02</b>Tutorial</p>
+          <p class="side__label">In this section</p>
+          
+          
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../"><i>2.1</i><span>Overview</span></a></li>
+              
+            
+              
+                <li><a class="side__link is-active" href="./"><i>2.2</i><span>1. Models</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../2-schemas/"><i>2.3</i><span>2. Schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../3-operations/"><i>2.4</i><span>3. Operations</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../4-endpoints/"><i>2.5</i><span>4. Endpoints</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../5-rules/"><i>2.6</i><span>5. Rules</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../6-run/"><i>2.7</i><span>6. Run and test it</span></a></li>
+              
+            
+            </ul>
+          
+        
+      </div>
+    </aside>
+
+    <main class="main" id="main">
+      <article class="prose" style="--sheet: '2.2'">
+        <p class="kicker" data-search-exclude>2.2 · Tutorial</p>
+        <h1 id="1-models">1. Models<a class="headerlink" href="#1-models" title="Permanent link">&para;</a></h1>
+<p>A model is a table. Hinoki's models are active records over a Rust query compiler: no lazy loading, no surprises.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">foreign_key</span><span class="p">,</span> <span class="n">indexed</span><span class="p">,</span> <span class="n">ordered_by</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">utc_now</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Member</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"tracker_members"</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">)</span>
+    <span class="n">token</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="nd">@indexed</span><span class="p">(</span><span class="s2">"owner_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
+<span class="nd">@ordered_by</span><span class="p">(</span><span class="s2">"-created_at"</span><span class="p">,</span> <span class="s2">"-id"</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Task</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"tracker_tasks"</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"Task"</span><span class="p">,</span> <span class="n">plural</span><span class="o">=</span><span class="s2">"Tasks"</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">owner_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span><span class="n">Member</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="s2">"restrict"</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"tasks"</span><span class="p">)</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
+    <span class="n">done</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
+    <span class="n">completed_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+<ul>
+<li><code>table=</code> is a class keyword because it is needed when the class is created.</li>
+<li><code>@indexed</code> and <code>@ordered_by</code> are decorators that state facts about the model below them (<a href="../../model-options/">model options</a>). The default order applies to every query that does not call <code>order_by</code>.</li>
+<li><code>foreign_key(Member, ...)</code> is a column holding the owner's id; the relation (<code>task.owner</code>) is never fetched by accident.</li>
+</ul>
+<h2 id="the-migration">The migration<a class="headerlink" href="#the-migration" title="Permanent link">&para;</a></h2>
+<p>The planner reads the models and recorded migration state, then writes SQL you can review:</p>
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/tracker/migrations<span class="w"> </span>plan<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--models<span class="w"> </span>examples.tracker.models<span class="w"> </span>--name<span class="w"> </span>initial
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="ss">"tracker_tasks"</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="ss">"ix_tracker_tasks_owner_id_created_at"</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="ss">"tracker_tasks"</span><span class="w"> </span><span class="p">(</span><span class="ss">"owner_id"</span><span class="p">,</span><span class="w"> </span><span class="ss">"created_at"</span><span class="p">);</span>
+</code></pre></div>
+<p>Review it like code, apply it with <code>migrations apply</code> against a disposable database first, never at startup. Destructive changes are flagged and need <code>--allow-destructive</code>.</p>
+<p>Next: <a href="../2-schemas/">2. Schemas</a>.</p>
+        
+      </article>
+
+      <nav class="pager" aria-label="Previous and next page">
+        <a class="pager__link pager__link--prev" href="../"><small>Previous</small><span>Overview</span></a>
+        <a class="pager__link pager__link--next" href="../2-schemas/"><small>Next</small><span>2. Schemas</span></a>
+      </nav>
+    </main>
+
+    <aside class="margin" aria-label="On this page">
+      <div class="margin__sticky">
+        
+        <p class="margin__label">On this page</p>
+        <nav class="toc" data-toc>
+          <span class="toc__marker" aria-hidden="true"></span>
+          
+          
+            <ul><li><a href="#the-migration">The migration</a></li></ul>
+          
+        </nav>
+        
+        <dl class="titleblock">
+          <div><dt>Sheet</dt><dd>2.2</dd></div>
+          
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 03:28:41 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/1-models.md">Edit on GitHub</a></dd></div>
+        </dl>
+      </div>
+    </aside>
+  </div>
+  
+
+  <footer class="foot">
+    <div class="foot__inner">
+      <span>hinoki v0.0.1 · pre-alpha · MIT · © 2026 caspel26</span>
+      <a href="https://github.com/caspel26/hinoki">GitHub</a>
+    </div>
+  </footer>
+
+  <div class="overlay" data-overlay hidden></div>
+  <div class="palette" data-palette role="dialog" aria-modal="true" aria-label="Search" hidden>
+    <div class="palette__box">
+      <div class="palette__bar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <input type="text" data-palette-input placeholder="Search docs, rules, commands…" autocomplete="off" spellcheck="false" aria-label="Search">
+        <kbd>esc</kbd>
+      </div>
+      <ul class="palette__list" data-palette-list role="listbox" aria-label="Results"></ul>
+      <div class="palette__foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></div>
+    </div>
+  </div>
+  <div class="toast" data-toast role="status" aria-live="polite"></div>
+  <div class="popover" data-popover role="tooltip" hidden></div>
+
+  <script>window.HN = { base: "../..", repo: "https://github.com/caspel26/hinoki" };</script>
+  <script src="../../static/js/hinoki.js" defer></script>
+  
+</body>
+</html>

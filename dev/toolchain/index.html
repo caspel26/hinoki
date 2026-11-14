@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Toolchain and CI · Hinoki</title>
+  <meta name="description" content="A Python API framework that checks its own architecture.">
+  <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="../static/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hinoki">
+  <meta property="og:title" content="Toolchain and CI · Hinoki">
+  <meta property="og:description" content="A Python API framework that checks its own architecture.">
+  <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://caspel26.github.io/hinoki/dev/toolchain/">
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("hn-theme"); } catch (e) {}
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      }
+      document.documentElement.dataset.theme = t;
+      document.documentElement.classList.add("js");
+    })();
+  </script>
+  <link rel="stylesheet" href="../static/css/tokens.css">
+  <link rel="stylesheet" href="../static/css/base.css">
+  <link rel="stylesheet" href="../static/css/prose.css">
+  
+</head>
+
+<body class="is-doc" data-base="..">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="meter" aria-hidden="true"><i></i></div>
+
+  <header class="top">
+    <div class="top__inner">
+      <button class="icon-btn top__menu" type="button" aria-label="Open navigation" aria-controls="side" aria-expanded="false" data-menu>
+        <svg class="menu-icon-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <svg class="menu-icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
+      <a class="brand" href=".." aria-label="Hinoki home">
+        <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg>
+        <svg class="brand__word" viewBox="0 0 655 184" role="img" aria-label="hinoki"><use href="../static/hinoki-logo.svg#wordmark"/></svg>
+      </a>
+      <span class="status-chip">pre-alpha</span>
+      <nav class="top__nav" aria-label="Sections">
+        
+        
+          
+        
+          
+            
+            <a class="top__link" href="../getting-started/"><b>01</b>Get started</a>
+          
+        
+          
+            
+            <a class="top__link" href="../tutorial/"><b>02</b>Tutorial</a>
+          
+        
+          
+            
+            <a class="top__link" href="../guides/"><b>03</b>Guides</a>
+          
+        
+          
+            
+            <a class="top__link" href="../concepts/"><b>04</b>Concepts</a>
+          
+        
+          
+            
+            <a class="top__link" href="../reference/"><b>05</b>Reference</a>
+          
+        
+          
+            
+            <a class="top__link is-active" href="../status/"><b>06</b>Project</a>
+          
+        
+      </nav>
+      <div class="top__actions">
+        <button class="search-btn" type="button" data-search aria-label="Search the documentation">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span>Search</span><kbd>/</kbd>
+        </button>
+        <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch colour theme">
+          <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        </button>
+        <a class="icon-btn" href="https://github.com/caspel26/hinoki" aria-label="Source on GitHub">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  
+
+  
+  
+  
+  
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+  
+  
+  
+
+  <div class="shell" data-sheet="6.5">
+    <aside class="side" id="side" aria-label="Section navigation">
+      <div class="mobile-sheet__header">
+        <span class="mobile-sheet__handle" aria-hidden="true"></span>
+        <span class="mobile-sheet__title">Navigation</span>
+        <button class="icon-btn mobile-sheet__close" type="button" aria-label="Close navigation" data-menu-close>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="side__scroll">
+        <nav class="side__sections" aria-label="Documentation sections">
+          <p class="side__label">Sections</p>
+          <ul class="side__list">
+            
+            
+              
+            
+              
+                
+                <li><a class="side__link" href="../getting-started/"><i>01</i><span>Get started</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../tutorial/"><i>02</i><span>Tutorial</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../guides/"><i>03</i><span>Guides</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../concepts/"><i>04</i><span>Concepts</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../reference/"><i>05</i><span>Reference</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link is-active" href="../status/"><i>06</i><span>Project</span></a></li>
+              
+            
+          </ul>
+        </nav>
+        
+          <p class="side__sec"><b>06</b>Project</p>
+          <p class="side__label">In this section</p>
+          
+          
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../status/"><i>6.1</i><span>Status</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="https://github.com/caspel26/hinoki/blob/main/ROADMAP.md"><i>6.2</i><span>Roadmap</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="https://github.com/caspel26/hinoki/blob/main/CONTRIBUTING.md"><i>6.3</i><span>Contributing</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../troubleshooting/"><i>6.4</i><span>Troubleshooting</span></a></li>
+              
+            
+              
+                <li><a class="side__link is-active" href="./"><i>6.5</i><span>Toolchain and CI</span></a></li>
+              
+            
+            </ul>
+          
+        
+      </div>
+    </aside>
+
+    <main class="main" id="main">
+      <article class="prose" style="--sheet: '6.5'">
+        <p class="kicker" data-search-exclude>6.5 · Project</p>
+        <h1 id="toolchain">Toolchain<a class="headerlink" href="#toolchain" title="Permanent link">&para;</a></h1>
+<p>All Python commands run through <strong>uv</strong> with the lock enforced; Rust through <strong>Cargo</strong>. CI runs the same commands.</p>
+<h2 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>sync<span class="w"> </span>--locked<span class="w">          </span><span class="c1"># creates .venv, builds the Rust extension (maturin), installs dev groups</span>
+uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>pre-commit<span class="w"> </span>install
+</code></pre></div>
+<p>Requires: uv ≥ 0.9, a stable Rust toolchain (rustup) with <code>rustfmt</code> and <code>clippy</code>.</p>
+<h2 id="gates">Gates<a class="headerlink" href="#gates" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lock is current</td>
+<td><code>uv lock --check</code></td>
+</tr>
+<tr>
+<td>Lint (+ autofix)</td>
+<td><code>uv run --locked ruff check --fix .</code></td>
+</tr>
+<tr>
+<td>Format</td>
+<td><code>uv run --locked ruff format .</code></td>
+</tr>
+<tr>
+<td>Types + typing fixtures</td>
+<td><code>uv run --locked mypy</code></td>
+</tr>
+<tr>
+<td>Python tests + coverage</td>
+<td><code>uv run --locked pytest --cov</code></td>
+</tr>
+<tr>
+<td>Only the real-server tests</td>
+<td><code>uv run --locked pytest -m runtime</code></td>
+</tr>
+<tr>
+<td>Rust format / lints / tests</td>
+<td><code>cargo fmt --all --check</code> · <code>cargo clippy --workspace --all-targets -- -D warnings</code> · <code>cargo test --workspace</code></td>
+</tr>
+<tr>
+<td>All hooks</td>
+<td><code>uv run --locked pre-commit run --all-files</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="database-tests">Database tests<a class="headerlink" href="#database-tests" title="Permanent link">&para;</a></h3>
+<p>DB tests (<code>tests/dbtest.py</code>, <code>tests/transactiontest.py</code>, <code>crates/orm/tests/postgres.rs</code>) need a <strong>disposable</strong> PostgreSQL and run only when <code>HINOKI_TEST_DATABASE_URL</code> is set; otherwise pytest reports them as <em>skipped</em> and Cargo prints <code>SKIPPED</code> — a green run without the variable proves nothing about the database layer. Locally:</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>hinoki-test-pg<span class="w"> </span>-e<span class="w"> </span><span class="nv">POSTGRES_PASSWORD</span><span class="o">=</span>hinoki<span class="w"> </span>-e<span class="w"> </span><span class="nv">POSTGRES_DB</span><span class="o">=</span>hinoki<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-p<span class="w"> </span><span class="m">127</span>.0.0.1:54399:5432<span class="w"> </span>--tmpfs<span class="w"> </span>/var/lib/postgresql/data<span class="w"> </span>postgres:17-alpine
+<span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_TEST_DATABASE_URL</span><span class="o">=</span>postgres://postgres:hinoki@127.0.0.1:54399/hinoki
+uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>pytest<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace
+docker<span class="w"> </span>rm<span class="w"> </span>-f<span class="w"> </span>hinoki-test-pg
+</code></pre></div>
+<p>CI provides the same database as a service container. Never point the variable at a database with real data: tests create and drop tables.</p>
+<p>Generated OpenAPI is validated with <code>openapi-spec-validator</code> inside the Python tests. Not available yet (do not report as passed): ORM/model tests, end-to-end benchmarks.</p>
+<h2 id="decisions">Decisions<a class="headerlink" href="#decisions" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Python ≥ 3.12</strong>, dev interpreter 3.13 (<code>.python-version</code>), CI 3.12, 3.13 and 3.14, abi3 wheels (smoke-tested in a clean 3.12 environment by the <code>wheel</code> CI job).</li>
+<li><strong>Ruff</strong> is the only linter/formatter (<code>ruff check</code> with <code>--fix</code>, then <code>ruff format</code>), version pinned in <code>pyproject.toml</code> (<code>lint</code> group) and in <code>.pre-commit-config.yaml</code>; keep them equal when bumping.</li>
+<li><strong>mypy --strict</strong> is the separate type check. No overlapping tools (no black, isort, flake8, pylint).</li>
+<li><strong>maturin</strong> is the build backend (<code>python-source = "python"</code>, extension <code>hinoki.core</code>); uv rebuilds when Rust sources change (<code>tool.uv.cache-keys</code>).</li>
+<li>Complexity: Ruff <code>C901</code> ≤ 10 as the Python budget; the Shiori budget of 15 was a design target, not tied to this tooling. Rust gets clippy defaults for now.</li>
+<li>Dependency groups: <code>lint</code>, <code>typecheck</code>, <code>test</code>, aggregated by <code>dev</code>. Granian is a <em>test</em> dependency only until the adapter ships.</li>
+</ul>
+<h2 id="two-environments-two-responsibilities">Two environments, two responsibilities<a class="headerlink" href="#two-environments-two-responsibilities" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>uv</strong> owns the project: <code>.venv</code>, <code>uv.lock</code>, the dependency groups and every tool declared in them (<code>ruff</code>, <code>mypy</code>, <code>pytest</code>, <code>pre-commit</code> itself). Run them with <code>uv run --locked ...</code>.</li>
+<li><strong>pre-commit</strong> builds its own isolated environments for the hooks it fetches (e.g. <code>ruff-pre-commit</code>); these are <em>not</em> the project <code>.venv</code> and are not managed by uv. That is why the Ruff revision in <code>.pre-commit-config.yaml</code> must equal the <code>ruff==</code> pin in <code>pyproject.toml</code> (<code>uv.lock</code>).</li>
+<li>Hooks never rewrite <code>sources/</code>-style historical snapshots (excluded globally). CI never applies fixes: it fails if a hook would change a file. <code>pre-commit install</code> is a manual step in a Git checkout, never triggered by importing the framework.</li>
+</ul>
+<h2 id="native-extension-editable-install-rebuild-wheel">Native extension: editable install, rebuild, wheel<a class="headerlink" href="#native-extension-editable-install-rebuild-wheel" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Command</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Editable install (first time)</td>
+<td><code>uv sync --locked</code></td>
+<td>maturin builds a debug extension into the project</td>
+</tr>
+<tr>
+<td>Rebuild after changing Rust</td>
+<td><code>uv sync --locked</code> (or any <code>uv run</code>)</td>
+<td><code>tool.uv.cache-keys</code> watches <code>crates/**/*.rs</code> and <code>Cargo.toml</code>; uv reinstalls when they change. Observed: touching <code>router.rs</code> made <code>uv run</code> rebuild</td>
+</tr>
+<tr>
+<td>Force a rebuild</td>
+<td><code>uv sync --locked --reinstall-package hinoki</code></td>
+<td>use if in doubt; syncing Python deps alone does not prove the extension is current</td>
+</tr>
+<tr>
+<td>Release-profile editable build</td>
+<td><code>uv run --locked maturin develop --release</code></td>
+<td>needs <code>maturin</code> on PATH (<code>uvx maturin</code> works)</td>
+</tr>
+<tr>
+<td>Wheel</td>
+<td><code>uv build --wheel</code></td>
+<td>abi3 (<code>cp312-abi3</code>) wheel in <code>dist/</code>; built and import-tested by the <code>wheel</code> CI job</td>
+</tr>
+<tr>
+<td>Rust-only loop</td>
+<td><code>cargo test --workspace</code></td>
+<td>no Python needed</td>
+</tr>
+</tbody>
+</table>
+        
+      </article>
+
+      <nav class="pager" aria-label="Previous and next page">
+        <a class="pager__link pager__link--prev" href="../troubleshooting/"><small>Previous</small><span>Troubleshooting</span></a>
+        
+      </nav>
+    </main>
+
+    <aside class="margin" aria-label="On this page">
+      <div class="margin__sticky">
+        
+        <p class="margin__label">On this page</p>
+        <nav class="toc" data-toc>
+          <span class="toc__marker" aria-hidden="true"></span>
+          
+          
+            <ul><li><a href="#setup">Setup</a></li><li><a href="#gates">Gates</a>
+            <ul><li><a href="#database-tests">Database tests</a></li></ul>
+          </li><li><a href="#decisions">Decisions</a></li><li><a href="#two-environments-two-responsibilities">Two environments, two responsibilities</a></li><li><a href="#native-extension-editable-install-rebuild-wheel">Native extension: editable install, rebuild, wheel</a></li></ul>
+          
+        </nav>
+        
+        <dl class="titleblock">
+          <div><dt>Sheet</dt><dd>6.5</dd></div>
+          
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 04:14:59 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/toolchain.md">Edit on GitHub</a></dd></div>
+        </dl>
+      </div>
+    </aside>
+  </div>
+  
+
+  <footer class="foot">
+    <div class="foot__inner">
+      <span>hinoki v0.0.1 · pre-alpha · MIT · © 2026 caspel26</span>
+      <a href="https://github.com/caspel26/hinoki">GitHub</a>
+    </div>
+  </footer>
+
+  <div class="overlay" data-overlay hidden></div>
+  <div class="palette" data-palette role="dialog" aria-modal="true" aria-label="Search" hidden>
+    <div class="palette__box">
+      <div class="palette__bar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <input type="text" data-palette-input placeholder="Search docs, rules, commands…" autocomplete="off" spellcheck="false" aria-label="Search">
+        <kbd>esc</kbd>
+      </div>
+      <ul class="palette__list" data-palette-list role="listbox" aria-label="Results"></ul>
+      <div class="palette__foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></div>
+    </div>
+  </div>
+  <div class="toast" data-toast role="status" aria-live="polite"></div>
+  <div class="popover" data-popover role="tooltip" hidden></div>
+
+  <script>window.HN = { base: "..", repo: "https://github.com/caspel26/hinoki" };</script>
+  <script src="../static/js/hinoki.js" defer></script>
+  
+</body>
+</html>

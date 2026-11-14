@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Model-derived schemas · Hinoki</title>
+  <meta name="description" content="A Python API framework that checks its own architecture.">
+  <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="../static/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hinoki">
+  <meta property="og:title" content="Model-derived schemas · Hinoki">
+  <meta property="og:description" content="A Python API framework that checks its own architecture.">
+  <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://caspel26.github.io/hinoki/dev/model-schemas/">
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("hn-theme"); } catch (e) {}
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      }
+      document.documentElement.dataset.theme = t;
+      document.documentElement.classList.add("js");
+    })();
+  </script>
+  <link rel="stylesheet" href="../static/css/tokens.css">
+  <link rel="stylesheet" href="../static/css/base.css">
+  <link rel="stylesheet" href="../static/css/prose.css">
+  
+</head>
+
+<body class="is-doc" data-base="..">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="meter" aria-hidden="true"><i></i></div>
+
+  <header class="top">
+    <div class="top__inner">
+      <button class="icon-btn top__menu" type="button" aria-label="Open navigation" aria-controls="side" aria-expanded="false" data-menu>
+        <svg class="menu-icon-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <svg class="menu-icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
+      <a class="brand" href=".." aria-label="Hinoki home">
+        <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg>
+        <svg class="brand__word" viewBox="0 0 655 184" role="img" aria-label="hinoki"><use href="../static/hinoki-logo.svg#wordmark"/></svg>
+      </a>
+      <span class="status-chip">pre-alpha</span>
+      <nav class="top__nav" aria-label="Sections">
+        
+        
+          
+        
+          
+            
+            <a class="top__link" href="../getting-started/"><b>01</b>Get started</a>
+          
+        
+          
+            
+            <a class="top__link" href="../tutorial/"><b>02</b>Tutorial</a>
+          
+        
+          
+            
+            <a class="top__link is-active" href="../guides/"><b>03</b>Guides</a>
+          
+        
+          
+            
+            <a class="top__link" href="../concepts/"><b>04</b>Concepts</a>
+          
+        
+          
+            
+            <a class="top__link" href="../reference/"><b>05</b>Reference</a>
+          
+        
+          
+            
+            <a class="top__link" href="../status/"><b>06</b>Project</a>
+          
+        
+      </nav>
+      <div class="top__actions">
+        <button class="search-btn" type="button" data-search aria-label="Search the documentation">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span>Search</span><kbd>/</kbd>
+        </button>
+        <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch colour theme">
+          <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        </button>
+        <a class="icon-btn" href="https://github.com/caspel26/hinoki" aria-label="Source on GitHub">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  
+
+  
+  
+  
+  
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+  
+  
+  
+
+  <div class="shell" data-sheet="3.4">
+    <aside class="side" id="side" aria-label="Section navigation">
+      <div class="mobile-sheet__header">
+        <span class="mobile-sheet__handle" aria-hidden="true"></span>
+        <span class="mobile-sheet__title">Navigation</span>
+        <button class="icon-btn mobile-sheet__close" type="button" aria-label="Close navigation" data-menu-close>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="side__scroll">
+        <nav class="side__sections" aria-label="Documentation sections">
+          <p class="side__label">Sections</p>
+          <ul class="side__list">
+            
+            
+              
+            
+              
+                
+                <li><a class="side__link" href="../getting-started/"><i>01</i><span>Get started</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../tutorial/"><i>02</i><span>Tutorial</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link is-active" href="../guides/"><i>03</i><span>Guides</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../concepts/"><i>04</i><span>Concepts</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../reference/"><i>05</i><span>Reference</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../status/"><i>06</i><span>Project</span></a></li>
+              
+            
+          </ul>
+        </nav>
+        
+          <p class="side__sec"><b>03</b>Guides</p>
+          <p class="side__label">In this section</p>
+          
+          
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../guides/"><i>3.1</i><span>Overview</span></a></li>
+              
+            
+              
+                <li class="side__group"><span>Data</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../models/"><i>3.2</i><span>Models and queries</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schemas/"><i>3.3</i><span>Schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link is-active" href="./"><i>3.4</i><span>Model-derived schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-options/"><i>3.5</i><span>Model options</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../utilities/"><i>3.6</i><span>Utilities</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../relations/"><i>3.7</i><span>Relations</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../migrations/"><i>3.8</i><span>Migrations</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span>Endpoints</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../endpoints/"><i>3.9</i><span>Endpoint declarations</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../openapi/"><i>3.10</i><span>OpenAPI</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../errors/"><i>3.11</i><span>Errors</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../pagination/"><i>3.12</i><span>Pagination</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../codecs/"><i>3.13</i><span>Parsers and renderers</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span>Security and checks</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../authentication/"><i>3.14</i><span>Authentication and access</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rules/"><i>3.15</i><span>Rules</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span>Runtime</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../modules/"><i>3.16</i><span>Application modules</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../transactions/"><i>3.17</i><span>Transactions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../settings/"><i>3.18</i><span>Settings</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../serving/"><i>3.19</i><span>Serving</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../testing/"><i>3.20</i><span>Testing</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../cli/"><i>3.21</i><span>Command line</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../typing/"><i>3.22</i><span>Typing</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span>Integrations</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../admin/"><i>3.23</i><span>Admin</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../app-mcp/"><i>3.24</i><span>Application MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../dev-mcp/"><i>3.25</i><span>Development MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../ai-workflow/"><i>3.26</i><span>Development tools</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span>Operating</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../sync-async/"><i>3.27</i><span>Sync and async</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+            </ul>
+          
+        
+      </div>
+    </aside>
+
+    <main class="main" id="main">
+      <article class="prose" style="--sheet: '3.4'">
+        <p class="kicker" data-search-exclude>3.4 · Guides</p>
+        <h1 id="schemas-derived-from-models">Schemas derived from models<a class="headerlink" href="#schemas-derived-from-models" title="Permanent link">&para;</a></h1>
+<p>A <code>Schema</code> can take its fields and constraints from a <code>Model</code>. You still choose which fields cross the API boundary.</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">PostCreate</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">,</span> <span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"slug"</span><span class="p">,</span> <span class="s2">"body"</span><span class="p">]):</span>
+    <span class="k">pass</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">PostOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">[</span><span class="s2">"author_id"</span><span class="p">,</span> <span class="s2">"internal_note"</span><span class="p">]):</span>
+    <span class="n">author_name</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">PostPatch</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">,</span> <span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"body"</span><span class="p">],</span> <span class="n">optional</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="k">pass</span>
+</code></pre></div>
+<p><code>fields=</code> selects columns explicitly; <code>exclude=</code> starts from the model and omits named columns. They cannot be combined. <code>optional=True</code> makes every derived field optional for partial input; a list makes only those named fields optional. Model field types, maximum lengths, defaults and nullability are used. Subclass annotations can add fields or override a derived field.</p>
+<p>Unknown columns and invalid selections fail when the class is created. Relations are not derived as nested values; declare the API shape explicitly.</p>
+<h2 id="add-validation-checks">Add validation checks<a class="headerlink" href="#add-validation-checks" title="Permanent link">&para;</a></h2>
+<p>Use <code>@field_check("name")</code> for a rule on one or more structurally valid fields, and <code>@object_check</code> for a rule over the whole object. Raise <code>Invalid(code, message, path=...)</code> to report a problem. Checks are synchronous and must not perform I/O; database-dependent rules belong in an operation.</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SignUp</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">password</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">confirmation</span><span class="p">:</span> <span class="nb">str</span>
+
+    <span class="nd">@object_check</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">passwords_match</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">password</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">confirmation</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">Invalid</span><span class="p">(</span><span class="s2">"mismatch"</span><span class="p">,</span> <span class="s2">"passwords do not match"</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"confirmation"</span><span class="p">)</span>
+</code></pre></div>
+<p>Structural errors are reported before custom checks. All applicable check failures are returned together. See <a href="../schemas/">schemas</a> for the validation contract and conversion methods.</p>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../schemas/">Schemas</a></li><li><a href="../models/">Models and queries</a></li></ul>
+        </aside>
+        
+      </article>
+
+      <nav class="pager" aria-label="Previous and next page">
+        <a class="pager__link pager__link--prev" href="../schemas/"><small>Previous</small><span>Schemas</span></a>
+        <a class="pager__link pager__link--next" href="../model-options/"><small>Next</small><span>Model options</span></a>
+      </nav>
+    </main>
+
+    <aside class="margin" aria-label="On this page">
+      <div class="margin__sticky">
+        
+        <p class="margin__label">On this page</p>
+        <nav class="toc" data-toc>
+          <span class="toc__marker" aria-hidden="true"></span>
+          
+          
+            <ul><li><a href="#add-validation-checks">Add validation checks</a></li></ul>
+          
+        </nav>
+        
+        <dl class="titleblock">
+          <div><dt>Sheet</dt><dd>3.4</dd></div>
+          <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 02:07:13 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-schemas.md">Edit on GitHub</a></dd></div>
+        </dl>
+      </div>
+    </aside>
+  </div>
+  
+
+  <footer class="foot">
+    <div class="foot__inner">
+      <span>hinoki v0.0.1 · pre-alpha · MIT · © 2026 caspel26</span>
+      <a href="https://github.com/caspel26/hinoki">GitHub</a>
+    </div>
+  </footer>
+
+  <div class="overlay" data-overlay hidden></div>
+  <div class="palette" data-palette role="dialog" aria-modal="true" aria-label="Search" hidden>
+    <div class="palette__box">
+      <div class="palette__bar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <input type="text" data-palette-input placeholder="Search docs, rules, commands…" autocomplete="off" spellcheck="false" aria-label="Search">
+        <kbd>esc</kbd>
+      </div>
+      <ul class="palette__list" data-palette-list role="listbox" aria-label="Results"></ul>
+      <div class="palette__foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></div>
+    </div>
+  </div>
+  <div class="toast" data-toast role="status" aria-live="polite"></div>
+  <div class="popover" data-popover role="tooltip" hidden></div>
+
+  <script>window.HN = { base: "..", repo: "https://github.com/caspel26/hinoki" };</script>
+  <script src="../static/js/hinoki.js" defer></script>
+  
+</body>
+</html>

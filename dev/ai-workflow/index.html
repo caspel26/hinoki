@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Development tools · Hinoki</title>
+  <meta name="description" content="A Python API framework that checks its own architecture.">
+  <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="../static/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hinoki">
+  <meta property="og:title" content="Development tools · Hinoki">
+  <meta property="og:description" content="A Python API framework that checks its own architecture.">
+  <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://caspel26.github.io/hinoki/dev/ai-workflow/">
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("hn-theme"); } catch (e) {}
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      }
+      document.documentElement.dataset.theme = t;
+      document.documentElement.classList.add("js");
+    })();
+  </script>
+  <link rel="stylesheet" href="../static/css/tokens.css">
+  <link rel="stylesheet" href="../static/css/base.css">
+  <link rel="stylesheet" href="../static/css/prose.css">
+  
+</head>
+
+<body class="is-doc" data-base="..">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="meter" aria-hidden="true"><i></i></div>
+
+  <header class="top">
+    <div class="top__inner">
+      <button class="icon-btn top__menu" type="button" aria-label="Open navigation" aria-controls="side" aria-expanded="false" data-menu>
+        <svg class="menu-icon-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <svg class="menu-icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
+      <a class="brand" href=".." aria-label="Hinoki home">
+        <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg>
+        <svg class="brand__word" viewBox="0 0 655 184" role="img" aria-label="hinoki"><use href="../static/hinoki-logo.svg#wordmark"/></svg>
+      </a>
+      <span class="status-chip">pre-alpha</span>
+      <nav class="top__nav" aria-label="Sections">
+        
+        
+          
+        
+          
+            
+            <a class="top__link" href="../getting-started/"><b>01</b>Get started</a>
+          
+        
+          
+            
+            <a class="top__link" href="../tutorial/"><b>02</b>Tutorial</a>
+          
+        
+          
+            
+            <a class="top__link is-active" href="../guides/"><b>03</b>Guides</a>
+          
+        
+          
+            
+            <a class="top__link" href="../concepts/"><b>04</b>Concepts</a>
+          
+        
+          
+            
+            <a class="top__link" href="../reference/"><b>05</b>Reference</a>
+          
+        
+          
+            
+            <a class="top__link" href="../status/"><b>06</b>Project</a>
+          
+        
+      </nav>
+      <div class="top__actions">
+        <button class="search-btn" type="button" data-search aria-label="Search the documentation">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span>Search</span><kbd>/</kbd>
+        </button>
+        <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch colour theme">
+          <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        </button>
+        <a class="icon-btn" href="https://github.com/caspel26/hinoki" aria-label="Source on GitHub">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  
+
+  
+  
+  
+  
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+  
+  
+  
+
+  <div class="shell" data-sheet="3.26">
+    <aside class="side" id="side" aria-label="Section navigation">
+      <div class="mobile-sheet__header">
+        <span class="mobile-sheet__handle" aria-hidden="true"></span>
+        <span class="mobile-sheet__title">Navigation</span>
+        <button class="icon-btn mobile-sheet__close" type="button" aria-label="Close navigation" data-menu-close>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="side__scroll">
+        <nav class="side__sections" aria-label="Documentation sections">
+          <p class="side__label">Sections</p>
+          <ul class="side__list">
+            
+            
+              
+            
+              
+                
+                <li><a class="side__link" href="../getting-started/"><i>01</i><span>Get started</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../tutorial/"><i>02</i><span>Tutorial</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link is-active" href="../guides/"><i>03</i><span>Guides</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../concepts/"><i>04</i><span>Concepts</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../reference/"><i>05</i><span>Reference</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../status/"><i>06</i><span>Project</span></a></li>
+              
+            
+          </ul>
+        </nav>
+        
+          <p class="side__sec"><b>03</b>Guides</p>
+          <p class="side__label">In this section</p>
+          
+          
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../guides/"><i>3.1</i><span>Overview</span></a></li>
+              
+            
+              
+                <li class="side__group"><span>Data</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../models/"><i>3.2</i><span>Models and queries</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schemas/"><i>3.3</i><span>Schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-schemas/"><i>3.4</i><span>Model-derived schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-options/"><i>3.5</i><span>Model options</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../utilities/"><i>3.6</i><span>Utilities</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../relations/"><i>3.7</i><span>Relations</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../migrations/"><i>3.8</i><span>Migrations</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span>Endpoints</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../endpoints/"><i>3.9</i><span>Endpoint declarations</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../openapi/"><i>3.10</i><span>OpenAPI</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../errors/"><i>3.11</i><span>Errors</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../pagination/"><i>3.12</i><span>Pagination</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../codecs/"><i>3.13</i><span>Parsers and renderers</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span>Security and checks</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../authentication/"><i>3.14</i><span>Authentication and access</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rules/"><i>3.15</i><span>Rules</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span>Runtime</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../modules/"><i>3.16</i><span>Application modules</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../transactions/"><i>3.17</i><span>Transactions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../settings/"><i>3.18</i><span>Settings</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../serving/"><i>3.19</i><span>Serving</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../testing/"><i>3.20</i><span>Testing</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../cli/"><i>3.21</i><span>Command line</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../typing/"><i>3.22</i><span>Typing</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span>Integrations</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../admin/"><i>3.23</i><span>Admin</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../app-mcp/"><i>3.24</i><span>Application MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../dev-mcp/"><i>3.25</i><span>Development MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link is-active" href="./"><i>3.26</i><span>Development tools</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span>Operating</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../sync-async/"><i>3.27</i><span>Sync and async</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+            </ul>
+          
+        
+      </div>
+    </aside>
+
+    <main class="main" id="main">
+      <article class="prose" style="--sheet: '3.26'">
+        <p class="kicker" data-search-exclude>3.26 · Guides</p>
+        <h1 id="building-a-backend-with-an-ai-agent-and-hinoki">Building a backend with an AI agent and Hinoki<a class="headerlink" href="#building-a-backend-with-an-ai-agent-and-hinoki" title="Permanent link">&para;</a></h1>
+<p>What exists today (2026-11-13), what it guarantees, and what it does not.</p>
+<h2 id="1-start-a-project-an-agent-can-work-in">1. Start a project an agent can work in<a class="headerlink" href="#1-start-a-project-an-agent-can-work-in" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>new<span class="w"> </span>shop<span class="w"> </span>--dir<span class="w"> </span>~/projects<span class="w">     </span><span class="c1"># lower-case letters and digits only</span>
+<span class="nb">cd</span><span class="w"> </span>~/projects/shop<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>uv<span class="w"> </span>sync<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>pytest
+</code></pre></div>
+<p>The generated project contains a health route, <strong>rules that are already on</strong> (<code>HNK-ACC-001</code> actions name an access policy, <code>HNK-TXN-001</code> writes use a transaction, <code>HNK-SCH-001</code> fields such as <code>password_hash</code> never appear in a response schema), <code>AGENTS.md</code> (commands, conventions, and where the agent's authority ends), <code>CLAUDE.md</code> (a pointer to it), <code>.mcp.json</code> (starts the read-only development MCP) and <code>hinoki-rules.toml</code> (the owner's exceptions). The project's own tests pass and <code>hinoki check</code> exits 0; the test suite of this repository generates a project and runs both on every change.</p>
+<h2 id="2-what-the-agent-gets">2. What the agent gets<a class="headerlink" href="#2-what-the-agent-gets" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><code>AGENTS.md</code></strong>: the same conventions this repository uses: public unless protected on purpose, <code>transaction=True</code> for writes, <code>Schema</code> classes in responses, no model responses, explicit relation loading, create from a <code>Schema</code> with server values winning, migrations as reviewed SQL.</li>
+<li><strong>The development MCP</strong> (<code>hinoki mcp</code>, read only): <code>inspect_project</code> (the real registry), <code>list_rules</code>, <code>explain_action</code> (signature, <code>Schema</code> types, access, diagnostics for one action), <code>check_project</code> (rule diagnostics with stable IDs and locations) <code>explain_error</code> (what a validation or HTTP error code means and how to fix it) and <code>propose_model</code> (source text for a model, its In/Patch/Out <code>Schema</code> classes and CRUD actions from a field list; returned, never written). The tools never write code, rules or waivers.</li>
+<li><strong>Optional <code>run_scenario</code></strong>, off by default: <code>hinoki mcp --scenarios read</code> lets the agent send GET/HEAD/OPTIONS requests to the app in-process and see status and body; <code>--scenarios write</code> allows any method. It runs the real handlers and the app's lifespan even in <code>read</code> mode (a GET handler may write), so it is not annotated read-only and should only face a disposable database. A failed startup is reported without its message (which may hold a connection string); the details go to the server's stderr. Only the owner can switch it on; the agent cannot.</li>
+<li><strong>Errors that say what to do</strong>: validation errors list every problem with its path and a stable code; <code>explain_error</code> maps a code to its meaning and fix; a registration error names the action and parameter.</li>
+</ul>
+<p>See the <a href="../dev-mcp/">development MCP guide</a> for tool arguments, result shapes and the effectful scenario option.</p>
+<h2 id="3-the-loop">3. The loop<a class="headerlink" href="#3-the-loop" title="Permanent link">&para;</a></h2>
+<ol>
+<li>The agent asks the MCP for the project (<code>inspect_project</code>) to read the registered routes and models.</li>
+<li>It makes a small change (a model, a <code>Schema</code>, an action).</li>
+<li>It runs <code>pytest</code>, <code>ruff</code>, <code>mypy</code> and <code>hinoki check</code>.</li>
+<li>A rule violation is a stable ID, a location and an explanation. The fix is to change the code. <strong>Waivers are the owner's decision</strong>: <code>hinoki-rules.toml</code> is read by the tools, never written, and a waiver needs a reason, an owner and a bounded target. An agent that edits it to pass a check is violating <code>AGENTS.md</code>; the framework cannot stop someone with write access, it makes the change visible in review (put the file under CODEOWNERS).</li>
+</ol>
+<h2 id="4-limits-what-this-does-not-do">4. Limits (what this does not do)<a class="headerlink" href="#4-limits-what-this-does-not-do" title="Permanent link">&para;</a></h2>
+<ul>
+<li>The development MCP describes and checks a project; to let an agent use a running app, publish selected actions with <code>hinoki.mcpapp.expose_as_mcp</code> (allowlist, caller's own credentials, reads by default; see <a href="../app-mcp/">Application MCP</a>).</li>
+<li>The development MCP was exercised with the official <code>mcp</code> Python client (<code>tests/mcpclient/verify.py</code>: initialize, <code>tools/list</code>, <code>tools/call</code>); other clients are untested.</li>
+<li><code>propose_model</code> is a starting point: it can scope rows to an owner (<code>owner=</code>), paginates the list and takes <code>unique_together</code>, but business rules, state transitions and relations beyond the owner are yours to write.</li>
+<li>Rules decide declarations, not what a function body does; static import rules read the project's own files and report dynamic imports as unverifiable.</li>
+<li>The guide was verified twice: by generating a project and running its tests and <code>check</code>, and by having a fresh agent add an owner-scoped <code>Bookmark</code> resource from the generated <code>AGENTS.md</code> alone. That run found the problems now fixed (the framework path in the generated <code>pyproject.toml</code>, the missing test client, the database variable for <code>check</code>, the missing recipe, <code>explain_error</code> gaps, <code>propose_model</code> without ownership). It is one run by one agent, not a benchmark.</li>
+</ul>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../rules/">Rules</a></li><li><a href="../app-mcp/">Application MCP</a></li></ul>
+        </aside>
+        
+      </article>
+
+      <nav class="pager" aria-label="Previous and next page">
+        <a class="pager__link pager__link--prev" href="../dev-mcp/"><small>Previous</small><span>Development MCP</span></a>
+        <a class="pager__link pager__link--next" href="../sync-async/"><small>Next</small><span>Sync and async</span></a>
+      </nav>
+    </main>
+
+    <aside class="margin" aria-label="On this page">
+      <div class="margin__sticky">
+        
+        <p class="margin__label">On this page</p>
+        <nav class="toc" data-toc>
+          <span class="toc__marker" aria-hidden="true"></span>
+          
+          
+            <ul><li><a href="#1-start-a-project-an-agent-can-work-in">1. Start a project an agent can work in</a></li><li><a href="#2-what-the-agent-gets">2. What the agent gets</a></li><li><a href="#3-the-loop">3. The loop</a></li><li><a href="#4-limits-what-this-does-not-do">4. Limits (what this does not do)</a></li></ul>
+          
+        </nav>
+        
+        <dl class="titleblock">
+          <div><dt>Sheet</dt><dd>3.26</dd></div>
+          <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 02:07:13 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/ai-workflow.md">Edit on GitHub</a></dd></div>
+        </dl>
+      </div>
+    </aside>
+  </div>
+  
+
+  <footer class="foot">
+    <div class="foot__inner">
+      <span>hinoki v0.0.1 · pre-alpha · MIT · © 2026 caspel26</span>
+      <a href="https://github.com/caspel26/hinoki">GitHub</a>
+    </div>
+  </footer>
+
+  <div class="overlay" data-overlay hidden></div>
+  <div class="palette" data-palette role="dialog" aria-modal="true" aria-label="Search" hidden>
+    <div class="palette__box">
+      <div class="palette__bar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <input type="text" data-palette-input placeholder="Search docs, rules, commands…" autocomplete="off" spellcheck="false" aria-label="Search">
+        <kbd>esc</kbd>
+      </div>
+      <ul class="palette__list" data-palette-list role="listbox" aria-label="Results"></ul>
+      <div class="palette__foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></div>
+    </div>
+  </div>
+  <div class="toast" data-toast role="status" aria-live="polite"></div>
+  <div class="popover" data-popover role="tooltip" hidden></div>
+
+  <script>window.HN = { base: "..", repo: "https://github.com/caspel26/hinoki" };</script>
+  <script src="../static/js/hinoki.js" defer></script>
+  
+</body>
+</html>
