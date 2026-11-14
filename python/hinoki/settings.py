@@ -21,6 +21,7 @@ import math
 import os
 import re
 import sys
+import tomllib
 import types
 import typing
 from collections.abc import Callable, Mapping
@@ -83,11 +84,13 @@ class Settings:
 
     __env_prefix__: ClassVar[str] = ""
     __dotenv__: ClassVar[str | None] = None
+    __toml__: ClassVar[str | None] = None
 
     def __init_subclass__(
         cls,
         prefix: str | None = None,
         dotenv: str | None = None,
+        toml: str | None = None,
         **options: Any,
     ) -> None:
         """``class BlogSettings(FrameworkSettings, prefix="BLOG_", dotenv=".env")``
@@ -99,6 +102,8 @@ class Settings:
             cls.__env_prefix__ = prefix
         if dotenv is not None:
             cls.__dotenv__ = dotenv
+        if toml is not None:
+            cls.__toml__ = toml
         dataclasses.dataclass(frozen=True, kw_only=True)(cls)
 
     @classmethod
@@ -113,21 +118,23 @@ class Settings:
         prefix: str | None = None,
         env: Mapping[str, str] | None = None,
         dotenv: str | os.PathLike[str] | None = None,
+        toml: str | os.PathLike[str] | None = None,
         overrides: Mapping[str, Any] | None = None,
         strict: bool = True,
     ) -> Self:
         """Build the settings. Precedence: ``overrides``, ``env`` (default: the
-        process environment), the ``dotenv`` file, the field defaults.
+        process environment), dotenv, TOML file, and field defaults.
 
         ``strict`` (default) makes a variable that starts with ``prefix`` but
         names no field an error, which catches typos; pass ``strict=False`` when
         another program shares the prefix. With an empty prefix nothing can be
         told apart from the rest of the environment, so no typo check happens.
 
-        ``prefix`` and ``dotenv`` default to what the class declared."""
+        ``prefix``, ``dotenv`` and ``toml`` default to what the class declared."""
         prefix = cls.__env_prefix__ if prefix is None else prefix
         dotenv = cls.__dotenv__ if dotenv is None else dotenv
-        source, _, problems = gather(cls, prefix, env, dotenv)
+        toml = cls.__toml__ if toml is None else toml
+        source, _, problems = gather(cls, prefix, env, dotenv, toml)
         found = build(cls, prefix, source, dict(overrides or {}), problems)
         known = known_keys(cls, prefix)
         problems += [
@@ -146,18 +153,25 @@ class Settings:
         prefix: str | None = None,
         env: Mapping[str, str] | None = None,
         dotenv: str | os.PathLike[str] | None = None,
+        toml: str | os.PathLike[str] | None = None,
         overrides: Mapping[str, Any] | None = None,
         strict: bool = True,
     ) -> list[SettingRow]:
         """Load like ``load`` and say, for every value, where it came from:
-        ``override``, ``environment``, ``.env``, ``file`` (a ``*_FILE`` variable)
-        or ``default``. Secrets are redacted."""
+        ``override``, ``environment``, ``.env``, ``toml``, ``file`` (a ``*_FILE``
+        variable) or ``default``. Secrets are redacted."""
         prefix = cls.__env_prefix__ if prefix is None else prefix
         dotenv = cls.__dotenv__ if dotenv is None else dotenv
+        toml = cls.__toml__ if toml is None else toml
         found = cls.load(
-            prefix=prefix, env=env, dotenv=dotenv, overrides=overrides, strict=strict
+            prefix=prefix,
+            env=env,
+            dotenv=dotenv,
+            toml=toml,
+            overrides=overrides,
+            strict=strict,
         )
-        _, origins, _ = gather(cls, prefix, env, dotenv)
+        _, origins, _ = gather(cls, prefix, env, dotenv, toml)
         return rows_of(found, prefix, origins, dict(overrides or {}))
 
     @classmethod
@@ -206,11 +220,17 @@ def gather(
     prefix: str,
     env: Mapping[str, str] | None,
     dotenv: str | os.PathLike[str] | None,
-) -> tuple[dict[str, str], dict[str, str], list[str]]:
+    toml: str | os.PathLike[str] | None = None,
+) -> tuple[dict[str, Any], dict[str, str], list[str]]:
     """The merged variables, where each came from, and any problems reading
     ``*_FILE`` secrets. The environment beats the dotenv file."""
-    source: dict[str, str] = {}
+    source: dict[str, Any] = {}
     origins: dict[str, str] = {}
+    problems: list[str] = []
+    if toml is not None:
+        toml_source = read_toml_source(cls, prefix, toml, problems)
+        source.update(toml_source)
+        origins.update(dict.fromkeys(toml_source, "toml"))
     if dotenv is not None and Path(dotenv).is_file():
         for key, value in parse_dotenv(
             Path(dotenv).read_text(encoding="utf-8")
@@ -218,7 +238,6 @@ def gather(
             source[key], origins[key] = value, ".env"
     for key, value in (os.environ if env is None else env).items():
         source[key], origins[key] = value, "environment"
-    problems: list[str] = []
     known = known_keys(cls, prefix)
     for key in sorted(k for k in source if k.endswith(FILE_SUFFIX)):
         target = key.removesuffix(FILE_SUFFIX)
@@ -233,6 +252,98 @@ def gather(
         if text is not None:
             source[target], origins[target] = text, "file"
     return source, origins, problems
+
+
+def read_toml_source(
+    cls: type[Settings],
+    prefix: str,
+    path: str | os.PathLike[str],
+    problems: list[str],
+) -> dict[str, Any]:
+    """Read and flatten a TOML file without exposing parser details or values."""
+    toml_path = Path(path)
+    try:
+        document = tomllib.loads(toml_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+        problems.append(f"{toml_path}: TOML file cannot be read or parsed")
+        return {}
+    return flatten_toml(cls, prefix, document, problems)
+
+
+def flatten_toml(  # noqa: PLR0912
+    cls: type[Settings],
+    prefix: str,
+    table: Mapping[str, Any],
+    problems: list[str],
+    path: str = "",
+) -> dict[str, Any]:
+    """Flatten TOML tables to the keys used by environment variables."""
+    flattened: dict[str, Any] = {}
+    hints = cls.fields_of()
+    for name, value in table.items():
+        key = f"{path}{name.upper()}"
+        field_name = next(
+            (field for field in hints if field.casefold() == name.casefold()), None
+        )
+        hint = hints.get(field_name) if field_name is not None else None
+        full = prefix + key
+        if is_secret_hint(hint):
+            problems.append(f"{full}: secrets must come from environment or *_FILE")
+            continue
+        if isinstance(hint, type) and issubclass(hint, Settings):
+            if isinstance(value, Mapping):
+                flattened.update(
+                    flatten_toml(hint, prefix, value, problems, key + SEPARATOR)
+                )
+            else:
+                problems.append(f"{full}: a settings group must be a TOML table")
+            continue
+        if isinstance(value, dict):
+            if hint is not None:
+                problems.append(f"{full}: TOML value has an incompatible type")
+            else:
+                flattened[full] = value  # strict unknown-key checking reports its path
+            continue
+        if hint is not None and not toml_value_matches(hint, value):
+            problems.append(f"{full}: TOML value has an incompatible type")
+            continue
+        flattened[full] = value
+    return flattened
+
+
+def is_secret_hint(hint: Any) -> bool:
+    if hint is Secret:
+        return True
+    origin = typing.get_origin(hint)
+    return origin in (typing.Union, types.UnionType) and Secret in typing.get_args(hint)
+
+
+def toml_value_matches(hint: Any, value: Any) -> bool:  # noqa: PLR0911 - each type has a direct check
+    """Check TOML's native type before applying the shared settings converter."""
+    origin = typing.get_origin(hint)
+    arguments = typing.get_args(hint)
+    if origin in (typing.Union, types.UnionType):
+        return any(
+            value is None if option is type(None) else toml_value_matches(option, value)
+            for option in arguments
+        )
+    if origin is Literal:
+        return any(
+            type(value) is type(choice) and value == choice for choice in arguments
+        )
+    if origin in (list, tuple):
+        return isinstance(value, list) and all(
+            toml_value_matches(arguments[0], item) for item in value
+        )
+    if hint is bool:
+        return isinstance(value, bool)
+    if hint is int:
+        return isinstance(value, int) and not isinstance(value, bool)
+    if hint is float:
+        return isinstance(value, int | float) and not isinstance(value, bool)
+    if hint is str:
+        return isinstance(value, str)
+    return False
 
 
 def read_secret_file(key: str, path: str, problems: list[str]) -> str | None:
@@ -384,7 +495,7 @@ MISSING = object()
 def build(
     cls: type[Settings],
     prefix: str,
-    source: Mapping[str, str],
+    source: Mapping[str, Any],
     overrides: dict[str, Any],
     problems: list[str],
     path: str = "",
@@ -428,7 +539,7 @@ def scalar(
     name: str,
     hint: Any,
     full: str,
-    source: Mapping[str, str],
+    source: Mapping[str, Any],
     overrides: dict[str, Any],
     problems: list[str],
 ) -> Any:
