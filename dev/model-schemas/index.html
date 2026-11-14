@@ -375,55 +375,57 @@
       <article class="prose" style="--sheet: '3.4'">
         <p class="kicker" data-search-exclude>3.4 · Guides</p>
         <h1 id="schemas-derived-from-models">Schemas derived from models<a class="headerlink" href="#schemas-derived-from-models" title="Permanent link">&para;</a></h1>
-<p>A <code>Schema</code> can take its fields and constraints from a <code>Model</code>. You still choose which fields cross the API boundary. The choices are separate decorators, read top to bottom like <a href="../model-options/">model options</a>; there is no <code>class Meta</code> and no class keyword.</p>
+<p>A <code>Schema</code> can take its fields and constraints from a <code>Model</code>. Put the source model on the class; use one <code>@derive(...)</code> decorator when you need to select or make fields optional. Without the decorator, every model column is derived.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">derive</span>
 
 
-<span class="nd">@derive</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">Post</span><span class="p">)</span>
-<span class="nd">@derive</span><span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"slug"</span><span class="p">,</span> <span class="s2">"body"</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">PostCreate</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
+<span class="nd">@derive</span><span class="p">(</span><span class="n">only</span><span class="o">=</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"slug"</span><span class="p">,</span> <span class="s2">"body"</span><span class="p">))</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PostCreate</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">):</span> <span class="o">...</span>
 
 
-<span class="nd">@derive</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">Post</span><span class="p">)</span>
-<span class="nd">@derive</span><span class="o">.</span><span class="n">exclude</span><span class="p">(</span><span class="s2">"author_id"</span><span class="p">,</span> <span class="s2">"internal_note"</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">PostOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+<span class="nd">@derive</span><span class="p">(</span><span class="n">exclude</span><span class="o">=</span><span class="p">(</span><span class="s2">"author_id"</span><span class="p">,</span> <span class="s2">"internal_note"</span><span class="p">))</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PostOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">):</span>
     <span class="n">author_name</span><span class="p">:</span> <span class="nb">str</span>
 
 
-<span class="nd">@derive</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">Post</span><span class="p">)</span>
-<span class="nd">@derive</span><span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"body"</span><span class="p">)</span>
-<span class="nd">@derive</span><span class="o">.</span><span class="n">partial</span><span class="p">()</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">PostPatch</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
+<span class="nd">@derive</span><span class="p">(</span><span class="n">only</span><span class="o">=</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"body"</span><span class="p">),</span> <span class="n">partial</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PostPatch</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">):</span> <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">PostAll</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">):</span> <span class="o">...</span>
 </code></pre></div>
 <table>
 <thead>
 <tr>
-<th>Decorator</th>
+<th>Option</th>
 <th>Effect</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>@derive.model(Post)</code></td>
-<td>the source model; put it <strong>on top</strong>, it reads the decorators below and builds the schema</td>
+<td><code>model=Post</code></td>
+<td>source model; with no decorator, derives every column</td>
 </tr>
 <tr>
-<td><code>@derive.only("a", "b")</code></td>
+<td><code>only=("a", "b")</code></td>
 <td>take exactly these columns</td>
 </tr>
 <tr>
-<td><code>@derive.exclude("a")</code></td>
-<td>take every column except these (without <code>only</code> or <code>exclude</code>, every column is taken)</td>
+<td><code>exclude=("a",)</code></td>
+<td>take every column except these</td>
 </tr>
 <tr>
-<td><code>@derive.partial()</code></td>
-<td>make every derived field optional (<code>UNSET</code> when absent), for partial updates; <code>@derive.partial("a")</code> only those</td>
+<td><code>partial=True</code></td>
+<td>make every selected derived field optional (<code>UNSET</code> when absent)</td>
+</tr>
+<tr>
+<td><code>partial=("a",)</code></td>
+<td>make only the named selected fields optional</td>
 </tr>
 </tbody>
 </table>
-<p><code>only</code> and <code>exclude</code> cannot be combined. Model field types, maximum lengths, defaults and nullability are used. Annotations in the class body add fields or override a derived field, and methods and checks in the body are kept. Methods can use zero-argument <code>super()</code> as usual.</p>
-<p>Unknown columns, a non-model, or <code>only</code> with <code>exclude</code> fail when the class is declared. <code>only</code>, <code>exclude</code> or <code>partial</code> without <code>@derive.model(...)</code> above them fail on first use with a message naming the missing decorator. Relations are not derived as nested values; declare the API shape explicitly.</p>
-<p>Earlier revisions took <code>model=</code>, <code>fields=</code>, <code>exclude=</code> and <code>optional=</code> as class keywords; they are removed, and <code>class PostOut(Schema, model=Post)</code> now raises <code>TypeError</code>.</p>
+<p><code>only</code> and <code>exclude</code> cannot be combined. An empty <code>only=()</code> is invalid; <code>exclude=()</code> is equivalent to selecting all columns. Model field types, maximum lengths, defaults and nullability are used. Annotations in the class body add fields or override a derived field, and methods and checks in the body are kept. Methods can use zero-argument <code>super()</code> as usual.</p>
+<p>Unknown columns, a non-model, an empty <code>only</code>, or optional names outside the selection fail when the class is declared. Selection options require <code>model=</code> on the class. Relations are not derived as nested values; declare the API shape explicitly. Model derivation is explicit but includes all columns by default, so use <code>only</code> or <code>exclude</code> when the API must omit private fields.</p>
 <h2 id="add-validation-checks">Add validation checks<a class="headerlink" href="#add-validation-checks" title="Permanent link">&para;</a></h2>
 <p>Use <code>@field_check("name")</code> for a rule on one or more structurally valid fields, and <code>@object_check</code> for a rule over the whole object. Raise <code>Invalid(code, message, path=...)</code> to report a problem. Checks are synchronous and must not perform I/O; database-dependent rules belong in an operation.</p>
 <div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SignUp</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
@@ -465,7 +467,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 18:00:43 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 21:15:18 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-schemas.md">Edit on GitHub</a></dd></div>
         </dl>
