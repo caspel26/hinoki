@@ -27,3 +27,8 @@
 ::: hinoki.errors.ModuleGraphError
 
 ::: hinoki.errors.RegistrationError
+
+::: hinoki.wsgi.WSGIAdapter
+    options:
+      members: [start, close]
+      show_if_no_docstring: true

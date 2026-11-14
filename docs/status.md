@@ -18,7 +18,7 @@ The examples are the best way to see the pieces together: [Notes](https://github
 * Generated typing for some keyword-based ORM calls is less precise than model construction; see [typing](typing.md).
 * Many-to-many links use an explicit model with two foreign keys and a composite uniqueness constraint. Implicit join models, direct collection access such as `post.tags`, and advanced relation paths are not available.
 * Additional database backends and end-to-end performance claims are not available.
-* The server adapter is ASGI. WSGI support is not available.
+* The server adapter is ASGI. `hinoki.wsgi.WSGIAdapter` wraps an application for WSGI servers (buffered bodies, no streaming); verified with Granian only, see [serving](serving.md#wsgi).
 * General CORS middleware is not available; application MCP has its own allowed-origin check. Cursor pagination is not available; pagination currently uses page numbers.
 * Pagination page-size defaults are `20` and `100` on `PageNumberPagination`; app-wide settings for overriding them are not available yet.
 * OpenAPI generation creates operation IDs and reads summary/description from handler docstrings. Per-action `tags`, `deprecated`, custom `operation_id` and `include_in_schema` controls are not available.
