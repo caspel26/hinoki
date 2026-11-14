@@ -33,6 +33,8 @@ class Caller[T]:
     def __init__(self, id: str, user: T, permissions: Iterable[str] = ()) -> None:
         object.__setattr__(self, "id", id)
         object.__setattr__(self, "user", user)
+        if isinstance(permissions, str | bytes):
+            raise TypeError("permissions is a list of names, not one string")
         object.__setattr__(self, "permissions", frozenset(permissions))
 
 

@@ -110,7 +110,13 @@ class WSGIAdapter:
         loop = self._loop
         if loop is None:
             raise WSGIStartupError("the adapter is closed")
-        body = _read(environ, self.app.runtime.max_body_bytes)
+        try:
+            body = _read(environ, self.app.runtime.max_body_bytes)
+        except BadLength:
+            start_response(_status(400), [("content-type", "application/json")])
+            return [
+                b'{"error":"bad_content_length","message":"invalid Content-Length"}'
+            ]
         scope = _scope(environ)
         future = asyncio.run_coroutine_threadsafe(self._request(scope, body), loop)
         status, headers, payload = future.result()
@@ -155,6 +161,10 @@ def _status(code: int) -> str:
         return f"{code} Unknown"
 
 
+class BadLength(ValueError):
+    """Content-Length is not a non-negative integer."""
+
+
 def _read(environ: Environ, limit: int) -> bytes:
     """The request body, read up to one byte past ``limit`` so the application
     answers 413 instead of the adapter buffering an unbounded upload."""
@@ -162,6 +172,8 @@ def _read(environ: Environ, limit: int) -> bytes:
     length = environ.get("CONTENT_LENGTH")
     chunked = "chunked" in environ.get("HTTP_TRANSFER_ENCODING", "").lower()
     if length:
+        if not length.isascii() or not length.isdigit():
+            raise BadLength(length)
         return bytes(stream.read(min(int(length), limit + 1)))
     if chunked:
         return bytes(stream.read(limit + 1))
@@ -179,7 +191,13 @@ def _scope(environ: Environ) -> dict[str, Any]:
         for key in ("CONTENT_TYPE", "CONTENT_LENGTH")
         if environ.get(key)
     )
-    path = environ.get("PATH_INFO", "") or "/"
+    # PATH_INFO is already percent-decoded and latin-1 (PEP 3333); no raw_path, so
+    # the application does not decode it a second time.
+    path = (
+        (environ.get("PATH_INFO", "") or "/")
+        .encode("latin-1")
+        .decode("utf-8", "replace")
+    )
     return {
         "type": "http",
         "asgi": {"version": "3.0"},
@@ -189,7 +207,6 @@ def _scope(environ: Environ) -> dict[str, Any]:
         "method": environ["REQUEST_METHOD"],
         "scheme": environ.get("wsgi.url_scheme", "http"),
         "path": path,
-        "raw_path": path.encode(),
         "query_string": environ.get("QUERY_STRING", "").encode("latin-1"),
         "root_path": environ.get("SCRIPT_NAME", ""),
         "headers": headers,

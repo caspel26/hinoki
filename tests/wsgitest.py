@@ -145,3 +145,44 @@ def test_a_real_wsgi_server_serves_the_application() -> None:
     finally:
         os.killpg(process.pid, signal.SIGTERM)
         process.wait(timeout=10)
+
+
+def path_app() -> WSGIAdapter:
+    @http.get("/items/{name}")
+    def item(name: str) -> dict[str, str]:
+        return {"name": name}
+
+    app = Hinoki()
+    app.include(item)
+    return WSGIAdapter(app)
+
+
+def test_the_path_is_decoded_once_like_under_asgi() -> None:
+    adapter = path_app()
+    try:
+        # PATH_INFO arrives decoded: "%2520" from the client is "%20" here
+        assert call(adapter, "GET", "/items/a%20b")[2] == {"name": "a%20b"}
+        assert call(adapter, "GET", "/items/cafÃ©")[2] == {"name": "café"}
+    finally:
+        adapter.close()
+
+
+def test_a_bad_content_length_is_a_400_not_a_crash() -> None:
+    adapter = WSGIAdapter(create_app())
+    try:
+        seen: dict[str, str] = {}
+        environ = {
+            "REQUEST_METHOD": "POST",
+            "PATH_INFO": "/echo",
+            "wsgi.input": io.BytesIO(b""),
+            "CONTENT_LENGTH": "abc",
+            "SERVER_PROTOCOL": "HTTP/1.1",
+        }
+
+        def start_response(status: str, headers: list[tuple[str, str]]) -> None:
+            seen["status"] = status
+
+        b"".join(adapter(environ, start_response))
+        assert seen["status"].startswith("400")
+    finally:
+        adapter.close()

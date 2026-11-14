@@ -134,7 +134,7 @@ def test_principal_parameter_needs_an_access_policy() -> None:
 
 def test_access_needs_a_provider() -> None:
     with pytest.raises(TypeError):
-        Access(auth=object())  # type: ignore[arg-type]
+        Access(auth=object())
 
 
 async def test_repeated_credential_headers_never_resolve_to_one_of_them(
@@ -218,3 +218,10 @@ async def test_a_provider_written_with_plain_def_authenticates(pool: Pool) -> No
     )
     assert bad.status == 401
     assert (await client.request("GET", "/sync-secure")).status == 401
+
+
+def test_permissions_must_be_a_collection_not_one_string() -> None:
+    with pytest.raises(TypeError, match="not one string"):
+        Access(auth=TokenAuth(), permissions="posts:write")
+    with pytest.raises(TypeError, match="not one string"):
+        Caller("u", None, "admin")
