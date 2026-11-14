@@ -19,6 +19,9 @@ pub enum Op {
     IsNull,
     NotNull,
     Contains,
+    /// `Contains` on any of several columns; `Filter::column` lists them
+    /// separated by commas (a plain name cannot hold one).
+    ContainsAny,
 }
 
 impl Op {
@@ -34,6 +37,7 @@ impl Op {
             "isnull" => Self::IsNull,
             "notnull" => Self::NotNull,
             "contains" => Self::Contains,
+            "containsany" => Self::ContainsAny,
             _ => return None,
         })
     }
@@ -141,6 +145,12 @@ fn column_ref(name: &str, base: Option<&str>) -> Result<String, QueryError> {
     }
 }
 
+fn like(column: &str, holder: &str) -> String {
+    format!(
+        "{column}::text ILIKE '%' || replace(replace(replace({holder}::text, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%'"
+    )
+}
+
 fn quote_all(names: &[String]) -> Result<String, QueryError> {
     Ok(names
         .iter()
@@ -183,6 +193,9 @@ impl<V: Clone> Builder<V> {
     }
 
     fn clause(&mut self, filter: &Filter<V>) -> Result<String, QueryError> {
+        if filter.op == Op::ContainsAny {
+            return self.contains_any(filter);
+        }
         let column = column_ref(&filter.column, self.base.as_deref())?;
         let symbol = match filter.op {
             Op::Eq => "=",
@@ -203,7 +216,7 @@ impl<V: Clone> Builder<V> {
                 return Ok(format!("{column} {word}"));
             }
             Op::In => return self.membership(&column, filter),
-            Op::Contains => return self.contains(&column, filter),
+            Op::Contains | Op::ContainsAny => return self.contains(&column, filter),
         };
         let [value] = filter.values.as_slice() else {
             return Err(QueryError::BadFilter(format!(
@@ -227,9 +240,24 @@ impl<V: Clone> Builder<V> {
             )));
         };
         let holder = self.placeholder(value.clone());
-        Ok(format!(
-            "{column}::text ILIKE '%' || replace(replace(replace({holder}::text, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%'"
-        ))
+        Ok(like(column, &holder))
+    }
+
+    /// One value matched against every listed column, joined with `OR`.
+    fn contains_any(&mut self, filter: &Filter<V>) -> Result<String, QueryError> {
+        let [value] = filter.values.as_slice() else {
+            return Err(QueryError::BadFilter(format!(
+                "{} needs exactly one value",
+                filter.column
+            )));
+        };
+        let mut columns = Vec::new();
+        for name in filter.column.split(',') {
+            columns.push(column_ref(name, self.base.as_deref())?);
+        }
+        let holder = self.placeholder(value.clone());
+        let clauses: Vec<String> = columns.iter().map(|c| like(c, &holder)).collect();
+        Ok(format!("({})", clauses.join(" OR ")))
     }
 
     fn membership(&mut self, column: &str, filter: &Filter<V>) -> Result<String, QueryError> {
@@ -548,5 +576,16 @@ mod tests {
         assert!(sql.contains("\"title\"::text ILIKE '%' || replace(replace(replace($1::text,"));
         assert_eq!(params, vec![1]);
         assert!(compile_select(&select(vec![f("title", Op::Contains, &[1, 2])])).is_err());
+    }
+
+    #[test]
+    fn contains_any_matches_each_column_with_one_parameter() {
+        let filter = f("title,body", Op::ContainsAny, &[1]);
+        let (sql, params) = compile_select(&select(vec![filter])).unwrap();
+        assert!(sql.contains("WHERE (\"title\"::text ILIKE "));
+        assert!(sql.contains(" OR \"body\"::text ILIKE '%' || replace(replace(replace($1::text,"));
+        assert_eq!(params, vec![1]);
+        assert!(compile_select(&select(vec![f("title,", Op::ContainsAny, &[1])])).is_err());
+        assert!(compile_select(&select(vec![f("a,b", Op::ContainsAny, &[1, 2])])).is_err());
     }
 }
