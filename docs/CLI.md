@@ -14,7 +14,7 @@ The `hinoki` command accepts a `module:attribute` target for an application, fac
 | `hinoki dev TARGET` | Run an app with reload during development. |
 | `hinoki serve TARGET` | Run without reload, using the `server` settings group. |
 | `hinoki check TARGET` | Run the application's configured rules; `--rules` and `--package` select rule and source targets. |
-| `hinoki settings TARGET` | Show effective settings and their source, with secrets redacted. |
+| `hinoki settings TARGET` | Show effective settings and their source, with secrets redacted. `--dotenv` and `--toml` select optional files. |
 | `hinoki migrations ...` | Plan, inspect and apply database migrations. |
 | `hinoki mcp TARGET` | Serve read-only project context to an MCP client over stdio. |
 

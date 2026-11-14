@@ -1,3 +1,10 @@
+---
+status: implemented
+related:
+  - MODELS.md
+  - TESTING.md
+---
+
 # Utilities
 
 Hinoki includes a small set of helpers where the framework can define clear behavior. Use the Python standard library for ordinary IDs, paths, and application-specific formatting.
