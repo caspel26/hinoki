@@ -6,7 +6,7 @@ A model describes a table; a `Schema` describes what crosses the API. A column r
 from typing import Annotated
 
 from examples.tracker.models import Task
-from hinoki import Field, Schema
+from hinoki import Field, Schema, derive
 
 
 class TaskIn(Schema):
@@ -15,12 +15,14 @@ class TaskIn(Schema):
     title: Annotated[str, Field(min_length=1, max_length=120)]
 
 
-class TaskOut(Schema, model=Task, exclude=["owner_id"]):
+@derive.model(Task)
+@derive.exclude("owner_id")
+class TaskOut(Schema):
     """Every column of a task except its owner (derived from the model)."""
 ```
 
 * `TaskIn` is strict: no coercion, no unknown keys, every problem reported with its path. Validation runs in Rust before your code does.
-* `TaskOut` takes the columns of `Task` with `model=`: types and limits come from the model, `exclude` keeps `owner_id` out. Relations are never derived; you name them on purpose.
+* `TaskOut` takes the columns of `Task` with `@derive.model(Task)`: types and limits come from the model, `@derive.exclude("owner_id")` keeps `owner_id` out. Relations are never derived; you name them on purpose.
 * Because the owner is not a field of `TaskIn`, a client cannot choose it. If it were, `Task.acreate(data, owner_id=me)` would still win (server values beat the client's), and a schema can never carry the primary key.
 
 More: [Schemas](../schemas.md), [model-derived schemas and validators](../model-schemas.md).
