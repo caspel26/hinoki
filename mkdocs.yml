@@ -112,6 +112,7 @@ nav:
           - Development tools: ai-workflow.md
       - Operating:
           - Sync and async: sync-async.md
+          - Benchmarks: benchmarks.md
   - Concepts:
       - Overview: concepts.md
       - Request lifecycle: request-lifecycle.md
