@@ -23,6 +23,7 @@ from hinoki.errors import (
 from hinoki.orm.context import current_database
 from hinoki.orm.queryset import QuerySet
 from hinoki.orm.relations import ON_DELETE, Related, Relation
+from hinoki.utils import Clock, utc_now
 
 if TYPE_CHECKING:
     from hinoki.schema import Schema
@@ -100,6 +101,8 @@ class Model:
     __ordering__: ClassVar[tuple[str, ...]] = ()
     __label__: ClassVar[str] = ""
     __plural__: ClassVar[str] = ""
+    __updated_at__: ClassVar[str | None] = None
+    __clock__: ClassVar[Clock] = utc_now
     NotFound: ClassVar[type[ObjectNotFound]] = ObjectNotFound
 
     def __init_subclass__(
@@ -127,6 +130,8 @@ class Model:
         cls.__ordering__ = ()
         cls.__label__ = label
         cls.__plural__ = plural
+        cls.__updated_at__ = None
+        cls.__clock__ = utc_now
         cls.__relations__ = {
             name: relation
             for base in cls.__mro__[1:]
