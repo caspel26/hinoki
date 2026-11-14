@@ -150,6 +150,9 @@ class Hinoki:
                 if item in self._included_groups or item in groups:
                     raise RegistrationError("a RouteGroup can be included only once")
                 groups.append(item)
+            bind_mount = getattr(item, "bind_mount", None)
+            if callable(bind_mount):
+                bind_mount(prefix)  # e.g. the admin builds its links from it
             found = self.routes_of(item)
             pending.extend(
                 dataclasses.replace(
