@@ -65,7 +65,7 @@ current: ContextVar[ActiveTransaction | None] = ContextVar(
 
 
 class Database:
-    """A connection pool for one PostgreSQL database."""
+    """A connection pool for one configured database backend."""
 
     def __init__(self, engine: core.Database) -> None:
         self.engine = engine
@@ -89,8 +89,13 @@ class Database:
             )
         return found
 
+    @property
+    def dialect(self) -> str:
+        """The selected SQL dialect (currently ``postgres`` or ``sqlite``)."""
+        return self.engine.dialect
+
     async def fetch(self, sql: str, *params: Param) -> list[Row]:
-        """Rows as dicts. Placeholders are ``$1``, ``$2``, ..."""
+        """Rows as dicts. PostgreSQL uses ``$1``; SQLite uses ``?1``."""
         active = self.active()
         target = active.native if active else self.engine
         return await target.fetch(sql, list(params))
@@ -100,13 +105,17 @@ class Database:
         return rows[0] if rows else None
 
     async def execute(self, sql: str, *params: Param) -> int:
-        """Number of affected rows."""
+        """Number of affected rows; raw SQL placeholders follow the backend."""
         active = self.active()
         target = active.native if active else self.engine
         return await target.execute(sql, list(params))
 
     def transaction(self) -> TransactionScope:
         return TransactionScope(self)
+
+    def migration(self) -> TransactionScope:
+        """An exclusive migration transaction with backend locking semantics."""
+        return TransactionScope(self, migration=True)
 
     def close(self) -> None:
         self.engine.close()
@@ -119,8 +128,9 @@ class Database:
 class TransactionScope:
     """``async with db.transaction():`` — commit, rollback or savepoint."""
 
-    def __init__(self, database: Database) -> None:
+    def __init__(self, database: Database, *, migration: bool = False) -> None:
         self.database = database
+        self.migration = migration
         self.state: ActiveTransaction | None = None
         self.token: Token[ActiveTransaction | None] | None = None
         self.savepoint: str | None = None
@@ -128,7 +138,11 @@ class TransactionScope:
     async def __aenter__(self) -> TransactionScope:
         parent = self.database.active()
         if parent is None:
-            native_tx = await self.database.engine.begin()
+            native_tx = (
+                await self.database.engine.begin_migration()
+                if self.migration
+                else await self.database.engine.begin()
+            )
             self.state = ActiveTransaction(self.database, native_tx)
             self.token = current.set(self.state)
             return self
@@ -137,6 +151,8 @@ class TransactionScope:
                 "nested transaction scopes (savepoints) must be opened by the "
                 "task that owns the transaction"
             )
+        if self.migration:
+            raise DatabaseError("migration transactions cannot be nested")
         self.state = parent
         self.savepoint = parent.next_savepoint()
         await parent.native.execute(f"SAVEPOINT {self.savepoint}", [])
