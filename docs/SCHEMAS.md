@@ -27,18 +27,6 @@ class NoteOut(Schema):
 * **From a row.** `NoteOut.from_model(row, author_name=row.author.name)`; relations must already be loaded (nothing fetches lazily).
 * **Into a row.** `await Note.acreate(data, author_id=me)` and `await row.aupdate_from(patch)`: keyword values set by the server win over the client's, and a schema can never carry the primary key.
 
-## Differences from Pydantic
-
-If you come from Pydantic (or an assistant suggests its API), these do not exist or behave differently:
-
-| Pydantic | Hinoki |
-| --- | --- |
-| `BaseModel`, `model_config`, `ConfigDict` | `Schema`; class-level options are keyword arguments or decorators, never `model_config` |
-| `model_validate`, `parse_obj` | `Schema.validate(data)` (raises a validation error listing every problem) |
-| `model_dump`, `.dict()`, `.json()` | `to_dict()` (Python values), `dump()` (JSON-compatible) |
-| Coercion in "lax" mode (`"1"` becomes `1`) | none: strict only |
-| `Field(..., ge=, le=, pattern=)` | `Field(ge=, le=, gt=, lt=, min_length=, max_length=, pattern=, one_of=, format=)`; patterns use Rust syntax, whole-value, no look-around |
-| `validator`, `field_validator`, `model_validator` | `@field_check("name")` and `@object_check` raising `Invalid(code, message)`: run after the structural check, never change values, no I/O (see [model-derived schemas](MODEL-SCHEMAS.md)) |
-| Mutable instances | instances are immutable |
+`Schema.validate(data)` reports structural problems together. Values are not coerced. Declare field constraints with `Field(...)`; use `@field_check` and `@object_check` for synchronous checks that depend on validated schema values.
 
 See also the [glossary](GLOSSARY.md) for what "schema" does and does not mean in these docs.

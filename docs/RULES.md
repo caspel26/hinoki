@@ -56,7 +56,7 @@ The other rules report the same way. This output comes from a small project whos
 
 ```text
 shop/api.py:13: HNK-API-001 [violated] GET /members/{member_id} (one) returns the model Member; return a Schema
-  fix: return a Schema (for example PostOut.from_model(row)) instead of the Model
+  fix: return a Schema (for example PostOut.from_model(row))
 shop/api.py:7: HNK-SCH-001 [violated] MemberOut.token is exposed by GET /members
   fix: remove the field from the response Schema, or return a Schema that does not carry it
 shop/models.py:11: HNK-IMP-001 [violated] shop.models imports shop.api, which is forbidden for shop.models

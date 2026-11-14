@@ -36,7 +36,7 @@ for post in posts:
     print(post.author.name)
 ```
 
-Without an explicit load, relation access raises a relation-loading error rather than querying the database. This makes query count visible in the calling code.
+Accessing an unloaded relation raises a relation-loading error. Load the relation explicitly so the query is visible in the calling code.
 
 Many-to-many relationships are represented by an explicit join model with two foreign keys and a composite `@unique` constraint. There is no implicit many-to-many table or `through=` shortcut.
 

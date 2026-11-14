@@ -41,4 +41,4 @@ class SignUp(Schema):
             raise Invalid("mismatch", "passwords do not match", path="confirmation")
 ```
 
-Structural errors are reported before custom checks. All applicable check failures are returned together. See [schemas](SCHEMAS.md) for strict validation and the comparison with Pydantic.
+Structural errors are reported before custom checks. All applicable check failures are returned together. See [schemas](SCHEMAS.md) for the validation contract and conversion methods.

@@ -21,7 +21,35 @@ class BlogSettings(FrameworkSettings):          # keeps the built-in groups
     admin_theme: Literal["studio", "console", "paper"] = "studio"
 ```
 
-`FrameworkSettings` brings five groups every app has: `execution` (sync workers, queue, request timeout, body limit), `lifecycle` (startup and shutdown timeouts), `logging` (level, text or JSON), `docs` (title, version, OpenAPI/Swagger/ReDoc URLs) and `server` (host, port and workers). A field without a default is **required**.
+`FrameworkSettings` brings five groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs) and `server` (host, port and workers). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](REQUEST-LIFECYCLE.md).
+
+`docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` default to `None`, so no API document or viewer route is served until configured. Swagger UI or ReDoc requires an `openapi_url`. The same values can be supplied as `Hinoki(...)` arguments; explicit arguments win over `docs` settings, and `None` disables a page.
+
+## Built-in fields and defaults
+
+| Group | Field | Default | Constraint or effect |
+| --- | --- | --- | --- |
+| `execution` | `sync_workers` | `8` | `1` to `1024` worker threads |
+| `execution` | `sync_queue` | `64` | `0` or greater queued calls |
+| `execution` | `request_timeout` | `30.0` seconds | Must be positive; request expiry returns `504` |
+| `execution` | `max_body_bytes` | `1048576` (1 MiB) | `1` to `1073741824` bytes; larger requests return `413` |
+| `lifecycle` | `startup_timeout` | `30.0` seconds | Must be positive |
+| `lifecycle` | `shutdown_timeout` | `10.0` seconds | Must be positive |
+| `logging` | `level` | `info` | `debug`, `info`, `warning`, `error` or `critical` |
+| `logging` | `format` | `text` | `text` or `json` |
+| `docs` | `title` | `Hinoki API` | OpenAPI info title |
+| `docs` | `version` | `0.1.0` | OpenAPI info version |
+| `docs` | `openapi_url` | `None` | JSON document route; disabled when `None` |
+| `docs` | `docs_url` | `None` | Swagger UI route; requires `openapi_url` |
+| `docs` | `redoc_url` | `None` | ReDoc route; requires `openapi_url` |
+| `server` | `host` | `127.0.0.1` | Granian bind address used by `hinoki dev/serve` |
+| `server` | `port` | `8000` | `1` to `65535` |
+| `server` | `workers` | `1` | `1` to `256`; `dev` uses one worker for reload |
+| `server` | `runtime_threads` | `1` | Must be positive |
+| `server` | `backlog` | `1024` | Must be positive |
+| `server` | `access_log` | `false` | Enables Granian access logging |
+
+`DatabaseSettings` is an optional field you declare in your own settings class, not a `FrameworkSettings` group. Its `url` is required and its `max_size` defaults to `10` connections per worker; the value must be at least `1`.
 
 ## 2. Load them when the app is built
 
