@@ -262,9 +262,12 @@ class QuerySet[M: Model]:
 
     async def aupdate(self, values: dict[str, Any]) -> builtins.list[M]:
         """Update the rows this query matches (its filters are part of the
-        statement) and return them. Ordering and loading are ignored."""
+        statement) and return them. Ordering and loading are ignored; a query
+        with ``limit`` or ``offset`` is refused, because the statement would
+        change every matching row."""
         if not self.filters or not values:
             raise FieldError("aupdate needs filters and values")
+        self.refuse_window("aupdate")
         for name in values:
             self.model.check_field(name)
         timestamp = self.model.__updated_at__
@@ -287,9 +290,11 @@ class QuerySet[M: Model]:
 
     async def adelete(self) -> int:
         """Delete the rows this query matches; returns how many. A query
-        without filters is refused so it cannot wipe the table."""
+        without filters is refused so it cannot wipe the table, and so is one
+        with ``limit`` or ``offset``: the statement would delete every match."""
         if not self.filters:
             raise FieldError("adelete needs at least one condition")
+        self.refuse_window("adelete")
         if self.loading.joined:
             raise FieldError(
                 "adelete cannot filter across a relation; look the keys up first"
@@ -298,6 +303,14 @@ class QuerySet[M: Model]:
             "delete", self.model.__table__, filters=list(self.filters)
         )
         return await current_database().execute(sql, *params)
+
+    def refuse_window(self, action: str) -> None:
+        if self.limit_to is not None or self.offset_by is not None:
+            key = self.model.__primary_key__
+            raise FieldError(
+                f"{action} does not apply limit/offset and would change every "
+                f"matching row; fetch the rows first, then filter({key}__in=[...])"
+            )
 
     async def acount(self) -> int:
         sql, params = self.derive(order=(), limit_to=None, offset_by=None).compile(
