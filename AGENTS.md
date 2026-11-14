@@ -37,6 +37,13 @@ The project name is **Hinoki** (owner decision, supersedes the earlier "Aptum" i
 6. Obtain an independent, read-only review for data, authentication, authorization, privacy, migrations, concurrency or similarly high-impact changes. Require concrete defects, file/line, severity and a failing scenario. Fix findings and re-run affected checks.
 7. When commits are in scope, make scoped local commits, include the applicable `Co-Authored-By` trailer and update the relevant status document. Do not push, publish or deploy without the owner's authorization. Previously given authorization remains valid within its scope.
 
+### Strict commit-scope gate
+
+- A commit must contain one cohesive change scope and one matching conventional-commit type. Separate implementation, tests, documentation, dependency/toolchain changes, and repository-policy changes into distinct commits, even when they belong to the same feature or pull request.
+- Never use a catch-all commit for a multi-scope change. Before each commit, inspect the staged diff and confirm every staged file belongs to that single scope; stage files/hunks deliberately and make additional commits for the remaining scopes.
+- Keep dependent scopes in an understandable order (for example, build/dependency support, implementation, tests, then documentation). Do not squash distinct scopes together when preparing or merging a pull request.
+- Pull request descriptions remain explanatory and must not contain personal messages, internal decisions, or queue identifiers.
+
 Branches use `<type>/<short-kebab-case-topic>` with the same type vocabulary as scoped commits (`feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`). Delete branches after they are merged unless they hold active local-only work.
 
 No feature freeze or Shiori deployment flow is imported into this project. A future freeze or branch policy must be recorded explicitly.
