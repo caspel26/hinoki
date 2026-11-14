@@ -25,6 +25,7 @@
 
 <p align="center">
   <a href="https://github.com/caspel26/hinoki/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/caspel26/hinoki/ci.yml?branch=main&label=CI&labelColor=1d1a24"></a>
+  <a href="https://codecov.io/gh/caspel26/hinoki"><img alt="Coverage" src="https://codecov.io/gh/caspel26/hinoki/branch/main/graph/badge.svg?labelColor=1d1a24"></a>
   <img alt="Python 3.12, 3.13 and 3.14" src="https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-7a55c4?labelColor=1d1a24">
   <a href="https://caspel26.github.io/hinoki/dev/status/"><img alt="Status: pre-alpha" src="https://img.shields.io/badge/status-pre--alpha-e3c29b?labelColor=1d1a24"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-7a55c4?labelColor=1d1a24"></a>
@@ -43,7 +44,7 @@ Hinoki is a Python framework for HTTP APIs, built around three ideas.
 
 | Declare | Check | Run |
 | --- | --- | --- |
-| Each endpoint states its types, who may call it, whether it runs in a transaction and which errors it returns. The same declaration drives validation, responses and the OpenAPI document. | You choose rules such as "every write runs in a transaction" or "the models never import the API layer". `hinoki check` reports a broken rule with its file, line and fix, and fails. | Handlers are plain Python, sync or async. Routing, request parsing, schema validation and encoding, cryptography, the PostgreSQL driver and the SQL compiler are written in Rust. |
+| Each endpoint states its types, who may call it, whether it runs in a transaction and which errors it returns. The same declaration drives validation, responses and the OpenAPI document. | You choose rules such as "every write runs in a transaction" or "the models never import the API layer". `hinoki check` reports a broken rule with its file, line and fix, and fails. | The app runs as ASGI under Granian. Its adapter and handlers run in Python; selected routing, parsing, schema, cryptography and PostgreSQL ORM work uses the Rust core. |
 
 ## What is in the box
 
@@ -62,6 +63,13 @@ Hinoki is a Python framework for HTTP APIs, built around three ideas.
 The [Notes example](examples/notes) is a complete application in two short files. The model, the schemas and two of its endpoints, from [`examples/notes/app.py`](examples/notes/app.py):
 
 ```python
+from typing import Annotated
+from uuid import UUID, uuid4
+
+from hinoki import Field, Schema, http
+from hinoki.orm import Model, field, indexed, ordered_by
+
+
 @indexed("title")
 @ordered_by("title")
 class Note(Model, table="notes"):
@@ -94,6 +102,11 @@ async def create(data: NoteIn) -> NoteOut:
 The application, from [`examples/notes/main.py`](examples/notes/main.py):
 
 ```python
+from examples.notes.app import create, listing, one, remove
+from hinoki import Hinoki, settings
+from hinoki.db import DatabaseModule
+
+
 class NotesSettings(settings.AppSettings, prefix="NOTES_"):
     database: settings.DatabaseSettings
 
@@ -158,6 +171,12 @@ Swagger UI is at `http://127.0.0.1:8000/docs` and the OpenAPI document at `/open
 The [Tracker example](examples/tracker) separates its API, its operations and its models, and states that separation as rules, in [`examples/tracker/rules.py`](examples/tracker/rules.py):
 
 ```python
+from hinoki import Actions, Imports, Schemas, Transactions
+from hinoki.rules import RuleSet
+
+PKG = "examples.tracker"
+
+
 tracker_rules = RuleSet(
     Actions.require_access(
         match="examples.tracker.*", except_=["examples.tracker.api.health"]
@@ -193,6 +212,20 @@ Rules are optional. An application without a rule set runs the same way; see the
 A route group carries the policy for all of its endpoints. From [`examples/tracker/api.py`](examples/tracker/api.py):
 
 ```python
+from uuid import UUID
+
+from examples.tracker import operations
+from examples.tracker.errors import TaskAlreadyDone
+from examples.tracker.models import Member, Task
+from examples.tracker.schemas import TaskOut
+from examples.tracker.security import member_only
+from hinoki import Caller, RouteGroup, errors
+
+
+def out(task: Task) -> TaskOut:
+    return TaskOut.from_model(task)
+
+
 tasks = RouteGroup(
     "/tasks", access=member_only, atomic=True
 )  # stated once for the group
