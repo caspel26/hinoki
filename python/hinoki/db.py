@@ -74,7 +74,7 @@ class Database:
     async def connect(
         cls, url: str, *, max_size: int = 8, wait: float = 5.0
     ) -> Database:
-        """Open the pool and verify the server answers (fails fast at startup)."""
+        """Open the pool and check the server; PostgreSQL URLs may configure TLS."""
         engine = await core.Database.connect(url, max_size, int(wait * 1000))
         return cls(engine)
 

@@ -3,11 +3,13 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use deadpool_postgres::{Config, Object, PoolConfig, Runtime, Timeouts};
+use deadpool_postgres::{Config, Object, PoolConfig, Runtime, SslMode, Timeouts};
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::NoTls;
+use tokio_postgres_rustls::MakeRustlsConnect;
 
 use crate::error::{DbError, ErrorKind};
+use crate::tls::{connector, extract_options};
 use crate::value::Value;
 
 /// One result row: column names with decoded values, in column order.
@@ -16,6 +18,7 @@ pub type Row = Vec<(String, Value)>;
 #[derive(Clone)]
 pub struct Database {
     pool: deadpool_postgres::Pool,
+    tls: Option<MakeRustlsConnect>,
 }
 
 fn params(values: &[Value]) -> Vec<&(dyn ToSql + Sync)> {
@@ -73,11 +76,15 @@ fn decode_cell(row: &tokio_postgres::Row, i: usize, ty: &Type) -> Result<Value, 
 /// instead of returning to the pool with work queued behind it.
 struct Lease {
     conn: Option<Object>,
+    tls: Option<MakeRustlsConnect>,
 }
 
 impl Lease {
-    fn new(conn: Object) -> Self {
-        Self { conn: Some(conn) }
+    fn new(conn: Object, tls: Option<MakeRustlsConnect>) -> Self {
+        Self {
+            conn: Some(conn),
+            tls,
+        }
     }
 
     fn get(&self) -> &Object {
@@ -85,8 +92,11 @@ impl Lease {
     }
 
     /// Hand the connection to a longer-lived owner (a transaction).
-    fn into_inner(mut self) -> Object {
-        self.conn.take().expect("lease already released")
+    fn into_inner(mut self) -> (Object, Option<MakeRustlsConnect>) {
+        (
+            self.conn.take().expect("lease already released"),
+            self.tls.take(),
+        )
     }
 
     /// The operation completed (successfully or with a statement error): the
@@ -99,21 +109,30 @@ impl Lease {
 impl Drop for Lease {
     fn drop(&mut self) {
         if let Some(conn) = self.conn.take() {
-            abandon(conn);
+            abandon(conn, self.tls.clone());
         }
     }
 }
 
-fn spawn_cancel(token: tokio_postgres::CancelToken) {
+const CANCEL_TIMEOUT: Duration = Duration::from_secs(2);
+
+fn spawn_cancel(token: tokio_postgres::CancelToken, tls: Option<MakeRustlsConnect>) {
     if let Ok(handle) = tokio::runtime::Handle::try_current() {
         handle.spawn(async move {
-            let _ = token.cancel_query(NoTls).await;
+            let cancel = async move {
+                if let Some(tls) = tls {
+                    let _ = token.cancel_query(tls).await;
+                } else {
+                    let _ = token.cancel_query(NoTls).await;
+                }
+            };
+            let _ = tokio::time::timeout(CANCEL_TIMEOUT, cancel).await;
         });
     }
 }
 
-fn abandon(conn: Object) {
-    spawn_cancel(conn.cancel_token());
+fn abandon(conn: Object, tls: Option<MakeRustlsConnect>) {
+    spawn_cancel(conn.cancel_token(), tls);
     drop(Object::take(conn));
 }
 
@@ -173,8 +192,11 @@ impl Database {
     /// Create a pool. No connection is opened until first use, so call
     /// [`Database::check`] to fail fast at startup.
     pub fn connect(url: &str, max_size: usize, wait: Duration) -> Result<Self, DbError> {
+        let (url, tls_options) = extract_options(url)
+            .map_err(|_| DbError::new(ErrorKind::Connect, "invalid database TLS configuration"))?;
         let mut config = Config::new();
-        config.url = Some(url.to_owned());
+        config.url = Some(url);
+        config.ssl_mode = Some(tls_options.ssl_mode);
         config.pool = Some(PoolConfig {
             max_size,
             timeouts: Timeouts {
@@ -183,20 +205,33 @@ impl Database {
             },
             ..PoolConfig::default()
         });
-        let pool = config
-            .create_pool(Some(Runtime::Tokio1), NoTls)
-            .map_err(|_| DbError::new(ErrorKind::Connect, "invalid database configuration"))?;
-        Ok(Self { pool })
+        let tls = if tls_options.ssl_mode == SslMode::Disable {
+            None
+        } else {
+            Some(connector(&tls_options).map_err(|_| {
+                DbError::new(ErrorKind::Connect, "invalid database TLS configuration")
+            })?)
+        };
+        let pool = match &tls {
+            Some(tls) => config.create_pool(Some(Runtime::Tokio1), tls.clone()),
+            None => config.create_pool(Some(Runtime::Tokio1), NoTls),
+        }
+        .map_err(|_| DbError::new(ErrorKind::Connect, "invalid database configuration"))?;
+        Ok(Self { pool, tls })
     }
 
     async fn acquire(&self) -> Result<Lease, DbError> {
-        self.pool.get().await.map(Lease::new).map_err(|e| match e {
-            deadpool_postgres::PoolError::Timeout(_) => DbError::new(
-                ErrorKind::Pool,
-                "timed out waiting for a database connection",
-            ),
-            _ => DbError::new(ErrorKind::Connect, "could not obtain a database connection"),
-        })
+        self.pool
+            .get()
+            .await
+            .map(|conn| Lease::new(conn, self.tls.clone()))
+            .map_err(|e| match e {
+                deadpool_postgres::PoolError::Timeout(_) => DbError::new(
+                    ErrorKind::Pool,
+                    "timed out waiting for a database connection",
+                ),
+                _ => DbError::new(ErrorKind::Connect, "could not obtain a database connection"),
+            })
     }
 
     /// Open one connection and run `SELECT 1`.
@@ -228,7 +263,8 @@ impl Database {
             .batch_execute("BEGIN")
             .await
             .map_err(|e| DbError::from_driver(&e))?;
-        Ok(Transaction::new(lease.into_inner()))
+        let (conn, tls) = lease.into_inner();
+        Ok(Transaction::new(conn, tls))
     }
 
     pub fn close(&self) {
@@ -247,6 +283,7 @@ impl Database {
 struct Flight<'a> {
     poisoned: &'a AtomicBool,
     token: tokio_postgres::CancelToken,
+    tls: Option<MakeRustlsConnect>,
     armed: bool,
 }
 
@@ -254,7 +291,7 @@ impl Drop for Flight<'_> {
     fn drop(&mut self) {
         if self.armed {
             self.poisoned.store(true, Ordering::SeqCst);
-            spawn_cancel(self.token.clone());
+            spawn_cancel(self.token.clone(), self.tls.clone());
         }
     }
 }
@@ -264,6 +301,7 @@ impl Drop for Flight<'_> {
 /// returning one in an unknown state to the pool.
 pub struct Transaction {
     conn: Option<Object>,
+    tls: Option<MakeRustlsConnect>,
     /// A statement failed: PostgreSQL will refuse to commit (until a
     /// `ROLLBACK TO SAVEPOINT` recovers it).
     failed: AtomicBool,
@@ -272,9 +310,10 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    fn new(conn: Object) -> Self {
+    fn new(conn: Object, tls: Option<MakeRustlsConnect>) -> Self {
         Self {
             conn: Some(conn),
+            tls,
             failed: AtomicBool::new(false),
             poisoned: AtomicBool::new(false),
         }
@@ -315,6 +354,7 @@ impl Transaction {
         let mut flight = Flight {
             poisoned: &self.poisoned,
             token: conn.cancel_token(),
+            tls: self.tls.clone(),
             armed: true,
         };
         let outcome = run_fetch(conn, sql, values).await;
@@ -328,6 +368,7 @@ impl Transaction {
         let mut flight = Flight {
             poisoned: &self.poisoned,
             token: conn.cancel_token(),
+            tls: self.tls.clone(),
             armed: true,
         };
         let outcome = run_execute(conn, sql, values).await;
@@ -379,7 +420,7 @@ impl Transaction {
 impl Drop for Transaction {
     fn drop(&mut self) {
         if let Some(conn) = self.conn.take() {
-            abandon(conn);
+            abandon(conn, self.tls.clone());
         }
     }
 }
