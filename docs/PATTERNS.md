@@ -61,8 +61,7 @@ An application is a set of modules with explicit dependencies and a lifespan (`D
 
 * Behaviour tests against a **disposable PostgreSQL** (`HINOKI_TEST_DATABASE_URL`); a green run without it proves nothing about the database layer.
 * Drive the application through the ASGI harness (no sockets) for HTTP behaviour; test operations directly.
-* When replacing an engine, keep the old one as an **oracle** and compare on random and hostile input (see `tests/schemadifftest.py`).
-* Use independent oracles for security code (stdlib HMAC, another library) rather than self-consistency; inject the clock (`JWTAuth.now`) instead of sleeping.
+* For security code, use independent test vectors and known expected outputs; inject the clock (`JWTAuth.now`) so tests do not depend on elapsed time.
 * Look at rendered UI in real browsers (`tests/browser/verify.py`) before calling it done.
 
 ## 9. Security defaults to keep
@@ -76,7 +75,7 @@ HTTPS terminates somewhere you control (set `Admin(secure_cookies=True)` behind 
 ## 11. Anti-patterns
 
 * Returning a `Model` or a dict built from one.
-* "Read the row, check the owner, then update" in two statements when the write can race with another change. If a response contract requires a distinct 403, make the conditional write and fallback explicit rather than treating the check-then-write shape as a safe default.
+* For a distinct 403 response on a write that can race, make the conditional write and fallback explicit.
 * A business rule inside an action that another entry point also needs.
 * `Reply(4xx)` inside a `transaction=True` action (it commits).
 * Client-supplied column names reaching `filter`/`order_by`.

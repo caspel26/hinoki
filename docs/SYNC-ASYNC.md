@@ -32,7 +32,7 @@ Hinoki runs on one event loop per worker. **Async is the native way; sync is a s
 * **A sync auth hook runs before the action's transaction opens**, so it is never part of it.
 * **Sync model calls only work inside the application's sync handlers and hooks.** In a test body use the async API (an async fixture) or your own connection, also with `SyncClient`.
 * **No sync lifespan, sync admin hooks, sync background tasks (`ctx.tasks.start_soon` takes coroutines) or sync `Database` SQL.** A sync *error handler* runs on the loop and must not call the ORM (its failure is treated as "unhandled").
-* **`SyncClient`** refuses use outside its `with` block and gives up after `timeout` seconds instead of hanging.
+* **`SyncClient`** is available only inside its `with` block and raises a timeout error after `timeout` seconds.
 
 ## Rules of thumb
 

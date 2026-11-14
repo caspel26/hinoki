@@ -15,5 +15,10 @@ The examples are the best way to see the pieces together: [Notes](https://github
 * The ASGI path uses Python for server adaptation and handler calls; selected work is implemented in Rust.
 * Generated typing for some keyword-based ORM calls is less precise than model construction; see [typing](TYPING.md).
 * Advanced relation paths, implicit many-to-many, additional database backends, and end-to-end performance claims are not available.
+* The server adapter is ASGI. WSGI support is not available.
+* General CORS middleware is not available; application MCP has its own allowed-origin check. Cursor pagination is not available; pagination currently uses page numbers.
+* Pagination page-size defaults are `20` and `100` on `PageNumberPagination`; app-wide settings for overriding them are not available yet.
+* OpenAPI generation creates operation IDs and reads summary/description from handler docstrings. Per-action `tags`, `deprecated`, custom `operation_id` and `include_in_schema` controls are not available.
+* There is no maintained Docker image or deployment recipe. `hinoki serve` runs the app with Granian; container packaging and process orchestration are application deployment choices.
 
 See the [roadmap](https://github.com/caspel26/hinoki/blob/main/ROADMAP.md) for project direction and [contributing](https://github.com/caspel26/hinoki/blob/main/CONTRIBUTING.md) for local checks.

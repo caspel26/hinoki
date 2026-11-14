@@ -15,7 +15,7 @@ Use a disposable database while evaluating the example.
 
 ## Plan and apply the migration
 
-The migration planner compares the model in `examples/notes/app.py` with the recorded migration state. It writes numbered SQL and state files for review:
+The migration planner reads the model in `examples/notes/app.py` and the recorded migration state. It writes numbered SQL and state files for review:
 
 ```sh
 uv run hinoki migrations --dir examples/notes/migrations plan \

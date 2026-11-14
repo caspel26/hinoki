@@ -8,7 +8,7 @@ related:
 
 # Endpoints
 
-Hinoki endpoints are ordinary Python functions decorated with an HTTP method. The decorator records metadata; `Hinoki.include(...)` registers the function or an `API` class.
+Hinoki endpoints are ordinary Python functions decorated with an HTTP method. The decorator records metadata; `Hinoki.include(...)` registers the function or an `API` class. The registered declarations also supply the generated [OpenAPI document](OPENAPI.md).
 
 ## Declare an action
 

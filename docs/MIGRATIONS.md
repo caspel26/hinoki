@@ -30,6 +30,6 @@ hinoki migrations --dir examples/blog/migrations apply --database "$BLOG_DATABAS
 
 ## Destructive changes
 
-Operations that can remove data are reported as destructive and are not written unless `--allow-destructive` is passed to `plan`. Read the generated migration before opting in. Some changes, such as changing a constraint on an existing column, require a hand-written migration instead of an automatic plan.
+Operations that can remove data are reported as destructive and are not written unless `--allow-destructive` is passed to `plan`. Read the generated migration before opting in. Changing a constraint on an existing column may require a hand-written migration.
 
 Migrations are files committed with the application. Do not run them from every server worker's startup hook. For the connection lifecycle, see [settings](SETTINGS.md#8-database-connection-ownership).
