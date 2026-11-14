@@ -27,6 +27,7 @@ import typing
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Self, dataclass_transform
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from hinoki.runtime.config import RuntimeConfig
 
@@ -781,6 +782,13 @@ class FrameworkSettings(Settings):
     logging: LoggingSettings = dataclasses.field(default_factory=LoggingSettings)
     docs: DocsSettings = dataclasses.field(default_factory=DocsSettings)
     server: ServerSettings = dataclasses.field(default_factory=ServerSettings)
+    timezone: str = "UTC"
+
+    def validate(self) -> None:
+        try:
+            ZoneInfo(self.timezone)
+        except (TypeError, ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError("timezone must be a valid IANA timezone name") from exc
 
     def runtime_config(self) -> RuntimeConfig:
         return RuntimeConfig(

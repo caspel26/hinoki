@@ -25,6 +25,7 @@ from hinoki.rules import (
     failing,
 )
 from hinoki.target import load_target
+from hinoki.utils import utc_today
 from hinoki.waivers import NAME, WaiverError, apply_waivers, load_waivers
 
 USAGE_ERRORS = (ImportError, AttributeError, ValueError, TypeError, RegistrationError)
@@ -100,7 +101,7 @@ def run_check(args: argparse.Namespace, today: datetime.date | None = None) -> i
             raise WaiverError(f"waiver file {wanted} does not exist")
         waivers = load_waivers(wanted)
         found = rules.run(project, phase, allow_effects=args.allow_effects)
-        found = apply_waivers(found, waivers, today or datetime.date.today())
+        found = apply_waivers(found, waivers, today or utc_today())
     except (*USAGE_ERRORS, WaiverError, SystemExit) as exc:  # factories may exit
         print(f"error: {exc}", file=sys.stderr)
         return 2
