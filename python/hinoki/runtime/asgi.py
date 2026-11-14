@@ -167,7 +167,8 @@ class ASGIAdapter:
             headers.append((b"content-length", str(len(response.body)).encode()))
         start = {"type": "http.response.start", "status": response.status}
         await send({**start, "headers": headers})
-        await send({"type": "http.response.body", "body": response.body})
+        body = b"" if scope["method"] == "HEAD" else response.body
+        await send({"type": "http.response.body", "body": body})
 
     async def _respond(  # noqa: PLR0911 - one exit per failure class
         self, scope: Scope, receive: Any, rid: str
@@ -193,7 +194,9 @@ class ASGIAdapter:
             raise HTTPError(HTTPStatus.SERVICE_UNAVAILABLE, "not_ready", RETRY_LATER)
         if self.document is not None and self._is_document_request(scope):
             return Response.json(HTTPStatus.OK, self.document)
-        page = self.docs.get(scope["path"]) if scope["method"] == "GET" else None
+        page = (
+            self.docs.get(scope["path"]) if scope["method"] in {"GET", "HEAD"} else None
+        )
         if page is not None:
             return docs_response(page)
         binding, path_params = self._route(scope)
@@ -228,7 +231,9 @@ class ASGIAdapter:
         return await self._invoke(binding, request, renderer, binding.collect(data))
 
     def _is_document_request(self, scope: Scope) -> bool:
-        return bool(scope["method"] == "GET" and scope["path"] == self.app.openapi_url)
+        return bool(
+            scope["method"] in {"GET", "HEAD"} and scope["path"] == self.app.openapi_url
+        )
 
     def _route(self, scope: Scope) -> tuple[Binding, dict[str, str]]:
         raw_path = scope.get("raw_path")

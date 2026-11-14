@@ -126,13 +126,35 @@ async def test_dispatch_status_codes_and_bodies(pool: Pool) -> None:
     assert (empty.status, empty.body) == (204, None)
     assert (await client.request("GET", "/nope")).status == 404
     wrong = await client.request("DELETE", "/ping")
-    assert (wrong.status, wrong.headers["allow"]) == (405, "GET")
+    assert (wrong.status, wrong.headers["allow"]) == (405, "GET, HEAD")
     bad = await client.request("GET", "/items/abc")
     assert bad.status == 422
     assert bad.body["details"][0]["path"] == "item_id"
     thing = UUID(int=5)
     assert (await client.request("GET", f"/things/{thing}")).body == {"id": str(thing)}
     assert (await client.request("GET", "/things/not-a-uuid")).status == 422
+
+
+async def test_head_uses_get_status_headers_and_representation_length(
+    pool: Pool,
+) -> None:
+    client = await serve(pool)
+    get = await client.request("GET", "/ping")
+    head = await client.request("HEAD", "/ping")
+    assert head.status == get.status
+    assert head.body is None
+    assert head.headers["content-length"] == get.headers["content-length"]
+    assert {
+        key: value for key, value in head.headers.items() if key != "x-request-id"
+    } == {key: value for key, value in get.headers.items() if key != "x-request-id"}
+    assert head.headers["x-request-id"] != get.headers["x-request-id"]
+
+    gone = await client.request("HEAD", "/gone")
+    assert gone.status == 204 and gone.body is None
+    assert "content-length" not in gone.headers
+
+    no_get = await client.request("HEAD", "/made")
+    assert (no_get.status, no_get.headers["allow"]) == (405, "POST")
 
 
 async def test_internal_errors_do_not_leak_and_carry_request_id(pool: Pool) -> None:
