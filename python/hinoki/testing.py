@@ -170,6 +170,11 @@ class ASGIClient:
     async def delete(self, path: str, **options: Any) -> Response:
         return await self.request("DELETE", path, **options)
 
+    async def query(self, path: str, **options: Any) -> Response:
+        """An HTTP QUERY request (``json=`` is its body; the ``query=`` option
+        is still the query string)."""
+        return await self.request("QUERY", path, **options)
+
 
 def _dumps(value: Any) -> bytes:
     return json.dumps(value).encode()
@@ -259,3 +264,6 @@ class SyncClient:
 
     def delete(self, path: str, **options: Any) -> Response:
         return self.request("DELETE", path, **options)
+
+    def query(self, path: str, **options: Any) -> Response:
+        return self.request("QUERY", path, **options)

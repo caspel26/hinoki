@@ -29,6 +29,12 @@ The corresponding `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` setti
 
 The generated OpenAPI document, Swagger UI, ReDoc and their assets answer `HEAD` with the same status and representation headers as `GET`, without a response body. Each request still has its own `x-request-id` header.
 
+## QUERY operations
+
+The document is OpenAPI 3.1, which has no field for the `QUERY` method (OpenAPI 3.2 adds `query`). An action declared with `@http.query` is therefore written under the path item's `x-query` extension field, with the same operation object as any other method: operation ID, parameters, request body, responses and security. The document stays valid 3.1.
+
+Tools that only read the standard method fields do not see these operations: Swagger UI and ReDoc do not list them, and a client generator skips them unless it is told about `x-query`. The application MCP and `explain_action` read the field.
+
 ## What is generated
 
 * A unique `operationId` is derived from the handler's qualified name. If names collide, Hinoki appends a numeric suffix.
