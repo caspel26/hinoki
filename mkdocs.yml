@@ -87,6 +87,7 @@ nav:
           - Migrations: MIGRATIONS.md
       - Endpoints:
           - Endpoint declarations: ENDPOINTS.md
+          - OpenAPI: OPENAPI.md
           - Errors: ERRORS.md
           - Pagination: PAGINATION.md
           - Parsers and renderers: CODECS.md
@@ -104,6 +105,7 @@ nav:
       - Integrations:
           - Admin: ADMIN.md
           - Application MCP: APP-MCP.md
+          - Development MCP: DEV-MCP.md
           - Development tools: AI-WORKFLOW.md
       - Operating:
           - Sync and async: SYNC-ASYNC.md
