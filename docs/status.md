@@ -2,6 +2,8 @@
 
 Hinoki is pre-alpha. The public API and migration format may change; it is not published on PyPI. Use a checkout for evaluation and test against disposable data.
 
+The [documentation site](documentation-versions.md) separates current development docs from release-tagged versions. Until the first release, the site root points to the `dev` docs.
+
 ## Implemented and exercised
 
 The repository includes typed function and class APIs; request binding and strict schemas; access policies and declared errors; optional architecture rules; settings and worker modules; PostgreSQL models, relations, querysets and file-based migrations; sync and async handlers; OpenAPI, parsers, renderers, development and application MCP; and an optional admin with three styles.

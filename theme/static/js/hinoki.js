@@ -72,6 +72,116 @@
   };
   $$("[data-theme-toggle]").forEach((b) => b.addEventListener("click", toggleTheme));
 
+  /* ---------- Documentation versions ---------- */
+  const initDocVersions = async () => {
+    const selector = $("[data-docs-version]");
+    const trigger = $("[data-docs-version-trigger]", selector || document);
+    const menu = $("[data-docs-version-menu]", selector || document);
+    const stage = $("[data-project-stage]");
+    const footer = $("[data-docs-version-footer]");
+    if (!selector || !trigger || !menu || !window.HN?.site) return;
+
+    const sitePath = new URL(window.HN.site, location.href).pathname.replace(/\/?$/, "/");
+    const siteParts = sitePath.split("/").filter(Boolean);
+    const slug = siteParts.at(-1) || "";
+    const isVersion = (value) =>
+      value === "dev" || value === "stable" || value === "latest" || /^v?\d+\.\d+(?:\.\d+)?(?:[-+][\w.-]+)?$/.test(value);
+    const currentVersion = isVersion(slug) ? slug : "";
+    const rootPath = currentVersion
+      ? `/${siteParts.slice(0, -1).join("/")}/`
+      : sitePath;
+    const docsRoot = new URL(rootPath, location.origin);
+
+    let versions;
+    try {
+      const response = await fetch(new URL("versions.json", docsRoot), { cache: "no-cache" });
+      if (!response.ok) return;
+      versions = await response.json();
+    } catch (_error) {
+      return;
+    }
+    if (!Array.isArray(versions)) return;
+    versions = versions.filter(
+      (item) => item && typeof item.version === "string" && !item.properties?.hidden,
+    );
+    if (versions.length < 2 || !currentVersion) return;
+
+    const current = versions.find(
+      (item) => item.version === currentVersion || item.aliases?.includes(currentVersion),
+    );
+    if (!current) return;
+
+    const versionLabel = (item) => item.title || item.version;
+    const currentLabel = versionLabel(current);
+    $(`[data-docs-version-current]`, selector).textContent = currentLabel;
+    trigger.setAttribute("aria-label", `Documentation version: ${currentLabel}. Choose a version`);
+    if (footer) footer.textContent = current.version === "dev" ? "dev" : currentLabel;
+    if (stage) stage.hidden = true;
+    selector.hidden = false;
+
+    const relativePath = location.pathname.startsWith(sitePath)
+      ? location.pathname.slice(sitePath.length)
+      : "";
+    const makeTarget = (item, preservePage) => {
+      const alias = item.aliases?.includes("stable") ? "stable" : item.version;
+      const path = `${rootPath}${alias}/${preservePage ? relativePath : ""}`;
+      const target = new URL(path, location.origin);
+      if (preservePage) {
+        target.search = location.search;
+        target.hash = location.hash;
+      }
+      return target;
+    };
+
+    menu.replaceChildren();
+    versions.forEach((item) => {
+      const link = document.createElement("a");
+      link.className = "docs-version__link";
+      link.href = makeTarget(item, true).href;
+      const label = document.createElement("span");
+      label.textContent = item.version === "dev" ? "Development" : versionLabel(item);
+      const note = document.createElement("small");
+      note.textContent = item.version === "dev"
+        ? "dev"
+        : item.aliases?.includes("stable")
+          ? "stable"
+          : item.version;
+      link.append(label, note);
+      if (item === current) link.setAttribute("aria-current", "page");
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        const pageTarget = makeTarget(item, true);
+        const versionHome = makeTarget(item, false);
+        fetch(pageTarget, { method: "HEAD" })
+          .then((result) => location.assign(result.ok ? pageTarget.href : versionHome.href))
+          .catch(() => location.assign(pageTarget.href));
+      });
+      menu.append(link);
+    });
+
+    const closeMenu = (restoreFocus = false) => {
+      menu.hidden = true;
+      trigger.setAttribute("aria-expanded", "false");
+      if (restoreFocus) trigger.focus();
+    };
+    trigger.addEventListener("click", () => {
+      const open = menu.hidden;
+      menu.hidden = !open;
+      trigger.setAttribute("aria-expanded", String(open));
+      if (open) $("a", menu)?.focus();
+    });
+    document.addEventListener("pointerdown", (event) => {
+      if (!selector.contains(event.target)) closeMenu();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !menu.hidden) {
+        event.preventDefault();
+        closeMenu(true);
+      }
+    });
+  };
+  initDocVersions();
+
   const sectionNav = $(".top__nav");
   const activeSection = sectionNav && $(".top__link.is-active", sectionNav);
   if (sectionNav && activeSection && matchMedia("(max-width: 960px)").matches) {
