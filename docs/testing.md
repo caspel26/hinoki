@@ -21,6 +21,8 @@ async with ASGIClient(create_app(TEST_DATABASE_URL), strict_errors=True) as clie
 
 Its context manager runs module lifespans. If the application has a `DatabaseModule`, point it to a disposable PostgreSQL database. `strict_errors=True` catches an HTTP error returned by an action but missing from its `errors=` declaration.
 
+Both clients have `get`, `post`, `put`, `patch`, `delete` and `query` (the HTTP `QUERY` method; its body goes in `json=` or `body=`, while the `query=` option of every call is the query string), plus `request(method, path, ...)` for anything else such as `HEAD`.
+
 `SyncClient` is available for synchronous test functions. It runs the app's lifespan and refuses unsafe nested use from a running event loop.
 
 ## Test the layers separately

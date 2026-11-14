@@ -27,6 +27,7 @@ import hinoki
 from hinoki.app import Hinoki
 from hinoki.checkcli import USAGE_ERRORS, build_app, build_rules, default_packages
 from hinoki.errorcatalog import CATALOG, explain
+from hinoki.openapi import operation_key
 from hinoki.orm import Model
 from hinoki.orm.migrations import models_of
 from hinoki.proposals import ProposalError, propose
@@ -192,7 +193,9 @@ def tool_explain_action(project: DevProject, args: dict[str, Any]) -> dict[str, 
         raise ToolFailure("'action' must be the name of an action")
     route = project.find(name)
     operation = (
-        project.app.openapi()["paths"].get(route.path, {}).get(route.method.lower(), {})
+        project.app.openapi()["paths"]
+        .get(route.path, {})
+        .get(operation_key(route.method), {})
     )
     diagnostics, _ = project.diagnostics(None)
     subject = qualified(route)
@@ -357,7 +360,8 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[..., dict[str, Any]]]] = {
     "run_scenario": (
         "Send one HTTP request to the application in-process and return status, "
         "headers and body. Only offered when the owner enabled scenarios; "
-        "non-GET methods need --scenarios write and a disposable database.",
+        "methods other than GET, HEAD, OPTIONS and QUERY need --scenarios write "
+        "and a disposable database.",
         {
             "type": "object",
             "properties": {

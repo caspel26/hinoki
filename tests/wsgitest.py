@@ -163,6 +163,14 @@ def test_a_real_wsgi_server_serves_the_application() -> None:
         )
         with urllib.request.urlopen(request) as reply:
             assert (reply.status, json.load(reply)) == (201, {"text": "x"})
+        request = urllib.request.Request(
+            f"{base}/find",
+            data=b'{"text":"q"}',
+            headers={"content-type": "application/json"},
+            method="QUERY",
+        )
+        with urllib.request.urlopen(request) as reply:
+            assert (reply.status, json.load(reply)) == (200, {"text": "q"})
         with pytest.raises(urllib.error.HTTPError) as missing:
             urllib.request.urlopen(f"{base}/nope")
         assert missing.value.code == 404
