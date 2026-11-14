@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import types
 from collections.abc import Awaitable, Callable
+from datetime import UTC, tzinfo
 from typing import Any
 
 from hinoki.access import Access
@@ -79,6 +80,8 @@ class Admin:
         self.activity = activity
         self.dashboard = dashboard
         self.secure_cookies = secure_cookies
+        self.timezone: tzinfo = UTC
+        self._bound_timezone: tzinfo | None = None
         self.templates = Templates(templates, theme)
         self.theme = self.templates.theme
         self.parts = Components(self.templates)
@@ -87,6 +90,18 @@ class Admin:
             "admin.css": digest(self.templates.stylesheet()),
             "admin.js": digest(self.templates.script()),
         }
+
+    def bind_timezone(self, timezone: tzinfo) -> None:
+        """Use the including app's timezone; reject conflicting app bindings."""
+        if self._bound_timezone is not None and str(self._bound_timezone) != str(
+            timezone
+        ):
+            raise RegistrationError(
+                "an Admin instance cannot be shared by apps with different timezones"
+            )
+        self._bound_timezone = timezone
+        self.timezone = timezone
+        self.parts.timezone = timezone
 
     def register[M: Model](
         self,

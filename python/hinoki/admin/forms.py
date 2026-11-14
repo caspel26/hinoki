@@ -15,6 +15,7 @@ import datetime
 import typing
 import uuid
 from collections.abc import Mapping, Sequence
+from datetime import tzinfo
 from typing import Any
 
 from hinoki.admin.templates import Raw, Templates, escape
@@ -32,6 +33,8 @@ SIMPLE_KINDS: dict[Any, str] = {
     datetime.datetime: "datetime",
 }
 TEXT_KINDS = {"text", "textarea"}
+UTC_ZONE = datetime.UTC
+FOLD_COUNT = 2
 INPUT_TYPES = {
     "text": "text",
     "number": "text",
@@ -122,12 +125,26 @@ def fields_for(
     return found
 
 
-def to_datetime(raw: str) -> datetime.datetime:
+def to_datetime(raw: str, zone: tzinfo = UTC_ZONE) -> datetime.datetime:
+    """Interpret a form wall time in ``zone`` and return its UTC instant."""
     try:
         value = datetime.datetime.fromisoformat(raw)
     except ValueError:
         raise FieldProblem("use a date and time such as 2026-11-13T09:30") from None
-    return value if value.tzinfo else value.replace(tzinfo=datetime.UTC)
+    if value.tzinfo is not None:
+        return value.astimezone(datetime.UTC)
+    candidates = [value.replace(tzinfo=zone, fold=fold) for fold in (0, 1)]
+    valid = [
+        candidate
+        for candidate in candidates
+        if candidate.astimezone(datetime.UTC).astimezone(zone).replace(tzinfo=None)
+        == value
+    ]
+    if not valid:
+        raise FieldProblem("this local time does not exist because of a clock change")
+    if len(valid) == FOLD_COUNT and valid[0].utcoffset() != valid[1].utcoffset():
+        raise FieldProblem("this local time is ambiguous because of a clock change")
+    return valid[0].astimezone(datetime.UTC)
 
 
 def to_uuid(raw: str) -> uuid.UUID:
@@ -158,13 +175,13 @@ def to_text(field: FormField, raw: str) -> str:
     return raw
 
 
-def convert_text(field: FormField, raw: str) -> Any:
+def convert_text(field: FormField, raw: str, zone: tzinfo) -> Any:
     if field.kind == "number":
         return to_number(field, raw)
     if field.kind == "uuid":
         return to_uuid(raw)
     if field.kind == "datetime":
-        return to_datetime(raw)
+        return to_datetime(raw, zone)
     return to_text(field, raw)
 
 
@@ -179,7 +196,9 @@ def empty(field: FormField, is_text: bool) -> tuple[bool, Any]:
     raise FieldProblem("this field is required")
 
 
-def convert(field: FormField, raw: str | None) -> tuple[bool, Any]:
+def convert(
+    field: FormField, raw: str | None, zone: tzinfo = UTC_ZONE
+) -> tuple[bool, Any]:
     """``(present, value)``: ``present`` is False when the field is left out so
     the model default applies. Raises ``FieldProblem``."""
     if field.kind == "checkbox":
@@ -188,25 +207,27 @@ def convert(field: FormField, raw: str | None) -> tuple[bool, Any]:
     text = (raw or "").replace("\r\n", "\n") if is_text else (raw or "").strip()
     if text == "":
         return empty(field, is_text)
-    return True, convert_text(field, text)
+    return True, convert_text(field, text, zone)
 
 
-def input_text(value: Any) -> str:
-    """The text a browser input holds for ``value`` (no offsets, no precision loss
-    a ``datetime-local`` control cannot represent)."""
+def input_text(value: Any, zone: tzinfo = UTC_ZONE) -> str:
+    """The zone-local text a browser input holds without an offset."""
     if value is None:
         return ""
     if isinstance(value, datetime.datetime):
-        moment = value.astimezone(datetime.UTC).replace(tzinfo=None)
+        moment = value.replace(tzinfo=datetime.UTC) if value.tzinfo is None else value
+        moment = moment.astimezone(zone).replace(tzinfo=None)
         return moment.isoformat(timespec="seconds")
     return str(value)
 
 
-def unchanged(field: FormField, raw: str | None, original: Any) -> bool:
+def unchanged(
+    field: FormField, raw: str | None, original: Any, zone: tzinfo = UTC_ZONE
+) -> bool:
     """The submitted text is exactly what the form showed for the stored value."""
     if field.kind == "checkbox":
         return (raw is not None) == bool(original)
-    shown = input_text(original)
+    shown = input_text(original, zone)
     sent = (
         (raw or "").replace("\r\n", "\n")
         if field.kind in TEXT_KINDS
@@ -221,6 +242,7 @@ def collect(
     fields: Sequence[FormField],
     form: Mapping[str, str],
     original: Mapping[str, Any] | None = None,
+    zone: tzinfo = UTC_ZONE,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     """``(values, errors)`` from submitted text. Read-only fields are ignored and,
     when ``original`` (the stored values) is given, so are unchanged fields."""
@@ -230,10 +252,12 @@ def collect(
         if field.shown_only:
             continue
         raw = form.get(field.name)
-        if original is not None and unchanged(field, raw, original.get(field.name)):
+        if original is not None and unchanged(
+            field, raw, original.get(field.name), zone
+        ):
             continue
         try:
-            present, value = convert(field, raw)
+            present, value = convert(field, raw, zone)
         except FieldProblem as exc:
             errors[field.name] = str(exc)
         else:
@@ -257,9 +281,13 @@ def attributes(field: FormField, error: str | None) -> str:
 
 
 def select_control(
-    field: FormField, value: Any, attrs: str, options: Sequence[tuple[str, str]]
+    field: FormField,
+    value: Any,
+    attrs: str,
+    options: Sequence[tuple[str, str]],
+    zone: tzinfo,
 ) -> Raw:
-    chosen = input_text(value)
+    chosen = input_text(value, zone)
     rows = []
     if field.nullable or not chosen:
         rows.append('<option value="">—</option>')
@@ -273,9 +301,9 @@ def select_control(
     return Raw(f"<select {attrs}>{''.join(rows)}</select>")
 
 
-def plain_control(field: FormField, value: Any, attrs: str) -> Raw:
+def plain_control(field: FormField, value: Any, attrs: str, zone: tzinfo) -> Raw:
     """Inputs that are not selects."""
-    text = escape(input_text(value))
+    text = escape(input_text(value, zone))
     if field.kind == "readonly":
         return Raw(f'<input {attrs} value="{text}">')
     if field.kind == "checkbox":
@@ -297,11 +325,12 @@ def control(
     value: Any,
     error: str | None,
     options: Sequence[tuple[str, str]] | None = None,
+    zone: tzinfo = UTC_ZONE,
 ) -> Raw:
     attrs = attributes(field, error)
     if field.select and options is not None:
-        return select_control(field, value, attrs, options)
-    return plain_control(field, value, attrs)
+        return select_control(field, value, attrs, options, zone)
+    return plain_control(field, value, attrs, zone)
 
 
 def render_field(
@@ -310,6 +339,7 @@ def render_field(
     value: Any,
     error: str | None,
     options: Sequence[tuple[str, str]] | None = None,
+    zone: tzinfo = UTC_ZONE,
 ) -> Raw:
     notes = []
     if error:
@@ -322,6 +352,6 @@ def render_field(
         "field",
         name=field.name,
         label=field.label,
-        control=control(field, value, error, options),
+        control=control(field, value, error, options, zone),
         help=Raw("".join(notes)),
     )
