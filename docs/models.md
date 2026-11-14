@@ -102,7 +102,7 @@ task.done = True
 await task.asave()  # updates changed columns
 ```
 
-Server-supplied keywords take precedence over values from a `Schema`. A loaded model remembers its stored values; `asave()` updates changed columns and refuses primary-key changes. For a conditional write, use `aupdate_where` so ownership and state checks are part of the SQL condition.
+Server-supplied keywords take precedence over values from a `Schema`. A loaded model remembers its stored values; `asave()` updates changed columns and refuses primary-key changes. For a conditional write, use `aupdate_where` so ownership and state checks are part of the SQL condition. `QuerySet.aupdate(...)` and `adelete()` act on every row the filters match; they ignore ordering and refuse a queryset with `limit` or `offset`, so select the rows first and then filter on their keys (`filter(id__in=[...])`).
 
 The model constructor is statically typed. Some keyword-based model methods still have broader type-checker signatures; see [typing](typing.md).
 
