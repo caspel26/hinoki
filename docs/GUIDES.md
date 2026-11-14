@@ -14,13 +14,14 @@ One page for each part of an application. Start with the data and endpoint guide
 - [Model options](MODEL-OPTIONS.md): Options that describe a model beyond its columns are decorators, read like the action decorators.
 - [Utilities](UTILITIES.md): Hinoki includes a small set of helpers where the framework can define clear behavior.
 - [Relations](RELATIONS.md): Hinoki stores relations as ordinary foreign-key columns and loads related rows only when a query asks for them.
-- [Migrations](MIGRATIONS.md): Hinoki compares the models in a module with the migration state recorded in files.
+- [Migrations](MIGRATIONS.md): Hinoki uses model declarations and recorded migration state to write SQL migration files.
 
 ## Endpoints
 
 - [Endpoint declarations](ENDPOINTS.md): Hinoki endpoints are ordinary Python functions decorated with an HTTP method.
+- [OpenAPI](OPENAPI.md): The OpenAPI 3.1 document is generated from registered routes, signatures and schema declarations.
 - [Errors](ERRORS.md): Hinoki separates malformed requests, authentication failures and application errors.
-- [Pagination](PAGINATION.md): An action opts into page-number pagination with pagination=PageNumberPagination(...).
+- [Pagination](PAGINATION.md): An action opts into page-number pagination with `PageNumberPagination()`.
 - [Parsers and renderers](CODECS.md): A parser turns a request body into Python data; a renderer turns a handler's result into response bytes.
 
 ## Security and checks
@@ -42,6 +43,7 @@ One page for each part of an application. Start with the data and endpoint guide
 
 - [Admin](ADMIN.md): An optional extra that gives staff a list, search, create, edit, bulk delete and a dashboard for your models.
 - [Application MCP](APP-MCP.md): expose_as_mcp turns selected HTTP actions into tools for an MCP client.
+- [Development MCP](DEV-MCP.md): CLI-hosted tools describe an app and its rules to an agent.
 - [Development tools](AI-WORKFLOW.md): Scaffold a project and give a coding agent rules, error explanations and an MCP server.
 
 ## Operating

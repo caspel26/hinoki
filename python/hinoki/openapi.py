@@ -2,8 +2,8 @@
 
 Everything comes from declarations that already exist (paths, handler
 signatures, ``Schema`` fields, return annotations, docstrings); nothing is
-written twice. Not covered yet: auth security schemes, examples, deprecation,
-custom error documentation and response validation against the annotation.
+written twice. Not exposed yet: examples, per-action deprecation and tags,
+custom operation IDs, and response validation against the annotation.
 """
 
 from __future__ import annotations
