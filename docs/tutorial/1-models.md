@@ -3,14 +3,11 @@
 A model is a table. Hinoki's models are active records over a Rust query compiler: no lazy loading, no surprises.
 
 ```python
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from hinoki.orm import Model, field, foreign_key, indexed, ordered_by
-
-
-def now() -> datetime:
-    return datetime.now(UTC)
+from hinoki.utils import utc_now
 
 
 class Member(Model, table="tracker_members"):
@@ -26,7 +23,7 @@ class Task(Model, table="tracker_tasks", label="Task", plural="Tasks"):
     owner_id: UUID = foreign_key(Member, on_delete="restrict", related_name="tasks")
     title: str = field(max_length=120)
     done: bool = False
-    created_at: datetime = field(default_factory=now)
+    created_at: datetime = field(default_factory=utc_now)
     completed_at: datetime | None = None
 ```
 

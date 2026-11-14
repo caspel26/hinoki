@@ -16,9 +16,12 @@ planner, the query layer and the admin see.
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime
+from typing import get_type_hints
 
 from hinoki.errors import RegistrationError
 from hinoki.orm.model import Model
+from hinoki.utils import Clock, utc_now
 
 MIN_UNIQUE = 2
 
@@ -75,6 +78,42 @@ def ordered_by[M: type[Model]](*names: str) -> Callable[[M], M]:
     def apply(model: M) -> M:
         known(model, tuple(n.removeprefix("-") for n in names), "ordered_by")
         model.__ordering__ = tuple(names)
+        return model
+
+    return apply
+
+
+def timestamps[M: type[Model]](
+    updated_at: str = "updated_at", *, clock: Clock = utc_now
+) -> Callable[[M], M]:
+    """Update a declared datetime column on each ORM update statement.
+
+    Timestamp columns remain ordinary model fields, visible to type checkers
+    and migrations. Declare their creation defaults with ``utc_now``.
+    """
+
+    def apply(model: M) -> M:
+        known(model, (updated_at,), "timestamps")
+        if updated_at == model.__primary_key__:
+            raise RegistrationError(
+                f"{model.__name__}: timestamps field cannot be the primary key"
+            )
+        if not callable(clock):
+            raise RegistrationError(
+                f"{model.__name__}: timestamps clock must be callable"
+            )
+        try:
+            annotation = get_type_hints(model).get(updated_at)
+        except (NameError, TypeError) as exc:
+            raise RegistrationError(
+                f"{model.__name__}: cannot resolve timestamp field types"
+            ) from exc
+        if annotation is not datetime:
+            raise RegistrationError(
+                f"{model.__name__}: timestamps field {updated_at!r} must be datetime"
+            )
+        model.__updated_at__ = updated_at
+        model.__clock__ = clock
         return model
 
     return apply

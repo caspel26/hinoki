@@ -98,6 +98,7 @@ nav:
       - Data:
           - Schemas: SCHEMAS.md
           - Model options: MODEL-OPTIONS.md
+          - Utilities: UTILITIES.md
       - Endpoints:
           - Parsers and renderers: CODECS.md
           - Patterns and best practices: PATTERNS.md
@@ -123,3 +124,4 @@ nav:
       - Auth and crypto: reference/auth.md
       - Settings: reference/settings.md
       - Testing: reference/testing.md
+      - Utilities: reference/utilities.md
