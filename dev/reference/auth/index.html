@@ -871,8 +871,9 @@ or plain <code>def</code>.</p>
     <div class="doc doc-contents ">
 
         <p>A signed token for <code>claims</code> valid for <code>ttl</code> seconds, signed with the
-first non-public key. <code>iat</code>/<code>exp</code> (and <code>iss</code>/<code>aud</code> when
-configured) are added unless already present.</p>
+first non-public key. <code>iat</code> and <code>exp</code> are always set by the server (a
+value in <code>claims</code> is replaced); <code>iss</code> and <code>aud</code> are added when
+configured, unless <code>claims</code> already has them.</p>
 
 
     </div>
