@@ -418,6 +418,18 @@ details > :last-child {
   vertical-align: top;
 }
 
+@media (max-width: 640px) {
+  .prose table {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .prose th,
+  .prose td {
+    white-space: nowrap;
+  }
+}
+
 .prose tr:first-child td {
   border-top: 0;
 }
