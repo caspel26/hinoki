@@ -397,6 +397,7 @@
 </code></pre></div>
 <p><code>search</code> names the columns the list's search box and the global search look in: a row matches when any of them contains the typed text, compared case-insensitively as text (so a number or date column matches on its printed form). Without <code>search</code> the box is inert.</p>
 <p>Row visibility, field assignment and which columns are shown are decided in the admin class; hooks (<code>queryset</code>, <code>can</code>, <code>display</code>, <code>stats</code>, <code>check</code>, <code>save</code>, <code>remove</code>) override what you need. <code>queryset(principal)</code> is the primary way to decide which rows a caller sees: counts and page numbers come from it. <code>can(principal, "view", row)</code> is also applied row by row to what a list page or the dashboard fetched, so a denied row is not shown; it can only trim the page already fetched, so a page may hold fewer rows than <code>per_page</code> and the totals still count the queryset. Mass assignment, excluded columns and out-of-scope rows are refused by the framework, and every form carries a signed CSRF token bound to the signed-in subject.</p>
+<p>Datetime fields in the admin use the including app's <code>settings.timezone</code> (UTC when the app has no built-in settings). Forms display stored instants in that timezone and interpret edited <code>datetime-local</code> values there before saving them as UTC-aware datetimes. Times that do not exist or occur twice during a daylight-saving clock change are rejected for correction. API datetimes with offsets remain absolute instants; <code>utc_today()</code> continues to use UTC.</p>
 <h2 id="bulk-actions">Bulk actions<a class="headerlink" href="#bulk-actions" title="Permanent link">&para;</a></h2>
 <p>Add an async handler and declare it with <code>BulkAction</code> on the model admin. The list shows its action button after rows are selected:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
@@ -515,7 +516,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 18:25:58 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 20:57:56 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>
