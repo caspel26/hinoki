@@ -26,7 +26,7 @@ from hinoki.parsers import FormParser, JSONParser, MultiPartParser, Parser
 from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer
 from hinoki.reply import Reply, set_cookie
 from hinoki.request import Request
-from hinoki.routing import Route, RouteGroup
+from hinoki.routing import Mount, Route, RouteGroup
 from hinoki.rules import Actions, Imports, Schemas, Transactions
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.schema import (
@@ -84,6 +84,7 @@ __all__ = [
     "Module",
     "ModuleContext",
     "ModuleGraphError",
+    "Mount",
     "MultiPartParser",
     "NotFound",
     "Parser",

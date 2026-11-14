@@ -5,7 +5,7 @@ import types
 
 import pytest
 
-from hinoki import API, Hinoki, RegistrationError, RouteGroup, http
+from hinoki import API, Hinoki, Mount, RegistrationError, RouteGroup, http
 from hinoki.__main__ import main
 from hinoki.request import Request
 
@@ -79,3 +79,32 @@ def test_routes_command_filters_and_prints_json(
     assert found[0]["handler"].endswith("routeinclusiontest.listing")
     assert main(["routes", APP, "--method", "delete"]) == 1
     assert main(["routes", "no.such.module:app"]) == 2
+
+
+def test_mount_places_a_feature_under_a_prefix_chosen_at_the_root() -> None:
+    root = RouteGroup()
+
+    @root.get("/")
+    def home() -> None: ...
+
+    app = Hinoki(include=[Mount("/api", Mount("/v1", [Billing, root]), health)])
+    assert sorted((r.method, r.path) for r in app.routes) == [
+        ("GET", "/api/health"),
+        ("GET", "/api/v1"),
+        ("POST", "/api/v1/billing"),
+    ]
+    assert app.resolve("POST", "/api/v1/billing") is not None
+    assert app.resolve("POST", "/billing") is None
+
+
+def test_mount_validates_prefix_and_content() -> None:
+    for bad in ("api", "/api/", ""):
+        with pytest.raises(ValueError, match="mount prefix"):
+            Mount(bad, health)
+    with pytest.raises(ValueError, match="at least one"):
+        Mount("/api")
+
+
+def test_mounted_routes_can_still_collide() -> None:
+    with pytest.raises(RegistrationError, match="duplicate"):
+        Hinoki(include=[Mount("/x", health), Mount("/x", health)])

@@ -21,7 +21,7 @@ from hinoki.modules import Module, order_modules
 from hinoki.openapi import OpenAPIBuilder
 from hinoki.parsers import DEFAULT_PARSERS, Parser, check_parsers
 from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers
-from hinoki.routing import Found, MethodNotAllowed, Route, RouteGroup, route_of
+from hinoki.routing import Found, MethodNotAllowed, Mount, Route, RouteGroup, route_of
 from hinoki.rules import Phase, Project, RuleSet, failing
 from hinoki.runtime.asgi import ASGIAdapter
 from hinoki.runtime.binding import Binding, bind
@@ -132,19 +132,28 @@ class Hinoki:
     def include(self, *items: object) -> None:
         """Register decorated functions, ``API`` subclasses and objects that expose
         an ``api()`` (the admin). Lists and tuples of those are flattened, so a
-        feature package can export one ``routes`` list.
+        feature package can export one ``routes`` list, and ``Mount(prefix, ...)``
+        places a feature under a path chosen here.
 
         All-or-nothing per call: on conflict the application is unchanged.
         """
         self._check_mutable()
         pending: list[Route] = []
         groups: list[RouteGroup] = []
-        for item in flatten(items):
+        for item, prefix in flatten(items):
             if isinstance(item, RouteGroup):
                 if item in self._included_groups or item in groups:
                     raise RegistrationError("a RouteGroup can be included only once")
                 groups.append(item)
-            pending.extend(self.routes_of(item))
+            found = self.routes_of(item)
+            pending.extend(
+                dataclasses.replace(
+                    route, path=prefix + ("" if route.path == "/" else route.path)
+                )
+                if prefix
+                else route
+                for route in found
+            )
         pending = [self.with_defaults(route) for route in pending]
         bound = [bind(route) for route in pending]  # bad signatures fail here
         staged = Router()
@@ -285,10 +294,13 @@ class Hinoki:
             raise RegistrationError("application is already serving; it is frozen")
 
 
-def flatten(items: Sequence[object]) -> Iterator[object]:
-    """The items of ``include``, with nested lists and tuples spread in place."""
+def flatten(items: Sequence[object], prefix: str = "") -> Iterator[tuple[object, str]]:
+    """``(item, prefix)`` for the items of ``include``: nested lists and tuples are
+    spread in place and a ``Mount`` adds its prefix to what it holds."""
     for item in items:
-        if isinstance(item, list | tuple):
-            yield from flatten(item)
+        if isinstance(item, Mount):
+            yield from flatten(item.items, prefix + item.prefix)
+        elif isinstance(item, list | tuple):
+            yield from flatten(item, prefix)
         else:
-            yield item
+            yield item, prefix
