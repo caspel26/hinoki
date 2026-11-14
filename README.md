@@ -74,11 +74,15 @@ Hinoki uses decorators for model options. See [model options](docs/model-options
 
 ## Admin styles
 
-The optional admin includes three built-in styles, each with light and dark modes.
+The optional admin includes four built-in styles, each with light and dark modes.
 
-| Studio | Console | Paper |
-| --- | --- | --- |
-| ![Studio admin](docs/screenshots/admin-studio-list-light.png) | ![Console admin](docs/screenshots/admin-console-list-light.png) | ![Paper admin](docs/screenshots/admin-paper-list-light.png) |
+| Studio | Console |
+| --- | --- |
+| ![Studio admin](docs/screenshots/admin-studio-list-light.png) | ![Console admin](docs/screenshots/admin-console-list-light.png) |
+
+| Paper | Grove |
+| --- | --- |
+| ![Paper admin](docs/screenshots/admin-paper-list-light.png) | ![Grove admin](docs/screenshots/admin-grove-list-light.png) |
 
 ## Documentation
 
