@@ -375,7 +375,7 @@
       <article class="prose" style="--sheet: '3.2'">
         <p class="kicker" data-search-exclude>3.2 · Guides</p>
         <h1 id="models-and-queries">Models and queries<a class="headerlink" href="#models-and-queries" title="Permanent link">&para;</a></h1>
-<p><code>Model</code> maps a Python class to one PostgreSQL table. Its annotated fields define the columns; queries are explicit and do not load relations implicitly.</p>
+<p><code>Model</code> maps a Python class to one database table. PostgreSQL and SQLite are supported. Its annotated fields define the columns; queries are explicit and do not load relations implicitly.</p>
 <h2 id="define-a-model">Define a model<a class="headerlink" href="#define-a-model" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
@@ -400,6 +400,7 @@
 </code></pre></div>
 <p><code>table=</code> is required. A model has exactly one primary key. Fields are keyword-only when constructing a model. Single-column uniqueness is <code>field(unique=True)</code>; use <code>@unique("a", "b")</code> for a composite constraint. There is no nested <code>class Meta</code>.</p>
 <p>Supported field metadata includes primary key, uniqueness, maximum string length, defaults and foreign-key behavior. Database types are inferred from annotations; unsupported types fail during model or migration validation.</p>
+<p>Hinoki stores PostgreSQL UUID, timestamp, JSON and byte values in their native column types. SQLite stores UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string <code>contains</code> matching follows SQLite's case-folding behavior (ASCII case-insensitive).</p>
 <h2 id="query-rows">Query rows<a class="headerlink" href="#query-rows" title="Permanent link">&para;</a></h2>
 <p>Class methods and querysets offer sync and async variants for common operations. Async variants are preferred in async handlers:</p>
 <div class="highlight"><pre><span></span><code><span class="n">task</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">aget</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">task_id</span><span class="p">)</span>
@@ -536,7 +537,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.2</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 19:35:40 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 22:32:50 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>

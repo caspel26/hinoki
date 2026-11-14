@@ -1456,7 +1456,7 @@ call again, it replaces its own handler.</p>
 
 
 
-        <p>For your own settings class: <code>database: DatabaseSettings</code>.</p>
+        <p>Local SQLite by default; set <code>url</code> explicitly for a server database.</p>
 
 
 
@@ -1485,11 +1485,16 @@ call again, it replaces its own handler.</p>
 
 
   <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
 <a href="#hinoki.settings.DatabaseSettings.url" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">url</span><span class="p">:</span> <span class="n">Secret</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">url</span><span class="p">:</span> <span class="n">Secret</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span>
+    <span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">Secret</span><span class="p">(</span>
+        <span class="s2">"sqlite://./.hinoki/local.sqlite3"</span>
+    <span class="p">)</span>
+<span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">

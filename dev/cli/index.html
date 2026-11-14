@@ -519,7 +519,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
 hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/blog/migrations<span class="w"> </span>apply
 hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/blog/migrations<span class="w"> </span>sql<span class="w"> </span><span class="m">0001</span>-initial
 </code></pre></div>
-<p><code>plan</code> requires <code>--models MODULE</code>; <code>--name</code> defaults to <code>changes</code>. <code>--dry-run</code> prints operations without writing files. Destructive operations require <code>--allow-destructive</code>. <code>status</code> and <code>apply</code> read the connection URL from <code>HINOKI_DATABASE_URL</code>. <code>--database URL</code> overrides it, but a URL given as an argument is visible in the process list and the shell history, so keep a URL that contains a password in the variable. When the connection fails, the command prints <code>error: database: …</code> with a <code>fix:</code> line and exits 1; the URL is not printed. <code>sql NAME</code> prints a migration's SQL. <code>status</code> and <code>apply</code> connect to PostgreSQL; use a disposable database while reviewing migrations.</p>
+<p><code>plan</code> requires <code>--models MODULE</code>; <code>--name</code> defaults to <code>changes</code>. <code>--dry-run</code> prints operations without writing files. Destructive operations require <code>--allow-destructive</code>. Without <code>HINOKI_DATABASE_URL</code>, plan/status/apply target the local SQLite file at <code>.hinoki/local.sqlite3</code>; <code>--database URL</code> selects another supported backend. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints <code>error: database: …</code> with a <code>fix:</code> line and exits 1; the URL is not printed. <code>sql NAME</code> prints a migration's SQL. Use a disposable database while reviewing migrations.</p>
 <h3 id="mcp"><code>mcp</code><a class="headerlink" href="#mcp" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>mcp<span class="w"> </span>examples.tracker.app:create_app<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--rules<span class="w"> </span>examples.tracker.rules:tracker_rules<span class="w"> </span><span class="se">\</span>
@@ -561,7 +561,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 18:28:34 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 22:32:50 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>

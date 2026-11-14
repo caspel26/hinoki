@@ -380,15 +380,16 @@
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/blog/migrations<span class="w"> </span>plan<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--models<span class="w"> </span>examples.blog.models<span class="w"> </span>--name<span class="w"> </span>add-published
 </code></pre></div>
-<p>The planner writes a numbered <code>.sql</code> file and a matching <code>.state.json</code> file. Review both before applying the change. To inspect a plan without writing files, add <code>--dry-run</code>.</p>
+<p>The planner targets the local SQLite default unless a URL is provided through <code>HINOKI_DATABASE_URL</code> or <code>--database</code>. It writes a numbered <code>.sql</code> file and a matching <code>.state.json</code> file. Review both before applying the change. To inspect a plan without writing files, add <code>--dry-run</code>.</p>
 <h2 id="apply-and-inspect">Apply and inspect<a class="headerlink" href="#apply-and-inspect" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$BLOG_DATABASE__URL</span><span class="s2">"</span>
 hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/blog/migrations<span class="w"> </span>status
 hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/blog/migrations<span class="w"> </span>sql<span class="w"> </span><span class="m">0001</span>-initial
 hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/blog/migrations<span class="w"> </span>apply
 </code></pre></div>
-<p><code>status</code> and <code>apply</code> connect to PostgreSQL. Set <code>HINOKI_DATABASE_URL</code>; <code>--database URL</code> overrides it, but an argument is visible in the process list and the shell history, so do not pass a URL that contains a password that way. A failed connection is reported as <code>error: database: …</code> with exit code 1, without the URL.</p>
+<p>With no URL, <code>status</code> and <code>apply</code> use <code>sqlite://./.hinoki/local.sqlite3</code>. Set <code>HINOKI_DATABASE_URL</code> or use <code>--database URL</code> to target another supported backend. A URL argument is visible in the process list and shell history, so do not pass a URL containing a password that way. A failed connection is reported as <code>error: database: …</code> with exit code 1, without the URL.</p>
 <p>Use a disposable database to review a migration before running it against important data.</p>
+<p>SQLite uses table rebuilds when a schema change cannot be expressed safely with <code>ALTER TABLE</code>. Review the generated SQL carefully. Dropping columns, changing types or constraints, and adding non-null columns can be destructive and require <code>--allow-destructive</code>. Hinoki holds the SQLite pool during a migration, suspends foreign-key enforcement on reserved connections, runs <code>PRAGMA foreign_key_check</code> before commit, and rolls the migration back if references are invalid.</p>
 <h2 id="destructive-changes">Destructive changes<a class="headerlink" href="#destructive-changes" title="Permanent link">&para;</a></h2>
 <p>Operations that can remove data are reported as destructive and are not written unless <code>--allow-destructive</code> is passed to <code>plan</code>. Read the generated migration before opting in. Changing a constraint on an existing column may require a hand-written migration.</p>
 <p>Migrations are files committed with the application. Do not run them from every server worker's startup hook. For the connection lifecycle, see <a href="../settings/#8-database-connection-ownership">settings</a>.</p>
@@ -421,7 +422,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.8</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 18:28:34 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 22:32:50 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/migrations.md">Edit on GitHub</a></dd></div>
         </dl>

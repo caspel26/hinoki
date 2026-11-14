@@ -271,6 +271,10 @@
       <article class="prose" style="--sheet: '5.7'">
         <p class="kicker" data-search-exclude>5.7 · Reference</p>
         <h1 id="database-api">Database API<a class="headerlink" href="#database-api" title="Permanent link">&para;</a></h1>
+<p>The ORM supports PostgreSQL and SQLite. SQLite is the local-development
+default; configure an explicit URL for PostgreSQL or deployments. Raw SQL uses
+the selected driver's placeholders: PostgreSQL uses <code>$1</code>, <code>$2</code>, and SQLite
+uses <code>?1</code>, <code>?2</code>. ORM-generated queries select the dialect automatically.</p>
 
 
 <div class="doc doc-object doc-class">
@@ -288,7 +292,7 @@
 
 
 
-        <p>A connection pool for one PostgreSQL database.</p>
+        <p>A connection pool for one configured database backend.</p>
 
 
 
@@ -325,6 +329,30 @@
 </code></pre></div>
 
     <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.db.Database.dialect" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">dialect</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.db.Database.dialect" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">dialect</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The selected SQL dialect (currently <code>postgres</code> or <code>sqlite</code>).</p>
 
     </div>
 
@@ -413,7 +441,7 @@
 
     <div class="doc doc-contents ">
 
-        <p>Rows as dicts. Placeholders are <code>$1</code>, <code>$2</code>, ...</p>
+        <p>Rows as dicts. PostgreSQL uses <code>$1</code>; SQLite uses <code>?1</code>.</p>
 
 
     </div>
@@ -459,7 +487,7 @@
 
     <div class="doc doc-contents ">
 
-        <p>Number of affected rows.</p>
+        <p>Number of affected rows; raw SQL placeholders follow the backend.</p>
 
 
     </div>
@@ -478,6 +506,26 @@
 </code></pre></div>
 
     <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.db.Database.migration" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">migration</span>
+
+
+<a href="#hinoki.db.Database.migration" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">migration</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">TransactionScope</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>An exclusive migration transaction with backend locking semantics.</p>
 
 
     </div>
@@ -984,7 +1032,7 @@ max_size), so <code>Hinoki(settings=..., modules=[DatabaseModule])</code> works.
           
           
             <ul><li><a href="#hinoki.db.Database">Database</a>
-            <ul><li><a href="#hinoki.db.Database.engine">engine</a></li><li><a href="#hinoki.db.Database.__init__">__init__</a></li><li><a href="#hinoki.db.Database.connect">connect</a></li><li><a href="#hinoki.db.Database.active">active</a></li><li><a href="#hinoki.db.Database.fetch">fetch</a></li><li><a href="#hinoki.db.Database.fetch_one">fetch_one</a></li><li><a href="#hinoki.db.Database.execute">execute</a></li><li><a href="#hinoki.db.Database.transaction">transaction</a></li><li><a href="#hinoki.db.Database.close">close</a></li><li><a href="#hinoki.db.Database.status">status</a></li></ul>
+            <ul><li><a href="#hinoki.db.Database.engine">engine</a></li><li><a href="#hinoki.db.Database.dialect">dialect</a></li><li><a href="#hinoki.db.Database.__init__">__init__</a></li><li><a href="#hinoki.db.Database.connect">connect</a></li><li><a href="#hinoki.db.Database.active">active</a></li><li><a href="#hinoki.db.Database.fetch">fetch</a></li><li><a href="#hinoki.db.Database.fetch_one">fetch_one</a></li><li><a href="#hinoki.db.Database.execute">execute</a></li><li><a href="#hinoki.db.Database.transaction">transaction</a></li><li><a href="#hinoki.db.Database.migration">migration</a></li><li><a href="#hinoki.db.Database.close">close</a></li><li><a href="#hinoki.db.Database.status">status</a></li></ul>
           </li><li><a href="#hinoki.db.DatabaseModule">DatabaseModule</a>
             <ul><li><a href="#hinoki.db.DatabaseModule.name">name</a></li><li><a href="#hinoki.db.DatabaseModule.url">url</a></li><li><a href="#hinoki.db.DatabaseModule.max_size">max_size</a></li><li><a href="#hinoki.db.DatabaseModule.wait">wait</a></li><li><a href="#hinoki.db.DatabaseModule.__init__">__init__</a></li><li><a href="#hinoki.db.DatabaseModule.from_settings">from_settings</a></li><li><a href="#hinoki.db.DatabaseModule.lifespan">lifespan</a></li></ul>
           </li><li><a href="#hinoki.db.DatabaseError">DatabaseError</a></li><li><a href="#hinoki.db.UniqueViolation">UniqueViolation</a></li><li><a href="#hinoki.db.ForeignKeyViolation">ForeignKeyViolation</a></li><li><a href="#hinoki.db.NotNullViolation">NotNullViolation</a></li><li><a href="#hinoki.db.CheckViolation">CheckViolation</a></li></ul>
@@ -994,7 +1042,7 @@ max_size), so <code>Hinoki(settings=..., modules=[DatabaseModule])</code> works.
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.7</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 13, 2026 22:52:53 UTC">November 13, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 22:32:50 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/database.md">Edit on GitHub</a></dd></div>
         </dl>
