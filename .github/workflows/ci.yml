@@ -90,6 +90,8 @@ jobs:
       NO_MKDOCS_2_WARNING: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - uses: astral-sh/setup-uv@v6
         with:
