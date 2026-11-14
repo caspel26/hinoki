@@ -44,6 +44,7 @@ OPTION_LIMIT = 200
 RECENT = 5
 SEARCH_HITS = 5
 DASHBOARD_STATS = 6
+ACTION_NOTICE_PARTS = 3
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -261,6 +262,27 @@ class Site:
 
     def done_notice(self) -> Raw:
         text = NOTICES.get(self.state.done)
+        if text is None:
+            parts = self.state.done.split(":")
+            if len(parts) == ACTION_NOTICE_PARTS and parts[0] == "action":
+                entry = self.admin.models.get(parts[1])
+                action = None
+                if entry is not None:
+                    action = next(
+                        (
+                            candidate
+                            for candidate in entry.bulk_actions
+                            if candidate.name == parts[2]
+                        ),
+                        None,
+                    )
+                if (
+                    entry is not None
+                    and action is not None
+                    and entry.can(self.principal, "view")
+                    and entry.can(self.principal, action.name)
+                ):
+                    text = f"{action.label} completed."
         return self.parts.notice("ok", text) if text else Raw("")
 
 

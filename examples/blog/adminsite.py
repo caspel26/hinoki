@@ -15,6 +15,7 @@ from hinoki.admin import (
     Admin,
     Avatar,
     Badge,
+    BulkAction,
     Event,
     Fieldset,
     Link,
@@ -55,6 +56,10 @@ def per_day(rows: list[Post]) -> tuple[float, ...]:
     return tuple(float(sum(1 for r in rows if r.created_at.date() == d)) for d in days)
 
 
+async def publish_posts(posts: tuple[Post, ...], _principal: Caller[Any]) -> None:
+    await Post.filter(id__in=[post.id for post in posts]).aupdate({"published": True})
+
+
 class PostAdmin(ModelAdmin[Post]):
     label = "Posts"
     icon = "file-text"
@@ -64,6 +69,14 @@ class PostAdmin(ModelAdmin[Post]):
     per_page = 8
     show_count = True
     bulk_delete = True
+    bulk_actions = (
+        BulkAction(
+            name="publish",
+            label="Publish selected",
+            confirm="Publish the selected posts?",
+            handler=publish_posts,
+        ),
+    )
     readonly = ("created_at",)
     assign: ClassVar[dict[str, Any]] = {
         "author_id": lambda principal: principal.user.id

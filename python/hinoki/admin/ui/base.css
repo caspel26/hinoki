@@ -109,7 +109,7 @@ svg[hidden] { display: none; position: absolute; }
 .hn-table td a.hn-rowlink { color: var(--hn-text); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
 .hn-table td a.hn-rowlink:hover { text-decoration: underline; }
 .hn-empty { padding: 2rem 1rem; text-align: center; color: var(--hn-muted); }
-.hn-bulkbar { display: none; align-items: center; gap: .75rem; padding: .5rem .75rem; margin-bottom: .5rem; background: var(--hn-accent-soft); color: var(--hn-accent-soft-ink); border-radius: var(--hn-radius); }
+.hn-bulkbar { display: none; align-items: center; flex-wrap: wrap; gap: .75rem; padding: .5rem .75rem; margin-bottom: .5rem; background: var(--hn-accent-soft); color: var(--hn-accent-soft-ink); border-radius: var(--hn-radius); }
 .hn-bulkbar.is-active { display: flex; }
 .hn-pagination { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .75rem; margin-top: .75rem; color: var(--hn-muted); }
 .hn-pages { display: flex; gap: .25rem; align-items: center; }

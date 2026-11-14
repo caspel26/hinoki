@@ -29,6 +29,38 @@ app.include(admin.api())
 
 Row visibility, field assignment and which columns are shown are decided in the admin class; hooks (`queryset`, `can`, `display`, `stats`, `check`, `save`, `remove`) override what you need. Mass assignment, excluded columns and out-of-scope rows are refused by the framework, and every form carries a signed CSRF token bound to the signed-in subject.
 
+## Bulk actions
+
+Add an async handler and declare it with `BulkAction` on the model admin. The list shows its action button after rows are selected:
+
+```python
+from typing import Any
+
+from hinoki import Caller
+from hinoki.admin import BulkAction, ModelAdmin
+
+
+async def publish(posts: tuple[Post, ...], _principal: Caller[Any]) -> None:
+    await Post.filter(id__in=[post.id for post in posts]).aupdate(
+        {"published": True}
+    )
+
+
+class PostAdmin(ModelAdmin[Post]):
+    bulk_actions = (
+        BulkAction(
+            name="publish",
+            label="Publish selected",
+            confirm="Publish the selected posts?",
+            handler=publish,
+        ),
+    )
+```
+
+The action name is also the permission checked by `ModelAdmin.can(principal, name, row)`. Hinoki checks model access before showing the button and checks every selected row against the scoped queryset and row permission both before confirmation and before execution. The confirmation includes the selected row count. If any selected row is unavailable or denied, the whole action is refused. The handler receives only the selected rows and the caller. During execution, Hinoki locks the selected model rows until the action transaction finishes, so another transaction cannot change their row-level authorization fields between the check and the handler's writes. Handlers should still apply their domain conditions to writes, especially when those conditions involve related records or external state.
+
+Each action requires confirmation and runs inside the admin write transaction. A failure rolls back the selected work; successful actions redirect to the list with a notice. Actions accept at most 200 distinct rows. `bulk_delete = True` adds the built-in delete action.
+
 ## Three styles, each with light and dark
 
 A theme is not a colour set: it chooses the navigation, the list presentation, the type and the shape. All three share one set of base components and ship a complete light and dark scheme (the system decides; the toggle overrides it).
