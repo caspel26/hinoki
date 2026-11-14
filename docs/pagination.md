@@ -13,7 +13,7 @@ async def list_tasks(page: PageParams) -> Page[TaskOut]:
     return rows.map(TaskOut.from_model)
 ```
 
-Pages are one-based. `page_size` defaults to the strategy's configured size and cannot exceed its maximum. Invalid values produce a validation response before the handler runs.
+Pages are one-based. `page_size` defaults to the strategy's configured size and cannot exceed its maximum. Invalid values produce a validation response before the handler runs; `page` is limited to 1 000 000 000, and longer or larger values answer `422` with the code `le`.
 
 `Page` contains `items`, `page`, `page_size`, `total` and the computed `pages`. Empty result sets have zero pages; a page beyond the end has an empty `items` list. `Page.map()` converts each item while preserving the counts and requested page.
 

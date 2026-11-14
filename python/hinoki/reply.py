@@ -20,7 +20,6 @@ from hinoki.runtime.responses import BODYLESS
 TOKEN = re.compile(r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+")
 COOKIE_VALUE = re.compile(r"[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]*")
 CONTROL = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")
-CONTROL = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")
 RESERVED = {"content-length", "transfer-encoding", "connection", "x-request-id"}
 SAME_SITE = {"Strict", "Lax", "None"}
 MIN_STATUS, MAX_STATUS = 200, 599
