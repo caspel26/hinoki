@@ -11,7 +11,7 @@
       members: true
       show_if_no_docstring: true
 
-::: hinoki.routing.Endpoints
+::: hinoki.routing.RouteGroup
     options:
       members: true
       show_if_no_docstring: true

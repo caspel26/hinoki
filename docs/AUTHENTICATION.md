@@ -34,7 +34,7 @@ async def list_tasks(caller: Caller[Member]) -> list[TaskOutput]:
 
 `Caller[T]` is injected when annotated. Use `caller.user` for the application user and `caller.permissions` for the resolved permission set. Do not accept an owner id from untrusted input when it should come from the caller.
 
-`Endpoints` can provide a default policy for a route group. An action may override it intentionally. The `Actions.require_access` rule can flag routes with no policy.
+`RouteGroup` can provide a default policy for a function group. An action may override it intentionally. The `Actions.require_access` rule can flag routes with no policy.
 
 ## Passwords and JWT
 

@@ -9,11 +9,11 @@ from hinoki import (
     API,
     Access,
     Conflict,
-    Endpoints,
     Forbidden,
     Hinoki,
     NotFound,
     RegistrationError,
+    RouteGroup,
     get,
     post,
 )
@@ -164,9 +164,9 @@ def test_errors_option_validates_what_it_is_given() -> None:
         def b() -> None: ...
 
 
-def test_endpoints_state_shared_options_once() -> None:
+def test_route_group_is_includable_with_shared_options_once() -> None:
     guard = Access(auth=TokenAuth(), permissions=["w"])
-    group = Endpoints("/things", access=guard, atomic=True, errors=(Forbidden,))
+    group = RouteGroup("/things", access=guard, atomic=True, errors=(Forbidden,))
 
     @group.get("/")
     async def listing() -> None: ...
@@ -178,7 +178,7 @@ def test_endpoints_state_shared_options_once() -> None:
     async def open_door() -> None: ...
 
     app = Hinoki()
-    app.include(listing, go, open_door)
+    app.include(group)
     routes = {(r.method, r.path): r for r in app.routes}
     assert set(routes) == {
         ("GET", "/things"),
@@ -193,7 +193,67 @@ def test_endpoints_state_shared_options_once() -> None:
     public = routes[("PUT", "/things/open")]
     assert public.access is None and public.transaction is False
     with pytest.raises(ValueError, match="prefix"):
-        Endpoints("things")
+        RouteGroup("things")
     with pytest.raises(TypeError, match="unknown action options"):
         group.get("/x", nope=1)
     assert str(Crud.LIST) == "list" and Crud.DELETE.value == "delete"
+
+
+def test_route_group_cannot_be_included_twice_or_changed_after_inclusion() -> None:
+    group = RouteGroup("/group")
+
+    @group.get("/one")
+    def one() -> None: ...
+
+    app = Hinoki(include=[group])
+    with pytest.raises(RegistrationError, match="only once"):
+        app.include(group)
+    with pytest.raises(RuntimeError, match="cannot change"):
+        group.get("/two")(lambda: None)
+    assert len(app.routes) == 1
+
+
+def test_failed_route_group_include_does_not_freeze_group() -> None:
+    group = RouteGroup("/group")
+
+    @group.get("/health")
+    def one() -> None: ...
+
+    app = Hinoki(include=[get("/group/health")(lambda: None)])
+    with pytest.raises(RegistrationError, match="duplicate"):
+        app.include(group)
+
+    @group.get("/two")
+    def two() -> None: ...
+
+    assert one is group.handlers[0]
+    assert two is group.handlers[1]
+
+
+def test_route_group_rejects_api_only_replacement_option() -> None:
+    group = RouteGroup("/things")
+
+    @group.get("/", replaces="missing")
+    def index() -> str:
+        return "ok"
+
+    with pytest.raises(RegistrationError, match="only works inside an API class"):
+        Hinoki(include=[group])
+
+
+def test_standalone_outer_decorator_is_used_for_dispatch() -> None:
+    def denied(fn: Callable[[], str]) -> Callable[[], str]:
+        @functools.wraps(fn)
+        def wrapper() -> str:
+            raise PermissionError("forbidden")
+
+        return wrapper
+
+    @denied
+    @get("/private")
+    def private() -> str:
+        return "sensitive"
+
+    handler = Hinoki(include=[private]).routes[0].handler
+    with pytest.raises(PermissionError, match="forbidden"):
+        handler()
