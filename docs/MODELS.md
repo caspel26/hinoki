@@ -5,14 +5,11 @@
 ## Define a model
 
 ```python
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from hinoki.orm import Model, field, foreign_key, indexed, ordered_by, unique
-
-
-def now() -> datetime:
-    return datetime.now(UTC)
+from hinoki.utils import utc_now
 
 
 class Member(Model, table="members"):
@@ -27,7 +24,7 @@ class Task(Model, table="tasks", label="Task", plural="Tasks"):
     owner_id: UUID = foreign_key(Member, on_delete="restrict", related_name="tasks")
     title: str = field(max_length=120)
     done: bool = False
-    created_at: datetime = field(default_factory=now)
+    created_at: datetime = field(default_factory=utc_now)
 ```
 
 `table=` is required. A model has exactly one primary key. Fields are keyword-only when constructing a model. Single-column uniqueness is `field(unique=True)`; use `@unique("a", "b")` for a composite constraint. There is no nested `class Meta`.

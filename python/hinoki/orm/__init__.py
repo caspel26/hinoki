@@ -14,7 +14,7 @@ Everything most code needs is importable from ``hinoki.orm`` itself.
 
 from hinoki.orm.context import current_database, database_var, use_database
 from hinoki.orm.model import MARK, SNAPSHOT, FieldMeta, Model, field, foreign_key
-from hinoki.orm.options import indexed, ordered_by, unique
+from hinoki.orm.options import indexed, ordered_by, timestamps, unique
 from hinoki.orm.queryset import (
     IN_CHUNK,
     OPERATORS,
@@ -46,6 +46,7 @@ __all__ = [
     "foreign_key",
     "indexed",
     "ordered_by",
+    "timestamps",
     "unique",
     "use_database",
 ]

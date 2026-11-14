@@ -24,6 +24,7 @@ from hinoki.admin import (
 )
 from hinoki.auth import BaseAuth, Credentials
 from hinoki.httperrors import Unauthorized
+from hinoki.utils import utc_now
 
 COOKIE = "blog_token"
 DAYS = 7
@@ -49,7 +50,7 @@ class CookieAuth(BaseAuth[User]):
 
 def per_day(rows: list[Post]) -> tuple[float, ...]:
     """Posts created per day over the last week, oldest first (real data)."""
-    today = datetime.datetime.now(datetime.UTC).date()
+    today = utc_now().date()
     days = [today - datetime.timedelta(days=n) for n in range(DAYS - 1, -1, -1)]
     return tuple(float(sum(1 for r in rows if r.created_at.date() == d)) for d in days)
 
@@ -91,7 +92,7 @@ class PostAdmin(ModelAdmin[Post]):
         (for the trend lines), so the cost does not grow with the blog."""
         total = await self.queryset(principal).acount()
         published = await self.queryset(principal).filter(published=True).acount()
-        since = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=DAYS)
+        since = utc_now() - datetime.timedelta(days=DAYS)
         week = await Post.filter(created_at__gte=since).aall()
         return [
             Stat("Posts", total, "file-text", "accent", per_day(week)),
