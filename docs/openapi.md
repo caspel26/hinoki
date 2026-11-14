@@ -27,6 +27,8 @@ app = Hinoki(
 
 The corresponding `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` settings provide the same defaults. A viewer requires `openapi_url`. `Hinoki(...)` arguments override settings; passing `None` disables a page. The packaged viewers work without a CDN.
 
+The generated OpenAPI document, Swagger UI, ReDoc and their assets answer `HEAD` with the same status and representation headers as `GET`, without a response body. Each request still has its own `x-request-id` header.
+
 ## What is generated
 
 * A unique `operationId` is derived from the handler's qualified name. If names collide, Hinoki appends a numeric suffix.

@@ -5,6 +5,7 @@ import signal
 import subprocess
 import threading
 import time
+import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -92,3 +93,33 @@ def test_encoded_slash_stays_inside_one_path_segment(
     _, port, _ = server
     assert json.loads(fetch(port, "/echo/a%2Fb")) == {"name": "a/b"}
     assert json.loads(fetch(port, "/echo/%E4%BD%A0")) == {"name": "\u4f60"}
+
+
+def test_head_matches_get_through_granian(
+    server: tuple[subprocess.Popen[bytes], int, Path],
+) -> None:
+    _, port, _ = server
+    get_request = urllib.request.Request(f"http://127.0.0.1:{port}/fast")
+    head_request = urllib.request.Request(
+        f"http://127.0.0.1:{port}/fast", method="HEAD"
+    )
+    with urllib.request.urlopen(get_request, timeout=10) as get_response:
+        get_body = get_response.read()
+        get_headers = dict(get_response.headers.items())
+        get_status = get_response.status
+    with urllib.request.urlopen(head_request, timeout=10) as head_response:
+        head_body = head_response.read()
+        head_headers = dict(head_response.headers.items())
+        head_status = head_response.status
+    assert head_status == get_status == 200
+    assert head_body == b""
+    assert head_headers["content-length"] == str(len(get_body))
+    assert {
+        key: value
+        for key, value in head_headers.items()
+        if key.lower() not in {"date", "x-request-id"}
+    } == {
+        key: value
+        for key, value in get_headers.items()
+        if key.lower() not in {"date", "x-request-id"}
+    }

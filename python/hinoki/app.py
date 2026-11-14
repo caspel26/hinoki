@@ -246,7 +246,11 @@ class Hinoki:
         self._modules.extend(modules)
 
     def lookup(self, method: str, path: str) -> Found | MethodNotAllowed | None:
-        """Distinguish a match, a wrong method and an unknown path."""
+        """Distinguish a match, a wrong method and an unknown path.
+
+        HEAD resolves through a matching GET route. Method-not-allowed results
+        advertise HEAD whenever GET is available for the path.
+        """
         raw = self._router.find(method, path)
         if raw is None:
             return None
@@ -254,7 +258,10 @@ class Hinoki:
         if isinstance(head, int) and isinstance(tail, dict):
             return Found(head, tail)
         if isinstance(head, str) and isinstance(tail, list):
-            return MethodNotAllowed(tail)
+            if method.upper() == "HEAD" and "GET" in tail:
+                return self.lookup("GET", path)
+            allowed = [*tail, "HEAD"] if "GET" in tail else tail
+            return MethodNotAllowed(sorted(allowed))
         raise RuntimeError("unexpected router answer")
 
     def resolve(self, method: str, path: str) -> tuple[Route, dict[str, str]] | None:

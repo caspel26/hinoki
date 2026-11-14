@@ -62,6 +62,29 @@ async def test_both_viewers_can_live_side_by_side(pool: Pool) -> None:
     assert (await client.request("GET", "/openapi.json")).status == 200
 
 
+async def test_head_matches_openapi_viewers_and_assets(pool: Pool) -> None:
+    client = await pool.start(app(docs_url="/docs", redoc_url="/redoc"))
+    for path in (
+        "/openapi.json",
+        "/docs",
+        "/docs/assets/swagger-ui.css",
+        "/docs/assets/swagger-ui-bundle.js",
+        "/docs/assets/init.js",
+        "/redoc",
+        "/redoc/assets/redoc.standalone.js",
+    ):
+        get = await client.request("GET", path)
+        head = await client.request("HEAD", path)
+        assert head.status == get.status == 200, path
+        assert head.body is None, path
+        assert head.headers["content-length"] == get.headers["content-length"], path
+        assert {
+            key: value for key, value in head.headers.items() if key != "x-request-id"
+        } == {
+            key: value for key, value in get.headers.items() if key != "x-request-id"
+        }, path
+
+
 def test_viewers_need_the_document_they_display() -> None:
     with pytest.raises(ValueError, match="need openapi_url"):
         Hinoki(docs_url="/docs")
