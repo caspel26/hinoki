@@ -994,3 +994,76 @@ kbd {
 .is-home .top__menu {
   display: none !important;
 }
+
+/* ---------- Sliding thumb (segmented controls, tabs, filter pills) ---------- */
+
+.slider__thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  width: var(--w, 0);
+  height: var(--h, 0);
+  border-radius: var(--thumb-r, 999px);
+  background: var(--thumb-bg, var(--hn-tint-brand));
+  box-shadow: var(--thumb-shadow, none);
+  transform: translate(var(--x, 0), var(--y, 0));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.has-thumb.is-ready > .slider__thumb {
+  opacity: 1;
+  transition: transform 460ms var(--hn-spring), width 460ms var(--hn-spring), height 460ms var(--hn-spring), opacity 200ms var(--hn-ease);
+}
+
+.has-thumb > button,
+.has-thumb > label {
+  position: relative;
+  z-index: 1;
+}
+
+/* The thumb carries the selected background, so the buttons stay transparent. */
+.has-thumb > button[aria-pressed="true"],
+.has-thumb > button[aria-selected="true"],
+.has-thumb > label {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* A little life for pills: a status dot, press feedback, count bumps. */
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-chip::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hn-brand);
+  animation: dot-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--hn-brand) 55%, transparent); }
+  60% { box-shadow: 0 0 0 6px transparent; }
+}
+
+button:active,
+.hn-btn:active,
+.related a:active {
+  transform: scale(0.97);
+}
+
+.is-bump {
+  animation: bump 480ms var(--hn-spring);
+}
+
+@keyframes bump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.14); }
+  100% { transform: scale(1); }
+}

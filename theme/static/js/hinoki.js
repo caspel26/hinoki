@@ -452,6 +452,48 @@
     setActive();
   }
 
+  /* ---------- Sliding thumbs for segmented controls and tabs ---------- */
+  const currentOf = (root) => {
+    if (root.classList.contains("tabbed-labels")) {
+      const inputs = $$(":scope > input", root.parentElement);
+      const idx = inputs.findIndex((i) => i.checked);
+      return idx >= 0 ? $$(":scope > label", root)[idx] : null;
+    }
+    return $('[aria-pressed="true"], [aria-selected="true"]', root);
+  };
+
+  const setupSlider = (root) => {
+    if (root.dataset.sliderReady) return;
+    root.dataset.sliderReady = "1";
+    const thumb = document.createElement("span");
+    thumb.className = "slider__thumb";
+    thumb.setAttribute("aria-hidden", "true");
+    root.prepend(thumb);
+    root.classList.add("has-thumb");
+    const place = () => {
+      const el = currentOf(root);
+      if (!el || !el.offsetWidth) return;
+      thumb.style.setProperty("--x", `${el.offsetLeft}px`);
+      thumb.style.setProperty("--y", `${el.offsetTop}px`);
+      thumb.style.setProperty("--w", `${el.offsetWidth}px`);
+      thumb.style.setProperty("--h", `${el.offsetHeight}px`);
+    };
+    place();
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.add("is-ready")));
+    new MutationObserver(place).observe(root, { subtree: true, attributes: true, attributeFilter: ["aria-pressed", "aria-selected", "hidden"] });
+    if (root.classList.contains("tabbed-labels")) {
+      root.parentElement.addEventListener("change", place);
+    }
+    if ("ResizeObserver" in window) new ResizeObserver(place).observe(root);
+    addEventListener("resize", place, { passive: true });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
+  };
+  const sliders = () => {
+    $$("[data-slider], .tabbed-labels").forEach(setupSlider);
+  };
+  sliders();
+  addEventListener("load", sliders);
+
   /* ---------- Scrollable regions reachable by keyboard ---------- */
   const focusables = () => {
     $$("pre, pre code, .prose table, .tabbed-labels, .hn-walk__tabs, .top__nav, .hn-index__pages ul").forEach((el) => {

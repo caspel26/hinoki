@@ -520,3 +520,9 @@ details > :last-child {
 .doc-md-description {
   min-width: 0;
 }
+
+.tabbed-labels {
+  position: relative;
+  --thumb-bg: var(--hn-tint-brand);
+  --thumb-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hn-brand) 40%, transparent);
+}
