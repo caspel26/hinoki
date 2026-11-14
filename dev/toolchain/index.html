@@ -313,6 +313,12 @@ docker<span class="w"> </span>rm<span class="w"> </span>-f<span class="w"> </spa
 <li><strong>pre-commit</strong> builds its own isolated environments for the hooks it fetches (e.g. <code>ruff-pre-commit</code>); these are <em>not</em> the project <code>.venv</code> and are not managed by uv. That is why the Ruff revision in <code>.pre-commit-config.yaml</code> must equal the <code>ruff==</code> pin in <code>pyproject.toml</code> (<code>uv.lock</code>).</li>
 <li>Hooks never rewrite <code>sources/</code>-style historical snapshots (excluded globally). CI never applies fixes: it fails if a hook would change a file. <code>pre-commit install</code> is a manual step in a Git checkout, never triggered by importing the framework.</li>
 </ul>
+<h2 id="ci-workflow-hygiene">CI workflow hygiene<a class="headerlink" href="#ci-workflow-hygiene" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Third-party actions in <code>.github/workflows/</code> are pinned to a full commit SHA with the released tag in a trailing comment. To update one, resolve the new tag to its commit (<code>gh api repos/OWNER/REPO/git/ref/tags/TAG</code>), replace the SHA and the comment together, and let the PR's CI run prove it.</li>
+<li><code>ci.yml</code> checks out with <code>persist-credentials: false</code>: no CI job pushes. <code>deploy-docs.yml</code> keeps the token because it pushes to <code>gh-pages</code>.</li>
+<li>The <code>audit</code> job checks <code>Cargo.lock</code> (<code>cargo audit</code>, <code>cargo deny check</code>) and <code>uv.lock</code> (<code>uv export</code> of every group and extra, then <code>pip-audit --require-hashes --disable-pip</code>). Locally: <code>uv export --locked --all-groups --all-extras --no-emit-project --format requirements-txt -o /tmp/requirements.txt &amp;&amp; uvx pip-audit==2.10.1 --require-hashes --disable-pip -r /tmp/requirements.txt</code>.</li>
+</ul>
 <h2 id="native-extension-editable-install-rebuild-wheel">Native extension: editable install, rebuild, wheel<a class="headerlink" href="#native-extension-editable-install-rebuild-wheel" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -374,15 +380,15 @@ docker<span class="w"> </span>rm<span class="w"> </span>-f<span class="w"> </spa
           
             <ul><li><a href="#setup">Setup</a></li><li><a href="#gates">Gates</a>
             <ul><li><a href="#database-tests">Database tests</a></li></ul>
-          </li><li><a href="#decisions">Decisions</a></li><li><a href="#two-environments-two-responsibilities">Two environments, two responsibilities</a></li><li><a href="#native-extension-editable-install-rebuild-wheel">Native extension: editable install, rebuild, wheel</a></li></ul>
+          </li><li><a href="#decisions">Decisions</a></li><li><a href="#two-environments-two-responsibilities">Two environments, two responsibilities</a></li><li><a href="#ci-workflow-hygiene">CI workflow hygiene</a></li><li><a href="#native-extension-editable-install-rebuild-wheel">Native extension: editable install, rebuild, wheel</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>6.6</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 04:14:59 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 18:31:13 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/toolchain.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
