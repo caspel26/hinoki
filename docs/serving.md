@@ -49,3 +49,29 @@ app_settings = BlogSettings.load()          # reads BLOG_* and .env
 ## Other runners
 
 `dev` and `serve` are conveniences. The application is a plain ASGI app, so `granian --interface asgi --factory blog.main:create_app` (or another ASGI server) works too; then the `server` group is ignored, because only `hinoki serve` applies it.
+
+## WSGI
+
+ASGI is the intended way to serve Hinoki. When a deployment can only run WSGI, wrap the application:
+
+```python
+# wsgi.py
+from hinoki.wsgi import WSGIAdapter
+from blog.main import create_app
+
+wsgi_app = WSGIAdapter(create_app())
+```
+
+```console
+$ granian --interface wsgi wsgi:wsgi_app
+```
+
+The adapter drives the same ASGI callable on a background event loop that it owns, so routing, binding, access, errors, limits and the OpenAPI document behave as under ASGI. Specifics:
+
+* **Startup is lazy.** Modules (including the database pool) start on the first request of each worker process, so a pre-forking server can import the file in its master process. If startup fails, every request answers `503` with `not_ready` and the error is logged.
+* **Shutdown** runs on `WSGIAdapter.close()` or, otherwise, at interpreter exit. A server that kills workers without exiting normally skips it, as it would any `atexit` hook.
+* **Async handlers** run on the adapter's loop and **sync handlers** on the bounded executor, as under ASGI. Each WSGI server thread blocks for the duration of its request, so concurrency is the server's thread count rather than the event loop.
+* **Bodies are buffered.** Request bodies are read up to `max_body_bytes` plus one byte, so an oversized upload still answers `413`. Responses are complete before they are sent; streaming responses are not available, and a client disconnect is not reported to the handler.
+* **One protocol per process.** Do not serve the same application object over ASGI and WSGI in one process; the adapter owns its own loop and module lifespan. Run two processes if you need both.
+
+The path is checked against Granian's WSGI interface (`--interface wsgi`, with one and two workers), not against every WSGI server.
