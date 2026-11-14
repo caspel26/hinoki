@@ -380,7 +380,7 @@ hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<
 </code></pre></div>
 <p><code>TARGET</code> is <code>module:name</code>, where <code>name</code> is an application (<code>Hinoki</code>) or a function that returns one (a factory: the usual choice, because it builds the app inside each worker). The factory builds declarations only; databases and pools open in the worker's lifespan.</p>
 <p>With a declared app, settings load when the target module creates the <code>Hinoki</code> object. A configured <code>DatabaseModule</code> opens that worker's pool during lifespan startup and closes it during shutdown. The pool is per worker; no database connection is opened by importing model or route modules. See <a href="../settings/#8-database-connection-ownership">settings and database ownership</a>.</p>
-<p>Both commands run the app under Granian, so install the server extra: <code>pip install 'hinoki[server]'</code> (the generated project already depends on it).</p>
+<p>Both commands run the app under Granian, so install the server extra: <code>pip install 'hinoki[server]'</code> (the generated project already depends on it). The extra includes Granian's reload support (the <code>watchfiles</code> package), which <code>hinoki dev</code> needs; with Granian installed some other way and no <code>watchfiles</code>, <code>dev</code> stops with an error that says so, and <code>serve</code> still works.</p>
 <h2 id="where-host-port-and-workers-come-from">Where host, port and workers come from<a class="headerlink" href="#where-host-port-and-workers-come-from" title="Permanent link">&para;</a></h2>
 <p>From the application's <strong><code>server</code> settings group</strong> (<a href="../settings/">settings guide</a>); flags override them:</p>
 <table>
@@ -492,7 +492,7 @@ hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.19</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 16:02:39 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 19:05:44 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
