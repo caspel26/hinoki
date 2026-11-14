@@ -11,3 +11,7 @@
       show_if_no_docstring: true
 
 ::: hinoki.runtime.config.RuntimeConfig
+
+::: hinoki.errors.ModuleGraphError
+
+::: hinoki.errors.RegistrationError
