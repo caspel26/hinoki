@@ -8,11 +8,12 @@ from typing import Any
 from urllib.parse import unquote
 
 from hinoki import core
+from hinoki.access import Access
 from hinoki.auth import Caller, Credentials
 from hinoki.blocking import call_hook
 from hinoki.context import request_id
 from hinoki.errors import Forbidden, InvalidBody, Unauthorized
-from hinoki.request import Request
+from hinoki.request import Headers, Request
 from hinoki.runtime.binding import (
     MISSING,
     Binding,
@@ -60,13 +61,10 @@ def header_map(scope: Scope) -> dict[str, str]:
 
 
 async def authorize(
-    scope: Scope, binding: Binding, headers: dict[str, str]
-) -> Caller[Any] | None:
-    """Authenticate and check scopes; public actions skip both."""
-    access = binding.route.access
-    if access is None:
-        return None
-    query = parse_query(scope.get("query_string", b""))
+    access: Access, headers: dict[str, str], query: dict[str, list[str]]
+) -> Caller[Any]:
+    """Authenticate and check permissions for a protected action. ``query`` is
+    the parsed query string, shared with the request built afterwards."""
     principal: Caller[Any] | None = await call_hook(
         access.auth.authenticate, Credentials(headers, query)
     )
@@ -85,9 +83,13 @@ def build_request(
     headers: dict[str, str],
     raw_body: bytes,
     principal: Caller[Any] | None,
+    query: dict[str, list[str]] | None = None,
 ) -> tuple[Request, RequestData]:
-    """The request object for the handler and the data its parameters bind."""
-    query = parse_query(scope.get("query_string", b""))
+    """The request object for the handler and the data its parameters bind.
+    ``headers`` come from ``header_map``; ``query`` is passed when
+    authentication already parsed it."""
+    if query is None:
+        query = parse_query(scope.get("query_string", b""))
     client = scope.get("client")
     host = headers.get("host") or ":".join(
         str(part) for part in scope.get("server") or ()
@@ -98,7 +100,7 @@ def build_request(
         scheme=scope.get("scheme", "http"),
         host=host,
         client=tuple(client) if client else None,
-        headers=headers,
+        headers=Headers.lowered(headers),
         query=query,
         body=raw_body,
         path_params=path,

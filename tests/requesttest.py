@@ -4,8 +4,10 @@ from typing import Any
 
 import pytest
 
-from hinoki import API, Hinoki, Request, core, http
+from hinoki import API, Hinoki, Request, Schema, core, http
 from hinoki.errors import RegistrationError
+from hinoki.request import Headers
+from hinoki.runtime.binding import bind
 from tests.harness import Client, Pool
 
 
@@ -160,3 +162,41 @@ def test_a_declared_request_must_be_first_and_annotated() -> None:
     ):
         with pytest.raises(RegistrationError, match=message):
             Hinoki().include(target)
+
+
+def test_headers_stay_case_insensitive_however_they_are_built() -> None:
+    source = {"content-type": "text/plain", "x-trace": "1"}
+    lowered = Headers.lowered(source)
+    source["x-trace"] = "changed"  # the copy does not follow its source
+    assert lowered["X-Trace"] == "1" and lowered.get("Content-Type") == "text/plain"
+    assert Headers({"X-Trace": "2"})["x-trace"] == "2"
+    by_hand = Request(
+        method="GET",
+        path="/",
+        scheme="http",
+        host="example.test",
+        client=None,
+        headers={"Content-Type": "Application/JSON; charset=utf-8"},
+        query={},
+        body=b"",
+        path_params={},
+        user=None,
+        request_id="",
+    )
+    assert by_hand.content_type == "application/json"
+
+
+class Note(Schema):
+    text: str
+
+
+@http.post("/notes")
+async def add_note(data: Note) -> dict[str, str]:
+    return {"text": data.text}
+
+
+def test_a_binding_knows_at_registration_whether_it_reads_a_body() -> None:
+    app = Hinoki()
+    app.include(echo, raw, add_note)
+    takes = {route.path: bind(route).needs_body for route in app.routes}
+    assert takes == {"/echo/{name}": False, "/raw": False, "/notes": True}

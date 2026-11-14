@@ -16,7 +16,7 @@ hinoki serve blog.main:create_app     # production-style: no reload
 
 With a declared app, settings load when the target module creates the `Hinoki` object. A configured `DatabaseModule` opens that worker's pool during lifespan startup and closes it during shutdown. The pool is per worker; no database connection is opened by importing model or route modules. See [settings and database ownership](settings.md#8-database-connection-ownership).
 
-Both commands run the app under Granian, so install the server extra: `pip install 'hinoki[server]'` (the generated project already depends on it).
+Both commands run the app under Granian, so install the server extra: `pip install 'hinoki[server]'` (the generated project already depends on it). The extra includes Granian's reload support (the `watchfiles` package), which `hinoki dev` needs; with Granian installed some other way and no `watchfiles`, `dev` stops with an error that says so, and `serve` still works.
 
 ## Where host, port and workers come from
 
