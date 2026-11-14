@@ -34,7 +34,7 @@ Absent credentials let the provider decline; invalid supplied credentials produc
 ```python
 member_only = Access(SessionAuth(), permissions=["tasks:read"])
 
-@get("/tasks", access=member_only)
+@http.get("/tasks", access=member_only)
 async def list_tasks(caller: Caller[Member]) -> list[TaskOutput]:
     ...
 ```

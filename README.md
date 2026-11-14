@@ -29,13 +29,14 @@ The [Notes example](examples/notes) is a small application. [Tracker](examples/t
 ## A declared application
 
 ```python
-from hinoki import DatabaseSettings, FrameworkSettings, Hinoki, get
+from hinoki import DatabaseSettings, FrameworkSettings, Hinoki
+from hinoki import http
 from hinoki.db import DatabaseModule
 
 class AppSettings(FrameworkSettings, prefix="APP_"):
     database: DatabaseSettings
 
-@get("/health")
+@http.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 

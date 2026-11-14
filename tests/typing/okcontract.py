@@ -2,24 +2,24 @@
 
 from uuid import UUID
 
-from hinoki import API, Access, Hinoki, get, post
+from hinoki import API, Access, Hinoki, http
 from hinoki.request import Request
 from tests.providers import TokenAuth
 
 editor = Access(auth=TokenAuth(), permissions={"posts:write"})
 
 
-@get("/health")
+@http.get("/health")
 def health(request: Request) -> str:
     return "ok"
 
 
 class Posts(API, path="/posts"):
-    @get("/{post_id}")
+    @http.get("/{post_id}")
     async def retrieve(self, request: Request, post_id: UUID) -> str:
         return str(post_id)
 
-    @post("/", status=201, access=editor, transaction=True)
+    @http.post("/", status=201, access=editor, transaction=True)
     async def create(self, request: Request, title: str) -> int:
         return len(title)
 

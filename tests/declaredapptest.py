@@ -2,14 +2,7 @@
 
 import pytest
 
-from hinoki import (
-    API,
-    DatabaseSettings,
-    FrameworkSettings,
-    Hinoki,
-    Module,
-    get,
-)
+from hinoki import API, DatabaseSettings, FrameworkSettings, Hinoki, Module, http
 from hinoki.db import DatabaseModule
 
 
@@ -17,7 +10,7 @@ class Declared(FrameworkSettings, prefix="DECL_"):
     database: DatabaseSettings
 
 
-@get("/ping")
+@http.get("/ping")
 async def ping() -> dict[str, str]:
     return {"ok": "yes"}
 
@@ -27,7 +20,7 @@ class Exposes:
 
     def api(self) -> type:
         class Extra(API, path="/extra"):
-            @get("/")
+            @http.get("/")
             async def index(self) -> dict[str, str]:
                 return {"extra": "yes"}
 

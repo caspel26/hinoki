@@ -6,7 +6,7 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import Hinoki, RegistrationError, Schema, get, post
+from hinoki import Hinoki, RegistrationError, Schema, http
 from hinoki.request import Request
 from hinoki.runtime.requests import MAX_BODY
 from hinoki.schema import Field
@@ -33,32 +33,32 @@ class Other(Schema):
 POST_ID = UUID(int=9)
 
 
-@post("/posts", status=201)
+@http.post("/posts", status=201)
 async def create(request: Request, data: PostCreate) -> PostOut:
     return PostOut(id=POST_ID, title=data.title, tags=data.tags)
 
 
-@get("/posts")
+@http.get("/posts")
 def search(
     request: Request, q: str, limit: int = 10, active: bool = False
 ) -> list[PostOut]:
     return [PostOut(id=POST_ID, title=q, tags=[str(limit), str(active)])]
 
 
-@get("/mixed/{kind}")
+@http.get("/mixed/{kind}")
 async def mixed(request: Request, kind: str, page: int = 1) -> dict[str, object]:
     return {"kind": kind, "page": page}
 
 
-@post("/two")
+@http.post("/two")
 def two_bodies(request: Request, a: PostCreate, b: Other) -> None: ...
 
 
-@get("/getbody")
+@http.get("/getbody")
 def get_with_body(request: Request, data: PostCreate) -> None: ...
 
 
-@post("/items/{item}")
+@http.post("/items/{item}")
 def schema_in_path(request: Request, item: PostCreate) -> None: ...
 
 

@@ -1,5 +1,6 @@
 """Hinoki: a typed Python API framework with a native Rust core."""
 
+from hinoki import http
 from hinoki.access import Access
 from hinoki.api import API
 from hinoki.app import Hinoki
@@ -25,7 +26,7 @@ from hinoki.parsers import FormParser, JSONParser, MultiPartParser, Parser
 from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer
 from hinoki.reply import Reply, set_cookie
 from hinoki.request import Request
-from hinoki.routing import Route, RouteGroup, delete, get, patch, post, put
+from hinoki.routing import Route, RouteGroup
 from hinoki.rules import Actions, Imports, Schemas, Transactions
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.schema import (
@@ -104,12 +105,8 @@ __all__ = [
     "Unset",
     "ValidationError",
     "__version__",
-    "delete",
     "field_check",
-    "get",
+    "http",
     "object_check",
-    "patch",
-    "post",
-    "put",
     "set_cookie",
 ]

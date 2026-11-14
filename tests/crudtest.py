@@ -18,7 +18,7 @@ from hinoki import (
     RegistrationError,
     Schema,
     Unset,
-    get,
+    http,
 )
 from hinoki.crud import CrudAPI, Resource
 from hinoki.db import Database, DatabaseModule
@@ -158,7 +158,7 @@ def test_reads_only_resources_generate_only_reads() -> None:
 
 def test_replaces_must_name_an_action() -> None:
     class Bad(CrudAPI, path="/y", resource=Resource(model=Memo, read=MemoOut)):
-        @get("/", replaces="nothing")
+        @http.get("/", replaces="nothing")
         async def mine(self, request: Request) -> dict[str, str]:
             return {}
 
@@ -168,11 +168,11 @@ def test_replaces_must_name_an_action() -> None:
 
 def test_replaces_and_same_name_overrides_swap_generated_actions() -> None:
     class Custom(CrudAPI, path="/z", resource=Resource(model=Memo, read=MemoOut)):
-        @get("/", replaces="list", pagination=PageNumberPagination())
+        @http.get("/", replaces="list", pagination=PageNumberPagination())
         async def mine(self, request: Request, page: PageParams) -> Page[MemoOut]:
             return Page([], 1, 10, 0)
 
-        @get("/{item_id}")
+        @http.get("/{item_id}")
         async def retrieve(self, request: Request, item_id: UUID) -> dict[str, str]:
             return {"custom": "yes"}
 
@@ -390,7 +390,7 @@ def test_update_schemas_cannot_carry_the_key_or_loud_defaults() -> None:
 
 def test_an_inherited_override_survives_and_a_new_resource_regenerates() -> None:
     class Base(CrudAPI):
-        @get("/{item_id}")
+        @http.get("/{item_id}")
         async def retrieve(self, request: Request, item_id: UUID) -> dict[str, str]:
             return {"custom": "yes"}
 
@@ -407,11 +407,11 @@ def test_an_inherited_override_survives_and_a_new_resource_regenerates() -> None
 
 def test_replaces_rejects_duplicates_chains_and_loose_functions() -> None:
     class Twice(CrudAPI, path="/t", resource=Resource(model=Memo, read=MemoOut)):
-        @get("/a", replaces="list")
+        @http.get("/a", replaces="list")
         async def a(self, request: Request) -> dict[str, str]:
             return {}
 
-        @get("/b", replaces="list")
+        @http.get("/b", replaces="list")
         async def b(self, request: Request) -> dict[str, str]:
             return {}
 
@@ -419,18 +419,18 @@ def test_replaces_rejects_duplicates_chains_and_loose_functions() -> None:
         Twice.routes()
 
     class Chain(CrudAPI, path="/u", resource=Resource(model=Memo, read=MemoOut)):
-        @get("/a", replaces="list")
+        @http.get("/a", replaces="list")
         async def a(self, request: Request) -> dict[str, str]:
             return {}
 
-        @get("/b", replaces="a")
+        @http.get("/b", replaces="a")
         async def b(self, request: Request) -> dict[str, str]:
             return {}
 
     with pytest.raises(RegistrationError, match="never a route"):
         Chain.routes()
 
-    @get("/loose", replaces="list")
+    @http.get("/loose", replaces="list")
     async def loose(request: Request) -> dict[str, str]:
         return {}
 

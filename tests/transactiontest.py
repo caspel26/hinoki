@@ -8,7 +8,7 @@ from typing import ClassVar
 
 import pytest
 
-from hinoki import Conflict, Hinoki, Module, RuntimeConfig, Schema, get, post
+from hinoki import Conflict, Hinoki, Module, RuntimeConfig, Schema, http
 from hinoki.db import Database, DatabaseModule, UniqueViolation
 from hinoki.modules import ModuleContext
 from hinoki.request import Request
@@ -43,25 +43,25 @@ def database() -> Database:
     return Holder.current[-1]
 
 
-@post("/ok", status=201, transaction=True)
+@http.post("/ok", status=201, transaction=True)
 async def create_ok(request: Request, data: Item) -> dict[str, str]:
     await database().execute(f"INSERT INTO {TABLE} (name) VALUES ($1)", data.name)  # noqa: S608
     return {"name": data.name}
 
 
-@post("/crash", transaction=True)
+@http.post("/crash", transaction=True)
 async def create_then_crash(request: Request, data: Item) -> dict[str, str]:
     await database().execute(f"INSERT INTO {TABLE} (name) VALUES ($1)", data.name)  # noqa: S608
     raise RuntimeError("secret failure")
 
 
-@post("/conflict", transaction=True)
+@http.post("/conflict", transaction=True)
 async def create_then_conflict(request: Request, data: Item) -> dict[str, str]:
     await database().execute(f"INSERT INTO {TABLE} (name) VALUES ($1)", data.name)  # noqa: S608
     raise Conflict("Already there.", code="already_there")
 
 
-@post("/duplicate", transaction=True)
+@http.post("/duplicate", transaction=True)
 async def create_duplicate(request: Request, data: Item) -> dict[str, str]:
     sql = f"INSERT INTO {TABLE} (name) VALUES ($1)"  # noqa: S608
     await database().execute(sql, data.name)
@@ -69,7 +69,7 @@ async def create_duplicate(request: Request, data: Item) -> dict[str, str]:
     return {}
 
 
-@post("/swallow", transaction=True)
+@http.post("/swallow", transaction=True)
 async def swallow_database_error(request: Request, data: Item) -> dict[str, str]:
     """Catches a constraint error and returns normally: the commit must fail."""
     sql = f"INSERT INTO {TABLE} (name) VALUES ($1)"  # noqa: S608
@@ -79,20 +79,20 @@ async def swallow_database_error(request: Request, data: Item) -> dict[str, str]
     return {"name": data.name}
 
 
-@post("/slow", transaction=True)
+@http.post("/slow", transaction=True)
 async def create_slow(request: Request, data: Item) -> dict[str, str]:
     await database().execute(f"INSERT INTO {TABLE} (name) VALUES ($1)", data.name)  # noqa: S608
     await database().fetch("SELECT pg_sleep(5)")
     return {}
 
 
-@get("/count")
+@http.get("/count")
 async def count(request: Request) -> dict[str, int]:
     rows = await database().fetch(f"SELECT count(*)::int AS c FROM {TABLE}")  # noqa: S608
     return {"count": rows[0]["c"]}
 
 
-@post("/no-db", transaction=True)
+@http.post("/no-db", transaction=True)
 async def needs_database(request: Request) -> None: ...
 
 

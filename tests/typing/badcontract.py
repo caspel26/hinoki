@@ -6,12 +6,12 @@ passes only while every line below is still flagged.
 
 from uuid import UUID
 
-from hinoki import API, get, post
+from hinoki import API, http
 from hinoki.request import Request
 
 
 class Posts(API, path="/posts"):
-    @get("/{post_id}")
+    @http.get("/{post_id}")
     async def retrieve(self, request: Request, post_id: UUID) -> str:
         return str(post_id)
 
@@ -23,9 +23,9 @@ async def misuse(posts: Posts, request: Request) -> None:
     print(number)
 
 
-@get("/x", transaction="yes")  # type: ignore[arg-type]
+@http.get("/x", transaction="yes")  # type: ignore[arg-type]
 def bad_option(request: Request) -> None: ...
 
 
-@post("/x", access="admin")  # type: ignore[arg-type]
+@http.post("/x", access="admin")  # type: ignore[arg-type]
 def bad_access(request: Request) -> None: ...

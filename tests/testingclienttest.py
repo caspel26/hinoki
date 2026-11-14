@@ -2,7 +2,7 @@
 
 import pytest
 
-from hinoki import Conflict, Hinoki, Request, Schema, get, post
+from hinoki import Conflict, Hinoki, Request, Schema, http
 from hinoki.modules import Module
 from hinoki.testing import ASGIClient
 
@@ -11,12 +11,12 @@ class Item(Schema):
     name: str
 
 
-@get("/ping")
+@http.get("/ping")
 async def ping(request: Request) -> dict[str, str]:
     return {"pong": "yes"}
 
 
-@post("/items", status=201)
+@http.post("/items", status=201)
 async def create(request: Request, data: Item) -> Item:
     return data
 
@@ -50,11 +50,11 @@ async def test_strict_errors_demand_declared_business_errors() -> None:
     class Taken(Conflict):
         code = "taken"
 
-    @get("/declared", errors=(Taken,))
+    @http.get("/declared", errors=(Taken,))
     async def declared() -> None:
         raise Taken()
 
-    @get("/undeclared")
+    @http.get("/undeclared")
     async def undeclared() -> None:
         raise Taken()
 

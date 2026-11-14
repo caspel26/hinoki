@@ -15,15 +15,7 @@ from uuid import UUID
 
 from examples.blog.models import User
 from examples.blog.security import WRITE
-from hinoki import (
-    Access,
-    Caller,
-    Field,
-    Schema,
-    Unauthorized,
-    get,
-    post,
-)
+from hinoki import Access, Caller, Field, Schema, Unauthorized, http
 from hinoki.crypto import JWTAuth, JWTKey, PasswordHasher
 
 SESSION_SECONDS = 15 * 60
@@ -75,7 +67,7 @@ def build_accounts(secret: str) -> tuple[list[Callable[..., Any]], PasswordHashe
     sessions = Sessions()
     signed_in = Access(auth=sessions)
 
-    @post("/auth/login")
+    @http.post("/auth/login")
     async def login(data: LoginIn) -> SessionOut:
         """Exchange a username and password for a short-lived bearer token."""
         user = await User.aget_or_none(username=data.username)
@@ -90,7 +82,7 @@ def build_accounts(secret: str) -> tuple[list[Callable[..., Any]], PasswordHashe
             expires_in=SESSION_SECONDS,
         )
 
-    @get("/auth/me", access=signed_in)
+    @http.get("/auth/me", access=signed_in)
     async def me(caller: Caller[User]) -> MeOut:
         """Who the bearer token belongs to."""
         user = caller.user
