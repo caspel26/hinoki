@@ -64,7 +64,7 @@ class Tokens(JWTAuth[str]):
     keys: ClassVar[Sequence[JWTKey]] = (JWTKey("k1", "HS256", SECRET),)
     issuer: ClassVar[str | None] = "https://api.test"
     audience: ClassVar[str | None] = "blog"
-    clock = 1_000
+    clock: int = 1_000
 
     def now(self) -> int:
         return self.clock
@@ -380,3 +380,13 @@ def test_argon2_only_verifies_argon2id_and_flags_old_versions() -> None:
         hasher.verify_sync(
             "x", "$argon2id$v=19$m=1048576,t=1,p=1$c29tZXNhbHQ$" + "A" * 43
         )
+
+
+async def test_a_token_is_refused_exactly_at_its_expiry_second() -> None:
+    """RFC 7519: on or after ``exp`` the token must not be accepted."""
+    token = oracle_hs256({**GOOD, "exp": 1_000}, kid="k1")
+    auth = Tokens()
+    auth.clock = 999
+    assert await verdict(token, auth)
+    auth.clock = 1_000
+    assert not await verdict(token, auth)

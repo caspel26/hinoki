@@ -22,6 +22,8 @@ class PageParams:
 
 
 DEFAULT_PAGE_SIZE = 20
+MAX_NUMBER = 1_000_000_000  # the largest page number accepted
+MAX_DIGITS = 18
 DEFAULT_MAX_PAGE_SIZE = 100
 
 
@@ -92,12 +94,18 @@ class PageNumberPagination:
         if values is None:
             return default
         raw = values[0]
-        if len(values) > 1 or not raw.isascii() or not raw.isdigit() or int(raw) < 1:
+        limit = MAX_NUMBER if upper is None else upper
+        digits = len(values) == 1 and raw.isascii() and raw.isdigit()
+        short = (
+            digits and len(raw) <= MAX_DIGITS
+        )  # no giant int(), no u64 offset overflow
+        if not digits or (short and int(raw) < 1):
             errors.append(ErrorDetail(name, "type", "expected a positive integer"))
-            return default
-        if upper is not None and int(raw) > upper:
-            errors.append(ErrorDetail(name, "le", f"must be at most {upper}"))
-        return int(raw)
+        elif not short or int(raw) > limit:
+            errors.append(ErrorDetail(name, "le", f"must be at most {limit}"))
+        else:
+            return int(raw)
+        return default
 
 
 @dataclass(frozen=True, slots=True)

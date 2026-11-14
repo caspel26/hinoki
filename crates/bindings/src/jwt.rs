@@ -254,7 +254,8 @@ fn numeric(claims: &Map<String, Value>, name: &str) -> Result<Option<i64>, Fail>
 fn check_claims(claims: &Map<String, Value>, rules: &Rules<'_>) -> Result<(), Fail> {
     let leeway = rules.leeway.clamp(0, MAX_LEEWAY);
     match numeric(claims, "exp")? {
-        Some(exp) if rules.now > exp.saturating_add(leeway) => return Err(Fail::Expired),
+        // RFC 7519 §4.1.4: on or after `exp` the token must not be accepted.
+        Some(exp) if rules.now >= exp.saturating_add(leeway) => return Err(Fail::Expired),
         None if rules.require_exp => return Err(Fail::Claims),
         _ => {}
     }
