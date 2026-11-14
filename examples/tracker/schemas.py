@@ -12,7 +12,6 @@ class TaskIn(Schema):
     title: Annotated[str, Field(min_length=1, max_length=120)]
 
 
-@derive.model(Task)
-@derive.exclude("owner_id")
-class TaskOut(Schema):
+@derive(exclude=("owner_id",))
+class TaskOut(Schema, model=Task):
     """Every column of a task except its owner (derived from the model)."""

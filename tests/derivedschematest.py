@@ -1,4 +1,4 @@
-"""Schemas derived from models with ``@derive.model`` and friends."""
+"""Schemas derived from models with ``@derive(...)`` and ``model=``."""
 
 from datetime import datetime
 from typing import Annotated
@@ -39,28 +39,23 @@ class Post(Model, table="ds_posts"):
     created_at: datetime = field(default_factory=datetime.now)
 
 
-@derive.model(Post)
-@derive.only("title", "slug", "body", "published")
-class PostCreate(Schema):
+@derive(only=("title", "slug", "body", "published"))
+class PostCreate(Schema, model=Post):
     pass
 
 
-@derive.model(Post)
-@derive.exclude("note")
-class PostOut(Schema):
+@derive(exclude=("note",))
+class PostOut(Schema, model=Post):
     author_name: str
 
 
-@derive.model(Post)
-@derive.only("title", "body", "note")
-@derive.partial()
-class PostPatch(Schema):
+@derive(only=("title", "body", "note"), partial=True)
+class PostPatch(Schema, model=Post):
     pass
 
 
-@derive.model(Post)
-@derive.only("title", "body")
-class Overridden(Schema):
+@derive(only=("title", "body"))
+class Overridden(Schema, model=Post):
     title: Annotated[str, Field(min_length=3, max_length=10)]
 
 
@@ -111,63 +106,67 @@ def test_declared_fields_override_derived_ones() -> None:
 def test_mistakes_fail_when_the_class_is_declared_or_first_used() -> None:
     with pytest.raises(RegistrationError, match="no columns"):
 
-        @derive.model(Post)
-        @derive.only("nope")
-        class A(Schema):
+        @derive(only=("nope",))
+        class A(Schema, model=Post):
             pass
 
-    with pytest.raises(RegistrationError, match="not both"):
+    with pytest.raises(RegistrationError, match="only and exclude"):
 
-        @derive.model(Post)
-        @derive.only("title")
-        @derive.exclude("body")
-        class B(Schema):
+        @derive(only=("title",), exclude=("body",))
+        class B(Schema, model=Post):
             pass
 
     with pytest.raises(RegistrationError, match="unknown fields"):
 
-        @derive.model(Post)
-        @derive.only("title")
-        @derive.partial("body")
-        class C(Schema):
+        @derive(only=("title",), partial=("body",))
+        class C(Schema, model=Post):
             pass
 
     with pytest.raises(RegistrationError, match="Model class"):
 
-        @derive.model(int)
-        class E(Schema):
+        class E(Schema, model=int):
             pass
 
-    @derive.only("title")
-    class D(Schema):
-        pass
+    with pytest.raises(RegistrationError, match="requires model="):
 
-    with pytest.raises(RegistrationError, match=r"need @derive\.model"):
-        D.specs()
+        @derive(only=("title",))
+        class D(Schema):
+            pass
 
 
 def test_without_a_selection_every_column_is_taken_and_partial_can_name_fields() -> (
     None
 ):
-    @derive.model(Post)
-    class Everything(Schema):
+    class Everything(Schema, model=Post):
         pass
 
     assert list(Everything.specs()) == list(Post.__columns__)
 
-    @derive.model(Post)
-    @derive.only("title", "body")
-    @derive.partial("body")
-    class Some(Schema):
+    @derive(only=("title", "body"), partial=("body",))
+    class Some(Schema, model=Post):
         pass
 
     assert Some.specs()["title"].required and not Some.specs()["body"].required
 
 
+def test_derive_is_one_callable_with_tuple_options() -> None:
+    assert callable(derive)
+    assert not any(
+        hasattr(derive, name) for name in ("model", "only", "exclude", "partial")
+    )
+    with pytest.raises(RegistrationError, match="selects no columns"):
+        derive(only=())
+
+    @derive(exclude=())
+    class EmptyExclusion(Schema, model=Post):
+        pass
+
+    assert list(EmptyExclusion.specs()) == list(Post.__columns__)
+
+
 def test_checks_and_methods_in_the_class_body_survive_the_derivation() -> None:
-    @derive.model(Post)
-    @derive.only("title", "body")
-    class Checked(Schema):
+    @derive(only=("title", "body"))
+    class Checked(Schema, model=Post):
         @field_check("title")
         def not_shouting(self, value: str) -> None:
             if value.isupper():
@@ -331,9 +330,8 @@ class SchemaLabel(Schema):
         return "base"
 
 
-@derive.model(Post)
-@derive.only("title", "slug", "body", "published")
-class DerivedLabel(SchemaLabel):
+@derive(only=("title", "slug", "body", "published"))
+class DerivedLabel(SchemaLabel, model=Post):
     def label(self) -> str:
         return f"{super().label()} derived"
 
