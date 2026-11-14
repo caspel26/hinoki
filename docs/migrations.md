@@ -21,12 +21,15 @@ The planner writes a numbered `.sql` file and a matching `.state.json` file. Rev
 ## Apply and inspect
 
 ```sh
-hinoki migrations --dir examples/blog/migrations status --database "$BLOG_DATABASE__URL"
+export HINOKI_DATABASE_URL="$BLOG_DATABASE__URL"
+hinoki migrations --dir examples/blog/migrations status
 hinoki migrations --dir examples/blog/migrations sql 0001-initial
-hinoki migrations --dir examples/blog/migrations apply --database "$BLOG_DATABASE__URL"
+hinoki migrations --dir examples/blog/migrations apply
 ```
 
-`status` and `apply` connect to PostgreSQL. Pass `--database` or set `HINOKI_DATABASE_URL`; use a disposable database to review a migration before running it against important data.
+`status` and `apply` connect to PostgreSQL. Set `HINOKI_DATABASE_URL`; `--database URL` overrides it, but an argument is visible in the process list and the shell history, so do not pass a URL that contains a password that way. A failed connection is reported as `error: database: …` with exit code 1, without the URL.
+
+Use a disposable database to review a migration before running it against important data.
 
 ## Destructive changes
 
