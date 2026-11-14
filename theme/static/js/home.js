@@ -33,11 +33,20 @@
       files.forEach((f) => {
         f.textContent = button.dataset.file;
       });
+      const bump = (el) => {
+        el.classList.remove("is-bump");
+        void el.offsetWidth;
+        el.classList.add("is-bump");
+      };
       if (problems) {
         problems.textContent = button.dataset.problems;
         problems.className = `ide__prob is-${button.dataset.tone}`;
+        bump(problems);
       }
-      if (count) count.textContent = button.dataset.count;
+      if (count) {
+        count.textContent = button.dataset.count;
+        bump(count);
+      }
     };
 
     buttons.forEach((button, i) =>
