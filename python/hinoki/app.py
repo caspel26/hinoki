@@ -15,6 +15,7 @@ from hinoki.docsui import pages as docs_pages
 from hinoki.errors import RegistrationError
 from hinoki.fields import UNSET, Unset
 from hinoki.httperrors import ErrorRegistry
+from hinoki.management import Command, _normalize_commands
 from hinoki.modules import Module, order_modules
 from hinoki.openapi import OpenAPIBuilder
 from hinoki.parsers import DEFAULT_PARSERS, Parser, check_parsers
@@ -45,6 +46,7 @@ class Hinoki:
         settings: object | None = None,
         include: Sequence[object] = (),
         modules: Sequence[Module | type[Module]] = (),
+        commands: Sequence[Command | type[Command]] = (),
         runtime: RuntimeConfig | None = None,
         title: str | None = None,
         version: str | None = None,
@@ -89,6 +91,7 @@ class Hinoki:
         self._routes: list[Route] = []
         self._bindings: list[Binding] = []
         self._modules: list[Module] = []
+        self._commands = _normalize_commands(commands)
         self._included_groups: set[RouteGroup] = set()
         self._router = Router()
         self._adapter: ASGIAdapter | None = None
@@ -119,6 +122,11 @@ class Hinoki:
     @property
     def modules(self) -> tuple[Module, ...]:
         return tuple(self._modules)
+
+    @property
+    def commands(self) -> tuple[Command, ...]:
+        """The app's explicitly registered management commands."""
+        return self._commands
 
     def include(self, *items: object) -> None:
         """Register decorated functions, ``API`` subclasses and objects that expose
