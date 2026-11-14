@@ -106,6 +106,45 @@ Server-supplied keywords take precedence over values from a `Schema`. A loaded m
 
 The model constructor is statically typed. Some keyword-based model methods still have broader type-checker signatures; see [typing](typing.md).
 
+## Share fields: abstract models and mixins
+
+Fields, options and methods that several models need can live in a base class. An **abstract model** has no table of its own: it is not migrated, cannot be queried or saved, and exists to be subclassed.
+
+```python
+from datetime import datetime
+from uuid import UUID, uuid4
+
+from hinoki.orm import Model, field, indexed, ordered_by, timestamps
+from hinoki.utils import utc_now
+
+
+class Keyed(Model, abstract=True):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+
+
+@timestamps()
+@indexed("updated_at")
+@ordered_by("-updated_at")
+class Tracked(Model, abstract=True):
+    created_at: datetime = field(default_factory=utc_now)
+    updated_at: datetime = field(default_factory=utc_now)
+
+
+class Article(Keyed, Tracked, table="articles"):
+    title: str = field(max_length=120)
+```
+
+`Article` has the columns `created_at`, `updated_at`, `id` and `title`, is ordered by `-updated_at`, has the index and refreshes `updated_at` on every update. `Tracked.all()` raises `ModelError`: query `Article`.
+
+* `abstract=True` is not inherited. A subclass is a table model (and needs `table=`) unless it says `abstract=True` again. An abstract model needs no primary key; a table model needs exactly one, its own or an inherited one.
+* **Options** declared on abstract bases are inherited: every base's `@unique` constraints and `@indexed` indexes, and the order and timestamp column of the first base (in the order the bases resolve) that sets one. Applying a decorator on the subclass *replaces* what was inherited for that kind of option; it does not add to it. To keep an inherited index while adding one, declare both on the subclass. Options you do not touch stay inherited.
+* **Plain mixins** work too: a class that is not a model contributes the fields it annotates, `field(...)` and `foreign_key(...)` included, and its methods. An annotation marked `ClassVar` is not a field. A type checker does not see a plain mixin's fields as constructor arguments, so prefer an abstract model when you construct instances with those fields.
+* **One name, two types.** If two bases give the same field name different types and the class does not declare that field itself, the class is refused with an error naming both bases. The same type from two bases is accepted, and a class (or an abstract subclass) that redeclares a field decides its type. A type checker still reports a redeclaration with an incompatible type, as it does for any class.
+* **Subclassing a table model** is allowed: the subclass needs its own `table=` and gets a copy of the parent's columns in a separate table, which `hinoki migrations plan` shows. The two tables are unrelated: there is no join between them and a query on the parent does not return the subclass's rows. A table model does not pass its options on; only abstract bases do.
+* **Column order** follows Python's dataclass rules: the fields of model bases come first, starting from the last base listed, then the fields of plain mixins, then the class's own. Hinoki does not depend on the order; a new table is created with it.
+
+A foreign key in an abstract model or a mixin needs a reverse name that differs per subclass; see [relations](relations.md#foreign-keys-in-abstract-models-and-mixins).
+
 ## Relations
 
 Declare a foreign-key column with `foreign_key(OtherModel, ...)`. It creates the `other_id` column and a named relation (`row.other`), but reading the relation does not fetch data. Load it explicitly with `select_related` or `prefetch_related`. For many-to-many data, declare an association model with two foreign keys and a composite `@unique` constraint; see [relations and loading](relations.md).
