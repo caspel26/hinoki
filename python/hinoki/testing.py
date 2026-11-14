@@ -161,6 +161,9 @@ class ASGIClient:
     async def post(self, path: str, **options: Any) -> Response:
         return await self.request("POST", path, **options)
 
+    async def put(self, path: str, **options: Any) -> Response:
+        return await self.request("PUT", path, **options)
+
     async def patch(self, path: str, **options: Any) -> Response:
         return await self.request("PATCH", path, **options)
 
@@ -247,6 +250,9 @@ class SyncClient:
 
     def post(self, path: str, **options: Any) -> Response:
         return self.request("POST", path, **options)
+
+    def put(self, path: str, **options: Any) -> Response:
+        return self.request("PUT", path, **options)
 
     def patch(self, path: str, **options: Any) -> Response:
         return self.request("PATCH", path, **options)
