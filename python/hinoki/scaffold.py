@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 NAME = re.compile(r"[a-z][a-z0-9]*")
+RESERVED_NAMES = sys.stdlib_module_names | {"hinoki"}
 
 PYPROJECT = """[project]
 name = "{name}"
@@ -280,10 +282,11 @@ def files(name: str, source: str | None = None) -> dict[str, str]:
 def create(name: str, parent: Path, source: str | None = None) -> Path:
     """Write the project into ``parent / name``; refuse a bad name or a target
     that exists and is not empty."""
-    if not NAME.fullmatch(name):
+    if not NAME.fullmatch(name) or name in RESERVED_NAMES:
         raise ScaffoldError(
             "the name must be lower-case letters and digits, starting with a letter "
-            "(no underscores or dashes: it is also the package name)"
+            "(no underscores or dashes: it is also the package name), and must not "
+            "shadow Hinoki or a Python standard-library module"
         )
     target = parent / name
     if target.exists() and any(target.iterdir()):
