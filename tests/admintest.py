@@ -1201,3 +1201,21 @@ async def test_global_search_groups_matches_by_model(
 
 def test_the_current_database_helper_is_importable() -> None:
     assert callable(current_database) and callable(use_database)
+
+
+def test_shared_stylesheet_keeps_form_text_and_boundaries_legible() -> None:
+    from hinoki.admin.templates import UI
+
+    css = (UI / "base.css").read_text(encoding="utf-8")
+    assert "::placeholder { color: var(--hn-muted); opacity: 1; }" in css
+    assert "border: 1px solid var(--hn-field)" in css
+    assert "--hn-field: color-mix(" in css
+    assert ".hn-page.hn-gap" in css
+
+
+def test_pagination_gap_marker_is_not_dimmed_as_a_control() -> None:
+    from hinoki.admin.components import Components
+    from hinoki.admin.templates import Templates
+
+    html = str(Components(Templates()).pagination([("", "…", False)], "1"))
+    assert 'class="hn-page hn-gap"' in html

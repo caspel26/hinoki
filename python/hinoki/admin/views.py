@@ -93,7 +93,7 @@ async def index(self: API, request: Request, principal: Caller[Any]) -> Reply:
             bulk_action=site.url(slug, "bulk"),
             csrf=site.token,
             bulkbar=Raw(""),
-            caption=f"Recent {entry.plural().lower()}",
+            caption=f"{entry.plural()} table",
             head=table_head(site, slug, entry, False),
             rows=table_rows(site, slug, entry, rows, bulk=False),
         )

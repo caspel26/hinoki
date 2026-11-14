@@ -109,8 +109,9 @@ class Components:
                     f'<a class="hn-page" href="{escape(href)}"{mark}>{label}</a>'
                 )
             else:
+                gap = " hn-gap" if label == "…" else ""
                 links.append(
-                    f'<span class="hn-page" aria-disabled="true">{label}</span>'
+                    f'<span class="hn-page{gap}" aria-disabled="true">{label}</span>'
                 )
         return self.t.render("pagination", summary=summary, pages=Raw("".join(links)))
 
