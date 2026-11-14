@@ -197,6 +197,30 @@ input[type="checkbox"] { width: 1.15rem; height: 1.15rem; padding: 0; accent-col
 .hn-list-rows .hn-table td:has(.hn-rowlink) { flex: 1 1 30%; min-width: 10rem; font-size: 1.2em; font-weight: 600; }
 .hn-list-rows .hn-table td:not(:has(.hn-rowlink)):not(:has(input[type=checkbox])) { font-size: .85em; color: var(--hn-muted); }
 
+/* Layout "rail" (bento): a narrow icon rail with each label under its icon. */
+.hn-layout-rail .hn-sidebar { align-items: stretch; padding: .9rem .45rem; gap: .8rem; }
+.hn-layout-rail .hn-brand { justify-content: center; padding: 0; }
+.hn-layout-rail .hn-brand-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }  /* still the link's name */
+.hn-layout-rail .hn-nav { gap: .35rem; }
+.hn-layout-rail .hn-nav-item { position: relative; flex-direction: column; justify-content: center; gap: .2rem; text-align: center; font-size: .7rem; line-height: 1.15; overflow-wrap: anywhere; }
+.hn-layout-rail .hn-nav-item .hn-icon { width: 1.5rem; height: 1.5rem; }
+.hn-layout-rail .hn-count { position: absolute; top: .15rem; right: .25rem; padding: 0 .35rem; font-size: .65rem; }
+.hn-layout-rail .hn-user { flex-direction: column; justify-content: center; }
+.hn-layout-rail .hn-user-text { display: none; }
+.hn-layout-rail .hn-nav-secondary { margin-top: auto; }
+
+/* List "cards" (bento): every record is a card in a grid. */
+.hn-list-cards .hn-scroll { overflow: visible; }
+.hn-list-cards .hn-table, .hn-list-cards .hn-table tbody { display: block; min-width: 0; border: 0; }
+.hn-list-cards .hn-table thead { display: none; }
+.hn-list-cards .hn-table tbody { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.1rem; padding: .35rem .45rem .6rem 0; }
+.hn-list-cards .hn-table tr { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: .45rem; padding: 1.1rem; border: 1px solid var(--hn-line); border-radius: var(--hn-radius-lg); background: var(--hn-surface); }
+.hn-list-cards .hn-table td { display: block; padding: 0; border: 0; overflow-wrap: anywhere; min-width: 0; max-width: 100%; }
+.hn-shell.hn-list-cards .hn-table td:not(.hn-check) { white-space: normal; }
+.hn-list-cards .hn-table td.hn-check { position: absolute; top: .9rem; right: .9rem; width: auto; }
+.hn-list-cards .hn-table td:has(.hn-rowlink) { font-size: 1.2em; font-weight: 700; line-height: 1.25; padding-right: 1.8rem; }
+.hn-list-cards .hn-table td:not(:has(.hn-rowlink)):not(.hn-check) { font-size: .85em; color: var(--hn-muted); }
+
 @media (max-width: 1180px) {
   .hn-workspace { flex-direction: column; align-items: stretch; }
   .hn-main { width: 100%; }
@@ -218,3 +242,13 @@ input[type="checkbox"] { width: 1.15rem; height: 1.15rem; padding: 0; accent-col
   .hn-main { padding: 1rem; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+@media (max-width: 860px) {
+  /* The rail becomes a bottom tab bar on phones. */
+  .hn-layout-rail .hn-sidebar { position: fixed; inset: auto 0 0 0; z-index: 20; height: auto; flex-direction: row; flex-wrap: nowrap; justify-content: flex-start; gap: .3rem; padding: .35rem .5rem calc(.35rem + env(safe-area-inset-bottom)); border: 0; border-top: 2px solid var(--hn-line-strong); overflow-x: auto; }
+  .hn-layout-rail .hn-brand, .hn-layout-rail .hn-user { display: none; }
+  .hn-layout-rail .hn-nav { display: flex; gap: .3rem; width: auto; order: 0; }
+  .hn-layout-rail .hn-nav-secondary { margin: 0; order: 1; }
+  .hn-layout-rail .hn-nav-item { min-width: 4.4rem; flex: none; }
+  .hn-layout-rail .hn-main { padding-bottom: 6.5rem; }
+}
