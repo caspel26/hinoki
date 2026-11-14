@@ -103,4 +103,3 @@ create:
   1x SELECT "authors"."id", "authors"."name" FROM "authors" WHERE "authors"."id" = $1::uuid LIMIT $2
 OK: behaviour and statement counts match the oracle
 ```
-
