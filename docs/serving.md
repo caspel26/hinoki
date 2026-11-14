@@ -72,6 +72,7 @@ The adapter drives the same ASGI callable on a background event loop that it own
 * **Shutdown** runs on `WSGIAdapter.close()` or, otherwise, at interpreter exit. A server that kills workers without exiting normally skips it, as it would any `atexit` hook.
 * **Async handlers** run on the adapter's loop and **sync handlers** on the bounded executor, as under ASGI. Each WSGI server thread blocks for the duration of its request, so concurrency is the server's thread count rather than the event loop.
 * **Bodies are buffered.** Request bodies are read up to `max_body_bytes` plus one byte, so an oversized upload still answers `413`. Responses are complete before they are sent; streaming responses are not available, and a client disconnect is not reported to the handler.
+* **Paths.** The server decodes the path once and the adapter passes it on without decoding again, so a client's `%2520` reaches the handler as `%20`, as under ASGI. A percent-encoded slash (`%2F`) cannot be told apart from a real one in WSGI and is not available inside a path parameter. A bad `Content-Length` answers `400`.
 * **One protocol per process.** Do not serve the same application object over ASGI and WSGI in one process; the adapter owns its own loop and module lifespan. Run two processes if you need both.
 
 The path is checked against Granian's WSGI interface (`--interface wsgi`, with one and two workers), not against every WSGI server.
