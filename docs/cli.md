@@ -38,6 +38,7 @@ Hinoki is pre-alpha and not published on PyPI (an unrelated `hinoki` is), so the
 | nothing, any other installation | the public repository, default branch |
 
 The result is `cd PATH/NAME && uv sync && uv run pytest`: the project has a health route, typed settings, rules, one test that needs no database, a `README.md`, `AGENTS.md` and `.mcp.json`.
+Checkout paths and Git source values are escaped as TOML strings in the generated `pyproject.toml`.
 
 ### `dev` and `serve`
 
