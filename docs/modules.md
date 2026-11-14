@@ -4,7 +4,7 @@ status: implemented
 
 # Application modules and resources
 
-Modules own resources whose lifetime belongs to a worker, such as a database pool. They are created during application startup, made available through `ModuleContext`, and closed when the worker shuts down.
+Modules own resources whose lifetime belongs to a worker or a management command, such as a database pool. They are created during startup, made available through `ModuleContext`, and closed when that run ends.
 
 ## Declare modules
 
@@ -30,6 +30,8 @@ Module lifespan hooks are async. Keep startup bounded, fail fast when a required
 
 ## Standalone scripts
 
-Scripts outside the server have no worker lifespan. Open their own `Database` and close it explicitly; do not import a module-global pool or start the whole web application to seed data. The blog seed script demonstrates this pattern.
+For app maintenance tasks, declare a [management command](cli.md#manage) and list its required module classes in `Command.requires`. Hinoki starts only those modules and their dependencies for one command run, so a database module is opened and closed without starting the HTTP server or unrelated modules.
+
+Standalone scripts outside Hinoki's server or management-command runner have no module lifespan. Open their own `Database` and close it explicitly; do not import a module-global pool. The blog seed script demonstrates this pattern.
 
 See [settings and database ownership](settings.md#8-database-connection-ownership), [serving](serving.md) and [sync and async](sync-async.md).
