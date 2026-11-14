@@ -422,7 +422,35 @@
 <h3 id="new"><code>new</code><a class="headerlink" href="#new" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>new<span class="w"> </span>notes<span class="w"> </span>--dir<span class="w"> </span>.
 </code></pre></div>
-<p><code>NAME</code> is a lowercase package name containing letters and digits. <code>--dir</code> chooses the parent directory and defaults to the current directory.</p>
+<p><code>NAME</code> is a lowercase package name containing letters and digits. <code>--dir</code> chooses the parent directory and defaults to the current directory. The target <code>PATH/NAME</code> must not exist or must be empty; nothing is overwritten, and nothing is installed or run.</p>
+<p>Hinoki is pre-alpha and not published on PyPI (an unrelated <code>hinoki</code> is), so the generated <code>pyproject.toml</code> always names where <code>uv</code> finds it under <code>[tool.uv.sources]</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Given</th>
+<th>Source written</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--hinoki /path/to/checkout</code></td>
+<td>that checkout, editable</td>
+</tr>
+<tr>
+<td><code>--hinoki https://github.com/caspel26/hinoki@REV</code> (or <code>git+https://...</code>)</td>
+<td>that repository, pinned to <code>REV</code> when given</td>
+</tr>
+<tr>
+<td>nothing, running from a source checkout</td>
+<td>the checkout you ran it from</td>
+</tr>
+<tr>
+<td>nothing, any other installation</td>
+<td>the public repository, default branch</td>
+</tr>
+</tbody>
+</table>
+<p>The result is <code>cd PATH/NAME &amp;&amp; uv sync &amp;&amp; uv run pytest</code>: the project has a health route, typed settings, rules, one test that needs no database, a <code>README.md</code>, <code>AGENTS.md</code> and <code>.mcp.json</code>.</p>
 <h3 id="dev-and-serve"><code>dev</code> and <code>serve</code><a class="headerlink" href="#dev-and-serve" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>dev<span class="w"> </span>examples.notes.main:app<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">8000</span>
 hinoki<span class="w"> </span>serve<span class="w"> </span>examples.notes.main:app<span class="w"> </span>--workers<span class="w"> </span><span class="m">4</span>
@@ -527,7 +555,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:11:46 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 15:02:25 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
