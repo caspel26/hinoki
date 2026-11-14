@@ -17,13 +17,22 @@ from hinoki.reply import Reply
 NO_HTML = Raw("")
 
 
+def matching(entry: ModelAdmin[Any], query: QuerySet[Any], text: str) -> QuerySet[Any]:
+    """Rows where any ``search`` column contains ``text`` (case-insensitive)."""
+    if len(entry.search) == 1:
+        return query.filter(**{f"{entry.search[0]}__contains": text})
+    # The queryset has no public OR; the compiler takes the columns as one filter.
+    added = (",".join(entry.search), "containsany", [text])
+    return query.derive(filters=(*query.filters, added))
+
+
 def apply_state(
     entry: ModelAdmin[Any], query: QuerySet[Any], state: ListState
 ) -> QuerySet[Any]:
     if 0 < state.view <= len(entry.tabs):
         query = query.filter(**dict(entry.tabs[state.view - 1].filters))
     if state.q and entry.search:
-        query = query.filter(**{f"{entry.search[0]}__contains": state.q})
+        query = matching(entry, query, state.q)
     columns = set(entry.model.__columns__) & set(entry.shown_columns())
     if state.sort in columns:
         return query.order_by(("-" if state.direction == "desc" else "") + state.sort)

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from hinoki import routescli, serve, settingscli
 from hinoki.checkcli import add_arguments, run_check
-from hinoki.db import Database
+from hinoki.db import Database, DatabaseError
 from hinoki.errors import MigrationError
 from hinoki.orm import migrator
 from hinoki.orm.migrations import migration_files, models_of, plan
@@ -34,7 +34,12 @@ def parser() -> argparse.ArgumentParser:
     planner.add_argument("--dry-run", action="store_true", help="print, write nothing")
     for name, text in (("apply", "apply pending migrations"), ("status", "list them")):
         sub = actions.add_parser(name, help=text)
-        sub.add_argument("--database", default=os.environ.get(URL_VARIABLE))
+        sub.add_argument(
+            "--database",
+            default=os.environ.get(URL_VARIABLE),
+            help=f"connection URL; prefer {URL_VARIABLE}, which keeps a password "
+            "out of the process list",
+        )
     show = actions.add_parser("sql", help="print one migration's SQL")
     show.add_argument("name")
     return root
@@ -112,6 +117,14 @@ def run_migrations(args: argparse.Namespace) -> int:
         print(
             "  fix: correct the model or migration state; inspect with "
             "`hinoki migrations plan`",
+            file=sys.stderr,
+        )
+        return 1
+    except DatabaseError as error:
+        print(f"error: database: {error}", file=sys.stderr)
+        print(
+            f"  fix: check the URL in {URL_VARIABLE} (or --database) and that "
+            "PostgreSQL accepts the connection",
             file=sys.stderr,
         )
         return 1
