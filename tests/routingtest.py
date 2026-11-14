@@ -228,3 +228,32 @@ def test_failed_route_group_include_does_not_freeze_group() -> None:
 
     assert one is group.handlers[0]
     assert two is group.handlers[1]
+
+
+def test_route_group_rejects_api_only_replacement_option() -> None:
+    group = RouteGroup("/things")
+
+    @group.get("/", replaces="missing")
+    def index() -> str:
+        return "ok"
+
+    with pytest.raises(RegistrationError, match="only works inside an API class"):
+        Hinoki(include=[group])
+
+
+def test_standalone_outer_decorator_is_used_for_dispatch() -> None:
+    def denied(fn: Callable[[], str]) -> Callable[[], str]:
+        @functools.wraps(fn)
+        def wrapper() -> str:
+            raise PermissionError("forbidden")
+
+        return wrapper
+
+    @denied
+    @get("/private")
+    def private() -> str:
+        return "sensitive"
+
+    handler = Hinoki(include=[private]).routes[0].handler
+    with pytest.raises(PermissionError, match="forbidden"):
+        handler()
