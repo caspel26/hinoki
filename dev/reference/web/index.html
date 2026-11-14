@@ -943,7 +943,9 @@ module:app</code>); the first call freezes the declarations.</p>
     <div class="doc doc-contents ">
 
         <p>Register decorated functions, <code>API</code> subclasses and objects that expose
-an <code>api()</code> (the admin).</p>
+an <code>api()</code> (the admin). Lists and tuples of those are flattened, so a
+feature package can export one <code>routes</code> list, and <code>Mount(prefix, ...)</code>
+places a feature under a path chosen here.</p>
 <p>All-or-nothing per call: on conflict the application is unchanged.</p>
 
 
@@ -1734,6 +1736,123 @@ The result is an ordinary action: rules, OpenAPI and the MCP see no difference.<
 
 <a href="#hinoki.routing.RouteGroup.delete" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">delete</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_GroupRouteDeclaration</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.routing.Mount" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.routing.Mount</span>
+
+
+<a href="#hinoki.routing.Mount" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Places routes under a path prefix chosen where the application is declared.</p>
+<div class="highlight"><pre><span></span><code>Hinoki(include=[
+    health,
+    Mount("/tasks", tasks.routes),
+    Mount("/billing", billing.routes),
+])
+</code></pre></div>
+<p>The feature keeps paths relative to itself (<code>/</code> and <code>/{id}</code>) and the root
+declaration shows where each feature lives. Items are anything <code>include</code>
+accepts, including lists and other mounts; prefixes join outside in.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.routing.Mount.prefix" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">prefix</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.routing.Mount.prefix" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">prefix</span> <span class="o">=</span> <span class="n">prefix</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.routing.Mount.items" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">items</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.routing.Mount.items" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">items</span> <span class="o">=</span> <span class="n">items</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.routing.Mount.__init__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">__init__</span>
+
+
+<a href="#hinoki.routing.Mount.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="n">items</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3488,6 +3607,8 @@ override them. <code>details</code> is public data, never internal state.</p>
             <ul><li><a href="#hinoki.api.API.prefix">prefix</a></li><li><a href="#hinoki.api.API.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.api.API.routes">routes</a></li><li><a href="#hinoki.api.API.apply_replacements">apply_replacements</a></li><li><a href="#hinoki.api.API.declared_route">declared_route</a></li><li><a href="#hinoki.api.API.mount">mount</a></li></ul>
           </li><li><a href="#hinoki.routing.RouteGroup">RouteGroup</a>
             <ul><li><a href="#hinoki.routing.RouteGroup.prefix">prefix</a></li><li><a href="#hinoki.routing.RouteGroup.access">access</a></li><li><a href="#hinoki.routing.RouteGroup.atomic">atomic</a></li><li><a href="#hinoki.routing.RouteGroup.errors">errors</a></li><li><a href="#hinoki.routing.RouteGroup._handlers">_handlers</a></li><li><a href="#hinoki.routing.RouteGroup._included">_included</a></li><li><a href="#hinoki.routing.RouteGroup.handlers">handlers</a></li><li><a href="#hinoki.routing.RouteGroup.__init__">__init__</a></li><li><a href="#hinoki.routing.RouteGroup._include">_include</a></li><li><a href="#hinoki.routing.RouteGroup._decorate">_decorate</a></li><li><a href="#hinoki.routing.RouteGroup.declare">declare</a></li><li><a href="#hinoki.routing.RouteGroup.get">get</a></li><li><a href="#hinoki.routing.RouteGroup.post">post</a></li><li><a href="#hinoki.routing.RouteGroup.put">put</a></li><li><a href="#hinoki.routing.RouteGroup.patch">patch</a></li><li><a href="#hinoki.routing.RouteGroup.delete">delete</a></li></ul>
+          </li><li><a href="#hinoki.routing.Mount">Mount</a>
+            <ul><li><a href="#hinoki.routing.Mount.prefix">prefix</a></li><li><a href="#hinoki.routing.Mount.items">items</a></li><li><a href="#hinoki.routing.Mount.__init__">__init__</a></li></ul>
           </li><li><a href="#hinoki.routing.Route">Route</a>
             <ul><li><a href="#hinoki.routing.Route.method">method</a></li><li><a href="#hinoki.routing.Route.path">path</a></li><li><a href="#hinoki.routing.Route.handler">handler</a></li><li><a href="#hinoki.routing.Route.status">status</a></li><li><a href="#hinoki.routing.Route.access">access</a></li><li><a href="#hinoki.routing.Route.transaction">transaction</a></li><li><a href="#hinoki.routing.Route.owner">owner</a></li><li><a href="#hinoki.routing.Route.pagination">pagination</a></li><li><a href="#hinoki.routing.Route.replaces">replaces</a></li><li><a href="#hinoki.routing.Route.parsers">parsers</a></li><li><a href="#hinoki.routing.Route.renderers">renderers</a></li><li><a href="#hinoki.routing.Route.errors">errors</a></li><li><a href="#hinoki.routing.Route.is_async">is_async</a></li><li><a href="#hinoki.routing.Route.name">name</a></li><li><a href="#hinoki.routing.Route.__init__">__init__</a></li></ul>
           </li><li><a href="#http-method-decorators">HTTP method decorators</a></li><li><a href="#hinoki.http.get">get</a></li><li><a href="#hinoki.http.post">post</a></li><li><a href="#hinoki.http.put">put</a></li><li><a href="#hinoki.http.patch">patch</a></li><li><a href="#hinoki.http.delete">delete</a></li><li><a href="#request-response-and-errors">Request, response and errors</a></li><li><a href="#hinoki.request.Request">Request</a>
@@ -3503,7 +3624,7 @@ override them. <code>details</code> is public data, never internal state.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.2</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 13:28:57 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:03:04 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/web.md">Edit on GitHub</a></dd></div>
         </dl>

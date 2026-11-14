@@ -474,6 +474,34 @@ on the class; the full paths remain beside their actions. Use <code>RouteGroup</
 functions are a better fit, especially when several actions share access,
 transaction defaults, or declared errors. A group must contain at least one
 action and becomes immutable after successful inclusion.</p>
+<h2 id="organising-a-large-application">Organising a large application<a class="headerlink" href="#organising-a-large-application" title="Permanent link">&para;</a></h2>
+<p>Give each feature one module that owns its routes and exports them as a list, with paths relative to the feature. Choose where each feature lives in the root declaration with <code>Mount</code>, so the paths stay visible in one place:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># tasks/routes.py (paths are relative: "/" and "/{task_id}")</span>
+<span class="n">routes</span> <span class="o">=</span> <span class="p">[</span><span class="n">tasks_group</span><span class="p">,</span> <span class="n">TaskReports</span><span class="p">,</span> <span class="n">export_tasks</span><span class="p">]</span>
+
+<span class="c1"># main.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Mount</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">billing.routes</span><span class="w"> </span><span class="kn">import</span> <span class="n">routes</span> <span class="k">as</span> <span class="n">billing</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tasks.routes</span><span class="w"> </span><span class="kn">import</span> <span class="n">routes</span> <span class="k">as</span> <span class="n">tasks</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
+    <span class="n">include</span><span class="o">=</span><span class="p">[</span>
+        <span class="n">health</span><span class="p">,</span>
+        <span class="n">Mount</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">tasks</span><span class="p">),</span>
+        <span class="n">Mount</span><span class="p">(</span><span class="s2">"/billing"</span><span class="p">,</span> <span class="n">billing</span><span class="p">),</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+</code></pre></div>
+<p><code>include</code> spreads nested lists and tuples in place, so order is the order you wrote. <code>Mount(prefix, *items)</code> prepends its prefix to every route it holds; mounts nest and prefixes join from the outside in. The prefix starts with <code>/</code> and does not end with one. Items you do not mount keep their own paths, so small apps can stay a flat list. Mounting changes only the path: access, errors and transactions are unchanged, and a route that ends up at the same method and path as another still fails at declaration time. A <code>RouteGroup</code> reached twice, an item that is not an action, class or group, or a module passed instead of its list is refused and named; a module gets a hint to export a list.</p>
+<p>If a feature declares its own prefix (a <code>RouteGroup("/tasks")</code> or <code>API, path="/tasks"</code>), mounting adds to it. Pick one place for each prefix: feature-relative paths with <code>Mount</code> at the root is the layout that keeps the whole map readable in <code>main.py</code>.</p>
+<p>To see the resulting map without starting the server, run <code>hinoki routes examples.blog.main:create_app --path /posts</code> (the blog example):</p>
+<div class="highlight"><pre><span></span><code>GET     /posts                    public                   examples.blog.api.Posts.listing
+POST    /posts                    TokenAuth[posts:write]   hinoki.crud.create
+DELETE  /posts/{item_id}          TokenAuth[posts:write]   hinoki.crud.delete
+GET     /posts/{item_id}          public                   examples.blog.api.Posts.one
+POST    /posts/{item_id}/publish  TokenAuth[posts:write]   examples.blog.api.Posts.publish
+</code></pre></div>
+<p>Use <code>--path</code> or <code>--method</code> to narrow it, and <code>--format json</code> for scripts. The list is sorted by path.</p>
 <h2 id="responses-errors-and-pagination">Responses, errors and pagination<a class="headerlink" href="#responses-errors-and-pagination" title="Permanent link">&para;</a></h2>
 <p>Return a value matching the declared response type, or return <code>Reply</code> when the handler needs to set an explicit status, headers or body. Declare expected <code>APIError</code> subclasses in <code>errors=(...)</code>; their status, stable code and message feed the OpenAPI document and strict test client.</p>
 <p>Paginated actions declare a pagination policy. See <a href="../pagination/">pagination</a> for the query parameters and response envelope.</p>
@@ -515,15 +543,15 @@ action and becomes immutable after successful inclusion.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#declare-an-action">Declare an action</a></li><li><a href="#bind-request-values">Bind request values</a></li><li><a href="#group-related-paths">Group related paths</a></li><li><a href="#responses-errors-and-pagination">Responses, errors and pagination</a></li><li><a href="#migrating-from-the-top-level-decorators">Migrating from the top-level decorators</a></li></ul>
+            <ul><li><a href="#declare-an-action">Declare an action</a></li><li><a href="#bind-request-values">Bind request values</a></li><li><a href="#group-related-paths">Group related paths</a></li><li><a href="#organising-a-large-application">Organising a large application</a></li><li><a href="#responses-errors-and-pagination">Responses, errors and pagination</a></li><li><a href="#migrating-from-the-top-level-decorators">Migrating from the top-level decorators</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.9</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 13:28:57 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:02:55 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
