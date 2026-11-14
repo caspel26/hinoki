@@ -131,6 +131,23 @@ MCP = """{{
 }}
 """
 
+README = """# {title}
+
+A Hinoki application.
+
+```sh
+uv sync                 # installs Hinoki and the development tools
+uv run pytest           # the tests need no database
+uv run hinoki dev {name}.main:app     # serve with reload on http://127.0.0.1:8000
+uv run hinoki routes {name}.main:app  # list the routes
+uv run hinoki check {name}.main:app   # run the project's rules
+```
+
+Hinoki is pre-alpha and not published on PyPI: `pyproject.toml` names where `uv`
+finds it under `[tool.uv.sources]`. Change that entry to pin a revision or to use
+another checkout. `AGENTS.md` describes the conventions for people and agents.
+"""
+
 CLAUDE = "Read and follow `AGENTS.md` before changing anything in this repository.\n"
 
 AGENTS = """# Working on {title} with an AI agent
@@ -194,32 +211,56 @@ Run the tests, ruff, mypy and `check`. Report what you ran and its result, what 
 """
 
 
-def framework_source() -> str:
-    """A ``[tool.uv.sources]`` block pointing at this checkout when Hinoki is
-    run from a source tree (it is not on PyPI; an unrelated ``hinoki`` is)."""
+REPOSITORY = "https://github.com/caspel26/hinoki"
+
+
+def git_source(spec: str) -> str:
+    """``[tool.uv.sources]`` for a git URL, optionally ``URL@revision``."""
+    url = spec.removeprefix("git+")
+    head, separator, tail = url.rpartition("@")
+    revision = ""
+    if separator and tail and "/" not in tail and ":" not in tail:
+        url, revision = head, tail
+    extra = f', rev = "{revision}"' if revision else ""
+    return f'\n[tool.uv.sources]\nhinoki = {{ git = "{url}"{extra} }}\n'
+
+
+def framework_source(source: str | None = None) -> str:
+    """Where ``uv sync`` finds Hinoki. It is not on PyPI (an unrelated ``hinoki``
+    is), so the project always names a source: the ``--hinoki`` value (a checkout
+    path or a git URL), else this checkout when Hinoki runs from a source tree,
+    else the public repository."""
+    if source is not None:
+        if "://" in source or source.startswith("git+"):
+            return git_source(source)
+        root = Path(source).expanduser().resolve()
+        if not (root / "pyproject.toml").is_file() or not (root / "crates").is_dir():
+            raise ScaffoldError(f"{root} is not a Hinoki source checkout")
+        return f'\n[tool.uv.sources]\nhinoki = {{ path = "{root}", editable = true }}\n'
     import hinoki  # noqa: PLC0415 - only needed to find the checkout
 
     root = Path(hinoki.__file__).resolve().parents[2]
     if (root / "crates").is_dir() and (root / "pyproject.toml").is_file():
         return f'\n[tool.uv.sources]\nhinoki = {{ path = "{root}", editable = true }}\n'
-    return ""
+    return git_source(REPOSITORY)
 
 
 class ScaffoldError(ValueError):
     """The project cannot be created as asked."""
 
 
-def files(name: str) -> dict[str, str]:
+def files(name: str, source: str | None = None) -> dict[str, str]:
     """Relative path to content for a new project called ``name``."""
     title = name.capitalize()
     values = {
         "name": name,
         "title": title,
         "upper": name.upper(),
-        "sources": framework_source(),
+        "sources": framework_source(source),
     }
     return {
         "pyproject.toml": PYPROJECT.format(**values),
+        "README.md": README.format(**values),
         "AGENTS.md": AGENTS.format(**values),
         "CLAUDE.md": CLAUDE,
         ".mcp.json": MCP.format(**values),
@@ -235,7 +276,7 @@ def files(name: str) -> dict[str, str]:
     }
 
 
-def create(name: str, parent: Path) -> Path:
+def create(name: str, parent: Path, source: str | None = None) -> Path:
     """Write the project into ``parent / name``; refuse a bad name or a target
     that exists and is not empty."""
     if not NAME.fullmatch(name):
@@ -246,7 +287,8 @@ def create(name: str, parent: Path) -> Path:
     target = parent / name
     if target.exists() and any(target.iterdir()):
         raise ScaffoldError(f"{target} already exists and is not empty")
-    for relative, content in files(name).items():
+    contents = files(name, source)  # resolve the source before writing anything
+    for relative, content in contents.items():
         path = target / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
