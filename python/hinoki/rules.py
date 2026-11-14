@@ -285,7 +285,7 @@ class RequireAccess(Rule):
 class RequireAtomic(Rule):
     id = "HNK-TXN-001"
     fix = (
-        "add transaction=True to the action (or declare it on an "
+        "add transaction=True to the action (or declare it on a "
         "RouteGroup(..., atomic=True) group)"
     )
     explanation = (

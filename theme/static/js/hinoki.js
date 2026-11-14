@@ -20,7 +20,7 @@
       phase: "startup",
       title: "State-changing actions use transaction=True",
       decl: "Transactions.require_atomic(methods)",
-      fix: "add transaction=True to the action (or declare it on an RouteGroup(..., atomic=True) group)",
+      fix: "add transaction=True to the action (or declare it on a RouteGroup(..., atomic=True) group)",
     },
     "HNK-API-001": {
       phase: "startup",
