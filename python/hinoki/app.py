@@ -17,7 +17,7 @@ from hinoki.native import Router
 from hinoki.openapi import OpenAPIBuilder
 from hinoki.parsers import DEFAULT_PARSERS, Parser, check_parsers
 from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers
-from hinoki.routing import Found, MethodNotAllowed, Route, route_of
+from hinoki.routing import Found, MethodNotAllowed, Route, RouteGroup, route_of
 from hinoki.rules import Phase, Project, RuleSet, failing
 from hinoki.runtime.asgi import ASGIAdapter
 from hinoki.runtime.binding import Binding, bind
@@ -85,6 +85,7 @@ class Hinoki:
         self._routes: list[Route] = []
         self._bindings: list[Binding] = []
         self._modules: list[Module] = []
+        self._included_groups: set[RouteGroup] = set()
         self._router = Router()
         self._adapter: ASGIAdapter | None = None
         # The declared form: ``Hinoki(include=[...], modules=[...])``.
@@ -119,7 +120,12 @@ class Hinoki:
         """
         self._check_mutable()
         pending: list[Route] = []
+        groups: list[RouteGroup] = []
         for item in items:
+            if isinstance(item, RouteGroup):
+                if item in self._included_groups or item in groups:
+                    raise RegistrationError("a RouteGroup can be included only once")
+                groups.append(item)
             pending.extend(self.routes_of(item))
         pending = [self.with_defaults(route) for route in pending]
         bound = [bind(route) for route in pending]  # bad signatures fail here
@@ -134,6 +140,9 @@ class Hinoki:
         self._router = staged
         self._routes.extend(pending)
         self._bindings.extend(bound)
+        for group in groups:
+            group._include()
+        self._included_groups.update(groups)
 
     @staticmethod
     def routes_of(item: object) -> list[Route]:
@@ -142,6 +151,19 @@ class Hinoki:
         exposed = getattr(item, "api", None)
         if not isinstance(item, type) and callable(exposed):
             item = exposed()
+        if isinstance(item, RouteGroup):
+            if not item.handlers:
+                raise RegistrationError("a RouteGroup must declare at least one action")
+            routes = [route_of(handler) for handler in item.handlers]
+            if any(route is None for route in routes):
+                raise RegistrationError("a RouteGroup contains an undecorated action")
+            group_routes = [route for route in routes if route is not None]
+            replaced = next((route for route in group_routes if route.replaces), None)
+            if replaced is not None:
+                raise RegistrationError(
+                    f"{replaced.name}: replaces=... only works inside an API class"
+                )
+            return group_routes
         if isinstance(item, type) and issubclass(item, API):
             return list(item.routes())
         route = route_of(item)

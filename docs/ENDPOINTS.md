@@ -41,12 +41,13 @@ Validation errors are returned before the handler runs. Hinoki does not coerce i
 
 ## Group related paths
 
-For a group with shared access, transaction defaults or a path prefix, use `Endpoints`:
+For plain functions that share a prefix or defaults, use `RouteGroup`. The group
+collects its handlers and can be included once as a unit:
 
 ```python
 from uuid import UUID, uuid4
 
-from hinoki import Endpoints, Schema
+from hinoki import Hinoki, RouteGroup, Schema
 
 
 class TaskInput(Schema):
@@ -58,7 +59,7 @@ class TaskOutput(Schema):
     title: str
 
 
-tasks = Endpoints("/tasks", atomic=True)
+tasks = RouteGroup("/tasks", atomic=True)
 
 
 @tasks.get("/")
@@ -69,7 +70,24 @@ async def listing() -> list[TaskOutput]:
 @tasks.post("/", status=201)
 async def create(data: TaskInput) -> TaskOutput:
     return TaskOutput(id=uuid4(), title=data.title)
+
+
+app = Hinoki(include=[tasks])
 ```
+
+When composing a group action with another decorator, put the HTTP decorator
+outside it. The group records the callable when `@tasks.get` runs:
+
+```python
+@tasks.get("/audited")
+@audit
+async def audited() -> str:
+    return "ok"
+```
+
+For a standalone function passed directly to `Hinoki.include`, the final
+decorated function is dispatched, so either order works with wrappers that use
+`functools.wraps`.
 
 For class-based APIs, put a shared path on the class and keep actions together:
 
@@ -98,7 +116,11 @@ class Tasks(API, path="/tasks"):
         return TaskOutput(id=uuid4(), title=data.title)
 ```
 
-Then the application can include `Tasks` as one item. The path prefix is visible on the class; the full paths remain beside their actions. Use `Endpoints` when functions are a better fit, especially when several actions share access or transaction defaults.
+Then the application can include `Tasks` as one item. The path prefix is visible
+on the class; the full paths remain beside their actions. Use `RouteGroup` when
+functions are a better fit, especially when several actions share access,
+transaction defaults, or declared errors. A group must contain at least one
+action and becomes immutable after successful inclusion.
 
 ## Responses, errors and pagination
 

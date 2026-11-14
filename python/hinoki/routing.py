@@ -3,14 +3,16 @@
 Decorators only attach metadata; nothing is registered, opened or started
 until the function or API class is passed to ``Hinoki.include``. They
 return the original callable unchanged, so signatures stay visible to type
-checkers and decorators compose in any order.
+checkers. For standalone actions, ``Hinoki.include`` uses the final decorated
+callable. In a ``RouteGroup``, put the HTTP decorator outermost so the group
+captures the final callable.
 """
 
 from __future__ import annotations
 
 import inspect
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, ParamSpec, TypeVar
 
 from hinoki.access import Access
@@ -233,11 +235,14 @@ def delete(
     return RouteDeclaration("DELETE", path, options)
 
 
-class Endpoints:
-    """Shared defaults for a group of actions, so they are stated once:
+class RouteGroup:
+    """A function-based route group with a shared path prefix and defaults.
 
-        tasks = Endpoints("/tasks", access=member_only, atomic=True,
-                          errors=(NotFound,))
+    Decorated functions belong to this group and the group can be included once
+    in a ``Hinoki`` application. Use ``API`` for class-based resources.
+
+        tasks = RouteGroup("/tasks", access=member_only, atomic=True,
+                           errors=(NotFound,))
 
         @tasks.get("/")                      # GET /tasks
         async def listing(...): ...
@@ -268,10 +273,31 @@ class Endpoints:
         self.access = access
         self.atomic = atomic
         self.errors = tuple(errors)
+        self._handlers: list[Callable[..., object]] = []
+        self._included = False
+
+    @property
+    def handlers(self) -> tuple[Callable[..., object], ...]:
+        """The decorated handlers in declaration order."""
+        return tuple(self._handlers)
+
+    def _include(self) -> None:
+        self._included = True
+
+    def _decorate(
+        self, declaration: RouteDeclaration, fn: Callable[P, R]
+    ) -> Callable[P, R]:
+        if self._included:
+            raise RuntimeError("a RouteGroup cannot change after it is included")
+        decorated = declaration(fn)
+        self._handlers.append(decorated)
+        return decorated
 
     def declare(
         self, method: str, path: str, options: dict[str, Any]
     ) -> RouteDeclaration:
+        if not path.startswith("/"):
+            raise ValueError(f"route path must start with '/': {path!r}")
         full = (self.prefix or "/") if path == "/" else self.prefix + path
         access = options.pop("access", UNSET)
         transaction = options.pop("transaction", None)
@@ -294,20 +320,31 @@ class Endpoints:
             raise TypeError(f"unknown action options {sorted(options)}")
         return RouteDeclaration(method, full, chosen)
 
-    def get(self, path: str, **options: Any) -> RouteDeclaration:
-        return self.declare("GET", path, options)
+    def get(self, path: str, **options: Any) -> _GroupRouteDeclaration:
+        return _GroupRouteDeclaration(self, self.declare("GET", path, options))
 
-    def post(self, path: str, **options: Any) -> RouteDeclaration:
-        return self.declare("POST", path, options)
+    def post(self, path: str, **options: Any) -> _GroupRouteDeclaration:
+        return _GroupRouteDeclaration(self, self.declare("POST", path, options))
 
-    def put(self, path: str, **options: Any) -> RouteDeclaration:
-        return self.declare("PUT", path, options)
+    def put(self, path: str, **options: Any) -> _GroupRouteDeclaration:
+        return _GroupRouteDeclaration(self, self.declare("PUT", path, options))
 
-    def patch(self, path: str, **options: Any) -> RouteDeclaration:
-        return self.declare("PATCH", path, options)
+    def patch(self, path: str, **options: Any) -> _GroupRouteDeclaration:
+        return _GroupRouteDeclaration(self, self.declare("PATCH", path, options))
 
-    def delete(self, path: str, **options: Any) -> RouteDeclaration:
-        return self.declare("DELETE", path, options)
+    def delete(self, path: str, **options: Any) -> _GroupRouteDeclaration:
+        return _GroupRouteDeclaration(self, self.declare("DELETE", path, options))
+
+
+class _GroupRouteDeclaration:
+    """Attach a group's route metadata and retain the handler for inclusion."""
+
+    def __init__(self, group: RouteGroup, declaration: RouteDeclaration) -> None:
+        self.group = group
+        self.declaration = declaration
+
+    def __call__(self, fn: Callable[P, R]) -> Callable[P, R]:
+        return self.group._decorate(self.declaration, fn)
 
 
 @dataclass(frozen=True, slots=True)
@@ -326,5 +363,11 @@ class MethodNotAllowed:
 
 
 def route_of(obj: object) -> Route | None:
+    if not callable(obj):
+        return None
     found = getattr(obj, ROUTE_ATTR, None)
-    return found if isinstance(found, Route) else None
+    if not isinstance(found, Route):
+        return None
+    # functools.wraps copies route metadata, but the stored declaration still
+    # points at the original function. Dispatch through the final wrapper.
+    return found if found.handler is obj else replace(found, handler=obj)

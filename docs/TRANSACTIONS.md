@@ -14,4 +14,4 @@ If the handler raises, response validation fails, the request times out, or the 
 
 Nested `db.transaction()` scopes in the same owning task use savepoints. A child task cannot share its parent's active transaction. Raw database operations are async-only; see [sync and async](SYNC-ASYNC.md).
 
-For a route group, `Endpoints(..., atomic=True)` makes write methods transactional by default. An individual action can opt out explicitly with `transaction=False`.
+For a function route group, `RouteGroup(..., atomic=True)` makes write methods transactional by default. An individual action can opt out explicitly with `transaction=False`.
