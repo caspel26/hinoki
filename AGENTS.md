@@ -44,7 +44,7 @@ The project name is **Hinoki** (owner decision, supersedes the earlier "Aptum" i
 - Keep dependent scopes in an understandable order (for example, build/dependency support, implementation, tests, then documentation). Do not squash distinct scopes together when preparing or merging a pull request.
 - Pull request descriptions remain explanatory and must not contain personal messages, internal decisions, or queue identifiers.
 
-Branches use `<type>/<short-kebab-case-topic>` with the same type vocabulary as scoped commits (`feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`). Delete branches after they are merged unless they hold active local-only work.
+Branches use `<type>/<short-kebab-case-topic>` with the same type vocabulary as scoped commits (`feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`). After a pull request is merged, delete both its local branch and its remote branch, and remove its worktree. Preserve a branch only while it contains active local-only work; an active local-only branch must not be pushed.
 
 No feature freeze or Shiori deployment flow is imported into this project. A future freeze or branch policy must be recorded explicitly.
 
