@@ -40,11 +40,13 @@ def failures(theme: Theme, scheme: str) -> list[str]:
     tokens = theme.light if scheme == "light" else theme.dark
     found = []
     for foreground, background in PAIRS:
-        for fg in colors(tokens[foreground]):
+        own = {"text": "sidebar-ink", "muted": "sidebar-muted"}.get(foreground, "")
+        ink = own if background == "sidebar-bg" and own in tokens else foreground
+        for fg in colors(tokens[ink]):  # a rail may carry its own ink
             for bg in colors(tokens[background]):
                 ratio = contrast(fg, bg)
                 if ratio < AA:
-                    found.append(f"{foreground} {fg} on {background} {bg}: {ratio:.2f}")
+                    found.append(f"{ink} {fg} on {background} {bg}: {ratio:.2f}")
     return found
 
 

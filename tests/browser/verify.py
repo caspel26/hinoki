@@ -9,8 +9,8 @@ and Playwright, which is deliberately not a project dependency.
     uvx --from playwright python tests/browser/verify.py \
         --base http://127.0.0.1:8765 --out docs/screenshots
 
-Run once more with `BLOG_ADMIN_THEME=grove` on the server to include the Grove
-row-title check.
+Run once more with `BLOG_ADMIN_THEME=bento` on the server to include the Bento
+card-title check.
 
 Checks run in every engine (Chromium, Firefox, WebKit): the Swagger UI and ReDoc
 pages render the application's document; the admin lists, searches, validates,
@@ -80,7 +80,7 @@ def unlabeled(page: Page) -> list[str]:
 def clipped_row_titles(page: Page) -> list[str]:
     return list(
         page.evaluate(
-            """() => [...document.querySelectorAll('.hn-list-rows a.hn-rowlink')]
+            """() => [...document.querySelectorAll('.hn-list-cards a.hn-rowlink, .hn-list-rows a.hn-rowlink')]
               .filter(link => {
                 const row = link.closest('tr');
                 const bounds = row.getBoundingClientRect();
@@ -126,11 +126,11 @@ def layout(browser: Browser, base: str, shots: Path | None, name: str) -> None:
             check(unlabeled(page) == [], f"{where}: every input has a label")
             if (
                 path == "/admin/posts"
-                and page.locator('html[data-theme="grove"]').count()
+                and page.locator('html[data-theme="bento"]').count()
             ):
                 check(
                     clipped_row_titles(page) == [],
-                    f"{where}: row titles fit inside the Grove list",
+                    f"{where}: card titles fit inside their cards",
                 )
         page.close()
 

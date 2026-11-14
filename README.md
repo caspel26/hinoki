@@ -81,9 +81,9 @@ The optional admin includes four built-in styles, each with light and dark modes
 | --- | --- |
 | ![Studio admin](docs/screenshots/admin-studio-list-light.png) | ![Console admin](docs/screenshots/admin-console-list-light.png) |
 
-| Paper | Grove |
+| Paper | Bento |
 | --- | --- |
-| ![Paper admin](docs/screenshots/admin-paper-list-light.png) | ![Grove admin](docs/screenshots/admin-grove-list-light.png) |
+| ![Paper admin](docs/screenshots/admin-paper-list-light.png) | ![Bento admin](docs/screenshots/admin-bento-list-light.png) |
 
 ## Documentation
 
