@@ -312,6 +312,10 @@ kbd {
   scrollbar-color: var(--hn-edge) transparent;
 }
 
+.side__sections {
+  display: none;
+}
+
 .side__sec {
   display: flex;
   align-items: baseline;
@@ -613,6 +617,10 @@ kbd {
   animation: fade-in 160ms var(--hn-ease);
 }
 
+body.menu-open .overlay {
+  z-index: 40;
+}
+
 .palette {
   position: fixed;
   inset: 0;
@@ -899,7 +907,7 @@ kbd {
 
 @media (max-width: 960px) {
   :root {
-    --header-h: 122px;
+    --header-h: 68px;
   }
 
   .top__inner {
@@ -917,6 +925,15 @@ kbd {
   }
 
   .top__nav {
+    display: none;
+  }
+
+  .is-home {
+    --header-h: 122px;
+  }
+
+  .is-home .top__nav {
+    display: flex;
     order: 3;
     width: 100%;
     margin: 0;
@@ -925,7 +942,7 @@ kbd {
     scrollbar-width: none;
   }
 
-  .top__nav::-webkit-scrollbar {
+  .is-home .top__nav::-webkit-scrollbar {
     display: none;
   }
 
@@ -937,23 +954,48 @@ kbd {
   .side {
     position: fixed;
     top: var(--header-h);
-    bottom: auto;
+    right: 0;
+    bottom: 0;
     left: 0;
     z-index: 75;
-    width: min(320px, 86vw);
-    height: calc(100vh - var(--header-h));
-    height: calc(100dvh - var(--header-h));
-    border: 1px solid var(--hn-edge);
-    border-left: 0;
-    border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+    width: 100%;
+    height: auto;
+    border: 0;
+    border-top: 1px solid var(--hn-edge);
+    border-radius: 0;
     background: var(--hn-surface-1);
-    box-shadow: var(--hn-pop);
-    transform: translateX(-104%);
-    transition: transform 300ms var(--hn-ease);
+    box-shadow: 0 16px 36px rgb(0 0 0 / 0.28);
+    transform: translateY(104%);
+    transition: transform 240ms var(--hn-ease);
   }
 
   body.menu-open .side {
     transform: none;
+  }
+
+  .side__scroll {
+    height: 100%;
+    max-height: calc(100vh - var(--header-h));
+    max-height: calc(100dvh - var(--header-h));
+    padding: var(--sp-4) var(--sp-5) var(--sp-7);
+  }
+
+  .side__sections {
+    display: block;
+    padding-bottom: var(--sp-4);
+    border-bottom: 1px solid var(--hn-edge);
+  }
+
+  .side__sections .side__label {
+    margin-top: 0;
+  }
+
+  .side__sec {
+    margin-top: var(--sp-4);
+  }
+
+  body.menu-open {
+    overflow: hidden;
   }
 
   .main {
