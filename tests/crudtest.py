@@ -23,7 +23,7 @@ from hinoki import (
 from hinoki.crud import CrudAPI, Resource
 from hinoki.db import Database, DatabaseModule
 from hinoki.httperrors import Forbidden
-from hinoki.orm import Model, field, use_database
+from hinoki.orm import Model, QuerySet, field, use_database
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from hinoki.request import Request
 from tests.harness import Client, Pool
@@ -509,3 +509,21 @@ async def test_writes_carry_the_base_query_and_report_missing_as_404(
         with pytest.raises(Hidden.NotFound):
             await SCOPED.refused(hidden)
         assert isinstance(await SCOPED.refused(shown), Forbidden)
+
+
+def test_a_model_class_method_is_a_reusable_base_query() -> None:
+    class Entry(Model, table="reuse_entries"):
+        id: UUID = field(primary_key=True, default_factory=uuid4)
+        deleted: bool = False
+
+        @classmethod
+        def active(cls) -> "QuerySet[Entry]":
+            return cls.filter(deleted=False)
+
+    class EntryOut(Schema):
+        id: UUID
+
+    resource = Resource(model=Entry, read=EntryOut, queryset=Entry.active)
+    sql, params = resource.base().compile()
+    assert "deleted" in sql and params == [False]
+    assert "WHERE" not in Entry.all().compile()[0]  # all() is unchanged
