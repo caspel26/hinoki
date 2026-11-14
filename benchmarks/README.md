@@ -54,6 +54,25 @@ Question: is a native (`#[pyclass]`) `Request` worth its complexity? Measured: h
 * First version: ≈ 7.8 µs per request. The adapter decoded the headers up to three times (authentication, negotiation, request); decoding them once brought it to ≈ 5.9 µs (CV ≈ 2 %) with no native class.
 * Decision (REQUEST-DESIGN S6): **not built.** The remaining cost is a few microseconds of attribute assignment and small Python objects per request; without an end-to-end measurement (V10) there is no evidence it matters, and a native class would add a second place to keep in sync with the documented attributes. Revisit with end-to-end numbers.
 
+* 2026-11-14 follow-up: the adapter's header map already has lower-case names, so `Request` now copies it instead of lower-casing every name again, and a binding records once whether it reads a body. Five alternating runs of this script on the commit before and after, same session, debug-profile extension, laptop not idle (load average 1.3–1.8): 6.15–6.36 µs before, 5.33–5.57 µs after (CV 1.8–3.0 % within a run).
+
+## `protectedgetbench.py` — one protected GET through the ASGI adapter, in process
+
+Question: does a change to the per-request path (routing, bearer authentication, query parsing, request building, binding, a trivial handler) cost or save anything? No server and no network, so it says nothing about throughput. 7 samples × 20 000 requests after a warm-up, one JSON line of output.
+
+```sh
+uv run --locked python benchmarks/protectedgetbench.py
+```
+
+Recorded 2026-11-14 for the change that parses the query string once per protected request (it was parsed for authentication and again for the request) and the two `Request` items above: five alternating runs before and after, same session, Python 3.13, debug-profile extension, laptop not idle (load average 1.3–1.8).
+
+| Commit | Medians of the five runs (µs per request) | Median | CV across runs |
+| --- | --- | --- | --- |
+| before (`b4640f9`) | 48.80, 49.30, 49.48, 50.30, 48.55 | 49.30 | 1.4 % |
+| after | 46.88, 47.26, 47.18, 48.01, 47.44 | 47.26 | 0.9 % |
+
+The ranges do not overlap, and the difference is about 2 µs (4 %) of an in-process request that does no I/O. It is a regression check, not a throughput claim: the end-to-end effect has not been measured (that needs the quiet-machine comparative run).
+
 ## `schemabench.py` — schema validation, Rust vs the pure-Python oracle
 
 Question: how much does validating a typical nested body cost with the Rust `CompiledSchema` compared with the previous pure-Python engine (kept in `tests/oracle/validation.py`)? One post with a UUID, a datetime, a pattern-constrained slug, 800 characters of body and ten nested tags (each with length and range constraints); 7 samples × 5 000 calls, schema compiled once outside the timing.

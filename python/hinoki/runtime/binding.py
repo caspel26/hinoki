@@ -177,10 +177,7 @@ class Binding:
     route: Route
     params: tuple[Param, ...]
     takes_request: bool = True  # False: the action did not declare `Request`
-
-    @property
-    def needs_body(self) -> bool:
-        return any(p.source == "body" for p in self.params)
+    needs_body: bool = False  # a parameter binds the body; decided once in `bind`
 
     def collect(self, request: RequestData) -> dict[str, object]:
         """Keyword arguments for the handler; raises ``ValidationError`` with
@@ -339,4 +336,5 @@ def bind(route: Route) -> Binding:
         )
     if sum(p.source == "body" for p in params) > 1:
         raise RegistrationError(f"{route.name}: at most one body parameter")
-    return Binding(route, params, takes_request)
+    needs_body = any(p.source == "body" for p in params)
+    return Binding(route, params, takes_request, needs_body)
