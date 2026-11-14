@@ -25,7 +25,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 | --- | --- | --- |
 | Authentication | An auth provider (`BearerAuth`, `JWTAuth`, …) returning a `Caller` | One path, identical for HTTP, admin and MCP |
 | Coarse permission | `Access(auth=…, permissions=[…])` on the action (or once for a group: `tasks = Endpoints("/tasks", access=member_only, atomic=True)`, then `@tasks.get("/")`). **Public is the default**: protect on purpose. **Rule:** `Actions.require_access` | A forgotten policy is the most common hole |
-| Row permission (ownership, tenant) | In the **statement**: `queryset.filter(owner=…)` and `aupdate`/`adelete` scoped by it, never "read, check, write" | No race between check and use; hidden rows look like missing ones (404) |
+| Row permission (ownership, tenant) | Prefer the **statement**: scope `aupdate`/`adelete` by owner so the check and write are one operation. | Avoids a check-then-write race. Hidden rows usually look missing (404). If the API promises a distinct 403 for another owner's row, preserve that contract with a conditional write and explicit fallback classification; document the information it reveals. |
 | Input validation | The `Schema` (types, constraints, patterns) | Strict, no coercion, validated in Rust before your code runs |
 | Business rules | Operations | Testable without HTTP |
 | Transactions | `transaction=True` on the action (writes) | Commit after the response is encoded, rollback before the error becomes HTTP. **Rule:** `Transactions.require_atomic` |
@@ -76,7 +76,7 @@ HTTPS terminates somewhere you control (set `Admin(secure_cookies=True)` behind 
 ## 11. Anti-patterns
 
 * Returning a `Model` or a dict built from one.
-* "Read the row, check the owner, then update" in two statements.
+* "Read the row, check the owner, then update" in two statements when the write can race with another change. If a response contract requires a distinct 403, make the conditional write and fallback explicit rather than treating the check-then-write shape as a safe default.
 * A business rule inside an action that another entry point also needs.
 * `Reply(4xx)` inside a `transaction=True` action (it commits).
 * Client-supplied column names reaching `filter`/`order_by`.
