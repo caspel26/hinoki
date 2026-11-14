@@ -426,7 +426,7 @@
 <h3 id="new"><code>new</code><a class="headerlink" href="#new" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>new<span class="w"> </span>notes<span class="w"> </span>--dir<span class="w"> </span>.
 </code></pre></div>
-<p><code>NAME</code> is a lowercase package name containing letters and digits. <code>--dir</code> chooses the parent directory and defaults to the current directory. The target <code>PATH/NAME</code> must not exist or must be empty; nothing is overwritten, and nothing is installed or run.</p>
+<p><code>NAME</code> is a lowercase package name containing letters and digits; it cannot be <code>hinoki</code> or a Python standard-library module name, because those names would shadow imports used by the generated project. <code>--dir</code> chooses the parent directory and defaults to the current directory. The target <code>PATH/NAME</code> must not exist or must be empty; nothing is overwritten, and nothing is installed or run.</p>
 <p>Hinoki is pre-alpha and not published on PyPI (an unrelated <code>hinoki</code> is), so the generated <code>pyproject.toml</code> always names where <code>uv</code> finds it under <code>[tool.uv.sources]</code>:</p>
 <table>
 <thead>
@@ -560,7 +560,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 16:59:08 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 17:05:50 UTC">November 14, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
