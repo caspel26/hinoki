@@ -26,9 +26,11 @@ uv run hinoki migrations --dir examples/notes/migrations sql 0001-initial
 Review the SQL, then apply it explicitly:
 
 ```sh
-uv run hinoki migrations --dir examples/notes/migrations apply \
-  --database "$NOTES_DATABASE__URL"
+export HINOKI_DATABASE_URL="$NOTES_DATABASE__URL"
+uv run hinoki migrations --dir examples/notes/migrations apply
 ```
+
+The migration commands read the connection URL from `HINOKI_DATABASE_URL`, so the password does not appear in the command line.
 
 ## Start the app and send a request
 
