@@ -3,8 +3,8 @@
 //! are mapped back afterwards, so nothing is converted or interpolated here.
 
 use hinoki_orm::query::{
-    compile_delete, compile_insert, compile_select, compile_update, Delete, Filter, Insert, Join,
-    Op, QueryError, Select, Update,
+    compile_delete_with, compile_insert_with, compile_select_with, compile_update_with, Delete,
+    Dialect, Filter, Insert, Join, Op, QueryError, Select, Update,
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -59,9 +59,9 @@ impl Store {
 
 /// Compile one statement. `kind` is `select`, `count`, `insert`, `update` or
 /// `delete`; unused arguments are ignored. Returns `(sql, params)` with
-/// `$n` placeholders in the order of `params`.
+/// placeholders for the requested dialect in the order of `params`.
 #[pyfunction]
-#[pyo3(signature = (kind, table, *, columns=None, filters=None, assignments=None, returning=None, order=None, limit=None, offset=None, joins=None))]
+#[pyo3(signature = (kind, table, *, columns=None, filters=None, assignments=None, returning=None, order=None, limit=None, offset=None, joins=None, dialect="postgres"))]
 #[allow(clippy::too_many_arguments)]
 pub fn compile_query(
     py: Python<'_>,
@@ -75,45 +75,64 @@ pub fn compile_query(
     limit: Option<u64>,
     offset: Option<u64>,
     joins: Option<Vec<RawJoin>>,
+    dialect: &str,
 ) -> PyResult<(String, Vec<Py<PyAny>>)> {
+    let dialect = match dialect {
+        "postgres" => Dialect::Postgres,
+        "sqlite" => Dialect::Sqlite,
+        other => {
+            return Err(PyValueError::new_err(format!(
+                "unknown SQL dialect {other:?}"
+            )))
+        }
+    };
     let mut store = Store::default();
     let filters = store.filters(filters.unwrap_or_default())?;
     let assignments = store.assignments(assignments.unwrap_or_default());
     let returning = returning.unwrap_or_default();
     let compiled = match kind {
-        "select" | "count" => compile_select(&Select {
-            table,
-            columns: columns.unwrap_or_default(),
-            joins: joins
-                .unwrap_or_default()
-                .into_iter()
-                .map(|(table, alias, local, remote, left, columns)| Join {
-                    table,
-                    alias,
-                    local,
-                    remote,
-                    left,
-                    columns,
-                })
-                .collect(),
-            filters,
-            order: order.unwrap_or_default(),
-            limit,
-            offset,
-            count: kind == "count",
-        }),
-        "insert" => compile_insert(&Insert {
-            table,
-            assignments,
-            returning,
-        }),
-        "update" => compile_update(&Update {
-            table,
-            assignments,
-            filters,
-            returning,
-        }),
-        "delete" => compile_delete(&Delete { table, filters }),
+        "select" | "count" => compile_select_with(
+            &Select {
+                table,
+                columns: columns.unwrap_or_default(),
+                joins: joins
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|(table, alias, local, remote, left, columns)| Join {
+                        table,
+                        alias,
+                        local,
+                        remote,
+                        left,
+                        columns,
+                    })
+                    .collect(),
+                filters,
+                order: order.unwrap_or_default(),
+                limit,
+                offset,
+                count: kind == "count",
+            },
+            dialect,
+        ),
+        "insert" => compile_insert_with(
+            &Insert {
+                table,
+                assignments,
+                returning,
+            },
+            dialect,
+        ),
+        "update" => compile_update_with(
+            &Update {
+                table,
+                assignments,
+                filters,
+                returning,
+            },
+            dialect,
+        ),
+        "delete" => compile_delete_with(&Delete { table, filters }, dialect),
         other => {
             return Err(PyValueError::new_err(format!(
                 "unknown statement kind {other:?}"
