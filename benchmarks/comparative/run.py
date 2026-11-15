@@ -28,6 +28,9 @@ POSTGRES_CONTAINER = os.environ.get("BENCH_POSTGRES_CONTAINER", "hinoki-bench-pg
 PORT = 8801
 SERVER_CPUS = "0-3"
 LOAD_CPUS = "6-7"
+# CPU pinning needs Linux `taskset`; elsewhere (macOS has no hard affinity) the
+# processes are left to the OS scheduler and the metadata records that.
+PINNED = sys.platform == "linux" and shutil.which("taskset") is not None
 WORKERS = 4
 POOL = 10
 OHA = os.environ.get("OHA", shutil.which("oha") or "oha")
@@ -89,6 +92,10 @@ SCENARIOS = {
 }
 
 
+def pin(cpus: str) -> list[str]:
+    return ["taskset", "-c", cpus] if PINNED else []
+
+
 def sh(cmd: list[str], **kw) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, check=True, capture_output=True, text=True, **kw)
 
@@ -126,7 +133,7 @@ def start(name: str, log: Path) -> subprocess.Popen:
         else [sys.executable, *command[1:]]
     )
     return subprocess.Popen(
-        ["taskset", "-c", SERVER_CPUS, *exe],
+        [*pin(SERVER_CPUS), *exe],
         cwd=HERE,
         env=full_env,
         stdout=log.open("wb"),
@@ -146,7 +153,7 @@ def stop(process: subprocess.Popen) -> None:
 def oha(
     url: str, method: str, body: Path | None, seconds: int, out: Path | None
 ) -> dict:
-    cmd = ["taskset", "-c", LOAD_CPUS, OHA, "-z", f"{seconds}s", "-c", str(CONCURRENCY),
+    cmd = [*pin(LOAD_CPUS), OHA, "-z", f"{seconds}s", "-c", str(CONCURRENCY),
            "--no-tui", "--output-format", "json", "-m", method]  # fmt: skip
     if body:
         cmd += ["-H", "content-type: application/json", "-D", str(body)]
@@ -157,18 +164,69 @@ def oha(
     return json.loads(result)
 
 
+def command_output(command: list[str]) -> str:
+    try:
+        return subprocess.run(
+            command, check=False, capture_output=True, text=True, timeout=60
+        ).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+def cpu_model() -> str:
+    if sys.platform == "darwin":
+        return command_output(["sysctl", "-n", "machdep.cpu.brand_string"]) or "?"
+    cpuinfo = Path("/proc/cpuinfo")
+    if not cpuinfo.exists():
+        return "?"
+    return next(
+        (
+            line.split(":", 1)[1].strip()
+            for line in cpuinfo.read_text().splitlines()
+            if line.startswith("model name")
+        ),
+        "?",
+    )
+
+
+def host_details() -> dict:
+    """Extra host facts that explain a run; macOS-only fields are best effort."""
+    details: dict = {"pinning": "taskset" if PINNED else "none (OS scheduler)"}
+    if sys.platform == "darwin":
+        details.update(
+            performance_cores=command_output(
+                ["sysctl", "-n", "hw.perflevel0.physicalcpu"]
+            ),
+            efficiency_cores=command_output(
+                ["sysctl", "-n", "hw.perflevel1.physicalcpu"]
+            ),
+            memory_bytes=command_output(["sysctl", "-n", "hw.memsize"]),
+            os_version=command_output(["sw_vers", "-productVersion"]),
+            power=command_output(["pmset", "-g", "batt"]),
+            low_power_mode=command_output(["pmset", "-g"]).count(
+                "lowpowermode         1"
+            ),
+            top_cpu_snapshot=command_output(
+                ["top", "-l", "2", "-n", "8", "-o", "cpu", "-stats", "pid,command,cpu"]
+            ),
+            docker_vm=command_output(
+                [
+                    "docker",
+                    "info",
+                    "--format",
+                    "{{.NCPU}} CPUs, {{.MemTotal}} bytes, {{.OperatingSystem}}",
+                ]
+            ),
+        )
+    return details
+
+
 def environment(args: argparse.Namespace) -> dict:
     return {
         "date": time.strftime("%Y-%m-%d %H:%M:%S %z"),
         "machine": platform.platform(),
-        "cpu": next(
-            (
-                line.split(":", 1)[1].strip()
-                for line in open("/proc/cpuinfo")
-                if line.startswith("model name")
-            ),
-            "?",
-        ),
+        "cpu": cpu_model(),
+        "host": host_details(),
         "cores": os.cpu_count(),
         "loadavg_at_start": os.getloadavg(),
         "python": sys.version,
@@ -190,8 +248,8 @@ def environment(args: argparse.Namespace) -> dict:
             "runs": args.runs,
             "run_offset": args.run_offset,
             "scenarios": args.scenario or list(SCENARIOS),
-            "server_cpus": SERVER_CPUS,
-            "load_cpus": LOAD_CPUS,
+            "server_cpus": SERVER_CPUS if PINNED else None,
+            "load_cpus": LOAD_CPUS if PINNED else None,
         },
     }
 
@@ -261,6 +319,17 @@ def reset_benchmark_rows() -> None:
     )
 
 
+def record_worker_cpu(process: subprocess.Popen, output: Path) -> None:
+    """Keep cumulative CPU time per process of the server group.
+
+    A stack whose work lands on one worker (SO_REUSEPORT behaves differently on
+    macOS than on Linux) must not be described as a 4-process result.
+    """
+    rows = command_output(["ps", "-axo", "pid=,pgid=,cputime=,command="]).splitlines()
+    mine = [row for row in rows if row.split(None, 3)[1:2] == [str(process.pid)]]
+    output.write_text("pid pgid cputime command\n" + "\n".join(mine) + "\n")
+
+
 def measure_stack(name: str, args: argparse.Namespace, body: Path, post: str) -> None:
     reset_db()
     process = start(name, args.out / f"{name}-server.log")
@@ -286,6 +355,7 @@ def measure_stack(name: str, args: argparse.Namespace, body: Path, post: str) ->
                 )
             if scenario == "create":
                 reset_benchmark_rows()
+        record_worker_cpu(process, args.out / f"{name}-workers.txt")
     finally:
         stop(process)
         time.sleep(2)
