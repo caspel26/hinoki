@@ -1,6 +1,9 @@
 """Application ``on_startup`` / ``on_shutdown`` hooks around the module lifespans."""
 
 import asyncio
+import functools
+import subprocess
+import sys
 import threading
 from argparse import Namespace
 from collections.abc import AsyncIterator, Callable
@@ -142,6 +145,81 @@ async def test_a_failing_startup_hook_stops_startup_and_skips_shutdown_hooks() -
     assert events[-1] == "module:stop"
 
 
+async def test_self_cancelled_startup_hook_is_reported() -> None:
+    async def cancelled(_ctx: ModuleContext) -> None:
+        raise asyncio.CancelledError
+
+    events: list[str] = []
+    life = build(events, [cancelled], [])
+    with pytest.raises(StartupError) as caught:
+        await life.startup()
+    assert isinstance(caught.value.cause, asyncio.CancelledError)
+    assert events == ["module:start", "module:stop"]
+    assert not life._running
+
+
+async def test_shutdown_collects_base_exceptions_and_still_closes_everything() -> None:
+    events: list[str] = []
+
+    async def self_cancel(_ctx: ModuleContext) -> None:
+        events.append("cancel")
+        raise asyncio.CancelledError
+
+    def exit_process(_ctx: ModuleContext) -> None:
+        events.append("exit")
+        raise SystemExit(7)
+
+    life = build(events, [], [self_cancel, exit_process, note(events, "last")])
+    await life.startup()
+    with pytest.raises(ShutdownError) as caught:
+        await life.shutdown()
+    assert [type(cause) for cause in caught.value.causes] == [
+        asyncio.CancelledError,
+        SystemExit,
+    ]
+    assert events == ["module:start", "cancel", "exit", "last:ready", "module:stop"]
+    assert not life._running
+
+
+async def test_external_cancellation_during_shutdown_still_closes_modules() -> None:
+    events: list[str] = []
+    entered = asyncio.Event()
+
+    async def wait(_ctx: ModuleContext) -> None:
+        entered.set()
+        await asyncio.sleep(60)
+
+    life = build(events, [], [wait])
+    await life.startup()
+    task = asyncio.create_task(life.shutdown())
+    await entered.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert events == ["module:start", "module:stop"]
+    assert not life._running
+
+
+async def test_external_cancellation_during_startup_closes_modules_and_propagates() -> (
+    None
+):
+    events: list[str] = []
+    entered = asyncio.Event()
+
+    async def wait(_ctx: ModuleContext) -> None:
+        entered.set()
+        await asyncio.sleep(60)
+
+    life = build(events, [wait], [])
+    task = asyncio.create_task(life.startup())
+    await entered.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert events == ["module:start", "module:stop"]
+    assert not life._running
+
+
 async def test_a_failed_startup_reaches_the_server_and_requests_stay_503() -> None:
     events: list[str] = []
     app = Hinoki(include=[ping], on_startup=[failing(events, "up")])
@@ -230,6 +308,108 @@ def test_only_lists_of_functions_are_accepted(hooks: object) -> None:
         Hinoki(on_startup=hooks)  # type: ignore[arg-type]
 
 
+def test_shutdown_hooks_are_validated_too() -> None:
+    with pytest.raises(RegistrationError, match="on_shutdown"):
+        Hinoki(on_shutdown=[None])  # type: ignore[list-item]
+
+
+@pytest.mark.parametrize("hooks", [None, 5, {ping: "value"}, (item for item in [ping])])
+def test_hook_input_must_be_a_list_or_tuple(hooks: object) -> None:
+    with pytest.raises(RegistrationError, match="on_startup"):
+        Hinoki(on_startup=hooks)  # type: ignore[arg-type]
+
+
+async def test_hook_lists_are_frozen_and_read_only() -> None:
+    async def hook(_ctx: ModuleContext) -> None:
+        pass
+
+    app = Hinoki(on_startup=[hook])
+    assert app.on_startup == (hook,)
+    with pytest.raises(AttributeError):
+        app.on_startup = ()  # type: ignore[misc]
+    with pytest.raises(AttributeError):
+        app.on_shutdown = ()  # type: ignore[misc]
+
+
+async def test_hooks_reject_async_generators_and_non_none_sync_results() -> None:
+    async def generator(_ctx: ModuleContext) -> AsyncIterator[None]:
+        yield None
+
+    with pytest.raises(RegistrationError, match="async-generator"):
+        Hinoki(on_startup=[generator])  # type: ignore[list-item]
+
+    def invalid(_ctx: ModuleContext) -> int:
+        return 1
+
+    life = build([], [invalid], [])  # type: ignore[list-item]
+    with pytest.raises(StartupError) as caught:
+        await life.startup()
+    assert isinstance(caught.value.cause, TypeError)
+
+
+def test_callable_async_generator_hook_is_rejected_at_registration() -> None:
+    class Hook:
+        async def __call__(self, _ctx: ModuleContext) -> AsyncIterator[None]:
+            yield None
+
+    with pytest.raises(RegistrationError, match="async-generator"):
+        Hinoki(on_startup=[Hook()])  # type: ignore[list-item]
+
+
+async def test_hook_name_unwraps_partials_and_shutdown_timeout_bounds_sync_hooks() -> (
+    None
+):
+    released = threading.Event()
+    finished = threading.Event()
+
+    def slow(_ctx: ModuleContext, _label: str) -> None:
+        released.wait(2)
+        finished.set()
+
+    hook = functools.partial(slow, _label="slow")
+    events: list[str] = []
+    life = build(events, [], [hook], shutdown_timeout=0.02)
+    await life.startup()
+    with pytest.raises(ShutdownError) as caught:
+        await life.shutdown()
+    assert any(isinstance(cause, TimeoutError) for cause in caught.value.causes)
+    assert events[-1] == "module:stop"
+    released.set()
+    assert await asyncio.to_thread(finished.wait, 1)
+
+
+async def test_interpreter_exit_fallback_survives_hook_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = threading.Event()
+    released = threading.Event()
+    finished = threading.Event()
+    thread_errors: list[BaseException] = []
+
+    def slow(_ctx: ModuleContext) -> None:
+        started.set()
+        released.wait(2)
+        finished.set()
+
+    monkeypatch.setattr(
+        threading,
+        "excepthook",
+        lambda args: thread_errors.append(args.exc_value),
+    )
+    life = build([], [], [slow], shutdown_timeout=0.02)
+    await life.startup()
+    assert life.executor._pool is not None
+    life.executor._pool.shutdown(wait=False)
+    with pytest.raises(ShutdownError) as caught:
+        await life.shutdown()
+    assert any(isinstance(cause, TimeoutError) for cause in caught.value.causes)
+    assert await asyncio.to_thread(started.wait, 1)
+    released.set()
+    assert await asyncio.to_thread(finished.wait, 1)
+    await asyncio.sleep(0.02)
+    assert thread_errors == []
+
+
 class Report(Command):
     name = "report"
 
@@ -259,3 +439,46 @@ def test_the_wsgi_adapter_runs_the_hooks_once() -> None:
     call(adapter, "GET", "/ping")
     adapter.close()
     assert events == ["module:start", "up:ready", "down:ready", "module:stop"]
+
+
+def test_wsgi_sync_shutdown_hook_runs_at_interpreter_exit(tmp_path: Path) -> None:
+    marker = tmp_path / "shutdown.txt"
+    database = tmp_path / "shutdown.sqlite3"
+    script = f"""
+from pathlib import Path
+from hinoki import Hinoki, ModuleContext
+from hinoki.db import Database, DatabaseModule
+from hinoki.orm import Model, field
+from uuid import UUID, uuid4
+from hinoki.wsgi import WSGIAdapter
+
+class Item(Model, table="exit_items"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    value: str = ""
+
+async def startup(ctx: ModuleContext) -> None:
+    await ctx.get(Database).execute(
+        "CREATE TABLE exit_items (id text PRIMARY KEY, value text NOT NULL)"
+    )
+    await Item(value="one").asave()
+
+def shutdown(_ctx: ModuleContext) -> None:
+    Path({str(marker)!r}).write_text(str(len(Item.all().list())))
+
+adapter = WSGIAdapter(Hinoki(
+    modules=[DatabaseModule("sqlite://" + {str(database)!r})],
+    on_startup=[startup],
+    on_shutdown=[shutdown],
+))
+adapter.start()
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path(__file__).parents[1],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert marker.read_text() == "1"
