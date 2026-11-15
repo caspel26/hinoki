@@ -23,6 +23,8 @@ generated SQL uses the selected backend's types. Existing state files that
 recorded SQLite or MySQL-specific type names are normalized when planning, so
 switching the planner's backend does not appear as a destructive type change.
 
+## Check migration drift
+
 To check that model changes have a committed migration file in CI, run:
 
 ```sh
