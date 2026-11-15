@@ -13,7 +13,7 @@
 
 ::: hinoki.settings.AppSettings
     options:
-      members: [execution, lifecycle, logging, docs, server, runtime_config]
+      members: [execution, lifecycle, logging, docs, server, pagination, cors, timezone, debug, allowed_hosts, runtime_config]
       show_if_no_docstring: true
 
 ::: hinoki.settings.ExecutionSettings
@@ -37,10 +37,18 @@
       show_if_no_docstring: true
 
 ::: hinoki.settings.ServerSettings
+    options:
+      members: [host, port, workers, runtime_threads, backlog, access_log]
+      show_if_no_docstring: true
 
 ::: hinoki.settings.PaginationSettings
     options:
-      members: [host, port, workers, runtime_threads, backlog, access_log]
+      members: [page_size, max_page_size]
+      show_if_no_docstring: true
+
+::: hinoki.settings.CorsSettings
+    options:
+      members: [origins, methods, headers, expose_headers, credentials, max_age]
       show_if_no_docstring: true
 
 ::: hinoki.settings.DatabaseSettings
