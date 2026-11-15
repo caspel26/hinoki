@@ -7,6 +7,13 @@ related:
 
 # Schemas derived from models
 
+```python
+from examples.blog.models import Post
+from hinoki import Schema, derive
+```
+
+The validation example below is independent and includes its own imports.
+
 A `Schema` can take its fields and constraints from a `Model`. Put the source model on the class; use one `@derive(...)` decorator when you need to select or make fields optional. Without the decorator, every model column is derived.
 
 ```python
@@ -46,9 +53,25 @@ Unknown columns, a non-model, an empty `only`, or optional names outside the sel
 Use `@field_check("name")` for a rule on one or more structurally valid fields, and `@object_check` for a rule over the whole object. Raise `Invalid(code, message, path=...)` to report a problem. Checks are synchronous and must not perform I/O; database-dependent rules belong in an operation.
 
 ```python
+from typing import Annotated
+
+from hinoki import Field, Invalid, Schema, field_check, object_check
+
+
 class SignUp(Schema):
-    password: str
+    username: Annotated[str, Field(min_length=3, max_length=32)]
+    password: Annotated[str, Field(min_length=12)]
     confirmation: str
+
+    @field_check("username")
+    def username_characters(self, value: str) -> None:
+        if not value.replace("_", "").isalnum():
+            raise Invalid("username_characters", "use letters, numbers and _ only")
+
+    @field_check("password")
+    def reject_common_password(self, value: str) -> None:
+        if value.lower() in {"password12345", "qwerty123456"}:
+            raise Invalid("common_password", "choose a less common password")
 
     @object_check
     def passwords_match(self) -> None:

@@ -10,6 +10,7 @@ You will build the tracker that lives in [`examples/tracker`](https://github.com
 | [4. Endpoints](4-endpoints.md) | the HTTP layer | access, transactions, declared errors |
 | [5. Rules](5-rules.md) | checks that keep the layers apart | `hinoki check`, import boundaries |
 | [6. Run and test it](6-run.md) | settings, serving, tests | `dev`, `serve`, the test client |
+| [7. Validate input](7-validation.md) | built-in field constraints and custom schema checks | field-level and cross-field errors |
 
 The shape you end with:
 
