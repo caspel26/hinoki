@@ -1,0 +1,22 @@
+{
+  "python": "3.14.0",
+  "machine": "macOS-26.2-arm64-arm-64bit-Mach-O",
+  "samples": 7,
+  "loops": 20000,
+  "dump": {
+    "median_us": 7.069,
+    "cv_pct": 0.7
+  },
+  "encode": {
+    "median_us": 4.006,
+    "cv_pct": 2.8
+  },
+  "uuid_text": {
+    "median_us": 0.256,
+    "cv_pct": 0.4
+  },
+  "from_row": {
+    "median_us": 0.547,
+    "cv_pct": 0.7
+  }
+}

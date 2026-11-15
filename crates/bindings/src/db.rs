@@ -91,7 +91,12 @@ fn to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     if obj.is_instance_of::<PyBytes>() {
         return Ok(Value::Bytes(obj.extract()?));
     }
-    if obj.is_instance(&py.import("uuid")?.getattr("UUID")?)? {
+    if let Some(text) = crate::pytypes::exact_uuid_text(obj)? {
+        return uuid::Uuid::parse_str(&text)
+            .map(Value::Uuid)
+            .map_err(|e| PyValueError::new_err(e.to_string()));
+    }
+    if obj.is_instance(crate::pytypes::uuid_class(py)?)? {
         let text: String = obj.str()?.extract()?;
         return uuid::Uuid::parse_str(&text)
             .map(Value::Uuid)
@@ -135,11 +140,7 @@ fn from_value(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
         Value::Float(f) => f.into_pyobject(py)?.into_any().unbind(),
         Value::Text(s) => s.into_pyobject(py)?.into_any().unbind(),
         Value::Bytes(b) => PyBytes::new(py, b).into_any().unbind(),
-        Value::Uuid(u) => py
-            .import("uuid")?
-            .getattr("UUID")?
-            .call1((u.to_string(),))?
-            .unbind(),
+        Value::Uuid(u) => crate::pytypes::new_uuid(py, *u)?.unbind(),
         Value::Timestamp(t) => py
             .import("datetime")?
             .getattr("datetime")?
