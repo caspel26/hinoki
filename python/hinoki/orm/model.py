@@ -763,7 +763,7 @@ class Model:
                 # this model one of its own.
                 if PLACEHOLDER in meta.related_name:
                     back_name = cls.reverse_name(column.name, meta.related_name)
-                    back = Relation(back_name, cls, column.name, False)
+                    back = Relation(back_name, cls, column.name, False, meta.unique)
                     pending.append((meta.references, back))
                 continue
             name = column.name.removesuffix("_id")
@@ -771,10 +771,15 @@ class Model:
                 raise RegistrationError(
                     f"{cls.__name__}.{column.name}: foreign key columns end in _id"
                 )
-            pending.append((cls, Relation(name, meta.references, column.name, True)))
+            pending.append(
+                (
+                    cls,
+                    Relation(name, meta.references, column.name, True, meta.unique),
+                )
+            )
             if meta.related_name:
                 back_name = cls.reverse_name(column.name, meta.related_name)
-                back = Relation(back_name, cls, column.name, False)
+                back = Relation(back_name, cls, column.name, False, meta.unique)
                 pending.append((meta.references, back))
         for owner, relation in pending:
             owner.check_attach(relation.name, relation)

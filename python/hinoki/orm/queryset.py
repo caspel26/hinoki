@@ -241,7 +241,16 @@ class QuerySet[M: Model]:
         for row in found:
             children.setdefault(getattr(row, relation.column), []).append(row)
         for instance in instances:
-            store(instance, relation.name, children.get(getattr(instance, key), []))
+            related = children.get(getattr(instance, key), [])
+            if relation.one_to_one:
+                if len(related) > 1:
+                    raise MultipleObjectsReturned(
+                        f"{type(instance).__name__}.{relation.name} expected at most "
+                        f"one {relation.model.__name__}; found {len(related)}"
+                    )
+                store(instance, relation.name, related[0] if related else None)
+            else:
+                store(instance, relation.name, related)
 
     def __await__(self) -> Generator[Any, None, builtins.list[M]]:
         return self.fetch().__await__()
