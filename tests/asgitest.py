@@ -170,6 +170,17 @@ async def test_internal_errors_do_not_leak_and_carry_request_id(pool: Pool) -> N
     assert "secret" not in json.dumps(reply.body)
 
 
+async def test_generated_request_ids_are_32_hex_and_unique(pool: Pool) -> None:
+    client = await serve(pool)
+    ids = [
+        (await client.request("GET", "/ping")).headers["x-request-id"]
+        for _ in range(50)
+    ]
+    assert len(set(ids)) == 50
+    assert all(len(rid) == 32 and int(rid, 16) >= 0 for rid in ids)
+    assert len({rid[:16] for rid in ids}) == 1  # one prefix per worker
+
+
 async def test_request_id_reaches_sync_handler_thread(pool: Pool) -> None:
     client = await serve(pool)
     reply = await client.request("GET", "/rid")
