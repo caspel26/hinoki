@@ -1,8 +1,22 @@
 # 3. Operations
 
-The rules of the application live in plain async functions that take the acting member's id and plain values. No `Request`, no HTTP types: an action, a CLI, a test or an admin hook can all call them.
+The rules of the application live in plain async functions that take the acting member's id and plain values. No `Request`, no HTTP types: an action, a CLI, a test or an admin hook can all call them. This excerpt follows `examples/tracker/operations.py`.
 
 ```python
+from uuid import UUID
+
+from examples.tracker.errors import TaskAlreadyDone
+from examples.tracker.models import Task
+from examples.tracker.schemas import TaskIn
+from hinoki.orm import QuerySet
+from hinoki.pagination import Page, PageParams
+from hinoki.utils import utc_now
+
+
+def mine(owner_id: UUID) -> QuerySet[Task]:
+    return Task.filter(owner_id=owner_id)
+
+
 async def list_tasks(owner_id: UUID, page: PageParams) -> Page[Task]:
     return await mine(owner_id).apaginate(page)   # Task is @ordered_by newest first
 
@@ -15,7 +29,7 @@ async def complete_task(owner_id: UUID, task_id: UUID) -> Task:
     """Mark an own open task done in one statement."""
     changed = await Task.aupdate_where(
         {"id": task_id, "owner_id": owner_id, "done": False},
-        {"done": True, "completed_at": now()},
+        {"done": True, "completed_at": utc_now()},
     )
     if changed:
         return changed[0]
@@ -28,6 +42,9 @@ The important line is the `WHERE`: the owner is part of the statement. There is 
 The business failures are named after the rule they report:
 
 ```python
+from hinoki import errors
+
+
 class TaskAlreadyDone(errors.Conflict):
     code = "task_already_done"
     message = "The task is already done."

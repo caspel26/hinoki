@@ -3,6 +3,10 @@
 Rules turn promises into failures with a stable id and a location.
 
 ```python
+from hinoki import Actions, Imports, Schemas, Transactions
+from hinoki.rules import RuleSet
+
+
 tracker_rules = RuleSet(
     Actions.require_access(match="examples.tracker.*", except_=["examples.tracker.api.health"]),
     Actions.forbid_model_responses(match="examples.tracker.*"),
