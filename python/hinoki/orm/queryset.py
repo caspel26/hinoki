@@ -280,6 +280,7 @@ class QuerySet[M: Model]:
                 **values,
                 timestamp: _read_utc(self.model.__clock__),
             }
+        self.model.validate_values(values)
         if self.loading.joined:
             raise FieldError("updates cannot filter across a relation")
         database = current_database()
