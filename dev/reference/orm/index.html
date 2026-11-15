@@ -854,6 +854,32 @@ many-to-many join model. Single columns use <code>field(unique=True)</code>.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="hinoki.orm.Model.check_set_null" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">check_set_null</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.orm.Model.check_set_null" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">check_set_null</span><span class="p">(</span><span class="n">column</span><span class="p">:</span> <span class="n">Field</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">meta</span><span class="p">:</span> <span class="n">FieldMeta</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p><code>set_null</code> on a column that cannot hold NULL fails every delete of
+the referenced row, so it is refused when the model is declared. An
+annotation that cannot be resolved yet is left to the migration plan.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="hinoki.orm.Model.register_relations" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">register_relations</span>
 
@@ -1630,7 +1656,7 @@ choose a row's identity (pass it as a keyword when the server does).</p>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">foreign_key</span><span class="p">(</span>
     <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">],</span>
     <span class="o">*</span><span class="p">,</span>
-    <span class="n">on_delete</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">on_delete</span><span class="p">:</span> <span class="n">OnDelete</span><span class="p">,</span>
     <span class="n">related_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">unique</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">default</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">MISSING</span><span class="p">,</span>
@@ -1640,12 +1666,162 @@ choose a row's identity (pass it as a keyword when the server does).</p>
     <div class="doc doc-contents first">
 
         <p>Declare a column that references <code>model</code>'s primary key.</p>
-<p><code>author_id: UUID = foreign_key(User, on_delete="restrict", related_name="posts")</code></p>
-<p><code>on_delete</code> is required (<code>restrict</code>, <code>cascade</code>, <code>set_null</code> or
-<code>no_action</code>) so a deletion rule is always a decision. The relation is
+<p><code>author_id: UUID = foreign_key(User, on_delete=OnDelete.RESTRICT)</code></p>
+<p><code>on_delete</code> is required and is an <code>OnDelete</code> member (<code>RESTRICT</code>,
+<code>CASCADE</code>, <code>SET_NULL</code> or <code>NO_ACTION</code>), so a deletion rule is always a
+decision; text such as <code>"cascade"</code> is refused. <code>SET_NULL</code> needs a
+column annotated <code>| None</code>. The relation is
 named after the column without <code>_id</code> and is loaded only by
 <code>select_related</code> / <code>prefetch_related</code>.</p>
 
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.orm.OnDelete" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.orm.OnDelete</span>
+
+
+<a href="#hinoki.orm.OnDelete" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="enum.Enum">Enum</span></code></p>
+
+
+
+        <p>What the database does with the rows that reference a deleted row.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.orm.OnDelete.RESTRICT" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">RESTRICT</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.orm.OnDelete.RESTRICT" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">RESTRICT</span> <span class="o">=</span> <span class="s1">'restrict'</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Refuse the delete while referencing rows exist.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.orm.OnDelete.CASCADE" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">CASCADE</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.orm.OnDelete.CASCADE" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">CASCADE</span> <span class="o">=</span> <span class="s1">'cascade'</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Delete the referencing rows too.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.orm.OnDelete.SET_NULL" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">SET_NULL</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.orm.OnDelete.SET_NULL" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">SET_NULL</span> <span class="o">=</span> <span class="s1">'set_null'</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Set the column to NULL; the field must be annotated <code>| None</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.orm.OnDelete.NO_ACTION" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">NO_ACTION</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.orm.OnDelete.NO_ACTION" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">NO_ACTION</span> <span class="o">=</span> <span class="s1">'no_action'</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Like <code>RESTRICT</code>, checked by the database at the end of the statement.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
 
     </div>
 
@@ -3161,8 +3337,10 @@ articles: ClassVar[Related[list[Article]]]
           
           
             <ul><li><a href="#hinoki.orm.Model">Model</a>
-            <ul><li><a href="#hinoki.orm.Model.__table__">__table__</a></li><li><a href="#hinoki.orm.Model.__columns__">__columns__</a></li><li><a href="#hinoki.orm.Model.__primary_key__">__primary_key__</a></li><li><a href="#hinoki.orm.Model.__relations__">__relations__</a></li><li><a href="#hinoki.orm.Model.__unique__">__unique__</a></li><li><a href="#hinoki.orm.Model.__indexes__">__indexes__</a></li><li><a href="#hinoki.orm.Model.__ordering__">__ordering__</a></li><li><a href="#hinoki.orm.Model.__label__">__label__</a></li><li><a href="#hinoki.orm.Model.__plural__">__plural__</a></li><li><a href="#hinoki.orm.Model.__updated_at__">__updated_at__</a></li><li><a href="#hinoki.orm.Model.__clock__">__clock__</a></li><li><a href="#hinoki.orm.Model.__abstract__">__abstract__</a></li><li><a href="#hinoki.orm.Model.__inherited_options__">__inherited_options__</a></li><li><a href="#hinoki.orm.Model.NotFound">NotFound</a></li><li><a href="#hinoki.orm.Model.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.orm.Model.check_field_conflicts">check_field_conflicts</a></li><li><a href="#hinoki.orm.Model.adopt_mixin_fields">adopt_mixin_fields</a></li><li><a href="#hinoki.orm.Model.option_bases">option_bases</a></li><li><a href="#hinoki.orm.Model.inherit_options">inherit_options</a></li><li><a href="#hinoki.orm.Model.replace_inherited">replace_inherited</a></li><li><a href="#hinoki.orm.Model.concrete">concrete</a></li><li><a href="#hinoki.orm.Model.check_unique">check_unique</a></li><li><a href="#hinoki.orm.Model.check_names">check_names</a></li><li><a href="#hinoki.orm.Model.register_relations">register_relations</a></li><li><a href="#hinoki.orm.Model.reverse_name">reverse_name</a></li><li><a href="#hinoki.orm.Model.check_attach">check_attach</a></li><li><a href="#hinoki.orm.Model.attach">attach</a></li><li><a href="#hinoki.orm.Model.from_row">from_row</a></li><li><a href="#hinoki.orm.Model.remember">remember</a></li><li><a href="#hinoki.orm.Model.asave">asave</a></li><li><a href="#hinoki.orm.Model.insert">insert</a></li><li><a href="#hinoki.orm.Model.refresh">refresh</a></li><li><a href="#hinoki.orm.Model.save">save</a></li><li><a href="#hinoki.orm.Model.related">related</a></li><li><a href="#hinoki.orm.Model.filter">filter</a></li><li><a href="#hinoki.orm.Model.all">all</a></li><li><a href="#hinoki.orm.Model.from_schema">from_schema</a></li><li><a href="#hinoki.orm.Model.acreate">acreate</a></li><li><a href="#hinoki.orm.Model.assign">assign</a></li><li><a href="#hinoki.orm.Model.aupdate_from">aupdate_from</a></li><li><a href="#hinoki.orm.Model.aget">aget</a></li><li><a href="#hinoki.orm.Model.aget_or_none">aget_or_none</a></li><li><a href="#hinoki.orm.Model.aupdate">aupdate</a></li><li><a href="#hinoki.orm.Model.aupdate_where">aupdate_where</a></li><li><a href="#hinoki.orm.Model.adelete">adelete</a></li><li><a href="#hinoki.orm.Model.create">create</a></li><li><a href="#hinoki.orm.Model.update_from">update_from</a></li><li><a href="#hinoki.orm.Model.update_where">update_where</a></li><li><a href="#hinoki.orm.Model.get">get</a></li><li><a href="#hinoki.orm.Model.get_or_none">get_or_none</a></li><li><a href="#hinoki.orm.Model.update">update</a></li><li><a href="#hinoki.orm.Model.delete">delete</a></li><li><a href="#hinoki.orm.Model.merged_values">merged_values</a></li><li><a href="#hinoki.orm.Model.check_field">check_field</a></li></ul>
-          </li><li><a href="#hinoki.orm.field">field</a></li><li><a href="#hinoki.orm.foreign_key">foreign_key</a></li><li><a href="#hinoki.orm.unique">unique</a></li><li><a href="#hinoki.orm.indexed">indexed</a></li><li><a href="#hinoki.orm.ordered_by">ordered_by</a></li><li><a href="#hinoki.orm.timestamps">timestamps</a></li><li><a href="#hinoki.orm.QuerySet">QuerySet</a>
+            <ul><li><a href="#hinoki.orm.Model.__table__">__table__</a></li><li><a href="#hinoki.orm.Model.__columns__">__columns__</a></li><li><a href="#hinoki.orm.Model.__primary_key__">__primary_key__</a></li><li><a href="#hinoki.orm.Model.__relations__">__relations__</a></li><li><a href="#hinoki.orm.Model.__unique__">__unique__</a></li><li><a href="#hinoki.orm.Model.__indexes__">__indexes__</a></li><li><a href="#hinoki.orm.Model.__ordering__">__ordering__</a></li><li><a href="#hinoki.orm.Model.__label__">__label__</a></li><li><a href="#hinoki.orm.Model.__plural__">__plural__</a></li><li><a href="#hinoki.orm.Model.__updated_at__">__updated_at__</a></li><li><a href="#hinoki.orm.Model.__clock__">__clock__</a></li><li><a href="#hinoki.orm.Model.__abstract__">__abstract__</a></li><li><a href="#hinoki.orm.Model.__inherited_options__">__inherited_options__</a></li><li><a href="#hinoki.orm.Model.NotFound">NotFound</a></li><li><a href="#hinoki.orm.Model.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.orm.Model.check_field_conflicts">check_field_conflicts</a></li><li><a href="#hinoki.orm.Model.adopt_mixin_fields">adopt_mixin_fields</a></li><li><a href="#hinoki.orm.Model.option_bases">option_bases</a></li><li><a href="#hinoki.orm.Model.inherit_options">inherit_options</a></li><li><a href="#hinoki.orm.Model.replace_inherited">replace_inherited</a></li><li><a href="#hinoki.orm.Model.concrete">concrete</a></li><li><a href="#hinoki.orm.Model.check_unique">check_unique</a></li><li><a href="#hinoki.orm.Model.check_names">check_names</a></li><li><a href="#hinoki.orm.Model.check_set_null">check_set_null</a></li><li><a href="#hinoki.orm.Model.register_relations">register_relations</a></li><li><a href="#hinoki.orm.Model.reverse_name">reverse_name</a></li><li><a href="#hinoki.orm.Model.check_attach">check_attach</a></li><li><a href="#hinoki.orm.Model.attach">attach</a></li><li><a href="#hinoki.orm.Model.from_row">from_row</a></li><li><a href="#hinoki.orm.Model.remember">remember</a></li><li><a href="#hinoki.orm.Model.asave">asave</a></li><li><a href="#hinoki.orm.Model.insert">insert</a></li><li><a href="#hinoki.orm.Model.refresh">refresh</a></li><li><a href="#hinoki.orm.Model.save">save</a></li><li><a href="#hinoki.orm.Model.related">related</a></li><li><a href="#hinoki.orm.Model.filter">filter</a></li><li><a href="#hinoki.orm.Model.all">all</a></li><li><a href="#hinoki.orm.Model.from_schema">from_schema</a></li><li><a href="#hinoki.orm.Model.acreate">acreate</a></li><li><a href="#hinoki.orm.Model.assign">assign</a></li><li><a href="#hinoki.orm.Model.aupdate_from">aupdate_from</a></li><li><a href="#hinoki.orm.Model.aget">aget</a></li><li><a href="#hinoki.orm.Model.aget_or_none">aget_or_none</a></li><li><a href="#hinoki.orm.Model.aupdate">aupdate</a></li><li><a href="#hinoki.orm.Model.aupdate_where">aupdate_where</a></li><li><a href="#hinoki.orm.Model.adelete">adelete</a></li><li><a href="#hinoki.orm.Model.create">create</a></li><li><a href="#hinoki.orm.Model.update_from">update_from</a></li><li><a href="#hinoki.orm.Model.update_where">update_where</a></li><li><a href="#hinoki.orm.Model.get">get</a></li><li><a href="#hinoki.orm.Model.get_or_none">get_or_none</a></li><li><a href="#hinoki.orm.Model.update">update</a></li><li><a href="#hinoki.orm.Model.delete">delete</a></li><li><a href="#hinoki.orm.Model.merged_values">merged_values</a></li><li><a href="#hinoki.orm.Model.check_field">check_field</a></li></ul>
+          </li><li><a href="#hinoki.orm.field">field</a></li><li><a href="#hinoki.orm.foreign_key">foreign_key</a></li><li><a href="#hinoki.orm.OnDelete">OnDelete</a>
+            <ul><li><a href="#hinoki.orm.OnDelete.RESTRICT">RESTRICT</a></li><li><a href="#hinoki.orm.OnDelete.CASCADE">CASCADE</a></li><li><a href="#hinoki.orm.OnDelete.SET_NULL">SET_NULL</a></li><li><a href="#hinoki.orm.OnDelete.NO_ACTION">NO_ACTION</a></li></ul>
+          </li><li><a href="#hinoki.orm.unique">unique</a></li><li><a href="#hinoki.orm.indexed">indexed</a></li><li><a href="#hinoki.orm.ordered_by">ordered_by</a></li><li><a href="#hinoki.orm.timestamps">timestamps</a></li><li><a href="#hinoki.orm.QuerySet">QuerySet</a>
             <ul><li><a href="#hinoki.orm.QuerySet.model">model</a></li><li><a href="#hinoki.orm.QuerySet.filters">filters</a></li><li><a href="#hinoki.orm.QuerySet.order">order</a></li><li><a href="#hinoki.orm.QuerySet.limit_to">limit_to</a></li><li><a href="#hinoki.orm.QuerySet.offset_by">offset_by</a></li><li><a href="#hinoki.orm.QuerySet.loading">loading</a></li><li><a href="#hinoki.orm.QuerySet.__init__">__init__</a></li><li><a href="#hinoki.orm.QuerySet.derive">derive</a></li><li><a href="#hinoki.orm.QuerySet.filter">filter</a></li><li><a href="#hinoki.orm.QuerySet.with_condition">with_condition</a></li><li><a href="#hinoki.orm.QuerySet.select_related">select_related</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_related">prefetch_related</a></li><li><a href="#hinoki.orm.QuerySet.relation">relation</a></li><li><a href="#hinoki.orm.QuerySet.forward">forward</a></li><li><a href="#hinoki.orm.QuerySet.order_by">order_by</a></li><li><a href="#hinoki.orm.QuerySet.limit">limit</a></li><li><a href="#hinoki.orm.QuerySet.offset">offset</a></li><li><a href="#hinoki.orm.QuerySet.joins">joins</a></li><li><a href="#hinoki.orm.QuerySet.compile">compile</a></li><li><a href="#hinoki.orm.QuerySet.build">build</a></li><li><a href="#hinoki.orm.QuerySet.load">load</a></li><li><a href="#hinoki.orm.QuerySet.prefetch">prefetch</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_forward">prefetch_forward</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_reverse">prefetch_reverse</a></li><li><a href="#hinoki.orm.QuerySet.__await__">__await__</a></li><li><a href="#hinoki.orm.QuerySet.fetch">fetch</a></li><li><a href="#hinoki.orm.QuerySet.afirst">afirst</a></li><li><a href="#hinoki.orm.QuerySet.aget">aget</a></li><li><a href="#hinoki.orm.QuerySet.aupdate">aupdate</a></li><li><a href="#hinoki.orm.QuerySet.adelete">adelete</a></li><li><a href="#hinoki.orm.QuerySet.refuse_window">refuse_window</a></li><li><a href="#hinoki.orm.QuerySet.acount">acount</a></li><li><a href="#hinoki.orm.QuerySet.aexists">aexists</a></li><li><a href="#hinoki.orm.QuerySet.list">list</a></li><li><a href="#hinoki.orm.QuerySet.first">first</a></li><li><a href="#hinoki.orm.QuerySet.get">get</a></li><li><a href="#hinoki.orm.QuerySet.update">update</a></li><li><a href="#hinoki.orm.QuerySet.delete">delete</a></li><li><a href="#hinoki.orm.QuerySet.count">count</a></li><li><a href="#hinoki.orm.QuerySet.exists">exists</a></li><li><a href="#hinoki.orm.QuerySet.paginate">paginate</a></li><li><a href="#hinoki.orm.QuerySet.apaginate">apaginate</a></li></ul>
           </li><li><a href="#hinoki.pagination.PageParams">PageParams</a></li><li><a href="#hinoki.pagination.Page">Page</a>
             <ul><li><a href="#hinoki.pagination.Page.items">items</a></li><li><a href="#hinoki.pagination.Page.page">page</a></li><li><a href="#hinoki.pagination.Page.page_size">page_size</a></li><li><a href="#hinoki.pagination.Page.total">total</a></li><li><a href="#hinoki.pagination.Page.pages">pages</a></li><li><a href="#hinoki.pagination.Page.__init__">__init__</a></li><li><a href="#hinoki.pagination.Page.of">of</a></li><li><a href="#hinoki.pagination.Page.map">map</a></li><li><a href="#hinoki.pagination.Page.dump">dump</a></li></ul>
@@ -3177,7 +3355,7 @@ articles: ClassVar[Related[list[Article]]]
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.4</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 00:02:31 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 00:13:32 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/orm.md">Edit on GitHub</a></dd></div>
         </dl>
