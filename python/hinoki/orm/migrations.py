@@ -43,27 +43,29 @@ TYPES: dict[Any, str] = {
     dict: "jsonb",
     list: "jsonb",
 }
-SQLITE_TYPES: dict[Any, str] = {
-    UUID: "UUID",
-    str: "text",
-    int: "integer",
-    float: "real",
-    bool: "boolean",
-    datetime: "timestamptz",
-    bytes: "blob",
-    dict: "jsonb",
-    list: "jsonb",
+SQLITE_STATE_TYPES = {
+    "uuid": "UUID",
+    "bigint": "integer",
+    "double precision": "real",
+    "bytea": "blob",
 }
-MYSQL_TYPES: dict[Any, str] = {
-    UUID: "binary(16)",
-    str: "text",
-    int: "bigint",
-    float: "double",
-    bool: "boolean",
-    datetime: "datetime(6)",
-    bytes: "longblob",
-    dict: "json",
-    list: "json",
+MYSQL_STATE_TYPES = {
+    "uuid": "binary(16)",
+    "double precision": "double",
+    "timestamptz": "datetime(6)",
+    "bytea": "longblob",
+    "jsonb": "json",
+}
+LEGACY_STATE_TYPES = {
+    "uuid": "uuid",
+    "integer": "bigint",
+    "real": "double precision",
+    "blob": "bytea",
+    "binary(16)": "uuid",
+    "double": "double precision",
+    "datetime(6)": "timestamptz",
+    "longblob": "bytea",
+    "json": "jsonb",
 }
 EMPTY: dict[str, Any] = {"tables": {}}
 
@@ -116,18 +118,9 @@ def base_type(model: type[Model], name: str, hint: Any) -> tuple[Any, bool]:
     return get_origin(rest[0]) or rest[0], len(rest) != len(args)
 
 
-def column_state(
-    model: type[Model], name: str, hint: Any, meta: FieldMeta, dialect: str
-) -> State:
+def column_state(model: type[Model], name: str, hint: Any, meta: FieldMeta) -> State:
     kind, nullable = base_type(model, name, hint)
-    types = (
-        SQLITE_TYPES
-        if dialect == "sqlite"
-        else MYSQL_TYPES
-        if dialect in {"mysql", "mariadb"}
-        else TYPES
-    )
-    sql = types.get(kind)
+    sql = TYPES.get(kind)
     if sql is None:
         label = getattr(kind, "__name__", kind)
         raise MigrationError(f"{model.__name__}.{name}: no SQL type for {label}")
@@ -153,14 +146,13 @@ def column_state(
     }
 
 
-def table_state(model: type[Model], dialect: str = "postgres") -> State:
+def table_state(model: type[Model], dialect: str = "postgres") -> State:  # noqa: ARG001 - retained for compatibility
+    """Return backend-neutral column types for the migration state file."""
     hints = get_type_hints(model)
     columns: State = {}
     for item in dataclasses.fields(model):  # type: ignore[arg-type]
         meta: FieldMeta = item.metadata.get(MARK, FieldMeta())
-        columns[item.name] = column_state(
-            model, item.name, hints[item.name], meta, dialect
-        )
+        columns[item.name] = column_state(model, item.name, hints[item.name], meta)
     return {
         "columns": columns,
         "unique": [list(group) for group in model.__unique__],
@@ -198,14 +190,14 @@ def check_references(state: State, external_tables: State | None = None) -> None
 
 def state_of(
     models: list[type[Model]],
-    dialect: str = "postgres",
+    dialect: str = "postgres",  # noqa: ARG001 - state types are backend-neutral
     *,
     reference_models: list[type[Model]] | None = None,
 ) -> State:
-    tables = {m.__table__: table_state(m, dialect) for m in models}
+    tables = {m.__table__: table_state(m) for m in models}
     state: State = {"tables": tables}
     external = {
-        model.__table__: table_state(model, dialect)
+        model.__table__: table_state(model)
         for model in reference_models or []
         if model.__table__ not in tables
     }
@@ -238,7 +230,7 @@ def creation_order(tables: State) -> list[str]:
 
 
 def column_sql(name: str, column: State, dialect: str = "postgres") -> str:
-    parts = [quote(name, dialect), column["type"]]
+    parts = [quote(name, dialect), dialect_type(column["type"], dialect)]
     if column["primary_key"]:
         parts.append("PRIMARY KEY")
     elif not column["nullable"]:
@@ -252,6 +244,18 @@ def column_sql(name: str, column: State, dialect: str = "postgres") -> str:
         target_column = quote(target["column"], dialect)
         parts.append(f"REFERENCES {target_table} ({target_column}) ON DELETE {rule}")
     return " ".join(parts)
+
+
+def dialect_type(state_type: str, dialect: str) -> str:
+    """Render a logical migration-state type for the selected SQL backend."""
+    types = (
+        SQLITE_STATE_TYPES
+        if dialect == "sqlite"
+        else MYSQL_STATE_TYPES
+        if dialect in {"mysql", "mariadb"}
+        else {}
+    )
+    return types.get(state_type, state_type)
 
 
 def create_table(name: str, spec: State, dialect: str = "postgres") -> Operation:
@@ -312,8 +316,8 @@ def alter_column(
         operations.append(
             Operation(
                 f"change {table}.{name} to {new['type']}",
-                f"{head} TYPE {new['type']} USING "
-                f"{quote(name, dialect)}::{new['type']};",
+                f"{head} TYPE {dialect_type(new['type'], dialect)} USING "
+                f"{quote(name, dialect)}::{dialect_type(new['type'], dialect)};",
                 "changing a column type can rewrite the table or lose data",
             )
         )
@@ -422,26 +426,27 @@ def _sqlite_column_warnings(
     return warnings
 
 
-def sqlite_rebuild(table: str, old: State, new: State) -> Operation:
+def sqlite_rebuild(table: str, old: State, new: State, dialect: str) -> Operation:
     digest = hashlib.sha1(table.encode()).hexdigest()[:8]  # noqa: S324 - temporary table name
     temporary = f"__hinoki_{digest}"
-    statements = [create_table_sql(temporary, new)]
+    statements = [create_table_sql(temporary, new, dialect)]
     common = [name for name in old["columns"] if name in new["columns"]]
     destructive = _sqlite_rebuild_warnings(old, new)
     if common:
-        columns = ", ".join(quote(name) for name in common)
+        columns = ", ".join(quote(name, dialect) for name in common)
         statements.append(
-            f"INSERT INTO {quote(temporary)} ({columns}) "  # noqa: S608 - quoted identifiers
-            f"SELECT {columns} FROM {quote(table)};"
+            f"INSERT INTO {quote(temporary, dialect)} ({columns}) "  # noqa: S608 - quoted identifiers
+            f"SELECT {columns} FROM {quote(table, dialect)};"
         )
     statements.extend(
         [
-            f"DROP TABLE {quote(table)};",
-            f"ALTER TABLE {quote(temporary)} RENAME TO {quote(table)};",
+            f"DROP TABLE {quote(table, dialect)};",
+            "ALTER TABLE "
+            f"{quote(temporary, dialect)} RENAME TO {quote(table, dialect)};",
         ]
     )
     statements.extend(
-        create_index_sql(table, columns) for columns in new.get("indexes", [])
+        create_index_sql(table, columns, dialect) for columns in new.get("indexes", [])
     )
     return Operation(
         f"rebuild table {table}",
@@ -455,7 +460,7 @@ def table_changes(table: str, old: State, new: State, dialect: str) -> list[Oper
         if old["columns"] != new["columns"] or old.get("unique", []) != new.get(
             "unique", []
         ):
-            return [sqlite_rebuild(table, old, new)]
+            return [sqlite_rebuild(table, old, new, dialect)]
         return index_changes(table, old, new, dialect)
     operations: list[Operation] = []
     if old.get("unique", []) != new.get("unique", []):
@@ -514,6 +519,11 @@ def latest_state(directory: Path) -> State:
     if not path.is_file():
         raise MigrationError(f"{path.name} is missing; restore it from version control")
     state: State = json.loads(path.read_text(encoding="utf-8"))
+    for table in state.get("tables", {}).values():
+        for column in table.get("columns", {}).values():
+            column["type"] = LEGACY_STATE_TYPES.get(
+                column["type"].casefold(), column["type"]
+            )
     return state
 
 
