@@ -57,7 +57,10 @@ def parser() -> argparse.ArgumentParser:
     planner = actions.add_parser("plan", help="write a migration from the models")
     planner.add_argument("--models", help="legacy module that defines models")
     planner.add_argument("--app", help="project app to plan")
-    planner.add_argument("--name", default="changes", help="migration name")
+    planner.add_argument(
+        "--name",
+        help="optional migration slug (default: derived from the planned change)",
+    )
     planner.add_argument("--allow-destructive", action="store_true")
     planner.add_argument("--dry-run", action="store_true", help="print, write nothing")
     planner.add_argument(

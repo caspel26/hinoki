@@ -534,7 +534,7 @@ def render(title: str, operations: list[Operation]) -> str:
 def plan(
     models: list[type[Model]],
     directory: Path,
-    name: str,
+    name: str | None = None,
     *,
     allow_destructive: bool = False,
     write: bool = True,
@@ -547,7 +547,7 @@ def plan(
     changed. Destructive operations raise ``DestructiveMigration`` (and write
     nothing) unless ``allow_destructive``.
     """
-    if not NAME.fullmatch(name):
+    if name is not None and not NAME.fullmatch(name):
         raise MigrationError("migration names use lowercase letters, digits and -")
     if dialect not in {"postgres", "sqlite", "mysql", "mariadb"}:
         raise MigrationError(f"unsupported migration dialect {dialect!r}")
@@ -560,9 +560,10 @@ def plan(
         )
     if not operations or not write:
         return Plan(tuple(operations), new)
+    migration_name = name or automatic_migration_name(operations)
     files = migration_files(directory)
     number = int(FILE.fullmatch(files[-1].name).group(1)) + 1 if files else 1  # type: ignore[union-attr]
-    title = f"{number:04d}-{name}"
+    title = f"{number:04d}-{migration_name}"
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{title}.sql"
     path.write_text(render(title, operations), encoding="utf-8")
@@ -570,6 +571,13 @@ def plan(
         json.dumps(new, indent=2) + "\n", encoding="utf-8"
     )
     return Plan(tuple(operations), new, path)
+
+
+def automatic_migration_name(operations: list[Operation]) -> str:
+    """Derive a stable file-name slug from the first planned schema operation."""
+    source = operations[0].description.lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", source).strip("-")
+    return slug[:80].rstrip("-") or "schema-update"
 
 
 def statements(text: str) -> list[str]:
