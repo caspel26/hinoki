@@ -47,6 +47,6 @@ CREATE TABLE "tracker_tasks" ( ... );
 CREATE INDEX "ix_tracker_tasks_owner_id_created_at" ON "tracker_tasks" ("owner_id", "created_at");
 ```
 
-When you change a model, `hinoki migrations ... plan --models examples.tracker.models --name <new-name>` compares the declarations with the recorded state and writes the next migration. Review its SQL before applying it; migrations never run at app startup. Destructive changes are flagged and need `--allow-destructive`.
+This checked-in Tracker example has no `hinoki.toml`, so its commands use the explicit legacy `--dir` and `--models` targets. When you change a model, `hinoki migrations --dir examples/tracker/migrations plan --models examples.tracker.models` compares declarations with the recorded state and writes the next migration; the migration name is derived automatically, and `--name` can override its slug. Review the SQL before applying it; migrations never run at app startup. Destructive changes are flagged and need `--allow-destructive`. [Chapter 8](8-projects.md) uses the manifest-based workflow created by `hinoki new`.
 
 Next: [2. Schemas](2-schemas.md).
