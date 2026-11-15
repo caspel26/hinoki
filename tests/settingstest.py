@@ -8,7 +8,7 @@ from typing import Literal
 
 import pytest
 
-from hinoki import Hinoki, Request, http
+from hinoki import Hinoki, Request, context, http
 from hinoki.__main__ import main
 from hinoki.settings import (
     AppSettings,
@@ -18,6 +18,8 @@ from hinoki.settings import (
     Secret,
     Settings,
     SettingsError,
+    _RequestIdFilter,
+    _TextFormatter,
     parse_dotenv,
 )
 from hinoki.testing import ASGIClient
@@ -37,6 +39,12 @@ class SampleSettings(AppSettings):
     jwt_secret: Secret
     database: DatabaseSettings
     mail: Mail
+
+
+@http.get("/logging-request-id")
+async def logging_request_id() -> dict[str, str | None]:
+    logging.getLogger("hinoki.settings-test").warning("request handled")
+    return {"request_id": context.request_id.get()}
 
 
 BASE = {
@@ -296,6 +304,49 @@ def test_json_log_format_and_idempotent_apply() -> None:
             if handler not in before:
                 logger.removeHandler(handler)
         logger.setLevel(logging.NOTSET)
+
+
+def test_request_id_log_format_is_opt_in_and_omits_empty_context() -> None:
+    settings = AppSettings.load(
+        prefix="LOG_", env={"LOG_LOGGING__INCLUDE_REQUEST_ID": "true"}
+    )
+    assert settings.logging.include_request_id is True
+    assert LoggingSettings().include_request_id is False
+
+    record = logging.LogRecord(
+        "hinoki.runtime", logging.ERROR, "f", 1, "failed", (), None
+    )
+    _RequestIdFilter().filter(record)
+    assert "request_id" not in json.loads(JsonFormatter(True).format(record))
+    assert "request_id=" not in _TextFormatter("%(message)s", True).format(record)
+
+    token = context.request_id.set("gateway-42")
+    try:
+        _RequestIdFilter().filter(record)
+        assert (
+            json.loads(JsonFormatter(True).format(record))["request_id"] == "gateway-42"
+        )
+        assert (
+            _TextFormatter("%(message)s", True).format(record)
+            == "failed request_id=gateway-42"
+        )
+        # A formatter configured without the opt-in ignores even a populated record.
+        assert "request_id" not in json.loads(JsonFormatter().format(record))
+        assert _TextFormatter("%(message)s").format(record) == "failed"
+    finally:
+        context.request_id.reset(token)
+
+
+async def test_request_id_can_be_correlated_with_hinoki_log(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    settings = AppSettings(logging=LoggingSettings(include_request_id=True))
+    app = Hinoki(settings=settings, include=[logging_request_id])
+    async with ASGIClient(app) as client:
+        reply = await client.get("/logging-request-id")
+
+    assert reply.body["request_id"] == reply.headers["x-request-id"]
+    assert f"request_id={reply.body['request_id']}" in capsys.readouterr().err
 
 
 def test_review_findings_are_closed() -> None:

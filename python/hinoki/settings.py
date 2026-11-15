@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal, Self, dataclass_transform
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from hinoki.context import request_id
 from hinoki.runtime.config import MAX_REQUEST_INPUT_BYTES, RuntimeConfig
 
 TRUE = frozenset({"1", "true", "yes", "on"})
@@ -741,6 +742,10 @@ class LifecycleSettings(Settings):
 class JsonFormatter(logging.Formatter):
     """One JSON object per line: time, level, logger, message, exception."""
 
+    def __init__(self, include_request_id: bool = False) -> None:
+        super().__init__()
+        self.include_request_id = include_request_id
+
     def format(self, record: logging.LogRecord) -> str:
         entry: dict[str, Any] = {
             "time": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
@@ -750,7 +755,34 @@ class JsonFormatter(logging.Formatter):
         }
         if record.exc_info:
             entry["exception"] = self.formatException(record.exc_info)
+        if self.include_request_id:
+            rid = getattr(record, "hinoki_request_id", None)
+            if rid is not None:
+                entry["request_id"] = rid
         return json.dumps(entry, default=str)
+
+
+class _RequestIdFilter(logging.Filter):
+    """Attach the active request ID to Hinoki-owned log records."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.hinoki_request_id = request_id.get()
+        return True
+
+
+class _TextFormatter(logging.Formatter):
+    """Append the request ID only when the record was emitted in a request."""
+
+    def __init__(self, fmt: str, include_request_id: bool = False) -> None:
+        super().__init__(fmt)
+        self.include_request_id = include_request_id
+
+    def format(self, record: logging.LogRecord) -> str:
+        rendered = super().format(record)
+        rid = getattr(record, "hinoki_request_id", None)
+        if self.include_request_id and rid is not None:
+            return f"{rendered} request_id={rid}"
+        return rendered
 
 
 class StderrHandler(logging.StreamHandler):  # type: ignore[type-arg]
@@ -771,6 +803,7 @@ class StderrHandler(logging.StreamHandler):  # type: ignore[type-arg]
 class LoggingSettings(Settings):
     level: Literal["debug", "info", "warning", "error", "critical"] = "info"
     format: Literal["text", "json"] = "text"
+    include_request_id: bool = False
 
     HANDLER: ClassVar[str] = "hinoki-settings"
 
@@ -783,10 +816,15 @@ class LoggingSettings(Settings):
                 logger.removeHandler(handler)
         handler = StderrHandler()
         handler.name = self.HANDLER
+        if self.include_request_id:
+            handler.addFilter(_RequestIdFilter())
         handler.setFormatter(
-            JsonFormatter()
+            JsonFormatter(include_request_id=self.include_request_id)
             if self.format == "json"
-            else logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+            else _TextFormatter(
+                "%(asctime)s %(levelname)s %(name)s: %(message)s",
+                include_request_id=self.include_request_id,
+            )
         )
         logger.addHandler(handler)
         logger.setLevel(self.level.upper())

@@ -28,7 +28,7 @@
 
 ::: hinoki.settings.LoggingSettings
     options:
-      members: [level, format, apply]
+      members: [level, format, include_request_id, apply]
       show_if_no_docstring: true
 
 ::: hinoki.settings.DocsSettings
