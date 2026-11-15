@@ -33,7 +33,7 @@ from hinoki.errors import (
 )
 from hinoki.orm.context import current_database
 from hinoki.orm.queryset import QuerySet
-from hinoki.orm.relations import ON_DELETE, Related, Relation
+from hinoki.orm.relations import ON_DELETE, OnDelete, Related, Relation
 from hinoki.utils import Clock, utc_now
 
 if sys.version_info >= (3, 14):
@@ -124,7 +124,7 @@ class FieldMeta:
     unique: bool = False
     max_length: int | None = None
     references: type[Model] | None = None
-    on_delete: str = ""
+    on_delete: OnDelete | None = None
     related_name: str = ""
 
 
@@ -149,7 +149,7 @@ def field(
 def foreign_key(
     model: type[Model],
     *,
-    on_delete: str,
+    on_delete: OnDelete,
     related_name: str = "",
     unique: bool = False,
     default: Any = dataclasses.MISSING,
@@ -159,7 +159,9 @@ def foreign_key(
     ``author_id: UUID = foreign_key(User, on_delete="restrict", related_name="posts")``
 
     ``on_delete`` is required (``restrict``, ``cascade``, ``set_null`` or
-    ``no_action``) so a deletion rule is always a decision. The relation is
+    ``no_action``) so a deletion rule is always a decision; a type checker
+    refuses any other text and so does the declaration. ``set_null`` needs a
+    column annotated ``| None``. The relation is
     named after the column without ``_id`` and is loaded only by
     ``select_related`` / ``prefetch_related``.
     """
@@ -379,6 +381,21 @@ class Model:
             )
 
     @classmethod
+    def check_set_null(cls, column: dataclasses.Field[Any], meta: FieldMeta) -> None:
+        """``set_null`` on a column that cannot hold NULL fails every delete of
+        the referenced row, so it is refused when the model is declared. An
+        annotation that cannot be resolved yet is left to the migration plan."""
+        if meta.on_delete != "set_null":
+            return
+        hint = resolve_annotation(cls, column.name, column.type)
+        if isinstance(hint, str) or type(None) in typing.get_args(hint):
+            return
+        raise RegistrationError(
+            f'{cls.__name__}.{column.name}: on_delete="set_null" needs a column '
+            "that can hold NULL; annotate it `<type> | None`"
+        )
+
+    @classmethod
     def register_relations(cls, fields: tuple[dataclasses.Field[Any], ...]) -> None:
         """Foreign keys this class declares or takes from an abstract base or a
         mixin (those of a concrete parent come with it). Every check runs
@@ -392,6 +409,7 @@ class Model:
             meta: FieldMeta = column.metadata.get(MARK, FieldMeta())
             if meta.references is None:
                 continue
+            cls.check_set_null(column, meta)
             if column.name in copied:
                 # The parent owns a fixed reverse name; a placeholder gives
                 # this model one of its own.

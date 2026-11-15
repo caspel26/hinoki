@@ -8,14 +8,17 @@ A relation is never fetched by attribute access: the descriptor returns what
 from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING, Any, Self, overload
+from typing import TYPE_CHECKING, Any, Literal, Self, overload
 
 from hinoki.errors import RelationNotLoaded
 
 if TYPE_CHECKING:
     from hinoki.orm import Model
 
-ON_DELETE = {
+OnDelete = Literal["restrict", "cascade", "set_null", "no_action"]
+"""What the database does with a row when the row it references is deleted."""
+
+ON_DELETE: dict[OnDelete, str] = {
     "restrict": "RESTRICT",
     "cascade": "CASCADE",
     "set_null": "SET NULL",
