@@ -409,6 +409,9 @@
 </code></pre></div>
 <p><code>table=</code> is required. A model has exactly one primary key. Fields are keyword-only when constructing a model. Single-column uniqueness is <code>field(unique=True)</code>; use <code>@unique("a", "b")</code> for a composite constraint. There is no nested <code>class Meta</code>.</p>
 <p>Supported field metadata includes primary key, uniqueness, maximum string length, defaults and foreign-key behavior. Database types are inferred from annotations; unsupported types fail during model or migration validation.</p>
+<h3 id="model-field-metadata-and-validation">Model field metadata and validation<a class="headerlink" href="#model-field-metadata-and-validation" title="Permanent link">&para;</a></h3>
+<p><code>field()</code> metadata describes the database column and its migration: <code>max_length</code> becomes a bounded string column and a derived <code>Schema</code> constraint, <code>unique</code> becomes a database constraint, and <code>default</code> / <code>default_factory</code> provide values when constructing an instance. A <code>foreign_key(...)</code> declares the referenced table and its <code>OnDelete</code> behavior. The Python annotation supplies the column type and nullability. These declarations are not general runtime validators: constructing a <code>Model</code>, assigning a field or saving an instance does not run a custom per-field validation hook. Database enforcement varies by backend (for example SQLite does not enforce a <code>varchar</code> length).</p>
+<p>For untrusted HTTP input, validate with a <code>Schema</code> before passing data to model operations. <code>@field_check</code> and <code>@object_check</code> belong to <code>Schema</code> and are not applied to <code>Model</code>. Hinoki does not yet have custom Model field validators. Keep rules that need other rows, permissions or current database state in an operation; see <a href="../schemas/#built-in-and-custom-validation">Schema validation</a>.</p>
 <p>Hinoki stores PostgreSQL UUID, timestamp, JSON and byte values in their native column types. SQLite stores UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string <code>contains</code> matching follows SQLite's case-folding behavior (ASCII case-insensitive).</p>
 <h2 id="query-rows">Query rows<a class="headerlink" href="#query-rows" title="Permanent link">&para;</a></h2>
 <p>Class methods and querysets offer sync and async variants for common operations. Async variants are preferred in async handlers:</p>
@@ -549,15 +552,17 @@ set <code>deletable = True</code>; protect generated writes with <code>access = 
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#define-a-model">Define a model</a></li><li><a href="#query-rows">Query rows</a></li><li><a href="#reusable-queries">Reusable queries</a></li><li><a href="#create-and-update">Create and update</a></li><li><a href="#share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins</a></li><li><a href="#relations">Relations</a></li><li><a href="#schema-options">Schema options</a></li><li><a href="#migrations">Migrations</a></li></ul>
+            <ul><li><a href="#define-a-model">Define a model</a>
+            <ul><li><a href="#model-field-metadata-and-validation">Model field metadata and validation</a></li></ul>
+          </li><li><a href="#query-rows">Query rows</a></li><li><a href="#reusable-queries">Reusable queries</a></li><li><a href="#create-and-update">Create and update</a></li><li><a href="#share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins</a></li><li><a href="#relations">Relations</a></li><li><a href="#schema-options">Schema options</a></li><li><a href="#migrations">Migrations</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 15:49:18 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>6 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 16:59:36 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

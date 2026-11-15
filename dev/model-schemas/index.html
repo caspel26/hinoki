@@ -384,6 +384,10 @@
       <article class="prose" style="--sheet: '3.5'">
         <p class="kicker" data-search-exclude>3.5 · Guides</p>
         <h1 id="schemas-derived-from-models">Schemas derived from models<a class="headerlink" href="#schemas-derived-from-models" title="Permanent link">&para;</a></h1>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">derive</span>
+</code></pre></div>
+<p>The validation example below is independent and includes its own imports.</p>
 <p>A <code>Schema</code> can take its fields and constraints from a <code>Model</code>. Put the source model on the class; use one <code>@derive(...)</code> decorator when you need to select or make fields optional. Without the decorator, every model column is derived.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">derive</span>
 
@@ -437,9 +441,25 @@
 <p>Unknown columns, a non-model, an empty <code>only</code>, or optional names outside the selection fail when the class is declared. Selection options require <code>model=</code> on the class. Relations are not derived as nested values; declare the API shape explicitly. Model derivation is explicit but includes all columns by default, so use <code>only</code> or <code>exclude</code> when the API must omit private fields.</p>
 <h2 id="add-validation-checks">Add validation checks<a class="headerlink" href="#add-validation-checks" title="Permanent link">&para;</a></h2>
 <p>Use <code>@field_check("name")</code> for a rule on one or more structurally valid fields, and <code>@object_check</code> for a rule over the whole object. Raise <code>Invalid(code, message, path=...)</code> to report a problem. Checks are synchronous and must not perform I/O; database-dependent rules belong in an operation.</p>
-<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SignUp</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">password</span><span class="p">:</span> <span class="nb">str</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Invalid</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">field_check</span><span class="p">,</span> <span class="n">object_check</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">SignUp</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">username</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">)]</span>
+    <span class="n">password</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">12</span><span class="p">)]</span>
     <span class="n">confirmation</span><span class="p">:</span> <span class="nb">str</span>
+
+    <span class="nd">@field_check</span><span class="p">(</span><span class="s2">"username"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">username_characters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">value</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"_"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">isalnum</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="n">Invalid</span><span class="p">(</span><span class="s2">"username_characters"</span><span class="p">,</span> <span class="s2">"use letters, numbers and _ only"</span><span class="p">)</span>
+
+    <span class="nd">@field_check</span><span class="p">(</span><span class="s2">"password"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reject_common_password</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"password12345"</span><span class="p">,</span> <span class="s2">"qwerty123456"</span><span class="p">}:</span>
+            <span class="k">raise</span> <span class="n">Invalid</span><span class="p">(</span><span class="s2">"common_password"</span><span class="p">,</span> <span class="s2">"choose a less common password"</span><span class="p">)</span>
 
     <span class="nd">@object_check</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">passwords_match</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -476,7 +496,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.5</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 21:15:18 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 16:59:36 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-schemas.md">Edit on GitHub</a></dd></div>
         </dl>

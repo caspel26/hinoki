@@ -234,6 +234,10 @@
                 <li><a class="side__link" href="../6-run/"><i>2.7</i><span>6. Run and test it</span></a></li>
               
             
+              
+                <li><a class="side__link" href="../7-validation/"><i>2.8</i><span>7. Validate input</span></a></li>
+              
+            
             </ul>
           
         
@@ -266,8 +270,8 @@
 <li><code>TaskOut</code> takes the columns of <code>Task</code>: types and limits come from the model, and <code>exclude=("owner_id",)</code> keeps <code>owner_id</code> out. Relations are never derived; you name them on purpose.</li>
 <li>Because the owner is not a field of <code>TaskIn</code>, a client cannot choose it. If it were, <code>Task.acreate(data, owner_id=me)</code> would still win (server values beat the client's), and a schema can never carry the primary key.</li>
 </ul>
-<p>More: <a href="../../schemas/">Schemas</a>, <a href="../../model-schemas/">model-derived schemas and validators</a>.</p>
-<p>Next: <a href="../3-operations/">3. Operations</a>.</p>
+<p>More: <a href="../../schemas/">Schemas</a>, <a href="../../model-schemas/">model-derived schemas</a>.</p>
+<p>Next: <a href="../3-operations/">3. Operations</a>. Validation patterns continue in <a href="../7-validation/">7. Validate input</a>.</p>
         
       </article>
 
@@ -292,7 +296,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.3</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 21:15:18 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 16:59:36 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/2-schemas.md">Edit on GitHub</a></dd></div>
         </dl>

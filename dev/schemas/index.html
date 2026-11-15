@@ -402,6 +402,35 @@
 <li><strong>Into a row.</strong> <code>await Note.acreate(data, author_id=me)</code> and <code>await row.aupdate_from(patch)</code>: keyword values set by the server win over the client's, and a schema can never carry the primary key.</li>
 </ul>
 <p><code>Schema.validate(data)</code> reports structural problems together. Values are not coerced. Declare field constraints with <code>Field(...)</code>; use <code>@field_check</code> and <code>@object_check</code> for synchronous checks that depend on validated schema values.</p>
+<h2 id="built-in-and-custom-validation">Built-in and custom validation<a class="headerlink" href="#built-in-and-custom-validation" title="Permanent link">&para;</a></h2>
+<p><code>Field(...)</code> provides built-in structural constraints. <code>format=</code> accepts <code>email</code>, <code>url</code>, <code>slug</code> or <code>hex_color</code> and is shorthand for a regular-expression pattern. Numeric bounds apply to numbers; length limits apply to strings and collections; <code>one_of</code> restricts a value to the listed choices.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Invalid</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">field_check</span><span class="p">,</span> <span class="n">object_check</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Registration</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">username</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="sa">r</span><span class="s2">"[a-z0-9_]+"</span><span class="p">)]</span>
+    <span class="n">email</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">"email"</span><span class="p">)]</span>
+    <span class="n">password</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">12</span><span class="p">)]</span>
+    <span class="n">confirmation</span><span class="p">:</span> <span class="nb">str</span>
+
+    <span class="nd">@field_check</span><span class="p">(</span><span class="s2">"password"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reject_common_password</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"password12345"</span><span class="p">,</span> <span class="s2">"qwerty123456"</span><span class="p">}:</span>
+            <span class="k">raise</span> <span class="n">Invalid</span><span class="p">(</span><span class="s2">"common_password"</span><span class="p">,</span> <span class="s2">"choose a less common password"</span><span class="p">)</span>
+
+    <span class="nd">@object_check</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">passwords_match</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">password</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">confirmation</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">Invalid</span><span class="p">(</span>
+                <span class="s2">"password_mismatch"</span><span class="p">,</span>
+                <span class="s2">"passwords do not match"</span><span class="p">,</span>
+                <span class="n">path</span><span class="o">=</span><span class="s2">"confirmation"</span><span class="p">,</span>
+            <span class="p">)</span>
+</code></pre></div>
+<p>Structural checks run first and reject wrong types, missing required values and unknown keys. If they pass, field checks receive validated values and object checks can compare fields. Raise <code>Invalid(code, message)</code> to reject a value; checks do not transform it. All applicable custom-check failures are returned together in <code>errors.ValidationError.details</code>. They must be synchronous and side-effect free: do not query the database or call external services. Put checks that depend on current data in an operation.</p>
+<p>These decorators validate a <code>Schema</code> instance passed through <code>Schema.validate</code>. They do not validate a <code>Model</code> when it is constructed or saved. Model field metadata and database constraints are described in <a href="../models/#model-field-metadata-and-validation">Models and queries</a>.</p>
 <p>See also the <a href="../glossary/">glossary</a> for what "schema" does and does not mean in these docs.</p>
         
         <aside class="related" aria-label="Related pages">
@@ -425,15 +454,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#schemas">Schemas</a></li></ul>
+            <ul><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 02:06:30 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 16:59:36 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
