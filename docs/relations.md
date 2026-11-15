@@ -74,6 +74,60 @@ for post in posts:
 
 Accessing an unloaded relation raises a relation-loading error. Load the relation explicitly so the query is visible in the calling code.
 
+## One-to-one relations
+
+A one-to-one relation uses the same foreign-key declaration with `unique=True`;
+there is no separate field helper. The unique constraint enforces that each
+target is referenced by at most one row. Keep the reverse relation explicit
+with `related_name`:
+
+```python
+from __future__ import annotations
+
+from typing import ClassVar
+from uuid import UUID, uuid4
+
+from hinoki.orm import Model, OnDelete, field, foreign_key
+from hinoki.orm.relations import Related
+
+
+class User(Model, table="users"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    profile: ClassVar[Related[Profile | None]]
+
+
+class Profile(Model, table="profiles"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    user_id: UUID = foreign_key(
+        User,
+        on_delete=OnDelete.CASCADE,
+        unique=True,
+        related_name="profile",
+    )
+    user: ClassVar[Related[User]]
+```
+
+The forward `profile.user` relation has one required target. The reverse
+`user.profile` relation is `Profile | None`: a user may not have a profile.
+Load it explicitly and in a bounded number of queries:
+
+```python
+profiles = await Profile.all().select_related("user")
+users = await User.all().prefetch_related("profile")
+```
+
+`select_related` joins the forward target into the profile query;
+`prefetch_related` uses one batched query for profiles and returns one profile
+or `None` per user. Neither access pattern performs lazy queries. If a database
+has drifted and contains multiple rows despite the unique declaration,
+`prefetch_related` raises `MultipleObjectsReturned` rather than choosing one.
+Migrations create the FK and unique constraint together; applying a unique
+constraint to existing duplicate data fails and requires an explicit data
+cleanup before retrying. When changing an existing foreign key to `unique=True`,
+SQLite rebuilds the table and may reject duplicates; MySQL, MariaDB and
+PostgreSQL require a hand-written migration for the uniqueness change. Resolve
+duplicates before applying the constraint.
+
 Many-to-many relationships are represented by an explicit join model with two foreign keys and a composite `@unique` constraint. There is no implicit many-to-many table or `through=` shortcut.
 
 ## Model a many-to-many relationship
