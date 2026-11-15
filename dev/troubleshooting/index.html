@@ -260,6 +260,10 @@ while debugging; total maximum connections are replicas × workers × pool size.
 <p>Review the generated SQL and the data it may remove. Test the change against a disposable database backup before using <code>--allow-destructive</code>. See <a href="../migrations/">migrations</a>.</p>
 <p>If the issue persists, include the Hinoki version, the command or route, the complete diagnostic, and a minimal example. Remove credentials and user data first.</p>
 <p>For a version report, run <code>hinoki version --verbose --format json</code>. The output includes installed runtime details without reading application settings or opening a database.</p>
+<p>For a consolidated local report, run <a href="../cli/#doctor"><code>hinoki doctor</code></a>. It imports
+the selected app target, but does not start its lifecycle, run rules, connect to
+a database or write files. Use the focused commands above for database and
+migration state.</p>
         
       </article>
 
@@ -284,8 +288,8 @@ while debugging; total maximum connections are replicas × workers × pool size.
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>6.5</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:02:01 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 22:26:20 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/troubleshooting.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

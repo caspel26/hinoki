@@ -398,6 +398,7 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 generated SQL uses the selected backend's types. Existing state files that
 recorded SQLite or MySQL-specific type names are normalized when planning, so
 switching the planner's backend does not appear as a destructive type change.</p>
+<h2 id="check-migration-drift">Check migration drift<a class="headerlink" href="#check-migration-drift" title="Permanent link">&para;</a></h2>
 <p>To check that model changes have a committed migration file in CI, run:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--check
 </code></pre></div>
@@ -454,14 +455,14 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#create-a-migration">Create a migration</a></li><li><a href="#apply-and-inspect">Apply and inspect</a></li><li><a href="#destructive-changes">Destructive changes</a></li></ul>
+            <ul><li><a href="#create-a-migration">Create a migration</a></li><li><a href="#check-migration-drift">Check migration drift</a></li><li><a href="#apply-and-inspect">Apply and inspect</a></li><li><a href="#destructive-changes">Destructive changes</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.9</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 21:40:35 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 22:26:20 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/migrations.md">Edit on GitHub</a></dd></div>
         </dl>
