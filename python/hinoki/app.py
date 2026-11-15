@@ -26,6 +26,7 @@ from hinoki.rules import Phase, Project, RuleSet, failing
 from hinoki.runtime.asgi import ASGIAdapter
 from hinoki.runtime.binding import Binding, bind
 from hinoki.runtime.config import RuntimeConfig
+from hinoki.runtime.lifespan import Hook
 from hinoki.settings import AppSettings, DocsSettings, Settings
 from hinoki.utils import Clock, _read_utc, utc_now
 
@@ -50,6 +51,16 @@ def bind_app_timezones(items: Sequence[object], timezone: tzinfo) -> None:
         bind_app_timezone(item, timezone)
 
 
+def check_hooks(option: str, hooks: Sequence[Hook]) -> tuple[Hook, ...]:
+    """The hooks as a tuple; anything that cannot be called is refused."""
+    if isinstance(hooks, str) or callable(hooks):
+        raise RegistrationError(f"{option} takes a list of functions")
+    for hook in hooks:
+        if not callable(hook):
+            raise RegistrationError(f"{option}: {hook!r} is not a function")
+    return tuple(hooks)
+
+
 class Hinoki:
     """A Hinoki application.
 
@@ -57,6 +68,11 @@ class Hinoki:
     anything, so factories returning ``Hinoki`` are safe to import and call.
     The instance is itself an ASGI callable (``granian --interface asgi
     module:app``); the first call freezes the declarations.
+
+    ``on_startup`` and ``on_shutdown`` list functions taking the worker's
+    ``ModuleContext`` (``async def`` or ``def``). Startup hooks run once per
+    worker after the modules have started; shutdown hooks run before they are
+    closed, and only after a startup that completed.
     """
 
     def __init__(
@@ -66,6 +82,8 @@ class Hinoki:
         include: Sequence[object] = (),
         modules: Sequence[Module | type[Module]] = (),
         commands: Sequence[Command | type[Command]] = (),
+        on_startup: Sequence[Hook] = (),
+        on_shutdown: Sequence[Hook] = (),
         runtime: RuntimeConfig | None = None,
         title: str | None = None,
         version: str | None = None,
@@ -116,6 +134,8 @@ class Hinoki:
         self._bindings: list[Binding] = []
         self._modules: list[Module] = []
         self._commands = _normalize_commands(commands)
+        self.on_startup = check_hooks("on_startup", on_startup)
+        self.on_shutdown = check_hooks("on_shutdown", on_shutdown)
         self._included_groups: set[RouteGroup] = set()
         self._router = Router()
         self._adapter: ASGIAdapter | None = None

@@ -21,11 +21,20 @@ class ModuleGraphError(RegistrationError):
     """Missing dependency, dependency cycle or duplicate module name."""
 
 
+STARTUP_HOOK = "on_startup:"
+
+
 class StartupError(Exception):
-    """A module failed to start. Carries the module name, never settings values."""
+    """A module or a startup hook failed. Carries its name (``module``; a hook
+    is ``on_startup:<function>``), never settings values."""
 
     def __init__(self, module: str, cause: BaseException) -> None:
-        super().__init__(f"module {module!r} failed to start: {type(cause).__name__}")
+        what = (
+            f"startup hook {module.removeprefix(STARTUP_HOOK)!r}"
+            if module.startswith(STARTUP_HOOK)
+            else f"module {module!r}"
+        )
+        super().__init__(f"{what} failed to start: {type(cause).__name__}")
         self.module = module
         self.cause = cause
 
