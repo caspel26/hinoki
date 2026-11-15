@@ -16,11 +16,16 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from types import TracebackType
 from typing import Any
 
 from hinoki.app import Hinoki
+from hinoki.utils import _read_utc
+
+HeaderInput = Mapping[str, str] | Sequence[tuple[str, str]]
 
 ERROR_STATUS = 400
 # What the framework itself answers, whatever an action declares.
@@ -55,6 +60,30 @@ class Response:
     raw: bytes = b""  # the body exactly as sent
 
 
+class ManualClock:
+    """A thread-safe, controllable UTC clock for deterministic tests."""
+
+    def __init__(self, start: datetime) -> None:
+        self._value = _read_utc(lambda: start)
+        self._lock = threading.Lock()
+
+    def __call__(self) -> datetime:
+        with self._lock:
+            return self._value
+
+    def set(self, value: datetime) -> None:
+        """Set the current instant; ``value`` must be timezone-aware."""
+        instant = _read_utc(lambda: value)
+        with self._lock:
+            self._value = instant
+
+    def advance(self, *, seconds: float = 0) -> datetime:
+        """Advance by elapsed seconds and return the new UTC instant."""
+        with self._lock:
+            self._value += timedelta(seconds=seconds)
+            return self._value
+
+
 class Feed:
     def __init__(self, body: bytes) -> None:
         self.body = body
@@ -66,9 +95,12 @@ class Feed:
 class ASGIClient:
     """Use as an async context manager so startup and shutdown always run."""
 
-    def __init__(self, app: Hinoki, strict_errors: bool = False) -> None:
+    def __init__(
+        self, app: Hinoki, strict_errors: bool = False, *, host: str | None = None
+    ) -> None:
         self.app = app
         self.strict_errors = strict_errors
+        self.host = host
         self.adapter = app.asgi()
         self.inbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self.outbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
@@ -104,23 +136,27 @@ class ASGIClient:
         json: Any = None,
         body: bytes = b"",
         query: str = "",
-        headers: dict[str, str] | None = None,
+        headers: HeaderInput | None = None,
         token: str | None = None,
     ) -> Response:
         """One request. ``token`` sends ``Authorization: Bearer <token>``;
         ``json`` sends a JSON body with its content type."""
-        sent = {k.lower(): v for k, v in (headers or {}).items()}
+        sent = _header_items(headers)
         if token is not None:
-            sent["authorization"] = f"Bearer {token}"
+            sent = [(name, value) for name, value in sent if name != "authorization"]
+            sent.append(("authorization", f"Bearer {token}"))
         if json is not None:
             body = _dumps(json)
-            sent.setdefault("content-type", "application/json")
+            if not any(name == "content-type" for name, _ in sent):
+                sent.append(("content-type", "application/json"))
+        if self.host is not None and not any(name == "host" for name, _ in sent):
+            sent.append(("host", self.host))
         scope = {
             "type": "http",
             "method": method,
             "path": path,
             "query_string": query.encode(),
-            "headers": [(k.encode(), v.encode()) for k, v in sent.items()],
+            "headers": [(k.encode(), v.encode()) for k, v in sent],
         }
         sink: list[dict[str, Any]] = []
 
@@ -172,6 +208,12 @@ class ASGIClient:
     async def delete(self, path: str, **options: Any) -> Response:
         return await self.request("DELETE", path, **options)
 
+    async def head(self, path: str, **options: Any) -> Response:
+        return await self.request("HEAD", path, **options)
+
+    async def options(self, path: str, **options: Any) -> Response:
+        return await self.request("OPTIONS", path, **options)
+
     async def query(self, path: str, **options: Any) -> Response:
         """An HTTP QUERY request (``json=`` is its body; the ``query=`` option
         is still the query string)."""
@@ -184,6 +226,13 @@ def _dumps(value: Any) -> bytes:
 
 def _loads(raw: bytes) -> Any:
     return json.loads(raw)
+
+
+def _header_items(headers: HeaderInput | None) -> list[tuple[str, str]]:
+    if headers is None:
+        return []
+    items = headers.items() if isinstance(headers, Mapping) else headers
+    return [(name.lower(), value) for name, value in items]
 
 
 class SyncClient:
@@ -199,8 +248,10 @@ class SyncClient:
     body itself: seed and inspect data with an async fixture or your own
     connection."""
 
-    def __init__(self, app: Hinoki, timeout: float = 60.0) -> None:
-        self.inner = ASGIClient(app)
+    def __init__(
+        self, app: Hinoki, timeout: float = 60.0, *, host: str | None = None
+    ) -> None:
+        self.inner = ASGIClient(app, host=host)
         self.timeout = timeout
         self.loop = asyncio.new_event_loop()
         self.thread = threading.Thread(
@@ -266,6 +317,12 @@ class SyncClient:
 
     def delete(self, path: str, **options: Any) -> Response:
         return self.request("DELETE", path, **options)
+
+    def head(self, path: str, **options: Any) -> Response:
+        return self.request("HEAD", path, **options)
+
+    def options(self, path: str, **options: Any) -> Response:
+        return self.request("OPTIONS", path, **options)
 
     def query(self, path: str, **options: Any) -> Response:
         return self.request("QUERY", path, **options)
