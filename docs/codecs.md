@@ -4,16 +4,16 @@ status: implemented
 
 # Parsers and renderers
 
-A **parser** turns a request body into Python data; a **renderer** turns a handler's result into response bytes. The built-in ones run in Rust and are the base classes you inherit from.
+A **parser** turns a request body into Python data; a **renderer** turns a handler's result into response bytes. Built-ins use Rust for selected parsing and JSON encoding work; Python still selects codecs, calls customization hooks and assembles framework objects.
 
-| Built in | Rust does | You can customise |
+| Built in | Rust work | Python work and options |
 | --- | --- | --- |
-| `JSONParser` | strict decoding (no NaN, no lone surrogates, depth limit) | `prepare(data)` hook, `media_type` |
-| `FormParser` | `application/x-www-form-urlencoded` decoding with a field cap | `max_fields` |
-| `MultiPartParser` | `multipart/form-data` (limits, hardening) | part and file limits |
-| `TextParser` | UTF-8 text body | `media_type` |
-| `JSONRenderer` | encoding of dicts, lists, `Schema`, UUID, datetime, `dump()` objects | `indent`, `sort_keys`, `default`, `prepare(value, request)` hook, `media_type` |
-| `HTMLRenderer`, `TextRenderer` | (UTF-8 text) | `media_type` |
+| `JSONParser` | Strict JSON decoding (no NaN, no lone surrogates, depth limit) | `prepare(data)` hook and `media_type` |
+| `FormParser` | `application/x-www-form-urlencoded` parsing with a field cap | Builds the Python mappings; `max_fields` |
+| `MultiPartParser` | `multipart/form-data` parsing and byte/part limits | Builds `UploadedFile` and form objects; `max_parts`, `max_part_bytes` |
+| `TextParser` | — | Decodes UTF-8 in Python; `media_type` |
+| `JSONRenderer` | Encodes `dict`, `list`, `Schema`, UUID, datetime and `dump()` objects | `prepare(value, request)` and `default` callbacks run in Python; `indent`, `sort_keys`, `media_type` |
+| `HTMLRenderer`, `TextRenderer` | — | Type-check and UTF-8 encode strings in Python; `media_type` |
 
 Content negotiation (`Accept`, quality values, wildcards) also runs in Rust; with nothing acceptable the answer is 406 before the handler runs.
 
@@ -31,14 +31,14 @@ async def report() -> dict[str, int]: ...
 async def hook(request: Request) -> None: ...   # request.data is a dict or a str
 ```
 
-## Customise without leaving Rust
+## Configure the Rust JSON encoder
 
 ```python
 JSONRenderer(indent=2, sort_keys=True)                 # pretty, stable output
 JSONRenderer(default=str)                              # Decimal, Path, ... become text
 ```
 
-`default` is called for a value the encoder does not know and must return something that is JSON (returning the same object is an error). It does not override what the encoder already handles (UUID, datetime, `Schema`, anything with `dump()`). With `sort_keys=True` object keys are ordered by their encoded text (quotes and escapes included), which is deterministic but not always `json.dumps` order for unusual keys, and integer keys sort as text. `indent` is 0 to 256 (the renderer allows 0 to 16).
+`default` is a Python callback for a value the encoder does not know and must return something that is JSON (returning the same object is an error). It does not override what the encoder already handles (UUID, datetime, `Schema`, anything with `dump()`). With `sort_keys=True` object keys are ordered by their encoded text (quotes and escapes included), which is deterministic but not always `json.dumps` order for unusual keys, and integer keys sort as text. The public renderer accepts `indent` from 0 to 16, or `None` for compact output.
 
 ## Inherit and override
 

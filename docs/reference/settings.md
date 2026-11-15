@@ -18,7 +18,7 @@
 
 ::: hinoki.settings.ExecutionSettings
     options:
-      members: [sync_workers, sync_queue, request_timeout, max_body_bytes]
+      members: [sync_workers, sync_queue, request_timeout, max_body_bytes, max_query_bytes, max_header_bytes]
       show_if_no_docstring: true
 
 ::: hinoki.settings.LifecycleSettings
@@ -38,7 +38,7 @@
 
 ::: hinoki.settings.ServerSettings
     options:
-      members: [host, port, workers, runtime_threads, backlog, access_log]
+      members: [host, port, workers, runtime_threads, backlog, access_log, trusted_proxies, request_id_header, trust_request_id]
       show_if_no_docstring: true
 
 ::: hinoki.settings.PaginationSettings
