@@ -8,12 +8,13 @@ another member's task looks exactly like a missing one.
 
 from uuid import UUID
 
-from examples.tracker.errors import DoneTasksAreKept, TaskAlreadyDone
-from examples.tracker.models import Task
-from examples.tracker.schemas import TaskIn
 from hinoki.orm import QuerySet
 from hinoki.pagination import Page, PageParams
 from hinoki.utils import utc_now
+
+from .errors import DoneTasksAreKept, TaskAlreadyDone
+from .models import Task
+from .schemas import TaskIn
 
 
 def mine(owner_id: UUID) -> QuerySet[Task]:

@@ -2,13 +2,14 @@
 
 from uuid import UUID
 
-from examples.tracker import operations
-from examples.tracker.errors import DoneTasksAreKept, TaskAlreadyDone
-from examples.tracker.models import Member, Task
-from examples.tracker.schemas import TaskIn, TaskOut
-from examples.tracker.security import member_only
 from hinoki import Caller, RouteGroup, errors, http
 from hinoki.pagination import Page, PageNumberPagination, PageParams
+
+from . import operations
+from .errors import DoneTasksAreKept, TaskAlreadyDone
+from .models import Member, Task
+from .schemas import TaskIn, TaskOut
+from .security import member_only
 
 
 def out(task: Task) -> TaskOut:
