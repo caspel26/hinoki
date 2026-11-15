@@ -24,6 +24,7 @@ import argparse
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 from playwright.sync_api import Browser, BrowserContext, Page, expect, sync_playwright
 
@@ -302,29 +303,30 @@ def main() -> int:
         out.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as playwright:
         for name in args.engines:
-            print(f"== {name}")
-            try:
-                browser = getattr(playwright, name).launch()
-            except Exception as exc:
-                first = (
-                    str(exc).strip().splitlines()[0][:120] if str(exc).strip() else ""
-                )
-                print(f"  NOT VERIFIED: {name} could not start ({first})")
-                UNVERIFIED.append(name)
-                continue
-            shots = out if name == "chromium" else None
-            for step in (docs, layout, flow, keyboard, toggle, dark):
-                try:
-                    step(browser, args.base, shots, name)
-                except Exception as exc:
-                    check(
-                        False,
-                        f"{step.__name__} raised {type(exc).__name__}: "
-                        f"{str(exc)[:200]}",
-                    )
-            browser.close()
+            run_engine(playwright, name, args.base, out)
     print(f"\n{len(FAILURES)} failure(s); engines not verified: {UNVERIFIED or 'none'}")
     return 1 if FAILURES else 0
+
+
+def run_engine(playwright: Any, name: str, base: str, out: Path | None) -> None:
+    print(f"== {name}")
+    try:
+        browser = getattr(playwright, name).launch()
+    except Exception as exc:
+        first = str(exc).strip().splitlines()[0][:120] if str(exc).strip() else ""
+        print(f"  NOT VERIFIED: {name} could not start ({first})")
+        UNVERIFIED.append(name)
+        return
+    shots = out if name == "chromium" else None
+    for step in (docs, layout, flow, keyboard, toggle, dark):
+        try:
+            step(browser, base, shots, name)
+        except Exception as exc:
+            check(
+                False,
+                f"{step.__name__} raised {type(exc).__name__}: {str(exc)[:200]}",
+            )
+    browser.close()
 
 
 if __name__ == "__main__":
