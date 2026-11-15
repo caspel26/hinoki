@@ -39,6 +39,7 @@ One page for each part of an application. Start with the data and endpoint guide
 - [Serving](serving.md): Run an application with `hinoki dev` while you work and `hinoki serve` in production-style runs.
 - [Testing](testing.md): Hinoki has two useful levels of application tests: call the operation functions directly, then exercise the app through its ASGI interface.
 - [Command line](cli.md): Run framework tools and app-defined management commands from the project directory.
+- [Interactive shell](shell.md): Explore app settings and models with a persistent, async-capable Python prompt.
 - [Typing](typing.md): Hinoki's public APIs use Python annotations so a type checker can catch mistakes in handlers, decorators and schema construction.
 
 ## Integrations
