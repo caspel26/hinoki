@@ -393,7 +393,7 @@
 <li><strong>Strict, no coercion.</strong> <code>"1"</code> is not <code>1</code>; unknown keys are refused; every problem is reported with its path (capped at 50). Validation, instance construction and JSON serialisation run in Rust.</li>
 <li><strong>Partial updates.</strong> Declare <code>title: str | Unset = UNSET</code>: a field the client did not send stays <code>UNSET</code> and is left out of <code>dump()</code> and <code>to_dict()</code>, so <code>row.aupdate_from(patch)</code> writes only what was sent.</li>
 <li><strong>Get data out.</strong> <code>schema.to_dict()</code> gives Python values (UUID and datetime stay objects), <code>schema.dump()</code> the JSON-compatible form; both skip <code>UNSET</code>.</li>
-<li><strong>From a row.</strong> <code>NoteOut.from_model(row, author_name=row.author.name)</code>; relations must already be loaded (nothing fetches lazily).</li>
+<li><strong>From rows.</strong> <code>NoteOut.from_model(row, author_name=row.author.name)</code> converts one row; <code>NoteOut.from_models(rows)</code> eagerly converts a synchronous iterable to a list. Relations must already be loaded (nothing fetches lazily). A derived schema keeps its selected fields. Conversion reads the expected attributes rather than checking the concrete model class; missing attributes raise <code>AttributeError</code>. Values passed as <code>**extra</code> are shared across rows.</li>
 <li><strong>Into a row.</strong> <code>await Note.acreate(data, author_id=me)</code> and <code>await row.aupdate_from(patch)</code>: keyword values set by the server win over the client's, and a schema can never carry the primary key.</li>
 </ul>
 <p><code>Schema.validate(data)</code> reports structural problems together. Values are not coerced. Declare field constraints with <code>Field(...)</code>; use <code>@field_check</code> and <code>@object_check</code> for synchronous checks that depend on validated schema values.</p>
@@ -427,7 +427,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 02:07:13 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 02:06:30 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>

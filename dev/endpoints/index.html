@@ -403,7 +403,7 @@
 <span class="nd">@http</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">"/tasks/search"</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">search_tasks</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">TaskSearch</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">TaskOutput</span><span class="p">]:</span>
     <span class="n">rows</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">title__contains</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">text</span><span class="p">)</span><span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">limit</span><span class="p">)</span>
-    <span class="k">return</span> <span class="p">[</span><span class="n">TaskOutput</span><span class="o">.</span><span class="n">from_model</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">TaskOutput</span><span class="o">.</span><span class="n">from_models</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>QUERY<span class="w"> </span>http://127.0.0.1:8000/tasks/search<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-H<span class="w"> </span><span class="s1">'content-type: application/json'</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">'{"text": "docs"}'</span>
@@ -583,7 +583,7 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   examples.blog.api.Pos
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.10</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 18:47:28 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 02:06:30 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
