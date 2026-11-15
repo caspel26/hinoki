@@ -78,7 +78,7 @@ everything = await Task.all()           # the explicit way around the policy
 Pass the method where the framework asks for a base query, so every operation built on it sees the same rows:
 
 ```python
-from hinoki.crud import CrudAPI
+from hinoki import CrudAPI
 
 
 class Tasks(CrudAPI, model=Task, path="/tasks"):

@@ -18,8 +18,7 @@ live beside the generated actions.
 ```python
 from typing import Any
 
-from hinoki import Caller, Hinoki, Schema, http
-from hinoki.crud import CrudAPI
+from hinoki import Caller, CrudAPI, Hinoki, Schema, http
 from hinoki.orm import QuerySet
 
 from app.models import Post
@@ -85,20 +84,27 @@ Class-level `access` and `read_access` apply to generated actions only;
 handwritten and inherited decorated methods keep the policy on their own
 `@http.*` decorator, so protect those routes explicitly.
 
-Use `get_queryset(principal)` to build the list/detail query. It is a
-synchronous query builder and does no I/O. When reads are public, `principal`
-is `None`; when `read_access` is set, it is the authenticated `Caller`. Apply
-tenant or visibility filters here. `owner` is an independent write safeguard,
-not read authorization. Writes are also constrained by this query, primary key
-and owner column, including in the mutation statement.
+Use `get_queryset(principal)` to build the list/detail query. It may be `def`
+or `async def`; it builds a query and should not perform database I/O. When
+reads are public, `principal` is `None`; when `read_access` is set, it is the
+authenticated `Caller`. Apply tenant or visibility filters here. `owner` is an
+independent write safeguard, not read authorization. Writes are also
+constrained by this query, primary key and owner column, including in the
+mutation statement.
 
-Override `async to_schema(item)` for a response shape that needs loaded
-relations; relations are never loaded implicitly. Override
-`written_queryset(principal)`
-to load response relations after a successful write, independently of filters
-that might hide the changed row from subsequent list requests.
+Override `to_schema(item)` with `def` or `async def` for a response shape that
+needs loaded relations; relations are never loaded implicitly. Override
+`written_queryset(principal)` with either form to load response relations after
+a successful write, independently of filters that might hide the changed row
+from subsequent list requests.
 
-Generated write routes call these overridable hooks inside their transaction:
+Generated write routes call these overridable hooks inside their transaction.
+Each hook may be a normal `def` or `async def`. Sync hooks run on Hinoki's
+bounded worker executor, where synchronous ORM methods are available; async
+hooks run on the event loop and should use the async ORM methods. This applies
+to `get_queryset`, `written_queryset`, `to_schema`, and each `perform_*` hook.
+
+For a synchronous hook, use synchronous ORM methods and return the model:
 
 ```python
 def slug_for(title: str) -> str:
@@ -111,12 +117,25 @@ class Posts(CrudAPI, model=Post, path="/posts"):
     access = editor
     owner = "author_id"
 
-    async def perform_create(
+    def perform_create(
         self, values: dict[str, Any], principal: Caller[Any]
     ) -> Post:
         values["slug"] = slug_for(str(values["title"]))
-        return await super().perform_create(values, principal)
+        return Post.create(**values)
 ```
+
+An async hook uses the async ORM method:
+
+```python
+async def perform_create(
+    self, values: dict[str, Any], principal: Caller[Any]
+) -> Post:
+    values["slug"] = slug_for(str(values["title"]))
+    return await Post.acreate(**values)
+```
+
+A sync override uses `Post.create(**values)`; it should not call async ORM
+methods or return an un-awaited coroutine.
 
 `perform_update(item, scoped_queryset, values, principal)` and
 `perform_delete(item, scoped_queryset, principal)` receive the target and the

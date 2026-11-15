@@ -123,11 +123,12 @@ app = Hinoki(
 
 The model says what is stored. The schemas say what may come in and what goes out, so a column never leaves the application unless a schema names it. `DatabaseModule` opens a connection pool when a worker starts and closes it when the worker stops; nothing connects at import.
 
-For model-backed CRUD, Hinoki can generate routes on an API class. Declare
-`model=...` in the class header, set its schemas and access policy as class
-attributes, and include the class once. Handwritten `@http.*` actions, mixins
-and operation hooks compose with the generated routes; see the
-[CRUD guide](docs/crud.md) for validation, ownership and replacement behavior.
+For model-backed CRUD, `from hinoki import CrudAPI` generates routes on an API
+class. Declare `model=...` in the class header, set its schemas and access
+policy as class attributes, and include the class once. Handwritten `@http.*`
+actions, mixins and sync or async operation hooks compose with the generated
+routes; see the [CRUD guide](docs/crud.md) for validation, ownership and route
+replacement behavior.
 
 ## OpenAPI and interactive API docs
 
