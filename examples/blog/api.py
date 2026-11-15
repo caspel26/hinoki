@@ -6,7 +6,7 @@ from examples.blog.models import Post, User
 from examples.blog.schemas import HealthOut, PostCreate, PostOut
 from examples.blog.security import editor
 from hinoki import Caller, errors, http
-from hinoki.crud import CrudAPI, Resource
+from hinoki.crud import CrudAPI
 from hinoki.orm import QuerySet
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 
@@ -40,24 +40,23 @@ def health() -> HealthOut:
     return HealthOut(status="ok")
 
 
-def all_with_author() -> QuerySet[Post]:
-    return with_author(Post.all())
-
-
-POSTS = Resource(
-    model=Post,
-    read=PostOut,
-    create=PostCreate,
-    deletable=True,
-    access=editor,
-    owner="author_id",
-    queryset=all_with_author,
-    output=to_out,
-)
-
-
-class Posts(CrudAPI, path="/posts", resource=POSTS):
+class Posts(CrudAPI, model=Post, path="/posts"):
     """Generated create and delete (owner enforced), handwritten reads."""
+
+    read_schema = PostOut
+    create_schema = PostCreate
+    deletable = True
+    access = editor
+    owner = "author_id"
+
+    def written_queryset(
+        self,
+        principal: Caller[User] | None,  # noqa: ARG002
+    ) -> QuerySet[Post]:
+        return with_author(Post.all())
+
+    async def to_schema(self, post: Post) -> PostOut:
+        return to_out(post)
 
     @http.get(
         "/",

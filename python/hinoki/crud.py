@@ -1,17 +1,8 @@
-"""Generated CRUD actions for a model, as ordinary routes.
-
-``class Posts(CrudAPI, path="/posts", resource=Resource(...))`` adds ``list``,
-``retrieve`` and, depending on the resource, ``create``, ``update`` and
-``delete`` to the class. They are real declarations: they appear in OpenAPI,
-a method of the same name overrides one, and ``@http.get(..., replaces=Crud.LIST)``
-(or the plain string ``"list"``) swaps one for a handwritten route. Generated
-CRUD never invents security: write actions need an ``Access`` policy (or
-``public_writes=True``), clients cannot send a field the server assigns, and an
-owner column is enforced on change.
-"""
+"""Class-based CRUD generation, composable with ordinary API methods."""
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import enum
 import inspect
@@ -48,20 +39,8 @@ class Crud(enum.StrEnum):
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
-class Resource:
-    """What to generate for ``model``.
-
-    * ``read`` is the output schema; ``create`` / ``update`` (PATCH, fields left
-      ``UNSET`` are untouched) enable those actions; ``deletable`` enables delete.
-    * ``access`` protects the write actions, ``read_access`` the reads.
-    * ``owner`` names a column that holds the owner: it is assigned from the
-      caller on create and must match the caller on update and delete.
-      ``identity_key`` extracts the owner value from ``Caller.user``.
-    * ``assign`` maps other columns to a function of the caller's identity,
-      applied on create; clients cannot send them.
-    * ``queryset`` supplies the base query (e.g. with ``select_related``) and
-      ``output`` converts a row to the read schema when it is not a plain copy.
-    """
+class _CrudConfig:
+    """Validated snapshot of public CrudAPI class attributes."""
 
     model: type[Model]
     read: type[Schema]
@@ -74,8 +53,6 @@ class Resource:
     owner: str = ""
     identity_key: Callable[[Any], Any] = attrgetter("id")
     assign: Mapping[str, Callable[[Any], Any]] = dataclasses.field(default_factory=dict)
-    queryset: Callable[[], QuerySet[Any]] | None = None
-    output: Callable[[Any], Any] | None = None
     pagination: PageNumberPagination = PageNumberPagination()  # noqa: RUF009
 
     def assigned(self) -> dict[str, Callable[[Any], Any]]:
@@ -88,7 +65,7 @@ class Resource:
         found += ["delete"] if self.deletable else []
         return found
 
-    def check(self) -> None:
+    def check(self, *, custom_output: bool = False) -> None:
         """Fail at class creation, not on the first request."""
         name = self.model.__name__
         columns = set(self.model.__columns__)
@@ -106,17 +83,31 @@ class Resource:
         for column in self.assigned():
             if column not in columns:
                 raise RegistrationError(f"{name} has no column {column!r} to assign")
-        self.check_schemas(columns)
+        self.check_schemas(columns, custom_output=custom_output)
 
-    def check_schemas(self, columns: set[str]) -> None:
+    def check_schemas(self, columns: set[str], *, custom_output: bool) -> None:
+        if self.read.__derived_model__ not in (None, self.model):
+            raise RegistrationError(
+                f"{self.model.__name__}: read_schema is derived from "
+                f"{self.read.__derived_model__.__name__}"
+            )
         if self.create is not None:
+            self.check_derived_model("create", self.create)
             self.check_input("create", self.create, columns)
             self.check_required(self.create)
         if self.update is not None:
+            self.check_derived_model("update", self.update)
             self.check_input("update", self.update, columns)
             self.check_patch(self.update)
-        if self.output is None:
+        if not custom_output:
             self.check_names("read", self.read, columns)
+
+    def check_derived_model(self, label: str, schema: type[Schema]) -> None:
+        if schema.__derived_model__ not in (None, self.model):
+            raise RegistrationError(
+                f"{self.model.__name__}: {label}_schema is derived from "
+                f"{schema.__derived_model__.__name__}"
+            )
 
     def check_names(self, label: str, schema: type[Schema], columns: set[str]) -> None:
         unknown = set(schema.specs()) - columns
@@ -184,17 +175,12 @@ class Resource:
                 f"{self.model.__name__}: no way to set required columns {missing}"
             )
 
-    def base(self) -> QuerySet[Any]:
-        return self.queryset() if self.queryset else self.model.all()
-
-    def present(self, row: Any) -> Any:
-        if self.output is not None:
-            return self.output(row)
-        return self.read(**{name: getattr(row, name) for name in self.read.specs()})
-
     def values(self, data: Schema) -> dict[str, Any]:
         found = {name: getattr(data, name) for name in data.specs()}
         return {name: value for name, value in found.items() if value is not UNSET}
+
+    def present(self, row: Any) -> Any:
+        return self.read(**{name: getattr(row, name) for name in self.read.specs()})
 
     def owner_of(self, principal: Any) -> Any:
         """The caller's owner value; a caller without one may change nothing,
@@ -208,13 +194,13 @@ class Resource:
         """The rows a change may touch: the base query, the primary key and the
         owner, all in the UPDATE/DELETE itself, so a row that was hidden or
         changed hands meanwhile is untouched."""
-        scoped = self.base().filter(**{self.model.__primary_key__: key})
+        scoped = self.model.all().filter(**{self.model.__primary_key__: key})
         if self.owner:
             scoped = scoped.filter(**{self.owner: self.owner_of(principal)})
         return scoped
 
     async def fetch(self, key: Any) -> Any:
-        return await self.base().filter(**{self.model.__primary_key__: key}).aget()
+        return await self.model.aget(**{self.model.__primary_key__: key})
 
     async def written(self, key: Any) -> Any:
         """Read back a row the caller just wrote. It may now be outside the
@@ -238,16 +224,53 @@ class Resource:
         return Forbidden("You cannot change this item.")
 
 
-async def list_rows(self: CrudAPI, request: Request, page: PageParams) -> Any:
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class Resource(_CrudConfig):
+    """Compatibility configuration; new declarations should use CrudAPI attrs."""
+
+    queryset: Callable[[], QuerySet[Any]] | None = None
+    output: Callable[[Any], Any] | None = None
+
+    def base(self) -> QuerySet[Any]:
+        return self.queryset() if self.queryset else self.model.all()
+
+    def present(self, row: Any) -> Any:
+        if self.output:
+            return self.output(row)
+        return super().present(row)
+
+    def scope(self, key: Any, principal: Any) -> QuerySet[Any]:
+        scoped = self.base().filter(**{self.model.__primary_key__: key})
+        if self.owner:
+            scoped = scoped.filter(**{self.owner: self.owner_of(principal)})
+        return scoped
+
+    async def fetch(self, key: Any) -> Any:
+        return await self.base().filter(**{self.model.__primary_key__: key}).aget()
+
+
+async def list_rows(
+    self: CrudAPI, request: Request, page: PageParams, principal: Any = None
+) -> Any:
     resource = self.resource
-    query = resource.base()
+    query = self.get_queryset(principal)
     if not query.order:
         query = query.order_by(resource.model.__primary_key__)
-    return (await query.apaginate(page)).map(resource.present)
+    result = await query.apaginate(page)
+    items = await asyncio.gather(*(self.to_schema(row) for row in result.items))
+    return Page(list(items), result.page, result.page_size, result.total)
 
 
-async def retrieve_row(self: CrudAPI, request: Request, item_id: Any) -> Any:
-    return self.resource.present(await self.resource.fetch(item_id))
+async def retrieve_row(
+    self: CrudAPI, request: Request, item_id: Any, principal: Any = None
+) -> Any:
+    resource = self.resource
+    item = (
+        await self.get_queryset(principal)
+        .filter(**{resource.model.__primary_key__: item_id})
+        .aget()
+    )
+    return await self.to_schema(item)
 
 
 async def create_row(
@@ -255,36 +278,75 @@ async def create_row(
 ) -> Any:
     resource = self.resource
     values = resource.values(data)
+    assigned_values: dict[str, Any] = {}
     for column, derive in resource.assigned().items():
-        values[column] = (
+        assigned_values[column] = (
             resource.owner_of(principal)
             if column == resource.owner
             else derive(principal.user)
         )
-    created = await resource.model.acreate(**values)
-    return resource.present(
-        await resource.written(getattr(created, created.__primary_key__))
-    )
+    values.update(assigned_values)
+    created = await self.perform_create(values, principal)
+    self.validate_hook_item(created)
+    if any(getattr(created, key) != value for key, value in assigned_values.items()):
+        raise RegistrationError("perform_create changed a server-assigned field")
+    key = getattr(created, created.__primary_key__)
+    item = await self.read_written(key, principal)
+    if any(getattr(item, name) != value for name, value in assigned_values.items()):
+        raise RegistrationError("perform_create changed a server-assigned field")
+    return await self.to_schema(item)
 
 
 async def update_row(
     self: CrudAPI, request: Request, item_id: Any, data: Any, principal: Any = None
 ) -> Any:
     resource = self.resource
-    await resource.guard(item_id, principal)
+    query = self.get_queryset(principal)
+    try:
+        visible = await query.filter(**{resource.model.__primary_key__: item_id}).aget()
+    except resource.model.NotFound:
+        raise
+    if resource.owner and getattr(visible, resource.owner) != resource.owner_of(
+        principal
+    ):
+        raise Forbidden("You cannot change this item.")
     values = resource.values(data)
-    if values and not await resource.scope(item_id, principal).aupdate(values):
-        raise await resource.refused(item_id)
-    return resource.present(await resource.written(item_id))
+    scoped = query.filter(**{resource.model.__primary_key__: item_id})
+    if resource.owner:
+        scoped = scoped.filter(**{resource.owner: resource.owner_of(principal)})
+    item = visible
+    assigned_before = {name: getattr(item, name) for name in resource.assigned()}
+    updated = await self.perform_update(item, scoped, values, principal)
+    self.validate_hook_item(updated)
+    if getattr(updated, resource.model.__primary_key__) != item_id:
+        raise RegistrationError("perform_update returned a different item")
+    if any(getattr(updated, name) != value for name, value in assigned_before.items()):
+        raise RegistrationError("perform_update changed a server-assigned field")
+    persisted = await self.read_written(item_id, principal)
+    self.validate_hook_item(persisted)
+    if any(
+        getattr(persisted, name) != value for name, value in assigned_before.items()
+    ):
+        raise RegistrationError("perform_update changed a server-assigned field")
+    return await self.to_schema(persisted)
 
 
 async def delete_row(
     self: CrudAPI, request: Request, item_id: Any, principal: Any = None
 ) -> None:
     resource = self.resource
-    await resource.guard(item_id, principal)
-    if not await resource.scope(item_id, principal).adelete():
-        raise await resource.refused(item_id)
+    query = self.get_queryset(principal)
+    visible = await query.filter(**{resource.model.__primary_key__: item_id}).aget()
+    if resource.owner and getattr(visible, resource.owner) != resource.owner_of(
+        principal
+    ):
+        raise Forbidden("You cannot change this item.")
+    scoped = query.filter(**{resource.model.__primary_key__: item_id})
+    if resource.owner:
+        scoped = scoped.filter(**{resource.owner: resource.owner_of(principal)})
+    item = visible
+    if not await self.perform_delete(item, scoped, principal):
+        raise await self.refused(item_id, principal)
 
 
 def specialize(
@@ -315,19 +377,55 @@ def specialize(
 
 
 class CrudAPI(API):
-    """Base class: ``class Posts(CrudAPI, path="/posts", resource=...)``."""
+    """CRUD-generating API class, mounted once with ``app.include(Posts)``."""
 
-    resource: ClassVar[Resource]
+    model: ClassVar[type[Model] | None] = None
+    read_schema: ClassVar[type[Schema] | None] = None
+    create_schema: ClassVar[type[Schema] | None] = None
+    update_schema: ClassVar[type[Schema] | None] = None
+    deletable: ClassVar[bool] = False
+    access: ClassVar[Access | None] = None
+    read_access: ClassVar[Access | None] = None
+    public_writes: ClassVar[bool] = False
+    owner: ClassVar[str] = ""
+    identity_key: ClassVar[Callable[[Any], Any]] = attrgetter("id")
+    assign: ClassVar[Mapping[str, Callable[[Any], Any]]] = {}
+    pagination: ClassVar[PageNumberPagination] = PageNumberPagination()
+    resource: ClassVar[_CrudConfig]
 
     def __init_subclass__(
-        cls, path: str | None = None, resource: Resource | None = None, **kwargs: Any
+        cls,
+        path: str | None = None,
+        model: type[Model] | None = None,
+        resource: Resource | None = None,
+        **kwargs: Any,
     ) -> None:
         super().__init_subclass__(path=path, **kwargs)
-        if resource is None:
+        inherited = next(
+            (
+                vars(base)["resource"]
+                for base in cls.__mro__[1:]
+                if "resource" in vars(base)
+            ),
+            None,
+        )
+        config = resolve_config(cls, model, resource, inherited)
+        if config is None:
             return
-        resource.check()
-        cls.resource = resource
-        generated = generate(resource)
+        cls.resource = config
+        cls.model = config.model
+        cls.read_schema = config.read
+        cls.create_schema = config.create
+        cls.update_schema = config.update
+        cls.deletable = config.deletable
+        cls.access = config.access
+        cls.read_access = config.read_access
+        cls.public_writes = config.public_writes
+        cls.owner = config.owner
+        cls.identity_key = config.identity_key
+        cls.assign = config.assign
+        cls.pagination = config.pagination
+        generated = generate(config)
         for name in ACTIONS:
             existing = inspect.getattr_static(cls, name, None)
             if not getattr(existing, GENERATED, False) and existing is not None:
@@ -336,6 +434,158 @@ class CrudAPI(API):
             # access, schemas and owner); a resource that does not declare them
             # must not keep them running against the new one.
             setattr(cls, name, generated.get(name))
+
+    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Any]:  # noqa: ARG002
+        """Build the visible query; public routes receive ``None``."""
+        if isinstance(self.resource, Resource):
+            return self.resource.base()
+        return self.resource.model.all()
+
+    def written_queryset(self, principal: Caller[Any] | None) -> QuerySet[Any]:  # noqa: ARG002
+        """Build a query for reading back a successful write."""
+        if isinstance(self.resource, Resource):
+            return self.resource.base()
+        return self.resource.model.all()
+
+    async def read_written(self, item_id: Any, principal: Any) -> Any:
+        """Read back a write, retaining legacy eager-load and hidden-row behavior."""
+        key = self.resource.model.__primary_key__
+        try:
+            return (
+                await self.written_queryset(principal).filter(**{key: item_id}).aget()
+            )
+        except self.resource.model.NotFound:
+            if not isinstance(self.resource, Resource):
+                raise
+            return await self.resource.model.aget(**{key: item_id})
+
+    async def to_schema(self, item: Any) -> Any:
+        if isinstance(self.resource, Resource):
+            return self.resource.present(item)
+        return self.resource.read(
+            **{name: getattr(item, name) for name in self.resource.read.specs()}
+        )
+
+    def validate_hook_item(self, item: Any) -> None:
+        if not isinstance(item, self.resource.model):
+            raise RegistrationError(
+                f"CRUD hook must return {self.resource.model.__name__}, got "
+                f"{type(item).__name__}"
+            )
+
+    async def refused(self, item_id: Any, principal: Any) -> Forbidden:
+        """Preserve hidden-row 404s and owner-change 403s after a race."""
+        resource = self.resource
+        item = (
+            await self.get_queryset(principal)
+            .filter(**{resource.model.__primary_key__: item_id})
+            .aget()
+        )
+        if resource.owner and getattr(item, resource.owner) != resource.owner_of(
+            principal
+        ):
+            return Forbidden("You cannot change this item.")
+        return Forbidden("The item could not be changed.")
+
+    async def perform_create(
+        self,
+        values: dict[str, Any],
+        principal: Any,  # noqa: ARG002
+    ) -> Any:
+        return await self.resource.model.acreate(**values)
+
+    async def perform_update(
+        self, item: Any, scoped: QuerySet[Any], values: dict[str, Any], principal: Any
+    ) -> Any:
+        if values and not await scoped.aupdate(values):
+            raise await self.refused(getattr(item, item.__primary_key__), principal)
+        return item
+
+    async def perform_delete(
+        self,
+        item: Any,  # noqa: ARG002
+        scoped: QuerySet[Any],
+        principal: Any,  # noqa: ARG002
+    ) -> bool:
+        return bool(await scoped.adelete())
+
+
+def resolve_config(
+    cls: type[CrudAPI],
+    model: type[Model] | None,
+    resource: Resource | None,
+    inherited: _CrudConfig | None,
+) -> _CrudConfig | None:
+    """Resolve class-header declarations and intentional subclass overrides."""
+    if resource is not None:
+        config = resource_config(cls, model, resource)
+    elif inherited is not None and model is None:
+        config = dataclasses.replace(inherited, **class_config_overrides(cls))
+    else:
+        native = native_config(cls, model, inherited)
+        if native is None:
+            return None
+        config = native
+    custom_output = (
+        isinstance(config, Resource) and config.output is not None
+    ) or cls.to_schema is not CrudAPI.to_schema
+    config.check(custom_output=custom_output)
+    return config
+
+
+def resource_config(
+    cls: type[CrudAPI], model: type[Model] | None, resource: Resource
+) -> _CrudConfig:
+    if model is not None:
+        raise RegistrationError("model= cannot be combined with resource=")
+    return dataclasses.replace(resource, **class_config_overrides(cls))
+
+
+def native_config(
+    cls: type[CrudAPI], model: type[Model] | None, inherited: _CrudConfig | None
+) -> _CrudConfig | None:
+    actual_model = model or cls.model
+    schema = cls.read_schema
+    if actual_model is None and schema is None and inherited is None:
+        return None
+    if actual_model is None or schema is None:
+        raise RegistrationError(f"{cls.__name__}: model= and read_schema are required")
+    return _CrudConfig(
+        model=actual_model,
+        read=schema,
+        create=cls.create_schema,
+        update=cls.update_schema,
+        deletable=cls.deletable,
+        access=cls.access,
+        read_access=cls.read_access,
+        public_writes=cls.public_writes,
+        owner=cls.owner,
+        identity_key=cls.identity_key,
+        assign=cls.assign,
+        pagination=cls.pagination,
+    )
+
+
+def class_config_overrides(cls: type[CrudAPI]) -> dict[str, Any]:
+    names = {
+        "model": "model",
+        "read_schema": "read",
+        "create_schema": "create",
+        "update_schema": "update",
+        "deletable": "deletable",
+        "access": "access",
+        "read_access": "read_access",
+        "public_writes": "public_writes",
+        "owner": "owner",
+        "identity_key": "identity_key",
+        "assign": "assign",
+        "pagination": "pagination",
+    }
+    return {
+        target: vars(cls)[source]
+        for source, target in names.items()
+        if source in vars(cls)
+    }
 
 
 def item_type(model: type[Model]) -> Any:
@@ -356,7 +606,7 @@ def declare(
     return function
 
 
-def read_routes(resource: Resource, key: Any) -> dict[str, Callable[..., Any]]:
+def read_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any]]:
     reads = Options(access=resource.read_access)
     listing = dataclasses.replace(reads, pagination=resource.pagination)
     page = Page[resource.read]  # type: ignore[name-defined]
@@ -364,19 +614,29 @@ def read_routes(resource: Resource, key: Any) -> dict[str, Callable[..., Any]]:
         "list": declare(
             list_rows,
             "list",
-            {"request": Request, "page": PageParams, "return": page},
+            {
+                "request": Request,
+                "page": PageParams,
+                **({"principal": Caller[Any]} if resource.read_access else {}),
+                "return": page,
+            },
             ("GET", "/", listing),
         ),
         "retrieve": declare(
             retrieve_row,
             "retrieve",
-            {"request": Request, "item_id": key, "return": resource.read},
+            {
+                "request": Request,
+                "item_id": key,
+                **({"principal": Caller[Any]} if resource.read_access else {}),
+                "return": resource.read,
+            },
             ("GET", ITEM, reads),
         ),
     }
 
 
-def write_routes(resource: Resource, key: Any) -> dict[str, Callable[..., Any]]:
+def write_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any]]:
     writes = Options(access=resource.access, transaction=True)
     caller = {"principal": Caller[Any]} if resource.access else {}
     found: dict[str, Callable[..., Any]] = {}
@@ -396,7 +656,7 @@ def write_routes(resource: Resource, key: Any) -> dict[str, Callable[..., Any]]:
     return found
 
 
-def generate(resource: Resource) -> dict[str, Callable[..., Any]]:
+def generate(resource: _CrudConfig) -> dict[str, Callable[..., Any]]:
     """The generated actions of ``resource``, by name."""
     key = item_type(resource.model)
     return {**read_routes(resource, key), **write_routes(resource, key)}
