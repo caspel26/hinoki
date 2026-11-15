@@ -6,7 +6,15 @@ import os
 import sys
 from pathlib import Path
 
-from hinoki import openapicli, projectcli, routescli, serve, settingscli, versioncli
+from hinoki import (
+    openapicli,
+    projectcli,
+    routescli,
+    serve,
+    settingscli,
+    shellcli,
+    versioncli,
+)
 from hinoki.checkcli import add_arguments, run_check
 from hinoki.db import Database, DatabaseError
 from hinoki.errors import MigrationError
@@ -47,6 +55,7 @@ def parser() -> argparse.ArgumentParser:
     openapicli.add_arguments(commands)
     versioncli.add_arguments(commands)
     projectcli.add_arguments(commands)
+    shellcli.add_arguments(commands)
     serve.add_arguments(commands)
     commands.add_parser("manage", help="run an app's management commands")
     group = commands.add_parser("migrations", help="plan, apply and inspect migrations")
@@ -206,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
         "openapi": openapicli.run_openapi,
         "routes": routescli.run_routes,
         "settings": settingscli.run_settings,
+        "shell": shellcli.run,
         "version": versioncli.run_version,
         "dev": serve.run_dev,
         "serve": serve.run_serve,
