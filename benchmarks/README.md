@@ -168,3 +168,37 @@ For the query/header byte limits, five alternating baseline/candidate runs of th
 Five alternating runs of `protectedgetbench.py` compared the main baseline (`a79cbad`) with the response security policy implementation (`3d1eb7a`). Each run reports the median of seven samples × 20,000 requests after one warm-up. Median of run medians: 51.408 µs baseline and 53.804 µs candidate (+4.66%); paired changes ranged from +2.08% to +7.27%. The within-group coefficients of variation were 2.29–4.00% baseline and 2.64–3.37% candidate. This is below the 15% detector threshold.
 
 The added work builds and appends three application-wide security headers to each response. This measures only the in-process ASGI path; no server, network or database is involved, and host load was not isolated. It is a regression check, not an end-to-end or throughput claim. Raw samples and environment metadata are in [`security-response-policy.json`](results/security-response-policy.json).
+
+## `comparative/profile_request.py` — where one request's time goes
+
+Question: for a request that reaches PostgreSQL, how much CPU does Hinoki spend in Python, how much in the native extension's own threads, and how much is waiting for the database? One process, no HTTP server and no network between client and application: the ASGI adapter is called directly, as a server would, against `hinoki_app.py` plus one bearer-protected route and a 100-row page. A pass through `psycopg` of the same SQL gives the driver-level floor. Each figure is the median of five blocks; `--profile` adds a cProfile split of the event-loop thread (cProfile inflates Python call costs, so the shares locate hot spots and are not microseconds).
+
+```sh
+# PostgreSQL as in comparative/README.md, seeded with seed.py
+cd benchmarks/comparative
+PROFILE_DATABASE_URL=postgres://postgres:bench-only@127.0.0.1:54402/bench \
+  uv run python profile_request.py --profile --output ../results/request-profile.json
+```
+
+Measured 2026-11-15 on one Apple M4 Pro (macOS 26.2, Python 3.14.0, release-profile extension), PostgreSQL 17 inside the Docker Desktop virtual machine, host not idle (one-minute load average 4 to 7, including unrelated system and container activity). Samples and metadata: [`request-profile-before-snapshot-fix-macos-m4pro.json`](results/request-profile-before-snapshot-fix-macos-m4pro.json) and [`request-profile-after-snapshot-fix-macos-m4pro.json`](results/request-profile-after-snapshot-fix-macos-m4pro.json).
+
+CPU per request with 64 requests in flight (µs; the event-loop thread, then all other threads), and the requests per second one process then serves:
+
+| Scenario | Event-loop CPU | Other-thread CPU | Requests/s (one process) |
+| --- | ---: | ---: | ---: |
+| `health` (no database) | 12.7 | 0 | 78 600 |
+| `detail` | 106 → 92 | 67 → 68 | 7 350 → 8 170 |
+| `detail`, bearer-protected | 110 → 97 | 66 → 67 | 7 210 → 7 910 |
+| `list`, 20 rows | 517 → 357 | 178 → 182 | 1 570 → 2 080 |
+| `list`, 100 rows | 1 938 → 1 203 | 416 → 419 | 433 → 631 |
+| `create` | 159 → 134 | 135 → 132 | 4 620 → 5 010 |
+
+Arrows are before and after skipping `copy.deepcopy` for immutable column values in the row snapshot that `asave` uses for dirty tracking (`Model.remember`). The deep copy of UUIDs and datetimes went through `copy`'s generic reconstruction on every loaded row, even in read-only paths. Three alternating baseline/candidate pairs gave event-loop CPU of 105–106 / 92–94 µs (`detail`), 511–520 / 357–364 µs (`list`, 20 rows) and 1 923–1 956 / 1 187–1 226 µs (`list`, 100 rows); the ranges do not overlap and the within-run CV was 0.3–3.2%. This is a Python change, not a Rust one.
+
+Readings, and their limits:
+
+* A request that does no database work costs about 13 µs inside Hinoki. A listening server's own per-request work is outside this measurement.
+* The database round trip dominates a single request: the wait is about 270 µs for `detail` (a bare `SELECT 1` through the virtual machine's port forward is about 240 µs) and about 1.8 ms for `list` (two statements, one of them a `COUNT`).
+* After the snapshot change, the largest remaining per-row costs in a list are the native serializer (`dump_instance`, itself partly building Python objects), constructing `uuid.UUID` objects (`uuid.UUID.__init__`) and `str(UUID)`, and the queryset row builder. These are per-row costs, so they grow with page size.
+* Event-loop CPU is not the only limit of a served worker. Granian's HTTP handling, the load generator, PostgreSQL and the Docker virtual machine share the same cores, and this measurement says nothing about how they interact.
+* One machine, one day, in process: not a throughput claim, not a comparison with any other framework, and not a prediction for Linux.
