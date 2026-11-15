@@ -508,6 +508,13 @@ opens the selected database and creates its ledger table if needed.</p>
   fields annotated <code>dict</code> or <code>list</code> are decoded by the typed ORM, while the
   low-level <code>Database.fetch()</code> API returns JSON column values as bytes.</li>
 </ul>
+<p>Hinoki creates MySQL and MariaDB foreign keys as table-level constraints for
+consistent behavior across the two dialects. MySQL ignores inline <code>REFERENCES</code>
+clauses; MariaDB behavior differs by server version. For schemas created by an
+older Hinoki version, inspect <code>SHOW CREATE TABLE</code> before relying on referential
+integrity or <code>on_delete</code>. A migration ledger entry alone does not establish
+that MySQL created the constraint. Write a reviewed repair migration where a
+constraint is missing; Hinoki does not silently rewrite applied migrations.</p>
 <p>See the <a href="../migrations/">migration guide</a> for destructive-change review and
 planning details, and the <a href="../reference/database/">database API reference</a> for
 types, raw SQL placeholders and backend limits.</p>
@@ -540,7 +547,7 @@ types, raw SQL placeholders and backend limits.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.2</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 23:12:11 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/databases.md">Edit on GitHub</a></dd></div>
         </dl>

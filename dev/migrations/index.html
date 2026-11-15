@@ -430,6 +430,13 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 <p>Existing projects without a <code>hinoki.toml</code> can continue using explicit <code>--models MODULE</code> and <code>--dir PATH</code> options. These options cannot be combined with a project manifest; use the manifest as the single source for registered apps.</p>
 <p>Use a disposable database to review a migration before running it against important data.</p>
 <p>SQLite uses table rebuilds when a schema change cannot be expressed safely with <code>ALTER TABLE</code>. Review the generated SQL carefully. Dropping columns, changing types or constraints, and adding non-null columns can be destructive and require <code>--allow-destructive</code>. Hinoki holds the SQLite pool during a migration, suspends foreign-key enforcement on reserved connections, runs <code>PRAGMA foreign_key_check</code> before commit, and rolls the migration back if references are invalid.</p>
+<p>MySQL and MariaDB migrations declare foreign keys at table level. For databases
+migrated with an older Hinoki version, inspect <code>SHOW CREATE TABLE</code>: MySQL ignores
+inline <code>REFERENCES</code> clauses, while MariaDB behavior varies by server version.
+Add any missing constraint through a reviewed manual migration; applied
+migrations are never rewritten automatically. Automatic removal of a foreign
+key column is refused for these backends because the planner cannot know
+whether an older migration actually created its constraint.</p>
 <h2 id="destructive-changes">Destructive changes<a class="headerlink" href="#destructive-changes" title="Permanent link">&para;</a></h2>
 <p>Operations that can remove data are reported as destructive and are not written unless <code>--allow-destructive</code> is passed to <code>plan</code>. Read the generated migration before opting in. Changing a constraint on an existing column may require a hand-written migration.</p>
 <p>Migrations are files committed with the application. Do not run them from every server worker's startup hook. For the connection lifecycle, see <a href="../settings/#8-database-connection-ownership">settings</a>.</p>
@@ -462,8 +469,8 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.9</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 22:26:20 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 23:12:11 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/migrations.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
