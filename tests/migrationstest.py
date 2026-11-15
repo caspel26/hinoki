@@ -76,6 +76,40 @@ def test_first_plan_creates_tables_in_dependency_order(tmp_path: Path) -> None:
     assert state["tables"]["mig_things"]["columns"]["seen"]["nullable"] is True
 
 
+def test_migration_state_is_backend_neutral_but_sql_is_backend_specific(
+    tmp_path: Path,
+) -> None:
+    owner = owners()
+    models = [things(owner), owner]
+    postgres = plan(models, tmp_path / "postgres", write=False, dialect="postgres")
+    sqlite = plan(models, tmp_path / "sqlite", write=False, dialect="sqlite")
+    mysql = plan(models, tmp_path / "mysql", write=False, dialect="mysql")
+
+    assert postgres.state == sqlite.state == mysql.state
+    postgres_sql = "\n".join(operation.sql for operation in postgres.operations)
+    sqlite_sql = "\n".join(operation.sql for operation in sqlite.operations)
+    mysql_sql = "\n".join(operation.sql for operation in mysql.operations)
+    assert '"id" uuid PRIMARY KEY' in postgres_sql
+    assert '"id" UUID PRIMARY KEY' in sqlite_sql
+    assert "`id` binary(16) PRIMARY KEY" in mysql_sql
+
+
+def test_legacy_backend_specific_state_types_are_normalized(tmp_path: Path) -> None:
+    owner = owners()
+    models = [things(owner), owner]
+    initial = plan(models, tmp_path, dialect="sqlite")
+    assert initial.path is not None
+    state_path = initial.path.with_suffix(".state.json")
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["tables"]["mig_owners"]["columns"]["id"]["type"] = "integer"
+    state["tables"]["mig_things"]["columns"]["id"]["type"] = "UUID"
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    upgraded = plan(models, tmp_path, dialect="mysql", write=False)
+
+    assert upgraded.operations == ()
+
+
 def test_migration_name_is_derived_and_can_be_overridden(tmp_path: Path) -> None:
     automatic = plan([owners()], tmp_path / "automatic")
     assert automatic.path == tmp_path / "automatic/0001-create-table-mig-owners.sql"
@@ -282,7 +316,7 @@ def test_models_are_importable_from_a_console_script() -> None:
     original_path = sys.path.copy()
     sys.path[:] = [entry for entry in sys.path if entry not in {"", project}]
     try:
-        found = models_of("examples.notes.app")
+        found = models_of("examples.notes.models")
     finally:
         sys.path[:] = original_path
     assert [item.__name__ for item in found] == ["Note"]
@@ -436,8 +470,11 @@ def test_command_line_plans_and_prints(
 
 
 def test_command_line_reports_a_failed_connection_without_a_traceback(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
+    monkeypatch.chdir(tmp_path)
     # Port 1 refuses connections; the URL's password must not be echoed.
     url = "postgres://someone:hunter2@127.0.0.1:1/nowhere?connect_timeout=2"
     args = ["migrations", "--dir", str(tmp_path)]
