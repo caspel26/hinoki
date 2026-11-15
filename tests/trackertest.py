@@ -13,6 +13,7 @@ from examples.tracker.app import create_app
 from examples.tracker.errors import DoneTasksAreKept, TaskAlreadyDone
 from examples.tracker.models import Member, Task
 from examples.tracker.schemas import TaskIn
+from examples.tracker.settings import TrackerSettings
 from hinoki.__main__ import main
 from hinoki.db import Database
 from hinoki.orm import migrator, use_database
@@ -114,7 +115,7 @@ def test_the_tracker_keeps_its_layering_promises(
     tmp_path: Path,
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("TRACKER_DATABASE_URL", "postgres://unused")
+    monkeypatch.delenv("TRACKER_DATABASE__URL", raising=False)
     argv = [
         "check",
         "examples.tracker.app:create_app",
@@ -125,6 +126,15 @@ def test_the_tracker_keeps_its_layering_promises(
     ]
     assert main(argv) == 0
     assert "0 violated" in capsys.readouterr().out
+
+
+def test_local_settings_default_to_sqlite_without_opening_a_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("TRACKER_DATABASE__URL", raising=False)
+    app = create_app()
+    assert isinstance(app.settings, TrackerSettings)
+    assert app.settings.database.url.reveal() == "sqlite://./.hinoki/local.sqlite3"
 
 
 @needs_database

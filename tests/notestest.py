@@ -6,12 +6,22 @@ from collections.abc import AsyncIterator
 import pytest
 
 from examples.notes.app import create_app
+from examples.notes.settings import NotesSettings
 from hinoki.db import Database
 from tests.harness import Client, Pool
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(URL is None, reason="no database")
 JSON = "application/json"
+
+
+def test_the_factory_defaults_to_local_sqlite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("NOTES_DATABASE__URL", raising=False)
+    app = create_app()
+    assert isinstance(app.settings, NotesSettings)
+    assert app.settings.database.url.reveal() == "sqlite://./.hinoki/local.sqlite3"
 
 
 @pytest.fixture

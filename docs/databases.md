@@ -93,10 +93,10 @@ as a process argument:
 
 ```sh
 export HINOKI_DATABASE_URL="$BLOG_DATABASE__URL"
-hinoki migrations --dir blog/migrations plan --models blog.models --name initial
-hinoki migrations --dir blog/migrations status
-hinoki migrations --dir blog/migrations sql 0001-initial
-hinoki migrations --dir blog/migrations apply
+hinoki migrations plan --app blog
+hinoki migrations status
+hinoki migrations sql --app blog 0001-initial
+hinoki migrations apply --app blog
 ```
 
 Review generated SQL and state before applying them. Use a disposable database

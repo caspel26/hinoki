@@ -1,0 +1,35 @@
+{
+  "tables": {
+    "notes": {
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "title": {
+          "type": "varchar(80)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "body": {
+          "type": "text",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        }
+      },
+      "unique": [],
+      "indexes": [
+        [
+          "title"
+        ]
+      ]
+    }
+  }
+}

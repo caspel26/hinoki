@@ -291,10 +291,10 @@ app = Hinoki(settings=BlogSettings, include=[health, Posts], modules=[DatabaseMo
 
 The configuration is automatic in the useful sense: `BLOG_DATABASE__URL` is loaded from settings and the declared module connects as the server starts. Resource creation and cleanup remain explicit in the module lifecycle; there is no process-global connection opened during import. Factories remain useful when the app's routes or modules depend on runtime choices.
 
-One-off scripts have a different lifecycle. `examples/blog/seed.py` opens a short-lived `Database` explicitly, applies migrations, inserts synthetic rows and closes the pool in `finally`. It runs outside the HTTP server, so there is no worker lifespan to own that resource. This is intentional and avoids starting an app server just to seed a disposable database:
+One-off scripts have a different lifecycle. `examples/blog/seed.py` opens a short-lived `Database` explicitly, applies migrations, inserts synthetic rows and closes the pool in `finally`. It runs outside the HTTP server, so there is no worker lifespan to own that resource. It is a one-time seed for a fresh disposable database, not a repeatable reset:
 
 ```sh
-BLOG_DATABASE_URL=postgres://... uv run python -m examples.blog.seed
+BLOG_DATABASE__URL=postgres://... uv run python -m examples.blog.seed
 ```
 
 Use a disposable database for the example. The seed command is not a production migration mechanism and is not run at app startup.

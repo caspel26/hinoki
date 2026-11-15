@@ -1,27 +1,18 @@
 """The route and factory form of the smallest useful Hinoki app.
 
-    NOTES_DATABASE__URL=postgres://... \
-        uv run hinoki dev examples.notes.main:app
+    uv run hinoki dev examples.notes.main:app
 
-Create the table with a migration (``hinoki migrations plan --models
-examples.notes.app``) or by hand; nothing here touches a database at import.
+The root project manifest registers this model and its migration package;
+nothing here touches a database at import.
 """
 
-import os
 from typing import Annotated
-from uuid import UUID, uuid4
+from uuid import UUID
 
+from examples.notes.models import Note
+from examples.notes.settings import NotesSettings
 from hinoki import Field, Hinoki, Schema, http
 from hinoki.db import DatabaseModule
-from hinoki.orm import Model, field, indexed, ordered_by
-
-
-@indexed("title")
-@ordered_by("title")
-class Note(Model, table="notes"):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-    title: str = field(max_length=80)
-    body: str = ""
 
 
 class NoteIn(Schema):
@@ -57,7 +48,14 @@ async def remove(note_id: UUID) -> None:
 
 def create_app(database_url: str | None = None) -> Hinoki:
     """Factory kept for tests that pass a disposable database URL explicitly."""
-    app = Hinoki(title="Notes", openapi_url="/openapi.json", docs_url="/docs")
+    overrides = {"database": {"url": database_url}} if database_url is not None else {}
+    app_settings = NotesSettings.load(overrides=overrides)
+    app = Hinoki(
+        settings=app_settings,
+        title="Notes",
+        openapi_url="/openapi.json",
+        docs_url="/docs",
+    )
     app.include(listing, one, create, remove)
-    app.install(DatabaseModule(database_url or os.environ["NOTES_DATABASE_URL"]))
+    app.install(DatabaseModule(app_settings.database.url.reveal()))
     return app

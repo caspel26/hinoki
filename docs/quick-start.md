@@ -7,19 +7,21 @@ MySQL or MariaDB instead, see [Configure a database](databases.md).
 
 ## Plan and apply the migration
 
-The migration planner reads the model in `examples/notes/app.py` and the recorded migration state. It writes numbered SQL and state files for review:
+The repository's root `hinoki.toml` registers Notes, Tracker and Blog as
+independent apps. The migration planner reads the Notes model and its recorded
+state and writes numbered SQL and state files for review:
 
 ```sh
-uv run hinoki migrations --dir examples/notes/migrations plan \
-  --models examples.notes.app --name initial
-uv run hinoki migrations --dir examples/notes/migrations sql 0001-initial
+uv run hinoki app list
+uv run hinoki migrations plan --app notes
+uv run hinoki migrations sql --app notes 0001-create-table-notes
 ```
 
 Review the SQL, then apply it explicitly. With no URL set, the migration
 command and the Notes app both use `sqlite://./.hinoki/local.sqlite3`:
 
 ```sh
-uv run hinoki migrations --dir examples/notes/migrations apply
+uv run hinoki migrations apply --app notes
 ```
 
 The local database file and migration ledger are created when `apply` runs.

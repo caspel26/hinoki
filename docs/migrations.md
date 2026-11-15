@@ -18,6 +18,11 @@ uv run hinoki migrations plan --app billing --name add-invoice-index
 
 The manifest must register the selected app. A single-app project defaults to that app; in a multi-app project, `plan` requires `--app`. The planner targets the local SQLite default unless a URL is provided through `HINOKI_DATABASE_URL` or `--database`. It writes a numbered `.sql` file and a matching `.state.json` file into the registered migration package. Numbering and a stable slug derived from the first schema change are automatic; an optional `--name` replaces only that slug. Review both files before applying the change. To inspect a plan without writing files, add `--dry-run`. Cross-app model references require an explicit `requires` dependency in `hinoki.toml`; this lets Hinoki validate references and order migrations without assigning another app's tables to the current app's migration state.
 
+The state file stores logical column types that are stable across backends; the
+generated SQL uses the selected backend's types. Existing state files that
+recorded SQLite or MySQL-specific type names are normalized when planning, so
+switching the planner's backend does not appear as a destructive type change.
+
 For example, `billing` can depend on `accounts`:
 
 ```toml

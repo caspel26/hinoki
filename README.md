@@ -152,27 +152,35 @@ The ORM supports SQLite for local development by default, PostgreSQL, MySQL and 
 
 ## Run it
 
-You need [uv](https://docs.astral.sh/uv/) and a Rust toolchain (the core is built from source). Local settings use a project-local SQLite database by default; this Notes example uses a disposable PostgreSQL database.
+You need [uv](https://docs.astral.sh/uv/) and a Rust toolchain (the core is built from source). This example uses SQLite at `.hinoki/local.sqlite3` by default; set `NOTES_DATABASE__URL` to use another backend.
 
 ```sh
 git clone https://github.com/caspel26/hinoki
 cd hinoki
 uv sync --locked
-
-export NOTES_DATABASE__URL=postgres://postgres:pw@127.0.0.1:5432/notes
-export HINOKI_DATABASE_URL="$NOTES_DATABASE__URL"
 ```
 
 Hinoki never creates tables by itself. Write the migration from the model, read it, then apply it:
 
 ```sh
-uv run hinoki migrations --dir examples/notes/migrations plan \
-  --models examples.notes.app --name initial
-uv run hinoki migrations --dir examples/notes/migrations sql 0001-initial
-uv run hinoki migrations --dir examples/notes/migrations apply
+uv run hinoki app list
+uv run hinoki migrations plan --app notes
 ```
 
-In a project created with `hinoki new`, omit `--models` and `--dir`: its manifest discovers the app. Migration numbering and a slug based on the schema change are generated automatically; `--name initial-notes` can override the slug.
+The root `hinoki.toml` registers Notes, Tracker and Blog as independent apps.
+Migration number and slug derive from the first schema operation; review the
+generated SQL and state file before applying it. The sample's first file is
+`0001-create-table-notes.sql`.
+
+```sh
+uv run hinoki migrations sql --app notes 0001-create-table-notes
+uv run hinoki migrations apply --app notes
+```
+
+Omit `--app` to apply all registered migrations in dependency order. `--name`
+can override the generated slug. `hinoki new` creates the same manifest-driven
+workflow for a new project; `hinoki app create` adds another app and its
+migration package.
 
 Start the development server and send two requests from another terminal:
 
@@ -224,7 +232,7 @@ tracker_rules = RuleSet(
 ```
 
 ```sh
-TRACKER_DATABASE_URL=postgres://unused uv run hinoki check examples.tracker.app:create_app \
+uv run hinoki check examples.tracker.app:create_app \
   --rules examples.tracker.rules:tracker_rules --package examples.tracker
 ```
 

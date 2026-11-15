@@ -40,6 +40,18 @@ class MigrationChild(Model, table="q045_child"):
     parent_id: UUID = foreign_key(BeforeMigration, on_delete=OnDelete.RESTRICT)
 
 
+class BeforeTypeMigration(Model, table="q045_type_rebuild"):
+    id: UUID = field(primary_key=True)
+    payload: bytes
+    count: int | None
+
+
+class AfterTypeMigration(Model, table="q045_type_rebuild"):
+    id: UUID = field(primary_key=True)
+    payload: bytes
+    count: float | None
+
+
 @pytest.fixture
 async def database(tmp_path: Path) -> AsyncIterator[Database]:
     db = await Database.connect(f"sqlite://{tmp_path / 'test.sqlite3'}", max_size=2)
@@ -150,6 +162,45 @@ async def test_sqlite_migration_rebuild_preserves_existing_rows(
     )
     assert child == [{"parent_id": identifier}]
     assert await database.fetch("PRAGMA foreign_key_check") == []
+    database.close()
+
+
+async def test_sqlite_type_rebuild_uses_sqlite_types_and_preserves_blob_data(
+    tmp_path: Path,
+) -> None:
+    database = await Database.connect(f"sqlite://{tmp_path / 'type-rebuild.sqlite3'}")
+    migrations = tmp_path / "type-migrations"
+    plan([BeforeTypeMigration], migrations, "initial", dialect="sqlite")
+    await apply(database, migrations)
+    identifier = UUID("56a92e87-34ac-4c1a-93bb-ef319318a503")
+    await database.execute(
+        'INSERT INTO "q045_type_rebuild" ("id", "payload", "count") '
+        "VALUES (?1, ?2, ?3)",
+        identifier,
+        b"\x00\x01payload",
+        7,
+    )
+
+    rebuilt = plan(
+        [AfterTypeMigration],
+        migrations,
+        "change-count-type",
+        dialect="sqlite",
+        allow_destructive=True,
+    )
+    sql = "\n".join(operation.sql for operation in rebuilt.operations)
+    assert "ALTER COLUMN" not in sql and "bytea" not in sql
+    assert '"payload" blob' in sql and '"count" real' in sql
+    await apply(database, migrations)
+
+    columns = await database.fetch("PRAGMA table_info(q045_type_rebuild)")
+    types = {column["name"]: column["type"] for column in columns}
+    assert types["payload"] == "BLOB" and types["count"] == "REAL"
+    rows = await database.fetch(
+        'SELECT "payload", "count" FROM "q045_type_rebuild" WHERE "id" = ?1',
+        identifier,
+    )
+    assert rows == [{"payload": b"\x00\x01payload", "count": 7.0}]
     database.close()
 
 
