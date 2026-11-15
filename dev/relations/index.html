@@ -458,6 +458,52 @@
     <span class="nb">print</span><span class="p">(</span><span class="n">post</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
 </code></pre></div>
 <p>Accessing an unloaded relation raises a relation-loading error. Load the relation explicitly so the query is visible in the calling code.</p>
+<h2 id="one-to-one-relations">One-to-one relations<a class="headerlink" href="#one-to-one-relations" title="Permanent link">&para;</a></h2>
+<p>A one-to-one relation uses the same foreign-key declaration with <code>unique=True</code>;
+there is no separate field helper. The unique constraint enforces that each
+target is referenced by at most one row. Keep the reverse relation explicit
+with <code>related_name</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClassVar</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">OnDelete</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">foreign_key</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm.relations</span><span class="w"> </span><span class="kn">import</span> <span class="n">Related</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">User</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"users"</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">profile</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="n">Related</span><span class="p">[</span><span class="n">Profile</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]]</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Profile</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"profiles"</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">user_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span>
+        <span class="n">User</span><span class="p">,</span>
+        <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span>
+        <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">related_name</span><span class="o">=</span><span class="s2">"profile"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">user</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="n">Related</span><span class="p">[</span><span class="n">User</span><span class="p">]]</span>
+</code></pre></div>
+<p>The forward <code>profile.user</code> relation has one required target. The reverse
+<code>user.profile</code> relation is <code>Profile | None</code>: a user may not have a profile.
+Load it explicitly and in a bounded number of queries:</p>
+<div class="highlight"><pre><span></span><code><span class="n">profiles</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Profile</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">"user"</span><span class="p">)</span>
+<span class="n">users</span> <span class="o">=</span> <span class="k">await</span> <span class="n">User</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">"profile"</span><span class="p">)</span>
+</code></pre></div>
+<p><code>select_related</code> joins the forward target into the profile query;
+<code>prefetch_related</code> uses one batched query for profiles and returns one profile
+or <code>None</code> per user. Neither access pattern performs lazy queries. If a database
+has drifted and contains multiple rows despite the unique declaration,
+<code>prefetch_related</code> raises <code>MultipleObjectsReturned</code> rather than choosing one.
+Migrations create the FK and unique constraint together; applying a unique
+constraint to existing duplicate data fails and requires an explicit data
+cleanup before retrying. When changing an existing foreign key to <code>unique=True</code>,
+SQLite rebuilds the table and may reject duplicates; MySQL, MariaDB and
+PostgreSQL require a hand-written migration for the uniqueness change. Resolve
+duplicates before applying the constraint.</p>
 <p>Many-to-many relationships are represented by an explicit join model with two foreign keys and a composite <code>@unique</code> constraint. There is no implicit many-to-many table or <code>through=</code> shortcut.</p>
 <h2 id="model-a-many-to-many-relationship">Model a many-to-many relationship<a class="headerlink" href="#model-a-many-to-many-relationship" title="Permanent link">&para;</a></h2>
 <p>Define a model for the association table. Each row links one post to one tag; the composite uniqueness constraint prevents the same pair from being inserted twice.</p>
@@ -514,15 +560,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#declare-a-foreign-key">Declare a foreign key</a></li><li><a href="#foreign-keys-in-abstract-models-and-mixins">Foreign keys in abstract models and mixins</a></li><li><a href="#load-related-rows-explicitly">Load related rows explicitly</a></li><li><a href="#model-a-many-to-many-relationship">Model a many-to-many relationship</a></li></ul>
+            <ul><li><a href="#declare-a-foreign-key">Declare a foreign key</a></li><li><a href="#foreign-keys-in-abstract-models-and-mixins">Foreign keys in abstract models and mixins</a></li><li><a href="#load-related-rows-explicitly">Load related rows explicitly</a></li><li><a href="#one-to-one-relations">One-to-one relations</a></li><li><a href="#model-a-many-to-many-relationship">Model a many-to-many relationship</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.8</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 00:18:50 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>4 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 23:23:03 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/relations.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
