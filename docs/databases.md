@@ -43,6 +43,9 @@ export BLOG_DATABASE__URL='sqlite://./.hinoki/local.sqlite3'
 # PostgreSQL
 export BLOG_DATABASE__URL='postgresql://blog:password@db.example.test/blog'
 
+# PostgreSQL with TLS (recommended for remote databases)
+export BLOG_DATABASE__URL='postgresql://blog:password@db.example.test/blog?sslmode=verify-full&sslrootcert=%2Frun%2Fsecrets%2Fdb-ca.pem'
+
 # MySQL
 export BLOG_DATABASE__URL='mysql://blog:password@db.example.test/blog'
 
@@ -53,6 +56,9 @@ export BLOG_DATABASE__MAX_SIZE=10
 Use a secret manager or a `BLOG_DATABASE__URL_FILE` variable for deployment
 credentials. Hinoki redacts the URL in settings output and connection errors.
 Avoid placing a credential-bearing URL in shell history or a process argument.
+Database authentication uses the username and password in the URL; percent-encode
+reserved characters in either component. SQLite files are protected by the
+operating-system account and filesystem permissions, not by database credentials.
 
 For non-secret pool settings, TOML works as well. Keep `url` in an environment
 variable or secret file; `settings.Secret` values are not read from TOML.
@@ -70,9 +76,9 @@ provided `Database` instance.
 
 | Backend | URL example | Use and constraints |
 | --- | --- | --- |
-| SQLite | `sqlite://./.hinoki/local.sqlite3` | Recommended local default. SQLite allows one writer at a time; Hinoki uses bounded connections and a busy timeout. Relative paths are resolved from the application working directory. |
-| PostgreSQL | `postgresql://user:password@host/database` | Server database with native UUID, timestamp, JSON and byte types. TLS options and verification behavior are described in the [database reference](reference/database.md). |
-| MySQL | `mysql://user:password@host/database` | Requires TLS by default, with certificate and host verification. The system trust store must trust the server certificate. `require_ssl=false` disables encryption and is only for an isolated disposable local server. MySQL uses InnoDB and MySQL-native JSON; `RETURNING` is unavailable. |
+| SQLite | `sqlite://./.hinoki/local.sqlite3` | Supported; recommended local default. No network authentication or TLS. SQLite allows one writer at a time; Hinoki uses bounded connections and a five-second busy timeout. Relative paths are resolved from the application working directory. |
+| PostgreSQL | `postgresql://user:password@host/database` | Supported. Uses PostgreSQL username/password authentication and native UUID, timestamp, JSON and byte types. `sslmode` defaults to `prefer`; use `sslmode=verify-full` for remote databases. `sslrootcert` adds a PEM CA certificate to the system roots. Hinoki accepts `disable`, `prefer`, `require`, `verify-ca` and `verify-full`; the last three all require TLS and certificate verification in Hinoki. |
+| MySQL | `mysql://user:password@host/database` | Supported. Uses username/password authentication and requires TLS by default, with certificate and host verification. The system trust store must trust the server certificate. `require_ssl=false` disables encryption and is only for an isolated disposable local server. MySQL uses InnoDB and MySQL-native JSON; `RETURNING` is unavailable. |
 
 MariaDB, SQL Server and Oracle are not supported by this release. MySQL's URL
 scheme does not imply MariaDB compatibility.
@@ -105,7 +111,8 @@ opens the selected database and creates its ledger table if needed.
 Migration behavior differs by backend:
 
 * **SQLite** rebuilds a table when a safe direct alteration is unavailable and
-  checks foreign keys before committing the migration.
+  checks foreign keys before committing the migration. Keep the database file
+  and its backups on storage with permissions limited to the application user.
 * **PostgreSQL** applies migrations in a transaction.
 * **MySQL** implicitly commits DDL. If a migration fails, earlier statements
   may already have changed the schema; Hinoki reports that partial application
