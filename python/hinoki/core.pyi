@@ -1,4 +1,4 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -43,6 +43,17 @@ def compile_schemas(
 def parse_query_string(raw: bytes, max_pairs: int) -> dict[str, list[str]]: ...
 def parse_cookie_header(header: str) -> dict[str, str]: ...
 def header_dict(headers: Sequence[Sequence[bytes]]) -> dict[str, str]: ...
+def request_headers(
+    headers: Sequence[Sequence[bytes]],
+) -> tuple[dict[str, str], int]: ...
+def response_headers(
+    headers: list[tuple[bytes, bytes]],
+    policy: list[tuple[bytes, bytes]],
+    route_headers: Iterable[tuple[str, str]],
+    request_id_name: bytes,
+    request_id: bytes,
+    allow_origin: bytes,
+) -> tuple[list[tuple[bytes, bytes]], bool]: ...
 def parse_multipart_body(
     raw: bytes, boundary: str, max_parts: int, max_part_bytes: int
 ) -> tuple[list[tuple[str, str]], list[tuple[str, str, str, bytes]]]: ...
