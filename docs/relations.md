@@ -18,27 +18,27 @@ class Post(Model, table="posts"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     author_id: UUID = foreign_key(
         Author,
-        on_delete="restrict",
+        on_delete=OnDelete.RESTRICT,
         related_name="posts",
     )
     title: str
 ```
 
-The `author_id` field is stored on `posts`. The forward relation is `post.author`; `author.posts` is the reverse relation. The foreign-key type must match the referenced primary-key type. `on_delete` is required, so what happens to a row when the row it references is deleted is always a decision:
+The `author_id` field is stored on `posts`. The forward relation is `post.author`; `author.posts` is the reverse relation. The foreign-key type must match the referenced primary-key type. `on_delete` is required, so what happens to a row when the row it references is deleted is always a decision. Its value is a member of the `OnDelete` enum (`from hinoki.orm import OnDelete`):
 
 | `on_delete` | When the referenced row is deleted |
 | --- | --- |
-| `"restrict"` | The delete is refused while referencing rows exist |
-| `"cascade"` | The referencing rows are deleted too |
-| `"set_null"` | The column is set to `NULL`; the field must be annotated `| None` |
-| `"no_action"` | Like `restrict`, checked by the database at the end of the statement |
+| `OnDelete.RESTRICT` | The delete is refused while referencing rows exist |
+| `OnDelete.CASCADE` | The referencing rows are deleted too |
+| `OnDelete.SET_NULL` | The column is set to `NULL`; the field must be annotated `| None` |
+| `OnDelete.NO_ACTION` | Like `RESTRICT`, checked by the database at the end of the statement |
 
-The accepted values are the type `hinoki.orm.OnDelete`, so a type checker reports a misspelled rule, and the declaration refuses it with a `RegistrationError` when the module is imported. `set_null` on a field without `| None` is refused the same way, before any migration is planned:
+Only enum members are accepted. Text such as `on_delete="cascade"`, which earlier revisions took, is reported by a type checker and refused with a `RegistrationError` when the module is imported. `OnDelete.SET_NULL` on a field without `| None` is refused the same way, before any migration is planned:
 
 ```python
 class Note(Model, table="notes"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
-    post_id: UUID | None = foreign_key(Post, on_delete="set_null", default=None)
+    post_id: UUID | None = foreign_key(Post, on_delete=OnDelete.SET_NULL, default=None)
 ```
 
 The rule is written into the `REFERENCES ... ON DELETE` clause of the generated migration and enforced by the database.
@@ -49,7 +49,7 @@ A foreign key declared in an [abstract model or a mixin](models.md#share-fields-
 
 ```python
 class Owned(Model, abstract=True):
-    team_id: UUID = foreign_key(Team, on_delete="cascade", related_name="{model}_set")
+    team_id: UUID = foreign_key(Team, on_delete=OnDelete.CASCADE, related_name="{model}_set")
 
 
 class Article(Owned, table="articles"):
@@ -84,7 +84,7 @@ Define a model for the association table. Each row links one post to one tag; th
 from typing import ClassVar
 from uuid import UUID, uuid4
 
-from hinoki.orm import Model, field, foreign_key, unique
+from hinoki.orm import Model, OnDelete, field, foreign_key, unique
 from hinoki.orm.relations import Related
 
 
@@ -103,8 +103,8 @@ class Tag(Model, table="tags"):
 @unique("post_id", "tag_id")
 class PostTag(Model, table="post_tags"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
-    post_id: UUID = foreign_key(Post, on_delete="cascade", related_name="tag_links")
-    tag_id: UUID = foreign_key(Tag, on_delete="cascade", related_name="post_links")
+    post_id: UUID = foreign_key(Post, on_delete=OnDelete.CASCADE, related_name="tag_links")
+    tag_id: UUID = foreign_key(Tag, on_delete=OnDelete.CASCADE, related_name="post_links")
 ```
 
 Create a link by inserting a `PostTag` row. To read a post's tags, query the join model and load its `tag` foreign key in the same query:
