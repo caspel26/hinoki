@@ -59,7 +59,7 @@ async def test_blog_flow_over_http_and_clean_shutdown(tmp_path: Path) -> None:
         port,
         factory=True,
         cwd=ROOT,
-        BLOG_DATABASE_URL=URL,
+        BLOG_DATABASE__URL=URL,
         BLOG_ADMIN_SECRET="g" * 40,
         PYTHONPATH=str(ROOT),
     )
