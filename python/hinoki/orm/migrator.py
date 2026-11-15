@@ -1,9 +1,9 @@
 """Applying and inspecting migration files against a database.
 
 Only called explicitly (``hinoki migrations apply``); the framework
-never applies migrations at startup. Each file runs in one transaction under an
-advisory lock and is recorded with its checksum, so an edited or missing
-applied file is an error instead of silent drift.
+never applies migrations at startup. Each file runs under a backend migration
+lock and is recorded with its checksum, so an edited or missing applied file
+is an error instead of silent drift. Transactional DDL is backend-dependent.
 """
 
 from __future__ import annotations
@@ -26,9 +26,15 @@ CREATE_SQLITE_LEDGER = (
     "name text PRIMARY KEY, checksum text NOT NULL, "
     "applied_at text NOT NULL DEFAULT CURRENT_TIMESTAMP)"
 )
+CREATE_MYSQL_LEDGER = (
+    "CREATE TABLE IF NOT EXISTS hinoki_migrations ("
+    "name varchar(255) PRIMARY KEY, checksum char(64) NOT NULL, "
+    "applied_at datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)) ENGINE=InnoDB"
+)
 SELECT_LEDGER = "SELECT name, checksum FROM hinoki_migrations"
 INSERT_LEDGER = "INSERT INTO hinoki_migrations (name, checksum) VALUES ($1, $2)"
 INSERT_SQLITE_LEDGER = "INSERT INTO hinoki_migrations (name, checksum) VALUES (?1, ?2)"
+INSERT_MYSQL_LEDGER = "INSERT INTO hinoki_migrations (name, checksum) VALUES (?, ?)"
 
 
 def checksum(path: Path) -> str:
@@ -44,7 +50,11 @@ async def status(database: Database, directory: Path) -> list[tuple[str, str]]:
     """``(name, state)`` per migration: ``applied``, ``pending``, ``changed``
     (applied, but the file differs) or ``missing`` (applied, file gone)."""
     await database.execute(
-        CREATE_SQLITE_LEDGER if database.dialect == "sqlite" else CREATE_LEDGER
+        CREATE_SQLITE_LEDGER
+        if database.dialect == "sqlite"
+        else CREATE_MYSQL_LEDGER
+        if database.dialect in {"mysql", "mariadb"}
+        else CREATE_LEDGER
     )
     applied = await recorded(database)
     files = {p.stem: p for p in migration_files(directory)}
@@ -88,7 +98,12 @@ async def apply_one(database: Database, path: Path) -> bool:
             for statement in statements(path.read_text(encoding="utf-8")):
                 await database.execute(statement)
         except DatabaseError as error:
-            raise MigrationError(f"{path.stem} failed and was rolled back") from error
+            detail = (
+                "failed; DDL may be partially applied and was not rolled back"
+                if database.dialect in {"mysql", "mariadb"}
+                else "failed and was rolled back"
+            )
+            raise MigrationError(f"{path.stem} {detail}") from error
         if database.dialect == "sqlite" and await database.fetch(
             "PRAGMA foreign_key_check"
         ):
@@ -97,7 +112,11 @@ async def apply_one(database: Database, path: Path) -> bool:
                 "and was rolled back"
             )
         await database.execute(
-            INSERT_SQLITE_LEDGER if database.dialect == "sqlite" else INSERT_LEDGER,
+            INSERT_SQLITE_LEDGER
+            if database.dialect == "sqlite"
+            else INSERT_MYSQL_LEDGER
+            if database.dialect in {"mysql", "mariadb"}
+            else INSERT_LEDGER,
             path.stem,
             checksum(path),
         )
