@@ -116,3 +116,7 @@ Raw samples and environment metadata are retained in [`results/orm-compile-postg
 ## `comparative/` — one service on four frameworks
 
 Hinoki, FastAPI, Django Ninja and Django Bolt implementing the same small API against the same PostgreSQL data, with a verifier for behaviour and statement counts. See `comparative/README.md` for the method and limits and the [benchmarks page](../docs/benchmarks.md) for the first measured run (2026-11-14).
+
+### Request-size limit check
+
+For the query/header byte limits, five alternating baseline/candidate runs of the existing protected-GET microbenchmark were collected on 2026-11-15 (Python 3.13.18, debug-profile extension). The baseline is `f334e0c`; each run executes 7 samples × 20,000 in-process requests after warm-up. Baseline medians were 48.386, 47.976, 47.945, 47.629 and 46.950 µs; candidate medians were 48.990, 51.299, 49.774, 50.148 and 49.264 µs. The group medians are 47.945 µs and 49.774 µs (+3.8%). Within-run CV was 2.6–2.9% for baseline and 2.7–4.3% for the candidate. This is below the 15% regression detector threshold and is the measured cost of checking the default bounds. This in-process result has no server, network or database and does not predict end-to-end throughput. Raw data: [`protected-get-request-limits.json`](results/protected-get-request-limits.json).
