@@ -410,6 +410,10 @@
 <td>List every method, path, handler and access policy in path order. <code>--path</code> and <code>--method</code> filter; <code>--format json</code> is machine readable. Nothing is served.</td>
 </tr>
 <tr>
+<td><code>hinoki openapi TARGET</code></td>
+<td>Print or write the generated OpenAPI document, or check a JSON file for drift. Nothing is served and no database is opened.</td>
+</tr>
+<tr>
 <td><code>hinoki settings TARGET</code></td>
 <td>Show effective settings and their source, with secrets redacted. <code>--dotenv</code> and <code>--toml</code> select optional files.</td>
 </tr>
@@ -479,6 +483,12 @@ hinoki<span class="w"> </span>serve<span class="w"> </span>examples.notes.main:a
 <li><code>--allow-effects</code> also runs checks declared as effectful, which may access files, network or databases.</li>
 </ul>
 <p>Exit status is <code>0</code> when no rules fail, <code>1</code> for violations, and <code>2</code> when the target or checks cannot run.</p>
+<h3 id="openapi"><code>openapi</code><a class="headerlink" href="#openapi" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>openapi<span class="w"> </span>examples.notes.main:app
+hinoki<span class="w"> </span>openapi<span class="w"> </span>examples.notes.main:app<span class="w"> </span>--output<span class="w"> </span>openapi.json
+hinoki<span class="w"> </span>openapi<span class="w"> </span>examples.notes.main:app<span class="w"> </span>--check<span class="w"> </span>openapi.json
+</code></pre></div>
+<p>The command builds the app without serving it or opening a database; it works even when <code>openapi_url</code> is disabled. With no file option it prints deterministic JSON (sorted keys, two-space indentation and a trailing newline). <code>--output FILE</code> writes those bytes. <code>--check FILE</code> compares parsed JSON, so formatting differences do not count as drift. Exit status is <code>0</code> when the file matches or is written, <code>1</code> when its JSON differs, and <code>2</code> when the target cannot load or the check file is missing or invalid JSON. <code>--output</code> and <code>--check</code> cannot be used together.</p>
 <h3 id="settings"><code>settings</code><a class="headerlink" href="#settings" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>settings<span class="w"> </span>examples.blog.settings:BlogSettings<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--prefix<span class="w"> </span>BLOG_<span class="w"> </span>--dotenv<span class="w"> </span>.env<span class="w"> </span>--toml<span class="w"> </span>settings.toml<span class="w"> </span>--format<span class="w"> </span>json
@@ -557,7 +567,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
           
           
             <ul><li><a href="#commands-and-options">Commands and options</a>
-            <ul><li><a href="#new">new</a></li><li><a href="#dev-and-serve">dev and serve</a></li><li><a href="#check">check</a></li><li><a href="#settings">settings</a></li><li><a href="#manage">manage</a></li><li><a href="#migrations">migrations</a></li><li><a href="#mcp">mcp</a></li></ul>
+            <ul><li><a href="#new">new</a></li><li><a href="#dev-and-serve">dev and serve</a></li><li><a href="#check">check</a></li><li><a href="#openapi">openapi</a></li><li><a href="#settings">settings</a></li><li><a href="#manage">manage</a></li><li><a href="#migrations">migrations</a></li><li><a href="#mcp">mcp</a></li></ul>
           </li><li><a href="#import-target-examples">Import target examples</a></li></ul>
           
         </nav>
@@ -565,7 +575,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.22</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 22:32:50 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 01:10:18 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
