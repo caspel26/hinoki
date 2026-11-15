@@ -388,8 +388,9 @@
       <article class="prose" style="--sheet: '3.21'">
         <p class="kicker" data-search-exclude>3.21 · Guides</p>
         <h1 id="running-an-application">Running an application<a class="headerlink" href="#running-an-application" title="Permanent link">&para;</a></h1>
-<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>dev<span class="w">   </span>blog.main:create_app<span class="w">     </span><span class="c1"># development: reload on change</span>
-hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<span class="w">     </span><span class="c1"># production-style: no reload</span>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w">   </span>blog.main:create_app<span class="w">     </span><span class="c1"># development: reload on change</span>
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<span class="w">     </span><span class="c1"># production-style: no reload</span>
 </code></pre></div>
 <p><code>TARGET</code> is <code>module:name</code>, where <code>name</code> is an application (<code>Hinoki</code>) or a function that returns one (a factory: the usual choice, because it builds the app inside each worker). The factory builds declarations only; databases and pools open in the worker's lifespan.</p>
 <p>With a declared app, settings load when the target module creates the <code>Hinoki</code> object. A configured <code>DatabaseModule</code> opens that worker's pool during lifespan startup and closes it during shutdown. The pool is per worker; no database connection is opened by importing model or route modules. See <a href="../settings/#8-database-connection-ownership">settings and database ownership</a>.</p>
@@ -463,7 +464,7 @@ index; see <a href="../getting-started/">installation</a> for setup.</p>
 <span class="n">app_settings</span> <span class="o">=</span> <span class="n">BlogSettings</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>          <span class="c1"># reads BLOG_* and .env</span>
 </code></pre></div>
 <h2 id="other-runners">Other runners<a class="headerlink" href="#other-runners" title="Permanent link">&para;</a></h2>
-<p><code>dev</code> and <code>serve</code> are conveniences. The application is a plain ASGI app, so <code>granian --interface asgi --factory blog.main:create_app</code> (or another ASGI server) works too; then the <code>server</code> group is ignored, because only <code>hinoki serve</code> applies it.</p>
+<p><code>dev</code> and <code>serve</code> are conveniences. The application is a plain ASGI app, so <code>granian --interface asgi --factory blog.main:create_app</code> (or another ASGI server) works too; run that command from <code>examples/</code> with the locked environment active. The <code>server</code> group is ignored, because only <code>hinoki serve</code> applies it.</p>
 <h2 id="wsgi">WSGI<a class="headerlink" href="#wsgi" title="Permanent link">&para;</a></h2>
 <p>ASGI is the intended way to serve Hinoki. When a deployment can only run WSGI, wrap the application:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># wsgi.py</span>
@@ -513,7 +514,7 @@ index; see <a href="../getting-started/">installation</a> for setup.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:02:01 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>

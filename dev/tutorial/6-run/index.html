@@ -254,10 +254,10 @@
         <h1 id="6-run-and-test-it">6. Run and test it<a class="headerlink" href="#6-run-and-test-it" title="Permanent link">&para;</a></h1>
 <h2 id="settings-and-serving">Settings and serving<a class="headerlink" href="#settings-and-serving" title="Permanent link">&para;</a></h2>
 <p>The Tracker example's factory assembles the HTTP routes, rules, MCP tool and database module. It uses typed <code>TrackerSettings</code>; local SQLite is the default and <code>TRACKER_DATABASE__URL</code> selects another database.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker</span><span class="w"> </span><span class="kn">import</span> <span class="n">api</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">tracker_rules</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member_only</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrackerSettings</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">tracker</span><span class="w"> </span><span class="kn">import</span> <span class="n">api</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">tracker_rules</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member_only</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrackerSettings</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatabaseModule</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.mcpapp</span><span class="w"> </span><span class="kn">import</span> <span class="n">expose_as_mcp</span>
@@ -291,11 +291,11 @@
 <div class="highlight"><pre><span></span><code><span class="c1"># Omit these variables to use .hinoki/local.sqlite3.</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">TRACKER_DATABASE__URL</span><span class="o">=</span><span class="s1">'postgresql://user:password@127.0.0.1:5432/tracker'</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$TRACKER_DATABASE__URL</span><span class="s2">"</span>
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>status
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>tracker<span class="w"> </span><span class="m">0001</span>-initial
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>tracker<span class="w"> </span><span class="m">0002</span>-indexes
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>--app<span class="w"> </span>tracker
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w"> </span>examples.tracker.app:create_app
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>status
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>tracker<span class="w"> </span><span class="m">0001</span>-initial
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>tracker<span class="w"> </span><span class="m">0002</span>-indexes
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>--app<span class="w"> </span>tracker
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w"> </span>tracker.app:create_app
 </code></pre></div>
 <p>The Tracker example already includes its initial and index migrations, so this
 command sequence inspects and applies those checked-in files. After changing a
@@ -314,8 +314,8 @@ migrations and creates the Ann and Ben members used by the bearer tokens below:
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_app</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Member</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_app</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Member</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ASGIClient</span>
 
 <span class="n">URL</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"HINOKI_TEST_DATABASE_URL"</span><span class="p">)</span>
@@ -365,7 +365,7 @@ declare. For tests without <code>async</code>, use <code>SyncClient</code>.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.7</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 19:50:28 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/6-run.md">Edit on GitHub</a></dd></div>
         </dl>

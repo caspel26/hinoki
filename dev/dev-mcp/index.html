@@ -389,10 +389,11 @@
         <p class="kicker" data-search-exclude>3.28 · Guides</p>
         <h1 id="development-mcp">Development MCP<a class="headerlink" href="#development-mcp" title="Permanent link">&para;</a></h1>
 <p><code>hinoki mcp TARGET</code> starts a newline-delimited JSON-RPC MCP server on stdio. It reads the registered application, enabled rules and optional model modules. It writes protocol messages to stdout and diagnostics to stderr. It does not write source code, rule configuration or waivers.</p>
-<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>mcp<span class="w"> </span>examples.tracker.app:create_app<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--rules<span class="w"> </span>examples.tracker.rules:tracker_rules<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--package<span class="w"> </span>examples.tracker<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--models<span class="w"> </span>examples.tracker.models
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>mcp<span class="w"> </span>tracker.app:create_app<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--rules<span class="w"> </span>tracker.rules:tracker_rules<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--package<span class="w"> </span>tracker<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--models<span class="w"> </span>tracker.models
 </code></pre></div>
 <p><code>TARGET</code> is an app or a no-argument factory. <code>--rules</code> selects a <code>RuleSet</code>; <code>--package</code> and <code>--models</code> can be repeated; <code>--waivers</code> selects the waiver file (default <code>hinoki-rules.toml</code>). Rule checks with side effects are not run by this server.</p>
 <h2 id="tools">Tools<a class="headerlink" href="#tools" title="Permanent link">&para;</a></h2>
@@ -470,7 +471,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.28</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 17:54:14 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/dev-mcp.md">Edit on GitHub</a></dd></div>
         </dl>

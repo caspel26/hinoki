@@ -392,9 +392,9 @@
 <p>This is the Tracker's authenticated list pattern: it limits each page to the
 caller’s own tasks. Include the route in an app that installs <code>DatabaseModule</code>,
 as the <a href="../tutorial/6-run/">Tracker app factory</a> does.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Member</span><span class="p">,</span> <span class="n">Task</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">TaskOut</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member_only</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">tracker.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Member</span><span class="p">,</span> <span class="n">Task</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">TaskOut</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member_only</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">http</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.pagination</span><span class="w"> </span><span class="kn">import</span> <span class="n">Page</span><span class="p">,</span> <span class="n">PageNumberPagination</span><span class="p">,</span> <span class="n">PageParams</span>
 
@@ -445,7 +445,7 @@ assembly.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.14</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/pagination.md">Edit on GitHub</a></dd></div>
         </dl>

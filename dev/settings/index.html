@@ -775,7 +775,10 @@
 <li>A <code>validate()</code> method you add to a group shows its message in errors, so never put a field's value in it.</li>
 </ul>
 <h2 id="6-see-what-is-in-effect">6. See what is in effect<a class="headerlink" href="#6-see-what-is-in-effect" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>settings<span class="w"> </span>blog.settings:BlogSettings<span class="w"> </span>--prefix<span class="w"> </span>BLOG_<span class="w"> </span>--dotenv<span class="w"> </span>.env<span class="w"> </span>--toml<span class="w"> </span>settings.toml
+<p>These commands inspect the checked-in Blog settings from the <code>examples/</code>
+project directory; with the repository checkout, use its locked environment:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>settings<span class="w"> </span>blog.settings:BlogSettings<span class="w"> </span>--prefix<span class="w"> </span>BLOG_<span class="w"> </span>--dotenv<span class="w"> </span>.env<span class="w"> </span>--toml<span class="w"> </span>settings.toml
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>BLOG_ADMIN_THEME              .env         paper
 BLOG_DATABASE__URL            environment  ***
@@ -783,7 +786,7 @@ BLOG_EXECUTION__SYNC_WORKERS  default      8
 BLOG_JWT_SECRET               file         ***
 </code></pre></div>
 <p>The second column is where each value came from: <code>override</code>, <code>environment</code>, <code>.env</code>, <code>toml</code>, <code>file</code> or <code>default</code>. <code>--format json</code> prints the same for tools. <code>--example</code> prints a ready <code>.env.example</code> (every variable with its default and type; secrets and required values blank):</p>
-<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>settings<span class="w"> </span>blog.settings:BlogSettings<span class="w"> </span>--prefix<span class="w"> </span>BLOG_<span class="w"> </span>--example<span class="w"> </span>&gt;<span class="w"> </span>.env.example
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>settings<span class="w"> </span>blog.settings:BlogSettings<span class="w"> </span>--prefix<span class="w"> </span>BLOG_<span class="w"> </span>--example<span class="w"> </span>&gt;<span class="w"> </span>.env.example
 </code></pre></div>
 <h2 id="7-use-them">7. Use them<a class="headerlink" href="#7-use-them" title="Permanent link">&para;</a></h2>
 <p><code>Hinoki(settings=app_settings)</code> derives the runtime limits, the docs URLs, logging setup and application timezone from the built-in settings (an explicit argument such as <code>title=</code> still wins). <code>app.now()</code> returns an aware <code>datetime</code> in the configured timezone; it defaults to UTC. The timezone is configured in settings, not as a <code>Hinoki(...)</code> argument. Your own fields are on <code>app.settings</code>, and modules reach them as <code>ctx.settings</code> in their lifespan.</p>
@@ -876,7 +879,8 @@ BLOG_JWT_SECRET               file         ***
 </code></pre></div>
 <p>The configuration is automatic in the useful sense: <code>BLOG_DATABASE__URL</code> is loaded from settings and the declared module connects as the server starts. Resource creation and cleanup remain explicit in the module lifecycle; there is no process-global connection opened during import. Factories remain useful when the app's routes or modules depend on runtime choices.</p>
 <p>One-off scripts have a different lifecycle. <code>examples/blog/seed.py</code> opens a short-lived <code>Database</code> explicitly, applies migrations, inserts synthetic rows and closes the pool in <code>finally</code>. It runs outside the HTTP server, so there is no worker lifespan to own that resource. It is a one-time seed for a fresh disposable database, not a repeatable reset:</p>
-<div class="highlight"><pre><span></span><code><span class="nv">BLOG_DATABASE__URL</span><span class="o">=</span>postgres://...<span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>examples.blog.seed
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
+<span class="nv">BLOG_DATABASE__URL</span><span class="o">=</span>postgres://...<span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>blog.seed
 </code></pre></div>
 <p>Use a disposable database for the example. The seed command is not a production migration mechanism and is not run at app startup.</p>
         
@@ -912,7 +916,7 @@ BLOG_JWT_SECRET               file         ***
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.20</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 19:29:08 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>15 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>

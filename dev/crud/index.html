@@ -568,7 +568,8 @@ preserve eager-loads. Migrate to the class declaration and override
 same through <code>to_schema</code>.</p>
 <h2 id="openapi-and-inspection">OpenAPI and inspection<a class="headerlink" href="#openapi-and-inspection" title="Permanent link">&para;</a></h2>
 <p>To inspect routes without starting the server:</p>
-<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>routes<span class="w"> </span>examples.blog.main:create_app<span class="w"> </span>--path<span class="w"> </span>/posts
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>routes<span class="w"> </span>blog.main:create_app<span class="w"> </span>--path<span class="w"> </span>/posts
 </code></pre></div>
 <p>Generated routes include schemas, access policies, status codes and pagination
 in the OpenAPI document. See the <a href="../reference/crud/">CRUD API reference</a>.</p>
@@ -604,7 +605,7 @@ side-effects beyond the single model mutation.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.11</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 15:49:18 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>

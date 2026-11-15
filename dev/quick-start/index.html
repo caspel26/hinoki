@@ -229,21 +229,23 @@ or URL setup is needed. It creates the table with an explicit migration;
 Hinoki does not create or migrate tables when the app starts. To use PostgreSQL,
 MySQL or MariaDB instead, see <a href="../databases/">Configure a database</a>.</p>
 <h2 id="plan-and-apply-the-migration">Plan and apply the migration<a class="headerlink" href="#plan-and-apply-the-migration" title="Permanent link">&para;</a></h2>
-<p>The repository's root <code>hinoki.toml</code> registers Notes, Tracker and Blog as
-independent apps. The migration planner reads the Notes model and its recorded
-state and writes numbered SQL and state files for review:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>list
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>notes
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>notes<span class="w"> </span><span class="m">0001</span>-create-table-notes
+<p><code>examples/hinoki.toml</code> registers Notes, Tracker and Blog as independent apps.
+From the repository root, enter <code>examples/</code> and use the locked environment in
+the parent directory. The migration planner reads the Notes model and its
+recorded state and writes numbered SQL and state files for review:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>list
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>notes
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>notes<span class="w"> </span><span class="m">0001</span>-create-table-notes
 </code></pre></div>
 <p>Review the SQL, then apply it explicitly. With no URL set, the migration
 command and the Notes app both use <code>sqlite://./.hinoki/local.sqlite3</code>:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>--app<span class="w"> </span>notes
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>--app<span class="w"> </span>notes
 </code></pre></div>
 <p>The local database file and migration ledger are created when <code>apply</code> runs.
 Use a disposable database while evaluating the example.</p>
 <h2 id="start-the-app-and-send-a-request">Start the app and send a request<a class="headerlink" href="#start-the-app-and-send-a-request" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w"> </span>examples.notes.main:app
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w"> </span>notes.main:app
 </code></pre></div>
 <p>The <code>DatabaseModule</code> opens a pool for the worker and closes it at shutdown. It does not create tables. In another terminal, create a note and list the collection:</p>
 <div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-i<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/notes<span class="w"> </span><span class="se">\</span>
@@ -284,8 +286,8 @@ curl<span class="w"> </span>http://127.0.0.1:8000/notes
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>1.2</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 19:50:28 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/quick-start.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

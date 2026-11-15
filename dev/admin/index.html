@@ -390,9 +390,9 @@
         <h1 id="the-admin">The admin<a class="headerlink" href="#the-admin" title="Permanent link">&para;</a></h1>
 <p>The optional <code>hinoki.admin</code> module gives staff a list, search, create, edit, bulk delete and a dashboard for your models, with the same access policies and CSRF protection as the rest of the app. It is included in the framework package; nothing is mounted unless you ask, and importing it never touches a database.</p>
 <p>The following excerpt follows the <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/adminsite.py">Blog admin module</a>. The <code>PostAdmin</code> class configures the model; <code>build_admin()</code> creates the cookie-authenticated <code>editors</code> policy, registers the class and returns the <code>Admin</code>. The app factory mounts that API. The snippet shows the relevant imports and function context; consult the linked module for the complete cookie-auth implementation.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.blog.adminsite</span><span class="w"> </span><span class="kn">import</span> <span class="n">CookieAuth</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">examples.blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">examples.blog.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">WRITE</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">blog.adminsite</span><span class="w"> </span><span class="kn">import</span> <span class="n">CookieAuth</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blog.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">WRITE</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Access</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">Admin</span><span class="p">,</span> <span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">Badge</span><span class="p">,</span> <span class="n">Tab</span><span class="p">,</span> <span class="n">Fieldset</span>
 
@@ -541,7 +541,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.26</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -390,12 +390,13 @@
         <h1 id="interactive-shell">Interactive shell<a class="headerlink" href="#interactive-shell" title="Permanent link">&para;</a></h1>
 <p>Use <code>hinoki shell</code> to inspect application state and run ORM queries from an
 interactive Python prompt:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>shell
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>shell
 </code></pre></div>
 <p>The project manifest supplies the application target and model modules. To
 open an app outside a project manifest, pass its <code>module:attribute</code> target and
 model modules explicitly:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>shell<span class="w"> </span>examples.blog.main:app<span class="w"> </span>--models<span class="w"> </span>examples.blog.models
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>shell<span class="w"> </span>blog.main:app<span class="w"> </span>--models<span class="w"> </span>blog.models
 </code></pre></div>
 <p>The shell exposes <code>app</code>, its validated <code>settings</code>, and concrete model classes
 from registered modules. It supports multiline statements and top-level
@@ -447,7 +448,7 @@ development database while exploring.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.24</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 19:12:21 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/shell.md">Edit on GitHub</a></dd></div>
         </dl>

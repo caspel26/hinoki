@@ -393,10 +393,10 @@
 <h2 id="enable-them-the-blog-does">Enable them (the blog does)<a class="headerlink" href="#enable-them-the-blog-does" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="c1"># examples/blog/rules.py</span>
 <span class="n">blog_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
-    <span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"examples.blog.api.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="n">PUBLIC</span><span class="p">),</span>  <span class="c1"># HNK-ACC-001</span>
+    <span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"blog.api.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="n">PUBLIC</span><span class="p">),</span>  <span class="c1"># HNK-ACC-001</span>
     <span class="n">Transactions</span><span class="o">.</span><span class="n">require_atomic</span><span class="p">(),</span>                                         <span class="c1"># HNK-TXN-001</span>
     <span class="n">Schemas</span><span class="o">.</span><span class="n">forbid_exposure</span><span class="p">(</span><span class="s2">"token"</span><span class="p">,</span> <span class="s2">"password_hash"</span><span class="p">),</span>                     <span class="c1"># HNK-SCH-001</span>
-    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"examples.blog.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"examples.blog.api"</span><span class="p">),</span>  <span class="c1"># HNK-IMP-001</span>
+    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"blog.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"blog.api"</span><span class="p">),</span>  <span class="c1"># HNK-IMP-001</span>
 <span class="p">)</span>
 
 <span class="c1"># examples/blog/main.py</span>
@@ -446,8 +446,11 @@
 </table>
 <p><code>match</code> and <code>except_</code> patterns use <code>fnmatch</code> on the action's full qualified name (<code>pkg.api.Posts.create</code>, named after the class it is mounted on). A bare name such as <code>health</code> matches nothing: write <code>*.health</code>.</p>
 <h2 id="run-them">Run them<a class="headerlink" href="#run-them" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>check<span class="w"> </span>examples.blog.main:create_app<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--rules<span class="w"> </span>examples.blog.rules:blog_rules<span class="w"> </span>--package<span class="w"> </span>examples
+<p>The Blog target is part of the checked-in project in <code>examples/</code>. Run this from
+that directory, using the locked environment in the parent directory:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>check<span class="w"> </span>blog.main:create_app<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--rules<span class="w"> </span>blog.rules:blog_rules<span class="w"> </span>--package<span class="w"> </span>blog
 <span class="c1"># 4 rule(s): 0 violated, 0 unverifiable, 0 waived        (exit 0)</span>
 </code></pre></div>
 <p>A broken promise (a deliberately bad app from the tests):</p>
@@ -513,7 +516,7 @@ shop/models.py:11: HNK-IMP-001 [violated] shop.models imports shop.api, which is
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.17</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 04:02:50 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/rules.md">Edit on GitHub</a></dd></div>
         </dl>

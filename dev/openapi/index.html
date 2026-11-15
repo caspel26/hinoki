@@ -390,8 +390,9 @@
         <h1 id="openapi-document">OpenAPI document<a class="headerlink" href="#openapi-document" title="Permanent link">&para;</a></h1>
 <p><code>Hinoki.openapi()</code> builds an OpenAPI 3.1 document from the routes registered with the app. Paths, parameters, request bodies, response schemas, declared errors and supported authentication schemes come from the action declarations and type annotations.</p>
 <p>Generate the document from a project target without starting a server:</p>
-<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>openapi<span class="w"> </span>examples.notes.main:app<span class="w"> </span>--output<span class="w"> </span>openapi.json
-hinoki<span class="w"> </span>openapi<span class="w"> </span>examples.notes.main:app<span class="w"> </span>--check<span class="w"> </span>openapi.json
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>openapi<span class="w"> </span>notes.main:app<span class="w"> </span>--output<span class="w"> </span>openapi.json
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>openapi<span class="w"> </span>notes.main:app<span class="w"> </span>--check<span class="w"> </span>openapi.json
 </code></pre></div>
 <p>The command does not open a database and works even when <code>openapi_url</code> is disabled. It writes stable, sorted JSON, and <code>--check</code> compares parsed JSON so whitespace-only changes do not report drift. See the <a href="../cli/#openapi">command-line guide</a> for output and exit-status details.</p>
 <h2 id="serve-the-document-and-viewers">Serve the document and viewers<a class="headerlink" href="#serve-the-document-and-viewers" title="Permanent link">&para;</a></h2>
@@ -458,7 +459,7 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>examples.notes.main
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.12</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 17:54:14 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/openapi.md">Edit on GitHub</a></dd></div>
         </dl>

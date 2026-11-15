@@ -258,19 +258,20 @@
 
 
 <span class="n">tracker_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
-    <span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"examples.tracker.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"examples.tracker.api.health"</span><span class="p">]),</span>
-    <span class="n">Actions</span><span class="o">.</span><span class="n">forbid_model_responses</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"examples.tracker.*"</span><span class="p">),</span>
+    <span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"tracker.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"tracker.api.health"</span><span class="p">]),</span>
+    <span class="n">Actions</span><span class="o">.</span><span class="n">forbid_model_responses</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"tracker.*"</span><span class="p">),</span>
     <span class="n">Transactions</span><span class="o">.</span><span class="n">require_atomic</span><span class="p">(</span><span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"hinoki.mcpapp.*"</span><span class="p">]),</span>
     <span class="n">Schemas</span><span class="o">.</span><span class="n">forbid_exposure</span><span class="p">(</span><span class="s2">"token"</span><span class="p">),</span>
     <span class="c1"># api -&gt; operations -&gt; models, never the other way</span>
-    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"examples.tracker.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"examples.tracker.operations"</span><span class="p">),</span>
-    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"examples.tracker.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"examples.tracker.api"</span><span class="p">),</span>
-    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"examples.tracker.operations"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"examples.tracker.api"</span><span class="p">),</span>
+    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"tracker.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"tracker.operations"</span><span class="p">),</span>
+    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"tracker.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"tracker.api"</span><span class="p">),</span>
+    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"tracker.operations"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"tracker.api"</span><span class="p">),</span>
 <span class="p">)</span>
 </code></pre></div>
 <p>Run them from the command line or let the app enforce them when it starts (<code>Hinoki(rules=tracker_rules)</code>):</p>
-<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>check<span class="w"> </span>examples.tracker.app:create_app<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--rules<span class="w"> </span>examples.tracker.rules:tracker_rules<span class="w"> </span>--package<span class="w"> </span>examples
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>check<span class="w"> </span>tracker.app:create_app<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--rules<span class="w"> </span>tracker.rules:tracker_rules<span class="w"> </span>--package<span class="w"> </span>tracker
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>7 rule(s): 0 violated, 0 unverifiable, 0 waived
 </code></pre></div>
@@ -304,7 +305,7 @@ tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does 
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.6</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:02:01 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/5-rules.md">Edit on GitHub</a></dd></div>
         </dl>

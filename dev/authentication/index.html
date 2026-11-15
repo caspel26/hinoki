@@ -391,7 +391,7 @@
 <p>Hinoki keeps credential parsing in an authentication provider and permission checks in an <code>Access</code> policy. Endpoints are public unless a policy is attached; protect each private action deliberately.</p>
 <h2 id="define-a-provider">Define a provider<a class="headerlink" href="#define-a-provider" title="Permanent link">&para;</a></h2>
 <p>Subclass <code>BearerAuth[User]</code>, <code>APIKeyAuth[User]</code> or <code>HeaderAuth[User]</code>. The provider returns a <code>Caller</code> with a stable id, your user object and its permissions. <code>authenticate</code>/<code>resolve_token</code> may be async or synchronous; synchronous hooks run on the bounded sync executor. This example reuses the complete Blog example's user model.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">User</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">User</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">BearerAuth</span><span class="p">,</span> <span class="n">Caller</span>
 
 
@@ -410,9 +410,9 @@
 <p>The <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/security.py">Blog security module</a> contains the same provider and its reusable policies.</p>
 <p>Absent credentials let the provider decline; invalid supplied credentials produce <code>401</code>. A valid caller without a required permission receives <code>403</code>.</p>
 <h2 id="attach-a-policy">Attach a policy<a class="headerlink" href="#attach-a-policy" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">User</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">examples.blog.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">editor</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">examples.blog.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">PostOut</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blog.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">editor</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blog.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">PostOut</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">http</span>
 
 
@@ -455,7 +455,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.16</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/authentication.md">Edit on GitHub</a></dd></div>
         </dl>
