@@ -12,7 +12,7 @@
 
 <p align="center">
   Typed endpoints, declared access and transactions, a SQLite, PostgreSQL and MySQL ORM,<br>
-  and rules that fail the check when the code breaks them. Rust core.
+  and optional architecture rules that report violations and fail CI.
 </p>
 
 <p align="center">
@@ -44,7 +44,7 @@ Hinoki is a Python framework for HTTP APIs, built around three ideas.
 
 | Declare | Check | Run |
 | --- | --- | --- |
-| Each endpoint states its types, who may call it, whether it runs in a transaction and which errors it returns. The same declaration drives validation, responses and the OpenAPI document. | You choose rules such as "every write runs in a transaction" or "the models never import the API layer". `hinoki check` reports a broken rule with its file, line and fix, and fails. | The app runs as ASGI under Granian. Its adapter and handlers run in Python; selected routing, parsing, schema, cryptography and PostgreSQL/SQLite/MySQL ORM work uses the Rust core. |
+| Each endpoint states its types, who may call it, whether it runs in a transaction and which errors it returns. The same declaration drives validation, responses and the OpenAPI document. | You choose rules such as "every write runs in a transaction" or "the models never import the API layer". `hinoki check` reports a broken rule with its file, line and fix, and fails. | The app runs as ASGI under Granian. The Python adapter calls application handlers; the Rust extension currently handles path matching, selected query/header/cookie parsing, schema validation/serialization, cryptography, and SQL ORM compilation/execution. |
 
 ## What is in the box
 
@@ -54,7 +54,7 @@ Hinoki is a Python framework for HTTP APIs, built around three ideas.
 | **Schemas** | Strict validation without type coercion, response shaping, and schemas derived from a model |
 | **Access and errors** | Reusable access policies with permissions; declared errors that appear in OpenAPI |
 | **SQL ORM** | SQLite (the local default), PostgreSQL and MySQL models; relations loaded only when you ask, querysets, transactions, and migration files that you review and apply yourself |
-| **Architecture rules** | `hinoki check` in a terminal or in CI, with waivers that must name a reason and an owner and can expire |
+| **Architecture rules** | Five focused built-ins for access, transactions, schemas and import direction; `hinoki check` reports violations and fails CI, with reasoned, owned waivers that can expire |
 | **Settings and modules** | Typed settings from the environment, files or TOML; per-worker resources with startup and shutdown |
 | **Tools** | OpenAPI with Swagger UI and ReDoc, in-process test clients, a project scaffold, an MCP server for coding agents, and an optional admin |
 
@@ -225,7 +225,7 @@ TRACKER_DATABASE_URL=postgres://unused uv run hinoki check examples.tracker.app:
 
 The check reads the application and its source; it does not connect to the database. When a promise is broken it says where and how to fix it, and exits with status 1: the output at the top of this page is the real result for a small application in the test suite ([`tests/projects/rulesapp.py`](tests/projects/rulesapp.py)) that breaks two rules on purpose.
 
-Rules are optional. An application without a rule set runs the same way; see the [rules guide](https://caspel26.github.io/hinoki/dev/rules/).
+The built-in set stays focused on access declarations, atomic writes, model responses, schema exposure and import direction. Projects can add an explicit custom `Rule` when they need a project-specific check. Rules are optional; an application without a rule set runs the same way. See the [rules guide](https://caspel26.github.io/hinoki/dev/rules/).
 
 ## Access and transactions, stated once
 
@@ -296,7 +296,7 @@ Hinoki is pre-alpha and has no release. What exists is tested in CI on Python 3.
 - CORS is one application-wide policy (the `cors` settings group); there is no cursor pagination.
 - Many-to-many relations use an explicit join model.
 - Type checkers verify model construction, but not every keyword-based ORM call.
-- There are no end-to-end performance claims. One measured comparison, with its method and limits, is on the [benchmarks page](https://caspel26.github.io/hinoki/dev/benchmarks/).
+- The existing comparative run is exploratory and has documented methodological limits; it does not establish a general performance claim. See the [benchmarks page](https://caspel26.github.io/hinoki/dev/benchmarks/) for its numbers and method.
 
 The complete list is on the [status page](https://caspel26.github.io/hinoki/dev/status/).
 
