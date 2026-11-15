@@ -94,6 +94,76 @@ def test_project_migrations_default_to_sqlite_and_initialize_local_database(
     assert (project / ".hinoki/local.sqlite3").is_file()
 
 
+def test_project_migration_check_fails_on_file_drift_without_database_io(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = create("plancheck", tmp_path)
+    (project / "plancheck/models.py").write_text(
+        "from hinoki.orm import Model, field\n\n"
+        "class Note(Model, table='sample_notes'):\n"
+        "    id: int = field(primary_key=True)\n"
+        "    title: str\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(project)
+
+    async def fail_connect(*_args: object, **_kwargs: object) -> Database:
+        raise AssertionError("migration plan check connected to a database")
+
+    monkeypatch.setattr(Database, "connect", fail_connect)
+    migration_dir = project / "plancheck/migrations"
+
+    assert main(["migrations", "plan", "--check"]) == 1
+    output = capsys.readouterr().out
+    assert "create table sample_notes" in output
+    assert "pending migrations:" in output
+    assert not list(migration_dir.glob("*.sql"))
+    assert not list(migration_dir.glob("*.state.json"))
+    assert not (project / ".hinoki/local.sqlite3").exists()
+
+    assert main(["migrations", "plan"]) == 0
+    capsys.readouterr()
+    assert main(["migrations", "plan", "--check"]) == 0
+    assert capsys.readouterr().out == "no changes\n"
+    assert (project / ".hinoki/local.sqlite3").exists() is False
+
+
+def test_project_migration_check_requires_each_app_in_multi_app_projects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = create("checkmulti", tmp_path)
+    (project / "checkmulti/models.py").write_text(
+        "from hinoki.orm import Model, field\n\n"
+        "class Note(Model, table='checkmulti_notes'):\n"
+        "    id: int = field(primary_key=True)\n"
+        "    title: str\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(project)
+
+    async def fail_connect(*_args: object, **_kwargs: object) -> Database:
+        raise AssertionError("migration plan check connected to a database")
+
+    monkeypatch.setattr(Database, "connect", fail_connect)
+    assert main(["app", "create", "billing"]) == 0
+    capsys.readouterr()
+
+    assert main(["migrations", "plan", "--check"]) == 1
+    assert (
+        "pass --app because this project has multiple apps" in capsys.readouterr().err
+    )
+
+    assert main(["migrations", "plan", "--app", "checkmulti", "--check"]) == 1
+    assert "pending migrations:" in capsys.readouterr().out
+    assert main(["migrations", "plan", "--app", "billing", "--check"]) == 0
+    assert capsys.readouterr().out == "no changes\n"
+    assert not (project / ".hinoki/local.sqlite3").exists()
+
+
 def test_invalid_project_app_does_not_create_local_database(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

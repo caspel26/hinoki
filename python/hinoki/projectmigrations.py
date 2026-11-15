@@ -7,7 +7,7 @@ import argparse
 from hinoki.db import Database
 from hinoki.errors import MigrationError
 from hinoki.orm import migrator
-from hinoki.orm.migrations import migration_files, plan
+from hinoki.orm.migrations import Plan, migration_files, plan
 from hinoki.project import (
     ProjectError,
     ProjectManifest,
@@ -31,7 +31,7 @@ def manifest_for(args: argparse.Namespace) -> ProjectManifest | None:
     return load_manifest(path)
 
 
-def plan_project(args: argparse.Namespace, manifest: ProjectManifest) -> None:
+def plan_project(args: argparse.Namespace, manifest: ProjectManifest) -> Plan:
     app = manifest.app(args.app)
     models = manifest.all_models()
     dependencies = manifest.ordered_apps(app.name)
@@ -41,23 +41,15 @@ def plan_project(args: argparse.Namespace, manifest: ProjectManifest) -> None:
         if dependency.name != app.name
         for model in models[dependency.name]
     ]
-    result = plan(
+    return plan(
         models[app.name],
         manifest.migrations_path(app),
         args.name,
-        allow_destructive=args.allow_destructive,
-        write=not args.dry_run,
+        allow_destructive=args.allow_destructive or args.check,
+        write=not args.dry_run and not args.check,
         dialect=_dialect(args),
         reference_models=external,
     )
-    if not result.operations:
-        print("no changes")
-    for operation in result.operations:
-        print(
-            f"{'DESTRUCTIVE ' if operation.destructive else ''}{operation.description}"
-        )
-    if result.path:
-        print(f"wrote {result.path}")
 
 
 async def run_database_project(
