@@ -44,7 +44,7 @@ The POST returns `201 Created` and a JSON object with the generated `id`, `title
 
 ## Where to go next
 
-- [Tutorial](tutorial/index.md): build the Tracker example in six steps.
+- [Tutorial](tutorial/index.md): build the Tracker example in seven steps, then learn the project and app workflow.
 - [Models and queries](models.md): fields, querysets and relation loading.
 - [Migrations](migrations.md): migration files, destructive changes and deployment workflow.
 - [Configure a database](databases.md): choose another backend, set its URL and understand backend-specific behavior.
