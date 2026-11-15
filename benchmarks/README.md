@@ -120,3 +120,9 @@ Hinoki, FastAPI, Django Ninja and Django Bolt implementing the same small API ag
 ### Request-size limit check
 
 For the query/header byte limits, five alternating baseline/candidate runs of the existing protected-GET microbenchmark were collected on 2026-11-15 (Python 3.13.18, debug-profile extension). The baseline is `f334e0c`; each run executes 7 samples × 20,000 in-process requests after warm-up. Baseline medians were 48.386, 47.976, 47.945, 47.629 and 46.950 µs; candidate medians were 48.990, 51.299, 49.774, 50.148 and 49.264 µs. The group medians are 47.945 µs and 49.774 µs (+3.8%). Within-run CV was 2.6–2.9% for baseline and 2.7–4.3% for the candidate. This is below the 15% regression detector threshold and is the measured cost of checking the default bounds. This in-process result has no server, network or database and does not predict end-to-end throughput. Raw data: [`protected-get-request-limits.json`](results/protected-get-request-limits.json).
+
+### 2026-11-15 — application-wide response security headers
+
+Five alternating runs of `protectedgetbench.py` compared the main baseline (`a79cbad`) with the response security policy implementation (`3d1eb7a`). Each run reports the median of seven samples × 20,000 requests after one warm-up. Median of run medians: 51.408 µs baseline and 53.804 µs candidate (+4.66%); paired changes ranged from +2.08% to +7.27%. The within-group coefficients of variation were 2.29–4.00% baseline and 2.64–3.37% candidate. This is below the 15% detector threshold.
+
+The added work builds and appends three application-wide security headers to each response. This measures only the in-process ASGI path; no server, network or database is involved, and host load was not isolated. It is a regression check, not an end-to-end or throughput claim. Raw samples and environment metadata are in [`security-response-policy.json`](results/security-response-policy.json).
