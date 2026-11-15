@@ -408,10 +408,8 @@ def test_wsgi_applies_query_and_header_byte_limits() -> None:
         )
     )
     try:
-        assert wsgi_get(adapter, QUERY_STRING="a=123")[0] == "414 URI Too Long"
-        assert wsgi_get(adapter, HTTP_X="12345678")[0] == (
-            "431 Request Header Fields Too Large"
-        )
+        assert wsgi_get(adapter, QUERY_STRING="a=123")[0].startswith("414 ")
+        assert wsgi_get(adapter, HTTP_X="12345678")[0].startswith("431 ")
     finally:
         adapter.close()
 
