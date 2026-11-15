@@ -6,15 +6,16 @@ assembles the ASGI app.
 
 ## Run locally
 
-From the repository root, inspect the registered apps, plan the Notes
-migration, then apply it and start the app:
+From `examples/`, inspect the registered apps, plan the Notes migration, then
+apply it and start the app. The locked Python/Rust environment is at the
+repository root, so `--project ..` selects it:
 
 ```sh
-uv run hinoki app list
-uv run hinoki migrations plan --app notes
-uv run hinoki migrations sql --app notes 0001-create-table-notes
-uv run hinoki migrations apply --app notes
-uv run hinoki dev examples.notes.main:app
+uv run --project .. hinoki app list
+uv run --project .. hinoki migrations plan --app notes
+uv run --project .. hinoki migrations sql --app notes 0001-create-table-notes
+uv run --project .. hinoki migrations apply --app notes
+uv run --project .. hinoki dev notes.main:app
 ```
 
 SQLite is the default at `.hinoki/local.sqlite3`. Open `/docs` to inspect the

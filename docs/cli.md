@@ -6,6 +6,11 @@ status: implemented
 
 The `hinoki` command accepts a `module:attribute` target for an application, factory, settings class or model module as documented by each subcommand. Targets are imported from the current project directory.
 
+Targets such as `notes.main:app`, `tracker.app:create_app` and
+`blog.main:create_app` refer to the checked-in project in `examples/`. Run
+those commands from `examples/`; when using the repository checkout, prefix
+them with `uv run --project ..` to use the locked environment at the parent.
+
 ## Commands and options
 
 | Command | Purpose |
@@ -67,8 +72,8 @@ The text output shows each app in dependency order with its model module, migrat
 ### `dev` and `serve`
 
 ```sh
-hinoki dev examples.notes.main:app --host 127.0.0.1 --port 8000
-hinoki serve examples.notes.main:app --workers 4
+hinoki dev notes.main:app --host 127.0.0.1 --port 8000
+hinoki serve notes.main:app --workers 4
 ```
 
 Both commands accept `--host` and `--port`; they override `settings.server.host` and `.port`. `serve` also accepts `--workers`, overriding `.workers`. Otherwise values come from the app's `settings.AppSettings.server` group. `dev` enables reload and runs one worker. Granian is provided by the optional server extra.
@@ -76,8 +81,8 @@ Both commands accept `--host` and `--port`; they override `settings.server.host`
 ### `check`
 
 ```sh
-hinoki check examples.tracker.app:create_app \
-  --package examples.tracker --phase startup --format text
+hinoki check tracker.app:create_app \
+  --package tracker --phase startup --format text
 ```
 
 Options:
@@ -94,9 +99,9 @@ Exit status is `0` when no rules fail, `1` for violations, and `2` when the targ
 ### `openapi`
 
 ```sh
-hinoki openapi examples.notes.main:app
-hinoki openapi examples.notes.main:app --output openapi.json
-hinoki openapi examples.notes.main:app --check openapi.json
+hinoki openapi notes.main:app
+hinoki openapi notes.main:app --output openapi.json
+hinoki openapi notes.main:app --check openapi.json
 ```
 
 The command builds the app without serving it or opening a database; it works even when `openapi_url` is disabled. With no file option it prints deterministic JSON (sorted keys, two-space indentation and a trailing newline). `--output FILE` writes those bytes. `--check FILE` compares parsed JSON, so formatting differences do not count as drift. Exit status is `0` when the file matches or is written, `1` when its JSON differs, and `2` when the target cannot load or the check file is missing or invalid JSON. `--output` and `--check` cannot be used together.
@@ -114,9 +119,9 @@ The default prints `hinoki X.Y.Z`. `--verbose` adds the Python version, platform
 ### `settings`
 
 ```sh
-hinoki settings examples.blog.settings:BlogSettings \
+hinoki settings blog.settings:BlogSettings \
   --prefix BLOG_ --dotenv .env --toml settings.toml --format json
-hinoki settings examples.blog.settings:BlogSettings --example > .env.example
+hinoki settings blog.settings:BlogSettings --example > .env.example
 ```
 
 `TARGET` can be a settings class or an app with typed settings. `--prefix`, `--dotenv` and `--toml` override sources declared by the settings class. `--format text|json` selects output; `--example` prints a `.env.example` with defaults and types, leaving secrets and required fields blank. Values of `settings.Secret` are redacted.
@@ -151,8 +156,8 @@ class Greet(Command):
 app = Hinoki(commands=[Greet])
 ```
 
-The same example is in `examples/management.py`; the root manifest supplies its
-target, so it can be run from the repository root without repeating it.
+The same example is in `examples/project/app.py`; the examples manifest supplies
+its target when you run the command from the `examples/` project directory.
 
 `handle(context, args)` may be synchronous or asynchronous. A sync handler runs on Hinoki's bounded executor. It can read `context.settings` and retrieve resources with `context.get(Type)` or `context.find(Type)`. Declare module classes in the command's `requires` tuple; Hinoki starts those modules and their dependencies for the command, then closes them before it exits. Other app modules are not started. A command with no requirements starts no app modules.
 
@@ -162,7 +167,7 @@ Commands run inside the project process and can modify data. Use disposable data
 
 ```sh
 uv run hinoki shell
-uv run hinoki shell examples.blog.main:app --models examples.blog.models
+uv run hinoki shell blog.main:app --models blog.models
 ```
 
 In a project with `hinoki.toml`, the target defaults to `project.application`
@@ -225,9 +230,9 @@ hinoki migrations --dir myapp/migrations sql 0001-initial
 ### `mcp`
 
 ```sh
-hinoki mcp examples.tracker.app:create_app \
-  --rules examples.tracker.rules:tracker_rules \
-  --package examples.tracker --models examples.tracker.models
+hinoki mcp tracker.app:create_app \
+  --rules tracker.rules:tracker_rules \
+  --package tracker --models tracker.models
 ```
 
 The development server uses MCP over stdio. It accepts `--rules`, repeatable `--package`, repeatable `--models`, and `--waivers` with the same target meanings as `check`. `--scenarios off|read|write` controls whether `run_scenario` is registered: `read` allows GET, HEAD, OPTIONS and QUERY; `write` allows every supported method. Scenarios start the real app, run handlers and lifespan hooks, and may write data even for a GET. Keep the tool server owner-controlled and point the app at a disposable database.
@@ -237,9 +242,9 @@ The development MCP is separate from application MCP, which is mounted with `exp
 ## Import target examples
 
 ```sh
-hinoki dev examples.notes.main:app
-hinoki check examples.tracker.app:create_app
-hinoki settings examples.blog.settings:BlogSettings
+hinoki dev notes.main:app
+hinoki check tracker.app:create_app
+hinoki settings blog.settings:BlogSettings
 hinoki migrations plan --app blog --name add-index --dry-run
 ```
 

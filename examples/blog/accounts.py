@@ -13,10 +13,11 @@ from collections.abc import Callable, Sequence
 from typing import Annotated, Any, ClassVar
 from uuid import UUID
 
-from examples.blog.models import User
-from examples.blog.security import WRITE
 from hinoki import Access, Caller, Field, Schema, errors, http
 from hinoki.crypto import JWTAuth, JWTKey, PasswordHasher
+
+from .models import User
+from .security import WRITE
 
 SESSION_SECONDS = 15 * 60
 

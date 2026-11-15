@@ -8,8 +8,6 @@ only needs an ``Access`` policy; this one reads the cookie instead of a header.
 import datetime
 from typing import Any, ClassVar
 
-from examples.blog.models import Post, User
-from examples.blog.security import WRITE
 from hinoki import Access, Caller, core
 from hinoki.admin import (
     Admin,
@@ -26,6 +24,9 @@ from hinoki.admin import (
 from hinoki.auth import BaseAuth, Credentials
 from hinoki.errors import Unauthorized
 from hinoki.utils import utc_now
+
+from .models import Post, User
+from .security import WRITE
 
 COOKIE = "blog_token"
 DAYS = 7

@@ -9,9 +9,9 @@ The optional `hinoki.admin` module gives staff a list, search, create, edit, bul
 The following excerpt follows the [Blog admin module](https://github.com/caspel26/hinoki/blob/main/examples/blog/adminsite.py). The `PostAdmin` class configures the model; `build_admin()` creates the cookie-authenticated `editors` policy, registers the class and returns the `Admin`. The app factory mounts that API. The snippet shows the relevant imports and function context; consult the linked module for the complete cookie-auth implementation.
 
 ```python
-from examples.blog.adminsite import CookieAuth
-from examples.blog.models import Post
-from examples.blog.security import WRITE
+from blog.adminsite import CookieAuth
+from blog.models import Post
+from blog.security import WRITE
 from hinoki import Access
 from hinoki.admin import Admin, ModelAdmin, Badge, Tab, Fieldset
 

@@ -5,9 +5,9 @@ The rules of the application live in plain async functions that take the acting 
 ```python
 from uuid import UUID
 
-from examples.tracker.errors import TaskAlreadyDone
-from examples.tracker.models import Task
-from examples.tracker.schemas import TaskIn
+from tracker.errors import TaskAlreadyDone
+from tracker.models import Task
+from tracker.schemas import TaskIn
 from hinoki.orm import QuerySet
 from hinoki.pagination import Page, PageParams
 from hinoki.utils import utc_now

@@ -11,10 +11,10 @@ from typing import Any
 from uuid import UUID
 
 import pytest
+from blog.main import create_app
+from blog.models import Post, User
 from openapi_spec_validator import validate
 
-from examples.blog.main import create_app
-from examples.blog.models import Post, User
 from hinoki.db import Database
 from hinoki.orm import QuerySet, use_database
 from tests.blogschema import drop, reset

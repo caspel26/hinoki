@@ -4,9 +4,9 @@ import os
 from collections.abc import AsyncIterator
 
 import pytest
+from notes.app import create_app
+from notes.settings import NotesSettings
 
-from examples.notes.app import create_app
-from examples.notes.settings import NotesSettings
 from hinoki.db import Database
 from tests.harness import Client, Pool
 

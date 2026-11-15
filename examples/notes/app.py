@@ -1,18 +1,19 @@
 """The route and factory form of the smallest useful Hinoki app.
 
-    uv run hinoki dev examples.notes.main:app
+    uv run --project .. hinoki dev notes.main:app
 
-The root project manifest registers this model and its migration package;
+The examples project manifest registers this model and its migration package;
 nothing here touches a database at import.
 """
 
 from typing import Annotated
 from uuid import UUID
 
-from examples.notes.models import Note
-from examples.notes.settings import NotesSettings
 from hinoki import Field, Hinoki, Schema, http
 from hinoki.db import DatabaseModule
+
+from .models import Note
+from .settings import NotesSettings
 
 
 class NoteIn(Schema):

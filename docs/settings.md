@@ -167,8 +167,12 @@ invalid settings:
 
 ## 6. See what is in effect
 
+These commands inspect the checked-in Blog settings from the `examples/`
+project directory; with the repository checkout, use its locked environment:
+
 ```sh
-hinoki settings blog.settings:BlogSettings --prefix BLOG_ --dotenv .env --toml settings.toml
+cd examples
+uv run --project .. hinoki settings blog.settings:BlogSettings --prefix BLOG_ --dotenv .env --toml settings.toml
 ```
 
 ```text
@@ -181,7 +185,7 @@ BLOG_JWT_SECRET               file         ***
 The second column is where each value came from: `override`, `environment`, `.env`, `toml`, `file` or `default`. `--format json` prints the same for tools. `--example` prints a ready `.env.example` (every variable with its default and type; secrets and required values blank):
 
 ```sh
-hinoki settings blog.settings:BlogSettings --prefix BLOG_ --example > .env.example
+uv run --project .. hinoki settings blog.settings:BlogSettings --prefix BLOG_ --example > .env.example
 ```
 
 ## 7. Use them
@@ -294,7 +298,8 @@ The configuration is automatic in the useful sense: `BLOG_DATABASE__URL` is load
 One-off scripts have a different lifecycle. `examples/blog/seed.py` opens a short-lived `Database` explicitly, applies migrations, inserts synthetic rows and closes the pool in `finally`. It runs outside the HTTP server, so there is no worker lifespan to own that resource. It is a one-time seed for a fresh disposable database, not a repeatable reset:
 
 ```sh
-BLOG_DATABASE__URL=postgres://... uv run python -m examples.blog.seed
+cd examples
+BLOG_DATABASE__URL=postgres://... uv run --project .. python -m blog.seed
 ```
 
 Use a disposable database for the example. The seed command is not a production migration mechanism and is not run at app startup.

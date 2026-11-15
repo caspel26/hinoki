@@ -1,7 +1,8 @@
 """Authentication: an opaque bearer token resolved to a ``Member``."""
 
-from examples.tracker.models import Member
 from hinoki import Access, BearerAuth, Caller
+
+from .models import Member
 
 USE = "tasks:use"
 

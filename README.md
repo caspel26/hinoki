@@ -102,7 +102,7 @@ async def create(data: NoteIn) -> NoteOut:
 The application, from [`examples/notes/main.py`](examples/notes/main.py):
 
 ```python
-from examples.notes.app import create, listing, one, remove
+from notes.app import create, listing, one, remove
 from hinoki import Hinoki, settings
 from hinoki.db import DatabaseModule
 
@@ -163,18 +163,19 @@ uv sync --locked
 Hinoki never creates tables by itself. Write the migration from the model, read it, then apply it:
 
 ```sh
-uv run hinoki app list
-uv run hinoki migrations plan --app notes
+cd examples
+uv run --project .. hinoki app list
+uv run --project .. hinoki migrations plan --app notes
 ```
 
-The root `hinoki.toml` registers Notes, Tracker and Blog as independent apps.
+[`examples/hinoki.toml`](examples/hinoki.toml) registers Notes, Tracker and Blog as independent apps.
 Migration number and slug derive from the first schema operation; review the
 generated SQL and state file before applying it. The sample's first file is
 `0001-create-table-notes.sql`.
 
 ```sh
-uv run hinoki migrations sql --app notes 0001-create-table-notes
-uv run hinoki migrations apply --app notes
+uv run --project .. hinoki migrations sql --app notes 0001-create-table-notes
+uv run --project .. hinoki migrations apply --app notes
 ```
 
 Omit `--app` to apply all registered migrations in dependency order. `--name`
@@ -185,7 +186,7 @@ migration package.
 Start the development server and send two requests from another terminal:
 
 ```sh
-uv run hinoki dev examples.notes.main:app
+uv run --project .. hinoki dev notes.main:app
 ```
 
 ```sh
@@ -211,12 +212,12 @@ The [Tracker example](examples/tracker) separates its API, its operations and it
 from hinoki import Actions, Imports, Schemas, Transactions
 from hinoki.rules import RuleSet
 
-PKG = "examples.tracker"
+PKG = "tracker"
 
 
 tracker_rules = RuleSet(
     Actions.require_access(
-        match="examples.tracker.*", except_=["examples.tracker.api.health"]
+        match="tracker.*", except_=["tracker.api.health"]
     ),
     Actions.forbid_model_responses(match=f"{PKG}.*"),
     # The MCP endpoint dispatches other actions, which have their own transactions.
@@ -224,7 +225,7 @@ tracker_rules = RuleSet(
     Schemas.forbid_exposure("token"),
     # The direction of dependencies: api -> operations -> models.
     Imports.forbid(
-        source="examples.tracker.models", target="examples.tracker.operations"
+        source="tracker.models", target="tracker.operations"
     ),
     Imports.forbid(source=f"{PKG}.models", target=f"{PKG}.api"),
     Imports.forbid(source=f"{PKG}.operations", target=f"{PKG}.api"),
@@ -232,8 +233,9 @@ tracker_rules = RuleSet(
 ```
 
 ```sh
-uv run hinoki check examples.tracker.app:create_app \
-  --rules examples.tracker.rules:tracker_rules --package examples.tracker
+cd examples
+uv run --project .. hinoki check tracker.app:create_app \
+  --rules tracker.rules:tracker_rules --package tracker
 ```
 
 ```text
@@ -251,11 +253,11 @@ A route group carries the policy for all of its endpoints. From [`examples/track
 ```python
 from uuid import UUID
 
-from examples.tracker import operations
-from examples.tracker.errors import TaskAlreadyDone
-from examples.tracker.models import Member, Task
-from examples.tracker.schemas import TaskOut
-from examples.tracker.security import member_only
+from tracker import operations
+from tracker.errors import TaskAlreadyDone
+from tracker.models import Member, Task
+from tracker.schemas import TaskOut
+from tracker.security import member_only
 from hinoki import Caller, RouteGroup, errors
 
 
@@ -276,17 +278,18 @@ async def complete_task(task_id: UUID, caller: Caller[Member]) -> TaskOut:
 `hinoki routes` prints what the application really serves:
 
 ```text
-GET     /health                    public                   examples.tracker.api.health
+GET     /health                    public                   tracker.api.health
 POST    /mcp                       MemberTokens[tasks:use]  hinoki.mcpapp.expose_as_mcp.<locals>.mcp_endpoint
-GET     /tasks                     MemberTokens[tasks:use]  examples.tracker.api.list_tasks
-POST    /tasks                     MemberTokens[tasks:use]  examples.tracker.api.create_task
-DELETE  /tasks/{task_id}           MemberTokens[tasks:use]  examples.tracker.api.delete_task
-POST    /tasks/{task_id}/complete  MemberTokens[tasks:use]  examples.tracker.api.complete_task
+GET     /tasks                     MemberTokens[tasks:use]  tracker.api.list_tasks
+POST    /tasks                     MemberTokens[tasks:use]  tracker.api.create_task
+DELETE  /tasks/{task_id}           MemberTokens[tasks:use]  tracker.api.delete_task
+POST    /tasks/{task_id}/complete  MemberTokens[tasks:use]  tracker.api.complete_task
 ```
 
 ## Start your own project
 
 ```sh
+cd ..
 uv run hinoki new shop --dir ..
 ```
 
