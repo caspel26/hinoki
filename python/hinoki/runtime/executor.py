@@ -7,8 +7,9 @@ import contextlib
 import contextvars
 import functools
 import logging
+import threading
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from types import TracebackType
 from typing import ParamSpec, TypeVar
 
@@ -58,6 +59,21 @@ class SyncExecutor:
         return self.in_flight >= self.capacity
 
     async def run(self, fn: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> R:
+        return await self._run(fn, False, *args, **kwargs)
+
+    async def run_shutdown(
+        self, fn: Callable[P, R], *args: P.args, **kwargs: P.kwargs
+    ) -> R:
+        """Run a shutdown callable, with a temporary-thread exit fallback."""
+        return await self._run(fn, True, *args, **kwargs)
+
+    async def _run(
+        self,
+        fn: Callable[P, R],
+        allow_shutdown_thread: bool,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> R:
         pool = self._pool
         if pool is None:
             raise RuntimeError("executor is not running")
@@ -74,6 +90,22 @@ class SyncExecutor:
         call = functools.partial(scope.run, fn, *args, **kwargs)
         try:
             future = pool.submit(call)
+        except RuntimeError as exc:
+            interpreter_exit = (
+                "cannot schedule new futures after interpreter shutdown" in str(exc)
+            )
+            if allow_shutdown_thread and (
+                getattr(pool, "_shutdown", False) or interpreter_exit
+            ):
+                try:
+                    future = self._run_in_shutdown_thread(call)
+                except BaseException:
+                    self.in_flight -= 1
+                    handed.close()
+                    raise
+            else:
+                self.in_flight -= 1
+                raise
         except BaseException:
             self.in_flight -= 1
             raise
@@ -85,6 +117,22 @@ class SyncExecutor:
             # pending query cannot pin the connection past the request.
             handed.close()
             raise
+
+    @staticmethod
+    def _run_in_shutdown_thread(call: Callable[[], R]) -> Future[R]:
+        """Run a shutdown call when ThreadPoolExecutor rejects new work."""
+        future: Future[R] = Future()
+
+        def invoke() -> None:
+            if not future.set_running_or_notify_cancel():
+                return
+            try:
+                future.set_result(call())
+            except BaseException as exc:
+                future.set_exception(exc)
+
+        threading.Thread(target=invoke, name="hinoki-shutdown", daemon=True).start()
+        return future
 
     async def drain(self, timeout: float) -> None:
         """Wait, bounded, for running sync calls (even abandoned ones) to end."""
