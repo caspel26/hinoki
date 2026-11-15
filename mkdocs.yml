@@ -109,6 +109,7 @@ nav:
           - Serving: serving.md
           - Testing: testing.md
           - Command line: cli.md
+          - Interactive shell: shell.md
           - Typing: typing.md
       - Integrations:
           - Admin: admin.md
