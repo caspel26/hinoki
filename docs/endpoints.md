@@ -40,7 +40,7 @@ class TaskSearch(Schema):
 @http.query("/tasks/search")
 async def search_tasks(data: TaskSearch) -> list[TaskOutput]:
     rows = await Task.filter(title__contains=data.text).limit(data.limit)
-    return [TaskOutput.from_model(row) for row in rows]
+    return TaskOutput.from_models(rows)
 ```
 
 ```sh
