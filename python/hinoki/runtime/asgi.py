@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import itertools
 import logging
-import uuid
+import secrets
 from collections.abc import Awaitable, Callable
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, cast
@@ -115,6 +116,8 @@ class ASGIAdapter:
         self.trust_request_id = settings.server.trust_request_id if settings else False
         # Fixed for the worker's life: computed once, not for every request.
         self.request_id_name = self.request_id_header.encode("ascii")
+        self.request_ids = itertools.count()
+        self.request_id_prefix = secrets.token_hex(8)
         self.policy = {
             secure: headers_for(self.security, "https" if secure else "")
             for secure in (True, False)
@@ -191,11 +194,10 @@ class ASGIAdapter:
                 request_id_headers, self.request_id_header
             )
             if incoming_rid is None and any(
-                name.lower() == self.request_id_name
-                for name, _ in request_id_headers
+                name.lower() == self.request_id_name for name, _ in request_id_headers
             ):
                 log.warning("ignored invalid request ID from trusted proxy")
-        rid = incoming_rid or uuid.uuid4().hex
+        rid = incoming_rid or self._new_request_id()
         token = request_id.set(rid)
         context.route_headers.set(())
         runner_token = context.sync_runner.set(self.executor.run)
@@ -231,6 +233,11 @@ class ASGIAdapter:
         await send({**start, "headers": headers})
         body = b"" if scope["method"] == "HEAD" else response.body
         await send({"type": "http.response.body", "body": body})
+
+    def _new_request_id(self) -> str:
+        """32 hex characters, unique within the process (random per-worker
+        prefix and a counter), without a system call per request."""
+        return f"{self.request_id_prefix}{next(self.request_ids):016x}"
 
     async def _respond(  # noqa: PLR0911 - one exit per failure class
         self, scope: Scope, receive: Any, rid: str
