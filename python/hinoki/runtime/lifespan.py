@@ -67,6 +67,7 @@ class Lifespan:
         self.on_startup = tuple(on_startup)
         self.on_shutdown = tuple(on_shutdown)
         self._entered: list[AbstractAsyncContextManager[object]] = []
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._running = False
         self._started = False
 
@@ -77,6 +78,7 @@ class Lifespan:
     async def startup(self) -> None:
         if self._running:
             raise StartupError("<lifespan>", RuntimeError("lifespan already started"))
+        self._loop = asyncio.get_running_loop()
         self._running = True
         self.ctx.reset()
         current = "<runtime>"
@@ -92,12 +94,24 @@ class Lifespan:
                     current = STARTUP_HOOK + hook_name(hook)
                     await self._call(hook)
         except BaseException as exc:
+            if not self._can_cleanup_after_startup_error(exc):
+                raise exc from None
             await self._close_after_cancellation()
             if self._is_external_cancellation(exc):
                 raise
             cause = exc.cause if isinstance(exc, _HookRaised) else exc
             raise StartupError(current, cause) from exc
         self._started = True
+
+    def _can_cleanup_after_startup_error(self, exc: BaseException) -> bool:
+        """Avoid async cleanup when this coroutine is finalized off-loop."""
+        if not isinstance(exc, GeneratorExit):
+            return True
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return False
+        return running_loop is self._loop
 
     def _check_database(self) -> None:
         """Actions with ``transaction=True`` need a provided ``Database``."""
