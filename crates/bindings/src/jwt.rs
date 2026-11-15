@@ -252,6 +252,13 @@ fn numeric(claims: &Map<String, Value>, name: &str) -> Result<Option<i64>, Fail>
 }
 
 fn check_claims(claims: &Map<String, Value>, rules: &Rules<'_>) -> Result<(), Fail> {
+    check_expiration(claims, rules)?;
+    check_temporal_claims(claims, rules)?;
+    check_issuer(claims, rules)?;
+    check_audience(claims, rules)
+}
+
+fn check_expiration(claims: &Map<String, Value>, rules: &Rules<'_>) -> Result<(), Fail> {
     let leeway = rules.leeway.clamp(0, MAX_LEEWAY);
     match numeric(claims, "exp")? {
         // RFC 7519 §4.1.4: on or after `exp` the token must not be accepted.
@@ -259,6 +266,11 @@ fn check_claims(claims: &Map<String, Value>, rules: &Rules<'_>) -> Result<(), Fa
         None if rules.require_exp => return Err(Fail::Claims),
         _ => {}
     }
+    Ok(())
+}
+
+fn check_temporal_claims(claims: &Map<String, Value>, rules: &Rules<'_>) -> Result<(), Fail> {
+    let leeway = rules.leeway.clamp(0, MAX_LEEWAY);
     if let Some(nbf) = numeric(claims, "nbf")? {
         if rules.now.saturating_add(leeway) < nbf {
             return Err(Fail::NotYetValid);
@@ -269,11 +281,20 @@ fn check_claims(claims: &Map<String, Value>, rules: &Rules<'_>) -> Result<(), Fa
             return Err(Fail::NotYetValid);
         }
     }
-    if let Some(expected) = rules.issuer {
-        if claims.get("iss").and_then(Value::as_str) != Some(expected) {
-            return Err(Fail::Issuer);
-        }
+    Ok(())
+}
+
+fn check_issuer(claims: &Map<String, Value>, rules: &Rules<'_>) -> Result<(), Fail> {
+    if rules
+        .issuer
+        .is_some_and(|expected| claims.get("iss").and_then(Value::as_str) != Some(expected))
+    {
+        return Err(Fail::Issuer);
     }
+    Ok(())
+}
+
+fn check_audience(claims: &Map<String, Value>, rules: &Rules<'_>) -> Result<(), Fail> {
     if rules.audience.is_none() && claims.contains_key("aud") {
         // RFC 7519 4.1.3: a token addressed to someone must not be accepted by a
         // verifier that does not say who it is.

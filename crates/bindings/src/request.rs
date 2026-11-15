@@ -180,37 +180,49 @@ fn part_headers(block: &[u8]) -> Result<(String, Option<String>, String), &'stat
     let text = std::str::from_utf8(block).map_err(|_| "part headers are not UTF-8")?;
     let (mut name, mut filename, mut content_type) = (None, None, String::from("text/plain"));
     for line in text.split("\r\n") {
-        if line.chars().any(|c| c.is_control() && c != '\t') {
-            return Err("control character in a part header");
-        }
+        check_header_line(line)?;
         let Some((key, value)) = line.split_once(':') else {
             return Err("malformed part header");
         };
         match key.trim().to_lowercase().as_str() {
-            "content-disposition" => {
-                if !value
-                    .split(';')
-                    .next()
-                    .is_some_and(|v| v.trim().eq_ignore_ascii_case("form-data"))
-                {
-                    return Err("part is not form-data");
-                }
-                for (param, found) in header_params(value) {
-                    let slot = match param.as_str() {
-                        "name" => &mut name,
-                        "filename" => &mut filename,
-                        _ => continue,
-                    };
-                    if slot.replace(found).is_some() {
-                        return Err("duplicate parameter in a part header");
-                    }
-                }
-            }
+            "content-disposition" => parse_content_disposition(value, &mut name, &mut filename)?,
             "content-type" => content_type = value.trim().to_owned(),
             _ => {}
         }
     }
     Ok((name.ok_or("part has no name")?, filename, content_type))
+}
+
+fn check_header_line(line: &str) -> Result<(), &'static str> {
+    if line.chars().any(|c| c.is_control() && c != '\t') {
+        return Err("control character in a part header");
+    }
+    Ok(())
+}
+
+fn parse_content_disposition(
+    value: &str,
+    name: &mut Option<String>,
+    filename: &mut Option<String>,
+) -> Result<(), &'static str> {
+    if !value
+        .split(';')
+        .next()
+        .is_some_and(|v| v.trim().eq_ignore_ascii_case("form-data"))
+    {
+        return Err("part is not form-data");
+    }
+    for (param, found) in header_params(value) {
+        let slot = match param.as_str() {
+            "name" => &mut *name,
+            "filename" => &mut *filename,
+            _ => continue,
+        };
+        if slot.replace(found).is_some() {
+            return Err("duplicate parameter in a part header");
+        }
+    }
+    Ok(())
 }
 
 /// Split a `multipart/form-data` body (RFC 7578). Bounded: at most `max_parts`
@@ -307,7 +319,21 @@ pub fn negotiate(accept: &str, available: &[String]) -> Option<usize> {
     if accept.trim().is_empty() {
         return if available.is_empty() { None } else { Some(0) };
     }
-    let ranges: Vec<(String, f32)> = accept
+    let ranges = parse_accept_ranges(accept);
+    let mut best: Option<(f32, u8, usize)> = None;
+    for (index, offered) in available.iter().enumerate() {
+        let offered = normalize_offered(offered);
+        if let Some((specificity, quality)) = best_range(&ranges, &offered) {
+            if quality > 0.0 && is_better_match(best, quality, specificity) {
+                best = Some((quality, specificity, index));
+            }
+        }
+    }
+    best.map(|(_, _, index)| index)
+}
+
+fn parse_accept_ranges(accept: &str) -> Vec<(String, f32)> {
+    accept
         .split(',')
         .filter_map(|item| {
             let mut pieces = item.split(';');
@@ -325,45 +351,52 @@ pub fn negotiate(accept: &str, available: &[String]) -> Option<usize> {
             }
             Some((media, quality))
         })
-        .collect();
-    let mut best: Option<(f32, u8, usize)> = None;
-    for (index, offered) in available.iter().enumerate() {
-        let offered = offered
-            .split(';')
-            .next()
-            .unwrap_or("")
-            .trim()
-            .to_lowercase();
-        let group = offered.split('/').next().unwrap_or("");
-        let matched = ranges
-            .iter()
-            .filter_map(|(media, quality)| {
-                let specificity = if *media == offered {
-                    3
-                } else if media.strip_suffix("/*") == Some(group) {
-                    2
-                } else if media == "*/*" {
-                    1
-                } else {
-                    return None;
-                };
-                Some((specificity, *quality))
-            })
-            .fold(None::<(u8, f32)>, |best, found| match best {
-                Some((spec, _)) if spec >= found.0 => best, // first range wins a tie
-                _ => Some(found),
-            });
-        if let Some((specificity, quality)) = matched {
-            let better = match best {
-                None => true,
-                Some((q, spec, _)) => quality > q || (quality == q && specificity > spec),
-            };
-            if quality > 0.0 && better {
-                best = Some((quality, specificity, index));
-            }
+        .collect()
+}
+
+fn normalize_offered(offered: &str) -> String {
+    offered
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_lowercase()
+}
+
+fn best_range(ranges: &[(String, f32)], offered: &str) -> Option<(u8, f32)> {
+    let group = offered.split('/').next().unwrap_or("");
+    ranges
+        .iter()
+        .filter_map(|(media, quality)| {
+            let specificity = media_specificity(media, offered, group)?;
+            Some((specificity, *quality))
+        })
+        .fold(None::<(u8, f32)>, |best, found| match best {
+            Some((spec, _)) if spec >= found.0 => best, // first range wins a tie
+            _ => Some(found),
+        })
+}
+
+fn media_specificity(media: &str, offered: &str, group: &str) -> Option<u8> {
+    if media == offered {
+        Some(3)
+    } else if media.strip_suffix("/*") == Some(group) {
+        Some(2)
+    } else if media == "*/*" {
+        Some(1)
+    } else {
+        None
+    }
+}
+
+fn is_better_match(best: Option<(f32, u8, usize)>, quality: f32, specificity: u8) -> bool {
+    match best {
+        None => true,
+        Some((previous_quality, previous_specificity, _)) => {
+            quality > previous_quality
+                || (quality == previous_quality && specificity > previous_specificity)
         }
     }
-    best.map(|(_, _, index)| index)
 }
 
 /// Index into `available` of the best match for an `Accept` header, or `None`.
@@ -832,30 +865,7 @@ impl<'py> Encoder<'py> {
     /// anything with a `dump()` method, then the caller's `default` hook.
     fn object(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
         if let Some((names, unset)) = crate::schema::instance_fields(value, true)? {
-            self.open(b'{');
-            let mut first = true;
-            let mut present = Vec::new();
-            for name in names {
-                let item = value.getattr(name.as_str())?;
-                if !item.is(&unset) {
-                    present.push((name, item));
-                }
-            }
-            if self.sort_keys {
-                present.sort_by(|a, b| a.0.cmp(&b.0));
-            }
-            let empty = present.is_empty();
-            for (name, item) in present {
-                if !first {
-                    self.out.push(b',');
-                }
-                first = false;
-                self.newline(depth + 1);
-                write_string(&mut self.out, &name)?;
-                self.colon();
-                self.write(&item, depth + 1)?;
-            }
-            self.close(b'}', depth, empty);
+            self.schema_object(value, names, &unset, depth)?;
         } else if is_instance_of_named(value, "uuid", "UUID")? {
             write_string(&mut self.out, &value.str()?.to_string())?;
         } else if is_instance_of_named(value, "datetime", "datetime")? {
@@ -879,6 +889,38 @@ impl<'py> Encoder<'py> {
                 "{name} is not JSON serializable"
             )));
         }
+        Ok(())
+    }
+
+    fn schema_object(
+        &mut self,
+        value: &Bound<'py, PyAny>,
+        names: Vec<String>,
+        unset: &Py<PyAny>,
+        depth: usize,
+    ) -> PyResult<()> {
+        let mut present = Vec::new();
+        for name in names {
+            let item = value.getattr(name.as_str())?;
+            if !item.is(unset) {
+                present.push((name, item));
+            }
+        }
+        if self.sort_keys {
+            present.sort_by(|a, b| a.0.cmp(&b.0));
+        }
+        let empty = present.is_empty();
+        self.open(b'{');
+        for (index, (name, item)) in present.into_iter().enumerate() {
+            if index > 0 {
+                self.out.push(b',');
+            }
+            self.newline(depth + 1);
+            write_string(&mut self.out, &name)?;
+            self.colon();
+            self.write(&item, depth + 1)?;
+        }
+        self.close(b'}', depth, empty);
         Ok(())
     }
 }

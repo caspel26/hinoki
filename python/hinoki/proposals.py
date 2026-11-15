@@ -149,6 +149,19 @@ def propose(
     path: Any = None,
     unique_together: Any = None,
 ) -> dict[str, Any]:
+    model, lower, columns = _validated_proposal(name, fields)
+    table_name, owner_model, path = names_of(table, model, owner, path, columns)
+    unique = groups_of(unique_together, {c.name for c in columns} | {"owner_id"})
+    source = _proposal_source(
+        model, lower, table_name, path, owner_model, columns, unique
+    )
+    return {
+        "source": source,
+        "next_steps": _proposal_steps(table_name, owner_model),
+    }
+
+
+def _validated_proposal(name: Any, fields: Any) -> tuple[str, str, list[Column]]:
     model = identifier(name, "name")
     if not model[0].isupper():
         raise ProposalError("name is the model class name, e.g. 'Article'")
@@ -157,9 +170,18 @@ def propose(
     columns = [Column(item) for item in fields]
     if len({c.name for c in columns}) != len(columns):
         raise ProposalError("field names must be unique")
-    table_name, owner_model, path = names_of(table, model, owner, path, columns)
-    unique = groups_of(unique_together, {c.name for c in columns} | {"owner_id"})
-    lower = model.lower()
+    return model, model.lower(), columns
+
+
+def _proposal_source(
+    model: str,
+    lower: str,
+    table_name: str,
+    path: str,
+    owner_model: str | None,
+    columns: list[Column],
+    unique: list[list[str]],
+) -> str:
     required = [c for c in columns if not c.nullable]
     optional = [c for c in columns if c.nullable]
     owned = owner_model is not None
@@ -253,13 +275,17 @@ def propose(
         f"        raise {model}.NotFound()",
         "",
     ]
+    return "\n".join(lines)
+
+
+def _proposal_steps(table_name: str, owner_model: str | None) -> list[str]:
     steps = [
         "Review and edit; this is a starting point, not a finished design.",
         "Fields the server assigns (state, timestamps) must not be in the In schema.",
         f"Run: hinoki migrations plan --models <module> --name add_{table_name}",
         "Run: hinoki check",
     ]
-    if owned:
+    if owner_model is not None:
         steps.insert(
             1,
             f"Define member_only = Access(auth=..., permissions=[...]) for {owner_model}; "
@@ -271,4 +297,4 @@ def propose(
             "No owner given: rows are not scoped. Add Access(...) and, for per-user data, "
             "regenerate with owner=<Model>.",
         )
-    return {"source": "\n".join(lines), "next_steps": steps}
+    return steps
