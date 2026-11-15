@@ -386,7 +386,7 @@
     <span class="n">admin_theme</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"studio"</span><span class="p">,</span> <span class="s2">"console"</span><span class="p">,</span> <span class="s2">"paper"</span><span class="p">,</span> <span class="s2">"bento"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"studio"</span>
 </code></pre></div>
 <p>Settings types live in the <code>hinoki.settings</code> namespace: <code>from hinoki import settings</code>, then <code>settings.AppSettings</code>, <code>settings.DatabaseSettings</code>, <code>settings.Secret</code>, <code>settings.Settings</code> and <code>settings.SettingsError</code>. Name your own subclass for your project (<code>BlogSettings</code> above) and keep a loaded value in a variable such as <code>app_settings</code>, so the namespace is not shadowed. Earlier revisions exported these types from <code>hinoki</code> itself and called the base class <code>FrameworkSettings</code>; <code>from hinoki import FrameworkSettings</code> now raises <code>ImportError</code>.</p>
-<p><code>settings.AppSettings</code> brings six groups every app has: <code>execution</code> (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit), <code>lifecycle</code> (30-second startup and 10-second shutdown limits), <code>logging</code> (level, text or JSON), <code>docs</code> (title, version and optional OpenAPI/Swagger/ReDoc URLs) <code>server</code> (host, port and workers) and <code>pagination</code> (default <code>page_size</code> and <code>max_page_size</code> for <code>PageNumberPagination</code>, see <a href="../pagination/#defaults-for-the-whole-application">pagination</a>). A field without a default is <strong>required</strong>. Request IDs and timeout responses are described in the <a href="../request-lifecycle/">request lifecycle</a>.</p>
+<p><code>settings.AppSettings</code> brings seven groups every app has: <code>execution</code> (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit), <code>lifecycle</code> (30-second startup and 10-second shutdown limits), <code>logging</code> (level, text or JSON), <code>docs</code> (title, version and optional OpenAPI/Swagger/ReDoc URLs), <code>server</code> (host, port and workers), <code>pagination</code> (default <code>page_size</code> and <code>max_page_size</code> for <code>PageNumberPagination</code>, see <a href="../pagination/#defaults-for-the-whole-application">pagination</a>) and <code>cors</code> (which browser origins may read responses). Three values sit beside the groups: <code>timezone</code>, <code>debug</code> and <code>allowed_hosts</code>; see <a href="#debug-allowed-hosts-and-cors">Debug, allowed hosts and CORS</a>. A field without a default is <strong>required</strong>. Request IDs and timeout responses are described in the <a href="../request-lifecycle/">request lifecycle</a>.</p>
 <p><code>docs.openapi_url</code>, <code>docs.docs_url</code> and <code>docs.redoc_url</code> default to <code>None</code>, so no API document or viewer route is served until configured. Swagger UI or ReDoc requires an <code>openapi_url</code>. The same values can be supplied as <code>Hinoki(...)</code> arguments; explicit arguments win over <code>docs</code> settings, and <code>None</code> disables a page.</p>
 <h2 id="built-in-fields-and-defaults">Built-in fields and defaults<a class="headerlink" href="#built-in-fields-and-defaults" title="Permanent link">&para;</a></h2>
 <table>
@@ -514,10 +514,58 @@
 <td>Enables Granian access logging</td>
 </tr>
 <tr>
+<td><code>cors</code></td>
+<td><code>origins</code></td>
+<td>empty</td>
+<td>Allowed browser origins (<code>scheme://host[:port]</code>), or the single entry <code>*</code>; empty disables CORS</td>
+</tr>
+<tr>
+<td><code>cors</code></td>
+<td><code>methods</code></td>
+<td><code>GET, POST, PUT, PATCH, DELETE, QUERY</code></td>
+<td>Methods a preflight allows</td>
+</tr>
+<tr>
+<td><code>cors</code></td>
+<td><code>headers</code></td>
+<td><code>authorization, content-type</code></td>
+<td>Request headers a preflight allows</td>
+</tr>
+<tr>
+<td><code>cors</code></td>
+<td><code>expose_headers</code></td>
+<td>empty</td>
+<td>Response headers a browser script may read</td>
+</tr>
+<tr>
+<td><code>cors</code></td>
+<td><code>credentials</code></td>
+<td><code>false</code></td>
+<td>Allow cookies and HTTP authentication; refused together with <code>*</code></td>
+</tr>
+<tr>
+<td><code>cors</code></td>
+<td><code>max_age</code></td>
+<td><code>600</code> seconds</td>
+<td><code>0</code> to <code>86400</code>; how long a browser may cache a preflight</td>
+</tr>
+<tr>
+<td>(top level)</td>
 <td><code>timezone</code></td>
 <td><code>UTC</code></td>
 <td>IANA timezone name used by <code>app.now()</code></td>
-<td></td>
+</tr>
+<tr>
+<td>(top level)</td>
+<td><code>debug</code></td>
+<td><code>false</code></td>
+<td>Adds exception details to <code>500</code> answers; development only</td>
+</tr>
+<tr>
+<td>(top level)</td>
+<td><code>allowed_hosts</code></td>
+<td><code>*</code></td>
+<td>Host names, <code>.domain</code> or <code>*</code>; other <code>Host</code> values receive <code>400</code></td>
 </tr>
 </tbody>
 </table>
@@ -637,6 +685,64 @@ BLOG_JWT_SECRET               file         ***
 <h2 id="7-use-them">7. Use them<a class="headerlink" href="#7-use-them" title="Permanent link">&para;</a></h2>
 <p><code>Hinoki(settings=app_settings)</code> derives the runtime limits, the docs URLs, logging setup and application timezone from the built-in settings (an explicit argument such as <code>title=</code> still wins). <code>app.now()</code> returns an aware <code>datetime</code> in the configured timezone; it defaults to UTC. The timezone is configured in settings, not as a <code>Hinoki(...)</code> argument. Your own fields are on <code>app.settings</code>, and modules reach them as <code>ctx.settings</code> in their lifespan.</p>
 <p>The <code>server</code> group (host, port, workers) is applied by <code>hinoki serve</code>/<code>dev</code> (<a href="../serving/">Running an application</a>). Hinoki does not connect to secret-manager services itself; use a provider that supplies environment values or secret files.</p>
+<h2 id="debug-allowed-hosts-and-cors">Debug, allowed hosts and CORS<a class="headerlink" href="#debug-allowed-hosts-and-cors" title="Permanent link">&para;</a></h2>
+<p>These three are off or permissive by default, so an application behaves the same until you set them. Set them from the environment like any other field:</p>
+<div class="highlight"><pre><span></span><code><span class="nv">BLOG_DEBUG</span><span class="o">=</span><span class="nb">true</span>
+<span class="nv">BLOG_ALLOWED_HOSTS</span><span class="o">=</span>api.example.com,.example.org
+<span class="nv">BLOG_CORS__ORIGINS</span><span class="o">=</span>https://app.example.com,http://localhost:5173
+</code></pre></div>
+<h3 id="debug"><code>debug</code><a class="headerlink" href="#debug" title="Permanent link">&para;</a></h3>
+<p>With <code>debug</code> on, the <code>500 internal_error</code> answer for an unhandled exception also carries a <code>debug</code> object:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"error"</span><span class="p">:</span><span class="w"> </span><span class="s2">"internal_error"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"request_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"5f0c…"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"debug"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"exception"</span><span class="p">:</span><span class="w"> </span><span class="s2">"builtins.RuntimeError"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"the cache is cold"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"traceback"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"Traceback (most recent call last):\n"</span><span class="p">,</span><span class="w"> </span><span class="s2">"…"</span><span class="p">]</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Declared errors, validation errors and the other framework answers are unchanged, and the exception is logged either way. Exception messages can contain data you would not publish, so keep <code>debug</code> off in a deployment; each worker logs a warning at startup while it is on. <code>debug</code> changes nothing else: it does not enable documentation pages, relax authentication or skip the host check, and <code>hinoki dev</code> does not set it.</p>
+<h3 id="allowed_hosts"><code>allowed_hosts</code><a class="headerlink" href="#allowed_hosts" title="Permanent link">&para;</a></h3>
+<p>The <code>Host</code> header of every request must match one entry:</p>
+<table>
+<thead>
+<tr>
+<th>Entry</th>
+<th>Matches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>*</code> (the default)</td>
+<td>Any host; nothing is checked</td>
+</tr>
+<tr>
+<td><code>api.example.com</code></td>
+<td>That host, on any port</td>
+</tr>
+<tr>
+<td><code>.example.org</code></td>
+<td><code>example.org</code> and every subdomain</td>
+</tr>
+<tr>
+<td><code>127.0.0.1</code>, <code>::1</code></td>
+<td>That address (<code>[::1]:8000</code> in the header)</td>
+</tr>
+</tbody>
+</table>
+<p>Matching ignores case, the port and a trailing dot. The header must be exactly one host with an optional port; a request for another host, with two <code>Host</code> headers or without a usable one, receives <code>400 disallowed_host</code> before routing, authentication and body reading; documentation routes are covered too. Entries are names: a scheme, port, path or a partial wildcard such as <code>*.example.com</code> fails at load, and <code>*</code> cannot be mixed with other entries. A dot entry is as wide as it reads: <code>.com</code> allows every <code>.com</code> host.</p>
+<p>Set the list in a deployment that is reachable under more names than it should answer to. The in-process test clients send no <code>Host</code> header, so a test of an application with a restrictive list passes one: <code>await client.get("/x", headers={"host": "api.example.com"})</code>.</p>
+<h3 id="cors"><code>cors</code><a class="headerlink" href="#cors" title="Permanent link">&para;</a></h3>
+<p>CORS is off while <code>cors.origins</code> is empty: no header is added and <code>OPTIONS</code> requests receive <code>405</code>. With origins configured:</p>
+<ul>
+<li>A request whose <code>Origin</code> is listed receives <code>access-control-allow-origin</code> with that origin and <code>vary: origin</code>, on every answer including errors, so a browser client can read a <code>401</code> or <code>422</code> body. <code>credentials = true</code> adds <code>access-control-allow-credentials: true</code>; <code>expose_headers</code> is sent as <code>access-control-expose-headers</code>.</li>
+<li>A request from any other origin, or without an <code>Origin</code>, is served normally without the permission headers and still carries <code>vary: origin</code>, so a shared cache never hands one origin's answer to another; the browser refuses to hand the response to the page. CORS tells browsers what to allow. It is not authentication and does not stop a non-browser client.</li>
+<li>A preflight (<code>OPTIONS</code> with <code>Origin</code> and <code>Access-Control-Request-Method</code>) is answered with <code>204</code>, the configured <code>methods</code>, <code>headers</code> and <code>max_age</code>, without reaching a route or its access policy. A preflight from an origin that is not listed receives <code>403 cors_origin_denied</code>.</li>
+</ul>
+<p>Origins are compared exactly, in lower case as browsers send them: <code>https://app.example.com</code> and <code>https://app.example.com:8443</code> are different origins, and a trailing slash or path is refused at load. Browsers leave a default port out of <code>Origin</code>, so list <code>https://app.example.com</code>, not <code>https://app.example.com:443</code>. The single entry <code>*</code> answers every origin with <code>access-control-allow-origin: *</code>; it cannot be combined with <code>credentials</code>, and browsers will not send cookies or HTTP authentication to it.</p>
+<p>The policy applies to the whole application, including the ASGI and WSGI adapters; there is no per-route CORS option. An answer that already sets <code>access-control-allow-origin</code> itself (a <code>Reply</code> with that header) is sent as it is, without the policy's headers.</p>
 <h2 id="8-database-connection-ownership">8. Database connection ownership<a class="headerlink" href="#8-database-connection-ownership" title="Permanent link">&para;</a></h2>
 <p>For local development, <code>DatabaseSettings.url</code> defaults to <code>sqlite://./.hinoki/local.sqlite3</code>. Hinoki creates the hidden directory and database file when the module starts; it does not connect at module import or when models are imported. Set the URL explicitly for a server database or deployment. Environment, dotenv, TOML and constructor values override the local default.</p>
 <p>For a server database, put its explicit connection URL in <code>settings.DatabaseSettings</code> and list <code>DatabaseModule</code> in the app declaration (or install a configured module in a factory). The module opens a pool in each worker's startup lifespan, fails startup if the database is unreachable, and closes that worker's pool on shutdown. Each worker owns its own pool, so budget <code>replicas × workers × max_size</code> against the server database's connection limit.</p>
@@ -676,15 +782,17 @@ BLOG_JWT_SECRET               file         ***
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#1-declare-what-your-app-needs">1. Declare what your app needs</a></li><li><a href="#built-in-fields-and-defaults">Built-in fields and defaults</a></li><li><a href="#2-load-them-when-the-app-is-built">2. Load them when the app is built</a></li><li><a href="#3-names">3. Names</a></li><li><a href="#4-mistakes-fail-at-startup-all-at-once">4. Mistakes fail at startup, all at once</a></li><li><a href="#5-secrets">5. Secrets</a></li><li><a href="#6-see-what-is-in-effect">6. See what is in effect</a></li><li><a href="#7-use-them">7. Use them</a></li><li><a href="#8-database-connection-ownership">8. Database connection ownership</a></li></ul>
+            <ul><li><a href="#1-declare-what-your-app-needs">1. Declare what your app needs</a></li><li><a href="#built-in-fields-and-defaults">Built-in fields and defaults</a></li><li><a href="#2-load-them-when-the-app-is-built">2. Load them when the app is built</a></li><li><a href="#3-names">3. Names</a></li><li><a href="#4-mistakes-fail-at-startup-all-at-once">4. Mistakes fail at startup, all at once</a></li><li><a href="#5-secrets">5. Secrets</a></li><li><a href="#6-see-what-is-in-effect">6. See what is in effect</a></li><li><a href="#7-use-them">7. Use them</a></li><li><a href="#debug-allowed-hosts-and-cors">Debug, allowed hosts and CORS</a>
+            <ul><li><a href="#debug">debug</a></li><li><a href="#allowed_hosts">allowed_hosts</a></li><li><a href="#cors">cors</a></li></ul>
+          </li><li><a href="#8-database-connection-ownership">8. Database connection ownership</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.18</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 22:32:50 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>8 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 00:11:15 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>12 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -253,7 +253,7 @@
 <li>Many-to-many links use an explicit model with two foreign keys and a composite uniqueness constraint. Implicit join models, direct collection access such as <code>post.tags</code>, and advanced relation paths are not available.</li>
 <li>Additional database backends and end-to-end performance claims are not available.</li>
 <li>The server adapter is ASGI. <code>hinoki.wsgi.WSGIAdapter</code> wraps an application for WSGI servers (buffered bodies, no streaming); verified with Granian only, see <a href="../serving/#wsgi">serving</a>.</li>
-<li>General CORS middleware is not available; application MCP has its own allowed-origin check. Cursor pagination is not available; pagination currently uses page numbers.</li>
+<li>CORS is one application-wide policy in the <code>cors</code> settings group; there is no per-route CORS option. Application MCP has its own allowed-origin check. Cursor pagination is not available; pagination currently uses page numbers.</li>
 <li>Pagination page-size defaults are <code>20</code> and <code>100</code>; the <code>pagination</code> settings group changes them for the whole app and an action's own <code>PageNumberPagination</code> values win. See <a href="../pagination/">pagination</a>.</li>
 <li>OpenAPI generation creates operation IDs and reads summary/description from handler docstrings. Per-action <code>tags</code>, <code>deprecated</code>, custom <code>operation_id</code> and <code>include_in_schema</code> controls are not available.</li>
 <li>There is no maintained Docker image or deployment recipe. <code>hinoki serve</code> runs the app with Granian; container packaging and process orchestration are application deployment choices.</li>
@@ -283,7 +283,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>6.1</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 22:32:50 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 00:04:49 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/status.md">Edit on GitHub</a></dd></div>
         </dl>
