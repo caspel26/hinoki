@@ -7,7 +7,7 @@ from __future__ import annotations
 import builtins
 import dataclasses
 from collections.abc import Generator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 from hinoki import core
 from hinoki.blocking import run_sync
@@ -18,11 +18,14 @@ from hinoki.pagination import Page, PageParams
 from hinoki.utils import _read_utc
 
 if TYPE_CHECKING:
+    from hinoki.core import Row
     from hinoki.orm.model import Model
 
 OPERATORS = {"gt", "gte", "lt", "lte", "ne", "in", "isnull", "contains"}
 SEPARATOR = "__"
 IN_CHUNK = 10000
+# Dialects without INSERT/UPDATE ... RETURNING: the written rows are re-selected.
+NO_RETURNING = frozenset({"mysql", "mariadb"})
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -264,11 +267,26 @@ class QuerySet[M: Model]:
             raise MultipleObjectsReturned(f"{self.model.__name__}: several rows match")
         return rows[0]
 
-    async def aupdate(self, values: dict[str, Any]) -> builtins.list[M]:
+    @overload
+    async def aupdate(
+        self, values: dict[str, Any], *, returning: Literal[True] = ...
+    ) -> builtins.list[M]: ...
+    @overload
+    async def aupdate(
+        self, values: dict[str, Any], *, returning: Literal[False]
+    ) -> int: ...
+    @overload
+    async def aupdate(
+        self, values: dict[str, Any], *, returning: bool
+    ) -> builtins.list[M] | int: ...
+    async def aupdate(
+        self, values: dict[str, Any], *, returning: bool = True
+    ) -> builtins.list[M] | int:
         """Update the rows this query matches (its filters are part of the
         statement) and return them. Ordering and loading are ignored; a query
         with ``limit`` or ``offset`` is refused, because the statement would
-        change every matching row."""
+        change every matching row. ``returning=False`` reads nothing back and
+        returns the row count the database reports instead."""
         if not self.filters or not values:
             raise FieldError("aupdate needs filters and values")
         self.refuse_window("aupdate")
@@ -284,33 +302,17 @@ class QuerySet[M: Model]:
         if self.loading.joined:
             raise FieldError("updates cannot filter across a relation")
         database = current_database()
-        sql, params = core.compile_query(
+        sql, params = write_statement(
+            self.model,
             "update",
-            self.model.__table__,
-            assignments=list(values.items()),
-            filters=list(self.filters),
-            returning=(
-                []
-                if database.dialect in {"mysql", "mariadb"}
-                else list(self.model.__columns__)
-            ),
+            list(values.items()),
+            list(self.filters),
+            returning=returning,
             dialect=database.dialect,
         )
-        if database.dialect in {"mysql", "mariadb"}:
-            # MySQL has no UPDATE ... RETURNING. Select matching rows on the
-            # same transaction connection so the return value remains stable.
-            async with database.transaction():
-                await database.execute(sql, *params)
-                select_sql, select_params = core.compile_query(
-                    "select",
-                    self.model.__table__,
-                    columns=list(self.model.__columns__),
-                    filters=list(self.filters),
-                    dialect=database.dialect,
-                )
-                rows = await database.fetch(select_sql, *select_params)
-        else:
-            rows = await database.fetch(sql, *params)
+        if not returning:
+            return await database.execute(sql, *params)
+        rows = await written_rows(self.model, sql, params, list(self.filters))
         return [self.model.from_row(row) for row in rows]
 
     async def adelete(self) -> int:
@@ -362,8 +364,22 @@ class QuerySet[M: Model]:
     def get(self) -> M:
         return run_sync(self.aget())
 
-    def update(self, values: dict[str, Any]) -> builtins.list[M]:
+    @overload
+    def update(
+        self, values: dict[str, Any], *, returning: Literal[True] = ...
+    ) -> builtins.list[M]: ...
+    @overload
+    def update(self, values: dict[str, Any], *, returning: Literal[False]) -> int: ...
+    @overload
+    def update(
+        self, values: dict[str, Any], *, returning: bool
+    ) -> builtins.list[M] | int: ...
+    def update(
+        self, values: dict[str, Any], *, returning: bool = True
+    ) -> builtins.list[M] | int:
         """Sync ``aupdate``."""
+        if not returning:
+            return run_sync(self.aupdate(values, returning=False))
         return run_sync(self.aupdate(values))
 
     def delete(self) -> int:
@@ -403,6 +419,52 @@ def condition(model: type[Model], key: str, value: Any) -> tuple[str, str, list[
             raise FieldError(f"{key} cannot compare with None")
         return name, "isnull" if suffix == "eq" else "notnull", []
     return name, suffix, [value]
+
+
+Filter = tuple[str, str, list[Any]]
+
+
+def write_statement(
+    model: type[Model],
+    kind: str,
+    assignments: list[tuple[str, Any]],
+    filters: list[Filter],
+    *,
+    returning: bool,
+    dialect: str,
+) -> tuple[str, list[Any]]:
+    """An INSERT or UPDATE that returns every column when ``returning`` is set
+    and the dialect supports it, and nothing otherwise."""
+    reads = returning and dialect not in NO_RETURNING
+    return core.compile_query(
+        kind,
+        model.__table__,
+        assignments=assignments,
+        filters=filters,
+        returning=list(model.__columns__) if reads else [],
+        dialect=dialect,
+    )
+
+
+async def written_rows(
+    model: type[Model], sql: str, params: list[Any], filters: list[Filter]
+) -> list[Row]:
+    """The stored rows after a write compiled by ``write_statement``. MySQL and
+    MariaDB have no RETURNING: the rows matching ``filters`` are selected on the
+    same transaction connection so the return value remains stable."""
+    database = current_database()
+    if database.dialect not in NO_RETURNING:
+        return await database.fetch(sql, *params)
+    async with database.transaction():
+        await database.execute(sql, *params)
+        select_sql, select_params = core.compile_query(
+            "select",
+            model.__table__,
+            columns=list(model.__columns__),
+            filters=filters,
+            dialect=database.dialect,
+        )
+        return await database.fetch(select_sql, *select_params)
 
 
 async def fetch_in(model: type[Model], column: str, values: list[Any]) -> list[Any]:
