@@ -47,8 +47,14 @@ from hinoki.runtime.responses import (
     Response,
     error_response,
 )
+from hinoki.runtime.security import (
+    POLICY_HEADERS,
+    headers_for,
+    https_redirect,
+    merge_policy_headers,
+)
 from hinoki.schema import encode
-from hinoki.settings import AppSettings
+from hinoki.settings import AppSettings, SecuritySettings
 
 if TYPE_CHECKING:
     from hinoki.app import Hinoki
@@ -98,6 +104,7 @@ class ASGIAdapter:
         self.hosts = HostPolicy.of(app.settings)
         self.cors = CorsPolicy.of(app.settings)
         settings = app.settings if isinstance(app.settings, AppSettings) else None
+        self.security = settings.security if settings else SecuritySettings()
         self.trusted_proxies = tuple(
             ipaddress.ip_network(value, strict=False)
             for value in (settings.server.trusted_proxies if settings else ())
@@ -194,11 +201,15 @@ class ASGIAdapter:
             database_var.reset(db_token)
             context.sync_runner.reset(runner_token)
             request_id.reset(token)
-        present = {name for name, _ in response.headers}
+        merge_policy_headers(
+            response, headers_for(self.security, scope.get("scheme", ""))
+        )
+        present = {name.lower() for name, _ in response.headers}
         extra = [
             (name.encode(), value.encode())
             for name, value in context.route_headers.get()
-            if name.encode() not in present
+            if name.encode().lower() not in present
+            and name.encode().lower() not in POLICY_HEADERS
         ]
         request_id_bytes = self.request_id_header.encode("ascii")
         headers = [
@@ -234,7 +245,7 @@ class ASGIAdapter:
         except Exception as exc:
             return await error_response(exc, rid, self.app.errors, self.debug)
 
-    async def _serve(self, scope: Scope, receive: Any) -> Response:
+    async def _serve(self, scope: Scope, receive: Any) -> Response:  # noqa: PLR0911, PLR0912 - response per request failure class
         """Ready check, host and preflight policies, routing, authentication,
         then (only if the action takes a body) reading and validating it, then
         the handler."""
@@ -242,11 +253,24 @@ class ASGIAdapter:
             raise HTTPError(HTTPStatus.SERVICE_UNAVAILABLE, "not_ready", RETRY_LATER)
         self._check_request_sizes(scope)
         headers: dict[str, str] | None = None
-        if self.hosts is not None or self.cors is not None:
+        if (
+            self.hosts is not None
+            or self.cors is not None
+            or self.security.redirect_https
+        ):
             headers = header_map(scope)
             preflight = self._guard(scope["method"], headers)
             if preflight is not None:
                 return preflight
+            redirect = https_redirect(
+                scope,
+                headers,
+                self.app.settings
+                if isinstance(self.app.settings, AppSettings)
+                else None,
+            )
+            if redirect is not None:
+                return redirect
         if self.document is not None and self._is_document_request(scope):
             return Response.json(HTTPStatus.OK, self.document)
         page = (

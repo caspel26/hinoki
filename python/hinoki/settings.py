@@ -26,6 +26,7 @@ import tomllib
 import types
 import typing
 from collections.abc import Callable, Mapping
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Self, dataclass_transform
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -42,6 +43,8 @@ MAX_PORT = 65536
 MAX_WORKERS = 256
 QUOTED = 2  # shortest quoted value: the two quotes
 MAX_CORS_AGE = 86400
+HSTS_MAX_SECONDS = 63_072_000
+HSTS_PRELOAD_MIN_SECONDS = 31_536_000
 ANY = "*"
 HOST_PATTERN = re.compile(
     r"\.?(?:[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)(?:\.[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)*",
@@ -380,6 +383,8 @@ def toml_value_matches(hint: Any, value: Any) -> bool:  # noqa: PLR0911 - each t
         return isinstance(value, int) and not isinstance(value, bool)
     if hint is float:
         return isinstance(value, int | float) and not isinstance(value, bool)
+    if isinstance(hint, type) and issubclass(hint, StrEnum):
+        return isinstance(value, str)
     if hint is str:
         return isinstance(value, str)
     return False
@@ -676,7 +681,7 @@ def convert_list(hint: Any, raw: Any) -> list[Any] | tuple[Any, ...]:
     return tuple(converted) if typing.get_origin(hint) is tuple else converted
 
 
-def convert(hint: Any, raw: Any) -> Any:
+def convert(hint: Any, raw: Any) -> Any:  # noqa: PLR0911 - each setting type has a direct conversion
     """``raw`` (environment text or an ``overrides`` value) as ``hint``."""
     origin = typing.get_origin(hint)
     if origin in (typing.Union, types.UnionType):
@@ -690,6 +695,14 @@ def convert(hint: Any, raw: Any) -> Any:
         return convert_list(hint, raw)
     if hint in SCALARS:
         return SCALARS[hint](raw)
+    if isinstance(hint, type) and issubclass(hint, StrEnum):
+        if isinstance(raw, hint):
+            return raw
+        try:
+            return hint(raw)
+        except (TypeError, ValueError):
+            choices_text = ", ".join(member.value for member in hint)
+            raise ValueError(f"must be one of: {choices_text}") from None
     raise ValueError(f"unsupported type {getattr(hint, '__name__', hint)}")
 
 
@@ -838,6 +851,56 @@ class ServerSettings(Settings):
             raise ValueError("request_id_header conflicts with a framework header")
 
 
+class FrameOptions(StrEnum):
+    """Values accepted by the ``X-Frame-Options`` response policy."""
+
+    DENY = "deny"
+    SAMEORIGIN = "sameorigin"
+
+
+class ReferrerPolicy(StrEnum):
+    """Values accepted by the ``Referrer-Policy`` response policy."""
+
+    NO_REFERRER = "no-referrer"
+    NO_REFERRER_WHEN_DOWNGRADE = "no-referrer-when-downgrade"
+    SAME_ORIGIN = "same-origin"
+    ORIGIN = "origin"
+    STRICT_ORIGIN = "strict-origin"
+    ORIGIN_WHEN_CROSS_ORIGIN = "origin-when-cross-origin"
+    STRICT_ORIGIN_WHEN_CROSS_ORIGIN = "strict-origin-when-cross-origin"
+    UNSAFE_URL = "unsafe-url"
+
+
+class SecuritySettings(Settings):
+    """Browser response protections and an optional HTTPS redirect."""
+
+    redirect_https: bool = False
+    hsts_seconds: int = 0
+    hsts_include_subdomains: bool = False
+    hsts_preload: bool = False
+    frame_options: FrameOptions = FrameOptions.SAMEORIGIN
+    referrer_policy: ReferrerPolicy = ReferrerPolicy.SAME_ORIGIN
+
+    def validate(self) -> None:
+        if not isinstance(self.frame_options, FrameOptions):
+            raise ValueError("frame_options must be a FrameOptions value")
+        if not isinstance(self.referrer_policy, ReferrerPolicy):
+            raise ValueError("referrer_policy must be a ReferrerPolicy value")
+        if not 0 <= self.hsts_seconds <= HSTS_MAX_SECONDS:
+            raise ValueError("hsts_seconds must be between 0 and 63072000")
+        if self.hsts_seconds == 0 and (
+            self.hsts_include_subdomains or self.hsts_preload
+        ):
+            raise ValueError("HSTS subdomain and preload options require hsts_seconds")
+        if self.hsts_preload and (
+            not self.hsts_include_subdomains
+            or self.hsts_seconds < HSTS_PRELOAD_MIN_SECONDS
+        ):
+            raise ValueError(
+                "hsts_preload requires include_subdomains and at least 31536000 seconds"
+            )
+
+
 class PaginationSettings(Settings):
     """Defaults for ``PageNumberPagination`` that an action does not set itself."""
 
@@ -899,6 +962,7 @@ class AppSettings(Settings):
         default_factory=PaginationSettings
     )
     cors: CorsSettings = dataclasses.field(default_factory=CorsSettings)
+    security: SecuritySettings = dataclasses.field(default_factory=SecuritySettings)
     timezone: str = "UTC"
     debug: bool = False
     allowed_hosts: tuple[str, ...] = (ANY,)
@@ -908,6 +972,8 @@ class AppSettings(Settings):
             raise ValueError("allowed_hosts must name at least one host, or '*'")
         if ANY in self.allowed_hosts and len(self.allowed_hosts) > 1:
             raise ValueError("allowed_hosts: '*' must be the only entry")
+        if self.security.redirect_https and ANY in self.allowed_hosts:
+            raise ValueError("security.redirect_https requires explicit allowed_hosts")
         if not all(is_host_pattern(entry) for entry in self.allowed_hosts):
             raise ValueError(
                 "allowed_hosts entries are host names, '.domain' or '*' "

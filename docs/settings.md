@@ -23,7 +23,7 @@ class BlogSettings(settings.AppSettings):          # keeps the built-in groups
 
 Settings types live in the `hinoki.settings` namespace: `from hinoki import settings`, then `settings.AppSettings`, `settings.DatabaseSettings`, `settings.Secret`, `settings.Settings` and `settings.SettingsError`. Name your own subclass for your project (`BlogSettings` above) and keep a loaded value in a variable such as `app_settings`, so the namespace is not shadowed. Earlier revisions exported these types from `hinoki` itself and called the base class `FrameworkSettings`; `from hinoki import FrameworkSettings` now raises `ImportError`.
 
-`settings.AppSettings` brings seven groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit, 8 KiB query limit and 32 KiB header limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs), `server` (host, port and workers), `pagination` (default `page_size` and `max_page_size` for `PageNumberPagination`, see [pagination](pagination.md#defaults-for-the-whole-application)) and `cors` (which browser origins may read responses). Three values sit beside the groups: `timezone`, `debug` and `allowed_hosts`; see [Debug, allowed hosts and CORS](#debug-allowed-hosts-and-cors). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](request-lifecycle.md).
+`settings.AppSettings` brings eight groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit, 8 KiB query limit and 32 KiB header limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs), `server` (host, port and workers), `pagination` (default `page_size` and `max_page_size` for `PageNumberPagination`, see [pagination](pagination.md#defaults-for-the-whole-application)), `cors` (which browser origins may read responses) and `security` (browser response headers and optional HTTPS redirect). Three values sit beside the groups: `timezone`, `debug` and `allowed_hosts`; see [Debug, allowed hosts and CORS](#debug-allowed-hosts-and-cors). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](request-lifecycle.md).
 
 `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` default to `None`, so no API document or viewer route is served until configured. Swagger UI or ReDoc requires an `openapi_url`. The same values can be supplied as `Hinoki(...)` arguments; explicit arguments win over `docs` settings, and `None` disables a page.
 
@@ -61,6 +61,12 @@ Settings types live in the `hinoki.settings` namespace: `from hinoki import sett
 | `cors` | `expose_headers` | empty | Response headers a browser script may read |
 | `cors` | `credentials` | `false` | Allow cookies and HTTP authentication; refused together with `*` |
 | `cors` | `max_age` | `600` seconds | `0` to `86400`; how long a browser may cache a preflight |
+| `security` | `redirect_https` | `false` | Send known HTTP requests to HTTPS with `308`; requires explicit `allowed_hosts` |
+| `security` | `hsts_seconds` | `0` | `0` to `63072000`; emit HSTS only when the effective scheme is HTTPS |
+| `security` | `hsts_include_subdomains` | `false` | Add `includeSubDomains`; requires nonzero `hsts_seconds` |
+| `security` | `hsts_preload` | `false` | Add `preload`; requires subdomains and at least one year of HSTS |
+| `security` | `frame_options` | `sameorigin` | `settings.FrameOptions.DENY` or `.SAMEORIGIN` |
+| `security` | `referrer_policy` | `same-origin` | A supported `settings.ReferrerPolicy` enum value |
 | (top level) | `timezone` | `UTC` | IANA timezone name used by `app.now()` |
 | (top level) | `debug` | `false` | Adds exception details to `500` answers; development only |
 | (top level) | `allowed_hosts` | `*` | Host names, `.domain` or `*`; other `Host` values receive `400` |
@@ -231,6 +237,29 @@ CORS is off while `cors.origins` is empty: no header is added and `OPTIONS` requ
 Origins are compared exactly, in lower case as browsers send them: `https://app.example.com` and `https://app.example.com:8443` are different origins, and a trailing slash or path is refused at load. Browsers leave a default port out of `Origin`, so list `https://app.example.com`, not `https://app.example.com:443`. The single entry `*` answers every origin with `access-control-allow-origin: *`; it cannot be combined with `credentials`, and browsers will not send cookies or HTTP authentication to it.
 
 The policy applies to the whole application, including the ASGI and WSGI adapters; there is no per-route CORS option. An answer that already sets `access-control-allow-origin` itself (a `Reply` with that header) is sent as it is, without the policy's headers.
+
+## Browser security headers and HTTPS
+
+Every HTTP response gets `X-Content-Type-Options: nosniff`, the configured `X-Frame-Options` and `Referrer-Policy`, including errors, OpenAPI/docs and admin responses. Defaults are `SAMEORIGIN` and `same-origin`, preserving the admin's existing referrer privacy default. These fields are owned by the app security policy: configured values replace same-named headers returned by a route.
+
+The choices are enums rather than arbitrary strings, and environment/TOML values must match the listed wire values exactly. `FrameOptions` provides `deny` and `sameorigin`. `ReferrerPolicy` provides `no-referrer`, `no-referrer-when-downgrade`, `same-origin`, `origin`, `strict-origin`, `origin-when-cross-origin`, `strict-origin-when-cross-origin` and `unsafe-url`. `unsafe-url` can disclose the full referring URL to another origin; use it only when that is intended.
+
+```python
+from hinoki import settings
+
+class BlogSettings(settings.AppSettings):
+    security: settings.SecuritySettings = settings.SecuritySettings(
+        redirect_https=True,
+        hsts_seconds=31_536_000,
+        hsts_include_subdomains=True,
+        frame_options=settings.FrameOptions.DENY,
+        referrer_policy=settings.ReferrerPolicy.STRICT_ORIGIN,
+    )
+```
+
+For configuration loaded from the environment, set `BLOG_ALLOWED_HOSTS=api.example.com` and `BLOG_SECURITY__REDIRECT_HTTPS=true`. A wildcard host policy cannot be combined with the redirect: Hinoki requires an explicit host allowlist before constructing an absolute `Location`, which avoids redirecting an attacker supplied `Host` value. The redirect is `308`, preserves the method and raw path/query, and runs before route lookup, authentication and body reading. A configured CORS preflight is answered before redirecting so browser preflight requests remain usable.
+
+HSTS defaults off. Hinoki emits it only when the request's effective scheme is HTTPS. Behind TLS termination, configure the exact proxy addresses in `server.trusted_proxies`; an untrusted `X-Forwarded-Proto` does not enable HSTS or suppress the redirect. `hsts_preload` also requires `hsts_include_subdomains` and a `max-age` of at least one year. Use HSTS only after confirming that HTTPS is available for every covered host: browsers retain the policy after the response.
 
 ## 8. Database connection ownership
 
