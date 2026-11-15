@@ -83,6 +83,8 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(request::parse_query_string, m)?)?;
     m.add_function(wrap_pyfunction!(request::parse_cookie_header, m)?)?;
     m.add_function(wrap_pyfunction!(request::header_dict, m)?)?;
+    m.add_function(wrap_pyfunction!(request::request_headers, m)?)?;
+    m.add_function(wrap_pyfunction!(request::response_headers, m)?)?;
     m.add_function(wrap_pyfunction!(request::parse_multipart_body, m)?)?;
     m.add_function(wrap_pyfunction!(request::negotiate_media, m)?)?;
     m.add_function(wrap_pyfunction!(request::decode_json, m)?)?;
