@@ -9,6 +9,7 @@ import pytest
 
 from hinoki import Access, BearerAuth, Caller, Hinoki, Reply, errors, http
 from hinoki.__main__ import main
+from hinoki.runtime.config import RuntimeConfig
 from hinoki.runtime.origins import HostPolicy, host_name
 from hinoki.settings import AppSettings, SettingsError
 from hinoki.testing import ASGIClient
@@ -63,7 +64,11 @@ def problem(**env: str) -> str:
 
 
 async def raw_request(
-    app: Hinoki, method: str, path: str, headers: list[tuple[bytes, bytes]]
+    app: Hinoki,
+    method: str,
+    path: str,
+    headers: list[tuple[bytes, bytes]],
+    query: bytes = b"",
 ) -> dict[str, Any]:
     """The response start for a scope with repeated headers, which the test
     client cannot send."""
@@ -74,7 +79,12 @@ async def raw_request(
 
     adapter = app.asgi()
     adapter.lifespan._started = True  # serve without the lifespan protocol
-    scope = {"type": "http", "method": method, "path": path, "query_string": b""}
+    scope = {
+        "type": "http",
+        "method": method,
+        "path": path,
+        "query_string": query,
+    }
     await adapter({**scope, "headers": headers}, None, send)
     return sent[0]
 
@@ -84,6 +94,38 @@ def test_the_defaults_change_nothing() -> None:
     assert settings.debug is False
     assert settings.allowed_hosts == ("*",)
     assert settings.cors.origins == ()
+
+
+def test_request_byte_limits_load_and_validate() -> None:
+    settings = load(
+        APP_EXECUTION__MAX_QUERY_BYTES="4096",
+        APP_EXECUTION__MAX_HEADER_BYTES="16384",
+    )
+    assert settings.execution.max_query_bytes == 4096
+    assert settings.execution.max_header_bytes == 16384
+    assert "max_query_bytes must be 1 to" in problem(APP_EXECUTION__MAX_QUERY_BYTES="0")
+    assert "max_header_bytes must be 1 to" in problem(
+        APP_EXECUTION__MAX_HEADER_BYTES="1048577"
+    )
+    with pytest.raises(ValueError, match="max_query_bytes"):
+        RuntimeConfig(max_query_bytes=0)
+    with pytest.raises(ValueError, match="max_header_bytes"):
+        RuntimeConfig(max_header_bytes=1 << 21)
+
+
+@pytest.mark.asyncio
+async def test_oversized_query_and_headers_are_rejected_before_routing() -> None:
+    query_app = Hinoki(runtime=RuntimeConfig(max_query_bytes=3), include=[ping])
+    accepted_query = await raw_request(query_app, "GET", "/ping", [], query=b"a=1")
+    query = await raw_request(query_app, "GET", "/ping", [], query=b"a=123")
+    assert accepted_query["status"] == 200 and query["status"] == 414
+
+    header_app = Hinoki(runtime=RuntimeConfig(max_header_bytes=12), include=[ping])
+    accepted_headers = await raw_request(
+        header_app, "GET", "/ping", [(b"x", b"1234567")]
+    )
+    headers = await raw_request(header_app, "GET", "/ping", [(b"x", b"12345678")])
+    assert accepted_headers["status"] == 200 and headers["status"] == 431
 
 
 def test_values_load_from_the_environment() -> None:
@@ -356,6 +398,20 @@ def wsgi_get(adapter: WSGIAdapter, **headers: str) -> tuple[str, dict[str, str]]
     }
     b"".join(adapter(environ, start_response))
     return seen["status"], seen["headers"]
+
+
+def test_wsgi_applies_query_and_header_byte_limits() -> None:
+    adapter = WSGIAdapter(
+        Hinoki(
+            runtime=RuntimeConfig(max_query_bytes=3, max_header_bytes=12),
+            include=[ping],
+        )
+    )
+    try:
+        assert wsgi_get(adapter, QUERY_STRING="a=123")[0].startswith("414 ")
+        assert wsgi_get(adapter, HTTP_X="12345678")[0].startswith("431 ")
+    finally:
+        adapter.close()
 
 
 def test_the_wsgi_adapter_applies_the_same_policies() -> None:

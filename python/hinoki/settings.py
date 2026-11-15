@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal, Self, dataclass_transform
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from hinoki.runtime.config import RuntimeConfig
+from hinoki.runtime.config import MAX_REQUEST_INPUT_BYTES, RuntimeConfig
 
 TRUE = frozenset({"1", "true", "yes", "on"})
 FALSE = frozenset({"0", "false", "no", "off"})
@@ -672,6 +672,8 @@ class ExecutionSettings(Settings):
     sync_queue: int = 64
     request_timeout: float = 30.0
     max_body_bytes: int = 1024 * 1024
+    max_query_bytes: int = 8192
+    max_header_bytes: int = 32768
 
     def validate(self) -> None:
         if self.sync_workers < 1 or self.sync_queue < 0:
@@ -680,6 +682,10 @@ class ExecutionSettings(Settings):
             raise ValueError("request_timeout must be positive")
         if not 1 <= self.max_body_bytes <= MAX_BODY_LIMIT:
             raise ValueError(f"max_body_bytes must be 1 to {MAX_BODY_LIMIT}")
+        if not 1 <= self.max_query_bytes <= MAX_REQUEST_INPUT_BYTES:
+            raise ValueError(f"max_query_bytes must be 1 to {MAX_REQUEST_INPUT_BYTES}")
+        if not 1 <= self.max_header_bytes <= MAX_REQUEST_INPUT_BYTES:
+            raise ValueError(f"max_header_bytes must be 1 to {MAX_REQUEST_INPUT_BYTES}")
         if self.sync_workers > MAX_SYNC_WORKERS:
             raise ValueError(f"sync_workers must be at most {MAX_SYNC_WORKERS}")
 
@@ -876,4 +882,6 @@ class AppSettings(Settings):
             startup_timeout=self.lifecycle.startup_timeout,
             shutdown_timeout=self.lifecycle.shutdown_timeout,
             max_body_bytes=self.execution.max_body_bytes,
+            max_query_bytes=self.execution.max_query_bytes,
+            max_header_bytes=self.execution.max_header_bytes,
         )

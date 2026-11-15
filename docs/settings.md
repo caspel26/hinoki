@@ -23,7 +23,7 @@ class BlogSettings(settings.AppSettings):          # keeps the built-in groups
 
 Settings types live in the `hinoki.settings` namespace: `from hinoki import settings`, then `settings.AppSettings`, `settings.DatabaseSettings`, `settings.Secret`, `settings.Settings` and `settings.SettingsError`. Name your own subclass for your project (`BlogSettings` above) and keep a loaded value in a variable such as `app_settings`, so the namespace is not shadowed. Earlier revisions exported these types from `hinoki` itself and called the base class `FrameworkSettings`; `from hinoki import FrameworkSettings` now raises `ImportError`.
 
-`settings.AppSettings` brings seven groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs), `server` (host, port and workers), `pagination` (default `page_size` and `max_page_size` for `PageNumberPagination`, see [pagination](pagination.md#defaults-for-the-whole-application)) and `cors` (which browser origins may read responses). Three values sit beside the groups: `timezone`, `debug` and `allowed_hosts`; see [Debug, allowed hosts and CORS](#debug-allowed-hosts-and-cors). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](request-lifecycle.md).
+`settings.AppSettings` brings seven groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit, 8 KiB query limit and 32 KiB header limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs), `server` (host, port and workers), `pagination` (default `page_size` and `max_page_size` for `PageNumberPagination`, see [pagination](pagination.md#defaults-for-the-whole-application)) and `cors` (which browser origins may read responses). Three values sit beside the groups: `timezone`, `debug` and `allowed_hosts`; see [Debug, allowed hosts and CORS](#debug-allowed-hosts-and-cors). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](request-lifecycle.md).
 
 `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` default to `None`, so no API document or viewer route is served until configured. Swagger UI or ReDoc requires an `openapi_url`. The same values can be supplied as `Hinoki(...)` arguments; explicit arguments win over `docs` settings, and `None` disables a page.
 
@@ -34,7 +34,9 @@ Settings types live in the `hinoki.settings` namespace: `from hinoki import sett
 | `execution` | `sync_workers` | `8` | `1` to `1024` worker threads |
 | `execution` | `sync_queue` | `64` | `0` or greater queued calls |
 | `execution` | `request_timeout` | `30.0` seconds | Must be positive; request expiry returns `504` |
-| `execution` | `max_body_bytes` | `1048576` (1 MiB) | `1` to `1073741824` bytes; larger requests return `413` |
+| `execution` | `max_body_bytes` | `1048576` (1 MiB) | `1` to `1073741824` bytes; larger request bodies return `413` |
+| `execution` | `max_query_bytes` | `8192` (8 KiB) | `1` to `1048576` raw query-string bytes; larger queries return `414` |
+| `execution` | `max_header_bytes` | `32768` (32 KiB) | `1` to `1048576` combined header bytes; larger headers return `431` |
 | `lifecycle` | `startup_timeout` | `30.0` seconds | Must be positive |
 | `lifecycle` | `shutdown_timeout` | `10.0` seconds | Must be positive |
 | `logging` | `level` | `info` | `debug`, `info`, `warning`, `error` or `critical` |
