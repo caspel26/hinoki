@@ -103,6 +103,8 @@ class ASGIAdapter:
             self.executor,
             app.runtime,
             needs_database=needs_database,
+            on_startup=app.on_startup,
+            on_shutdown=app.on_shutdown,
         )
 
     @staticmethod
