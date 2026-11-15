@@ -17,12 +17,29 @@ def sample(rate: float) -> dict:
 
 def test_summarizes_median_range_and_unexpected_responses() -> None:
     summary = report.run_summary([sample(10), sample(20), sample(40)], "200")
+    assert summary["latency_ms"]["p99"] == {"median": 5.0, "low": 5.0, "high": 5.0}
 
     assert summary["median"] == 20
     assert (summary["low"], summary["high"]) == (10, 40)
     assert summary["wrong"] == 0
     assert summary["runs"] == 3
     assert summary["cv_pct"] > 15
+
+
+def test_latency_spread_is_median_of_per_run_percentiles_with_run_range() -> None:
+    runs = [sample(10), sample(10), sample(10)]
+    for run, p95 in zip(runs, (0.002, 0.004, 0.010), strict=True):
+        run["latencyPercentiles"]["p95"] = p95
+
+    p95 = report.run_summary(runs, "200")["latency_ms"]["p95"]
+
+    assert p95 == {"median": 4.0, "low": 2.0, "high": 10.0}
+
+
+def test_axis_ceiling_is_a_round_number_above_the_data() -> None:
+    assert report.nice_ceiling(867.1) == 1000
+    assert report.nice_ceiling(70.0) == 100
+    assert report.nice_ceiling(4.4) == 5
 
 
 def test_chart_has_accessible_label_and_table_is_next_to_it() -> None:
@@ -70,12 +87,59 @@ def test_chart_has_accessible_label_and_table_is_next_to_it() -> None:
 
     assert 'role="img"' in rendered
     assert "aria-labelledby=" in rendered
+    assert "lower is better" in rendered
     assert '<table class="benchmark-table">' in rendered
     assert rendered.index("</figure>") < rendered.index("<table")
-    assert "Median req/s" in rendered
+    assert 'scope="col">p99 ms<' in rendered
     assert "Unexpected responses" in rendered
+    assert "no CPU pinning" not in rendered
+    assert rendered.index("response time") < rendered.index("Throughput (secondary)")
+    assert 'scope="col">Median req/s<' in rendered.split("Throughput (secondary)")[1]
     assert 'scope="col">CV<' in rendered
     assert "Additional capture environment-same-granian-110000.json" in rendered
+
+
+def test_unpinned_run_is_described_as_unpinned() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        directory = Path(temporary)
+        environment = {
+            "date": "2026-11-16",
+            "cpu": "Apple M4 Pro",
+            "cores": 14,
+            "machine": "macOS",
+            "loadavg_at_start": [1.0, 1.0, 1.0],
+            "postgres": "PostgreSQL 17",
+            "oha": "oha 1.17",
+            "host": {
+                "performance_cores": "10",
+                "efficiency_cores": "4",
+                "power": "AC Power",
+            },
+            "settings": {
+                "server_mode": "documented",
+                "stacks": ["hinoki"],
+                "workers": 4,
+                "server_cpus": None,
+                "load_cpus": None,
+                "concurrency": 64,
+                "warmup_s": 10,
+                "runs": 2,
+                "duration_s": 20,
+            },
+        }
+        (directory / "environment.json").write_text(json.dumps(environment))
+        (directory / "hinoki-verify.txt").write_text("OK")
+        for scenario in report.SCENARIOS:
+            for index in (1, 2):
+                (directory / f"hinoki-{scenario}-{index}.json").write_text(
+                    json.dumps(sample(10.0))
+                )
+
+        rendered = report.render_mode(directory)
+
+    assert "no CPU pinning" in rendered
+    assert "CPUs None" not in rendered
+    assert "Docker Desktop virtual machine" in rendered
 
 
 def test_missing_raw_scenario_fails_instead_of_partial_report() -> None:
@@ -84,3 +148,32 @@ def test_missing_raw_scenario_fails_instead_of_partial_report() -> None:
         pytest.raises(ValueError, match="missing raw results"),
     ):
         report.load_runs(Path(temporary), "hinoki", "list")
+
+
+def write_workers(directory: Path, stack: str, cpu_times: list[str]) -> None:
+    rows = "\n".join(f"{n} 1 {t} worker" for n, t in enumerate(cpu_times, start=2))
+    (directory / f"{stack}-workers.txt").write_text(
+        f"pid pgid cputime command\n{rows}\n"
+    )
+
+
+def test_stack_with_one_busy_process_is_flagged_but_balanced_stacks_are_not() -> None:
+    with tempfile.TemporaryDirectory() as raw:
+        directory = Path(raw)
+        write_workers(
+            directory, "bolt", ["0:00.30", "0:00.02", "0:00.02", "0:00.02", "8:40.38"]
+        )
+        write_workers(
+            directory,
+            "hinoki",
+            ["0:00.08", "0:00.02", "6:40.31", "10:27.76", "9:55.71", "10:25.25"],
+        )
+        write_workers(
+            directory, "ninja", ["0:00.30", "8:42.06", "8:42.37", "8:42.29", "8:42.83"]
+        )
+
+        flagged = report.single_process_stacks(
+            directory, ["bolt", "hinoki", "ninja", "fastapi"], 4
+        )
+
+    assert flagged == ["bolt"]
