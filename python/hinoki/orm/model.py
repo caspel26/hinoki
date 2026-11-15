@@ -7,11 +7,13 @@ docs/typing.md) until generated stubs exist.
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import dataclasses
 import datetime
 import inspect
 import json
+import re
 import sys
 import types
 import typing
@@ -33,11 +35,15 @@ from uuid import UUID
 from hinoki import core
 from hinoki.blocking import run_sync
 from hinoki.errors import (
+    ErrorDetail,
     FieldError,
     ModelError,
+    ModelValidationError,
     ObjectNotFound,
     RegistrationError,
 )
+from hinoki.fields import FieldInfo
+from hinoki.fieldtypes import FieldType, parse_annotation, split_annotated
 from hinoki.orm.context import current_database
 from hinoki.orm.queryset import QuerySet
 from hinoki.orm.relations import OnDelete, Related, Relation
@@ -69,6 +75,7 @@ _IMMUTABLE = frozenset(
     }
 )
 PLACEHOLDER = "{model}"
+DICT_GENERIC_ARGS = 2
 
 
 def own_annotations(cls: type) -> dict[str, Any]:
@@ -153,6 +160,198 @@ def without_repeats(groups: list[tuple[str, ...]]) -> tuple[tuple[str, ...], ...
     return tuple(dict.fromkeys(groups))
 
 
+def _constraint_passes(rule: str, value: Any, bound: int | float) -> bool:
+    if rule == "ge":
+        return bool(value >= bound)
+    if rule == "le":
+        return bool(value <= bound)
+    if rule == "gt":
+        return bool(value > bound)
+    return bool(value < bound)
+
+
+def _validate_field_value(
+    name: str,
+    value: Any,
+    field_type: FieldType,
+    annotation: object,
+    validators: tuple[Callable[..., None], ...],
+    problems: list[ErrorDetail],
+) -> None:
+    if not _matches_model_annotation(value, annotation):
+        problems.append(
+            ErrorDetail(
+                name, "type", f"Expected a value compatible with {annotation!r}."
+            )
+        )
+        return
+    info = field_type.info
+    _validate_lengths(name, value, info, problems)
+    _validate_pattern(name, value, info, problems)
+    _validate_bounds(name, value, info, problems)
+    _validate_custom_and_choices(name, value, info, validators, problems)
+
+
+def _matches_model_annotation(value: Any, annotation: object) -> bool:
+    if isinstance(annotation, str):
+        matched = True
+    else:
+        base, _ = split_annotated(annotation)
+        origin = typing.get_origin(base)
+        args = typing.get_args(base)
+        if origin in {typing.Union, types.UnionType}:
+            matched = any(_matches_model_annotation(value, part) for part in args)
+        elif origin is list or base is list:
+            matched = _matches_model_list(value, args)
+        elif origin is dict or base is dict:
+            matched = _matches_model_dict(value, args)
+        else:
+            matched = _matches_model_scalar(value, base)
+    return matched
+
+
+def _matches_model_list(value: Any, args: tuple[Any, ...]) -> bool:
+    return isinstance(value, list) and (
+        not args or all(_matches_model_annotation(item, args[0]) for item in value)
+    )
+
+
+def _matches_model_dict(value: Any, args: tuple[Any, ...]) -> bool:
+    return isinstance(value, dict) and (
+        len(args) != DICT_GENERIC_ARGS
+        or all(
+            _matches_model_annotation(key, args[0])
+            and _matches_model_annotation(item, args[1])
+            for key, item in value.items()
+        )
+    )
+
+
+def _matches_model_scalar(value: Any, base: Any) -> bool:
+    if base in {Any, object}:
+        return True
+    if base is float:
+        return isinstance(value, int | float) and not isinstance(value, bool)
+    if base is int:
+        return isinstance(value, int) and not isinstance(value, bool)
+    return not isinstance(base, type) or isinstance(value, base)
+
+
+def _validate_lengths(
+    name: str, value: Any, info: FieldInfo, problems: list[ErrorDetail]
+) -> None:
+    if not isinstance(value, str | list | tuple):
+        return
+    for rule in ("min_length", "max_length"):
+        bound = getattr(info, rule)
+        if bound is None:
+            continue
+        failed = len(value) < bound if rule == "min_length" else len(value) > bound
+        if failed:
+            comparison = "at least" if rule == "min_length" else "at most"
+            problems.append(
+                ErrorDetail(name, rule, f"Must contain {comparison} {bound} items.")
+            )
+
+
+def _validate_pattern(
+    name: str, value: Any, info: FieldInfo, problems: list[ErrorDetail]
+) -> None:
+    if (
+        info.pattern is not None
+        and isinstance(value, str)
+        and re.fullmatch(info.pattern, value) is None
+    ):
+        problems.append(
+            ErrorDetail(name, "pattern", "Does not match the required pattern.")
+        )
+
+
+def _validate_bounds(
+    name: str, value: Any, info: FieldInfo, problems: list[ErrorDetail]
+) -> None:
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        return
+    for rule in ("ge", "le", "gt", "lt"):
+        bound = getattr(info, rule)
+        if bound is not None and not _constraint_passes(rule, value, bound):
+            problems.append(ErrorDetail(name, rule, f"Must satisfy {rule} {bound}."))
+
+
+def _validate_custom_and_choices(
+    name: str,
+    value: Any,
+    info: FieldInfo,
+    validators: tuple[Callable[..., None], ...],
+    problems: list[ErrorDetail],
+) -> None:
+    if info.one_of is not None and value not in info.one_of:
+        problems.append(
+            ErrorDetail(name, "one_of", "Value is not one of the allowed values.")
+        )
+    for validator in validators:
+        try:
+            result = validator(value)
+            if inspect.isawaitable(result):
+                if inspect.iscoroutine(result):
+                    result.close()
+                elif isinstance(result, asyncio.Future):
+                    result.cancel()
+                else:
+                    _stop_custom_awaitable(result)
+                raise TypeError("Model validators must be synchronous")
+        except ValueError as error:
+            problems.append(
+                ErrorDetail(name, "invalid", str(error) or "Invalid value.")
+            )
+
+
+def _stop_custom_awaitable(result: Any) -> None:
+    cancel = getattr(type(result), "cancel", None)
+    if callable(cancel):
+        cancel(result)
+    close = getattr(type(result), "close", None)
+    if callable(close):
+        close(result)
+
+
+def resolve_model_field_type(
+    cls: type[Model], name: str, hint: object, meta: FieldMeta
+) -> FieldType:
+    base, annotated = split_annotated(hint)
+    values = {**annotated.constraints(), **meta.validation.constraints()}
+    info = FieldInfo(**cast(Any, values))
+    try:
+        return parse_annotation(typing.Annotated[base, info], f"{cls.__name__}.{name}")
+    except RegistrationError:
+        if values:
+            raise
+    members = (
+        typing.get_args(base)
+        if typing.get_origin(base) in {typing.Union, types.UnionType}
+        else ()
+    )
+    return FieldType("json", nullable=type(None) in members)
+
+
+def check_model_validators(
+    cls: type[Model], name: str, validators: tuple[Callable[..., None], ...]
+) -> None:
+    for validator in validators:
+        if not callable(validator):
+            raise RegistrationError(
+                f"{cls.__name__}.{name}: each Model validator must be callable"
+            )
+        callback = type(validator).__call__
+        async_callback = inspect.iscoroutinefunction(validator) or (
+            inspect.iscoroutinefunction(callback)
+        )
+        if async_callback:
+            raise RegistrationError(
+                f"{cls.__name__}.{name}: Model validators must be synchronous"
+            )
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class FieldMeta:
     primary_key: bool = False
@@ -161,6 +360,8 @@ class FieldMeta:
     references: type[Model] | None = None
     on_delete: str = ""
     related_name: str = ""
+    validation: FieldInfo = dataclasses.field(default_factory=FieldInfo)
+    validators: tuple[Callable[..., None], ...] = ()
 
 
 def field(
@@ -168,14 +369,36 @@ def field(
     primary_key: bool = False,
     unique: bool = False,
     max_length: int | None = None,
+    constraints: FieldInfo | None = None,
+    validators: Sequence[Callable[..., None]] = (),
     default: Any = dataclasses.MISSING,
     default_factory: Callable[[], Any] | Any = dataclasses.MISSING,
 ) -> Any:
-    """Declare a column.
+    """Declare a column and, optionally, write-time constraints and validators.
 
     ``id: UUID = field(primary_key=True, default_factory=uuid4)``
+
+    ``name: str = field(constraints=Field(min_length=1), validators=(check_name,))``
+
+    Constraints run before ORM writes. Custom validators are synchronous and
+    raise ``ValueError`` to refuse a value; they must not perform I/O.
     """
-    meta = FieldMeta(primary_key, unique, max_length)
+    if constraints is not None and not isinstance(constraints, FieldInfo):
+        raise RegistrationError("field constraints must be a Field(...) value")
+    declared = constraints or FieldInfo()
+    if max_length is not None:
+        if declared.max_length is not None and declared.max_length != max_length:
+            raise RegistrationError(
+                "field max_length conflicts with constraints.max_length"
+            )
+        declared = dataclasses.replace(declared, max_length=max_length)
+    meta = FieldMeta(
+        primary_key,
+        unique,
+        declared.max_length,
+        validation=declared,
+        validators=tuple(validators),
+    )
     return dataclasses.field(
         default=default, default_factory=default_factory, metadata={MARK: meta}
     )
@@ -187,6 +410,7 @@ def foreign_key(
     on_delete: OnDelete,
     related_name: str = "",
     unique: bool = False,
+    validators: Sequence[Callable[..., None]] = (),
     default: Any = dataclasses.MISSING,
 ) -> Any:
     """Declare a column that references ``model``'s primary key.
@@ -215,6 +439,7 @@ def foreign_key(
         references=model,
         on_delete=on_delete.value,
         related_name=related_name,
+        validators=tuple(validators),
     )
     return dataclasses.field(default=default, metadata={MARK: meta})
 
@@ -229,6 +454,10 @@ class Model:
     __table__: ClassVar[str] = ""
     __columns__: ClassVar[tuple[str, ...]] = ()
     __json_columns__: ClassVar[tuple[str, ...]] = ()
+    __field_types__: ClassVar[dict[str, FieldType]] = {}
+    __field_validators__: ClassVar[dict[str, tuple[Callable[..., None], ...]]] = {}
+    __field_annotations__: ClassVar[dict[str, object]] = {}
+    __field_validation_fields__: ClassVar[frozenset[str]] = frozenset()
     __primary_key__: ClassVar[str] = ""
     __relations__: ClassVar[dict[str, Relation]] = {}
     __unique__: ClassVar[tuple[tuple[str, ...], ...]] = ()
@@ -280,6 +509,17 @@ class Model:
         cls.__json_columns__ = tuple(
             name for name in cls.__columns__ if is_json_field(annotations.get(name))
         )
+        cls.__field_types__ = cls.check_field_validations(fields, annotations)
+        cls.__field_annotations__ = annotations
+        cls.__field_validators__ = {
+            item.name: item.metadata.get(MARK, FieldMeta()).validators
+            for item in fields
+        }
+        cls.__field_validation_fields__ = frozenset(
+            name
+            for name, field_type in cls.__field_types__.items()
+            if field_type.info.constraints() or cls.__field_validators__[name]
+        )
         cls.__primary_key__ = keys[0] if keys else ""
         cls.check_names(cls.__columns__)
         cls.inherit_options(unique)
@@ -321,6 +561,44 @@ class Model:
                     f"{first.__name__} and {kind!r} in {base.__name__}; keep one, "
                     f"or declare {name!r} on {cls.__name__} itself"
                 )
+
+    @classmethod
+    def check_field_validations(
+        cls, columns: tuple[dataclasses.Field[Any], ...], annotations: dict[str, object]
+    ) -> dict[str, FieldType]:
+        """Validate constraints against annotations and reject async callbacks."""
+        found = {}
+        for column in columns:
+            meta: FieldMeta = column.metadata.get(MARK, FieldMeta())
+            hint = resolve_annotation(
+                cls, column.name, annotations.get(column.name, column.type)
+            )
+            found[column.name] = resolve_model_field_type(cls, column.name, hint, meta)
+            check_model_validators(cls, column.name, meta.validators)
+        return found
+
+    @classmethod
+    def validate_values(cls, values: dict[str, Any]) -> None:
+        """Run declared field checks on values about to be written."""
+        if not cls.__field_validation_fields__:
+            return
+        problems: list[ErrorDetail] = []
+        for name, value in values.items():
+            if name not in cls.__field_validation_fields__:
+                continue
+            field_type = cls.__field_types__[name]
+            if value is None and field_type.nullable:
+                continue
+            _validate_field_value(
+                name,
+                value,
+                field_type,
+                cls.__field_annotations__[name],
+                cls.__field_validators__[name],
+                problems,
+            )
+        if problems:
+            raise ModelValidationError(problems)
 
     @classmethod
     def adopt_mixin_fields(cls) -> None:
@@ -599,6 +877,7 @@ class Model:
     async def insert(self) -> Self:
         cls = type(self).concrete()
         assignments = [(c, getattr(self, c)) for c in cls.__columns__]
+        cls.validate_values(dict(assignments))
         database = current_database()
         returning = (
             [] if database.dialect in {"mysql", "mariadb"} else list(cls.__columns__)

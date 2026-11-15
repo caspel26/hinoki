@@ -20,6 +20,7 @@ from hinoki.db import (
     NotNullViolation,
     UniqueViolation,
 )
+from hinoki.errors import ModelValidationError
 from hinoki.orm import current_database
 from hinoki.reply import Reply
 from hinoki.request import Request
@@ -301,6 +302,8 @@ async def guarded(operation: Awaitable[Any]) -> str:
         return "That refers to, or is used by, another row."
     except OutOfScope:
         return "That change would move the row out of the rows you may manage."
+    except ModelValidationError as error:
+        return "; ".join(f"{item.path}: {item.message}" for item in error.details)
     except (NotNullViolation, CheckViolation, DatabaseError):
         return "The database rejected these values."
     return ""

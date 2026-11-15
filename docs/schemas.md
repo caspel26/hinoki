@@ -62,6 +62,6 @@ class Registration(Schema):
 
 Structural checks run first and reject wrong types, missing required values and unknown keys. If they pass, field checks receive validated values and object checks can compare fields. Raise `Invalid(code, message)` to reject a value; checks do not transform it. All applicable custom-check failures are returned together in `errors.ValidationError.details`. They must be synchronous and side-effect free: do not query the database or call external services. Put checks that depend on current data in an operation.
 
-These decorators validate a `Schema` instance passed through `Schema.validate`. They do not validate a `Model` when it is constructed or saved. Model field metadata and database constraints are described in [Models and queries](models.md#model-field-metadata-and-validation).
+These decorators validate a `Schema` instance passed through `Schema.validate`; they are not run on a `Model`. Model fields have separate checks that run before ORM writes, described in [Model field constraints and validators](models.md#model-field-constraints-and-validators).
 
 See also the [glossary](glossary.md) for what "schema" does and does not mean in these docs.
