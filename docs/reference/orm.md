@@ -8,6 +8,8 @@
 
 ::: hinoki.orm.field
 
+Model write validation raises `ModelValidationError` from `hinoki.errors`, with field paths, stable codes and messages in `details`. See [Model field constraints and validators](../models.md#model-field-constraints-and-validators).
+
 ::: hinoki.orm.foreign_key
 
 ::: hinoki.orm.OnDelete

@@ -39,11 +39,37 @@ class Task(Model, table="tasks", label="Task", plural="Tasks"):
 
 Supported field metadata includes primary key, uniqueness, maximum string length, defaults and foreign-key behavior. Database types are inferred from annotations; unsupported types fail during model or migration validation.
 
-### Model field metadata and validation
+### Model field constraints and validators
 
-`field()` metadata describes the database column and its migration: `max_length` becomes a bounded string column and a derived `Schema` constraint, `unique` becomes a database constraint, and `default` / `default_factory` provide values when constructing an instance. A `foreign_key(...)` declares the referenced table and its `OnDelete` behavior. The Python annotation supplies the column type and nullability. These declarations are not general runtime validators: constructing a `Model`, assigning a field or saving an instance does not run a custom per-field validation hook. Database enforcement varies by backend (for example SQLite does not enforce a `varchar` length).
+`field()` metadata describes the database column and its migration: `max_length` becomes a bounded string column and a derived `Schema` constraint, `unique` becomes a database constraint, and `default` / `default_factory` provide values when constructing an instance. A `foreign_key(...)` declares the referenced table and its `OnDelete` behavior. The Python annotation supplies the column type and nullability.
 
-For untrusted HTTP input, validate with a `Schema` before passing data to model operations. `@field_check` and `@object_check` belong to `Schema` and are not applied to `Model`. Hinoki does not yet have custom Model field validators. Keep rules that need other rows, permissions or current database state in an operation; see [Schema validation](schemas.md#built-in-and-custom-validation).
+Use `constraints=Field(...)` for built-in value checks and `validators=(...)` for synchronous, application-specific checks. Existing `max_length=` remains a shorthand:
+
+```python
+from uuid import UUID, uuid4
+
+from hinoki import Field
+from hinoki.orm import Model, field
+
+
+def normalized(value: str) -> None:
+    if value != value.strip():
+        raise ValueError("surrounding whitespace is not allowed")
+
+
+class Product(Model, table="products"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    sku: str = field(
+        max_length=32,
+        constraints=Field(min_length=3, pattern=r"[A-Z0-9-]+"),
+    )
+    price: float = field(constraints=Field(gt=0))
+    name: str = field(max_length=120, validators=(normalized,))
+```
+
+Built-in checks support string/list lengths, string patterns and membership, and numeric bounds and membership. Before applying checks, runtime type validation follows annotations for fields that declare constraints or validators, including nested list and dict values. Invalid declarations fail when the model class is created. Validators run immediately before inserts and ORM updates, including filtered bulk updates; they do not run on construction, assignment or reads. A refusal raises `ModelValidationError` with `details` containing each field's `path`, stable `code` and `message`, before SQL is sent. In an HTTP request it produces the standard 422 validation response; the admin displays the field messages. Custom validators are synchronous; raise `ValueError` to refuse a value. Do not perform database I/O or mutate values inside a validator. Rules involving other rows, permissions or current state belong in an operation.
+
+These checks complement, rather than replace, a `Schema` at the HTTP boundary. Schema validation can report request errors before calling an operation; Model validation also protects CLI, admin and direct ORM writes. Database constraints remain authoritative, and their enforcement varies by backend; see [Schema validation](schemas.md#built-in-and-custom-validation).
 
 Hinoki stores PostgreSQL UUID, timestamp, JSON and byte values in their native column types. SQLite stores UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string `contains` matching follows SQLite's case-folding behavior (ASCII case-insensitive).
 
