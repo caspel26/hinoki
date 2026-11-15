@@ -330,7 +330,7 @@
     <span class="n">json</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">body</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">""</span><span class="p">,</span>
     <span class="n">query</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
-    <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="n">HeaderInput</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">token</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Response</span>
 </code></pre></div>
@@ -456,6 +456,92 @@ connection.</p>
     </div>
 
 </div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.testing.ManualClock" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.testing.ManualClock</span>
+
+
+<a href="#hinoki.testing.ManualClock" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A thread-safe, controllable UTC clock for deterministic tests.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.testing.ManualClock.set" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">set</span>
+
+
+<a href="#hinoki.testing.ManualClock.set" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">set</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">datetime</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Set the current instant; <code>value</code> must be timezone-aware.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.testing.ManualClock.advance" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">advance</span>
+
+
+<a href="#hinoki.testing.ManualClock.advance" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">advance</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">seconds</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">datetime</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Advance by elapsed seconds and return the new UTC instant.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
         
       </article>
 
@@ -475,14 +561,16 @@ connection.</p>
           
             <ul><li><a href="#hinoki.testing.ASGIClient">ASGIClient</a>
             <ul><li><a href="#hinoki.testing.ASGIClient.request">request</a></li><li><a href="#hinoki.testing.ASGIClient.check_declared">check_declared</a></li><li><a href="#hinoki.testing.ASGIClient.query">query</a></li></ul>
-          </li><li><a href="#hinoki.testing.SyncClient">SyncClient</a></li></ul>
+          </li><li><a href="#hinoki.testing.SyncClient">SyncClient</a></li><li><a href="#hinoki.testing.ManualClock">ManualClock</a>
+            <ul><li><a href="#hinoki.testing.ManualClock.set">set</a></li><li><a href="#hinoki.testing.ManualClock.advance">advance</a></li></ul>
+          </li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.13</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 13, 2026 19:36:53 UTC">November 13, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 01:22:24 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/testing.md">Edit on GitHub</a></dd></div>
         </dl>

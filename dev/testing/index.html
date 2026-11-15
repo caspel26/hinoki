@@ -387,8 +387,16 @@
     <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">201</span>
 </code></pre></div>
 <p>Its context manager runs module lifespans and the application's startup and shutdown hooks. If the application has a <code>DatabaseModule</code>, point it to a disposable PostgreSQL database. <code>strict_errors=True</code> catches an HTTP error returned by an action but missing from its <code>errors=</code> declaration.</p>
-<p>Both clients have <code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code>, <code>delete</code> and <code>query</code> (the HTTP <code>QUERY</code> method; its body goes in <code>json=</code> or <code>body=</code>, while the <code>query=</code> option of every call is the query string), plus <code>request(method, path, ...)</code> for anything else such as <code>HEAD</code>.</p>
+<p>Both clients have <code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code>, <code>delete</code>, <code>head</code>, <code>options</code> and <code>query</code> (the HTTP <code>QUERY</code> method; its body goes in <code>json=</code> or <code>body=</code>, while the <code>query=</code> option of every call is the query string), plus <code>request(method, path, ...)</code> for any other method.</p>
+<p><code>headers=</code> accepts a mapping or a sequence of <code>(name, value)</code> pairs. Use pairs to send a repeated header; Hinoki's request header mapping joins repeated values with <code>", "</code>. A client can add a default <code>Host</code> header to each request:</p>
+<div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">with</span> <span class="n">ASGIClient</span><span class="p">(</span><span class="n">create_app</span><span class="p">(),</span> <span class="n">host</span><span class="o">=</span><span class="s2">"api.example.com"</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+        <span class="s2">"/health"</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="p">[(</span><span class="s2">"X-Trace"</span><span class="p">,</span> <span class="s2">"first"</span><span class="p">),</span> <span class="p">(</span><span class="s2">"X-Trace"</span><span class="p">,</span> <span class="s2">"second"</span><span class="p">)]</span>
+    <span class="p">)</span>
+</code></pre></div>
+<p>The default remains no <code>Host</code> header. Set <code>headers={"host": "other.example.com"}</code> on a call to override the client's host.</p>
 <p><code>SyncClient</code> is available for synchronous test functions. It runs the app's lifespan and refuses unsafe nested use from a running event loop.</p>
+<p>For deterministic time, <code>ManualClock</code> is a thread-safe callable clock. It accepts and returns timezone-aware instants normalized to UTC; <code>advance(seconds=...)</code> and <code>set(datetime)</code> control its value. A naive datetime raises <code>ValueError</code>. Pass it to <code>app.now(clock)</code> or other code that accepts a <code>Clock</code>.</p>
 <h2 id="test-the-layers-separately">Test the layers separately<a class="headerlink" href="#test-the-layers-separately" title="Permanent link">&para;</a></h2>
 <p>Keep business operations independent of <code>Request</code> and HTTP response types when practical. Test ownership and state transitions against a disposable database, then test route binding, access, status codes and error declarations through <code>ASGIClient</code>.</p>
 <p>Use synthetic rows and credentials. Never point test settings at production data.</p>
@@ -432,8 +440,8 @@ cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 00:26:29 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 01:22:24 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/testing.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -394,6 +394,17 @@
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
 </code></pre></div>
 <p>The clock is a callable, so code that depends on time can accept a <code>Clock</code> and tests can supply a fixed function. No process-wide clock patch is needed.</p>
+<p>For tests that need to move time more than once, use <code>ManualClock</code> from <code>hinoki.testing</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">UTC</span><span class="p">,</span> <span class="n">datetime</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManualClock</span>
+
+<span class="n">clock</span> <span class="o">=</span> <span class="n">ManualClock</span><span class="p">(</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">tzinfo</span><span class="o">=</span><span class="n">UTC</span><span class="p">))</span>
+<span class="n">first</span> <span class="o">=</span> <span class="n">clock</span><span class="p">()</span>
+<span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
+<span class="n">second</span> <span class="o">=</span> <span class="n">clock</span><span class="p">()</span>
+</code></pre></div>
+<p>It stores instants in UTC, accepts only timezone-aware values, and can be passed to <code>app.now(clock)</code> or <code>utc_today(clock)</code>.</p>
 <h2 id="application-timezone">Application timezone<a class="headerlink" href="#application-timezone" title="Permanent link">&para;</a></h2>
 <p>Set an IANA timezone name in the app's global settings. It defaults to <code>UTC</code>; invalid names fail while settings are constructed:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">settings</span>
@@ -464,7 +475,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.7</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:11:46 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 01:22:24 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/utilities.md">Edit on GitHub</a></dd></div>
         </dl>
