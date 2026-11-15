@@ -170,7 +170,8 @@ def propose(
         "from uuid import UUID, uuid4",
         "",
         "from hinoki import UNSET, Caller, Field, Schema, Unset, http",
-        "from hinoki.orm import Model, field" + (", foreign_key" if owned else ""),
+        "from hinoki.orm import Model"
+        + (", OnDelete, field, foreign_key" if owned else ", field"),
         "from hinoki.pagination import Page, PageNumberPagination, PageParams",
         "",
         "",
@@ -178,7 +179,7 @@ def propose(
         "    id: UUID = field(primary_key=True, default_factory=uuid4)",
         *(
             [
-                f'    owner_id: UUID = foreign_key({owner_model}, on_delete="restrict", '
+                f"    owner_id: UUID = foreign_key({owner_model}, on_delete=OnDelete.RESTRICT, "
                 f'related_name="{table_name}")'
             ]
             if owned

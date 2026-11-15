@@ -47,7 +47,14 @@ from hinoki.admin.forms import (
 from hinoki.admin.templates import UI, Raw, TemplateError, Templates, escape
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import RegistrationError
-from hinoki.orm import Model, current_database, field, foreign_key, use_database
+from hinoki.orm import (
+    Model,
+    OnDelete,
+    current_database,
+    field,
+    foreign_key,
+    use_database,
+)
 from hinoki.settings import AppSettings
 from tests.harness import Client, Pool
 from tests.providers import TokenAuth
@@ -74,7 +81,7 @@ class Note(Model, table="admin_notes"):
     done: bool = False
     rank: int | None = None
     due: datetime.datetime | None = None
-    owner_id: int | None = foreign_key(Owner, on_delete="set_null", default=None)
+    owner_id: int | None = foreign_key(Owner, on_delete=OnDelete.SET_NULL, default=None)
 
 
 async def mark_notes_done(rows: tuple[Note, ...], _principal: Caller[Any]) -> None:

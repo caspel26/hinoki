@@ -14,7 +14,7 @@ import pytest
 from hinoki.__main__ import main
 from hinoki.db import Database
 from hinoki.errors import DestructiveMigration, MigrationError
-from hinoki.orm import Model, field, foreign_key, migrator, use_database
+from hinoki.orm import Model, OnDelete, field, foreign_key, migrator, use_database
 from hinoki.orm.migrations import models_of, plan, statements
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -48,7 +48,7 @@ def owners(extra: dict[str, tuple[Any, Any]] | None = None) -> type[Model]:
 def things(owner: type[Model], **changes: tuple[Any, Any]) -> type[Model]:
     columns: dict[str, tuple[Any, Any]] = {
         "id": (UUID, field(primary_key=True)),
-        "owner_id": (int, foreign_key(owner, on_delete="cascade")),
+        "owner_id": (int, foreign_key(owner, on_delete=OnDelete.CASCADE)),
         "tags": (dict[str, Any], None),
         "seen": (datetime | None, None),
     }
@@ -246,16 +246,10 @@ def test_model_declaration_problems_fail_the_plan(tmp_path: Path) -> None:
     cases: list[list[type[Model]]] = [
         [model("a", {"id": (int, field(primary_key=True)), "x": (object, None)})],
         [model("a", {"id": (int, field(primary_key=True)), "x": (int | str, None)})],
-        [things(owner, owner_id=(UUID, foreign_key(owner, on_delete="cascade")))],
         [
-            model(
-                "a",
-                {
-                    "id": (int, field(primary_key=True)),
-                    "o_id": (int, foreign_key(owner, on_delete="set_null")),
-                },
-            ),
-            owner,
+            things(
+                owner, owner_id=(UUID, foreign_key(owner, on_delete=OnDelete.CASCADE))
+            )
         ],
     ]
     for models in cases:

@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from hinoki import Field, Hinoki, Schema, http, settings
 from hinoki.db import DatabaseModule
-from hinoki.orm import Model, field, foreign_key
+from hinoki.orm import Model, OnDelete, field, foreign_key
 from hinoki.orm.relations import Related
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from hinoki.utils import utc_now
@@ -19,7 +19,9 @@ class Author(Model, table="authors"):
 
 class Post(Model, table="posts"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
-    author_id: UUID = foreign_key(Author, on_delete="restrict", related_name="posts")
+    author_id: UUID = foreign_key(
+        Author, on_delete=OnDelete.RESTRICT, related_name="posts"
+    )
     title: str = field(max_length=120)
     body: str
     published: bool = False
