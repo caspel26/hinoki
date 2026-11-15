@@ -12,6 +12,7 @@ from hinoki.auth import (
     HeaderAuth,
 )
 from hinoki.core import core_version
+from hinoki.crud import Crud, CrudAPI
 from hinoki.derive import derive
 from hinoki.modules import Module, ModuleContext
 from hinoki.parsers import FormParser, JSONParser, MultiPartParser, Parser
@@ -42,6 +43,8 @@ __all__ = [
     "BaseAuth",
     "BearerAuth",
     "Caller",
+    "Crud",
+    "CrudAPI",
     "Field",
     "FormParser",
     "HTMLRenderer",

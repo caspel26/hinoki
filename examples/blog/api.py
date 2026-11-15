@@ -5,8 +5,7 @@ from uuid import UUID
 from examples.blog.models import Post, User
 from examples.blog.schemas import HealthOut, PostCreate, PostOut
 from examples.blog.security import editor
-from hinoki import Caller, errors, http
-from hinoki.crud import CrudAPI
+from hinoki import Caller, CrudAPI, errors, http
 from hinoki.orm import QuerySet
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 
