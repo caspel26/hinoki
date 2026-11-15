@@ -689,11 +689,6 @@ mod tests {
 
 const DUMP_DEPTH: usize = 1000;
 
-fn exact_class(value: &Bound<'_, PyAny>, module: &str, name: &str) -> PyResult<bool> {
-    let wanted = value.py().import(module)?.getattr(name)?;
-    Ok(value.get_type().is(&wanted))
-}
-
 /// A value as `Schema.dump()` (JSON-compatible) or `Schema.to_dict()` (Python
 /// values) shows it: nested schemas become dicts, lists and tuples lists, dicts
 /// are copied; in JSON mode exact `UUID`/`datetime` values become text and any
@@ -708,6 +703,9 @@ fn convert<'py>(
         return Err(pyo3::exceptions::PyValueError::new_err(
             "value is nested too deeply",
         ));
+    }
+    if crate::pytypes::is_plain_scalar(value) {
+        return Ok(value.clone());
     }
     if let Ok(list) = value.cast::<PyList>() {
         return convert_list(py, list.iter(), json_mode, depth);
@@ -765,10 +763,13 @@ fn convert_schema<'py>(
 }
 
 fn convert_json_object<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    if exact_class(value, "uuid", "UUID")? {
-        return Ok(value.str()?.into_any());
+    if let Some(text) = crate::pytypes::exact_uuid_text(value)? {
+        return Ok(pyo3::types::PyString::new(value.py(), &text).into_any());
     }
-    if exact_class(value, "datetime", "datetime")? {
+    if value
+        .get_type()
+        .is(crate::pytypes::datetime_class(value.py())?)
+    {
         return value.call_method0("isoformat");
     }
     if value.hasattr("dump")? {

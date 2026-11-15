@@ -864,6 +864,19 @@ impl<'py> Encoder<'py> {
     /// Objects that are not plain JSON values: schema instances, UUIDs, datetimes,
     /// anything with a `dump()` method, then the caller's `default` hook.
     fn object(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
+        // Exact UUIDs and datetimes cannot be schema instances: skip that lookup.
+        if let Some(text) = crate::pytypes::exact_uuid_text(value)? {
+            return write_string(&mut self.out, &text);
+        }
+        if value
+            .get_type()
+            .is(crate::pytypes::datetime_class(value.py())?)
+        {
+            return write_string(
+                &mut self.out,
+                &value.call_method0("isoformat")?.str()?.to_string(),
+            );
+        }
         if let Some((names, unset)) = crate::schema::instance_fields(value, true)? {
             self.schema_object(value, names, &unset, depth)?;
         } else if is_instance_of_named(value, "uuid", "UUID")? {
