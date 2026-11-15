@@ -1,6 +1,8 @@
 """Schemas derived from models with ``@derive(...)`` and ``model=``."""
 
+from collections.abc import Iterator
 from datetime import datetime
+from types import SimpleNamespace
 from typing import Annotated
 from uuid import UUID, uuid4
 
@@ -59,6 +61,64 @@ class PostPatch(Schema, model=Post):
 @derive(only=("title", "body"))
 class Overridden(Schema, model=Post):
     title: Annotated[str, Field(min_length=3, max_length=10)]
+
+
+def post_row(title: str = "title") -> Post:
+    return Post(
+        id=uuid4(),
+        author_id=uuid4(),
+        title=title,
+        slug=f"{title}-slug",
+        body="body",
+        published=True,
+        created_at=datetime.now(),
+    )
+
+
+def test_from_models_eagerly_maps_derived_and_partial_schemas() -> None:
+    rows = (post_row(title) for title in ("first", "second"))
+
+    outputs = PostOut.from_models(rows, author_name="A. Example")
+    patches = PostPatch.from_models([post_row("partial")])
+
+    assert isinstance(outputs, list)
+    assert [item.title for item in outputs] == ["first", "second"]  # type: ignore[attr-defined]
+    assert [item.author_name for item in outputs] == ["A. Example", "A. Example"]
+    assert "note" not in outputs[0].dump()
+    assert patches[0].title == "partial"  # type: ignore[attr-defined]
+    assert PostOut.from_models(iter(())) == []
+
+
+def test_from_models_preserves_from_model_duck_typing_and_errors() -> None:
+    row = post_row()
+    shaped = SimpleNamespace(
+        id=row.id,
+        author_id=row.author_id,
+        title=row.title,
+        slug=row.slug,
+        body=row.body,
+        published=row.published,
+        created_at=row.created_at,
+    )
+
+    assert PostOut.from_models([shaped], author_name="A. Example")[0].title == "title"  # type: ignore[attr-defined]
+    with pytest.raises(
+        AttributeError, match=r"PostOut\.id: object has no attribute 'id'"
+    ):
+        PostOut.from_models([object()])
+
+
+def test_from_models_stops_at_first_conversion_error() -> None:
+    consumed: list[int] = []
+
+    def rows() -> Iterator[object]:
+        for number, row in enumerate((post_row(), object(), post_row()), start=1):
+            consumed.append(number)
+            yield row
+
+    with pytest.raises(AttributeError):
+        PostOut.from_models(rows(), author_name="A. Example")
+    assert consumed == [1, 2]
 
 
 def test_columns_become_fields_with_model_limits_and_defaults() -> None:

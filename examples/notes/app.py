@@ -37,7 +37,7 @@ class NoteOut(Schema):
 
 @http.get("/notes")
 async def listing() -> list[NoteOut]:
-    return [NoteOut.from_model(n) for n in await Note.all()]
+    return NoteOut.from_models(await Note.all())
 
 
 @http.get("/notes/{note_id}")

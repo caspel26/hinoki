@@ -1,5 +1,6 @@
 """Valid schema usage: must type-check cleanly under mypy --strict."""
 
+from collections.abc import Iterable
 from typing import Annotated
 from uuid import UUID
 
@@ -20,6 +21,10 @@ class PostPatch(Schema):
 class PostOut(Schema):
     id: UUID
     title: str
+
+
+def convert_many(rows: Iterable[object]) -> list[PostOut]:
+    return PostOut.from_models(rows)
 
 
 def build() -> str:
