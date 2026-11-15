@@ -406,6 +406,9 @@ environment variable (the URL is a secret setting; avoid committing it):</p>
 <span class="c1"># PostgreSQL</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">BLOG_DATABASE__URL</span><span class="o">=</span><span class="s1">'postgresql://blog:password@db.example.test/blog'</span>
 
+<span class="c1"># PostgreSQL with TLS (recommended for remote databases)</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">BLOG_DATABASE__URL</span><span class="o">=</span><span class="s1">'postgresql://blog:password@db.example.test/blog?sslmode=verify-full&amp;sslrootcert=%2Frun%2Fsecrets%2Fdb-ca.pem'</span>
+
 <span class="c1"># MySQL</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">BLOG_DATABASE__URL</span><span class="o">=</span><span class="s1">'mysql://blog:password@db.example.test/blog'</span>
 
@@ -414,7 +417,10 @@ environment variable (the URL is a secret setting; avoid committing it):</p>
 </code></pre></div>
 <p>Use a secret manager or a <code>BLOG_DATABASE__URL_FILE</code> variable for deployment
 credentials. Hinoki redacts the URL in settings output and connection errors.
-Avoid placing a credential-bearing URL in shell history or a process argument.</p>
+Avoid placing a credential-bearing URL in shell history or a process argument.
+Database authentication uses the username and password in the URL; percent-encode
+reserved characters in either component. SQLite files are protected by the
+operating-system account and filesystem permissions, not by database credentials.</p>
 <p>For non-secret pool settings, TOML works as well. Keep <code>url</code> in an environment
 variable or secret file; <code>settings.Secret</code> values are not read from TOML.</p>
 <div class="highlight"><pre><span></span><code><span class="k">[database]</span>
@@ -436,17 +442,17 @@ provided <code>Database</code> instance.</p>
 <tr>
 <td>SQLite</td>
 <td><code>sqlite://./.hinoki/local.sqlite3</code></td>
-<td>Recommended local default. SQLite allows one writer at a time; Hinoki uses bounded connections and a busy timeout. Relative paths are resolved from the application working directory.</td>
+<td>Supported; recommended local default. No network authentication or TLS. SQLite allows one writer at a time; Hinoki uses bounded connections and a five-second busy timeout. Relative paths are resolved from the application working directory.</td>
 </tr>
 <tr>
 <td>PostgreSQL</td>
 <td><code>postgresql://user:password@host/database</code></td>
-<td>Server database with native UUID, timestamp, JSON and byte types. TLS options and verification behavior are described in the <a href="../reference/database/">database reference</a>.</td>
+<td>Supported. Uses PostgreSQL username/password authentication and native UUID, timestamp, JSON and byte types. <code>sslmode</code> defaults to <code>prefer</code>; use <code>sslmode=verify-full</code> for remote databases. <code>sslrootcert</code> adds a PEM CA certificate to the system roots. Hinoki accepts <code>disable</code>, <code>prefer</code>, <code>require</code>, <code>verify-ca</code> and <code>verify-full</code>; the last three all require TLS and certificate verification in Hinoki.</td>
 </tr>
 <tr>
 <td>MySQL</td>
 <td><code>mysql://user:password@host/database</code></td>
-<td>Requires TLS by default, with certificate and host verification. The system trust store must trust the server certificate. <code>require_ssl=false</code> disables encryption and is only for an isolated disposable local server. MySQL uses InnoDB and MySQL-native JSON; <code>RETURNING</code> is unavailable.</td>
+<td>Supported. Uses username/password authentication and requires TLS by default, with certificate and host verification. The system trust store must trust the server certificate. <code>require_ssl=false</code> disables encryption and is only for an isolated disposable local server. MySQL uses InnoDB and MySQL-native JSON; <code>RETURNING</code> is unavailable.</td>
 </tr>
 </tbody>
 </table>
@@ -474,7 +480,8 @@ opens the selected database and creates its ledger table if needed.</p>
 <p>Migration behavior differs by backend:</p>
 <ul>
 <li><strong>SQLite</strong> rebuilds a table when a safe direct alteration is unavailable and
-  checks foreign keys before committing the migration.</li>
+  checks foreign keys before committing the migration. Keep the database file
+  and its backups on storage with permissions limited to the application user.</li>
 <li><strong>PostgreSQL</strong> applies migrations in a transaction.</li>
 <li><strong>MySQL</strong> implicitly commits DDL. If a migration fails, earlier statements
   may already have changed the schema; Hinoki reports that partial application
@@ -513,7 +520,7 @@ types, raw SQL placeholders and backend limits.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.2</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 00:27:34 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 01:43:07 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/databases.md">Edit on GitHub</a></dd></div>
         </dl>
