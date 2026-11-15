@@ -395,6 +395,67 @@
 <h2 id="provide-and-retrieve-dependencies">Provide and retrieve dependencies<a class="headerlink" href="#provide-and-retrieve-dependencies" title="Permanent link">&para;</a></h2>
 <p>A module calls <code>ctx.provide(Type, value)</code> during lifespan startup. Other modules can declare dependencies and retrieve the provided value with <code>ctx.get(Type)</code>. Dependencies determine startup and shutdown order. Missing, duplicate or circular providers fail application startup.</p>
 <p>Module lifespan hooks are async. Keep startup bounded, fail fast when a required service is unavailable, and close each owned resource in <code>finally</code>.</p>
+<h2 id="startup-and-shutdown-hooks">Startup and shutdown hooks<a class="headerlink" href="#startup-and-shutdown-hooks" title="Permanent link">&para;</a></h2>
+<p>For an action at the edge of a worker's life that owns no resource, such as warming a cache, logging the build or flushing a counter, list functions on the application instead of writing a module:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">ModuleContext</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">Database</span><span class="p">,</span> <span class="n">DatabaseModule</span>
+
+<span class="n">log</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">"app"</span><span class="p">)</span>
+
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">warm_cache</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">ModuleContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">Database</span><span class="p">)</span><span class="o">.</span><span class="n">fetch</span><span class="p">(</span><span class="s2">"SELECT 1"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">say_goodbye</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">ModuleContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"worker stopping"</span><span class="p">)</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
+    <span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span>
+    <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">health</span><span class="p">,</span> <span class="n">Tasks</span><span class="p">],</span>
+    <span class="n">modules</span><span class="o">=</span><span class="p">[</span><span class="n">DatabaseModule</span><span class="p">],</span>
+    <span class="n">on_startup</span><span class="o">=</span><span class="p">[</span><span class="n">warm_cache</span><span class="p">],</span>
+    <span class="n">on_shutdown</span><span class="o">=</span><span class="p">[</span><span class="n">say_goodbye</span><span class="p">],</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>A hook takes the worker's <code>ModuleContext</code> (<code>ctx.settings</code>, <code>ctx.get(Type)</code>, <code>ctx.tasks</code>). It is <code>async def</code>, or a plain <code>def</code> that runs on the bounded sync executor like a sync handler. Model methods reach the worker's database inside a hook as they do inside a request.</p>
+<p>Pass hooks as a <code>list</code> or <code>tuple</code> when constructing <code>Hinoki</code>; the app's <code>on_startup</code> and <code>on_shutdown</code> tuples are read-only. Hooks must be callables, not async generators, and must return <code>None</code>. A plain <code>def</code> may instead return an awaitable, which Hinoki awaits; use <code>async def</code> when the hook needs to await work directly.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Startup hooks</th>
+<th>Shutdown hooks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run</td>
+<td>Once per worker, after every module has started, in the listed order</td>
+<td>Once per worker, before background tasks, the sync executor and the modules are closed, in the listed order</td>
+</tr>
+<tr>
+<td>Time limit</td>
+<td>Share <code>lifecycle.startup_timeout</code> with the modules</td>
+<td>Each has its own <code>lifecycle.shutdown_timeout</code></td>
+</tr>
+<tr>
+<td>Requests</td>
+<td>Answered <code>503 not_ready</code> until the last hook returns</td>
+<td>Answered <code>503 not_ready</code> from the moment shutdown begins</td>
+</tr>
+<tr>
+<td>A hook fails or times out</td>
+<td>Startup fails: later hooks do not run, no shutdown hook runs, the modules already started are closed, and the server is told that startup failed. The log has the traceback; the message names the hook (<code>startup hook 'warm_cache' failed to start: TimeoutError</code>)</td>
+<td>It is logged and reported as a shutdown error; the remaining hooks and the module cleanup still run</td>
+</tr>
+</tbody>
+</table>
+<p>Shutdown hooks run only after a startup that completed, and a shutdown hook is not the <code>finally</code> of a startup hook. Use this rule to choose: <strong>a resource you own is a module</strong> (its lifespan closes it even when a later step of startup fails); <strong>an action is a hook</strong>. A plain <code>def</code> hook that is still running when its time limit passes cannot be interrupted; it keeps its executor thread until it returns.</p>
+<p>Hooks run where the application serves requests: under <code>hinoki dev</code>/<code>serve</code> and any ASGI server, on the first request of each WSGI worker, and in the <a href="../testing/">test clients</a>. <code>hinoki manage</code> commands, <code>check</code>, <code>routes</code> and <code>migrations</code> do not run them.</p>
 <h2 id="standalone-scripts">Standalone scripts<a class="headerlink" href="#standalone-scripts" title="Permanent link">&para;</a></h2>
 <p>For app maintenance tasks, declare a <a href="../cli/#manage">management command</a> and list its required module classes in <code>Command.requires</code>. Hinoki starts only those modules and their dependencies for one command run, so a database module is opened and closed without starting the HTTP server or unrelated modules.</p>
 <p>Standalone scripts outside Hinoki's server or management-command runner have no module lifespan. Open their own <code>Database</code> and close it explicitly; do not import a module-global pool. The blog seed script demonstrates this pattern.</p>
@@ -416,15 +477,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#declare-modules">Declare modules</a></li><li><a href="#provide-and-retrieve-dependencies">Provide and retrieve dependencies</a></li><li><a href="#standalone-scripts">Standalone scripts</a></li></ul>
+            <ul><li><a href="#declare-modules">Declare modules</a></li><li><a href="#provide-and-retrieve-dependencies">Provide and retrieve dependencies</a></li><li><a href="#startup-and-shutdown-hooks">Startup and shutdown hooks</a></li><li><a href="#standalone-scripts">Standalone scripts</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.17</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:11:46 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 00:57:39 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/modules.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

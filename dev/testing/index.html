@@ -386,7 +386,7 @@
     <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"title"</span><span class="p">:</span> <span class="s2">"Write docs"</span><span class="p">},</span> <span class="n">token</span><span class="o">=</span><span class="s2">"member"</span><span class="p">)</span>
     <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">201</span>
 </code></pre></div>
-<p>Its context manager runs module lifespans. If the application has a <code>DatabaseModule</code>, point it to a disposable PostgreSQL database. <code>strict_errors=True</code> catches an HTTP error returned by an action but missing from its <code>errors=</code> declaration.</p>
+<p>Its context manager runs module lifespans and the application's startup and shutdown hooks. If the application has a <code>DatabaseModule</code>, point it to a disposable PostgreSQL database. <code>strict_errors=True</code> catches an HTTP error returned by an action but missing from its <code>errors=</code> declaration.</p>
 <p>Both clients have <code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code>, <code>delete</code> and <code>query</code> (the HTTP <code>QUERY</code> method; its body goes in <code>json=</code> or <code>body=</code>, while the <code>query=</code> option of every call is the query string), plus <code>request(method, path, ...)</code> for anything else such as <code>HEAD</code>.</p>
 <p><code>SyncClient</code> is available for synchronous test functions. It runs the app's lifespan and refuses unsafe nested use from a running event loop.</p>
 <h2 id="test-the-layers-separately">Test the layers separately<a class="headerlink" href="#test-the-layers-separately" title="Permanent link">&para;</a></h2>
@@ -432,7 +432,7 @@ cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 18:47:28 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 00:26:29 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/testing.md">Edit on GitHub</a></dd></div>
         </dl>

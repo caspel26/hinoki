@@ -293,6 +293,10 @@
 anything, so factories returning <code>Hinoki</code> are safe to import and call.
 The instance is itself an ASGI callable (<code>granian --interface asgi
 module:app</code>); the first call freezes the declarations.</p>
+<p><code>on_startup</code> and <code>on_shutdown</code> list functions taking the worker's
+<code>ModuleContext</code> (<code>async def</code> or <code>def</code>). Startup hooks run once per
+worker after the modules have started; shutdown hooks run before they are
+closed, and only after a startup that completed.</p>
 
 
 
@@ -729,6 +733,50 @@ module:app</code>); the first call freezes the declarations.</p>
 
 
 
+<h3 id="hinoki.app.Hinoki._on_startup" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">_on_startup</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.app.Hinoki._on_startup" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">_on_startup</span> <span class="o">=</span> <span class="n">check_hooks</span><span class="p">(</span><span class="s1">'on_startup'</span><span class="p">,</span> <span class="n">on_startup</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.app.Hinoki._on_shutdown" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">_on_shutdown</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.app.Hinoki._on_shutdown" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">_on_shutdown</span> <span class="o">=</span> <span class="n">check_hooks</span><span class="p">(</span><span class="s1">'on_shutdown'</span><span class="p">,</span> <span class="n">on_shutdown</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="hinoki.app.Hinoki._included_groups" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">_included_groups</span>
 
@@ -881,6 +929,54 @@ module:app</code>); the first call freezes the declarations.</p>
 
 </div>
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.app.Hinoki.on_startup" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">on_startup</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.app.Hinoki.on_startup" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">on_startup</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Hook</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Startup hooks, fixed when the application is constructed.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.app.Hinoki.on_shutdown" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">on_shutdown</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.app.Hinoki.on_shutdown" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">on_shutdown</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Hook</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Shutdown hooks, fixed when the application is constructed.</p>
+
+    </div>
+
+</div>
+
 
 
 
@@ -898,6 +994,8 @@ module:app</code>); the first call freezes the declarations.</p>
     <span class="n">include</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">object</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">modules</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Module</span> <span class="o">|</span> <span class="nb">type</span><span class="p">[</span><span class="n">Module</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">commands</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Command</span> <span class="o">|</span> <span class="nb">type</span><span class="p">[</span><span class="n">Command</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">on_startup</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Hook</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">on_shutdown</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Hook</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">runtime</span><span class="p">:</span> <span class="n">RuntimeConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -3691,7 +3789,7 @@ override them. <code>details</code> is public data, never internal state.</p>
           
           
             <ul><li><a href="#hinoki.app.Hinoki">Hinoki</a>
-            <ul><li><a href="#hinoki.app.Hinoki._timezone">_timezone</a></li><li><a href="#hinoki.app.Hinoki.settings">settings</a></li><li><a href="#hinoki.app.Hinoki.runtime">runtime</a></li><li><a href="#hinoki.app.Hinoki.title">title</a></li><li><a href="#hinoki.app.Hinoki.version">version</a></li><li><a href="#hinoki.app.Hinoki.openapi_url">openapi_url</a></li><li><a href="#hinoki.app.Hinoki.docs_url">docs_url</a></li><li><a href="#hinoki.app.Hinoki.redoc_url">redoc_url</a></li><li><a href="#hinoki.app.Hinoki.rules">rules</a></li><li><a href="#hinoki.app.Hinoki.enforce_rules">enforce_rules</a></li><li><a href="#hinoki.app.Hinoki.default_parsers">default_parsers</a></li><li><a href="#hinoki.app.Hinoki.default_renderers">default_renderers</a></li><li><a href="#hinoki.app.Hinoki.pagination_defaults">pagination_defaults</a></li><li><a href="#hinoki.app.Hinoki.errors">errors</a></li><li><a href="#hinoki.app.Hinoki._routes">_routes</a></li><li><a href="#hinoki.app.Hinoki._bindings">_bindings</a></li><li><a href="#hinoki.app.Hinoki._modules">_modules</a></li><li><a href="#hinoki.app.Hinoki._commands">_commands</a></li><li><a href="#hinoki.app.Hinoki._included_groups">_included_groups</a></li><li><a href="#hinoki.app.Hinoki._router">_router</a></li><li><a href="#hinoki.app.Hinoki._adapter">_adapter</a></li><li><a href="#hinoki.app.Hinoki.routes">routes</a></li><li><a href="#hinoki.app.Hinoki.bindings">bindings</a></li><li><a href="#hinoki.app.Hinoki.modules">modules</a></li><li><a href="#hinoki.app.Hinoki.commands">commands</a></li><li><a href="#hinoki.app.Hinoki.__init__">__init__</a></li><li><a href="#hinoki.app.Hinoki.now">now</a></li><li><a href="#hinoki.app.Hinoki.module_of">module_of</a></li><li><a href="#hinoki.app.Hinoki.include">include</a></li><li><a href="#hinoki.app.Hinoki.routes_of">routes_of</a></li><li><a href="#hinoki.app.Hinoki.with_defaults">with_defaults</a></li><li><a href="#hinoki.app.Hinoki.install">install</a></li><li><a href="#hinoki.app.Hinoki.lookup">lookup</a></li><li><a href="#hinoki.app.Hinoki.resolve">resolve</a></li><li><a href="#hinoki.app.Hinoki.openapi">openapi</a></li><li><a href="#hinoki.app.Hinoki.asgi">asgi</a></li><li><a href="#hinoki.app.Hinoki.enforce">enforce</a></li><li><a href="#hinoki.app.Hinoki.__call__">__call__</a></li><li><a href="#hinoki.app.Hinoki._check_mutable">_check_mutable</a></li></ul>
+            <ul><li><a href="#hinoki.app.Hinoki._timezone">_timezone</a></li><li><a href="#hinoki.app.Hinoki.settings">settings</a></li><li><a href="#hinoki.app.Hinoki.runtime">runtime</a></li><li><a href="#hinoki.app.Hinoki.title">title</a></li><li><a href="#hinoki.app.Hinoki.version">version</a></li><li><a href="#hinoki.app.Hinoki.openapi_url">openapi_url</a></li><li><a href="#hinoki.app.Hinoki.docs_url">docs_url</a></li><li><a href="#hinoki.app.Hinoki.redoc_url">redoc_url</a></li><li><a href="#hinoki.app.Hinoki.rules">rules</a></li><li><a href="#hinoki.app.Hinoki.enforce_rules">enforce_rules</a></li><li><a href="#hinoki.app.Hinoki.default_parsers">default_parsers</a></li><li><a href="#hinoki.app.Hinoki.default_renderers">default_renderers</a></li><li><a href="#hinoki.app.Hinoki.pagination_defaults">pagination_defaults</a></li><li><a href="#hinoki.app.Hinoki.errors">errors</a></li><li><a href="#hinoki.app.Hinoki._routes">_routes</a></li><li><a href="#hinoki.app.Hinoki._bindings">_bindings</a></li><li><a href="#hinoki.app.Hinoki._modules">_modules</a></li><li><a href="#hinoki.app.Hinoki._commands">_commands</a></li><li><a href="#hinoki.app.Hinoki._on_startup">_on_startup</a></li><li><a href="#hinoki.app.Hinoki._on_shutdown">_on_shutdown</a></li><li><a href="#hinoki.app.Hinoki._included_groups">_included_groups</a></li><li><a href="#hinoki.app.Hinoki._router">_router</a></li><li><a href="#hinoki.app.Hinoki._adapter">_adapter</a></li><li><a href="#hinoki.app.Hinoki.routes">routes</a></li><li><a href="#hinoki.app.Hinoki.bindings">bindings</a></li><li><a href="#hinoki.app.Hinoki.modules">modules</a></li><li><a href="#hinoki.app.Hinoki.commands">commands</a></li><li><a href="#hinoki.app.Hinoki.on_startup">on_startup</a></li><li><a href="#hinoki.app.Hinoki.on_shutdown">on_shutdown</a></li><li><a href="#hinoki.app.Hinoki.__init__">__init__</a></li><li><a href="#hinoki.app.Hinoki.now">now</a></li><li><a href="#hinoki.app.Hinoki.module_of">module_of</a></li><li><a href="#hinoki.app.Hinoki.include">include</a></li><li><a href="#hinoki.app.Hinoki.routes_of">routes_of</a></li><li><a href="#hinoki.app.Hinoki.with_defaults">with_defaults</a></li><li><a href="#hinoki.app.Hinoki.install">install</a></li><li><a href="#hinoki.app.Hinoki.lookup">lookup</a></li><li><a href="#hinoki.app.Hinoki.resolve">resolve</a></li><li><a href="#hinoki.app.Hinoki.openapi">openapi</a></li><li><a href="#hinoki.app.Hinoki.asgi">asgi</a></li><li><a href="#hinoki.app.Hinoki.enforce">enforce</a></li><li><a href="#hinoki.app.Hinoki.__call__">__call__</a></li><li><a href="#hinoki.app.Hinoki._check_mutable">_check_mutable</a></li></ul>
           </li><li><a href="#hinoki.api.API">API</a>
             <ul><li><a href="#hinoki.api.API.prefix">prefix</a></li><li><a href="#hinoki.api.API.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.api.API.routes">routes</a></li><li><a href="#hinoki.api.API.apply_replacements">apply_replacements</a></li><li><a href="#hinoki.api.API.declared_route">declared_route</a></li><li><a href="#hinoki.api.API.mount">mount</a></li></ul>
           </li><li><a href="#hinoki.routing.RouteGroup">RouteGroup</a>
