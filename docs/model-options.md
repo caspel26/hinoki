@@ -10,8 +10,21 @@ Options that describe a model beyond its columns are **decorators**, read like t
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from hinoki.orm import Model, field, timestamps
+from hinoki.orm import (
+    Model,
+    OnDelete,
+    field,
+    foreign_key,
+    indexed,
+    ordered_by,
+    timestamps,
+    unique,
+)
 from hinoki.utils import utc_now
+
+
+class Member(Model, table="members"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
 
 
 @unique("owner_id", "url")

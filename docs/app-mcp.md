@@ -26,4 +26,4 @@ The tool name, description, path/query parameters and JSON body shape come from 
 
 Use bearer credentials for a remote MCP client when possible. Cookie-based authentication with write tools needs particular care. The endpoint accepts JSON `POST` requests. Set `allowed_origins` to the exact browser origins when browser clients are expected; other cross-site browser requests are rejected. `access` is required. For an intentionally public endpoint, pass `access=None, public=True` explicitly.
 
-This application endpoint is distinct from `hinoki mcp TARGET`, the read-only development MCP over stdio. It does not provide MCP resources, prompts, sessions or OAuth discovery.
+This application endpoint is distinct from `hinoki mcp TARGET`, the development MCP over stdio. That CLI is read-only by default; explicitly enabling `--scenarios write` registers effectful scenario calls that can run mutating handlers. It does not provide MCP resources, prompts, sessions or OAuth discovery.

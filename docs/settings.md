@@ -270,7 +270,7 @@ HSTS defaults off. Hinoki emits it only when the request's effective scheme is H
 
 ## 8. Database connection ownership
 
-For local development, `DatabaseSettings.url` defaults to `sqlite://./.hinoki/local.sqlite3`. Hinoki creates the hidden directory and database file when the module starts; it does not connect at module import or when models are imported. Set the URL explicitly for a server database or deployment. Environment, dotenv, TOML and constructor values override the local default.
+For local development, `DatabaseSettings.url` defaults to `sqlite://./.hinoki/local.sqlite3`. Hinoki creates the hidden directory and database file when the module starts; it does not connect at module import or when models are imported. Set the URL explicitly for a server database or deployment. Environment, dotenv and constructor values can override the local default. Database URLs are secrets and cannot be loaded from TOML; use TOML for non-secret settings such as pool size.
 
 For a server database, put its explicit connection URL in `settings.DatabaseSettings` and list `DatabaseModule` in the app declaration (or install a configured module in a factory). The module opens a pool in each worker's startup lifespan, fails startup if the database is unreachable, and closes that worker's pool on shutdown. Each worker owns its own pool, so budget `replicas × workers × max_size` against the server database's connection limit.
 

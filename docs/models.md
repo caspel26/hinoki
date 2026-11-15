@@ -37,7 +37,7 @@ class Task(Model, table="tasks", label="Task", plural="Tasks"):
 
 `table=` is required. A model has exactly one primary key. Fields are keyword-only when constructing a model. Single-column uniqueness is `field(unique=True)`; use `@unique("a", "b")` for a composite constraint. There is no nested `class Meta`.
 
-Supported field metadata includes primary key, uniqueness, maximum string length, defaults and foreign-key behavior. Database types are inferred from annotations; unsupported types fail during model or migration validation.
+Supported field metadata includes primary key, uniqueness, maximum string length, defaults and foreign-key behavior. Optional built-in constraints and custom synchronous validators can also check values before ORM writes. Database types are inferred from annotations; unsupported types fail during model or migration validation.
 
 ### Model field constraints and validators
 
@@ -135,7 +135,7 @@ Choose the place by what the rule is:
 
 Authorization must not depend on a default that a call to `all()` or a raw query can skip: keep ownership and permission checks in `access=`, `owner=` and `ModelAdmin.can()`, and treat a reusable query as convenience, not as the security boundary.
 
-To generate write routes as well, provide `create=` or `update=` schemas and/or
+To generate write routes as well, provide `create_schema=` or `update_schema=` and/or
 set `deletable = True`; protect generated writes with `access = ...`. See
 [Generate CRUD routes](crud.md) for the full route and ownership contract.
 
