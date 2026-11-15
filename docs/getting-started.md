@@ -1,6 +1,6 @@
 # Installation
 
-Hinoki is pre-alpha and is not published on PyPI. Install it from its public repository with [uv](https://docs.astral.sh/uv/) and a stable Rust toolchain:
+Hinoki is pre-alpha and this repository is not published on PyPI. The [`hinoki` project name](https://pypi.org/project/hinoki/) currently resolves to an unrelated legacy package. Install this repository from source with [uv](https://docs.astral.sh/uv/) and a stable Rust toolchain:
 
 ```sh
 git clone https://github.com/caspel26/hinoki
@@ -21,6 +21,6 @@ uv sync
 uv run pytest
 ```
 
-The generated project includes a health route, a test that needs no database, a `README.md` with its commands and a development MCP configuration. Review `AGENTS.md` for its project commands and conventions. `pyproject.toml` names where `uv` finds Hinoki, since it is not on PyPI; see [`hinoki new`](cli.md#new) to choose a checkout or a git revision with `--hinoki`.
+The generated project includes a health route, a test that needs no database, a `README.md` with its commands and a development MCP configuration. Review `AGENTS.md` for its project commands and conventions. `pyproject.toml` names this repository as the source for `uv`, so it does not install the unrelated package by name; see [`hinoki new`](cli.md#new) to choose a checkout or a git revision with `--hinoki`.
 
 Continue with the [Quick start](quick-start.md) to run the Notes API, create its table with a reviewed migration and make a request.
