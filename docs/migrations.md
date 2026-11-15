@@ -23,6 +23,24 @@ generated SQL uses the selected backend's types. Existing state files that
 recorded SQLite or MySQL-specific type names are normalized when planning, so
 switching the planner's backend does not appear as a destructive type change.
 
+To check that model changes have a committed migration file in CI, run:
+
+```sh
+uv run hinoki migrations plan --check
+```
+
+It exits `1` when operations are pending, including destructive operations,
+and `0` when the model state matches the latest migration state file. It does
+not write migration files or connect to a database. It imports the selected
+app's migration module and every registered app's model module (cross-app
+foreign keys require the other models for validation), so those imports must
+be safe for a CI check. In a multi-app project, pass `--app NAME` and run the
+check once for each registered app; without a selection, it asks for `--app`
+just like `plan`. This check concerns file state only. Use `migrations status`
+to compare the files with a live database's applied migration ledger.
+`--dry-run` remains a preview that prints operations and exits successfully
+when changes are pending.
+
 For example, `billing` can depend on `accounts`:
 
 ```toml
