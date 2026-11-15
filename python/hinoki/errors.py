@@ -91,6 +91,10 @@ class FieldError(ModelError, ValueError):
     """A query or write names a field the model does not have."""
 
 
+class ModelValidationError(ValidationError, ModelError):
+    """One or more Model field values failed before a database write."""
+
+
 class RelationNotLoaded(ModelError, AttributeError):
     """A relation was read that the query did not load. Relations are never
     fetched lazily; name them in ``select_related`` or ``prefetch_related``."""
