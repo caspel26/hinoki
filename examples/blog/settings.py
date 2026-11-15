@@ -1,6 +1,6 @@
 """The blog's settings: the framework's built-in groups plus its own fields.
 
-BLOG_DATABASE_URL=postgres://...      required
+BLOG_DATABASE__URL=postgres://...     optional; defaults to local SQLite
 BLOG_ADMIN_SECRET=...                 required, 32+ bytes
 BLOG_JWT_SECRET=...                   optional: switches on /auth/login
 BLOG_ADMIN_THEME=studio|console|paper|bento
@@ -14,7 +14,7 @@ from hinoki import settings
 
 
 class BlogSettings(settings.AppSettings, prefix="BLOG_"):
-    database_url: settings.Secret
+    database: settings.DatabaseSettings
     admin_secret: settings.Secret
     jwt_secret: settings.Secret | None = None
     admin_theme: Literal["studio", "console", "paper", "bento"] = "studio"

@@ -47,7 +47,7 @@ asyncio.run(main())
 
 
 async def main() -> None:
-    env = {**os.environ, "TRACKER_DATABASE_URL": URL}
+    env = {**os.environ, "TRACKER_DATABASE__URL": URL}
     subprocess.run(
         ["uv", "run", "--locked", "python", "-c", SETUP], cwd=ROOT, env=env, check=True
     )

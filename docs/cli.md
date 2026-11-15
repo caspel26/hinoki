@@ -124,8 +124,8 @@ hinoki settings examples.blog.settings:BlogSettings --example > .env.example
 ### `manage`
 
 ```sh
-hinoki manage examples.management:app --help
-hinoki manage examples.management:app greet Peppe
+hinoki manage --help
+hinoki manage greet Peppe
 ```
 
 Commands are declared on the app with `Hinoki(commands=[...])`. Each command subclasses `hinoki.management.Command`, gives itself a lower-case name, and adds arguments through `add_arguments(parser)`. In a scaffolded project, `hinoki manage` lists commands and `hinoki manage greet Peppe` runs one; the manifest's `project.application` supplies the app target. Outside a registered project, use `hinoki manage TARGET COMMAND`. `--help` after a command shows its arguments.
@@ -151,7 +151,8 @@ class Greet(Command):
 app = Hinoki(commands=[Greet])
 ```
 
-The same example is in `examples/management.py` and can be run from the repository root.
+The same example is in `examples/management.py`; the root manifest supplies its
+target, so it can be run from the repository root without repeating it.
 
 `handle(context, args)` may be synchronous or asynchronous. A sync handler runs on Hinoki's bounded executor. It can read `context.settings` and retrieve resources with `context.get(Type)` or `context.find(Type)`. Declare module classes in the command's `requires` tuple; Hinoki starts those modules and their dependencies for the command, then closes them before it exits. Other app modules are not started. A command with no requirements starts no app modules.
 
@@ -209,14 +210,14 @@ uv run hinoki migrations sql --app billing 0001-initial
 Without a `hinoki.toml`, the explicit legacy form remains:
 
 ```sh
-hinoki migrations --dir examples/blog/migrations plan \
-  --models examples.blog.models --name add-index --dry-run
-hinoki migrations --dir examples/blog/migrations plan \
-  --models examples.blog.models --name add-index --allow-destructive
-export HINOKI_DATABASE_URL="$BLOG_DATABASE__URL"
-hinoki migrations --dir examples/blog/migrations status
-hinoki migrations --dir examples/blog/migrations apply
-hinoki migrations --dir examples/blog/migrations sql 0001-initial
+hinoki migrations --dir myapp/migrations plan \
+  --models myapp.models --name add-index --dry-run
+hinoki migrations --dir myapp/migrations plan \
+  --models myapp.models --name add-index --allow-destructive
+export HINOKI_DATABASE_URL="$APP_DATABASE__URL"
+hinoki migrations --dir myapp/migrations status
+hinoki migrations --dir myapp/migrations apply
+hinoki migrations --dir myapp/migrations sql 0001-initial
 ```
 
 `plan` requires `--models MODULE`; `--name` is an optional slug override and is derived from the first planned schema change when omitted. `--dry-run` prints operations without writing files. Destructive operations require `--allow-destructive`. Without `HINOKI_DATABASE_URL`, plan/status/apply target the local SQLite file at `.hinoki/local.sqlite3`; `--database URL` selects another supported backend. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints `error: database: …` with a `fix:` line and exits 1; the URL is not printed. `sql NAME` prints a migration's SQL. Use a disposable database while reviewing migrations.
@@ -239,8 +240,7 @@ The development MCP is separate from application MCP, which is mounted with `exp
 hinoki dev examples.notes.main:app
 hinoki check examples.tracker.app:create_app
 hinoki settings examples.blog.settings:BlogSettings
-hinoki migrations --dir examples/blog/migrations plan \
-  --models examples.blog.models --name add-index --dry-run
+hinoki migrations plan --app blog --name add-index --dry-run
 ```
 
 When a target import fails, check that the command runs from the project directory, the package has `__init__.py` files where needed, and the attribute name is correct.

@@ -1,4 +1,4 @@
-"""Persistent models. Tables are created by ``blog.tables.SQL`` (no migrations yet)."""
+"""Persistent models; checked-in SQL migrations define their table state."""
 
 from datetime import datetime
 from typing import ClassVar
