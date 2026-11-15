@@ -272,6 +272,14 @@ uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </
 <td><code>uv run --locked mypy</code></td>
 </tr>
 <tr>
+<td>Python cognitive complexity</td>
+<td><code>uv run --locked complexipy . --failed</code></td>
+</tr>
+<tr>
+<td>Rust cognitive complexity</td>
+<td>Install <code>rust-code-analysis-cli</code> 0.0.25, then run <code>rust-code-analysis-cli -m -p crates -O json --pr -o /tmp/hinoki-rust-complexity &amp;&amp; python scripts/check_rust_complexity.py /tmp/hinoki-rust-complexity</code></td>
+</tr>
+<tr>
 <td>Python tests + coverage</td>
 <td><code>uv run --locked pytest --cov</code></td>
 </tr>
@@ -312,7 +320,7 @@ test gate.</p>
 <li><strong>Ruff</strong> is the only linter/formatter (<code>ruff check</code> with <code>--fix</code>, then <code>ruff format</code>), version pinned in <code>pyproject.toml</code> (<code>lint</code> group) and in <code>.pre-commit-config.yaml</code>; keep them equal when bumping.</li>
 <li><strong>mypy --strict</strong> is the separate type check. No overlapping tools (no black, isort, flake8, pylint).</li>
 <li><strong>maturin</strong> is the build backend (<code>python-source = "python"</code>, extension <code>hinoki.core</code>); uv rebuilds when Rust sources change (<code>tool.uv.cache-keys</code>).</li>
-<li>Complexity: Ruff <code>C901</code> ≤ 10 as the Python budget; the Shiori budget of 15 was a design target, not tied to this tooling. Rust gets clippy defaults for now.</li>
+<li>Cognitive complexity is capped at 15 for every Python function and Rust function/closure. CI runs pinned <code>complexipy</code> and <code>rust-code-analysis-cli</code>; test and development code are included. Refactor over-budget functions instead of suppressing analyzer findings.</li>
 <li>Dependency groups: <code>lint</code>, <code>typecheck</code>, <code>test</code>, aggregated by <code>dev</code>. Granian is both the optional runtime server extra and a test dependency for server integration coverage.</li>
 </ul>
 <h2 id="two-environments-two-responsibilities">Two environments, two responsibilities<a class="headerlink" href="#two-environments-two-responsibilities" title="Permanent link">&para;</a></h2>
@@ -396,7 +404,7 @@ test gate.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>6.6</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 14:07:51 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/toolchain.md">Edit on GitHub</a></dd></div>
         </dl>
