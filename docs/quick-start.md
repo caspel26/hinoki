@@ -1,17 +1,9 @@
 # Quick start
 
-This walkthrough runs the Notes example against a PostgreSQL database. It creates the table with an explicit migration; Hinoki does not create or migrate tables when the app starts.
-
-## Create the database
-
-Create an empty database and set the connection URL used by the migration command and the app:
-
-```sh
-createdb notes
-export NOTES_DATABASE__URL=postgres://postgres:pw@127.0.0.1:5432/notes
-```
-
-Use a disposable database while evaluating the example.
+This walkthrough uses the default local SQLite database, so no database server
+or URL setup is needed. It creates the table with an explicit migration;
+Hinoki does not create or migrate tables when the app starts. To use PostgreSQL,
+MySQL or MariaDB instead, see [Configure a database](databases.md).
 
 ## Plan and apply the migration
 
@@ -23,14 +15,15 @@ uv run hinoki migrations --dir examples/notes/migrations plan \
 uv run hinoki migrations --dir examples/notes/migrations sql 0001-initial
 ```
 
-Review the SQL, then apply it explicitly:
+Review the SQL, then apply it explicitly. With no URL set, the migration
+command and the Notes app both use `sqlite://./.hinoki/local.sqlite3`:
 
 ```sh
-export HINOKI_DATABASE_URL="$NOTES_DATABASE__URL"
 uv run hinoki migrations --dir examples/notes/migrations apply
 ```
 
-The migration commands read the connection URL from `HINOKI_DATABASE_URL`, so the password does not appear in the command line.
+The local database file and migration ledger are created when `apply` runs.
+Use a disposable database while evaluating the example.
 
 ## Start the app and send a request
 
@@ -54,4 +47,5 @@ The POST returns `201 Created` and a JSON object with the generated `id`, `title
 - [Tutorial](tutorial/index.md): build the Tracker example in six steps.
 - [Models and queries](models.md): fields, querysets and relation loading.
 - [Migrations](migrations.md): migration files, destructive changes and deployment workflow.
+- [Configure a database](databases.md): choose another backend, set its URL and understand backend-specific behavior.
 - [API reference](reference/index.md): public symbols and signatures.
