@@ -18,7 +18,7 @@ from hinoki import (
     object_check,
 )
 from hinoki.errors import RegistrationError, ValidationError
-from hinoki.orm import Model, field, foreign_key
+from hinoki.orm import Model, OnDelete, field, foreign_key
 from hinoki.schema import graph_has_checks
 from hinoki.testing import ASGIClient
 
@@ -30,7 +30,9 @@ class Author(Model, table="ds_authors"):
 
 class Post(Model, table="ds_posts"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
-    author_id: UUID = foreign_key(Author, on_delete="restrict", related_name="posts")
+    author_id: UUID = foreign_key(
+        Author, on_delete=OnDelete.RESTRICT, related_name="posts"
+    )
     title: str = field(max_length=60)
     slug: str = field(unique=True, max_length=80)
     body: str
