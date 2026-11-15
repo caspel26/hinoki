@@ -8,6 +8,7 @@ boundary crosses Python objects; this is not a native-only path.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
@@ -30,6 +31,7 @@ from hinoki.runtime.binding import BODY_METHODS, Binding, parse_query
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.lifespan import Lifespan
 from hinoki.runtime.origins import ALLOW_ORIGIN, CorsPolicy, HostPolicy
+from hinoki.runtime.proxy import effective_scope, inbound_request_id
 from hinoki.runtime.requests import (
     Scope,
     authorize,
@@ -95,6 +97,15 @@ class ASGIAdapter:
         self.debug = isinstance(app.settings, AppSettings) and app.settings.debug
         self.hosts = HostPolicy.of(app.settings)
         self.cors = CorsPolicy.of(app.settings)
+        settings = app.settings if isinstance(app.settings, AppSettings) else None
+        self.trusted_proxies = tuple(
+            ipaddress.ip_network(value, strict=False)
+            for value in (settings.server.trusted_proxies if settings else ())
+        )
+        self.request_id_header = (
+            settings.server.request_id_header.lower() if settings else "x-request-id"
+        )
+        self.trust_request_id = settings.server.trust_request_id if settings else False
         self.executor = SyncExecutor(app.runtime.sync_workers, app.runtime.sync_queue)
         needs_database = any(b.route.transaction for b in self.bindings)
         self.lifespan = Lifespan(
@@ -159,7 +170,19 @@ class ASGIAdapter:
             await send({"type": "lifespan.shutdown.complete"})
 
     async def _http(self, scope: Scope, receive: Any, send: Any) -> None:
-        rid = uuid.uuid4().hex
+        scope, trusted = effective_scope(scope, self.trusted_proxies)
+        request_id_headers = scope.get("headers", [])
+        incoming_rid = None
+        if trusted and self.trust_request_id:
+            incoming_rid = inbound_request_id(
+                request_id_headers, self.request_id_header
+            )
+            if incoming_rid is None and any(
+                name.lower() == self.request_id_header.encode("ascii")
+                for name, _ in request_id_headers
+            ):
+                log.warning("ignored invalid request ID from trusted proxy")
+        rid = incoming_rid or uuid.uuid4().hex
         token = request_id.set(rid)
         context.route_headers.set(())
         runner_token = context.sync_runner.set(self.executor.run)
@@ -177,7 +200,13 @@ class ASGIAdapter:
             for name, value in context.route_headers.get()
             if name.encode() not in present
         ]
-        headers = [*response.headers, *extra, (b"x-request-id", rid.encode())]
+        request_id_bytes = self.request_id_header.encode("ascii")
+        headers = [
+            (name, value)
+            for name, value in [*response.headers, *extra]
+            if name.lower() != request_id_bytes
+        ]
+        headers.append((request_id_bytes, rid.encode("ascii")))
         if self.cors is not None and ALLOW_ORIGIN not in present:
             # An answer that sets its own CORS headers keeps them.
             headers.extend(self.cors.headers(origin_of(scope)))

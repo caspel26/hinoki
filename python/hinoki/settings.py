@@ -52,6 +52,32 @@ ORIGIN = re.compile(
     re.ASCII | re.IGNORECASE,
 )
 TOKEN = re.compile(r"[!#$%&'*+.^_`|~0-9a-z-]+", re.ASCII | re.IGNORECASE)
+REQUEST_ID_HEADER_CONFLICTS = frozenset(
+    {
+        "allow",
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-length",
+        "content-range",
+        "content-security-policy",
+        "content-type",
+        "date",
+        "host",
+        "location",
+        "referrer-policy",
+        "retry-after",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "www-authenticate",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-request-id",
+    }
+)
 
 
 class SettingsError(ValueError):
@@ -784,6 +810,9 @@ class ServerSettings(Settings):
     runtime_threads: int = 1
     backlog: int = 1024
     access_log: bool = False
+    trusted_proxies: tuple[str, ...] = ()
+    request_id_header: str = "x-request-id"
+    trust_request_id: bool = False
 
     def validate(self) -> None:
         if not 0 < self.port < MAX_PORT:
@@ -792,6 +821,21 @@ class ServerSettings(Settings):
             raise ValueError(f"workers 1 to {MAX_WORKERS}, runtime_threads >= 1")
         if self.backlog < 1:
             raise ValueError("backlog must be positive")
+        for proxy in self.trusted_proxies:
+            try:
+                ipaddress.ip_network(proxy, strict=False)
+            except ValueError as exc:
+                raise ValueError(
+                    "trusted_proxies entries must be IP addresses or CIDRs"
+                ) from exc
+        if TOKEN.fullmatch(self.request_id_header) is None:
+            raise ValueError("request_id_header must be an HTTP token")
+        request_id_header = self.request_id_header.lower()
+        if (
+            request_id_header in REQUEST_ID_HEADER_CONFLICTS
+            and request_id_header != "x-request-id"
+        ) or request_id_header.startswith("access-control-"):
+            raise ValueError("request_id_header conflicts with a framework header")
 
 
 class PaginationSettings(Settings):
