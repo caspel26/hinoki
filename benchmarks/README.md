@@ -31,7 +31,39 @@ Question: what does decoding a JSON body, encoding a response and parsing a quer
 
 ```sh
 uv run --locked python benchmarks/requestbench.py
+uv run --locked python benchmarks/requestbench.py --output /tmp/request-path-micro.json
 ```
+
+The optional JSON output retains all seven per-operation samples and the
+interpreter, platform and payload metadata. Query parsing supplies the same
+1000-pair bound as the runtime.
+
+Release-profile baseline captured on 2026-11-15 after the comparative Q063
+merge: across seven samples, medians were 8.59 µs Python / 7.26 µs Rust for
+JSON decode (1.18x), 10.26 / 10.06 µs for JSON encode (1.02x), and 6.56 / 1.23
+µs for query parsing (5.35x). These are isolated function calls, not complete
+request-path results. The machine-readable samples are in
+[`request-codecs-before-rust.json`](results/request-codecs-before-rust.json).
+
+### ASGI request-path baseline
+
+`protectedgetbench.py` sends an async, bearer-protected GET through the full
+in-process ASGI adapter. Its ASGI scope includes `raw_path`, as a real server
+provides. It excludes a listening server, network, database, and application
+work beyond the auth callback and trivial handler. Five blocks of seven
+samples × 20,000 requests on a release-profile extension produced a median of
+block medians of 57.125 µs/request (CV across the five blocks: 0.8%). This is a
+local regression baseline, not a public serving-throughput claim. See
+[`request-path-before-rust.json`](results/request-path-before-rust.json).
+
+A cProfile map of the same scenario attributed much of its Python time to
+authentication hook calls and `inspect.iscoroutinefunction`, followed by
+request construction, timeout scheduling and response handling. Profiling
+inflates Python call costs and is used only to locate hotspots. Rust currently
+owns route matching, query/header/cookie and body parsing, JSON conversion,
+schema work, crypto and ORM execution; the ASGI lifecycle and application
+callbacks stay Python. A Rust adapter port needs a measured net benefit after
+PyO3 crossings and must preserve asyncio cancellation and ASGI behavior.
 
 Observations (2026-11-13, one 8-core Linux laptop, Python 3.14.8, debug-profile extension; a release-profile build gave the same numbers within noise):
 
