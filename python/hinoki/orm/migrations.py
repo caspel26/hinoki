@@ -54,6 +54,17 @@ SQLITE_TYPES: dict[Any, str] = {
     dict: "jsonb",
     list: "jsonb",
 }
+MYSQL_TYPES: dict[Any, str] = {
+    UUID: "binary(16)",
+    str: "text",
+    int: "bigint",
+    float: "double",
+    bool: "boolean",
+    datetime: "datetime(6)",
+    bytes: "longblob",
+    dict: "json",
+    list: "json",
+}
 EMPTY: dict[str, Any] = {"tables": {}}
 
 State = dict[str, Any]
@@ -73,10 +84,11 @@ class Plan:
     path: Path | None = None
 
 
-def quote(name: str) -> str:
-    if not IDENTIFIER.fullmatch(name):
+def quote(name: str, dialect: str = "postgres") -> str:
+    limit = 64 if dialect in {"mysql", "mariadb"} else MAX_IDENTIFIER
+    if not re.fullmatch(rf"[A-Za-z_][A-Za-z0-9_]{{0,{limit - 1}}}", name):
         raise MigrationError(f"invalid identifier {name!r}")
-    return f'"{name}"'
+    return f"`{name}`" if dialect in {"mysql", "mariadb"} else f'"{name}"'
 
 
 def models_of(module_name: str) -> list[type[Model]]:
@@ -108,7 +120,13 @@ def column_state(
     model: type[Model], name: str, hint: Any, meta: FieldMeta, dialect: str
 ) -> State:
     kind, nullable = base_type(model, name, hint)
-    types = SQLITE_TYPES if dialect == "sqlite" else TYPES
+    types = (
+        SQLITE_TYPES
+        if dialect == "sqlite"
+        else MYSQL_TYPES
+        if dialect in {"mysql", "mariadb"}
+        else TYPES
+    )
     sql = types.get(kind)
     if sql is None:
         label = getattr(kind, "__name__", kind)
@@ -202,8 +220,8 @@ def creation_order(tables: State) -> list[str]:
     return ordered
 
 
-def column_sql(name: str, column: State) -> str:
-    parts = [quote(name), column["type"]]
+def column_sql(name: str, column: State, dialect: str = "postgres") -> str:
+    parts = [quote(name, dialect), column["type"]]
     if column["primary_key"]:
         parts.append("PRIMARY KEY")
     elif not column["nullable"]:
@@ -213,59 +231,72 @@ def column_sql(name: str, column: State) -> str:
     target = column["references"]
     if target:
         rule = ON_DELETE[target["on_delete"]]
-        parts.append(
-            f"REFERENCES {quote(target['table'])} ({quote(target['column'])}) "
-            f"ON DELETE {rule}"
-        )
+        target_table = quote(target["table"], dialect)
+        target_column = quote(target["column"], dialect)
+        parts.append(f"REFERENCES {target_table} ({target_column}) ON DELETE {rule}")
     return " ".join(parts)
 
 
-def create_table(name: str, spec: State) -> Operation:
-    statement = create_table_sql(name, spec)
+def create_table(name: str, spec: State, dialect: str = "postgres") -> Operation:
+    statement = create_table_sql(name, spec, dialect)
     for columns in spec.get("indexes", []):
-        statement += "\n" + create_index_sql(name, columns)
+        statement += "\n" + create_index_sql(name, columns, dialect)
     return Operation(f"create table {name}", statement)
 
 
-def create_table_sql(name: str, spec: State) -> str:
-    lines = [f"    {column_sql(c, s)}" for c, s in spec["columns"].items()]
+def create_table_sql(name: str, spec: State, dialect: str = "postgres") -> str:
+    lines = [f"    {column_sql(c, s, dialect)}" for c, s in spec["columns"].items()]
     lines.extend(
-        f"    UNIQUE ({', '.join(quote(c) for c in group)})"
+        f"    UNIQUE ({', '.join(quote(c, dialect) for c in group)})"
         for group in spec.get("unique", [])
     )
     text = ",\n".join(lines)
-    return f"CREATE TABLE {quote(name)} (\n{text}\n);"
+    suffix = " ENGINE=InnoDB" if dialect in {"mysql", "mariadb"} else ""
+    return f"CREATE TABLE {quote(name, dialect)} (\n{text}\n){suffix};"
 
 
-def index_name(table: str, columns: list[str]) -> str:
+def index_name(table: str, columns: list[str], dialect: str = "postgres") -> str:
     """``ix_<table>_<columns>``, shortened with a hash past PostgreSQL's 63 bytes."""
     name = "ix_" + table + "_" + "_".join(columns)
-    if len(name) <= MAX_IDENTIFIER:
+    limit = 64 if dialect in {"mysql", "mariadb"} else MAX_IDENTIFIER
+    if len(name) <= limit:
         return name
     digest = hashlib.sha1(name.encode()).hexdigest()[:8]  # noqa: S324 - a name, not security
-    return name[: MAX_IDENTIFIER - 9] + "_" + digest
+    return name[: limit - 9] + "_" + digest
 
 
-def create_index_sql(table: str, columns: list[str]) -> str:
-    cols = ", ".join(quote(c) for c in columns)
-    name = quote(index_name(table, columns))
-    return f"CREATE INDEX {name} ON {quote(table)} ({cols});"
+def create_index_sql(table: str, columns: list[str], dialect: str = "postgres") -> str:
+    cols = ", ".join(quote(c, dialect) for c in columns)
+    name = quote(index_name(table, columns, dialect), dialect)
+    return f"CREATE INDEX {name} ON {quote(table, dialect)} ({cols});"
 
 
-def alter_column(table: str, name: str, old: State, new: State) -> list[Operation]:
+def alter_column(
+    table: str, name: str, old: State, new: State, dialect: str = "postgres"
+) -> list[Operation]:
     for key in ("primary_key", "unique", "references"):
         if old[key] != new[key]:
             raise MigrationError(
                 f"{table}.{name}: changing {key} is not planned automatically; "
                 "write that migration by hand"
             )
-    head = f"ALTER TABLE {quote(table)} ALTER COLUMN {quote(name)}"
+    if dialect in {"mysql", "mariadb"}:
+        column = column_sql(name, new, dialect)
+        return [
+            Operation(
+                f"change {table}.{name}",
+                f"ALTER TABLE {quote(table, dialect)} MODIFY COLUMN {column};",
+                "changing a column definition may rewrite the table or lose data",
+            )
+        ]
+    head = f"ALTER TABLE {quote(table, dialect)} ALTER COLUMN {quote(name, dialect)}"
     operations = []
     if old["type"] != new["type"]:
         operations.append(
             Operation(
                 f"change {table}.{name} to {new['type']}",
-                f"{head} TYPE {new['type']} USING {quote(name)}::{new['type']};",
+                f"{head} TYPE {new['type']} USING "
+                f"{quote(name, dialect)}::{new['type']};",
                 "changing a column type can rewrite the table or lose data",
             )
         )
@@ -287,26 +318,32 @@ def alter_column(table: str, name: str, old: State, new: State) -> list[Operatio
 NOT_NULL_RISK = "adding a NOT NULL column without a default fails when rows exist"
 
 
-def add_column(table: str, name: str, column: State) -> Operation:
-    statement = f"ALTER TABLE {quote(table)} ADD COLUMN {column_sql(name, column)};"
+def add_column(
+    table: str, name: str, column: State, dialect: str = "postgres"
+) -> Operation:
+    definition = column_sql(name, column, dialect)
+    statement = f"ALTER TABLE {quote(table, dialect)} ADD COLUMN {definition};"
     risk = "" if column["nullable"] else NOT_NULL_RISK
     return Operation(f"add {table}.{name}", statement, risk)
 
 
-def drop_column(table: str, name: str) -> Operation:
+def drop_column(table: str, name: str, dialect: str = "postgres") -> Operation:
     return Operation(
         f"drop {table}.{name}",
-        f"ALTER TABLE {quote(table)} DROP COLUMN {quote(name)};",
+        f"ALTER TABLE {quote(table, dialect)} DROP COLUMN {quote(name, dialect)};",
         "drops the column and its data",
     )
 
 
-def index_changes(table: str, old: State, new: State) -> list[Operation]:
+def index_changes(
+    table: str, old: State, new: State, dialect: str = "postgres"
+) -> list[Operation]:
     before = [list(c) for c in old.get("indexes", [])]
     after = [list(c) for c in new.get("indexes", [])]
     operations = [
         Operation(
-            f"index {table} ({', '.join(columns)})", create_index_sql(table, columns)
+            f"index {table} ({', '.join(columns)})",
+            create_index_sql(table, columns, dialect),
         )
         for columns in after
         if columns not in before
@@ -314,7 +351,14 @@ def index_changes(table: str, old: State, new: State) -> list[Operation]:
     operations.extend(
         Operation(
             f"drop index {table} ({', '.join(columns)})",
-            f"DROP INDEX {quote(index_name(table, columns))};",
+            (
+                "DROP INDEX "
+                f"{quote(index_name(table, columns, dialect), dialect)} "
+                f"ON {quote(table, dialect)};"
+                if dialect in {"mysql", "mariadb"}
+                else "DROP INDEX "
+                f"{quote(index_name(table, columns, dialect), dialect)};"
+            ),
         )
         for columns in before
         if columns not in after
@@ -395,21 +439,23 @@ def table_changes(table: str, old: State, new: State, dialect: str) -> list[Oper
             "unique", []
         ):
             return [sqlite_rebuild(table, old, new)]
-        return index_changes(table, old, new)
+        return index_changes(table, old, new, dialect)
     operations: list[Operation] = []
     if old.get("unique", []) != new.get("unique", []):
         raise MigrationError(
             f"{table}: changing composite unique constraints is not planned "
             "automatically; write that migration by hand"
         )
-    operations.extend(index_changes(table, old, new))
+    operations.extend(index_changes(table, old, new, dialect))
     for name, column in new["columns"].items():
         if name not in old["columns"]:
-            operations.append(add_column(table, name, column))
+            operations.append(add_column(table, name, column, dialect))
         elif old["columns"][name] != column:
-            operations.extend(alter_column(table, name, old["columns"][name], column))
+            operations.extend(
+                alter_column(table, name, old["columns"][name], column, dialect)
+            )
     operations.extend(
-        drop_column(table, name)
+        drop_column(table, name, dialect)
         for name in old["columns"]
         if name not in new["columns"]
     )
@@ -418,7 +464,7 @@ def table_changes(table: str, old: State, new: State, dialect: str) -> list[Oper
 
 def diff(old: State, new: State, dialect: str = "postgres") -> list[Operation]:
     operations = [
-        create_table(name, new["tables"][name])
+        create_table(name, new["tables"][name], dialect)
         for name in creation_order(new["tables"])
         if name not in old["tables"]
     ]
@@ -428,7 +474,7 @@ def diff(old: State, new: State, dialect: str = "postgres") -> list[Operation]:
     operations.extend(
         Operation(
             f"drop table {name}",
-            f"DROP TABLE {quote(name)};",
+            f"DROP TABLE {quote(name, dialect)};",
             "drops the table and all its rows",
         )
         for name in reversed(creation_order(old["tables"]))
@@ -485,7 +531,7 @@ def plan(
     """
     if not NAME.fullmatch(name):
         raise MigrationError("migration names use lowercase letters, digits and -")
-    if dialect not in {"postgres", "sqlite"}:
+    if dialect not in {"postgres", "sqlite", "mysql", "mariadb"}:
         raise MigrationError(f"unsupported migration dialect {dialect!r}")
     new = state_of(models, dialect)
     operations = diff(latest_state(directory), new, dialect)
