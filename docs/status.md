@@ -19,7 +19,7 @@ The examples are the best way to see the pieces together: [Notes](https://github
 * Many-to-many links use an explicit model with two foreign keys and a composite uniqueness constraint. Implicit join models, direct collection access such as `post.tags`, and advanced relation paths are not available.
 * Additional database backends and end-to-end performance claims are not available.
 * The server adapter is ASGI. `hinoki.wsgi.WSGIAdapter` wraps an application for WSGI servers (buffered bodies, no streaming); verified with Granian only, see [serving](serving.md#wsgi).
-* General CORS middleware is not available; application MCP has its own allowed-origin check. Cursor pagination is not available; pagination currently uses page numbers.
+* CORS is one application-wide policy in the `cors` settings group; there is no per-route CORS option. Application MCP has its own allowed-origin check. Cursor pagination is not available; pagination currently uses page numbers.
 * Pagination page-size defaults are `20` and `100`; the `pagination` settings group changes them for the whole app and an action's own `PageNumberPagination` values win. See [pagination](pagination.md).
 * OpenAPI generation creates operation IDs and reads summary/description from handler docstrings. Per-action `tags`, `deprecated`, custom `operation_id` and `include_in_schema` controls are not available.
 * There is no maintained Docker image or deployment recipe. `hinoki serve` runs the app with Granian; container packaging and process orchestration are application deployment choices.
