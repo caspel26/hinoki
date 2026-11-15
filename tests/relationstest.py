@@ -9,8 +9,8 @@ import pytest
 
 from hinoki.db import Database, ForeignKeyViolation
 from hinoki.errors import FieldError, RegistrationError, RelationNotLoaded
-from hinoki.orm import Model, field, foreign_key, use_database
-from hinoki.orm.relations import Related
+from hinoki.orm import Model, OnDelete, field, foreign_key, use_database
+from hinoki.orm.relations import ON_DELETE, Related
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(
@@ -32,14 +32,18 @@ class Writer(Model, table="rel_writers"):
 
 class Article(Model, table="rel_articles"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
-    writer_id: UUID = foreign_key(Writer, on_delete="restrict", related_name="articles")
+    writer_id: UUID = foreign_key(
+        Writer, on_delete=OnDelete.RESTRICT, related_name="articles"
+    )
     title: str
     writer: ClassVar[Related[Writer]]
 
 
 class Note(Model, table="rel_notes"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
-    article_id: UUID | None = foreign_key(Article, on_delete="set_null", default=None)
+    article_id: UUID | None = foreign_key(
+        Article, on_delete=OnDelete.SET_NULL, default=None
+    )
     text: str = ""
     article: ClassVar[Related[Article | None]]
 
@@ -62,17 +66,18 @@ def test_relations_are_never_loaded_by_attribute_access() -> None:
 
 
 def test_declaration_errors() -> None:
-    with pytest.raises(RegistrationError, match="on_delete"):
-        foreign_key(Writer, on_delete="whatever")  # type: ignore[arg-type]
+    with pytest.raises(RegistrationError, match=r"OnDelete\.RESTRICT"):
+        foreign_key(Writer, on_delete="cascade")  # type: ignore[arg-type]
+    assert [rule.value for rule in OnDelete] == list(ON_DELETE)
     for annotation in (UUID, "UUID"):
-        with pytest.raises(RegistrationError, match=r"Bad\.writer_id.*set_null"):
+        with pytest.raises(RegistrationError, match=r"Bad\.writer_id.*SET_NULL"):
             type(
                 "Bad",
                 (Model,),
                 {
                     "__annotations__": {"id": int, "writer_id": annotation},
                     "id": field(primary_key=True),
-                    "writer_id": foreign_key(Writer, on_delete="set_null"),
+                    "writer_id": foreign_key(Writer, on_delete=OnDelete.SET_NULL),
                 },
                 table="rel_bad_null",
             )
@@ -84,7 +89,7 @@ def test_declaration_errors() -> None:
             {
                 "__annotations__": {"id": int, "owner": UUID},
                 "id": field(primary_key=True),
-                "owner": foreign_key(Writer, on_delete="cascade"),
+                "owner": foreign_key(Writer, on_delete=OnDelete.CASCADE),
             },
             table="bad",
         )
@@ -96,7 +101,7 @@ def test_declaration_errors() -> None:
                 "__annotations__": {"id": int, "writer_id": UUID},
                 "id": field(primary_key=True),
                 "writer_id": foreign_key(
-                    Writer, on_delete="cascade", related_name="name"
+                    Writer, on_delete=OnDelete.CASCADE, related_name="name"
                 ),
             },
             table="clash",
@@ -305,7 +310,7 @@ def test_models_with_foreign_keys_can_be_subclassed_and_redefined() -> None:
                 "__annotations__": {"id": int, "owner_id": int},
                 "id": field(primary_key=True),
                 "owner_id": foreign_key(
-                    owner, on_delete="cascade", related_name="pets"
+                    owner, on_delete=OnDelete.CASCADE, related_name="pets"
                 ),
             },
             table="rel_pets",
@@ -322,7 +327,7 @@ def test_models_with_foreign_keys_can_be_subclassed_and_redefined() -> None:
                 "__annotations__": {"id": int, "owner_id": int},
                 "id": field(primary_key=True),
                 "owner_id": foreign_key(
-                    owner, on_delete="cascade", related_name="pets"
+                    owner, on_delete=OnDelete.CASCADE, related_name="pets"
                 ),
             },
             table="rel_cats",
@@ -339,10 +344,10 @@ def test_a_failed_definition_does_not_leave_half_attached_relations() -> None:
                 "__annotations__": {"id": int, "writer_id": UUID, "owner_id": UUID},
                 "id": field(primary_key=True),
                 "writer_id": foreign_key(
-                    Writer, on_delete="cascade", related_name="broken_set"
+                    Writer, on_delete=OnDelete.CASCADE, related_name="broken_set"
                 ),
                 "owner_id": foreign_key(
-                    Writer, on_delete="cascade", related_name="articles"
+                    Writer, on_delete=OnDelete.CASCADE, related_name="articles"
                 ),
             },
             table="broken",
@@ -369,7 +374,9 @@ def test_long_column_names_do_not_overflow_aliases() -> None:
         {
             "__annotations__": {"id": int, "primary_author_of_the_book_id": int},
             "id": field(primary_key=True),
-            "primary_author_of_the_book_id": foreign_key(long, on_delete="cascade"),
+            "primary_author_of_the_book_id": foreign_key(
+                long, on_delete=OnDelete.CASCADE
+            ),
         },
         table="rel_holder",
     )
@@ -385,7 +392,7 @@ def test_a_join_alias_equal_to_the_base_table_is_refused() -> None:
         {
             "__annotations__": {"id": int, "writer_id": UUID},
             "id": field(primary_key=True),
-            "writer_id": foreign_key(Writer, on_delete="cascade"),
+            "writer_id": foreign_key(Writer, on_delete=OnDelete.CASCADE),
         },
         table="rel_writer",
     )
