@@ -7,27 +7,39 @@ related:
 
 # Migrations
 
-Hinoki compares the models in a module with the migration state recorded in files. It can write a migration plan, but never applies schema changes when an application starts.
+Hinoki compares each registered app's models with that app's migration state recorded in files. It can write a migration plan, but never applies schema changes when an application starts. `hinoki new` creates an explicit `hinoki.toml`; `hinoki app create NAME` adds another app and its migration package.
 
 ## Create a migration
 
 ```sh
-hinoki migrations --dir examples/blog/migrations plan \
-  --models examples.blog.models --name add-published
+uv run hinoki migrations plan --name add-published
+uv run hinoki migrations plan --app billing --name add-invoice-index
 ```
 
-The planner targets the local SQLite default unless a URL is provided through `HINOKI_DATABASE_URL` or `--database`. It writes a numbered `.sql` file and a matching `.state.json` file. Review both before applying the change. To inspect a plan without writing files, add `--dry-run`.
+The manifest must register the selected app. A single-app project defaults to that app; in a multi-app project, `plan` requires `--app`. The planner targets the local SQLite default unless a URL is provided through `HINOKI_DATABASE_URL` or `--database`. It writes a numbered `.sql` file and a matching `.state.json` file into the registered migration package. Review both before applying the change. To inspect a plan without writing files, add `--dry-run`. Cross-app model references require an explicit `requires` dependency in `hinoki.toml`; this lets Hinoki validate references and order migrations without assigning another app's tables to the current app's migration state.
+
+For example, `billing` can depend on `accounts`:
+
+```toml
+[[apps]]
+name = "billing"
+models = "sample.apps.billing.models"
+migrations = "sample.apps.billing.migrations"
+requires = ["accounts"]
+```
 
 ## Apply and inspect
 
 ```sh
 export HINOKI_DATABASE_URL="$BLOG_DATABASE__URL"
-hinoki migrations --dir examples/blog/migrations status
-hinoki migrations --dir examples/blog/migrations sql 0001-initial
-hinoki migrations --dir examples/blog/migrations apply
+uv run hinoki migrations status
+uv run hinoki migrations sql --app accounts 0001-initial
+uv run hinoki migrations apply
 ```
 
-With no URL, `status` and `apply` use `sqlite://./.hinoki/local.sqlite3`. Set `HINOKI_DATABASE_URL` or use `--database URL` to target another supported backend. A URL argument is visible in the process list and shell history, so do not pass a URL containing a password that way. A failed connection is reported as `error: database: …` with exit code 1, without the URL.
+With no URL, `status` and `apply` use `sqlite://./.hinoki/local.sqlite3` and create the migration ledger/database as needed. Both operate on every registered app in dependency order. `--app NAME` limits them to that app and its prerequisites. `sql` requires `--app` in a multi-app project. The root app keeps the traditional unprefixed migration ledger keys, so a project can add a manifest without replaying its existing migration history; added apps use namespaced keys, so `accounts/0001-initial.sql` and `billing/0001-initial.sql` are distinct records. Set `HINOKI_DATABASE_URL` or use `--database URL` to target another supported backend. A URL argument is visible in the process list and shell history, so do not pass a URL containing a password that way. A failed connection is reported as `error: database: …` with exit code 1, without the URL.
+
+Existing projects without a `hinoki.toml` can continue using explicit `--models MODULE` and `--dir PATH` options. These options cannot be combined with a project manifest; use the manifest as the single source for registered apps.
 
 Use a disposable database to review a migration before running it against important data.
 

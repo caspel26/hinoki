@@ -282,6 +282,8 @@ uv run hinoki new shop --dir ..
 
 This writes `../shop` with an application, a rule set, a test, settings, and instructions and an MCP configuration for coding agents. Its `pyproject.toml` points at this checkout, because this repository's framework is not published on PyPI and the `hinoki` name there belongs to an unrelated legacy package. The [AI workflow guide](https://caspel26.github.io/hinoki/dev/ai-workflow/) describes how an agent can use the development MCP server.
 
+The generated `hinoki.toml` explicitly registers the project app and its migration package. From that project, `uv run hinoki migrations plan` discovers models automatically, and `uv run hinoki migrations apply` initializes the local SQLite database when no URL is configured. Add a separate module with `uv run hinoki app create billing`; Hinoki creates its model and migration package and includes it in dependency-ordered migration commands. `uv run hinoki manage` lists the default app's management commands without requiring a module target.
+
 ## Admin
 
 The optional admin (`hinoki.admin`) gives staff lists, search, forms, bulk actions and a dashboard for the models you register, behind the same access policies as the API. It has four built-in styles, each in light and dark. The [Blog example](examples/blog) uses it.
