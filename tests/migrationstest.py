@@ -14,10 +14,11 @@ import pytest
 from hinoki.__main__ import main
 from hinoki.db import Database
 from hinoki.errors import DestructiveMigration, MigrationError
-from hinoki.orm import Model, OnDelete, field, foreign_key, migrator
+from hinoki.orm import Model, OnDelete, field, foreign_key, migrator, use_database
 from hinoki.orm.migrations import models_of, plan, statements
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
+MYSQL_URL = os.environ.get("HINOKI_TEST_MYSQL_URL")
 needs_database = pytest.mark.skipif(
     URL is None, reason="HINOKI_TEST_DATABASE_URL is not set"
 )
@@ -72,6 +73,85 @@ def test_first_plan_creates_tables_in_dependency_order(tmp_path: Path) -> None:
     assert '"seen" timestamptz,' in text or '"seen" timestamptz\n' in text
     state = json.loads((tmp_path / "0001-initial.state.json").read_text())
     assert state["tables"]["mig_things"]["columns"]["seen"]["nullable"] is True
+
+
+def test_mysql_plan_uses_mysql_types_and_quoting(tmp_path: Path) -> None:
+    owner = owners()
+    result = plan([things(owner), owner], tmp_path, "mysql", dialect="mysql")
+    assert result.path is not None
+    text = result.path.read_text()
+    assert "CREATE TABLE `mig_owners`" in text
+    assert "`id` bigint PRIMARY KEY" in text
+    assert "`name` varchar(40) NOT NULL" in text
+    assert "ENGINE=InnoDB" in text
+    assert "`id` binary(16) PRIMARY KEY" in text
+    assert (
+        "`owner_id` bigint NOT NULL REFERENCES `mig_owners` (`id`) ON DELETE CASCADE"
+        in text
+    )
+    assert "`tags` json NOT NULL" in text
+    assert "`seen` datetime(6)" in text
+
+
+def test_mysql_plan_rejects_unsupported_dialects(tmp_path: Path) -> None:
+    with pytest.raises(MigrationError, match="unsupported migration dialect"):
+        plan([owners()], tmp_path, "oracle", dialect="oracle")
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(MYSQL_URL is None, reason="HINOKI_TEST_MYSQL_URL is not set")
+async def test_mysql_migrations_and_model_returning_contract(tmp_path: Path) -> None:
+    assert MYSQL_URL is not None
+    owner = owners()
+    thing = things(owner)
+    database = await Database.connect(MYSQL_URL, max_size=3)
+    for table in ("mig_things", "mig_owners", "hinoki_migrations"):
+        await database.execute(f"DROP TABLE IF EXISTS `{table}`")
+    plan([thing, owner], tmp_path, "initial", dialect="mysql")
+    assert await migrator.apply(database, tmp_path) == ["0001-initial"]
+    assert await migrator.apply(database, tmp_path) == []
+    with use_database(database):
+        await owner.acreate(id=7, name="owner")
+        created: Any = await thing.acreate(
+            id=UUID(int=1), owner_id=7, tags={"ready": True}, seen=None
+        )
+        assert created.id == UUID(int=1)
+        updated: Any = await thing.filter(id=UUID(int=1)).aupdate(
+            {"tags": {"ready": False}}
+        )
+        assert len(updated) == 1
+        assert updated[0].tags == {"ready": False}
+    for table in ("mig_things", "mig_owners", "hinoki_migrations"):
+        await database.execute(f"DROP TABLE IF EXISTS `{table}`")
+    database.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(MYSQL_URL is None, reason="HINOKI_TEST_MYSQL_URL is not set")
+async def test_mysql_failed_migration_reports_implicit_ddl_commit(
+    tmp_path: Path,
+) -> None:
+    assert MYSQL_URL is not None
+    database = await Database.connect(MYSQL_URL, max_size=2)
+    table = "hinoki_mysql_partial_migration"
+    await database.execute(f"DROP TABLE IF EXISTS `{table}`")
+    path = tmp_path / "0001-partial.sql"
+    path.write_text(
+        f"CREATE TABLE `{table}` (`id` BIGINT PRIMARY KEY) ENGINE=InnoDB;\n"
+        "CREATE TABLE broken syntax;\n",
+        encoding="utf-8",
+    )
+    await migrator.status(database, tmp_path)
+    with pytest.raises(MigrationError, match="may be partially applied"):
+        await migrator.apply_one(database, path)
+    rows = await database.fetch(
+        "SELECT COUNT(*) AS `count` FROM information_schema.tables "
+        "WHERE table_schema = DATABASE() AND table_name = ?",
+        table,
+    )
+    assert rows[0]["count"] == 1
+    await database.execute(f"DROP TABLE `{table}`")
+    database.close()
 
 
 def test_models_are_importable_from_a_console_script() -> None:

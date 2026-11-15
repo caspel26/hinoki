@@ -81,6 +81,7 @@ nav:
   - Guides:
       - Overview: guides.md
       - Data:
+          - Configure a database: databases.md
           - Models and queries: models.md
           - Schemas: schemas.md
           - Model-derived schemas: model-schemas.md

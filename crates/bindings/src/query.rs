@@ -80,6 +80,7 @@ pub fn compile_query(
     let dialect = match dialect {
         "postgres" => Dialect::Postgres,
         "sqlite" => Dialect::Sqlite,
+        "mysql" | "mariadb" => Dialect::Mysql,
         other => {
             return Err(PyValueError::new_err(format!(
                 "unknown SQL dialect {other:?}"

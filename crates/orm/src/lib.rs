@@ -2,6 +2,7 @@
 
 mod database;
 mod error;
+mod mysql;
 pub mod query;
 mod sqlite;
 mod tls;

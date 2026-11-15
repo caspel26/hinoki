@@ -1,6 +1,7 @@
 //! Connection pool, statements and transactions.
 
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use deadpool_postgres::{Config, Object, PoolConfig, Runtime, SslMode, Timeouts};
@@ -9,6 +10,7 @@ use tokio_postgres::NoTls;
 use tokio_postgres_rustls::MakeRustlsConnect;
 
 use crate::error::{DbError, ErrorKind};
+use crate::mysql::{MysqlLease, MysqlPool};
 use crate::sqlite::{connect_path, SqliteLease, SqlitePool};
 use crate::tls::{connector, extract_options};
 use crate::value::Value;
@@ -28,6 +30,7 @@ enum DatabaseBackend {
         tls: Option<MakeRustlsConnect>,
     },
     Sqlite(SqlitePool),
+    Mysql(MysqlPool),
 }
 
 fn params(values: &[Value]) -> Vec<&(dyn ToSql + Sync)> {
@@ -207,6 +210,11 @@ impl Database {
                 backend: DatabaseBackend::Sqlite(SqlitePool::open(&path, max_size, wait)?),
             });
         }
+        if url.starts_with("mysql://") {
+            return Ok(Self {
+                backend: DatabaseBackend::Mysql(MysqlPool::connect(url, max_size, wait)?),
+            });
+        }
         let (url, tls_options) = extract_options(url)
             .map_err(|_| DbError::new(ErrorKind::Connect, "invalid database TLS configuration"))?;
         let mut config = Config::new();
@@ -265,6 +273,14 @@ impl Database {
         if let DatabaseBackend::Sqlite(sqlite) = &self.backend {
             return sqlite.acquire().await?.fetch(sql, values).await;
         }
+        if let DatabaseBackend::Mysql(mysql) = &self.backend {
+            let mut lease = mysql.acquire().await?;
+            let outcome = lease.fetch(sql, values).await;
+            if outcome.is_ok() {
+                lease.release();
+            }
+            return outcome;
+        }
         let lease = self.acquire().await?;
         let outcome = fetch_with_recovery(lease.get(), sql, values).await;
         lease.release();
@@ -274,6 +290,14 @@ impl Database {
     pub async fn execute(&self, sql: &str, values: &[Value]) -> Result<u64, DbError> {
         if let DatabaseBackend::Sqlite(sqlite) = &self.backend {
             return sqlite.acquire().await?.execute(sql, values).await;
+        }
+        if let DatabaseBackend::Mysql(mysql) = &self.backend {
+            let mut lease = mysql.acquire().await?;
+            let outcome = lease.execute(sql, values).await;
+            if outcome.is_ok() {
+                lease.release();
+            }
+            return outcome;
         }
         let lease = self.acquire().await?;
         let outcome = execute_with_recovery(lease.get(), sql, values).await;
@@ -289,6 +313,11 @@ impl Database {
             let mut lease = sqlite.acquire().await?;
             lease.begin("BEGIN IMMEDIATE").await?;
             return Ok(Transaction::new_sqlite(lease));
+        }
+        if let DatabaseBackend::Mysql(mysql) = &self.backend {
+            let mut lease = mysql.acquire().await?;
+            lease.begin().await?;
+            return Ok(Transaction::new_mysql(lease));
         }
         let lease = self.acquire().await?;
         lease
@@ -306,6 +335,11 @@ impl Database {
             primary.begin("BEGIN IMMEDIATE").await?;
             return Ok(Transaction::new_sqlite_migration(primary, reserved));
         }
+        if matches!(&self.backend, DatabaseBackend::Mysql(_)) {
+            let mut transaction = self.begin().await?;
+            transaction.lock_mysql_migrations().await?;
+            return Ok(transaction);
+        }
         self.begin().await
     }
 
@@ -313,6 +347,7 @@ impl Database {
         match &self.backend {
             DatabaseBackend::Postgres { pool, .. } => pool.close(),
             DatabaseBackend::Sqlite(pool) => pool.close(),
+            DatabaseBackend::Mysql(pool) => pool.close(),
         }
     }
 
@@ -320,12 +355,14 @@ impl Database {
         match &self.backend {
             DatabaseBackend::Postgres { .. } => "postgres",
             DatabaseBackend::Sqlite(_) => "sqlite",
+            DatabaseBackend::Mysql(_) => "mysql",
         }
     }
 
     pub fn status(&self) -> (usize, usize) {
         match &self.backend {
             DatabaseBackend::Sqlite(pool) => pool.status(),
+            DatabaseBackend::Mysql(pool) => pool.status(),
             DatabaseBackend::Postgres { pool, .. } => {
                 let status = pool.status();
                 (status.size, status.available)
@@ -363,6 +400,7 @@ pub struct Transaction {
     failed: AtomicBool,
     /// A statement was abandoned mid-flight.
     poisoned: AtomicBool,
+    mysql_migration_lock: bool,
 }
 
 enum TransactionBackend {
@@ -374,6 +412,7 @@ enum TransactionBackend {
         primary: SqliteLease,
         reserved: Vec<SqliteLease>,
     },
+    Mysql(Arc<tokio::sync::Mutex<MysqlLease>>),
     Finished,
 }
 
@@ -386,6 +425,7 @@ impl Transaction {
             },
             failed: AtomicBool::new(false),
             poisoned: AtomicBool::new(false),
+            mysql_migration_lock: false,
         }
     }
 
@@ -397,6 +437,16 @@ impl Transaction {
             },
             failed: AtomicBool::new(false),
             poisoned: AtomicBool::new(false),
+            mysql_migration_lock: false,
+        }
+    }
+
+    fn new_mysql(mysql: MysqlLease) -> Self {
+        Self {
+            backend: TransactionBackend::Mysql(Arc::new(tokio::sync::Mutex::new(mysql))),
+            failed: AtomicBool::new(false),
+            poisoned: AtomicBool::new(false),
+            mysql_migration_lock: false,
         }
     }
 
@@ -408,7 +458,34 @@ impl Transaction {
             },
             failed: AtomicBool::new(false),
             poisoned: AtomicBool::new(false),
+            mysql_migration_lock: false,
         }
+    }
+
+    async fn lock_mysql_migrations(&mut self) -> Result<(), DbError> {
+        let TransactionBackend::Mysql(mysql) = &self.backend else {
+            return Ok(());
+        };
+        let rows = mysql
+            .lock()
+            .await
+            .fetch(
+                "SELECT GET_LOCK(CONCAT('h', LEFT(SHA2(DATABASE(), 256), 63)), 5) AS acquired",
+                &[],
+            )
+            .await?;
+        let acquired = rows
+            .first()
+            .and_then(|row| row.first())
+            .map(|(_, value)| value);
+        if !matches!(acquired, Some(Value::Int(1)) | Some(Value::Bool(true))) {
+            return Err(DbError::new(
+                ErrorKind::Other,
+                "could not acquire the database migration lock",
+            ));
+        }
+        self.mysql_migration_lock = true;
+        Ok(())
     }
 
     fn conn(&self) -> Result<&Object, DbError> {
@@ -424,6 +501,7 @@ impl Transaction {
             } => Ok(conn),
             TransactionBackend::Postgres { conn: None, .. }
             | TransactionBackend::Sqlite { .. }
+            | TransactionBackend::Mysql(_)
             | TransactionBackend::Finished => Err(DbError::new(
                 ErrorKind::Other,
                 "transaction connection is unavailable for this operation",
@@ -432,6 +510,9 @@ impl Transaction {
     }
 
     fn settle<T>(&self, sql: &str, outcome: &Result<T, DbError>) {
+        if matches!(&self.backend, TransactionBackend::Mysql(_)) {
+            return;
+        }
         match outcome {
             // Only a server-reported error aborts the transaction; a
             // client-side encoding or decoding failure does not.
@@ -460,6 +541,11 @@ impl Transaction {
                 ErrorKind::Other,
                 "transaction already finished",
             )),
+            TransactionBackend::Mysql(mysql) => {
+                let outcome = mysql.lock().await.fetch(sql, values).await;
+                self.settle(sql, &outcome);
+                outcome
+            }
             TransactionBackend::Postgres { tls, .. } => {
                 let conn = self.conn()?;
                 let mut flight = Flight {
@@ -487,6 +573,11 @@ impl Transaction {
                 ErrorKind::Other,
                 "transaction already finished",
             )),
+            TransactionBackend::Mysql(mysql) => {
+                let outcome = mysql.lock().await.execute(sql, values).await;
+                self.settle(sql, &outcome);
+                outcome
+            }
             TransactionBackend::Postgres { tls, .. } => {
                 let conn = self.conn()?;
                 let mut flight = Flight {
@@ -548,6 +639,23 @@ impl Transaction {
                 ErrorKind::Other,
                 "transaction already finished",
             )),
+            TransactionBackend::Mysql(mysql) => {
+                let mysql = Arc::clone(mysql);
+                let mut lease = mysql.lock().await;
+                lease.batch(statement).await?;
+                if self.mysql_migration_lock {
+                    lease
+                        .fetch(
+                            "SELECT RELEASE_LOCK(CONCAT('h', LEFT(SHA2(DATABASE(), 256), 63))) AS released",
+                            &[],
+                        )
+                        .await?;
+                }
+                self.mysql_migration_lock = false;
+                drop(lease);
+                self.backend = TransactionBackend::Finished;
+                Ok(())
+            }
             TransactionBackend::Postgres { conn, .. } => {
                 let connection = conn.as_ref().ok_or_else(|| {
                     DbError::new(ErrorKind::Other, "transaction already finished")
@@ -576,6 +684,13 @@ impl Drop for Transaction {
                 primary.discard();
                 for connection in reserved {
                     connection.discard();
+                }
+            }
+            TransactionBackend::Mysql(mysql) => {
+                if let Some(mysql) = Arc::get_mut(mysql) {
+                    // A dropped transaction must not return an open transaction
+                    // to the pool; terminate the session instead.
+                    mysql.get_mut().abandon();
                 }
             }
             TransactionBackend::Finished => {}

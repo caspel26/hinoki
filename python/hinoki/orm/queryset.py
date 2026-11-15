@@ -288,10 +288,28 @@ class QuerySet[M: Model]:
             self.model.__table__,
             assignments=list(values.items()),
             filters=list(self.filters),
-            returning=list(self.model.__columns__),
+            returning=(
+                []
+                if database.dialect in {"mysql", "mariadb"}
+                else list(self.model.__columns__)
+            ),
             dialect=database.dialect,
         )
-        rows = await database.fetch(sql, *params)
+        if database.dialect in {"mysql", "mariadb"}:
+            # MySQL has no UPDATE ... RETURNING. Select matching rows on the
+            # same transaction connection so the return value remains stable.
+            async with database.transaction():
+                await database.execute(sql, *params)
+                select_sql, select_params = core.compile_query(
+                    "select",
+                    self.model.__table__,
+                    columns=list(self.model.__columns__),
+                    filters=list(self.filters),
+                    dialect=database.dialect,
+                )
+                rows = await database.fetch(select_sql, *select_params)
+        else:
+            rows = await database.fetch(sql, *params)
         return [self.model.from_row(row) for row in rows]
 
     async def adelete(self) -> int:

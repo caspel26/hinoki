@@ -23,6 +23,7 @@ uuid = "1"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 bytes = "1"
+mysql_async = { version = "0.37.1", features = ["minimal-rust", "rustls-tls", "ring", "chrono"], default-features = false }
 
 [dev-dependencies]
 uuid = { version = "1", features = ["v4"] }
