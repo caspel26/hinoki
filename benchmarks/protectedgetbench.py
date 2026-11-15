@@ -33,6 +33,7 @@ SCOPE = {
     "type": "http",
     "method": "GET",
     "path": "/items/1",
+    "raw_path": b"/items/1",
     "scheme": "http",
     "query_string": b"expand=author&page=2",
     "headers": [
