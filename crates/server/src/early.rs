@@ -77,7 +77,13 @@ impl Template {
     fn fill(&self, request_id: &str) -> Vec<u8> {
         let mut body = Vec::with_capacity(self.prefix.len() + request_id.len() + self.suffix.len());
         body.extend_from_slice(&self.prefix);
-        body.extend_from_slice(request_id.as_bytes());
+        for byte in request_id.bytes() {
+            // A trusted inbound id may hold a quote or backslash: keep the JSON valid.
+            if byte == b'"' || byte == b'\\' {
+                body.push(b'\\');
+            }
+            body.push(byte);
+        }
         body.extend_from_slice(&self.suffix);
         body
     }
@@ -138,6 +144,14 @@ mod tests {
             out,
             b"{\"error\": \"uri_too_long\", \"request_id\": \"abcd\"}"
         );
+    }
+
+    #[test]
+    fn escapes_quotes_and_backslashes_in_the_id() {
+        let bodies = EarlyBodies::new(&[(Early::NotFound, body("not_found"))]).unwrap();
+        let out = bodies.render(&Early::NotFound, "a\"}\\").unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(text.ends_with(r#""request_id": "a\"}\\"}"#), "{text}");
     }
 
     #[test]
