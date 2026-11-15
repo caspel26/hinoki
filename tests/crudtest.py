@@ -128,6 +128,8 @@ class UnsafeHooks(Memos, path="/unsafe-hooks"):
 
 
 class SyncHooks(Memos, path="/sync-hooks"):
+    pagination = PageNumberPagination(page_size=100, max_page_size=100)
+
     def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Memo]:
         del principal
         return Memo.all()
@@ -423,6 +425,31 @@ async def test_all_crud_hooks_accept_sync_definitions(memos: Client) -> None:
     assert (
         await memos.request("DELETE", f"/sync-hooks/{key}", headers=ANN)
     ).status == 204
+
+
+@needs_database
+async def test_sync_schema_hook_does_not_saturate_executor_for_full_page(
+    memos: Client,
+) -> None:
+    assert URL is not None
+    admin = await Database.connect(URL, max_size=1)
+    for index in range(100):
+        await admin.execute(
+            "INSERT INTO crud_memos (id, owner, title, body) VALUES ($1, $2, $3, $4)",
+            uuid4(),
+            "ann",
+            f"note-{index}",
+            "",
+        )
+    admin.close()
+
+    response = await memos.request(
+        "GET", "/sync-hooks", query="page_size=100", headers=ANN
+    )
+
+    assert response.status == 200, response.body
+    assert response.body["total"] == 100
+    assert len(response.body["items"]) == 100
 
 
 @needs_database
