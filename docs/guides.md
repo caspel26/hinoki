@@ -20,6 +20,7 @@ One page for each part of an application. Start with the data and endpoint guide
 ## Endpoints
 
 - [Endpoint declarations](endpoints.md): Hinoki endpoints are ordinary Python functions decorated with an HTTP method.
+- [Generate CRUD routes](crud.md): Generate model-backed list, retrieve and selected write actions, with access and ownership rules.
 - [OpenAPI](openapi.md): The OpenAPI 3.1 document is generated from registered routes, signatures and schema declarations.
 - [Errors](errors.md): Hinoki separates malformed requests, authentication failures and application errors.
 - [Pagination](pagination.md): An action opts into page-number pagination with `PageNumberPagination()`.
@@ -42,7 +43,7 @@ One page for each part of an application. Start with the data and endpoint guide
 
 ## Integrations
 
-- [Admin](admin.md): An optional extra that gives staff a list, search, create, edit, bulk delete and a dashboard for your models.
+- [Admin](admin.md): An optional module that gives staff a list, search, create, edit, bulk delete and a dashboard for your models; it is included in the framework package and mounted explicitly.
 - [Application MCP](app-mcp.md): expose_as_mcp turns selected HTTP actions into tools for an MCP client.
 - [Development MCP](dev-mcp.md): CLI-hosted tools describe an app and its rules to an agent.
 - [Development tools](ai-workflow.md): Scaffold a project and give a coding agent rules, error explanations and an MCP server.
@@ -50,6 +51,7 @@ One page for each part of an application. Start with the data and endpoint guide
 ## Operating
 
 - [Sync and async](sync-async.md): Hinoki runs on one event loop per worker; synchronous handlers run on a bounded worker pool.
+- [Benchmarks](benchmarks.md): retained measurements with their environment, method and limits.
 
 ## Where to go next
 

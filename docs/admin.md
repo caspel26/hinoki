@@ -4,9 +4,15 @@ status: implemented
 
 # The admin
 
-An optional extra (`hinoki.admin`) that gives staff a list, search, create, edit, bulk delete and a dashboard for your models, with the same access policies and CSRF protection as the rest of the app. Nothing is mounted unless you ask, and importing it never touches a database.
+The optional `hinoki.admin` module gives staff a list, search, create, edit, bulk delete and a dashboard for your models, with the same access policies and CSRF protection as the rest of the app. It is included in the framework package; nothing is mounted unless you ask, and importing it never touches a database.
+
+The following excerpt follows the [Blog admin module](https://github.com/caspel26/hinoki/blob/main/examples/blog/adminsite.py). The `PostAdmin` class configures the model; `build_admin()` creates the cookie-authenticated `editors` policy, registers the class and returns the `Admin`. The app factory mounts that API. The snippet shows the relevant imports and function context; consult the linked module for the complete cookie-auth implementation.
 
 ```python
+from examples.blog.adminsite import CookieAuth
+from examples.blog.models import Post
+from examples.blog.security import WRITE
+from hinoki import Access
 from hinoki.admin import Admin, ModelAdmin, Badge, Tab, Fieldset
 
 class PostAdmin(ModelAdmin[Post]):
@@ -21,10 +27,17 @@ class PostAdmin(ModelAdmin[Post]):
     tabs = (Tab("Published", {"published": True}), Tab("Drafts", {"published": False}))
     fieldsets = (Fieldset("Organization", ("author_id", "published")),)
 
-admin = Admin(access=editors, secret=settings.admin_secret.reveal(),
-              prefix="/admin", theme="studio", site="Blog Studio")
-admin.register(Post, PostAdmin, slug="posts")
-app.include(admin.api())
+def build_admin(secret: str, theme: str = "studio") -> Admin:
+    editors = Access(auth=CookieAuth(), permissions=[WRITE])
+    admin = Admin(
+        access=editors,
+        secret=secret,
+        prefix="/admin",
+        theme=theme,
+        site="Blog Studio",
+    )
+    admin.register(Post, PostAdmin, slug="posts")
+    return admin
 ```
 
 `search` names the columns the list's search box and the global search look in: a row matches when any of them contains the typed text, compared case-insensitively as text (so a number or date column matches on its printed form). Without `search` the box is inert.

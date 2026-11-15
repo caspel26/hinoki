@@ -710,42 +710,69 @@ fn convert<'py>(
         ));
     }
     if let Ok(list) = value.cast::<PyList>() {
-        let out = PyList::empty(py);
-        for item in list.iter() {
-            out.append(convert(&item, json_mode, depth + 1)?)?;
-        }
-        return Ok(out.into_any());
+        return convert_list(py, list.iter(), json_mode, depth);
     }
     if let Ok(tuple) = value.cast::<pyo3::types::PyTuple>() {
-        let out = PyList::empty(py);
-        for item in tuple.iter() {
-            out.append(convert(&item, json_mode, depth + 1)?)?;
-        }
-        return Ok(out.into_any());
+        return convert_list(py, tuple.iter(), json_mode, depth);
     }
     if let Ok(dict) = value.cast::<PyDict>() {
-        let out = PyDict::new(py);
-        for (key, item) in dict.iter() {
-            out.set_item(key, convert(&item, json_mode, depth + 1)?)?;
-        }
-        return Ok(out.into_any());
+        return convert_dict(py, dict, json_mode, depth);
     }
     if instance_fields(value, false)?.is_some() {
-        if json_mode && instance_fields(value, true)?.is_none() {
-            return value.call_method0("dump"); // the class decides what it exposes
-        }
-        return Ok(dump_instance_at(value, json_mode, &[], depth + 1)?.into_any());
+        return convert_schema(value, json_mode, depth);
     }
     if json_mode {
-        if exact_class(value, "uuid", "UUID")? {
-            return Ok(value.str()?.into_any());
-        }
-        if exact_class(value, "datetime", "datetime")? {
-            return value.call_method0("isoformat");
-        }
-        if value.hasattr("dump")? {
-            return value.call_method0("dump");
-        }
+        return convert_json_object(value);
+    }
+    Ok(value.clone())
+}
+
+fn convert_list<'py>(
+    py: Python<'py>,
+    items: impl Iterator<Item = Bound<'py, PyAny>>,
+    json_mode: bool,
+    depth: usize,
+) -> PyResult<Bound<'py, PyAny>> {
+    let out = PyList::empty(py);
+    for item in items {
+        out.append(convert(&item, json_mode, depth + 1)?)?;
+    }
+    Ok(out.into_any())
+}
+
+fn convert_dict<'py>(
+    py: Python<'py>,
+    items: &Bound<'py, PyDict>,
+    json_mode: bool,
+    depth: usize,
+) -> PyResult<Bound<'py, PyAny>> {
+    let out = PyDict::new(py);
+    for (key, item) in items.iter() {
+        out.set_item(key, convert(&item, json_mode, depth + 1)?)?;
+    }
+    Ok(out.into_any())
+}
+
+fn convert_schema<'py>(
+    value: &Bound<'py, PyAny>,
+    json_mode: bool,
+    depth: usize,
+) -> PyResult<Bound<'py, PyAny>> {
+    if json_mode && instance_fields(value, true)?.is_none() {
+        return value.call_method0("dump"); // the class decides what it exposes
+    }
+    Ok(dump_instance_at(value, json_mode, &[], depth + 1)?.into_any())
+}
+
+fn convert_json_object<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    if exact_class(value, "uuid", "UUID")? {
+        return Ok(value.str()?.into_any());
+    }
+    if exact_class(value, "datetime", "datetime")? {
+        return value.call_method0("isoformat");
+    }
+    if value.hasattr("dump")? {
+        return value.call_method0("dump");
     }
     Ok(value.clone())
 }

@@ -322,18 +322,25 @@ def run_checks(instance: Any, path: str) -> list[ErrorDetail]:
     """Run the checks of an instance and of every schema inside it."""
     problems: list[ErrorDetail] = []
     for name in type(instance).specs():
-        value = getattr(instance, name)
-        where = f"{path}.{name}" if path else name
-        if isinstance(value, Schema):
-            problems += run_checks(value, where)
-        elif isinstance(value, list):
-            for index, item in enumerate(value):
-                if isinstance(item, Schema):
-                    problems += run_checks(item, f"{where}[{index}]")
+        problems.extend(_nested_check_problems(getattr(instance, name), name, path))
     for kind, names, method in type(instance).__checks__:
         for target in names if kind == "field" else (None,):
             problems += call_check(instance, method, target, path)
     return problems
+
+
+def _nested_check_problems(value: Any, name: str, path: str) -> list[ErrorDetail]:
+    where = f"{path}.{name}" if path else name
+    if isinstance(value, Schema):
+        return run_checks(value, where)
+    if isinstance(value, list):
+        return [
+            problem
+            for index, item in enumerate(value)
+            if isinstance(item, Schema)
+            for problem in run_checks(item, f"{where}[{index}]")
+        ]
+    return []
 
 
 def call_check(

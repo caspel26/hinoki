@@ -314,20 +314,29 @@ class Model:
         for base in cls.__mro__[1:]:
             if base is Model or base is object:
                 continue
-            plain = not (is_model(base) or dataclasses.is_dataclass(base))
-            for name, kind in field_types(base).items():
-                if name in decided:
-                    continue  # an earlier base in the MRO (or the class) declares it
-                decided.add(name)
-                if not plain:
-                    continue  # dataclasses inherits this one by itself
-                adopted[name] = kind
-                default = base.__dict__.get(name, dataclasses.MISSING)
-                if default is not dataclasses.MISSING:
-                    # Each model owns its field object: dataclasses rewrites it.
-                    setattr(cls, name, copy.copy(default))
+            cls._adopt_mixin_base(base, decided, adopted)
         if adopted:
             cls.__annotations__ = {**adopted, **own}
+
+    @classmethod
+    def _adopt_mixin_base(
+        cls: type[Model],
+        base: type,
+        decided: set[str],
+        adopted: dict[str, object],
+    ) -> None:
+        plain = not (is_model(base) or dataclasses.is_dataclass(base))
+        for name, kind in field_types(base).items():
+            if name in decided:
+                continue  # an earlier base in the MRO (or the class) declares it
+            decided.add(name)
+            if not plain:
+                continue  # dataclasses inherits this one by itself
+            adopted[name] = kind
+            default = base.__dict__.get(name, dataclasses.MISSING)
+            if default is not dataclasses.MISSING:
+                # Each model owns its field object: dataclasses rewrites it.
+                setattr(cls, name, copy.copy(default))
 
     @classmethod
     def option_bases(cls) -> list[type[Model]]:

@@ -82,7 +82,7 @@ Once a failing check has been fixed and the required checks pass, repeat or broa
 - Use type annotations on public function signatures and class attributes. Preserve signatures in decorators with `ParamSpec`/`TypeVar` and `functools.wraps` where appropriate.
 - Imports at the top of Python files. A local import is allowed to avoid a circular dependency, with an explanatory comment.
 - Adopt Ruff linting/formatting and pre-commit checks for AST, conflict markers, TOML/YAML, trailing whitespace and EOF. Choose tool versions for this project; do not copy old pinned versions as a compatibility claim.
-- Keep complexity controlled. Shiori's cognitive-complexity budget of 15 is a design target; choose the equivalent supported tooling per language before enforcing a numeric gate.
+- Every Python function and Rust function/closure must have cognitive complexity ≤ 15. Enforce this in CI with the pinned `complexipy` analyzer and `rust-code-analysis-cli` metric checker; refactor functions over the limit instead of suppressing findings. Analyzer outputs may include test and development code.
 - Explicit resource ownership: no import-time I/O, connection pools created per worker after process start, no async pool across event loops, no global mutable request context.
 - Bound queues, executor sizes, retries and timeouts. Transactions roll back before HTTP error translation. Do not launch unmanaged background tasks or run deployment migrations from every worker's lifespan.
 - Do not introduce implicit lazy I/O during schema serialization, or `Any` as a substitute for an unimplemented typing contract.

@@ -124,84 +124,135 @@ fn parse_parameters(input: &str) -> Result<Vec<Parameter>, ()> {
     let mut chars = input.char_indices().peekable();
     let mut parameters = Vec::new();
 
-    loop {
-        while matches!(chars.peek(), Some((_, ch)) if ch.is_whitespace()) {
-            chars.next();
-        }
-        let Some(&(start, _)) = chars.peek() else {
-            break;
-        };
-        let mut key = String::new();
-        while let Some(&(_, ch)) = chars.peek() {
-            if ch == '=' || ch.is_whitespace() {
-                break;
-            }
-            key.push(ch);
-            chars.next();
-        }
-        while matches!(chars.peek(), Some((_, ch)) if ch.is_whitespace()) {
-            chars.next();
-        }
-        if key.is_empty() {
-            return Err(());
-        }
-        let Some((equal_index, '=')) = chars.next() else {
-            return Err(());
-        };
-        let mut end = equal_index + 1;
-        while let Some((index, ch)) = chars.peek().copied() {
-            if !ch.is_whitespace() {
-                break;
-            }
-            chars.next();
-            end = index + ch.len_utf8();
-        }
-
-        let mut value = String::new();
-        if matches!(chars.peek(), Some((_, '\''))) {
-            let (_, _) = chars.next().ok_or(())?;
-            let mut closed = false;
-            while let Some((index, ch)) = chars.next() {
-                end = index + ch.len_utf8();
-                if ch == '\\' {
-                    let (escaped_index, escaped) = chars.next().ok_or(())?;
-                    value.push(escaped);
-                    end = escaped_index + escaped.len_utf8();
-                } else if ch == '\'' {
-                    closed = true;
-                    break;
-                } else {
-                    value.push(ch);
-                }
-            }
-            if !closed || matches!(chars.peek(), Some((_, ch)) if !ch.is_whitespace()) {
-                return Err(());
-            }
-        } else {
-            while let Some((index, ch)) = chars.peek().copied() {
-                if ch.is_whitespace() {
-                    break;
-                }
-                chars.next();
-                end = index + ch.len_utf8();
-                if ch == '\\' {
-                    let (escaped_index, escaped) = chars.next().ok_or(())?;
-                    value.push(escaped);
-                    end = escaped_index + escaped.len_utf8();
-                } else {
-                    value.push(ch);
-                }
-            }
-        }
-        parameters.push(Parameter {
-            key,
-            value,
-            start,
-            end,
-        });
+    skip_space(&mut chars);
+    while let Some(&(start, _)) = chars.peek() {
+        parameters.push(parse_parameter(&mut chars, start)?);
+        skip_space(&mut chars);
     }
 
     Ok(parameters)
+}
+
+fn parse_parameter(
+    chars: &mut std::iter::Peekable<std::str::CharIndices<'_>>,
+    start: usize,
+) -> Result<Parameter, ()> {
+    let key = parse_key(chars)?;
+    skip_space(chars);
+    let (equal_index, equal) = chars.next().ok_or(())?;
+    if equal != '=' {
+        return Err(());
+    }
+    let value = parse_value(chars, equal_index + 1)?;
+    Ok(Parameter {
+        key,
+        value: value.value,
+        start,
+        end: value.end,
+    })
+}
+
+fn parse_key(chars: &mut std::iter::Peekable<std::str::CharIndices<'_>>) -> Result<String, ()> {
+    let mut key = String::new();
+    while let Some(&(_, ch)) = chars.peek() {
+        if ch == '=' || ch.is_whitespace() {
+            break;
+        }
+        key.push(ch);
+        chars.next();
+    }
+    if key.is_empty() {
+        Err(())
+    } else {
+        Ok(key)
+    }
+}
+
+struct ParsedValue {
+    value: String,
+    end: usize,
+}
+
+fn parse_value(
+    chars: &mut std::iter::Peekable<std::str::CharIndices<'_>>,
+    minimum_end: usize,
+) -> Result<ParsedValue, ()> {
+    skip_space_with_end(chars, minimum_end)
+}
+
+fn skip_space(chars: &mut std::iter::Peekable<std::str::CharIndices<'_>>) {
+    while matches!(chars.peek(), Some((_, ch)) if ch.is_whitespace()) {
+        chars.next();
+    }
+}
+
+fn skip_space_with_end(
+    chars: &mut std::iter::Peekable<std::str::CharIndices<'_>>,
+    minimum_end: usize,
+) -> Result<ParsedValue, ()> {
+    let mut end = minimum_end;
+    while let Some((index, ch)) = chars.peek().copied() {
+        if !ch.is_whitespace() {
+            break;
+        }
+        chars.next();
+        end = index + ch.len_utf8();
+    }
+    if matches!(chars.peek(), Some((_, '\''))) {
+        parse_quoted_value(chars, end)
+    } else {
+        parse_unquoted_value(chars, end)
+    }
+}
+
+fn parse_quoted_value(
+    chars: &mut std::iter::Peekable<std::str::CharIndices<'_>>,
+    mut end: usize,
+) -> Result<ParsedValue, ()> {
+    chars.next().ok_or(())?;
+    let mut value = String::new();
+    let mut closed = false;
+    while let Some((index, ch)) = chars.next() {
+        end = index + ch.len_utf8();
+        match ch {
+            '\\' => {
+                let (escaped_index, escaped) = chars.next().ok_or(())?;
+                value.push(escaped);
+                end = escaped_index + escaped.len_utf8();
+            }
+            '\'' => {
+                closed = true;
+                break;
+            }
+            _ => value.push(ch),
+        }
+    }
+    if !closed || matches!(chars.peek(), Some((_, ch)) if !ch.is_whitespace()) {
+        return Err(());
+    }
+    Ok(ParsedValue { value, end })
+}
+
+fn parse_unquoted_value(
+    chars: &mut std::iter::Peekable<std::str::CharIndices<'_>>,
+    mut end: usize,
+) -> Result<ParsedValue, ()> {
+    let mut value = String::new();
+    while let Some((index, ch)) = chars.peek().copied() {
+        if ch.is_whitespace() {
+            break;
+        }
+        chars.next();
+        end = index + ch.len_utf8();
+        if ch == '\\' {
+            let (escaped_index, escaped) = chars.next().ok_or(())?;
+            value.push(escaped);
+            end = escaped_index + escaped.len_utf8();
+        } else {
+            value.push(ch);
+        }
+    }
+    Ok(ParsedValue { value, end })
 }
 
 fn set_once(target: &mut Option<String>, value: String) -> Result<(), ()> {

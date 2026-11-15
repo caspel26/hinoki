@@ -33,11 +33,13 @@ class Task(Model, table="tracker_tasks", label="Task", plural="Tasks"):
 
 ## The migration
 
-The planner reads the models and recorded migration state, then writes SQL you can review:
+The Tracker example already includes the migrations for this model and its index. Inspect the checked-in SQL and apply it to a disposable database:
 
 ```sh
-hinoki migrations --dir examples/tracker/migrations plan \
-    --models examples.tracker.models --name initial
+hinoki migrations --dir examples/tracker/migrations status
+hinoki migrations --dir examples/tracker/migrations sql 0001-initial
+hinoki migrations --dir examples/tracker/migrations sql 0002-indexes
+hinoki migrations --dir examples/tracker/migrations apply
 ```
 
 ```sql
@@ -45,6 +47,6 @@ CREATE TABLE "tracker_tasks" ( ... );
 CREATE INDEX "ix_tracker_tasks_owner_id_created_at" ON "tracker_tasks" ("owner_id", "created_at");
 ```
 
-Review it like code, apply it with `migrations apply` against a disposable database first, never at startup. Destructive changes are flagged and need `--allow-destructive`.
+When you change a model, `hinoki migrations ... plan --models examples.tracker.models --name <new-name>` compares the declarations with the recorded state and writes the next migration. Review its SQL before applying it; migrations never run at app startup. Destructive changes are flagged and need `--allow-destructive`.
 
 Next: [2. Schemas](2-schemas.md).

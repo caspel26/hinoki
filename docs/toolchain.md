@@ -19,6 +19,8 @@ Requires: uv ≥ 0.9, a stable Rust toolchain (rustup) with `rustfmt` and `clipp
 | Lint (+ autofix) | `uv run --locked ruff check --fix .` |
 | Format | `uv run --locked ruff format .` |
 | Types + typing fixtures | `uv run --locked mypy` |
+| Python cognitive complexity | `uv run --locked complexipy . --failed` |
+| Rust cognitive complexity | Install `rust-code-analysis-cli` 0.0.25, then run `rust-code-analysis-cli -m -p crates -O json --pr -o /tmp/hinoki-rust-complexity && python scripts/check_rust_complexity.py /tmp/hinoki-rust-complexity` |
 | Python tests + coverage | `uv run --locked pytest --cov` |
 | Only the real-server tests | `uv run --locked pytest -m runtime` |
 | Rust format / lints / tests | `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnings` · `cargo test --workspace` |
@@ -26,7 +28,7 @@ Requires: uv ≥ 0.9, a stable Rust toolchain (rustup) with `rustfmt` and `clipp
 
 ### Database tests
 
-DB tests (`tests/dbtest.py`, `tests/transactiontest.py`, `crates/orm/tests/postgres.rs`) need a **disposable** PostgreSQL and run only when `HINOKI_TEST_DATABASE_URL` is set; otherwise pytest reports them as *skipped* and Cargo prints `SKIPPED` — a green run without the variable proves nothing about the database layer. Locally:
+PostgreSQL-dependent tests in `tests/dbtest.py`, `tests/transactiontest.py` and `crates/orm/tests/postgres.rs` need a **disposable** server and run only when `HINOKI_TEST_DATABASE_URL` is set; otherwise pytest reports them as *skipped* and Cargo prints `SKIPPED`. Migration conformance tests for MySQL and MariaDB use `HINOKI_TEST_MYSQL_URL` and `HINOKI_TEST_MARIADB_URL`; test each supported backend separately and read the skip summary. A run without the PostgreSQL URL does not verify PostgreSQL behavior. Locally:
 
 ```sh
 docker run -d --name hinoki-test-pg -e POSTGRES_PASSWORD=hinoki -e POSTGRES_DB=hinoki \
@@ -38,7 +40,14 @@ docker rm -f hinoki-test-pg
 
 CI provides the same database as a service container. Never point the variable at a database with real data: tests create and drop tables.
 
-Generated OpenAPI is validated with `openapi-spec-validator` inside the Python tests. Not available yet (do not report as passed): ORM/model tests, end-to-end benchmarks.
+The Python and Rust suites include ORM/model tests. PostgreSQL-dependent tests
+run only with a disposable `HINOKI_TEST_DATABASE_URL`; migration conformance
+tests for MySQL and MariaDB also use `HINOKI_TEST_MYSQL_URL` and
+`HINOKI_TEST_MARIADB_URL`. CI provides disposable real-server services.
+Generated OpenAPI is validated with `openapi-spec-validator` inside the Python
+tests. The retained [benchmark report](benchmarks.md) has reproducible
+end-to-end measurements, but benchmark runs are separate from the default CI
+test gate.
 
 ## Decisions
 
@@ -46,8 +55,8 @@ Generated OpenAPI is validated with `openapi-spec-validator` inside the Python t
 * **Ruff** is the only linter/formatter (`ruff check` with `--fix`, then `ruff format`), version pinned in `pyproject.toml` (`lint` group) and in `.pre-commit-config.yaml`; keep them equal when bumping.
 * **mypy --strict** is the separate type check. No overlapping tools (no black, isort, flake8, pylint).
 * **maturin** is the build backend (`python-source = "python"`, extension `hinoki.core`); uv rebuilds when Rust sources change (`tool.uv.cache-keys`).
-* Complexity: Ruff `C901` ≤ 10 as the Python budget; the Shiori budget of 15 was a design target, not tied to this tooling. Rust gets clippy defaults for now.
-* Dependency groups: `lint`, `typecheck`, `test`, aggregated by `dev`. Granian is a *test* dependency only until the adapter ships.
+* Cognitive complexity is capped at 15 for every Python function and Rust function/closure. CI runs pinned `complexipy` and `rust-code-analysis-cli`; test and development code are included. Refactor over-budget functions instead of suppressing analyzer findings.
+* Dependency groups: `lint`, `typecheck`, `test`, aggregated by `dev`. Granian is both the optional runtime server extra and a test dependency for server integration coverage.
 
 ## Two environments, two responsibilities
 
