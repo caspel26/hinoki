@@ -1,6 +1,6 @@
 # Agent instructions — Hinoki
 
-Status: adopted 2026-11-13 and adapted for the public Hinoki repository.
+Status: adopted 2026-11-13 and maintained for Hinoki.
 
 **Document locations.** User guides and API reference live in `docs/`; `ROADMAP.md` is the public project status. Final architecture decisions for contributors live in `docs/adr/`. Detailed working designs, identity notes and the handoff are local-only; do not publish them unless the owner selects a specific document for contributors.
 
@@ -10,13 +10,13 @@ Status: adopted 2026-11-13 and adapted for the public Hinoki repository.
 
 Read this file and `ROADMAP.md` before starting. If a local `handoff.md` or design document is available, read it for additional project context. Read relevant ADRs for established architectural decisions rather than reconstructing intent from chat.
 
-The project name is **Hinoki** (owner decision, supersedes the earlier "Aptum" in the handoff package). `hinoki` is the package/import/CLI identifier; external availability on PyPI/crates.io has not been checked. Do not invent implemented features, benchmark numbers, supported versions or completed checks.
+The project name is **Hinoki**. `hinoki` is the package/import/CLI identifier; external availability on PyPI/crates.io has not been checked. Do not invent implemented features, benchmark numbers, supported versions or completed checks.
 
 ## Product boundaries
 
-- Independent Python framework; do not build it on Django, FastAPI, Starlette or another web framework. Infrastructure servers such as Granian are allowed.
+- Independent Python framework; do not build it on another web framework. Infrastructure servers such as Granian are allowed.
 - Substantial Rust core for request processing/routing and ORM execution. Document the real server/binding boundary; do not call an ASGI path entirely native if it crosses Python objects.
-- Own public schema/settings interfaces; no Pydantic dependency introduced as a convenience.
+- Own the public schema and settings interfaces; do not add an external validation framework as a convenience dependency.
 - Function and class APIs, multiple custom methods per API, optional CRUD generation, optional architectural rules, public authentication default.
 - Confirmed base syntax: `@http.get`, `@http.post`, `@http.put`, `@http.patch`, `@http.delete`, `@http.query` (`from hinoki import http`); reusable typed `Access` policies; `access` and `transaction` options on the HTTP decorator. Preserve normal Python and decorator composition.
 - Do not reintroduce declaration blocks such as `with get/post`, or inline `get(query=...)`/`lookup=...` endpoint assignments. CRUD generation remains required, but its advanced syntax is still provisional.
@@ -46,32 +46,20 @@ The project name is **Hinoki** (owner decision, supersedes the earlier "Aptum" i
 
 Branches use `<type>/<short-kebab-case-topic>` with the same type vocabulary as scoped commits (`feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`). After a pull request is merged, delete both its local branch and its remote branch, and remove its worktree. Preserve a branch only while it contains active local-only work; an active local-only branch must not be pushed.
 
-No feature freeze or Shiori deployment flow is imported into this project. A future freeze or branch policy must be recorded explicitly.
-
-## Agent/model split inherited from Shiori
-
-| Work | Model in original workflow |
-| --- | --- |
-| Design, planning, independent review, audits, visual critique, product decisions and sensitive decisions | Opus |
-| Multi-file implementation, features, refactors and reasoning-heavy fixes from the design | Sonnet |
-| Exact mechanical changes, formatting, reconciliation and small well-specified tasks | Haiku |
-
-Use the cheapest suitable model; escalate after two failed attempts. A delegation brief must include repository path, exact documents, allowed files, no-touch areas, checks and expected report format.
-
-These names preserve the owner's source workflow. If a named model or delegation capability is unavailable, state the limitation and record a proposed role-equivalent mapping; do not pretend that the required independent review happened. The availability of this draft does not itself authorize parallel agents in a session that disallows them.
+Do not introduce an unrecorded feature freeze or deployment flow. Record any future freeze or branch policy explicitly.
 
 ## Tests, coverage and performance
 
-Carry forward the django-ninja-aio-crud verification discipline:
+Use this verification discipline:
 
 1. Establish a green baseline before changing code. Run fast checks while implementing.
 2. At completion run the full applicable suite with coverage; add meaningful tests for new behavior and uncovered changed paths. Maintain or improve coverage. Do not add tests that merely mirror an implementation or test inert prose.
-3. Run the project's performance suite for code changes, with at least five comparable current samples and a retained comparable baseline, then analyze regressions. The inherited starting detector compares five baseline and five current runs, with a 15% threshold and a 2σ heuristic. Treat these as a detector policy, not proof of a universal confidence level.
+3. Run the project's performance suite for code changes, with at least five comparable current samples and a retained comparable baseline, then analyze regressions. The detector compares five baseline and five current runs, with a 15% threshold and a 2σ heuristic. Treat these as a detector policy, not proof of a universal confidence level.
 4. Investigate unexpected variance; CV above 15% is a signal to inspect load and reproducibility, not proof that a regression is harmless. Collect more samples when justified. Never discard a failing result merely because it is inconvenient.
 5. Fix unjustified regressions. Document necessary costs and the affected workloads; do not quietly move the baseline or thresholds to hide them.
-6. Keep machine-readable benchmark data and a human-readable report. Compare equivalent payloads, database state and concurrency; disclose driver/runtime differences. Never copy performance claims from another project as evidence for this one.
+6. Keep machine-readable benchmark data and a human-readable report. Compare equivalent payloads, database state and concurrency; disclose driver/runtime differences. Do not present external performance claims as measurements of Hinoki.
 
-The source repository's Django commands do not apply here. The first bootstrap task must create and document actual Python/Rust fast/full/coverage/benchmark entry points. Until they exist, report them as unavailable rather than claiming that placeholder commands passed.
+Document Hinoki's actual Python/Rust fast, full, coverage and benchmark entry points. Until an entry point exists, report it as unavailable rather than claiming that a placeholder command passed.
 
 Expected gate categories: Python lint/format, Python type checks and typing fixtures, Python tests/coverage, Rust formatting/lints/tests, native-binding integration, real disposable-DB tests, generated OpenAPI checks, packaging/wheel checks, performance. Admin/browser gates apply when that module changes. Exact commands and scope belong in CI and the contributor documentation.
 
@@ -98,9 +86,9 @@ Treat test failures under load as evidence to investigate: rerun in isolation wh
 
 ## UI and docs
 
-Use shared components and tokens; new variants need a reason. Inspect hierarchy, spacing, alignment, repetition and the framework's own visual identity. Do not import Shiori-specific branding, provider restrictions or catalog rules.
+Use shared components and tokens; new variants need a reason. Inspect hierarchy, spacing, alignment, repetition and Hinoki's visual identity. Do not import unrelated branding, provider restrictions or catalog rules.
 
-Public-facing documentation, the README and the docsite describe Hinoki's own APIs and behavior directly. Do not add sections or claims comparing Hinoki with other frameworks or libraries; cross-framework comparisons belong only in evidence-backed benchmark reports.
+Public-facing documentation, the README and the docsite describe Hinoki's own APIs and behavior directly. Comparative claims belong only in evidence-backed benchmark reports.
 
 Update docs for user-facing API changes and provide minimal examples, including sync/async differences and errors. Verify the examples against the actual implementation once it exists. Keep generated docs and runtime contracts consistent.
 
@@ -108,11 +96,9 @@ Every added or changed user-facing API, setting, CLI/MCP option, runtime behavio
 
 ## Releases
 
-Derive release notes from the actual diff. Use the inherited sections New Features, Improvements, Documentation and Summary, contextual emojis, file-path blockquotes and examples for new APIs. Keep styling/config documentation brief. Do not add a detailed Tests section to release notes; verification still belongs in the PR/handoff report.
+Derive release notes from the actual diff. Use the sections New Features, Improvements, Documentation and Summary, contextual emojis, file-path blockquotes and examples for new APIs. Keep styling/config documentation brief. Do not add a detailed Tests section to release notes; verification belongs in the PR/handoff report.
 
-The source CLAUDE.md explicitly overwrites CHANGELOG.md for each release. That original rule is preserved in `sources/`. For this new project, whether CHANGELOG.md is a latest-release snapshot or cumulative history is an open adoption decision. Do not destroy existing release history while the decision is pending.
-
-Once the project defines its release layout, update all actual version sources, docs selectors if present and completed queue entries together. Do not copy `ninja_aio/__init__.py` or Django docs workflow paths into this project.
+Keep the existing changelog history intact. Update the project's version sources, documentation selectors and completed roadmap entries together when a release is authorized.
 
 ## Completion report
 
