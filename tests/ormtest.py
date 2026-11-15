@@ -72,9 +72,25 @@ def test_sqlite_dialect_compiles_numbered_holders() -> None:
     assert params == [True, "a", "b"]
 
 
+def test_mysql_dialect_compiles_backticks_and_positional_holders() -> None:
+    sql, params = core.compile_query(
+        "select",
+        "orm_posts",
+        columns=["id", "title"],
+        filters=[("title", "eq", ["a"]), ("note", "contains", ["%_"])],
+        dialect="mysql",
+    )
+    assert sql == (
+        "SELECT `id`, `title` FROM `orm_posts` WHERE `title` = ? AND "
+        "LOWER(CAST(`note` AS CHAR)) LIKE CONCAT('%', LOWER(REPLACE(REPLACE(REPLACE(?, "
+        "'\\\\', '\\\\\\\\'), '%', '\\\\%'), '_', '\\\\_')), '%') ESCAPE '\\\\'"
+    )
+    assert params == ["a", "%_"]
+
+
 def test_sql_compiler_rejects_unknown_dialects() -> None:
     with pytest.raises(ValueError, match="unknown SQL dialect"):
-        core.compile_query("select", "orm_posts", dialect="mysql")
+        core.compile_query("select", "orm_posts", dialect="oracle")
 
 
 def test_none_and_isnull_become_null_checks() -> None:
