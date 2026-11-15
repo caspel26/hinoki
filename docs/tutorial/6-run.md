@@ -44,18 +44,18 @@ def create_app(database_url: str | None = None) -> Hinoki:
 # Omit these variables to use .hinoki/local.sqlite3.
 export TRACKER_DATABASE__URL='postgresql://user:password@127.0.0.1:5432/tracker'
 export HINOKI_DATABASE_URL="$TRACKER_DATABASE__URL"
-uv run hinoki migrations --dir examples/tracker/migrations status
-uv run hinoki migrations --dir examples/tracker/migrations sql 0001-initial
-uv run hinoki migrations --dir examples/tracker/migrations sql 0002-indexes
-uv run hinoki migrations --dir examples/tracker/migrations apply
+uv run hinoki migrations status
+uv run hinoki migrations sql --app tracker 0001-initial
+uv run hinoki migrations sql --app tracker 0002-indexes
+uv run hinoki migrations apply --app tracker
 uv run hinoki dev examples.tracker.app:create_app
 ```
 
 The Tracker example already includes its initial and index migrations, so this
 command sequence inspects and applies those checked-in files. After changing a
-model, generate a new migration with `plan` and review its SQL before applying
-it to a disposable database; do not expect `plan --name initial` to recreate
-the existing initial migration.
+model, generate a new migration with `hinoki migrations plan --app tracker`
+and review its SQL before applying it to a disposable database; do not expect
+the planner to recreate the existing initial migration.
 `dev` reloads on change; `serve` runs without reload and takes host, port and
 workers from the `server` settings ([serving](../serving.md)). Open `/docs` or
 `/redoc`.

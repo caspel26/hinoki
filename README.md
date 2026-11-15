@@ -163,20 +163,24 @@ uv sync --locked
 Hinoki never creates tables by itself. Write the migration from the model, read it, then apply it:
 
 ```sh
-uv run hinoki migrations --dir examples/notes/migrations plan \
-  --models examples.notes.app
+uv run hinoki app list
+uv run hinoki migrations plan --app notes
 ```
 
-The migration number and slug are generated from the first schema operation;
-review the generated SQL and state file before applying it. The sample's first
-file is `0001-create-table-notes.sql`.
+The root `hinoki.toml` registers Notes, Tracker and Blog as independent apps.
+Migration number and slug derive from the first schema operation; review the
+generated SQL and state file before applying it. The sample's first file is
+`0001-create-table-notes.sql`.
 
 ```sh
-uv run hinoki migrations --dir examples/notes/migrations sql 0001-create-table-notes
-uv run hinoki migrations --dir examples/notes/migrations apply
+uv run hinoki migrations sql --app notes 0001-create-table-notes
+uv run hinoki migrations apply --app notes
 ```
 
-In a project created with `hinoki new`, omit `--models` and `--dir`: its manifest discovers the app. Migration numbering and a slug based on the schema change are generated automatically; `--name initial-notes` can override the slug.
+Omit `--app` to apply all registered migrations in dependency order. `--name`
+can override the generated slug. `hinoki new` creates the same manifest-driven
+workflow for a new project; `hinoki app create` adds another app and its
+migration package.
 
 Start the development server and send two requests from another terminal:
 

@@ -12,8 +12,10 @@ SQLite:
 
 ```sh
 export BLOG_ADMIN_SECRET='a-local-development-secret-with-32-bytes'
-uv run hinoki migrations --dir examples/blog/migrations status
-uv run hinoki migrations --dir examples/blog/migrations apply
+uv run hinoki migrations status
+uv run hinoki migrations plan --app blog --dry-run
+uv run hinoki migrations sql --app blog 0001-initial
+uv run hinoki migrations apply --app blog
 uv run hinoki dev examples.blog.main:create_app
 ```
 
@@ -27,3 +29,7 @@ For demo records, `BLOG_DATABASE__URL=... uv run python -m examples.blog.seed`
 applies migrations and inserts fixed synthetic users and posts. Run it only
 once against a fresh disposable database: those unique demo records are not a
 resettable fixture. Never use real credentials or user data with this command.
+
+The manifest registers Notes, Tracker and Blog as separate apps, each with its
+own models and migrations. `hinoki migrations apply` initializes all three in
+dependency order.

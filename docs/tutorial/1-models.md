@@ -36,10 +36,10 @@ class Task(Model, table="tracker_tasks", label="Task", plural="Tasks"):
 The Tracker example already includes the migrations for this model and its index. Inspect the checked-in SQL and apply it to a disposable database:
 
 ```sh
-hinoki migrations --dir examples/tracker/migrations status
-hinoki migrations --dir examples/tracker/migrations sql 0001-initial
-hinoki migrations --dir examples/tracker/migrations sql 0002-indexes
-hinoki migrations --dir examples/tracker/migrations apply
+hinoki migrations status
+hinoki migrations sql --app tracker 0001-initial
+hinoki migrations sql --app tracker 0002-indexes
+hinoki migrations apply --app tracker
 ```
 
 ```sql
@@ -47,6 +47,6 @@ CREATE TABLE "tracker_tasks" ( ... );
 CREATE INDEX "ix_tracker_tasks_owner_id_created_at" ON "tracker_tasks" ("owner_id", "created_at");
 ```
 
-This checked-in Tracker example has no `hinoki.toml`, so its commands use the explicit legacy `--dir` and `--models` targets. When you change a model, `hinoki migrations --dir examples/tracker/migrations plan --models examples.tracker.models` compares declarations with the recorded state and writes the next migration; the migration name is derived automatically, and `--name` can override its slug. Review the SQL before applying it; migrations never run at app startup. Destructive changes are flagged and need `--allow-destructive`. [Chapter 8](8-projects.md) uses the manifest-based workflow created by `hinoki new`.
+The repository's root `hinoki.toml` registers Tracker alongside Notes and Blog, each with a separate model module and migration package. When you change a model, `hinoki migrations plan --app tracker` compares declarations with the recorded state and writes the next migration; the number and slug are derived automatically, and `--name` can override the slug. Review the SQL before applying it; migrations never run at app startup. Destructive changes are flagged and need `--allow-destructive`. [Chapter 8](8-projects.md) creates a new manifest-based project with `hinoki new` and adds apps with `hinoki app create`.
 
 Next: [2. Schemas](2-schemas.md).
