@@ -30,7 +30,10 @@ enum DatabaseBackend {
         tls: Option<MakeRustlsConnect>,
     },
     Sqlite(SqlitePool),
-    Mysql(MysqlPool),
+    Mysql {
+        pool: MysqlPool,
+        dialect: &'static str,
+    },
 }
 
 fn params(values: &[Value]) -> Vec<&(dyn ToSql + Sync)> {
@@ -210,9 +213,17 @@ impl Database {
                 backend: DatabaseBackend::Sqlite(SqlitePool::open(&path, max_size, wait)?),
             });
         }
-        if url.starts_with("mysql://") {
+        if url.starts_with("mysql://") || url.starts_with("mariadb://") {
+            let (driver_url, dialect) = if let Some(rest) = url.strip_prefix("mariadb://") {
+                (format!("mysql://{rest}"), "mariadb")
+            } else {
+                (url.to_owned(), "mysql")
+            };
             return Ok(Self {
-                backend: DatabaseBackend::Mysql(MysqlPool::connect(url, max_size, wait)?),
+                backend: DatabaseBackend::Mysql {
+                    pool: MysqlPool::connect(&driver_url, max_size, wait)?,
+                    dialect,
+                },
             });
         }
         let (url, tls_options) = extract_options(url)
@@ -273,7 +284,7 @@ impl Database {
         if let DatabaseBackend::Sqlite(sqlite) = &self.backend {
             return sqlite.acquire().await?.fetch(sql, values).await;
         }
-        if let DatabaseBackend::Mysql(mysql) = &self.backend {
+        if let DatabaseBackend::Mysql { pool: mysql, .. } = &self.backend {
             let mut lease = mysql.acquire().await?;
             let outcome = lease.fetch(sql, values).await;
             if outcome.is_ok() {
@@ -291,7 +302,7 @@ impl Database {
         if let DatabaseBackend::Sqlite(sqlite) = &self.backend {
             return sqlite.acquire().await?.execute(sql, values).await;
         }
-        if let DatabaseBackend::Mysql(mysql) = &self.backend {
+        if let DatabaseBackend::Mysql { pool: mysql, .. } = &self.backend {
             let mut lease = mysql.acquire().await?;
             let outcome = lease.execute(sql, values).await;
             if outcome.is_ok() {
@@ -314,7 +325,7 @@ impl Database {
             lease.begin("BEGIN IMMEDIATE").await?;
             return Ok(Transaction::new_sqlite(lease));
         }
-        if let DatabaseBackend::Mysql(mysql) = &self.backend {
+        if let DatabaseBackend::Mysql { pool: mysql, .. } = &self.backend {
             let mut lease = mysql.acquire().await?;
             lease.begin().await?;
             return Ok(Transaction::new_mysql(lease));
@@ -335,7 +346,7 @@ impl Database {
             primary.begin("BEGIN IMMEDIATE").await?;
             return Ok(Transaction::new_sqlite_migration(primary, reserved));
         }
-        if matches!(&self.backend, DatabaseBackend::Mysql(_)) {
+        if matches!(&self.backend, DatabaseBackend::Mysql { .. }) {
             let mut transaction = self.begin().await?;
             transaction.lock_mysql_migrations().await?;
             return Ok(transaction);
@@ -347,7 +358,7 @@ impl Database {
         match &self.backend {
             DatabaseBackend::Postgres { pool, .. } => pool.close(),
             DatabaseBackend::Sqlite(pool) => pool.close(),
-            DatabaseBackend::Mysql(pool) => pool.close(),
+            DatabaseBackend::Mysql { pool, .. } => pool.close(),
         }
     }
 
@@ -355,14 +366,14 @@ impl Database {
         match &self.backend {
             DatabaseBackend::Postgres { .. } => "postgres",
             DatabaseBackend::Sqlite(_) => "sqlite",
-            DatabaseBackend::Mysql(_) => "mysql",
+            DatabaseBackend::Mysql { dialect, .. } => dialect,
         }
     }
 
     pub fn status(&self) -> (usize, usize) {
         match &self.backend {
             DatabaseBackend::Sqlite(pool) => pool.status(),
-            DatabaseBackend::Mysql(pool) => pool.status(),
+            DatabaseBackend::Mysql { pool, .. } => pool.status(),
             DatabaseBackend::Postgres { pool, .. } => {
                 let status = pool.status();
                 (status.size, status.available)

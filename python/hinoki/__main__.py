@@ -17,6 +17,20 @@ from hinoki.settings import DatabaseSettings
 URL_VARIABLE = "HINOKI_DATABASE_URL"
 
 
+def database_dialect(url: str) -> str:
+    """Return the migration dialect selected by a database URL scheme."""
+    for scheme, dialect in (
+        ("sqlite://", "sqlite"),
+        ("mysql://", "mysql"),
+        ("mariadb://", "mariadb"),
+        ("postgres://", "postgres"),
+        ("postgresql://", "postgres"),
+    ):
+        if url.startswith(scheme):
+            return dialect
+    raise MigrationError("database URL must use a supported backend scheme")
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(prog="hinoki")
     commands = root.add_subparsers(dest="group", required=True)
@@ -55,7 +69,7 @@ def parser() -> argparse.ArgumentParser:
 
 def run_plan(args: argparse.Namespace) -> None:
     database_url = args.database or DatabaseSettings().url.reveal()
-    dialect = "sqlite" if database_url.startswith("sqlite://") else "postgres"
+    dialect = database_dialect(database_url)
     result = plan(
         models_of(args.models),
         Path(args.dir),

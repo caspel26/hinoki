@@ -43,6 +43,8 @@ async fn typed_values_round_trip_and_pool_recovers_after_errors() {
     let Some(db) = database("hinoki_mysql_values", 2).await else {
         return;
     };
+    let is_mariadb = url().is_some_and(|url| url.starts_with("mariadb://"));
+    assert_eq!(db.dialect(), if is_mariadb { "mariadb" } else { "mysql" });
     let id = Uuid::new_v4();
     let now = chrono::Utc::now();
     let values = [
@@ -74,7 +76,14 @@ async fn typed_values_round_trip_and_pool_recovers_after_errors() {
     let row: std::collections::HashMap<_, _> = rows[0].iter().cloned().collect();
     assert_eq!(row["id"], Value::Uuid(id));
     assert_eq!(row["n"], Value::Int(7));
-    assert_eq!(row["data"], Value::Json(serde_json::json!({"a": [1, 2]})));
+    // MariaDB exposes its JSON-as-LONGTEXT alias as bytes in the generic row
+    // API; the typed Python Model layer decodes declared dict/list fields.
+    let expected_json = if is_mariadb {
+        Value::Bytes(br#"{"a":[1,2]}"#.to_vec())
+    } else {
+        Value::Json(serde_json::json!({"a": [1, 2]}))
+    };
+    assert_eq!(row["data"], expected_json);
     assert_eq!(row["flag"], Value::Bool(true));
     assert_eq!(row["blob"], Value::Bytes(vec![1, 2, 3]));
     assert_eq!(row["ratio"], Value::Float(2.5));
