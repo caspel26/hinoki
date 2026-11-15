@@ -1,0 +1,15 @@
+dom 15 nov 2026 14:26:40 CET
+{ 3,34 4,29 4,62 }
+Now drawing from 'AC Power'
+  PID  %CPU COMM
+  581 127,3 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mds_stores
+ 1063  21,7 Contents/Resources/FortiTray/FortiTray.app/Contents/MacOS/FortiTray
+  372  11,8 /usr/libexec/opendirectoryd
+41089  10,8 claude bg-spare
+  756   5,7 /System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal
+  947   5,7 /usr/libexec/sysmond
+  405   5,4 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+42574   3,7 /bin/zsh
+  814   3,2 automountd
+41905   1,8 claude bg-spare
+  909   1,4 /System/Library/Frameworks/CoreSpotlight.framework/spotlightknowledged

@@ -1,0 +1,6 @@
+pid pgid cputime command
+47852 47852   0:00.30 /Library/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python manage.py runbolt --host 127.0.0.1 --processes 4 --port 8801 --no-admin
+47853 47852   0:00.02 /Library/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python manage.py runbolt --host 127.0.0.1 --processes 4 --port 8801 --no-admin
+47854 47852   0:00.02 /Library/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python manage.py runbolt --host 127.0.0.1 --processes 4 --port 8801 --no-admin
+47855 47852   0:00.02 /Library/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python manage.py runbolt --host 127.0.0.1 --processes 4 --port 8801 --no-admin
+47856 47852   8:40.38 /Library/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python manage.py runbolt --host 127.0.0.1 --processes 4 --port 8801 --no-admin
