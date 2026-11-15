@@ -29,6 +29,7 @@ from hinoki.routing import MethodNotAllowed
 from hinoki.runtime.binding import BODY_METHODS, Binding, parse_query
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.lifespan import Lifespan
+from hinoki.runtime.origins import CorsPolicy, HostPolicy
 from hinoki.runtime.requests import (
     Scope,
     authorize,
@@ -66,6 +67,14 @@ def docs_response(page: Page) -> Response:
     return Response(200, page.body, headers)
 
 
+def origin_of(scope: Scope) -> str:
+    """The request's ``Origin`` header, or an empty string."""
+    for name, value in scope.get("headers", ()):
+        if name == b"origin":
+            return str(value.decode("latin-1"))
+    return ""
+
+
 class ASGIAdapter:
     """One adapter per worker process; it owns that worker's runtime state."""
 
@@ -84,6 +93,9 @@ class ASGIAdapter:
         self.logging = (
             app.settings.logging if isinstance(app.settings, AppSettings) else None
         )
+        self.debug = isinstance(app.settings, AppSettings) and app.settings.debug
+        self.hosts = HostPolicy.of(app.settings)
+        self.cors = CorsPolicy.of(app.settings)
         self.executor = SyncExecutor(app.runtime.sync_workers, app.runtime.sync_queue)
         needs_database = any(b.route.transaction for b in self.bindings)
         self.lifespan = Lifespan(
@@ -125,6 +137,8 @@ class ASGIAdapter:
         """Answer startup; return True when the protocol loop must end."""
         if self.logging is not None:
             self.logging.apply()
+        if self.debug:
+            log.warning("debug is on: error responses include tracebacks")
         try:
             await self.lifespan.startup()
         except StartupError as exc:
@@ -163,6 +177,8 @@ class ASGIAdapter:
             if name.encode() not in present
         ]
         headers = [*response.headers, *extra, (b"x-request-id", rid.encode())]
+        if self.cors is not None:
+            headers.extend(self.cors.headers(origin_of(scope)))
         if response.status not in BODYLESS:
             headers.append((b"content-length", str(len(response.body)).encode()))
         start = {"type": "http.response.start", "status": response.status}
@@ -179,19 +195,26 @@ class ASGIAdapter:
         except TimeoutError as exc:
             if limit.expired():
                 return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
-            return await error_response(exc, rid, self.app.errors)
+            return await error_response(exc, rid, self.app.errors, self.debug)
         except ExecutorSaturated:  # a plain-def hook found the pool full
             return HTTPError(
                 HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
             ).response
         except Exception as exc:
-            return await error_response(exc, rid, self.app.errors)
+            return await error_response(exc, rid, self.app.errors, self.debug)
 
     async def _serve(self, scope: Scope, receive: Any) -> Response:
-        """Ready check, routing, authentication, then (only if the action takes
-        a body) reading and validating it, then the handler."""
+        """Ready check, host and preflight policies, routing, authentication,
+        then (only if the action takes a body) reading and validating it, then
+        the handler."""
         if not self.lifespan.ready:
             raise HTTPError(HTTPStatus.SERVICE_UNAVAILABLE, "not_ready", RETRY_LATER)
+        headers: dict[str, str] | None = None
+        if self.hosts is not None or self.cors is not None:
+            headers = header_map(scope)
+            preflight = self._guard(scope["method"], headers)
+            if preflight is not None:
+                return preflight
         if self.document is not None and self._is_document_request(scope):
             return Response.json(HTTPStatus.OK, self.document)
         page = (
@@ -202,7 +225,8 @@ class ASGIAdapter:
         binding, path_params = self._route(scope)
         owner = binding.route.owner
         context.route_headers.set(getattr(owner, "response_headers", ()))
-        headers = header_map(scope)
+        if headers is None:
+            headers = header_map(scope)
         access = binding.route.access
         query = principal = None
         if access is not None:
@@ -215,25 +239,31 @@ class ASGIAdapter:
             raise HTTPError(
                 HTTPStatus.NOT_ACCEPTABLE, "not_acceptable", available=wanted
             )
-        takes_body = binding.route.method in BODY_METHODS
-        declared = headers.get("content-length", "")
-        limit = self.app.runtime.max_body_bytes
-        if (
-            takes_body
-            and declared.isascii()
-            and declared.isdigit()
-            and int(declared) > limit  # refuse before reading anything
-        ):
-            raise HTTPError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "payload_too_large")
         raw_body = (
-            await read_body(receive, self.app.runtime.max_body_bytes)
-            if takes_body
+            await self._body(receive, headers.get("content-length", ""))
+            if binding.route.method in BODY_METHODS
             else b""
         )
         request, data = build_request(
             scope, binding, path_params, headers, raw_body, principal, query
         )
         return await self._invoke(binding, request, renderer, binding.collect(data))
+
+    async def _body(self, receive: Any, declared: str) -> bytes:
+        """The request body, refused before reading anything when the declared
+        length is above the limit."""
+        limit = self.app.runtime.max_body_bytes
+        if declared.isascii() and declared.isdigit() and int(declared) > limit:
+            raise HTTPError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "payload_too_large")
+        return await read_body(receive, limit)
+
+    def _guard(self, method: str, headers: dict[str, str]) -> Response | None:
+        """Refuse a host that is not allowed; answer a CORS preflight."""
+        if self.hosts is not None:
+            self.hosts.check(headers.get("host", ""))
+        if self.cors is not None:
+            return self.cors.answer(method, headers)
+        return None
 
     def _is_document_request(self, scope: Scope) -> bool:
         return bool(
