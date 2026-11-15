@@ -19,6 +19,7 @@ from hinoki.db import Database, UniqueViolation
 from hinoki.errors import ModelError, RegistrationError
 from hinoki.orm import (
     Model,
+    OnDelete,
     field,
     foreign_key,
     indexed,
@@ -41,7 +42,9 @@ class Team(Model, table="am_teams"):
 
 @unique("team_id", "slug")
 class Owned(Model, abstract=True):
-    team_id: UUID = foreign_key(Team, on_delete="cascade", related_name="{model}_set")
+    team_id: UUID = foreign_key(
+        Team, on_delete=OnDelete.CASCADE, related_name="{model}_set"
+    )
     slug: str = field(max_length=40)
 
 
@@ -271,7 +274,7 @@ def test_a_table_subclass_gets_its_own_placeholder_reverse_relation() -> None:
 
     class Grouped(Model, abstract=True):
         group_id: UUID = foreign_key(
-            Group, on_delete="cascade", related_name="{model}_set"
+            Group, on_delete=OnDelete.CASCADE, related_name="{model}_set"
         )
 
     class Note(Grouped, Keyed, table="am_notes"):
@@ -290,7 +293,7 @@ def test_a_foreign_key_cannot_point_at_an_abstract_model() -> None:
 
         class Pointer(Model, table="am_pointers"):
             id: UUID = field(primary_key=True, default_factory=uuid4)
-            keyed_id: UUID = foreign_key(Keyed, on_delete="cascade")
+            keyed_id: UUID = foreign_key(Keyed, on_delete=OnDelete.CASCADE)
 
 
 def test_one_unresolvable_annotation_does_not_cause_a_false_conflict() -> None:
@@ -313,7 +316,7 @@ def test_a_fixed_reverse_name_shared_by_two_models_is_explained() -> None:
 
     class Pointing(Model, abstract=True):
         target_id: UUID = foreign_key(
-            Target, on_delete="cascade", related_name="pointers"
+            Target, on_delete=OnDelete.CASCADE, related_name="pointers"
         )
 
     class First(Pointing, Keyed, table="am_first"):
@@ -332,7 +335,7 @@ def test_a_fixed_reverse_name_shared_by_two_models_is_explained() -> None:
 
         class Odd(Keyed, table="am_odd"):
             target_id: UUID = foreign_key(
-                Target, on_delete="cascade", related_name="{table}_set"
+                Target, on_delete=OnDelete.CASCADE, related_name="{table}_set"
             )
 
 

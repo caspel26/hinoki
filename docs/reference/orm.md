@@ -10,6 +10,8 @@
 
 ::: hinoki.orm.foreign_key
 
+::: hinoki.orm.OnDelete
+
 ::: hinoki.orm.unique
 
 ::: hinoki.orm.indexed

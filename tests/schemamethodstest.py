@@ -9,7 +9,7 @@ import pytest
 
 from hinoki import UNSET, Schema, Unset
 from hinoki.errors import RelationNotLoaded
-from hinoki.orm import Model, field, foreign_key
+from hinoki.orm import Model, OnDelete, field, foreign_key
 from hinoki.orm.relations import Related
 
 
@@ -69,7 +69,7 @@ class Owner(Model, table="sm_owners"):
 
 class Pet(Model, table="sm_pets"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
-    owner_id: UUID = foreign_key(Owner, on_delete="cascade", related_name="pets")
+    owner_id: UUID = foreign_key(Owner, on_delete=OnDelete.CASCADE, related_name="pets")
     title: str
     owner: ClassVar[Related[Owner]]
 

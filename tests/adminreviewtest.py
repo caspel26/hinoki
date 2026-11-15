@@ -11,7 +11,7 @@ from hinoki import Access, Caller, Hinoki
 from hinoki.admin import Admin, ModelAdmin
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import RegistrationError
-from hinoki.orm import Model, field, foreign_key
+from hinoki.orm import Model, OnDelete, field, foreign_key
 from tests.admintest import FORM, SECRET, STAFF, session, submit
 from tests.harness import Client, Pool
 from tests.providers import TokenAuth
@@ -38,12 +38,12 @@ class AcctAdmin(ModelAdmin[Acct]):
 class Item(Model, table="arv_items"):
     id: int = field(primary_key=True)
     label: str = field(max_length=20)
-    acct_id: int | None = foreign_key(Acct, on_delete="set_null", default=None)
+    acct_id: int | None = foreign_key(Acct, on_delete=OnDelete.SET_NULL, default=None)
 
 
 class Loose(Model, table="arv_loose"):
     id: int = field(primary_key=True)
-    acct_id: int | None = foreign_key(Acct, on_delete="set_null", default=None)
+    acct_id: int | None = foreign_key(Acct, on_delete=OnDelete.SET_NULL, default=None)
 
 
 class Parent(Model, table="arv_parents"):
@@ -53,7 +53,7 @@ class Parent(Model, table="arv_parents"):
 
 class Kid(Model, table="arv_kids"):
     id: int = field(primary_key=True)
-    parent_id: int = foreign_key(Parent, on_delete="restrict")
+    parent_id: int = foreign_key(Parent, on_delete=OnDelete.RESTRICT)
 
 
 class ParentAdmin(ModelAdmin[Parent]):
