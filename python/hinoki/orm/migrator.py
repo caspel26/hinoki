@@ -41,12 +41,19 @@ def checksum(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-async def recorded(database: Database) -> dict[str, str]:
+async def recorded(database: Database, namespace: str = "") -> dict[str, str]:
     rows = await database.fetch(SELECT_LEDGER)
-    return {row["name"]: row["checksum"] for row in rows}
+    prefix = f"{namespace}:" if namespace else ""
+    return {
+        row["name"][len(prefix) :]: row["checksum"]
+        for row in rows
+        if (row["name"].startswith(prefix) if namespace else ":" not in row["name"])
+    }
 
 
-async def status(database: Database, directory: Path) -> list[tuple[str, str]]:
+async def status(
+    database: Database, directory: Path, *, namespace: str = ""
+) -> list[tuple[str, str]]:
     """``(name, state)`` per migration: ``applied``, ``pending``, ``changed``
     (applied, but the file differs) or ``missing`` (applied, file gone)."""
     await database.execute(
@@ -56,7 +63,7 @@ async def status(database: Database, directory: Path) -> list[tuple[str, str]]:
         if database.dialect in {"mysql", "mariadb"}
         else CREATE_LEDGER
     )
-    applied = await recorded(database)
+    applied = await recorded(database, namespace)
     files = {p.stem: p for p in migration_files(directory)}
     result: list[tuple[str, str]] = []
     for name in sorted(files.keys() | applied.keys()):
@@ -71,11 +78,13 @@ async def status(database: Database, directory: Path) -> list[tuple[str, str]]:
     return result
 
 
-async def apply(database: Database, directory: Path) -> list[str]:
+async def apply(
+    database: Database, directory: Path, *, namespace: str = ""
+) -> list[str]:
     """Apply pending migrations in order; returns the names applied."""
     problems = [
         f"{n} is {s}"
-        for n, s in await status(database, directory)
+        for n, s in await status(database, directory, namespace=namespace)
         if s in {"changed", "missing"}
     ]
     if problems:
@@ -83,16 +92,17 @@ async def apply(database: Database, directory: Path) -> list[str]:
     return [
         path.stem
         for path in migration_files(directory)
-        if await apply_one(database, path)
+        if await apply_one(database, path, namespace=namespace)
     ]
 
 
-async def apply_one(database: Database, path: Path) -> bool:
+async def apply_one(database: Database, path: Path, *, namespace: str = "") -> bool:
     """One file, one transaction. False when it was already applied."""
     async with database.migration():
         if database.dialect == "postgres":
             await database.fetch("SELECT pg_advisory_xact_lock($1)", LOCK_KEY)
-        if path.stem in await recorded(database):
+        applied = await recorded(database, namespace)
+        if path.stem in applied:
             return False
         try:
             for statement in statements(path.read_text(encoding="utf-8")):
@@ -117,7 +127,7 @@ async def apply_one(database: Database, path: Path) -> bool:
             else INSERT_MYSQL_LEDGER
             if database.dialect in {"mysql", "mariadb"}
             else INSERT_LEDGER,
-            path.stem,
+            f"{namespace}:{path.stem}" if namespace else path.stem,
             checksum(path),
         )
     return True
