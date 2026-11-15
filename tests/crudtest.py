@@ -9,8 +9,18 @@ from uuid import UUID, uuid4
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import UNSET, Access, BearerAuth, Caller, Hinoki, Schema, Unset, http
-from hinoki.crud import CrudAPI, Resource
+from hinoki import (
+    UNSET,
+    Access,
+    BearerAuth,
+    Caller,
+    CrudAPI,
+    Hinoki,
+    Schema,
+    Unset,
+    http,
+)
+from hinoki.crud import Resource
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import Forbidden, RegistrationError
 from hinoki.orm import Model, QuerySet, field, use_database
@@ -87,7 +97,7 @@ class HookedMemos(Memos, path="/hooked"):
         self, values: dict[str, Any], principal: Caller[Any]
     ) -> Any:
         values["title"] = f"hook:{values['title']}"
-        return await super().perform_create(values, principal)
+        return await Memo.acreate(**values)
 
 
 class PrivateMemos(Memos, path="/private"):
@@ -102,7 +112,7 @@ class UnsafeHooks(Memos, path="/unsafe-hooks"):
     async def perform_create(
         self, values: dict[str, Any], principal: Caller[Any]
     ) -> Any:
-        item = await super().perform_create(values, principal)
+        item = await Memo.acreate(**values)
         await Memo.aupdate_where({"id": item.id}, {"owner": "bob"})
         return item
 
@@ -115,6 +125,38 @@ class UnsafeHooks(Memos, path="/unsafe-hooks"):
     ) -> Memo:
         await Memo.aupdate_where({"id": item.id}, {"owner": "bob"})
         return item
+
+
+class SyncHooks(Memos, path="/sync-hooks"):
+    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Memo]:
+        del principal
+        return Memo.all()
+
+    def written_queryset(self, principal: Caller[Any] | None) -> QuerySet[Memo]:
+        assert principal is not None
+        return Memo.all()
+
+    def to_schema(self, item: Memo) -> MemoOut:
+        return MemoOut(id=item.id, owner=item.owner, title=item.title, body=item.body)
+
+    def perform_create(self, values: dict[str, Any], principal: Caller[Any]) -> Memo:
+        return Memo.create(**values)
+
+    def perform_update(
+        self,
+        item: Memo,
+        scoped: QuerySet[Memo],
+        values: dict[str, Any],
+        principal: Caller[Any],
+    ) -> Memo:
+        if values:
+            scoped.update(values)
+        return item
+
+    def perform_delete(
+        self, item: Memo, scoped: QuerySet[Memo], principal: Caller[Any]
+    ) -> bool:
+        return scoped.delete() > 0
 
 
 def app_for(*apis: type[Any], url: str | None = None) -> Hinoki:
@@ -181,7 +223,7 @@ def test_class_configuration_composes_with_custom_routes_and_hooks() -> None:
             self, values: dict[str, Any], principal: Caller[Any]
         ) -> Any:
             values["title"] = f"hook:{values['title']}"
-            return await super().perform_create(values, principal)
+            return await Memo.acreate(**values)
 
     class Posts(Base, path="/posts"):
         create_schema = MemoIn
@@ -308,7 +350,15 @@ async def memos(pool: Pool) -> AsyncIterator[Client]:
         "title varchar(40) NOT NULL, body text NOT NULL)"
     )
     yield await pool.start(
-        app_for(Memos, Backwards, HookedMemos, PrivateMemos, UnsafeHooks, url=URL)
+        app_for(
+            Memos,
+            Backwards,
+            HookedMemos,
+            PrivateMemos,
+            UnsafeHooks,
+            SyncHooks,
+            url=URL,
+        )
     )
     await admin.execute("DROP TABLE IF EXISTS crud_memos")
     admin.close()
@@ -345,6 +395,34 @@ async def test_perform_create_hook_runs_inside_generated_action(memos: Client) -
     )
     assert created.status == 201
     assert created.body["title"] == "hook:Hello"
+
+
+@needs_database
+async def test_all_crud_hooks_accept_sync_definitions(memos: Client) -> None:
+    created = await memos.request(
+        "POST",
+        "/sync-hooks",
+        body(title="sync"),
+        content_type=JSON,
+        headers=ANN,
+    )
+    assert created.status == 201
+    key = created.body["id"]
+    assert (await memos.request("GET", "/sync-hooks", headers=ANN)).body["total"] == 1
+    assert (await memos.request("GET", f"/sync-hooks/{key}", headers=ANN)).body[
+        "title"
+    ] == "sync"
+    updated = await memos.request(
+        "PATCH",
+        f"/sync-hooks/{key}",
+        body(title="updated"),
+        content_type=JSON,
+        headers=ANN,
+    )
+    assert updated.body["title"] == "updated"
+    assert (
+        await memos.request("DELETE", f"/sync-hooks/{key}", headers=ANN)
+    ).status == 204
 
 
 @needs_database
