@@ -10,6 +10,8 @@ related:
 
 Rules are optional, typed promises about your application that a tool checks and that fail with a stable ID, a location and an explanation. They are not a linter for style and not an AI prompt: each rule is a Python object with deterministic behaviour. Nothing runs unless you enable rules.
 
+The built-in set is intentionally small: access declarations, atomic writes, model responses, schema exposure and import direction. Add a custom `Rule` only when a project has a concrete invariant that these checks cannot express.
+
 ## Enable them (the blog does)
 
 ```python
