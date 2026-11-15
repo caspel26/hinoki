@@ -23,7 +23,7 @@ class BlogSettings(settings.AppSettings):          # keeps the built-in groups
 
 Settings types live in the `hinoki.settings` namespace: `from hinoki import settings`, then `settings.AppSettings`, `settings.DatabaseSettings`, `settings.Secret`, `settings.Settings` and `settings.SettingsError`. Name your own subclass for your project (`BlogSettings` above) and keep a loaded value in a variable such as `app_settings`, so the namespace is not shadowed. Earlier revisions exported these types from `hinoki` itself and called the base class `FrameworkSettings`; `from hinoki import FrameworkSettings` now raises `ImportError`.
 
-`settings.AppSettings` brings eight groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit, 8 KiB query limit and 32 KiB header limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs), `server` (host, port and workers), `pagination` (default `page_size` and `max_page_size` for `PageNumberPagination`, see [pagination](pagination.md#defaults-for-the-whole-application)), `cors` (which browser origins may read responses) and `security` (browser response headers and optional HTTPS redirect). Three values sit beside the groups: `timezone`, `debug` and `allowed_hosts`; see [Debug, allowed hosts and CORS](#debug-allowed-hosts-and-cors). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](request-lifecycle.md).
+`settings.AppSettings` brings eight groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit, 8 KiB query limit and 32 KiB header limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON, optional request ID correlation), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs), `server` (host, port and workers), `pagination` (default `page_size` and `max_page_size` for `PageNumberPagination`, see [pagination](pagination.md#defaults-for-the-whole-application)), `cors` (which browser origins may read responses) and `security` (browser response headers and optional HTTPS redirect). Three values sit beside the groups: `timezone`, `debug` and `allowed_hosts`; see [Debug, allowed hosts and CORS](#debug-allowed-hosts-and-cors). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](request-lifecycle.md).
 
 `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` default to `None`, so no API document or viewer route is served until configured. Swagger UI or ReDoc requires an `openapi_url`. The same values can be supplied as `Hinoki(...)` arguments; explicit arguments win over `docs` settings, and `None` disables a page.
 
@@ -41,6 +41,7 @@ Settings types live in the `hinoki.settings` namespace: `from hinoki import sett
 | `lifecycle` | `shutdown_timeout` | `10.0` seconds | Must be positive |
 | `logging` | `level` | `info` | `debug`, `info`, `warning`, `error` or `critical` |
 | `logging` | `format` | `text` | `text` or `json` |
+| `logging` | `include_request_id` | `false` | Add the active request ID to Hinoki log records for request correlation |
 | `docs` | `title` | `Hinoki API` | OpenAPI info title |
 | `docs` | `version` | `0.1.0` | OpenAPI info version |
 | `docs` | `openapi_url` | `None` | JSON document route; disabled when `None` |
@@ -87,6 +88,8 @@ class BlogSettings(settings.AppSettings):
         trust_request_id=True,
     )
 ```
+
+Set `logging.include_request_id=true` to add the resolved ID to Hinoki's own log records while a request is being handled. Text logs append `request_id=<id>` and JSON logs include a `request_id` field. The ID matches the response's configured request ID header. Startup and other records outside a request omit the field. This setting is off by default, and it does not change application or third-party logger handlers.
 
 From a trusted peer, Hinoki accepts a single `X-Forwarded-Proto` value of `http` or `https` and walks a bounded `X-Forwarded-For` chain from the peer side to the first untrusted address. `Request.scheme` and `Request.client` use those validated values. Invalid, repeated or ambiguous values fall back to the socket scope. `X-Forwarded-Host` is never used: `Host`, `allowed_hosts` and generated URLs continue to use the original Host header.
 
