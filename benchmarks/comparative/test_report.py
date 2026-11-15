@@ -148,3 +148,32 @@ def test_missing_raw_scenario_fails_instead_of_partial_report() -> None:
         pytest.raises(ValueError, match="missing raw results"),
     ):
         report.load_runs(Path(temporary), "hinoki", "list")
+
+
+def write_workers(directory: Path, stack: str, cpu_times: list[str]) -> None:
+    rows = "\n".join(f"{n} 1 {t} worker" for n, t in enumerate(cpu_times, start=2))
+    (directory / f"{stack}-workers.txt").write_text(
+        f"pid pgid cputime command\n{rows}\n"
+    )
+
+
+def test_stack_with_one_busy_process_is_flagged_but_balanced_stacks_are_not() -> None:
+    with tempfile.TemporaryDirectory() as raw:
+        directory = Path(raw)
+        write_workers(
+            directory, "bolt", ["0:00.30", "0:00.02", "0:00.02", "0:00.02", "8:40.38"]
+        )
+        write_workers(
+            directory,
+            "hinoki",
+            ["0:00.08", "0:00.02", "6:40.31", "10:27.76", "9:55.71", "10:25.25"],
+        )
+        write_workers(
+            directory, "ninja", ["0:00.30", "8:42.06", "8:42.37", "8:42.29", "8:42.83"]
+        )
+
+        flagged = report.single_process_stacks(
+            directory, ["bolt", "hinoki", "ninja", "fastapi"], 4
+        )
+
+    assert flagged == ["bolt"]
