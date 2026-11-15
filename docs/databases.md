@@ -37,7 +37,7 @@ database URL is needed for local development. You can override it with an
 environment variable (the URL is a secret setting; avoid committing it):
 
 ```sh
-# Optional for local SQLite; these values can instead be in settings.toml.
+# Optional override; SQLite is selected automatically when this is omitted.
 export BLOG_DATABASE__URL='sqlite://./.hinoki/local.sqlite3'
 
 # PostgreSQL
@@ -54,7 +54,8 @@ Use a secret manager or a `BLOG_DATABASE__URL_FILE` variable for deployment
 credentials. Hinoki redacts the URL in settings output and connection errors.
 Avoid placing a credential-bearing URL in shell history or a process argument.
 
-For a non-secret pool setting, TOML works as well:
+For non-secret pool settings, TOML works as well. Keep `url` in an environment
+variable or secret file; `settings.Secret` values are not read from TOML.
 
 ```toml
 [database]
