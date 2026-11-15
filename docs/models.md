@@ -39,6 +39,12 @@ class Task(Model, table="tasks", label="Task", plural="Tasks"):
 
 Supported field metadata includes primary key, uniqueness, maximum string length, defaults and foreign-key behavior. Database types are inferred from annotations; unsupported types fail during model or migration validation.
 
+### Model field metadata and validation
+
+`field()` metadata describes the database column and its migration: `max_length` becomes a bounded string column and a derived `Schema` constraint, `unique` becomes a database constraint, and `default` / `default_factory` provide values when constructing an instance. A `foreign_key(...)` declares the referenced table and its `OnDelete` behavior. The Python annotation supplies the column type and nullability. These declarations are not general runtime validators: constructing a `Model`, assigning a field or saving an instance does not run a custom per-field validation hook. Database enforcement varies by backend (for example SQLite does not enforce a `varchar` length).
+
+For untrusted HTTP input, validate with a `Schema` before passing data to model operations. `@field_check` and `@object_check` belong to `Schema` and are not applied to `Model`. Hinoki does not yet have custom Model field validators. Keep rules that need other rows, permissions or current database state in an operation; see [Schema validation](schemas.md#built-in-and-custom-validation).
+
 Hinoki stores PostgreSQL UUID, timestamp, JSON and byte values in their native column types. SQLite stores UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string `contains` matching follows SQLite's case-folding behavior (ASCII case-insensitive).
 
 ## Query rows

@@ -79,6 +79,7 @@ nav:
       - 4. Endpoints: tutorial/4-endpoints.md
       - 5. Rules: tutorial/5-rules.md
       - 6. Run and test it: tutorial/6-run.md
+      - 7. Validate input: tutorial/7-validation.md
   - Guides:
       - Overview: guides.md
       - Data:
