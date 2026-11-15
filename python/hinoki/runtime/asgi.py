@@ -113,6 +113,12 @@ class ASGIAdapter:
             settings.server.request_id_header.lower() if settings else "x-request-id"
         )
         self.trust_request_id = settings.server.trust_request_id if settings else False
+        # Fixed for the worker's life: computed once, not for every request.
+        self.request_id_name = self.request_id_header.encode("ascii")
+        self.policy = {
+            secure: headers_for(self.security, "https" if secure else "")
+            for secure in (True, False)
+        }
         self.executor = SyncExecutor(app.runtime.sync_workers, app.runtime.sync_queue)
         needs_database = any(b.route.transaction for b in self.bindings)
         self.lifespan = Lifespan(
@@ -185,7 +191,7 @@ class ASGIAdapter:
                 request_id_headers, self.request_id_header
             )
             if incoming_rid is None and any(
-                name.lower() == self.request_id_header.encode("ascii")
+                name.lower() == self.request_id_name
                 for name, _ in request_id_headers
             ):
                 log.warning("ignored invalid request ID from trusted proxy")
@@ -201,9 +207,7 @@ class ASGIAdapter:
             database_var.reset(db_token)
             context.sync_runner.reset(runner_token)
             request_id.reset(token)
-        merge_policy_headers(
-            response, headers_for(self.security, scope.get("scheme", ""))
-        )
+        merge_policy_headers(response, self.policy[scope.get("scheme", "") == "https"])
         present = {name.lower() for name, _ in response.headers}
         extra = [
             (name.encode(), value.encode())
@@ -211,7 +215,7 @@ class ASGIAdapter:
             if name.encode().lower() not in present
             and name.encode().lower() not in POLICY_HEADERS
         ]
-        request_id_bytes = self.request_id_header.encode("ascii")
+        request_id_bytes = self.request_id_name
         headers = [
             (name, value)
             for name, value in [*response.headers, *extra]
