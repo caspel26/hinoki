@@ -9,10 +9,10 @@ related:
 
 # Configure a database
 
-Hinoki's ORM supports PostgreSQL, SQLite and MySQL. SQLite is the default for
-local development. The backend is selected by the database URL; an application
-uses the same `Model` and query APIs across these backends where their SQL
-features overlap.
+Hinoki's ORM supports PostgreSQL, SQLite, MySQL and MariaDB. SQLite is the
+default for local development. The backend is selected by the database URL; an
+application uses the same `Model` and query APIs across these backends where
+their SQL features overlap.
 
 ## Configure the application
 
@@ -79,9 +79,11 @@ provided `Database` instance.
 | SQLite | `sqlite://./.hinoki/local.sqlite3` | Supported; recommended local default. No network authentication or TLS. SQLite allows one writer at a time; Hinoki uses bounded connections and a five-second busy timeout. Relative paths are resolved from the application working directory. |
 | PostgreSQL | `postgresql://user:password@host/database` | Supported. Uses PostgreSQL username/password authentication and native UUID, timestamp, JSON and byte types. `sslmode` defaults to `prefer`; use `sslmode=verify-full` for remote databases. `sslrootcert` adds a PEM CA certificate to the system roots. Hinoki accepts `disable`, `prefer`, `require`, `verify-ca` and `verify-full`; the last three all require TLS and certificate verification in Hinoki. |
 | MySQL | `mysql://user:password@host/database` | Supported. Uses username/password authentication and requires TLS by default, with certificate and host verification. The system trust store must trust the server certificate. `require_ssl=false` disables encryption and is only for an isolated disposable local server. MySQL uses InnoDB and MySQL-native JSON; `RETURNING` is unavailable. |
+| MariaDB | `mariadb://user:password@host/database` | Supported and tested separately on MariaDB 11.4. Uses the MySQL wire driver and SQL dialect. MariaDB's `JSON` alias is text; typed ORM `dict`/`list` fields are decoded by their model declaration. Low-level `Database.fetch()` returns MariaDB JSON values as bytes because server metadata cannot safely distinguish JSON from arbitrary text. TLS is required by default. |
 
-MariaDB, SQL Server and Oracle are not supported by this release. MySQL's URL
-scheme does not imply MariaDB compatibility.
+SQL Server and Oracle are not supported by this release. MySQL and MariaDB are
+separate URL/backend identities and each has its own real-server conformance
+job; MySQL's URL scheme does not imply MariaDB compatibility.
 
 ## Create and apply migrations
 
@@ -118,6 +120,10 @@ Migration behavior differs by backend:
   may already have changed the schema; Hinoki reports that partial application
   is possible. Inspect schema and migration status before retrying, and retain
   a recoverable backup.
+* **MariaDB** uses the MySQL wire protocol, but is a separate backend and is
+  tested against its own service. Its JSON type is a text alias: `Model`
+  fields annotated `dict` or `list` are decoded by the typed ORM, while the
+  low-level `Database.fetch()` API returns JSON column values as bytes.
 
 See the [migration guide](migrations.md) for destructive-change review and
 planning details, and the [database API reference](reference/database.md) for

@@ -6,19 +6,19 @@ The [documentation site](documentation-versions.md) separates current developmen
 
 ## Implemented and exercised
 
-The repository includes typed function and class APIs; request binding and strict schemas; access policies and declared errors; optional architecture rules; settings and worker modules; SQLite, PostgreSQL and MySQL ORM backends with relations, querysets and file-based migrations; sync and async handlers; OpenAPI, parsers, renderers, development and application MCP; and an optional admin with four styles.
+The repository includes typed function and class APIs; request binding and strict schemas; access policies and declared errors; optional architecture rules; settings and worker modules; SQLite, PostgreSQL, MySQL and MariaDB ORM backends with relations, querysets and file-based migrations; sync and async handlers; OpenAPI, parsers, renderers, development and application MCP; and an optional admin with four styles.
 
 The examples are the best way to see the pieces together: [Notes](https://github.com/caspel26/hinoki/tree/main/examples/notes) for a small declared app, [Tracker](https://github.com/caspel26/hinoki/tree/main/examples/tracker) for layers, ownership and rules, and [Blog](https://github.com/caspel26/hinoki/tree/main/examples/blog) for relations, auth and admin.
 
 ## Current boundaries
 
-* SQLite, PostgreSQL and MySQL are supported ORM databases; SQLite is the local-development default. MySQL has real-server integration coverage in CI. MariaDB, SQL Server and Oracle are not supported, and MySQL compatibility does not imply MariaDB compatibility. See the [database guide](databases.md) for backend-specific TLS, migration and feature limits.
+* SQLite, PostgreSQL, MySQL and MariaDB are supported ORM databases; SQLite is the local-development default. MySQL and MariaDB have separate real-server integration coverage in CI. SQL Server and Oracle are not supported. See the [database guide](databases.md) for backend-specific TLS, migration and feature limits, including MariaDB JSON behavior.
 * Hinoki does not open database connections at import or apply migrations automatically.
 * The ASGI adapter and application handler calls run in Python. The Rust extension currently provides path matching, selected query/header/cookie parsing, schema validation/serialization, cryptography and SQL ORM compilation/execution.
 * Built-in security settings add browser response headers, HSTS on effective HTTPS requests, and an opt-in `308` HTTPS redirect that requires explicit allowed hosts.
 * Generated typing for some keyword-based ORM calls is less precise than model construction; see [typing](typing.md).
 * Many-to-many links use an explicit model with two foreign keys and a composite uniqueness constraint. Implicit join models, direct collection access such as `post.tags`, and advanced relation paths are not available.
-* Additional database backends and end-to-end performance claims are not available.
+* SQL Server and Oracle backends are not available. End-to-end performance claims are not made without comparable retained measurements.
 * The server adapter is ASGI. `hinoki.wsgi.WSGIAdapter` wraps an application for WSGI servers (buffered bodies, no streaming); verified with Granian only, see [serving](serving.md#wsgi).
 * CORS is one application-wide policy in the `cors` settings group; there is no per-route CORS option. Application MCP has its own allowed-origin check. Cursor pagination is not available; pagination currently uses page numbers.
 * Pagination page-size defaults are `20` and `100`; the `pagination` settings group changes them for the whole app and an action's own `PageNumberPagination` values win. See [pagination](pagination.md).
