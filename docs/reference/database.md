@@ -11,9 +11,15 @@ the dialect automatically.
 
 ## Configure a backend
 
+Database URLs are secrets, so configure them through the environment rather
+than TOML. For local development, leave the URL unset to use the default
+SQLite file. To select another database for migration commands, set
+`HINOKI_DATABASE_URL`; an app can use its own secret environment setting. TOML may configure
+non-secret pool options, for example:
+
 ```toml
 [database]
-url = "sqlite://./local.db"
+max_size = 8
 ```
 
 For PostgreSQL, use a driver URL such as ``postgresql://user:password@host/db``.

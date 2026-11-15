@@ -34,6 +34,6 @@ The server returns each result as JSON in `structuredContent` and in a text cont
 
 `run_scenario` is omitted unless explicitly enabled with `--scenarios read` or `--scenarios write`. Its input requires `path`, a plain URL path beginning with `/`; optional fields are `method` (default `GET`), `query` (query string without `?`), string-valued `headers`, and `json`. The result contains HTTP `status`, response `headers`, bounded body text, `truncated`, and parsed JSON when available.
 
-Scenarios run the real app lifespan and handlers in-process. `read` accepts GET, HEAD and OPTIONS; a GET handler may still change data. `write` also accepts POST, PUT, PATCH and DELETE. Scenario requests have a 15-second limit and response bodies are capped at 20,000 bytes. The tool is marked as effectful. Enable it only under owner control and use a disposable database.
+Scenarios run the real app lifespan and handlers in-process. `read` accepts GET, HEAD, OPTIONS and QUERY; a GET handler may still change data. `write` also accepts POST, PUT, PATCH and DELETE. Scenario requests have a 15-second limit and response bodies are capped at 20,000 bytes. The tool is marked as effectful. Enable it only under owner control and use a disposable database.
 
 See [CLI options](cli.md#mcp) for startup configuration and [application MCP](app-mcp.md) for exposing selected routes as remote tools.
