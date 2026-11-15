@@ -15,6 +15,7 @@ The `hinoki` command accepts a `module:attribute` target for an application, fac
 | `hinoki serve TARGET` | Run without reload, using the `server` settings group. |
 | `hinoki check TARGET` | Run the application's configured rules; `--rules` and `--package` select rule and source targets. |
 | `hinoki routes TARGET` | List every method, path, handler and access policy in path order. `--path` and `--method` filter; `--format json` is machine readable. Nothing is served. |
+| `hinoki openapi TARGET` | Print or write the generated OpenAPI document, or check a JSON file for drift. Nothing is served and no database is opened. |
 | `hinoki settings TARGET` | Show effective settings and their source, with secrets redacted. `--dotenv` and `--toml` select optional files. |
 | `hinoki migrations ...` | Plan, inspect and apply database migrations. |
 | `hinoki manage TARGET COMMAND` | Run an app-defined command with its declared module resources. |
@@ -66,6 +67,16 @@ Options:
 * `--allow-effects` also runs checks declared as effectful, which may access files, network or databases.
 
 Exit status is `0` when no rules fail, `1` for violations, and `2` when the target or checks cannot run.
+
+### `openapi`
+
+```sh
+hinoki openapi examples.notes.main:app
+hinoki openapi examples.notes.main:app --output openapi.json
+hinoki openapi examples.notes.main:app --check openapi.json
+```
+
+The command builds the app without serving it or opening a database; it works even when `openapi_url` is disabled. With no file option it prints deterministic JSON (sorted keys, two-space indentation and a trailing newline). `--output FILE` writes those bytes. `--check FILE` compares parsed JSON, so formatting differences do not count as drift. Exit status is `0` when the file matches or is written, `1` when its JSON differs, and `2` when the target cannot load or the check file is missing or invalid JSON. `--output` and `--check` cannot be used together.
 
 ### `settings`
 
