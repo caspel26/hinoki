@@ -472,6 +472,95 @@ def test_command_line_plans_and_prints(
     assert (tmp_path / ".hinoki" / "local.sqlite3").is_file()
 
 
+def test_plan_check_is_read_only_and_keeps_dry_run_preview_semantics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    async def fail_connect(*_args: object, **_kwargs: object) -> Database:
+        raise AssertionError("migration plan check connected to a database")
+
+    monkeypatch.setattr(Database, "connect", fail_connect)
+    directory = tmp_path / "migrations"
+    args = [
+        "migrations",
+        "--dir",
+        str(directory),
+        "plan",
+        "--models",
+        "blog.models",
+    ]
+
+    assert main([*args, "--check"]) == 1
+    check_output = capsys.readouterr().out
+    assert "create table blog_posts" in check_output
+    assert "pending migrations:" in check_output
+    assert not directory.exists()
+
+    assert main([*args, "--dry-run"]) == 0
+    assert "create table blog_posts" in capsys.readouterr().out
+    assert not directory.exists()
+
+    assert main(args) == 0
+    capsys.readouterr()
+    paths = sorted(directory.iterdir())
+    contents = [path.read_bytes() for path in paths]
+    assert main([*args, "--check"]) == 0
+    assert capsys.readouterr().out == "no changes\n"
+    assert sorted(directory.iterdir()) == paths
+    assert [path.read_bytes() for path in paths] == contents
+
+
+def test_plan_check_reports_destructive_changes_without_writing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    async def fail_connect(*_args: object, **_kwargs: object) -> Database:
+        raise AssertionError("migration plan check connected to a database")
+
+    monkeypatch.setattr(Database, "connect", fail_connect)
+    monkeypatch.setattr("hinoki.__main__.models_of", lambda _module: [owners()])
+    directory = tmp_path / "migrations"
+    args = [
+        "migrations",
+        "--dir",
+        str(directory),
+        "plan",
+        "--models",
+        "example.models",
+    ]
+    assert main(args) == 0
+    capsys.readouterr()
+    paths = sorted(directory.iterdir())
+    contents = [path.read_bytes() for path in paths]
+
+    monkeypatch.setattr("hinoki.__main__.models_of", lambda _module: [])
+    assert main([*args, "--check"]) == 1
+    output = capsys.readouterr().out
+    assert "DESTRUCTIVE drop table mig_owners" in output
+    assert "pending migrations:" in output
+    assert sorted(directory.iterdir()) == paths
+    assert [path.read_bytes() for path in paths] == contents
+
+
+@pytest.mark.parametrize(
+    "option", [["--dry-run"], ["--name", "renamed"], ["--allow-destructive"]]
+)
+def test_plan_check_rejects_write_and_preview_options(
+    option: list[str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    args = ["migrations", "plan", "--models", "does.not.load", "--check", *option]
+    assert main(args) == 2
+    captured = capsys.readouterr()
+    assert "cannot be combined with" in captured.err
+    assert captured.out == ""
+
+
 def test_command_line_reports_a_failed_connection_without_a_traceback(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
