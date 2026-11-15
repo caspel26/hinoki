@@ -72,7 +72,20 @@ without measuring. Use `--runs`, `--duration` and `--warmup` only when recording
 the chosen values in the report metadata and rationale. Remove the disposable
 container when finished: `docker rm -f hinoki-bench-pg`.
 
+If a workload's sample CV exceeds 15%, inspect host variance and repeat that
+scenario with `--scenario create --run-offset 5` (or the affected scenario),
+keeping both the original and additional raw samples. The report includes every
+sample found in its directory; additional captures get separate environment
+metadata files rather than replacing the first environment record.
+
 Exact package versions, the CPU model, the load average when the run started and every setting are written to `environment.json`; each raw `oha` result is kept next to the report.
+
+The refreshed 2026-11-15 samples and generated report are retained under
+`results/2026-11-15/`. Create had ten samples per stack across the documented
+and same-Granian slices; the extra blocks have separate environment records.
+Its CV remains above 15% for every stack, so treat create throughput as noisy
+and inconclusive for close comparisons. The public chart page is generated
+from these raw JSON files with `report.py`.
 
 ## Limits
 
