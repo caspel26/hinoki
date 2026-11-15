@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import stat
@@ -184,15 +185,57 @@ def _append_app(path: Path, original: bytes, name: str, package: str) -> None:
 
 
 def add_arguments(commands: _SubParsersAction[ArgumentParser]) -> None:
-    """Register the `app create` parser on argparse's subparsers object."""
-    group = commands.add_parser("app", help="create and inspect project apps")
+    """Register modular-app project commands."""
+    group = commands.add_parser("app", help="manage project apps")
     actions = group.add_subparsers(dest="app_action", required=True)
+    listing = actions.add_parser("list", help="list registered project apps")
+    listing.add_argument("--format", choices=("text", "json"), default="text")
     create = actions.add_parser("create", help="create a modular app")
     create.add_argument("name")
 
 
+def list_apps(args: Namespace) -> int:
+    """List manifest app registrations without importing app modules."""
+    try:
+        manifest = load_manifest()
+        apps = manifest.ordered_apps()
+    except (ProjectError, OSError) as error:
+        message = str(error)
+        if message.startswith("no hinoki.toml found"):
+            message = (
+                "no hinoki.toml found; run this command from the project directory"
+            )
+        print(f"error: {message}", file=sys.stderr)
+        return 2
+    if args.format == "json":
+        rows = [
+            {
+                "name": app.name,
+                "models": app.models,
+                "migrations": app.migrations,
+                "requires": list(app.requires),
+            }
+            for app in apps
+        ]
+        print(json.dumps({"apps": rows}, indent=2))
+        return 0
+    if not apps:
+        print("no apps registered")
+        return 0
+    for app in apps:
+        print(
+            f"{app.name}\n"
+            f"  models: {app.models}\n"
+            f"  migrations: {app.migrations}\n"
+            f"  requires: {', '.join(app.requires) or '—'}"
+        )
+    return 0
+
+
 def run(args: Namespace) -> int:
     """Run one app-management command with user-friendly errors."""
+    if args.app_action == "list":
+        return list_apps(args)
     try:
         created = create_app(args.name)
     except (ProjectError, OSError) as error:

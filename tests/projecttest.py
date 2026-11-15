@@ -1,5 +1,6 @@
-"""Explicit project registry and modular-app creation."""
+"""Project registry and modular-app commands."""
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -125,6 +126,85 @@ def test_app_command_creates_registers_and_discovery_walks_to_parent(
     assert billing.migrations == "sample.apps.billing.migrations"
     migration_init = manifest_path.parent / "sample/apps/billing/migrations/__init__.py"
     assert migration_init.is_file()
+
+
+def test_app_list_is_dependency_ordered_and_does_not_import_apps_or_connect(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = create("sample", tmp_path)
+    (project / "hinoki.toml").write_text(
+        '[project]\napplication = "sample.main:app"\n'
+        '[[apps]]\nname = "billing"\nmodels = "sample.apps.billing.models"\n'
+        'migrations = "sample.apps.billing.migrations"\nrequires = ["accounts"]\n'
+        '[[apps]]\nname = "accounts"\nmodels = "sample.apps.accounts.models"\n'
+        'migrations = "sample.apps.accounts.migrations"\nrequires = []\n',
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(project / "sample")
+
+    def fail_import(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("app list imported app code")
+
+    def fail_connect(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("app list connected to a database")
+
+    monkeypatch.setattr("hinoki.project.importlib.import_module", fail_import)
+    monkeypatch.setattr(Database, "connect", fail_connect)
+
+    assert main(["app", "list"]) == 0
+    output = capsys.readouterr().out
+    assert output.index("accounts\n") < output.index("billing\n")
+    assert "models: sample.apps.billing.models" in output
+    assert "migrations: sample.apps.billing.migrations" in output
+    assert "requires: accounts" in output
+
+
+def test_app_list_json_has_stable_manifest_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = create("sample", tmp_path)
+    monkeypatch.chdir(project)
+
+    assert main(["app", "list", "--format", "json"]) == 0
+
+    assert json.loads(capsys.readouterr().out) == {
+        "apps": [
+            {
+                "name": "sample",
+                "models": "sample.models",
+                "migrations": "sample.migrations",
+                "requires": [],
+            }
+        ]
+    }
+
+
+def test_app_list_empty_manifest_and_missing_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    (tmp_path / "hinoki.toml").write_text(
+        '[project]\napplication = "sample.main:app"\n', encoding="utf-8"
+    )
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["app", "list"]) == 0
+    assert capsys.readouterr().out == "no apps registered\n"
+    assert main(["app", "list", "--format", "json"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"apps": []}
+
+    missing = tmp_path.parent / f"{tmp_path.name}-missing"
+    missing.mkdir()
+    monkeypatch.chdir(missing)
+    assert main(["app", "list"]) == 2
+    assert capsys.readouterr().err == (
+        "error: no hinoki.toml found; run this command from the project directory\n"
+    )
 
 
 def test_manage_uses_the_manifest_application_from_nested_directory(
