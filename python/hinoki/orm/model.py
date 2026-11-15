@@ -501,14 +501,37 @@ class Model:
         cls = type(self).concrete()
         assignments = [(c, getattr(self, c)) for c in cls.__columns__]
         database = current_database()
+        returning = (
+            [] if database.dialect in {"mysql", "mariadb"} else list(cls.__columns__)
+        )
         sql, params = core.compile_query(
             "insert",
             cls.__table__,
             assignments=assignments,
-            returning=list(cls.__columns__),
+            returning=returning,
             dialect=database.dialect,
         )
-        rows = await database.fetch(sql, *params)
+        if database.dialect in {"mysql", "mariadb"}:
+            # MySQL has no INSERT ... RETURNING. Read the row by its already
+            # materialized Hinoki primary key inside the same transaction.
+            async with database.transaction():
+                await database.execute(sql, *params)
+                select_sql, select_params = core.compile_query(
+                    "select",
+                    cls.__table__,
+                    columns=list(cls.__columns__),
+                    filters=[
+                        (
+                            cls.__primary_key__,
+                            "eq",
+                            [getattr(self, cls.__primary_key__)],
+                        )
+                    ],
+                    dialect=database.dialect,
+                )
+                rows = await database.fetch(select_sql, *select_params)
+        else:
+            rows = await database.fetch(sql, *params)
         self.refresh(cls.from_row(rows[0]))
         return self
 
