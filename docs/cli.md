@@ -11,6 +11,7 @@ The `hinoki` command accepts a `module:attribute` target for an application, fac
 | Command | Purpose |
 | --- | --- |
 | `hinoki new NAME` | Create a starter project with settings, rules, tests and agent instructions. |
+| `hinoki app create NAME` | Add a registered modular app with its own models and migration package. |
 | `hinoki dev TARGET` | Run an app with reload during development. |
 | `hinoki serve TARGET` | Run without reload, using the `server` settings group. |
 | `hinoki check TARGET` | Run the application's configured rules; `--rules` and `--package` select rule and source targets. |
@@ -18,8 +19,8 @@ The `hinoki` command accepts a `module:attribute` target for an application, fac
 | `hinoki openapi TARGET` | Print or write the generated OpenAPI document, or check a JSON file for drift. Nothing is served and no database is opened. |
 | `hinoki version` | Show the Hinoki version; `--verbose` includes Python, platform, native core and optional Granian details. `--format json` is machine readable. |
 | `hinoki settings TARGET` | Show effective settings and their source, with secrets redacted. `--dotenv` and `--toml` select optional files. |
-| `hinoki migrations ...` | Plan, inspect and apply database migrations. |
-| `hinoki manage TARGET COMMAND` | Run an app-defined command with its declared module resources. |
+| `hinoki migrations ...` | Plan, inspect and apply project app migrations in dependency order. Legacy explicit targets remain available without a manifest. |
+| `hinoki manage [TARGET] [COMMAND]` | Run an app-defined command with its declared module resources; a project manifest supplies the default target. |
 | `hinoki mcp TARGET` | Serve project context to an MCP client over stdio. Scenario tools are off by default. |
 
 ### `new`
@@ -41,6 +42,14 @@ This repository's pre-alpha Hinoki framework is not published on PyPI; the [`hin
 
 The result is `cd PATH/NAME && uv sync && uv run pytest`: the project has a health route, typed settings, rules, one test that needs no database, a `README.md`, `AGENTS.md` and `.mcp.json`.
 Checkout paths and Git source values are escaped as TOML strings in the generated `pyproject.toml`.
+
+The generated `hinoki.toml` registers the default app and its models and migrations. Add modules without moving files by creating another app:
+
+```sh
+uv run hinoki app create billing
+```
+
+This creates `NAME/apps/billing/{models.py,migrations/}` and registers both dotted module paths. Cross-app foreign keys require the referencing app to list the referenced app in `requires` in `hinoki.toml`; migrations are then planned/applied in dependency order. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.
 
 ### `dev` and `serve`
 
@@ -106,7 +115,7 @@ hinoki manage examples.management:app --help
 hinoki manage examples.management:app greet Peppe
 ```
 
-Commands are declared on the app with `Hinoki(commands=[...])`. Each command subclasses `hinoki.management.Command`, gives itself a lower-case name, and adds arguments through `add_arguments(parser)`. `--help` after the app target lists its commands; `--help` after a command shows that command's arguments.
+Commands are declared on the app with `Hinoki(commands=[...])`. Each command subclasses `hinoki.management.Command`, gives itself a lower-case name, and adds arguments through `add_arguments(parser)`. In a scaffolded project, `hinoki manage` lists commands and `hinoki manage greet Peppe` runs one; the manifest's `project.application` supplies the app target. Outside a registered project, use `hinoki manage TARGET COMMAND`. `--help` after a command shows its arguments.
 
 ```python
 from argparse import ArgumentParser, Namespace
@@ -137,7 +146,19 @@ Commands run inside the project process and can modify data. Use disposable data
 
 ### `migrations`
 
-`--dir` belongs immediately after `migrations` and defaults to `migrations/`:
+In a project created by `hinoki new`, migration modules are read from the manifest; users do not supply model or migration paths:
+
+```sh
+uv run hinoki migrations plan --name add-index --dry-run
+uv run hinoki migrations plan --app billing --name add-invoice-index
+uv run hinoki migrations status
+uv run hinoki migrations apply
+uv run hinoki migrations sql --app billing 0001-initial
+```
+
+`status` and `apply` cover all registered apps in dependency order. `plan` requires one app when multiple are registered, selected with `--app`; `sql` likewise requires an app in a multi-app project. `--name` is optional: Hinoki derives a stable slug from the first planned schema change (for example, `create-table-notes`); pass `--name initial-notes` to override it. Numbering is automatic. `apply` initializes the configured local SQLite database when no database URL is set. Added apps have separate migration ledger namespaces, so identical numbered filenames do not collide; the scaffolded root app retains its existing unprefixed migration keys. `--app billing` includes its declared prerequisite apps for migration application.
+
+Without a `hinoki.toml`, the explicit legacy form remains:
 
 ```sh
 hinoki migrations --dir examples/blog/migrations plan \
@@ -150,7 +171,7 @@ hinoki migrations --dir examples/blog/migrations apply
 hinoki migrations --dir examples/blog/migrations sql 0001-initial
 ```
 
-`plan` requires `--models MODULE`; `--name` defaults to `changes`. `--dry-run` prints operations without writing files. Destructive operations require `--allow-destructive`. Without `HINOKI_DATABASE_URL`, plan/status/apply target the local SQLite file at `.hinoki/local.sqlite3`; `--database URL` selects another supported backend. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints `error: database: …` with a `fix:` line and exits 1; the URL is not printed. `sql NAME` prints a migration's SQL. Use a disposable database while reviewing migrations.
+`plan` requires `--models MODULE`; `--name` is an optional slug override and is derived from the first planned schema change when omitted. `--dry-run` prints operations without writing files. Destructive operations require `--allow-destructive`. Without `HINOKI_DATABASE_URL`, plan/status/apply target the local SQLite file at `.hinoki/local.sqlite3`; `--database URL` selects another supported backend. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints `error: database: …` with a `fix:` line and exits 1; the URL is not printed. `sql NAME` prints a migration's SQL. Use a disposable database while reviewing migrations.
 
 ### `mcp`
 

@@ -174,13 +174,18 @@ def family(sql_type: str) -> str:
     return "text" if name == "varchar" else name
 
 
-def check_references(state: State) -> None:
+def check_references(state: State, external_tables: State | None = None) -> None:
     for table, spec in state["tables"].items():
         for name, column in spec["columns"].items():
             target = column["references"]
             if target is None:
                 continue
-            remote = state["tables"].get(target["table"], {"columns": {}})
+            remote = state["tables"].get(
+                target["table"],
+                (external_tables or {"tables": {}})["tables"].get(
+                    target["table"], {"columns": {}}
+                ),
+            )
             wanted = remote["columns"].get(target["column"])
             if wanted is None:
                 raise MigrationError(f"{table}.{name} references an unknown table")
@@ -191,10 +196,20 @@ def check_references(state: State) -> None:
                 )
 
 
-def state_of(models: list[type[Model]], dialect: str = "postgres") -> State:
+def state_of(
+    models: list[type[Model]],
+    dialect: str = "postgres",
+    *,
+    reference_models: list[type[Model]] | None = None,
+) -> State:
     tables = {m.__table__: table_state(m, dialect) for m in models}
     state: State = {"tables": tables}
-    check_references(state)
+    external = {
+        model.__table__: table_state(model, dialect)
+        for model in reference_models or []
+        if model.__table__ not in tables
+    }
+    check_references(state, {"tables": external})
     return state
 
 
@@ -519,11 +534,12 @@ def render(title: str, operations: list[Operation]) -> str:
 def plan(
     models: list[type[Model]],
     directory: Path,
-    name: str,
+    name: str | None = None,
     *,
     allow_destructive: bool = False,
     write: bool = True,
     dialect: str = "postgres",
+    reference_models: list[type[Model]] | None = None,
 ) -> Plan:
     """Operations needed to bring the recorded state to ``models``.
 
@@ -531,11 +547,11 @@ def plan(
     changed. Destructive operations raise ``DestructiveMigration`` (and write
     nothing) unless ``allow_destructive``.
     """
-    if not NAME.fullmatch(name):
+    if name is not None and not NAME.fullmatch(name):
         raise MigrationError("migration names use lowercase letters, digits and -")
     if dialect not in {"postgres", "sqlite", "mysql", "mariadb"}:
         raise MigrationError(f"unsupported migration dialect {dialect!r}")
-    new = state_of(models, dialect)
+    new = state_of(models, dialect, reference_models=reference_models)
     operations = diff(latest_state(directory), new, dialect)
     risky = [f"{o.description}: {o.destructive}" for o in operations if o.destructive]
     if risky and not allow_destructive:
@@ -544,9 +560,10 @@ def plan(
         )
     if not operations or not write:
         return Plan(tuple(operations), new)
+    migration_name = name or automatic_migration_name(operations)
     files = migration_files(directory)
     number = int(FILE.fullmatch(files[-1].name).group(1)) + 1 if files else 1  # type: ignore[union-attr]
-    title = f"{number:04d}-{name}"
+    title = f"{number:04d}-{migration_name}"
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{title}.sql"
     path.write_text(render(title, operations), encoding="utf-8")
@@ -554,6 +571,13 @@ def plan(
         json.dumps(new, indent=2) + "\n", encoding="utf-8"
     )
     return Plan(tuple(operations), new, path)
+
+
+def automatic_migration_name(operations: list[Operation]) -> str:
+    """Derive a stable file-name slug from the first planned schema operation."""
+    source = operations[0].description.lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", source).strip("-")
+    return slug[:80].rstrip("-") or "schema-update"
 
 
 def statements(text: str) -> list[str]:
