@@ -43,7 +43,7 @@ One page for each part of an application. Start with the data and endpoint guide
 
 ## Integrations
 
-- [Admin](admin.md): An optional extra that gives staff a list, search, create, edit, bulk delete and a dashboard for your models.
+- [Admin](admin.md): An optional module that gives staff a list, search, create, edit, bulk delete and a dashboard for your models; it is included in the framework package and mounted explicitly.
 - [Application MCP](app-mcp.md): expose_as_mcp turns selected HTTP actions into tools for an MCP client.
 - [Development MCP](dev-mcp.md): CLI-hosted tools describe an app and its rules to an agent.
 - [Development tools](ai-workflow.md): Scaffold a project and give a coding agent rules, error explanations and an MCP server.

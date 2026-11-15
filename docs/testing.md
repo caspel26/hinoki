@@ -14,6 +14,9 @@ Hinoki has two useful levels of application tests: call the operation functions 
 `ASGIClient` drives startup, HTTP requests and shutdown without opening a network socket:
 
 ```python
+from hinoki.testing import ASGIClient
+
+# create_app and TEST_DATABASE_URL come from the application under test.
 async with ASGIClient(create_app(TEST_DATABASE_URL), strict_errors=True) as client:
     response = await client.post("/tasks", json={"title": "Write docs"}, token="member")
     assert response.status == 201
@@ -58,4 +61,4 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-Database-dependent Python and Rust tests require `HINOKI_TEST_DATABASE_URL`; without it those tests are skipped. CI provides a disposable PostgreSQL service. See [toolchain and CI](toolchain.md) for packaging and docs checks too.
+PostgreSQL-dependent Python and Rust tests require `HINOKI_TEST_DATABASE_URL`; without it those tests are skipped. Migration conformance tests for MySQL and MariaDB also require `HINOKI_TEST_MYSQL_URL` and `HINOKI_TEST_MARIADB_URL`, respectively. CI provides disposable real-server services. See [toolchain and CI](toolchain.md) for packaging and docs checks too.
