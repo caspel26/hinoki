@@ -10,7 +10,9 @@ from __future__ import annotations
 import copy
 import dataclasses
 import inspect
+import json
 import sys
+import types
 import typing
 from collections.abc import Callable, Sequence
 from typing import (
@@ -21,6 +23,8 @@ from typing import (
     TypeGuard,
     cast,
     dataclass_transform,
+    get_args,
+    get_origin,
 )
 
 from hinoki import core
@@ -100,6 +104,17 @@ def field_types(base: type) -> dict[str, object]:
         if not is_class_variable(kind):
             found[name] = kind
     return found
+
+
+def is_json_field(kind: object) -> bool:
+    origin = get_origin(kind)
+    if kind in (dict, list) or origin in (dict, list):
+        return True
+    if origin in (typing.Union, types.UnionType):
+        return any(
+            is_json_field(arg) for arg in get_args(kind) if arg is not type(None)
+        )
+    return False
 
 
 def same_type(first: object, second: object) -> bool:
@@ -193,6 +208,7 @@ class Model:
 
     __table__: ClassVar[str] = ""
     __columns__: ClassVar[tuple[str, ...]] = ()
+    __json_columns__: ClassVar[tuple[str, ...]] = ()
     __primary_key__: ClassVar[str] = ""
     __relations__: ClassVar[dict[str, Relation]] = {}
     __unique__: ClassVar[tuple[tuple[str, ...], ...]] = ()
@@ -236,6 +252,14 @@ class Model:
         cls.__abstract__ = abstract
         cls.__table__ = table
         cls.__columns__ = tuple(f.name for f in fields)
+        annotations = {
+            name: kind
+            for base in reversed(cls.__mro__)
+            for name, kind in field_types(base).items()
+        }
+        cls.__json_columns__ = tuple(
+            name for name in cls.__columns__ if is_json_field(annotations.get(name))
+        )
         cls.__primary_key__ = keys[0] if keys else ""
         cls.check_names(cls.__columns__)
         cls.inherit_options(unique)
@@ -492,7 +516,24 @@ class Model:
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> Self:
-        instance = cls(**row)
+        values = row
+        if cls.__json_columns__:
+            for name in cls.__json_columns__:
+                if name not in values:
+                    continue
+                value = values[name]
+                if not isinstance(value, (str, bytes, bytearray)):
+                    continue
+                try:
+                    decoded = json.loads(value)
+                except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                    raise FieldError(
+                        f"{cls.__name__}.{name}: database value is not valid JSON"
+                    ) from error
+                if values is row:
+                    values = dict(row)
+                values[name] = decoded
+        instance = cls(**values)
         instance.remember()
         return instance
 

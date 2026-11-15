@@ -11,7 +11,7 @@
 <h3 align="center">Python APIs with architecture you can check.</h3>
 
 <p align="center">
-  Typed endpoints, declared access and transactions, a SQLite, PostgreSQL and MySQL ORM,<br>
+  Typed endpoints, declared access and transactions, a SQLite, PostgreSQL, MySQL and MariaDB ORM,<br>
   and optional architecture rules that report violations and fail CI.
 </p>
 
@@ -53,7 +53,7 @@ Hinoki is a Python framework for HTTP APIs, built around three ideas.
 | **Endpoints** | `@http.get`, `post`, `put`, `patch`, `delete` and `query` on functions, route groups or classes, with typed path, query and body parameters |
 | **Schemas** | Strict validation without type coercion, response shaping, and schemas derived from a model |
 | **Access and errors** | Reusable access policies with permissions; declared errors that appear in OpenAPI |
-| **SQL ORM** | SQLite (the local default), PostgreSQL and MySQL models; relations loaded only when you ask, querysets, transactions, and migration files that you review and apply yourself |
+| **SQL ORM** | SQLite (the local default), PostgreSQL, MySQL and MariaDB models; relations loaded only when you ask, querysets, transactions, and migration files that you review and apply yourself |
 | **Architecture rules** | Five focused built-ins for access, transactions, schemas and import direction; `hinoki check` reports violations and fails CI, with reasoned, owned waivers that can expire |
 | **Settings and modules** | Typed settings from the environment, files or TOML; per-worker resources with startup and shutdown |
 | **Tools** | OpenAPI with Swagger UI and ReDoc, in-process test clients, a project scaffold, an MCP server for coding agents, and an optional admin |
@@ -141,7 +141,7 @@ The bundled viewers work without a CDN. See the [OpenAPI guide](docs/openapi.md)
 
 ## Database support
 
-The ORM supports SQLite for local development by default, PostgreSQL and MySQL. An explicit database URL selects the backend; it is not replaced by the local default. MySQL requires verified TLS by default, and its DDL migrations can be partially applied if a statement fails. MariaDB, SQL Server and Oracle are not currently supported. See the [database configuration guide](docs/databases.md) for settings, URL examples, migration behavior and backend limits.
+The ORM supports SQLite for local development by default, PostgreSQL, MySQL and MariaDB. An explicit database URL selects the backend; it is not replaced by the local default. MySQL and MariaDB require verified TLS by default, and their DDL migrations can be partially applied if a statement fails. SQL Server and Oracle are not currently supported. See the [database configuration guide](docs/databases.md) for settings, URL examples, migration behavior and backend limits.
 
 ## Run it
 
@@ -291,7 +291,7 @@ The optional admin (`hinoki.admin`) gives staff lists, search, forms, bulk actio
 
 Hinoki is pre-alpha and has no release. What exists is tested in CI on Python 3.12, 3.13 and 3.14 on Linux. The limits that matter most today:
 
-- SQLite is the local-development default; PostgreSQL and MySQL are also supported. MariaDB, SQL Server and Oracle are not supported yet.
+- SQLite is the local-development default; PostgreSQL, MySQL and MariaDB are also supported. SQL Server and Oracle are not supported yet.
 - The server path is ASGI on [Granian](https://github.com/emmett-framework/granian); a WSGI adapter exists and is verified with Granian only. Streaming responses and WebSockets are not available.
 - CORS is one application-wide policy (the `cors` settings group); there is no cursor pagination.
 - Many-to-many relations use an explicit join model.

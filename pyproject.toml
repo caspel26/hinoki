@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "hinoki"
 version = "0.0.1"
-description = "A Python API framework that checks its own architecture, with a native Rust core."
+description = "Pre-alpha Python API framework with a Rust extension for routing, schemas, cryptography and SQL ORM."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

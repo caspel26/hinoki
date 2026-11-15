@@ -11,7 +11,7 @@ from uuid import UUID
 
 import pytest
 
-from hinoki.__main__ import main
+from hinoki.__main__ import database_dialect, main
 from hinoki.db import Database
 from hinoki.errors import DestructiveMigration, MigrationError
 from hinoki.orm import Model, OnDelete, field, foreign_key, migrator, use_database
@@ -19,6 +19,7 @@ from hinoki.orm.migrations import models_of, plan, statements
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 MYSQL_URL = os.environ.get("HINOKI_TEST_MYSQL_URL")
+MARIADB_URL = os.environ.get("HINOKI_TEST_MARIADB_URL")
 needs_database = pytest.mark.skipif(
     URL is None, reason="HINOKI_TEST_DATABASE_URL is not set"
 )
@@ -153,16 +154,57 @@ def test_mysql_plan_rejects_unsupported_dialects(tmp_path: Path) -> None:
         plan([owners()], tmp_path, "oracle", dialect="oracle")
 
 
+@pytest.mark.parametrize(
+    ("url", "dialect"),
+    [
+        ("sqlite://./local.db", "sqlite"),
+        ("postgresql://db/app", "postgres"),
+        ("mysql://db/app", "mysql"),
+        ("mariadb://db/app", "mariadb"),
+    ],
+)
+def test_migration_plan_uses_database_url_backend(url: str, dialect: str) -> None:
+    assert database_dialect(url) == dialect
+
+
+def test_migration_plan_rejects_unknown_database_url_scheme() -> None:
+    with pytest.raises(MigrationError, match="supported backend scheme"):
+        database_dialect("oracle://db/app")
+
+
 @pytest.mark.asyncio
-@pytest.mark.skipif(MYSQL_URL is None, reason="HINOKI_TEST_MYSQL_URL is not set")
-async def test_mysql_migrations_and_model_returning_contract(tmp_path: Path) -> None:
-    assert MYSQL_URL is not None
+@pytest.mark.parametrize(
+    ("database_url", "dialect"),
+    [
+        pytest.param(
+            MYSQL_URL,
+            "mysql",
+            marks=pytest.mark.skipif(
+                MYSQL_URL is None, reason="HINOKI_TEST_MYSQL_URL is not set"
+            ),
+            id="mysql",
+        ),
+        pytest.param(
+            MARIADB_URL,
+            "mariadb",
+            marks=pytest.mark.skipif(
+                MARIADB_URL is None, reason="HINOKI_TEST_MARIADB_URL is not set"
+            ),
+            id="mariadb",
+        ),
+    ],
+)
+async def test_mysql_family_migrations_and_model_returning_contract(
+    tmp_path: Path, database_url: str | None, dialect: str
+) -> None:
+    assert database_url is not None
     owner = owners()
     thing = things(owner)
-    database = await Database.connect(MYSQL_URL, max_size=3)
+    database = await Database.connect(database_url, max_size=3)
+    assert database.dialect == dialect
     for table in ("mig_things", "mig_owners", "hinoki_migrations"):
         await database.execute(f"DROP TABLE IF EXISTS `{table}`")
-    plan([thing, owner], tmp_path, "initial", dialect="mysql")
+    plan([thing, owner], tmp_path, "initial", dialect=dialect)
     assert await migrator.apply(database, tmp_path) == ["0001-initial"]
     assert await migrator.apply(database, tmp_path) == []
     with use_database(database):
@@ -182,13 +224,31 @@ async def test_mysql_migrations_and_model_returning_contract(tmp_path: Path) -> 
 
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(MYSQL_URL is None, reason="HINOKI_TEST_MYSQL_URL is not set")
-async def test_mysql_failed_migration_reports_implicit_ddl_commit(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    "database_url",
+    [
+        pytest.param(
+            MYSQL_URL,
+            marks=pytest.mark.skipif(
+                MYSQL_URL is None, reason="HINOKI_TEST_MYSQL_URL is not set"
+            ),
+            id="mysql",
+        ),
+        pytest.param(
+            MARIADB_URL,
+            marks=pytest.mark.skipif(
+                MARIADB_URL is None, reason="HINOKI_TEST_MARIADB_URL is not set"
+            ),
+            id="mariadb",
+        ),
+    ],
+)
+async def test_mysql_family_failed_migration_reports_implicit_ddl_commit(
+    tmp_path: Path, database_url: str | None
 ) -> None:
-    assert MYSQL_URL is not None
-    database = await Database.connect(MYSQL_URL, max_size=2)
-    table = "hinoki_mysql_partial_migration"
+    assert database_url is not None
+    database = await Database.connect(database_url, max_size=2)
+    table = "hinoki_mysql_family_partial_migration"
     await database.execute(f"DROP TABLE IF EXISTS `{table}`")
     path = tmp_path / "0001-partial.sql"
     path.write_text(
