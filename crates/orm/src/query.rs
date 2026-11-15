@@ -22,9 +22,18 @@ pub enum Op {
     /// `Contains` on any of several columns; `Filter::column` lists them
     /// separated by commas (a plain name cannot hold one).
     ContainsAny,
+    /// `Contains` whose value is already the `LIKE` pattern (escaped and wrapped
+    /// in `%` by [`like_pattern`]); never produced by [`Op::parse`].
+    ContainsPattern,
+    /// `ContainsAny` with an already built pattern.
+    ContainsAnyPattern,
 }
 
 impl Op {
+    fn is_pattern(self) -> bool {
+        matches!(self, Self::ContainsPattern | Self::ContainsAnyPattern)
+    }
+
     pub fn parse(text: &str) -> Option<Self> {
         Some(match text {
             "eq" => Self::Eq,
@@ -173,7 +182,33 @@ fn column_ref(name: &str, base: Option<&str>, dialect: Dialect) -> Result<String
     }
 }
 
-fn like(column: &str, holder: &str, dialect: Dialect) -> String {
+/// The `LIKE` pattern for a substring match on `text`: `\\`, `%` and `_` escaped
+/// with a backslash, wrapped in `%`. Used with the pattern operators so the
+/// escaping is done once, not per row by the database.
+pub fn like_pattern(text: &str) -> String {
+    let mut pattern = String::with_capacity(text.len() + 2);
+    pattern.push('%');
+    for c in text.chars() {
+        if matches!(c, '\\' | '%' | '_') {
+            pattern.push('\\');
+        }
+        pattern.push(c);
+    }
+    pattern.push('%');
+    pattern
+}
+
+fn like(column: &str, holder: &str, dialect: Dialect, prebuilt: bool) -> String {
+    match (dialect, prebuilt) {
+        (Dialect::Postgres, true) => format!("{column}::text ILIKE {holder}"),
+        (Dialect::Sqlite, true) => {
+            format!("CAST({column} AS TEXT) LIKE {holder} ESCAPE '\\'")
+        }
+        _ => like_escaping(column, holder, dialect),
+    }
+}
+
+fn like_escaping(column: &str, holder: &str, dialect: Dialect) -> String {
     match dialect {
         Dialect::Postgres => format!(
             "{column}::text ILIKE '%' || replace(replace(replace({holder}::text, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%'"
@@ -235,7 +270,7 @@ impl<V: Clone> Builder<V> {
     }
 
     fn clause(&mut self, filter: &Filter<V>) -> Result<String, QueryError> {
-        if filter.op == Op::ContainsAny {
+        if matches!(filter.op, Op::ContainsAny | Op::ContainsAnyPattern) {
             return self.contains_any(filter);
         }
         let column = column_ref(&filter.column, self.base.as_deref(), self.dialect)?;
@@ -258,7 +293,9 @@ impl<V: Clone> Builder<V> {
                 return Ok(format!("{column} {word}"));
             }
             Op::In => return self.membership(&column, filter),
-            Op::Contains | Op::ContainsAny => return self.contains(&column, filter),
+            Op::Contains | Op::ContainsAny | Op::ContainsPattern | Op::ContainsAnyPattern => {
+                return self.contains(&column, filter)
+            }
         };
         let [value] = filter.values.as_slice() else {
             return Err(QueryError::BadFilter(format!(
@@ -282,7 +319,7 @@ impl<V: Clone> Builder<V> {
             )));
         };
         let holder = self.placeholder(value.clone());
-        Ok(like(column, &holder, self.dialect))
+        Ok(like(column, &holder, self.dialect, filter.op.is_pattern()))
     }
 
     /// One value matched against every listed column, joined with `OR`.
@@ -305,7 +342,7 @@ impl<V: Clone> Builder<V> {
                 let holder = shared_holder
                     .clone()
                     .unwrap_or_else(|| self.placeholder(value.clone()));
-                like(column, &holder, self.dialect)
+                like(column, &holder, self.dialect, filter.op.is_pattern())
             })
             .collect();
         Ok(format!("({})", clauses.join(" OR ")))
@@ -733,6 +770,34 @@ mod tests {
             Err(QueryError::Empty("assignments"))
         );
         assert!(compile_select(&select(vec![f("n", Op::Eq, &[1, 2])])).is_err());
+    }
+
+    #[test]
+    fn pattern_contains_binds_a_built_pattern_without_sql_escaping() {
+        let postgres = select(vec![f("title", Op::ContainsPattern, &[1])]);
+        let (sql, params) = compile_select(&postgres).unwrap();
+        assert!(sql.ends_with("WHERE \"title\"::text ILIKE $1"), "{sql}");
+        assert_eq!(params, vec![1]);
+        let sqlite = compile_select_with(&postgres, Dialect::Sqlite).unwrap().0;
+        assert!(
+            sqlite.ends_with("CAST(\"title\" AS TEXT) LIKE ?1 ESCAPE '\\'"),
+            "{sqlite}"
+        );
+        let any = select(vec![f("title,body", Op::ContainsAnyPattern, &[1])]);
+        let (sql, params) = compile_select(&any).unwrap();
+        assert!(
+            sql.ends_with("(\"title\"::text ILIKE $1 OR \"body\"::text ILIKE $1)"),
+            "{sql}"
+        );
+        assert_eq!(params, vec![1]);
+    }
+
+    #[test]
+    fn like_pattern_escapes_wildcards_and_wraps() {
+        assert_eq!(like_pattern("abc"), "%abc%");
+        assert_eq!(like_pattern(""), "%%");
+        assert_eq!(like_pattern("50%_\\x"), "%50\\%\\_\\\\x%");
+        assert_eq!(like_pattern("é_"), "%é\\_%");
     }
 
     #[test]
