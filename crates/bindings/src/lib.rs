@@ -11,6 +11,7 @@ mod query;
 mod request;
 mod router;
 mod schema;
+mod server;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -79,6 +80,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(core_version, m)?)?;
     m.add_class::<PyRouter>()?;
     db::register(m)?;
+    server::register(m)?;
     m.add_function(wrap_pyfunction!(query::compile_query, m)?)?;
     m.add_function(wrap_pyfunction!(request::parse_query_string, m)?)?;
     m.add_function(wrap_pyfunction!(request::parse_cookie_header, m)?)?;

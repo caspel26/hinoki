@@ -48,7 +48,10 @@ impl<T> Queue<T> {
         Ok(if was_empty { Push::Wake } else { Push::Queued })
     }
 
-    /// Take up to `max` items in arrival order.
+    /// Take up to `max` items in arrival order. A consumer woken by a `Wake`
+    /// must keep draining until this returns fewer items than `max` (the queue
+    /// is empty) before it waits again: items left behind produce no further
+    /// wake, because `push` reports `Wake` only on the empty-to-non-empty edge.
     pub fn drain(&self, max: usize) -> Vec<T> {
         let mut items = self.lock();
         let count = max.min(items.len());
