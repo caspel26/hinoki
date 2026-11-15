@@ -6,6 +6,7 @@
 mod crypto;
 mod db;
 mod jwt;
+mod pytypes;
 mod query;
 mod request;
 mod router;
