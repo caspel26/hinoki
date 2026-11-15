@@ -1,0 +1,183 @@
+//! Answers produced without Python.
+//!
+//! Bodies carry the request id, so they are not constant. The Python side
+//! renders each once at startup with a sentinel id ([`SENTINEL`]); the crate
+//! splits the bytes around the sentinel and splices the real id per request.
+
+use std::collections::HashMap;
+
+/// Placeholder request id used when the bodies are rendered at startup.
+pub const SENTINEL: &str = "0123456789abcdeffedcba9876543210";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Early {
+    UriTooLong,
+    HeadersTooLarge,
+    NotReady,
+    Overloaded,
+    NotFound,
+    MethodNotAllowed,
+}
+
+impl Early {
+    pub const fn status(&self) -> u16 {
+        match self {
+            Early::UriTooLong => 414,
+            Early::HeadersTooLarge => 431,
+            Early::NotReady | Early::Overloaded => 503,
+            Early::NotFound => 404,
+            Early::MethodNotAllowed => 405,
+        }
+    }
+
+    /// Fixed extra headers (`Retry-After` on the 503s, like the Python runtime).
+    pub fn headers(&self) -> &'static [(&'static str, &'static str)] {
+        match self {
+            Early::NotReady | Early::Overloaded => &[("retry-after", "1")],
+            _ => &[],
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum BodyError {
+    /// The rendered body does not contain the sentinel exactly once.
+    Sentinel(usize),
+}
+
+fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack.windows(needle.len()).position(|w| w == needle)
+}
+
+/// A body template: bytes before and after the request id.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Template {
+    prefix: Vec<u8>,
+    suffix: Vec<u8>,
+}
+
+impl Template {
+    fn split(rendered: &[u8]) -> Result<Self, BodyError> {
+        let needle = SENTINEL.as_bytes();
+        let mut found = Vec::new();
+        let mut from = 0;
+        while let Some(at) = find(&rendered[from..], needle) {
+            found.push(from + at);
+            from += at + needle.len();
+        }
+        match found.as_slice() {
+            [at] => Ok(Self {
+                prefix: rendered[..*at].to_vec(),
+                suffix: rendered[at + needle.len()..].to_vec(),
+            }),
+            other => Err(BodyError::Sentinel(other.len())),
+        }
+    }
+
+    fn fill(&self, request_id: &str) -> Vec<u8> {
+        let mut body = Vec::with_capacity(self.prefix.len() + request_id.len() + self.suffix.len());
+        body.extend_from_slice(&self.prefix);
+        body.extend_from_slice(request_id.as_bytes());
+        body.extend_from_slice(&self.suffix);
+        body
+    }
+}
+
+/// The templates of every early answer, built once at startup.
+#[derive(Debug, Default)]
+pub struct EarlyBodies {
+    fixed: HashMap<u16, Template>,
+    not_ready: Option<Template>,
+    overloaded: Option<Template>,
+}
+
+impl EarlyBodies {
+    /// `rendered` maps each kind to the Python-rendered JSON body (with the
+    /// sentinel id). A kind without a body, or with a body lacking exactly one
+    /// sentinel, is an error: a wrong body must not be served.
+    pub fn new(rendered: &[(Early, Vec<u8>)]) -> Result<Self, BodyError> {
+        let mut bodies = Self::default();
+        for (kind, body) in rendered {
+            let template = Template::split(body)?;
+            match kind {
+                Early::NotReady => bodies.not_ready = Some(template),
+                Early::Overloaded => bodies.overloaded = Some(template),
+                other => {
+                    bodies.fixed.insert(other.status(), template);
+                }
+            }
+        }
+        Ok(bodies)
+    }
+
+    /// The body for `kind` with `request_id` spliced in; `None` when no template
+    /// was registered for it.
+    pub fn render(&self, kind: &Early, request_id: &str) -> Option<Vec<u8>> {
+        let template = match kind {
+            Early::NotReady => self.not_ready.as_ref(),
+            Early::Overloaded => self.overloaded.as_ref(),
+            other => self.fixed.get(&other.status()),
+        };
+        template.map(|t| t.fill(request_id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn body(error: &str) -> Vec<u8> {
+        format!("{{\"error\": \"{error}\", \"request_id\": \"{SENTINEL}\"}}").into_bytes()
+    }
+
+    #[test]
+    fn splices_the_request_id() {
+        let bodies = EarlyBodies::new(&[(Early::UriTooLong, body("uri_too_long"))]).unwrap();
+        let out = bodies.render(&Early::UriTooLong, "abcd").unwrap();
+        assert_eq!(
+            out,
+            b"{\"error\": \"uri_too_long\", \"request_id\": \"abcd\"}"
+        );
+    }
+
+    #[test]
+    fn distinct_kinds_with_one_status_stay_apart() {
+        let bodies = EarlyBodies::new(&[
+            (Early::NotReady, body("not_ready")),
+            (Early::Overloaded, body("overloaded")),
+        ])
+        .unwrap();
+        let ready = bodies.render(&Early::NotReady, "x").unwrap();
+        let busy = bodies.render(&Early::Overloaded, "x").unwrap();
+        assert!(String::from_utf8(ready).unwrap().contains("not_ready"));
+        assert!(String::from_utf8(busy).unwrap().contains("overloaded"));
+    }
+
+    #[test]
+    fn refuses_a_body_without_exactly_one_sentinel() {
+        assert_eq!(
+            EarlyBodies::new(&[(Early::NotFound, b"{}".to_vec())]).unwrap_err(),
+            BodyError::Sentinel(0)
+        );
+        let twice = format!("{SENTINEL}{SENTINEL}").into_bytes();
+        assert_eq!(
+            EarlyBodies::new(&[(Early::NotFound, twice)]).unwrap_err(),
+            BodyError::Sentinel(2)
+        );
+    }
+
+    #[test]
+    fn unregistered_kind_has_no_body() {
+        assert!(EarlyBodies::default()
+            .render(&Early::NotFound, "x")
+            .is_none());
+    }
+
+    #[test]
+    fn statuses_and_retry_after() {
+        assert_eq!(Early::UriTooLong.status(), 414);
+        assert_eq!(Early::HeadersTooLarge.status(), 431);
+        assert_eq!(Early::NotReady.headers(), &[("retry-after", "1")]);
+        assert!(Early::NotFound.headers().is_empty());
+    }
+}
