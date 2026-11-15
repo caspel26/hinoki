@@ -30,7 +30,7 @@ hinoki new notes --dir .
 
 `NAME` is a lowercase package name containing letters and digits; it cannot be `hinoki` or a Python standard-library module name, because those names would shadow imports used by the generated project. `--dir` chooses the parent directory and defaults to the current directory. The target `PATH/NAME` must not exist or must be empty; nothing is overwritten, and nothing is installed or run.
 
-Hinoki is pre-alpha and not published on PyPI (an unrelated `hinoki` is), so the generated `pyproject.toml` always names where `uv` finds it under `[tool.uv.sources]`:
+This repository's pre-alpha Hinoki framework is not published on PyPI; the [`hinoki` name](https://pypi.org/project/hinoki/) belongs to an unrelated legacy package. The generated `pyproject.toml` therefore names this repository as the source under `[tool.uv.sources]`:
 
 | Given | Source written |
 | --- | --- |
