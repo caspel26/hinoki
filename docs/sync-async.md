@@ -34,6 +34,7 @@ first = await Post.all().afirst()
 | Password hashing | `await hasher.hash/verify` | `hash_sync`, `verify_sync` | The async calls use a bounded thread pool |
 | Error handlers (`app.errors.handle`) | `async def` | `def` | Run on the loop: no blocking calls inside |
 | Module lifespans | async context manager | none | Resources belong to the worker's loop |
+| App startup/shutdown hooks | `async def hook(ctx)` | `def hook(ctx)` on the sync executor | Listed in `Hinoki(on_startup=..., on_shutdown=...)` |
 | Admin hooks (`stats`, `check`, `save`, `remove`) | `async def` | none | The admin runs on the loop; override with `async def` |
 | Tests | `ASGIClient` | `SyncClient` | Same behaviour through both |
 | Dev MCP `run_scenario` | n/a | n/a | Runs the app in-process |
