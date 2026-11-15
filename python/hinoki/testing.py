@@ -41,6 +41,8 @@ FRAMEWORK_CODES = frozenset(
         "overloaded",
         "timeout",
         "not_ready",
+        "disallowed_host",
+        "cors_origin_denied",
     }
 )
 

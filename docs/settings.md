@@ -23,7 +23,7 @@ class BlogSettings(settings.AppSettings):          # keeps the built-in groups
 
 Settings types live in the `hinoki.settings` namespace: `from hinoki import settings`, then `settings.AppSettings`, `settings.DatabaseSettings`, `settings.Secret`, `settings.Settings` and `settings.SettingsError`. Name your own subclass for your project (`BlogSettings` above) and keep a loaded value in a variable such as `app_settings`, so the namespace is not shadowed. Earlier revisions exported these types from `hinoki` itself and called the base class `FrameworkSettings`; `from hinoki import FrameworkSettings` now raises `ImportError`.
 
-`settings.AppSettings` brings six groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs) `server` (host, port and workers) and `pagination` (default `page_size` and `max_page_size` for `PageNumberPagination`, see [pagination](pagination.md#defaults-for-the-whole-application)). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](request-lifecycle.md).
+`settings.AppSettings` brings seven groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs), `server` (host, port and workers), `pagination` (default `page_size` and `max_page_size` for `PageNumberPagination`, see [pagination](pagination.md#defaults-for-the-whole-application)) and `cors` (which browser origins may read responses). Three values sit beside the groups: `timezone`, `debug` and `allowed_hosts`; see [Debug, allowed hosts and CORS](#debug-allowed-hosts-and-cors). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](request-lifecycle.md).
 
 `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` default to `None`, so no API document or viewer route is served until configured. Swagger UI or ReDoc requires an `openapi_url`. The same values can be supplied as `Hinoki(...)` arguments; explicit arguments win over `docs` settings, and `None` disables a page.
 
@@ -50,7 +50,15 @@ Settings types live in the `hinoki.settings` namespace: `from hinoki import sett
 | `server` | `runtime_threads` | `1` | Must be positive |
 | `server` | `backlog` | `1024` | Must be positive |
 | `server` | `access_log` | `false` | Enables Granian access logging |
-| `timezone` | `UTC` | IANA timezone name used by `app.now()` |
+| `cors` | `origins` | empty | Allowed browser origins (`scheme://host[:port]`), or the single entry `*`; empty disables CORS |
+| `cors` | `methods` | `GET, POST, PUT, PATCH, DELETE, QUERY` | Methods a preflight allows |
+| `cors` | `headers` | `authorization, content-type` | Request headers a preflight allows |
+| `cors` | `expose_headers` | empty | Response headers a browser script may read |
+| `cors` | `credentials` | `false` | Allow cookies and HTTP authentication; refused together with `*` |
+| `cors` | `max_age` | `600` seconds | `0` to `86400`; how long a browser may cache a preflight |
+| (top level) | `timezone` | `UTC` | IANA timezone name used by `app.now()` |
+| (top level) | `debug` | `false` | Adds exception details to `500` answers; development only |
+| (top level) | `allowed_hosts` | `*` | Host names, `.domain` or `*`; other `Host` values receive `400` |
 
 `settings.DatabaseSettings` is an optional field you declare in your own settings class, not a `settings.AppSettings` group. Its `url` is required and its `max_size` defaults to `10` connections per worker; the value must be at least `1`.
 
@@ -144,6 +152,61 @@ hinoki settings blog.settings:BlogSettings --prefix BLOG_ --example > .env.examp
 `Hinoki(settings=app_settings)` derives the runtime limits, the docs URLs, logging setup and application timezone from the built-in settings (an explicit argument such as `title=` still wins). `app.now()` returns an aware `datetime` in the configured timezone; it defaults to UTC. The timezone is configured in settings, not as a `Hinoki(...)` argument. Your own fields are on `app.settings`, and modules reach them as `ctx.settings` in their lifespan.
 
 The `server` group (host, port, workers) is applied by `hinoki serve`/`dev` ([Running an application](serving.md)). Hinoki does not connect to secret-manager services itself; use a provider that supplies environment values or secret files.
+
+## Debug, allowed hosts and CORS
+
+These three are off or permissive by default, so an application behaves the same until you set them. Set them from the environment like any other field:
+
+```sh
+BLOG_DEBUG=true
+BLOG_ALLOWED_HOSTS=api.example.com,.example.org
+BLOG_CORS__ORIGINS=https://app.example.com,http://localhost:5173
+```
+
+### `debug`
+
+With `debug` on, the `500 internal_error` answer for an unhandled exception also carries a `debug` object:
+
+```json
+{
+  "error": "internal_error",
+  "request_id": "5f0c…",
+  "debug": {
+    "exception": "builtins.RuntimeError",
+    "message": "the cache is cold",
+    "traceback": ["Traceback (most recent call last):\n", "…"]
+  }
+}
+```
+
+Declared errors, validation errors and the other framework answers are unchanged, and the exception is logged either way. Exception messages can contain data you would not publish, so keep `debug` off in a deployment; each worker logs a warning at startup while it is on. `debug` changes nothing else: it does not enable documentation pages, relax authentication or skip the host check, and `hinoki dev` does not set it.
+
+### `allowed_hosts`
+
+The `Host` header of every request must match one entry:
+
+| Entry | Matches |
+| --- | --- |
+| `*` (the default) | Any host; nothing is checked |
+| `api.example.com` | That host, on any port |
+| `.example.org` | `example.org` and every subdomain |
+| `127.0.0.1`, `::1` | That address (`[::1]:8000` in the header) |
+
+Matching ignores case, the port and a trailing dot. The header must be exactly one host with an optional port; a request for another host, with two `Host` headers or without a usable one, receives `400 disallowed_host` before routing, authentication and body reading; documentation routes are covered too. Entries are names: a scheme, port, path or a partial wildcard such as `*.example.com` fails at load, and `*` cannot be mixed with other entries. A dot entry is as wide as it reads: `.com` allows every `.com` host.
+
+Set the list in a deployment that is reachable under more names than it should answer to. The in-process test clients send no `Host` header, so a test of an application with a restrictive list passes one: `await client.get("/x", headers={"host": "api.example.com"})`.
+
+### `cors`
+
+CORS is off while `cors.origins` is empty: no header is added and `OPTIONS` requests receive `405`. With origins configured:
+
+- A request whose `Origin` is listed receives `access-control-allow-origin` with that origin and `vary: origin`, on every answer including errors, so a browser client can read a `401` or `422` body. `credentials = true` adds `access-control-allow-credentials: true`; `expose_headers` is sent as `access-control-expose-headers`.
+- A request from any other origin, or without an `Origin`, is served normally without the permission headers and still carries `vary: origin`, so a shared cache never hands one origin's answer to another; the browser refuses to hand the response to the page. CORS tells browsers what to allow. It is not authentication and does not stop a non-browser client.
+- A preflight (`OPTIONS` with `Origin` and `Access-Control-Request-Method`) is answered with `204`, the configured `methods`, `headers` and `max_age`, without reaching a route or its access policy. A preflight from an origin that is not listed receives `403 cors_origin_denied`.
+
+Origins are compared exactly, in lower case as browsers send them: `https://app.example.com` and `https://app.example.com:8443` are different origins, and a trailing slash or path is refused at load. Browsers leave a default port out of `Origin`, so list `https://app.example.com`, not `https://app.example.com:443`. The single entry `*` answers every origin with `access-control-allow-origin: *`; it cannot be combined with `credentials`, and browsers will not send cookies or HTTP authentication to it.
+
+The policy applies to the whole application, including the ASGI and WSGI adapters; there is no per-route CORS option. An answer that already sets `access-control-allow-origin` itself (a `Reply` with that header) is sent as it is, without the policy's headers.
 
 ## 8. Database connection ownership
 
