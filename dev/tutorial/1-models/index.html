@@ -283,15 +283,15 @@
 </ul>
 <h2 id="the-migration">The migration<a class="headerlink" href="#the-migration" title="Permanent link">&para;</a></h2>
 <p>The Tracker example already includes the migrations for this model and its index. Inspect the checked-in SQL and apply it to a disposable database:</p>
-<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/tracker/migrations<span class="w"> </span>status
-hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/tracker/migrations<span class="w"> </span>sql<span class="w"> </span><span class="m">0001</span>-initial
-hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/tracker/migrations<span class="w"> </span>sql<span class="w"> </span><span class="m">0002</span>-indexes
-hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/tracker/migrations<span class="w"> </span>apply
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>migrations<span class="w"> </span>status
+hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>tracker<span class="w"> </span><span class="m">0001</span>-initial
+hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>tracker<span class="w"> </span><span class="m">0002</span>-indexes
+hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>--app<span class="w"> </span>tracker
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="ss">"tracker_tasks"</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">);</span>
 <span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="ss">"ix_tracker_tasks_owner_id_created_at"</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="ss">"tracker_tasks"</span><span class="w"> </span><span class="p">(</span><span class="ss">"owner_id"</span><span class="p">,</span><span class="w"> </span><span class="ss">"created_at"</span><span class="p">);</span>
 </code></pre></div>
-<p>This checked-in Tracker example has no <code>hinoki.toml</code>, so its commands use the explicit legacy <code>--dir</code> and <code>--models</code> targets. When you change a model, <code>hinoki migrations --dir examples/tracker/migrations plan --models examples.tracker.models</code> compares declarations with the recorded state and writes the next migration; the migration name is derived automatically, and <code>--name</code> can override its slug. Review the SQL before applying it; migrations never run at app startup. Destructive changes are flagged and need <code>--allow-destructive</code>. <a href="../8-projects/">Chapter 8</a> uses the manifest-based workflow created by <code>hinoki new</code>.</p>
+<p>The repository's root <code>hinoki.toml</code> registers Tracker alongside Notes and Blog, each with a separate model module and migration package. When you change a model, <code>hinoki migrations plan --app tracker</code> compares declarations with the recorded state and writes the next migration; the number and slug are derived automatically, and <code>--name</code> can override the slug. Review the SQL before applying it; migrations never run at app startup. Destructive changes are flagged and need <code>--allow-destructive</code>. <a href="../8-projects/">Chapter 8</a> creates a new manifest-based project with <code>hinoki new</code> and adds apps with <code>hinoki app create</code>.</p>
 <p>Next: <a href="../2-schemas/">2. Schemas</a>.</p>
         
       </article>
@@ -317,7 +317,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.2</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 17:54:14 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 19:50:28 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/1-models.md">Edit on GitHub</a></dd></div>
         </dl>

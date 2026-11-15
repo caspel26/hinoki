@@ -875,8 +875,8 @@ BLOG_JWT_SECRET               file         ***
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">BlogSettings</span><span class="p">,</span> <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">health</span><span class="p">,</span> <span class="n">Posts</span><span class="p">],</span> <span class="n">modules</span><span class="o">=</span><span class="p">[</span><span class="n">DatabaseModule</span><span class="p">])</span>
 </code></pre></div>
 <p>The configuration is automatic in the useful sense: <code>BLOG_DATABASE__URL</code> is loaded from settings and the declared module connects as the server starts. Resource creation and cleanup remain explicit in the module lifecycle; there is no process-global connection opened during import. Factories remain useful when the app's routes or modules depend on runtime choices.</p>
-<p>One-off scripts have a different lifecycle. <code>examples/blog/seed.py</code> opens a short-lived <code>Database</code> explicitly, applies migrations, inserts synthetic rows and closes the pool in <code>finally</code>. It runs outside the HTTP server, so there is no worker lifespan to own that resource. This is intentional and avoids starting an app server just to seed a disposable database:</p>
-<div class="highlight"><pre><span></span><code><span class="nv">BLOG_DATABASE_URL</span><span class="o">=</span>postgres://...<span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>examples.blog.seed
+<p>One-off scripts have a different lifecycle. <code>examples/blog/seed.py</code> opens a short-lived <code>Database</code> explicitly, applies migrations, inserts synthetic rows and closes the pool in <code>finally</code>. It runs outside the HTTP server, so there is no worker lifespan to own that resource. It is a one-time seed for a fresh disposable database, not a repeatable reset:</p>
+<div class="highlight"><pre><span></span><code><span class="nv">BLOG_DATABASE__URL</span><span class="o">=</span>postgres://...<span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>examples.blog.seed
 </code></pre></div>
 <p>Use a disposable database for the example. The seed command is not a production migration mechanism and is not run at app startup.</p>
         
@@ -912,7 +912,7 @@ BLOG_JWT_SECRET               file         ***
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.20</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 17:54:14 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 19:29:08 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>15 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -537,8 +537,8 @@ hinoki<span class="w"> </span>settings<span class="w"> </span>examples.blog.sett
 </code></pre></div>
 <p><code>TARGET</code> can be a settings class or an app with typed settings. <code>--prefix</code>, <code>--dotenv</code> and <code>--toml</code> override sources declared by the settings class. <code>--format text|json</code> selects output; <code>--example</code> prints a <code>.env.example</code> with defaults and types, leaving secrets and required fields blank. Values of <code>settings.Secret</code> are redacted.</p>
 <h3 id="manage"><code>manage</code><a class="headerlink" href="#manage" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>manage<span class="w"> </span>examples.management:app<span class="w"> </span>--help
-hinoki<span class="w"> </span>manage<span class="w"> </span>examples.management:app<span class="w"> </span>greet<span class="w"> </span>Peppe
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>manage<span class="w"> </span>--help
+hinoki<span class="w"> </span>manage<span class="w"> </span>greet<span class="w"> </span>Peppe
 </code></pre></div>
 <p>Commands are declared on the app with <code>Hinoki(commands=[...])</code>. Each command subclasses <code>hinoki.management.Command</code>, gives itself a lower-case name, and adds arguments through <code>add_arguments(parser)</code>. In a scaffolded project, <code>hinoki manage</code> lists commands and <code>hinoki manage greet Peppe</code> runs one; the manifest's <code>project.application</code> supplies the app target. Outside a registered project, use <code>hinoki manage TARGET COMMAND</code>. <code>--help</code> after a command shows its arguments.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">argparse</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArgumentParser</span><span class="p">,</span> <span class="n">Namespace</span>
@@ -560,7 +560,8 @@ hinoki<span class="w"> </span>manage<span class="w"> </span>examples.management:
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">commands</span><span class="o">=</span><span class="p">[</span><span class="n">Greet</span><span class="p">])</span>
 </code></pre></div>
-<p>The same example is in <code>examples/management.py</code> and can be run from the repository root.</p>
+<p>The same example is in <code>examples/management.py</code>; the root manifest supplies its
+target, so it can be run from the repository root without repeating it.</p>
 <p><code>handle(context, args)</code> may be synchronous or asynchronous. A sync handler runs on Hinoki's bounded executor. It can read <code>context.settings</code> and retrieve resources with <code>context.get(Type)</code> or <code>context.find(Type)</code>. Declare module classes in the command's <code>requires</code> tuple; Hinoki starts those modules and their dependencies for the command, then closes them before it exits. Other app modules are not started. A command with no requirements starts no app modules.</p>
 <p>Commands run inside the project process and can modify data. Use disposable databases when developing or testing a command that writes. A handler returns <code>None</code> for success or an exit code from 0 through 255. Unknown commands and invalid arguments exit 2; a command failure exits nonzero. App settings load when Hinoki constructs the app, but module resources open only for the selected command.</p>
 <h3 id="shell"><code>shell</code><a class="headerlink" href="#shell" title="Permanent link">&para;</a></h3>
@@ -599,14 +600,14 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 </code></pre></div>
 <p><code>status</code> and <code>apply</code> cover all registered apps in dependency order. <code>plan</code> requires one app when multiple are registered, selected with <code>--app</code>; <code>sql</code> likewise requires an app in a multi-app project. <code>--name</code> is optional: Hinoki derives a stable slug from the first planned schema change (for example, <code>create-table-notes</code>); pass <code>--name initial-notes</code> to override it. Numbering is automatic. <code>apply</code> initializes the configured local SQLite database when no database URL is set. Added apps have separate migration ledger namespaces, so identical numbered filenames do not collide; the scaffolded root app retains its existing unprefixed migration keys. <code>--app billing</code> includes its declared prerequisite apps for migration application.</p>
 <p>Without a <code>hinoki.toml</code>, the explicit legacy form remains:</p>
-<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/blog/migrations<span class="w"> </span>plan<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--models<span class="w"> </span>examples.blog.models<span class="w"> </span>--name<span class="w"> </span>add-index<span class="w"> </span>--dry-run
-hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/blog/migrations<span class="w"> </span>plan<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--models<span class="w"> </span>examples.blog.models<span class="w"> </span>--name<span class="w"> </span>add-index<span class="w"> </span>--allow-destructive
-<span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$BLOG_DATABASE__URL</span><span class="s2">"</span>
-hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/blog/migrations<span class="w"> </span>status
-hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/blog/migrations<span class="w"> </span>apply
-hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/blog/migrations<span class="w"> </span>sql<span class="w"> </span><span class="m">0001</span>-initial
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>myapp/migrations<span class="w"> </span>plan<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--models<span class="w"> </span>myapp.models<span class="w"> </span>--name<span class="w"> </span>add-index<span class="w"> </span>--dry-run
+hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>myapp/migrations<span class="w"> </span>plan<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--models<span class="w"> </span>myapp.models<span class="w"> </span>--name<span class="w"> </span>add-index<span class="w"> </span>--allow-destructive
+<span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$APP_DATABASE__URL</span><span class="s2">"</span>
+hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>myapp/migrations<span class="w"> </span>status
+hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>myapp/migrations<span class="w"> </span>apply
+hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>myapp/migrations<span class="w"> </span>sql<span class="w"> </span><span class="m">0001</span>-initial
 </code></pre></div>
 <p><code>plan</code> requires <code>--models MODULE</code>; <code>--name</code> is an optional slug override and is derived from the first planned schema change when omitted. <code>--dry-run</code> prints operations without writing files. Destructive operations require <code>--allow-destructive</code>. Without <code>HINOKI_DATABASE_URL</code>, plan/status/apply target the local SQLite file at <code>.hinoki/local.sqlite3</code>; <code>--database URL</code> selects another supported backend. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints <code>error: database: …</code> with a <code>fix:</code> line and exits 1; the URL is not printed. <code>sql NAME</code> prints a migration's SQL. Use a disposable database while reviewing migrations.</p>
 <h3 id="mcp"><code>mcp</code><a class="headerlink" href="#mcp" title="Permanent link">&para;</a></h3>
@@ -620,8 +621,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>dev<span class="w"> </span>examples.notes.main:app
 hinoki<span class="w"> </span>check<span class="w"> </span>examples.tracker.app:create_app
 hinoki<span class="w"> </span>settings<span class="w"> </span>examples.blog.settings:BlogSettings
-hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/blog/migrations<span class="w"> </span>plan<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--models<span class="w"> </span>examples.blog.models<span class="w"> </span>--name<span class="w"> </span>add-index<span class="w"> </span>--dry-run
+hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>blog<span class="w"> </span>--name<span class="w"> </span>add-index<span class="w"> </span>--dry-run
 </code></pre></div>
 <p>When a target import fails, check that the command runs from the project directory, the package has <code>__init__.py</code> files where needed, and the attribute name is correct.</p>
         
@@ -650,7 +650,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 19:12:21 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 19:50:28 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>9 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>

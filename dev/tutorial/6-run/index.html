@@ -253,19 +253,23 @@
         <p class="kicker" data-search-exclude>2.7 · Tutorial</p>
         <h1 id="6-run-and-test-it">6. Run and test it<a class="headerlink" href="#6-run-and-test-it" title="Permanent link">&para;</a></h1>
 <h2 id="settings-and-serving">Settings and serving<a class="headerlink" href="#settings-and-serving" title="Permanent link">&para;</a></h2>
-<p>The Tracker example's factory assembles the HTTP routes, rules, MCP tool and database module. It reads the database URL from <code>TRACKER_DATABASE_URL</code>; the <a href="../../settings/">settings guide</a> shows how to use a typed settings class instead.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker</span><span class="w"> </span><span class="kn">import</span> <span class="n">api</span>
+<p>The Tracker example's factory assembles the HTTP routes, rules, MCP tool and database module. It uses typed <code>TrackerSettings</code>; local SQLite is the default and <code>TRACKER_DATABASE__URL</code> selects another database.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker</span><span class="w"> </span><span class="kn">import</span> <span class="n">api</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">tracker_rules</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member_only</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrackerSettings</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatabaseModule</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.mcpapp</span><span class="w"> </span><span class="kn">import</span> <span class="n">expose_as_mcp</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">create_app</span><span class="p">(</span><span class="n">database_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Hinoki</span><span class="p">:</span>
+    <span class="n">overrides</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">{</span><span class="s2">"database"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"url"</span><span class="p">:</span> <span class="n">database_url</span><span class="p">}}</span> <span class="k">if</span> <span class="n">database_url</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{}</span>
+    <span class="p">)</span>
+    <span class="n">app_settings</span> <span class="o">=</span> <span class="n">TrackerSettings</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">overrides</span><span class="o">=</span><span class="n">overrides</span><span class="p">)</span>
     <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
+        <span class="n">settings</span><span class="o">=</span><span class="n">app_settings</span><span class="p">,</span>
         <span class="n">title</span><span class="o">=</span><span class="s2">"Tracker"</span><span class="p">,</span>
         <span class="n">openapi_url</span><span class="o">=</span><span class="s2">"/openapi.json"</span><span class="p">,</span>
         <span class="n">docs_url</span><span class="o">=</span><span class="s2">"/docs"</span><span class="p">,</span>
@@ -276,22 +280,28 @@
     <span class="n">app</span><span class="o">.</span><span class="n">include</span><span class="p">(</span>
         <span class="o">*</span><span class="n">expose_as_mcp</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">api</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.list_tasks"</span><span class="p">],</span> <span class="n">access</span><span class="o">=</span><span class="n">member_only</span><span class="p">)</span>
     <span class="p">)</span>
-    <span class="n">app</span><span class="o">.</span><span class="n">install</span><span class="p">(</span><span class="n">DatabaseModule</span><span class="p">(</span><span class="n">database_url</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"TRACKER_DATABASE_URL"</span><span class="p">]))</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">install</span><span class="p">(</span>
+        <span class="n">DatabaseModule</span><span class="p">(</span>
+            <span class="n">app_settings</span><span class="o">.</span><span class="n">database</span><span class="o">.</span><span class="n">url</span><span class="o">.</span><span class="n">reveal</span><span class="p">(),</span>
+            <span class="n">max_size</span><span class="o">=</span><span class="n">app_settings</span><span class="o">.</span><span class="n">database</span><span class="o">.</span><span class="n">max_size</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
     <span class="k">return</span> <span class="n">app</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">TRACKER_DATABASE_URL</span><span class="o">=</span><span class="s1">'postgresql://user:password@127.0.0.1:5432/tracker'</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$TRACKER_DATABASE_URL</span><span class="s2">"</span>
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/tracker/migrations<span class="w"> </span>status
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/tracker/migrations<span class="w"> </span>sql<span class="w"> </span><span class="m">0001</span>-initial
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/tracker/migrations<span class="w"> </span>sql<span class="w"> </span><span class="m">0002</span>-indexes
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/tracker/migrations<span class="w"> </span>apply
+<div class="highlight"><pre><span></span><code><span class="c1"># Omit these variables to use .hinoki/local.sqlite3.</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">TRACKER_DATABASE__URL</span><span class="o">=</span><span class="s1">'postgresql://user:password@127.0.0.1:5432/tracker'</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$TRACKER_DATABASE__URL</span><span class="s2">"</span>
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>status
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>tracker<span class="w"> </span><span class="m">0001</span>-initial
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>tracker<span class="w"> </span><span class="m">0002</span>-indexes
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>--app<span class="w"> </span>tracker
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w"> </span>examples.tracker.app:create_app
 </code></pre></div>
 <p>The Tracker example already includes its initial and index migrations, so this
 command sequence inspects and applies those checked-in files. After changing a
-model, generate a new migration with <code>plan</code> and review its SQL before applying
-it to a disposable database; do not expect <code>plan --name initial</code> to recreate
-the existing initial migration.
+model, generate a new migration with <code>hinoki migrations plan --app tracker</code>
+and review its SQL before applying it to a disposable database; do not expect
+the planner to recreate the existing initial migration.
 <code>dev</code> reloads on change; <code>serve</code> runs without reload and takes host, port and
 workers from the <code>server</code> settings (<a href="../../serving/">serving</a>). Open <code>/docs</code> or
 <code>/redoc</code>.</p>
@@ -325,7 +335,7 @@ migrations and creates the Ann and Ben members used by the bearer tokens below:
 <p>This is an excerpt of <code>test_every_business_error_of_the_tracker_is_declared</code>;
 its <code>members</code> fixture creates the two users and provides a fresh migrated
 database. Run the repository test with a disposable PostgreSQL URL:</p>
-<div class="highlight"><pre><span></span><code><span class="nv">HINOKI_TEST_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$TRACKER_DATABASE_URL</span><span class="s2">"</span><span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/trackertest.py
+<div class="highlight"><pre><span></span><code><span class="nv">HINOKI_TEST_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$TRACKER_DATABASE__URL</span><span class="s2">"</span><span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/trackertest.py
 </code></pre></div>
 <p><code>strict_errors=True</code> fails the test if an action answers an error it did not
 declare. For tests without <code>async</code>, use <code>SyncClient</code>.</p>
@@ -355,7 +365,7 @@ declare. For tests without <code>async</code>, use <code>SyncClient</code>.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.7</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 19:50:28 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/6-run.md">Edit on GitHub</a></dd></div>
         </dl>

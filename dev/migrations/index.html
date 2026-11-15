@@ -394,6 +394,10 @@
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>billing<span class="w"> </span>--name<span class="w"> </span>add-invoice-index
 </code></pre></div>
 <p>The manifest must register the selected app. A single-app project defaults to that app; in a multi-app project, <code>plan</code> requires <code>--app</code>. The planner targets the local SQLite default unless a URL is provided through <code>HINOKI_DATABASE_URL</code> or <code>--database</code>. It writes a numbered <code>.sql</code> file and a matching <code>.state.json</code> file into the registered migration package. Numbering and a stable slug derived from the first schema change are automatic; an optional <code>--name</code> replaces only that slug. Review both files before applying the change. To inspect a plan without writing files, add <code>--dry-run</code>. Cross-app model references require an explicit <code>requires</code> dependency in <code>hinoki.toml</code>; this lets Hinoki validate references and order migrations without assigning another app's tables to the current app's migration state.</p>
+<p>The state file stores logical column types that are stable across backends; the
+generated SQL uses the selected backend's types. Existing state files that
+recorded SQLite or MySQL-specific type names are normalized when planning, so
+switching the planner's backend does not appear as a destructive type change.</p>
 <p>For example, <code>billing</code> can depend on <code>accounts</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="k">[[apps]]</span>
 <span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"billing"</span>
@@ -443,8 +447,8 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.9</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 16:44:38 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>2 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 19:50:28 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/migrations.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
