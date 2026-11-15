@@ -65,6 +65,16 @@ schema work, crypto and ORM execution; the ASGI lifecycle and application
 callbacks stay Python. A Rust adapter port needs a measured net benefit after
 PyO3 crossings and must preserve asyncio cancellation and ASGI behavior.
 
+An experiment fused percent-decoding of route parameters into Rust route
+lookup. Existing ASGI tests for encoded slashes, UTF-8 and invalid UTF-8 passed.
+On the protected-GET microbenchmark, the prototype's five-block median was
+56.402 µs versus 57.125 µs for the baseline (−1.27%); between-block CV was
+2.2% versus 0.8%, and within-block CV was 2.6–3.7%. This is below the 15%
+regression detector and inside observed variation, so the prototype was
+discarded and no extra Rust routing work was merged. The experiment's samples
+are retained in
+[`request-path-rust-decode-prototype.json`](results/request-path-rust-decode-prototype.json).
+
 Observations (2026-11-13, one 8-core Linux laptop, Python 3.14.8, debug-profile extension; a release-profile build gave the same numbers within noise):
 
 | Operation | Python (CPython C accelerators for JSON) | Rust | Ratio |
