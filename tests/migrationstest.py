@@ -16,6 +16,7 @@ from hinoki.db import Database
 from hinoki.errors import DestructiveMigration, MigrationError
 from hinoki.orm import Model, OnDelete, field, foreign_key, migrator, use_database
 from hinoki.orm.migrations import models_of, plan, statements
+from hinoki.project import load_manifest
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 MYSQL_URL = os.environ.get("HINOKI_TEST_MYSQL_URL")
@@ -312,11 +313,13 @@ async def test_mysql_family_failed_migration_reports_implicit_ddl_commit(
 
 
 def test_models_are_importable_from_a_console_script() -> None:
-    project = str(Path.cwd())
+    project = str(Path(__file__).resolve().parents[1])
+    examples = str(Path(project) / "examples")
     original_path = sys.path.copy()
-    sys.path[:] = [entry for entry in sys.path if entry not in {"", project}]
+    sys.path[:] = [entry for entry in sys.path if entry not in {"", project, examples}]
     try:
-        found = models_of("examples.notes.models")
+        manifest = load_manifest(Path(examples) / "hinoki.toml")
+        found = manifest.models(manifest.app("notes"))
     finally:
         sys.path[:] = original_path
     assert [item.__name__ for item in found] == ["Note"]
@@ -445,7 +448,7 @@ def test_statements_split_on_line_terminators() -> None:
 
 
 def test_models_of_finds_the_models_of_a_module() -> None:
-    names = [m.__name__ for m in models_of("examples.blog.models")]
+    names = [m.__name__ for m in models_of("blog.models")]
     assert names == ["User", "Post"]
 
 
@@ -456,7 +459,7 @@ def test_command_line_plans_and_prints(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     args = ["migrations", "--dir", str(tmp_path)]
-    plan_args = [*args, "plan", "--models", "examples.blog.models", "--name", "initial"]
+    plan_args = [*args, "plan", "--models", "blog.models", "--name", "initial"]
     assert main([*plan_args, "--dry-run"]) == 0
     assert list(tmp_path.iterdir()) == []
     assert main(plan_args) == 0

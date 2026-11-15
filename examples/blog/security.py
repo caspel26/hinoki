@@ -1,7 +1,8 @@
 """Authentication: an opaque bearer token resolved through the database."""
 
-from examples.blog.models import User
 from hinoki import Access, BearerAuth, Caller
+
+from .models import User
 
 WRITE = "posts:write"
 

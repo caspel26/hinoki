@@ -14,7 +14,7 @@ from hinoki.mcpapp import expose_as_mcp
 
 mcp_routes = expose_as_mcp(
     app,
-    tools=["examples.tracker.api.list_tasks"],
+    tools=["tracker.api.list_tasks"],
     access=agent_access,
 )
 app.include(*mcp_routes)

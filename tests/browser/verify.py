@@ -3,9 +3,11 @@
 A development tool, not part of pytest: it needs a running blog with demo data
 and Playwright, which is deliberately not a project dependency.
 
-    BLOG_DATABASE__URL=postgres://.../demo uv run python -m examples.blog.seed
-    BLOG_DATABASE__URL=... uv run granian --interface asgi \
-        --factory examples.blog.main:create_app --port 8765 &
+    cd examples
+    BLOG_DATABASE__URL=postgres://.../demo uv run --project .. python -m blog.seed
+    BLOG_DATABASE__URL=... uv run --project .. granian --interface asgi \
+        --factory blog.main:create_app --port 8765 &
+    cd ..
     uvx --from playwright python tests/browser/verify.py \
         --base http://127.0.0.1:8765 --out docs/screenshots
 

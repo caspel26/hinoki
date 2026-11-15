@@ -202,14 +202,14 @@ app = Hinoki(
 
 If a feature declares its own prefix (a `RouteGroup("/tasks")` or `API, path="/tasks"`), mounting adds to it. Pick one place for each prefix: feature-relative paths with `Mount` at the root is the layout that keeps the whole map readable in `main.py`.
 
-To see the resulting map without starting the server, run `hinoki routes examples.blog.main:create_app --path /posts` (the blog example):
+To see the resulting map without starting the server, run `hinoki routes blog.main:create_app --path /posts` (the blog example):
 
 ```text
-GET     /posts                    public                   examples.blog.api.Posts.listing
+GET     /posts                    public                   blog.api.Posts.listing
 POST    /posts                    TokenAuth[posts:write]   hinoki.crud.create
 DELETE  /posts/{item_id}          TokenAuth[posts:write]   hinoki.crud.delete
-GET     /posts/{item_id}          public                   examples.blog.api.Posts.one
-POST    /posts/{item_id}/publish  TokenAuth[posts:write]   examples.blog.api.Posts.publish
+GET     /posts/{item_id}          public                   blog.api.Posts.one
+POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publish
 ```
 
 Use `--path` or `--method` to narrow it, and `--format json` for scripts. The list is sorted by path.

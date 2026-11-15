@@ -12,11 +12,11 @@ The checked-in initial and index migrations can be applied to the default local
 SQLite database before starting the app:
 
 ```sh
-uv run hinoki migrations status
-uv run hinoki migrations plan --app tracker --dry-run
-uv run hinoki migrations sql --app tracker 0001-initial
-uv run hinoki migrations apply --app tracker
-uv run hinoki dev examples.tracker.app:create_app
+uv run --project .. hinoki migrations status
+uv run --project .. hinoki migrations plan --app tracker --dry-run
+uv run --project .. hinoki migrations sql --app tracker 0001-initial
+uv run --project .. hinoki migrations apply --app tracker
+uv run --project .. hinoki dev tracker.app:create_app
 ```
 
 The local database is `.hinoki/local.sqlite3`. For another backend, set

@@ -24,9 +24,9 @@ PORT = 8807
 SETUP = """
 import asyncio, os
 from pathlib import Path
-from examples.tracker.models import Member, Task
-from examples.tracker import operations
-from examples.tracker.schemas import TaskIn
+from tracker.models import Member, Task
+from tracker import operations
+from tracker.schemas import TaskIn
 from hinoki.orm import migrator
 from hinoki.db import Database
 from hinoki.orm import use_database
@@ -36,7 +36,7 @@ async def main():
     for s in ("DROP TABLE IF EXISTS tracker_tasks", "DROP TABLE IF EXISTS tracker_members",
               "DROP TABLE IF EXISTS hinoki_migrations"):
         await db.execute(s)
-    await migrator.apply(db, Path("examples/tracker/migrations"))
+    await migrator.apply(db, Path("tracker/migrations"))
     with use_database(db):
         ann = await Member.acreate(name="Ann", token="ann-token")
         await operations.create_task(ann.id, TaskIn(title="write the MCP guide"))
@@ -47,16 +47,24 @@ asyncio.run(main())
 
 
 async def main() -> None:
-    env = {**os.environ, "TRACKER_DATABASE__URL": URL}
+    project = ROOT / "examples"
+    env = {
+        **os.environ,
+        "TRACKER_DATABASE__URL": URL,
+        "PYTHONPATH": str(project),
+    }
     subprocess.run(
-        ["uv", "run", "--locked", "python", "-c", SETUP], cwd=ROOT, env=env, check=True
+        ["uv", "run", "--locked", "python", "-c", SETUP],
+        cwd=project,
+        env=env,
+        check=True,
     )
     server = subprocess.Popen(
         [
             *("uv", "run", "--locked", "granian", "--interface", "asgi", "--factory"),
-            *("--port", str(PORT), "examples.tracker.app:create_app"),
+            *("--port", str(PORT), "tracker.app:create_app"),
         ],
-        cwd=ROOT,
+        cwd=project,
         env=env,
         start_new_session=True,  # so the whole process group can be stopped
     )

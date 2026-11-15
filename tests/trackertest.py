@@ -7,13 +7,13 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from tracker import operations
+from tracker.app import create_app
+from tracker.errors import DoneTasksAreKept, TaskAlreadyDone
+from tracker.models import Member, Task
+from tracker.schemas import TaskIn
+from tracker.settings import TrackerSettings
 
-from examples.tracker import operations
-from examples.tracker.app import create_app
-from examples.tracker.errors import DoneTasksAreKept, TaskAlreadyDone
-from examples.tracker.models import Member, Task
-from examples.tracker.schemas import TaskIn
-from examples.tracker.settings import TrackerSettings
 from hinoki.__main__ import main
 from hinoki.db import Database
 from hinoki.orm import migrator, use_database
@@ -118,11 +118,11 @@ def test_the_tracker_keeps_its_layering_promises(
     monkeypatch.delenv("TRACKER_DATABASE__URL", raising=False)
     argv = [
         "check",
-        "examples.tracker.app:create_app",
+        "tracker.app:create_app",
         "--rules",
-        "examples.tracker.rules:tracker_rules",
+        "tracker.rules:tracker_rules",
         "--package",
-        "examples",
+        "tracker",
     ]
     assert main(argv) == 0
     assert "0 violated" in capsys.readouterr().out

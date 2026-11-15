@@ -12,11 +12,11 @@ SQLite:
 
 ```sh
 export BLOG_ADMIN_SECRET='a-local-development-secret-with-32-bytes'
-uv run hinoki migrations status
-uv run hinoki migrations plan --app blog --dry-run
-uv run hinoki migrations sql --app blog 0001-initial
-uv run hinoki migrations apply --app blog
-uv run hinoki dev examples.blog.main:create_app
+uv run --project .. hinoki migrations status
+uv run --project .. hinoki migrations plan --app blog --dry-run
+uv run --project .. hinoki migrations sql --app blog 0001-initial
+uv run --project .. hinoki migrations apply --app blog
+uv run --project .. hinoki dev blog.main:create_app
 ```
 
 Open `/docs` for OpenAPI or `/admin` for the editor interface. `BLOG_JWT_SECRET`
@@ -25,7 +25,7 @@ for local exploration. To select a server database, set
 `BLOG_DATABASE__URL` and `HINOKI_DATABASE_URL` to the same URL before applying
 migrations and starting the app.
 
-For demo records, `BLOG_DATABASE__URL=... uv run python -m examples.blog.seed`
+For demo records, `BLOG_DATABASE__URL=... uv run --project .. python -m blog.seed`
 applies migrations and inserts fixed synthetic users and posts. Run it only
 once against a fresh disposable database: those unique demo records are not a
 resettable fixture. Never use real credentials or user data with this command.

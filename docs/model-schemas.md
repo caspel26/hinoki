@@ -8,7 +8,7 @@ related:
 # Schemas derived from models
 
 ```python
-from examples.blog.models import Post
+from blog.models import Post
 from hinoki import Schema, derive
 ```
 

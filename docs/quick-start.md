@@ -7,21 +7,23 @@ MySQL or MariaDB instead, see [Configure a database](databases.md).
 
 ## Plan and apply the migration
 
-The repository's root `hinoki.toml` registers Notes, Tracker and Blog as
-independent apps. The migration planner reads the Notes model and its recorded
-state and writes numbered SQL and state files for review:
+`examples/hinoki.toml` registers Notes, Tracker and Blog as independent apps.
+From the repository root, enter `examples/` and use the locked environment in
+the parent directory. The migration planner reads the Notes model and its
+recorded state and writes numbered SQL and state files for review:
 
 ```sh
-uv run hinoki app list
-uv run hinoki migrations plan --app notes
-uv run hinoki migrations sql --app notes 0001-create-table-notes
+cd examples
+uv run --project .. hinoki app list
+uv run --project .. hinoki migrations plan --app notes
+uv run --project .. hinoki migrations sql --app notes 0001-create-table-notes
 ```
 
 Review the SQL, then apply it explicitly. With no URL set, the migration
 command and the Notes app both use `sqlite://./.hinoki/local.sqlite3`:
 
 ```sh
-uv run hinoki migrations apply --app notes
+uv run --project .. hinoki migrations apply --app notes
 ```
 
 The local database file and migration ledger are created when `apply` runs.
@@ -30,7 +32,7 @@ Use a disposable database while evaluating the example.
 ## Start the app and send a request
 
 ```sh
-uv run hinoki dev examples.notes.main:app
+uv run --project .. hinoki dev notes.main:app
 ```
 
 The `DatabaseModule` opens a pool for the worker and closes it at shutdown. It does not create tables. In another terminal, create a note and list the collection:

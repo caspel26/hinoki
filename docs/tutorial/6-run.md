@@ -5,10 +5,10 @@
 The Tracker example's factory assembles the HTTP routes, rules, MCP tool and database module. It uses typed `TrackerSettings`; local SQLite is the default and `TRACKER_DATABASE__URL` selects another database.
 
 ```python
-from examples.tracker import api
-from examples.tracker.rules import tracker_rules
-from examples.tracker.security import member_only
-from examples.tracker.settings import TrackerSettings
+from tracker import api
+from tracker.rules import tracker_rules
+from tracker.security import member_only
+from tracker.settings import TrackerSettings
 from hinoki import Hinoki
 from hinoki.db import DatabaseModule
 from hinoki.mcpapp import expose_as_mcp
@@ -44,11 +44,11 @@ def create_app(database_url: str | None = None) -> Hinoki:
 # Omit these variables to use .hinoki/local.sqlite3.
 export TRACKER_DATABASE__URL='postgresql://user:password@127.0.0.1:5432/tracker'
 export HINOKI_DATABASE_URL="$TRACKER_DATABASE__URL"
-uv run hinoki migrations status
-uv run hinoki migrations sql --app tracker 0001-initial
-uv run hinoki migrations sql --app tracker 0002-indexes
-uv run hinoki migrations apply --app tracker
-uv run hinoki dev examples.tracker.app:create_app
+uv run --project .. hinoki migrations status
+uv run --project .. hinoki migrations sql --app tracker 0001-initial
+uv run --project .. hinoki migrations sql --app tracker 0002-indexes
+uv run --project .. hinoki migrations apply --app tracker
+uv run --project .. hinoki dev tracker.app:create_app
 ```
 
 The Tracker example already includes its initial and index migrations, so this
@@ -72,8 +72,8 @@ import os
 
 import pytest
 
-from examples.tracker.app import create_app
-from examples.tracker.models import Member
+from tracker.app import create_app
+from tracker.models import Member
 from hinoki.testing import ASGIClient
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
