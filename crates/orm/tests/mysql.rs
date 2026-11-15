@@ -1,0 +1,185 @@
+//! Integration tests against a disposable MySQL or MariaDB server.
+//!
+//! Set `HINOKI_TEST_MYSQL_URL` with an explicit `require_ssl=false` only for a
+//! local disposable instance. These tests never create a real account or send
+//! any messages.
+
+use std::time::Duration;
+
+use hinoki_orm::{
+    query::{compile_select_with, Dialect, Filter, Op, Select},
+    Database, ErrorKind, Value,
+};
+use tokio::time::{sleep, timeout};
+use uuid::Uuid;
+
+fn url() -> Option<String> {
+    let value = std::env::var("HINOKI_TEST_MYSQL_URL").ok();
+    if value.is_none() {
+        eprintln!("SKIPPED: HINOKI_TEST_MYSQL_URL is not set");
+    }
+    value
+}
+
+async fn database(table: &str, max_size: usize) -> Option<Database> {
+    let db = Database::connect(&url()?, max_size, Duration::from_millis(150)).unwrap();
+    db.execute(&format!("DROP TABLE IF EXISTS `{table}`"), &[])
+        .await
+        .unwrap();
+    db.execute(
+        &format!(
+            "CREATE TABLE `{table}` (`id` BINARY(16) PRIMARY KEY, `slug` VARCHAR(80) UNIQUE NOT NULL, \
+             `n` BIGINT, `at` DATETIME(6), `data` JSON, `flag` BOOLEAN, `blob` BLOB, `ratio` DOUBLE)"
+        ),
+        &[],
+    )
+    .await
+    .unwrap();
+    Some(db)
+}
+
+#[tokio::test]
+async fn typed_values_round_trip_and_pool_recovers_after_errors() {
+    let Some(db) = database("hinoki_mysql_values", 2).await else {
+        return;
+    };
+    let id = Uuid::new_v4();
+    let now = chrono::Utc::now();
+    let values = [
+        Value::Uuid(id),
+        Value::Text("hello".into()),
+        Value::Int(7),
+        Value::Timestamp(now),
+        Value::Json(serde_json::json!({"a": [1, 2]})),
+        Value::Bool(true),
+        Value::Bytes(vec![1, 2, 3]),
+        Value::Float(2.5),
+    ];
+    assert_eq!(
+        db.execute(
+            "INSERT INTO `hinoki_mysql_values` VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            &values,
+        )
+        .await
+        .unwrap(),
+        1
+    );
+    let rows = db
+        .fetch(
+            "SELECT * FROM `hinoki_mysql_values` WHERE `id` = ?",
+            &[Value::Uuid(id)],
+        )
+        .await
+        .unwrap();
+    let row: std::collections::HashMap<_, _> = rows[0].iter().cloned().collect();
+    assert_eq!(row["id"], Value::Uuid(id));
+    assert_eq!(row["n"], Value::Int(7));
+    assert_eq!(row["data"], Value::Json(serde_json::json!({"a": [1, 2]})));
+    assert_eq!(row["flag"], Value::Bool(true));
+    assert_eq!(row["blob"], Value::Bytes(vec![1, 2, 3]));
+    assert_eq!(row["ratio"], Value::Float(2.5));
+    let Value::Timestamp(back) = &row["at"] else {
+        panic!("timestamp expected")
+    };
+    assert!((*back - now).num_microseconds().unwrap().abs() < 2);
+
+    sleep(Duration::from_millis(20)).await;
+    let (size, idle) = db.status();
+    assert!(size >= 1);
+    assert!(idle >= 1 && idle <= size);
+    let transaction = db.begin().await.unwrap();
+    assert_eq!(db.status(), (size, idle - 1));
+    transaction.rollback().await.unwrap();
+
+    let query = Select {
+        table: "hinoki_mysql_values".into(),
+        columns: vec!["id".into()],
+        joins: vec![],
+        filters: vec![Filter {
+            column: "slug,n".into(),
+            op: Op::ContainsAny,
+            values: vec![Value::Text("hello".into())],
+        }],
+        order: vec![],
+        limit: None,
+        offset: None,
+        count: false,
+    };
+    let (sql, params) = compile_select_with(&query, Dialect::Mysql).unwrap();
+    assert_eq!(db.fetch(&sql, &params).await.unwrap().len(), 1);
+
+    let mut offset_query = query;
+    offset_query.filters.clear();
+    offset_query.offset = Some(1);
+    let (sql, params) = compile_select_with(&offset_query, Dialect::Mysql).unwrap();
+    assert!(db.fetch(&sql, &params).await.unwrap().is_empty());
+
+    let duplicate = db
+        .execute(
+            "INSERT INTO `hinoki_mysql_values` (`id`, `slug`) VALUES (?, ?)",
+            &[Value::Uuid(Uuid::new_v4()), Value::Text("hello".into())],
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(duplicate.kind, ErrorKind::Unique);
+    assert_eq!(db.fetch("SELECT 1", &[]).await.unwrap().len(), 1);
+    db.close();
+}
+
+#[tokio::test]
+async fn transaction_drop_and_pool_wait_are_bounded() {
+    let Some(db) = database("hinoki_mysql_tx", 1).await else {
+        return;
+    };
+    db.execute(
+        "INSERT INTO `hinoki_mysql_tx` (`id`, `slug`) VALUES (?, ?)",
+        &[Value::Uuid(Uuid::new_v4()), Value::Text("first".into())],
+    )
+    .await
+    .unwrap();
+
+    let tx = db.begin().await.unwrap();
+    let wait = timeout(Duration::from_millis(80), db.fetch("SELECT 1", &[])).await;
+    assert!(wait.is_err());
+    drop(tx);
+    sleep(Duration::from_millis(50)).await;
+    assert_eq!(db.fetch("SELECT 1", &[]).await.unwrap().len(), 1);
+    db.close();
+}
+
+#[tokio::test]
+async fn cancelled_statement_discards_the_connection_and_pool_recovers() {
+    let Some(db) = database("hinoki_mysql_cancel", 1).await else {
+        return;
+    };
+    let result = timeout(Duration::from_millis(40), db.fetch("SELECT SLEEP(1)", &[])).await;
+    assert!(result.is_err());
+    assert_eq!(db.fetch("SELECT 1", &[]).await.unwrap().len(), 1);
+    db.close();
+}
+
+#[tokio::test]
+async fn migration_transaction_holds_and_releases_a_database_lock() {
+    let Some(db) = database("hinoki_mysql_lock", 2).await else {
+        return;
+    };
+    let tx = db.begin_migration().await.unwrap();
+    let rows = tx
+        .fetch(
+            "SELECT IS_USED_LOCK(CONCAT('h', LEFT(SHA2(DATABASE(), 256), 63))) AS owner, CONNECTION_ID() AS current",
+            &[],
+        )
+        .await
+        .unwrap();
+    assert_eq!(rows[0][0].1, rows[0][1].1);
+    tx.commit().await.unwrap();
+    let rows = db
+        .fetch(
+            "SELECT IS_USED_LOCK(CONCAT('h', LEFT(SHA2(DATABASE(), 256), 63))) AS owner",
+            &[],
+        )
+        .await
+        .unwrap();
+    assert_eq!(rows[0][0].1, Value::Null);
+    db.close();
+}
