@@ -11,6 +11,7 @@ The `hinoki` command accepts a `module:attribute` target for an application, fac
 | Command | Purpose |
 | --- | --- |
 | `hinoki new NAME` | Create a starter project with settings, rules, tests and agent instructions. |
+| `hinoki app list` | List registered apps, their model and migration modules, and dependencies without importing app code or opening a database. `--format json` is machine readable. |
 | `hinoki app create NAME` | Add a registered modular app with its own models and migration package. |
 | `hinoki dev TARGET` | Run an app with reload during development. |
 | `hinoki serve TARGET` | Run without reload, using the `server` settings group. |
@@ -43,6 +44,8 @@ This repository's pre-alpha Hinoki framework is not published on PyPI; the [`hin
 The result is `cd PATH/NAME && uv sync && uv run pytest`: the project has a health route, typed settings, rules, one test that needs no database, a `README.md`, `AGENTS.md` and `.mcp.json`.
 Checkout paths and Git source values are escaped as TOML strings in the generated `pyproject.toml`.
 
+### `app`
+
 The generated `hinoki.toml` registers the default app and its models and migrations. Add modules without moving files by creating another app:
 
 ```sh
@@ -50,6 +53,15 @@ uv run hinoki app create billing
 ```
 
 This creates `NAME/apps/billing/{models.py,migrations/}` and registers both dotted module paths. Cross-app foreign keys require the referencing app to list the referenced app in `requires` in `hinoki.toml`; migrations are then planned/applied in dependency order. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.
+
+List the registered apps from the project root or any subdirectory:
+
+```sh
+uv run hinoki app list
+uv run hinoki app list --format json
+```
+
+The text output shows each app in dependency order with its model module, migration package and prerequisites. JSON contains the same fields under an `apps` key. The command only reads and validates `hinoki.toml`: it does not import app modules, connect to a database or start the app. Without a manifest, it prints an error and exits 2.
 
 ### `dev` and `serve`
 
