@@ -15,6 +15,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import hmac
+import ipaddress
 import json
 import logging
 import math
@@ -46,7 +47,6 @@ HOST_PATTERN = re.compile(
     r"\.?(?:[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)(?:\.[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)*",
     re.ASCII | re.IGNORECASE,
 )
-IPV6_HOST = re.compile(r"[0-9a-f:.]{2,45}", re.ASCII | re.IGNORECASE)
 ORIGIN = re.compile(
     r"[a-z][a-z0-9+.-]*://(?:[a-z0-9.-]+|\[[0-9a-f:.]+\])(?::[0-9]{1,5})?",
     re.ASCII | re.IGNORECASE,
@@ -805,7 +805,11 @@ def is_host_pattern(entry: str) -> bool:
     if entry == ANY:
         return True
     if ":" in entry:  # only an IPv6 address may contain colons
-        return IPV6_HOST.fullmatch(entry) is not None
+        try:
+            ipaddress.IPv6Address(entry)
+        except ValueError:
+            return False
+        return True
     return HOST_PATTERN.fullmatch(entry) is not None
 
 
@@ -852,6 +856,8 @@ class AppSettings(Settings):
     def validate(self) -> None:
         if not self.allowed_hosts:
             raise ValueError("allowed_hosts must name at least one host, or '*'")
+        if ANY in self.allowed_hosts and len(self.allowed_hosts) > 1:
+            raise ValueError("allowed_hosts: '*' must be the only entry")
         if not all(is_host_pattern(entry) for entry in self.allowed_hosts):
             raise ValueError(
                 "allowed_hosts entries are host names, '.domain' or '*' "

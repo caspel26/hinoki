@@ -29,7 +29,7 @@ from hinoki.routing import MethodNotAllowed
 from hinoki.runtime.binding import BODY_METHODS, Binding, parse_query
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.lifespan import Lifespan
-from hinoki.runtime.origins import CorsPolicy, HostPolicy
+from hinoki.runtime.origins import ALLOW_ORIGIN, CorsPolicy, HostPolicy
 from hinoki.runtime.requests import (
     Scope,
     authorize,
@@ -68,11 +68,10 @@ def docs_response(page: Page) -> Response:
 
 
 def origin_of(scope: Scope) -> str:
-    """The request's ``Origin`` header, or an empty string."""
-    for name, value in scope.get("headers", ()):
-        if name == b"origin":
-            return str(value.decode("latin-1"))
-    return ""
+    """The request's ``Origin`` header, or an empty string. Repeated headers
+    are joined as ``header_map`` joins them, so they match no single origin."""
+    found = [value for name, value in scope.get("headers", ()) if name == b"origin"]
+    return b", ".join(found).decode("latin-1")
 
 
 class ASGIAdapter:
@@ -177,7 +176,8 @@ class ASGIAdapter:
             if name.encode() not in present
         ]
         headers = [*response.headers, *extra, (b"x-request-id", rid.encode())]
-        if self.cors is not None:
+        if self.cors is not None and ALLOW_ORIGIN not in present:
+            # An answer that sets its own CORS headers keeps them.
             headers.extend(self.cors.headers(origin_of(scope)))
         if response.status not in BODYLESS:
             headers.append((b"content-length", str(len(response.body)).encode()))
