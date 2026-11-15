@@ -31,4 +31,6 @@ Fields inherited from an abstract model are part of the checked constructor. Fie
 
 `Model.acreate(**values)` and some filter/update keyword calls cannot currently verify each field name against the model class. Use the constructor plus `asave()` when you want field-level checking on insertion. This limitation does not affect runtime validation of model fields or database constraints.
 
+The return types of the write methods are checked: `aupdate` returns the model, `aupdate_where` and `QuerySet.aupdate` a list of it, and with a literal `returning=False` each returns `int` ([writes that do not read the row back](models.md#writes-that-do-not-read-the-row-back)). A `returning` value that is a plain `bool` gives the union of both. `acreate` and `insert` return the model either way. Unpacking a dictionary into `aupdate(**values)` or `update(**values)` gives `Any`, because the dictionary could hold `returning`; pass `returning=True` explicitly to keep the model type.
+
 The Python package includes typing metadata, and the compiled `hinoki.core` module has a matching stub. See the [API reference](reference/index.md) for the public signatures.

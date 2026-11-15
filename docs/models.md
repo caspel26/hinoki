@@ -151,6 +151,31 @@ Server-supplied keywords take precedence over values from a `Schema`. A loaded m
 
 The model constructor is statically typed. Some keyword-based model methods still have broader type-checker signatures; see [typing](typing.md).
 
+### Writes that do not read the row back
+
+By default every write returns the row as the database stored it: PostgreSQL and SQLite add `RETURNING` with every column, and MySQL/MariaDB select the row again in the same transaction. When the caller does not need that row, pass `returning=False`; the statement then has no `RETURNING` (and no follow-up `SELECT` on MySQL/MariaDB):
+
+```python
+task = await Task.acreate(title="Draft", owner_id=me, returning=False)  # as sent
+count = await Task.aupdate(id=task.id, done=True, returning=False)       # rows written
+count = await Task.aupdate_where({"owner_id": me}, {"done": True}, returning=False)
+count = await Task.filter(owner_id=me).aupdate({"done": False}, returning=False)
+```
+
+| Method | Default | `returning=False` |
+| --- | --- | --- |
+| `acreate`, `insert` (`create`) | the stored row | the same instance, holding the values that were sent |
+| `aupdate` (`update`) | the stored row, `Model.NotFound` if no row matches | `int` row count; 0 when no row matches, no `NotFound` |
+| `aupdate_where`, `QuerySet.aupdate` (`update_where`, `update`) | `list` of stored rows | `int` row count |
+
+What `returning=False` gives back is the client's side of the write. An insert sends every column, after defaults and factories ran in Python, so the returned instance holds exactly those values and remembers them, so a later `asave()` updates the row instead of inserting it again. An update returns no values at all; the `@timestamps` column is still set by the clock and validation still runs. Nothing is re-read from the database, so anything the database changes on the way in is not reflected: timestamp precision, numeric scale, JSON normalization, column types that store a different representation and triggers. Read the row with `aget` when you need the stored values.
+
+The count is the number the database reports. PostgreSQL and SQLite count the rows the statement matched; MySQL and MariaDB, with the driver's default connection settings, count the rows whose values actually changed, so a row that already held the new values counts 0.
+
+The cost of the default is the data sent back. In a raw-SQL measurement on PostgreSQL 17 with 16 statements in flight, a statement returning every column of a narrow row took 83.7 µs per operation against 75.8 µs returning only the key (+10%); with a ~10 KB `jsonb` column it took 143.4 µs against 75.9 µs (+89%). This is a single-machine measurement, not a guarantee for other workloads.
+
+`returning` is a keyword-only option of these methods, so a model cannot declare a field named `returning`: the class definition raises `RegistrationError` and asks for another name.
+
 ## Share fields: abstract models and mixins
 
 Fields, options and methods that several models need can live in a base class. An **abstract model** has no table of its own: it is not migrated, cannot be queried or saved, and exists to be subclassed.
