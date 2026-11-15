@@ -70,6 +70,14 @@ Use a disposable database to review a migration before running it against import
 
 SQLite uses table rebuilds when a schema change cannot be expressed safely with `ALTER TABLE`. Review the generated SQL carefully. Dropping columns, changing types or constraints, and adding non-null columns can be destructive and require `--allow-destructive`. Hinoki holds the SQLite pool during a migration, suspends foreign-key enforcement on reserved connections, runs `PRAGMA foreign_key_check` before commit, and rolls the migration back if references are invalid.
 
+MySQL and MariaDB migrations declare foreign keys at table level. For databases
+migrated with an older Hinoki version, inspect `SHOW CREATE TABLE`: MySQL ignores
+inline `REFERENCES` clauses, while MariaDB behavior varies by server version.
+Add any missing constraint through a reviewed manual migration; applied
+migrations are never rewritten automatically. Automatic removal of a foreign
+key column is refused for these backends because the planner cannot know
+whether an older migration actually created its constraint.
+
 ## Destructive changes
 
 Operations that can remove data are reported as destructive and are not written unless `--allow-destructive` is passed to `plan`. Read the generated migration before opting in. Changing a constraint on an existing column may require a hand-written migration.

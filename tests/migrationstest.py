@@ -12,10 +12,10 @@ from uuid import UUID
 import pytest
 
 from hinoki.__main__ import database_dialect, main
-from hinoki.db import Database
+from hinoki.db import Database, ForeignKeyViolation
 from hinoki.errors import DestructiveMigration, MigrationError
 from hinoki.orm import Model, OnDelete, field, foreign_key, migrator, use_database
-from hinoki.orm.migrations import models_of, plan, statements
+from hinoki.orm.migrations import foreign_key_name, models_of, plan, statements
 from hinoki.project import load_manifest
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -184,12 +184,116 @@ def test_mysql_plan_uses_mysql_types_and_quoting(tmp_path: Path) -> None:
     assert "`name` varchar(40) NOT NULL" in text
     assert "ENGINE=InnoDB" in text
     assert "`id` binary(16) PRIMARY KEY" in text
+    assert "`owner_id` bigint NOT NULL," in text
     assert (
-        "`owner_id` bigint NOT NULL REFERENCES `mig_owners` (`id`) ON DELETE CASCADE"
-        in text
+        f"CONSTRAINT `{foreign_key_name('mig_things', 'owner_id', 'mysql')}` "
+        "FOREIGN KEY (`owner_id`) "
+        "REFERENCES `mig_owners` (`id`) ON DELETE CASCADE" in text
     )
+    assert "`owner_id` bigint NOT NULL REFERENCES" not in text
     assert "`tags` json NOT NULL" in text
     assert "`seen` datetime(6)" in text
+
+
+@pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
+def test_mysql_family_add_column_creates_foreign_key_separately(
+    tmp_path: Path, dialect: str
+) -> None:
+    owner = owners()
+    initial_child = model("mig_added_fk", {"id": (int, field(primary_key=True))})
+    plan([owner, initial_child], tmp_path, "initial", dialect=dialect)
+    child_with_reference = model(
+        "mig_added_fk",
+        {
+            "id": (int, field(primary_key=True)),
+            "owner_id": (
+                int | None,
+                foreign_key(owner, on_delete=OnDelete.CASCADE, default=None),
+            ),
+        },
+    )
+
+    result = plan(
+        [owner, child_with_reference], tmp_path, "owner-reference", dialect=dialect
+    )
+
+    assert [operation.description for operation in result.operations] == [
+        "add mig_added_fk.owner_id",
+        "add foreign key mig_added_fk.owner_id",
+    ]
+    assert "ADD COLUMN `owner_id` bigint;" in result.operations[0].sql
+    assert "REFERENCES" not in result.operations[0].sql
+    assert (
+        f"ADD CONSTRAINT `{foreign_key_name('mig_added_fk', 'owner_id', dialect)}` "
+        "FOREIGN KEY" in result.operations[1].sql
+    )
+
+
+@pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
+def test_mysql_family_foreign_key_constraint_names_fit_identifier_limit(
+    dialect: str,
+) -> None:
+    first = foreign_key_name("t" * 40, "c" * 30, dialect)
+    second = foreign_key_name("t" * 40, "c" * 29 + "d", dialect)
+    underscore_collision_a = foreign_key_name("a_b", "c", dialect)
+    underscore_collision_b = foreign_key_name("a", "b_c", dialect)
+    case_variant_a = foreign_key_name("Cases", "owner_id", dialect)
+    case_variant_b = foreign_key_name("cases", "owner_id", dialect)
+
+    assert len(first) == 64
+    assert len(second) == 64
+    assert first != second
+    assert underscore_collision_a != underscore_collision_b
+    assert case_variant_a.casefold() != case_variant_b.casefold()
+
+
+def test_mysql_plan_uses_distinct_names_for_underscore_identifiers(
+    tmp_path: Path,
+) -> None:
+    parent = model("fk_parent", {"id": (int, field(primary_key=True))})
+    first = model(
+        "a_b",
+        {
+            "id": (int, field(primary_key=True)),
+            "c_id": (int, foreign_key(parent, on_delete=OnDelete.RESTRICT)),
+        },
+    )
+    second = model(
+        "a",
+        {
+            "id": (int, field(primary_key=True)),
+            "b_c_id": (int, foreign_key(parent, on_delete=OnDelete.RESTRICT)),
+        },
+    )
+
+    result = plan([parent, first, second], tmp_path, "underscores", dialect="mysql")
+    sql = "\n".join(operation.sql for operation in result.operations)
+
+    first_name = foreign_key_name("a_b", "c_id", "mysql")
+    second_name = foreign_key_name("a", "b_c_id", "mysql")
+    assert first_name != second_name
+    assert f"CONSTRAINT `{first_name}`" in sql
+    assert f"CONSTRAINT `{second_name}`" in sql
+
+
+@pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
+def test_mysql_family_requires_manual_drop_of_foreign_key_column(
+    tmp_path: Path, dialect: str
+) -> None:
+    owner = owners()
+    with_reference = things(owner)
+    plan([owner, with_reference], tmp_path, "initial", dialect=dialect)
+    without_reference = model(
+        "mig_things",
+        {
+            "id": (UUID, field(primary_key=True)),
+            "tags": (dict[str, Any], None),
+            "seen": (datetime | None, None),
+        },
+    )
+
+    with pytest.raises(MigrationError, match="dropping a foreign-key column"):
+        plan([owner, without_reference], tmp_path, "drop-reference", dialect=dialect)
 
 
 def test_mysql_plan_rejects_unsupported_dialects(tmp_path: Path) -> None:
@@ -261,6 +365,17 @@ async def test_mysql_family_migrations_and_model_returning_contract(
         )
         assert len(updated) == 1
         assert updated[0].tags == {"ready": False}
+        await owner.filter(id=7).adelete()
+        assert (
+            await database.fetch(
+                "SELECT id FROM `mig_things` WHERE id = ?", UUID(int=1)
+            )
+            == []
+        )
+    invalid_database = await Database.connect(database_url, max_size=1)
+    with use_database(invalid_database), pytest.raises(ForeignKeyViolation):
+        await thing.acreate(id=UUID(int=2), owner_id=999, tags={}, seen=None)
+    invalid_database.close()
     for table in ("mig_things", "mig_owners", "hinoki_migrations"):
         await database.execute(f"DROP TABLE IF EXISTS `{table}`")
     database.close()
