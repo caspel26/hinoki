@@ -160,7 +160,7 @@ def oha(
     cmd.append(url)
     result = sh(cmd).stdout
     if out:
-        out.write_text(result)
+        out.write_text(result.rstrip("\n") + "\n")
     return json.loads(result)
 
 
