@@ -1,19 +1,21 @@
 # Hinoki example project
 
-This directory's apps are registered by the repository root `hinoki.toml`:
-Notes, Tracker and Blog each own a model module and migration package. From the
-repository root, inspect and manage them with the project commands:
+This directory is a manifest-backed Hinoki project. [`hinoki.toml`](hinoki.toml)
+registers Notes, Tracker and Blog as separate apps, each with its own model
+module and migration package. From this directory, inspect and manage them
+with the project commands (the repository's locked environment lives one level
+up):
 
 ```sh
-uv run hinoki app list
-uv run hinoki migrations plan --app notes
-uv run hinoki migrations apply
-uv run hinoki manage greet Peppe
-uv run hinoki shell
+uv run --project .. hinoki app list
+uv run --project .. hinoki migrations plan --app notes
+uv run --project .. hinoki migrations apply
+uv run --project .. hinoki manage greet Peppe
+uv run --project .. hinoki shell
 ```
 
 With no database URL, migration commands and app settings use the local SQLite
-file `.hinoki/local.sqlite3`. `hinoki migrations apply` initializes every
+file `.hinoki/local.sqlite3` inside `examples/`. `hinoki migrations apply` initializes every
 registered app in dependency order; use `--app NAME` to limit the operation to
 one app and its prerequisites. Migration numbers and slugs are generated from
 the planned schema changes. Review generated SQL and state before applying.

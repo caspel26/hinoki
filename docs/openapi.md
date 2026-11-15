@@ -14,8 +14,9 @@ related:
 Generate the document from a project target without starting a server:
 
 ```sh
-hinoki openapi examples.notes.main:app --output openapi.json
-hinoki openapi examples.notes.main:app --check openapi.json
+cd examples
+uv run --project .. hinoki openapi notes.main:app --output openapi.json
+uv run --project .. hinoki openapi notes.main:app --check openapi.json
 ```
 
 The command does not open a database and works even when `openapi_url` is disabled. It writes stable, sorted JSON, and `--check` compares parsed JSON so whitespace-only changes do not report drift. See the [command-line guide](cli.md#openapi) for output and exit-status details.

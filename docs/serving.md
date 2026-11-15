@@ -8,8 +8,9 @@ related:
 # Running an application
 
 ```sh
-hinoki dev   blog.main:create_app     # development: reload on change
-hinoki serve blog.main:create_app     # production-style: no reload
+cd examples
+uv run --project .. hinoki dev   blog.main:create_app     # development: reload on change
+uv run --project .. hinoki serve blog.main:create_app     # production-style: no reload
 ```
 
 `TARGET` is `module:name`, where `name` is an application (`Hinoki`) or a function that returns one (a factory: the usual choice, because it builds the app inside each worker). The factory builds declarations only; databases and pools open in the worker's lifespan.
@@ -56,7 +57,7 @@ app_settings = BlogSettings.load()          # reads BLOG_* and .env
 
 ## Other runners
 
-`dev` and `serve` are conveniences. The application is a plain ASGI app, so `granian --interface asgi --factory blog.main:create_app` (or another ASGI server) works too; then the `server` group is ignored, because only `hinoki serve` applies it.
+`dev` and `serve` are conveniences. The application is a plain ASGI app, so `granian --interface asgi --factory blog.main:create_app` (or another ASGI server) works too; run that command from `examples/` with the locked environment active. The `server` group is ignored, because only `hinoki serve` applies it.
 
 ## WSGI
 

@@ -8,22 +8,23 @@ from hinoki.rules import RuleSet
 
 
 tracker_rules = RuleSet(
-    Actions.require_access(match="examples.tracker.*", except_=["examples.tracker.api.health"]),
-    Actions.forbid_model_responses(match="examples.tracker.*"),
+    Actions.require_access(match="tracker.*", except_=["tracker.api.health"]),
+    Actions.forbid_model_responses(match="tracker.*"),
     Transactions.require_atomic(except_=["hinoki.mcpapp.*"]),
     Schemas.forbid_exposure("token"),
     # api -> operations -> models, never the other way
-    Imports.forbid(source="examples.tracker.models", target="examples.tracker.operations"),
-    Imports.forbid(source="examples.tracker.models", target="examples.tracker.api"),
-    Imports.forbid(source="examples.tracker.operations", target="examples.tracker.api"),
+    Imports.forbid(source="tracker.models", target="tracker.operations"),
+    Imports.forbid(source="tracker.models", target="tracker.api"),
+    Imports.forbid(source="tracker.operations", target="tracker.api"),
 )
 ```
 
 Run them from the command line or let the app enforce them when it starts (`Hinoki(rules=tracker_rules)`):
 
 ```sh
-hinoki check examples.tracker.app:create_app \
-    --rules examples.tracker.rules:tracker_rules --package examples
+cd examples
+uv run --project .. hinoki check tracker.app:create_app \
+    --rules tracker.rules:tracker_rules --package tracker
 ```
 
 ```text

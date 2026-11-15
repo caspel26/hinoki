@@ -185,7 +185,8 @@ same through `to_schema`.
 To inspect routes without starting the server:
 
 ```sh
-hinoki routes examples.blog.main:create_app --path /posts
+cd examples
+uv run --project .. hinoki routes blog.main:create_app --path /posts
 ```
 
 Generated routes include schemas, access policies, status codes and pagination

@@ -14,7 +14,7 @@ Hinoki keeps credential parsing in an authentication provider and permission che
 Subclass `BearerAuth[User]`, `APIKeyAuth[User]` or `HeaderAuth[User]`. The provider returns a `Caller` with a stable id, your user object and its permissions. `authenticate`/`resolve_token` may be async or synchronous; synchronous hooks run on the bounded sync executor. This example reuses the complete Blog example's user model.
 
 ```python
-from examples.blog.models import User
+from blog.models import User
 from hinoki import BearerAuth, Caller
 
 
@@ -38,9 +38,9 @@ Absent credentials let the provider decline; invalid supplied credentials produc
 ## Attach a policy
 
 ```python
-from examples.blog.models import User
-from examples.blog.security import editor
-from examples.blog.schemas import PostOut
+from blog.models import User
+from blog.security import editor
+from blog.schemas import PostOut
 from hinoki import Caller, http
 
 

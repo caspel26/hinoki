@@ -92,11 +92,12 @@ local SQLite database. For another backend, export the URL without passing it
 as a process argument:
 
 ```sh
+cd examples
 export HINOKI_DATABASE_URL="$BLOG_DATABASE__URL"
-hinoki migrations plan --app blog
-hinoki migrations status
-hinoki migrations sql --app blog 0001-initial
-hinoki migrations apply --app blog
+uv run --project .. hinoki migrations plan --app blog
+uv run --project .. hinoki migrations status
+uv run --project .. hinoki migrations sql --app blog 0001-initial
+uv run --project .. hinoki migrations apply --app blog
 ```
 
 Review generated SQL and state before applying them. Use a disposable database
