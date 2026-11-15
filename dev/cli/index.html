@@ -327,7 +327,11 @@
               
             
               
-                <li><a class="side__link" href="../typing/"><i>3.24</i><span>Typing</span></a></li>
+                <li><a class="side__link" href="../shell/"><i>3.24</i><span>Interactive shell</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../typing/"><i>3.25</i><span>Typing</span></a></li>
               
             
             </ul>
@@ -339,19 +343,19 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../admin/"><i>3.25</i><span>Admin</span></a></li>
+                <li><a class="side__link" href="../admin/"><i>3.26</i><span>Admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../app-mcp/"><i>3.26</i><span>Application MCP</span></a></li>
+                <li><a class="side__link" href="../app-mcp/"><i>3.27</i><span>Application MCP</span></a></li>
               
             
               
-                <li><a class="side__link" href="../dev-mcp/"><i>3.27</i><span>Development MCP</span></a></li>
+                <li><a class="side__link" href="../dev-mcp/"><i>3.28</i><span>Development MCP</span></a></li>
               
             
               
-                <li><a class="side__link" href="../ai-workflow/"><i>3.28</i><span>Development tools</span></a></li>
+                <li><a class="side__link" href="../ai-workflow/"><i>3.29</i><span>Development tools</span></a></li>
               
             
             </ul>
@@ -363,11 +367,11 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../sync-async/"><i>3.29</i><span>Sync and async</span></a></li>
+                <li><a class="side__link" href="../sync-async/"><i>3.30</i><span>Sync and async</span></a></li>
               
             
               
-                <li><a class="side__link" href="../benchmarks/"><i>3.30</i><span>Benchmarks</span></a></li>
+                <li><a class="side__link" href="../benchmarks/"><i>3.31</i><span>Benchmarks</span></a></li>
               
             
             </ul>
@@ -441,6 +445,10 @@
 <tr>
 <td><code>hinoki manage [TARGET] [COMMAND]</code></td>
 <td>Run an app-defined command with its declared module resources; a project manifest supplies the default target.</td>
+</tr>
+<tr>
+<td><code>hinoki shell [TARGET]</code></td>
+<td>Open an interactive Python shell with the app's modules and registered models.</td>
 </tr>
 <tr>
 <td><code>hinoki mcp TARGET</code></td>
@@ -555,6 +563,32 @@ hinoki<span class="w"> </span>manage<span class="w"> </span>examples.management:
 <p>The same example is in <code>examples/management.py</code> and can be run from the repository root.</p>
 <p><code>handle(context, args)</code> may be synchronous or asynchronous. A sync handler runs on Hinoki's bounded executor. It can read <code>context.settings</code> and retrieve resources with <code>context.get(Type)</code> or <code>context.find(Type)</code>. Declare module classes in the command's <code>requires</code> tuple; Hinoki starts those modules and their dependencies for the command, then closes them before it exits. Other app modules are not started. A command with no requirements starts no app modules.</p>
 <p>Commands run inside the project process and can modify data. Use disposable databases when developing or testing a command that writes. A handler returns <code>None</code> for success or an exit code from 0 through 255. Unknown commands and invalid arguments exit 2; a command failure exits nonzero. App settings load when Hinoki constructs the app, but module resources open only for the selected command.</p>
+<h3 id="shell"><code>shell</code><a class="headerlink" href="#shell" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>shell
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>shell<span class="w"> </span>examples.blog.main:app<span class="w"> </span>--models<span class="w"> </span>examples.blog.models
+</code></pre></div>
+<p>In a project with <code>hinoki.toml</code>, the target defaults to <code>project.application</code>
+and the shell loads every registered app's model module. Repeat <code>--models</code>
+to select model modules explicitly. Outside a project, pass a target; <code>--models</code>
+is optional. The interactive namespace contains <code>app</code>, its validated
+<code>settings</code>, and concrete model classes. Conflicting model class names fail
+before the prompt.</p>
+<p>The shell keeps one event loop and supports top-level <code>await</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="k">await</span> <span class="n">Note</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+<span class="go">[Note(id=1, title='Hello')]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">app</span><span class="o">.</span><span class="n">title</span>
+<span class="go">'Hinoki Blog'</span>
+</code></pre></div>
+<p>Use async ORM queries with <code>await</code>; synchronous ORM methods cannot block the
+shell's event loop. Unmanaged tasks are cancelled on exit and cleanup is
+bounded by <code>app.runtime.shutdown_timeout</code>.</p>
+<p>Installed module resources are started and closed for the session, so ORM
+queries use the app's configured database. App <code>on_startup</code> and <code>on_shutdown</code>
+hooks do not run, and migrations are never applied. The shell requires a TTY;
+Ctrl-D exits, Ctrl-C at the prompt exits, and Ctrl-C during a cell interrupts
+that cell. It executes Python with the current user's process privileges and
+may write to the configured database, so use a development database when
+experimenting.</p>
 <h3 id="migrations"><code>migrations</code><a class="headerlink" href="#migrations" title="Permanent link">&para;</a></h3>
 <p>In a project created by <code>hinoki new</code>, migration modules are read from the manifest; users do not supply model or migration paths:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--name<span class="w"> </span>add-index<span class="w"> </span>--dry-run
@@ -595,7 +629,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
 
       <nav class="pager" aria-label="Previous and next page">
         <a class="pager__link pager__link--prev" href="../testing/"><small>Previous</small><span>Testing</span></a>
-        <a class="pager__link pager__link--next" href="../typing/"><small>Next</small><span>Typing</span></a>
+        <a class="pager__link pager__link--next" href="../shell/"><small>Next</small><span>Interactive shell</span></a>
       </nav>
     </main>
 
@@ -608,7 +642,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
           
           
             <ul><li><a href="#commands-and-options">Commands and options</a>
-            <ul><li><a href="#new">new</a></li><li><a href="#app">app</a></li><li><a href="#dev-and-serve">dev and serve</a></li><li><a href="#check">check</a></li><li><a href="#openapi">openapi</a></li><li><a href="#version">version</a></li><li><a href="#settings">settings</a></li><li><a href="#manage">manage</a></li><li><a href="#migrations">migrations</a></li><li><a href="#mcp">mcp</a></li></ul>
+            <ul><li><a href="#new">new</a></li><li><a href="#app">app</a></li><li><a href="#dev-and-serve">dev and serve</a></li><li><a href="#check">check</a></li><li><a href="#openapi">openapi</a></li><li><a href="#version">version</a></li><li><a href="#settings">settings</a></li><li><a href="#manage">manage</a></li><li><a href="#shell">shell</a></li><li><a href="#migrations">migrations</a></li><li><a href="#mcp">mcp</a></li></ul>
           </li><li><a href="#import-target-examples">Import target examples</a></li></ul>
           
         </nav>
@@ -616,7 +650,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 18:23:36 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 19:12:21 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>9 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
