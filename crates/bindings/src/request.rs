@@ -90,16 +90,12 @@ pub fn parse_cookies(header: &str) -> Vec<(String, String)> {
 
 /// Lower-case header names with repeated headers joined by `", "`. Header
 /// bytes are Latin-1, as in ASGI.
-pub fn join_headers(headers: &[(Vec<u8>, Vec<u8>)]) -> Vec<(String, String)> {
-    let mut joined: Vec<(String, String)> = Vec::new();
-    let mut index: HashMap<String, usize> = HashMap::new();
+pub fn join_headers<N: AsRef<[u8]>, V: AsRef<[u8]>>(headers: &[(N, V)]) -> Vec<(String, String)> {
+    let mut joined: Vec<(String, String)> = Vec::with_capacity(headers.len());
+    let mut index: HashMap<String, usize> = HashMap::with_capacity(headers.len());
     for (name, value) in headers {
-        let name: String = name
-            .iter()
-            .map(|&b| char::from(b))
-            .collect::<String>()
-            .to_lowercase();
-        let value: String = value.iter().map(|&b| char::from(b)).collect();
+        let name = latin1(name.as_ref()).to_lowercase();
+        let value = latin1(value.as_ref());
         match index.get(&name) {
             Some(&at) => {
                 // HTTP/2 splits Cookie into several fields: rejoin with "; ".
@@ -115,6 +111,15 @@ pub fn join_headers(headers: &[(Vec<u8>, Vec<u8>)]) -> Vec<(String, String)> {
         }
     }
     joined
+}
+
+/// Latin-1 bytes as a `String`; plain ASCII (every real header) skips the
+/// per-byte widening.
+fn latin1(bytes: &[u8]) -> String {
+    match std::str::from_utf8(bytes) {
+        Ok(text) if text.is_ascii() => text.to_owned(),
+        _ => bytes.iter().map(|&b| char::from(b)).collect(),
+    }
 }
 
 /// One part of a `multipart/form-data` body.
@@ -428,24 +433,120 @@ pub fn parse_cookie_header(py: Python<'_>, header: &str) -> PyResult<Py<PyDict>>
 }
 
 #[pyfunction]
-pub fn header_dict(py: Python<'_>, headers: Vec<Vec<Vec<u8>>>) -> PyResult<Py<PyDict>> {
-    let mut pairs = Vec::with_capacity(headers.len());
-    for mut item in headers {
-        if item.len() != 2 {
-            return Err(PyValueError::new_err(
-                "a header must be a (name, value) pair",
-            ));
-        }
-        let value = item.pop().unwrap_or_default();
-        let name = item.pop().unwrap_or_default();
-        pairs.push((name, value));
+pub fn header_dict(py: Python<'_>, headers: &Bound<'_, PyAny>) -> PyResult<Py<PyDict>> {
+    Ok(headers_and_size(py, headers)?.0)
+}
+
+/// The header dict of `header_dict` and the byte total of `header_bytes` from one
+/// pass over the headers.
+pub fn headers_and_size(
+    py: Python<'_>,
+    headers: &Bound<'_, PyAny>,
+) -> PyResult<(Py<PyDict>, usize)> {
+    let mut pairs = Vec::new();
+    for item in headers.try_iter()? {
+        pairs.push(byte_pair(&item?)?);
     }
-    let headers = pairs;
+    let pairs: Vec<(&[u8], &[u8])> = pairs
+        .iter()
+        .map(|(name, value)| (name.as_bytes(), value.as_bytes()))
+        .collect();
+    let size = pairs.iter().map(|(n, v)| n.len() + v.len() + 4).sum();
     let result = PyDict::new(py);
-    for (name, value) in join_headers(&headers) {
+    for (name, value) in join_headers(&pairs) {
         result.set_item(name, value)?;
     }
-    Ok(result.unbind())
+    Ok((result.unbind(), size))
+}
+
+/// Header names the framework's security policy owns (lowercase). Mirrors
+/// `hinoki.runtime.security.POLICY_HEADERS`; a Python test pins the two together.
+const POLICY_NAMES: [&[u8]; 4] = [
+    b"x-frame-options",
+    b"referrer-policy",
+    b"x-content-type-options",
+    b"strict-transport-security",
+];
+
+fn is_policy(lower: &[u8]) -> bool {
+    POLICY_NAMES.contains(&lower)
+}
+
+/// A `(name, value)` pair of bytes; ASGI servers may send lists or tuples.
+fn byte_pair<'py>(
+    item: &Bound<'py, PyAny>,
+) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+    if item.len()? != 2 {
+        return Err(PyValueError::new_err(
+            "a header must be a (name, value) pair",
+        ));
+    }
+    Ok((
+        item.get_item(0)?.cast_into::<PyBytes>()?,
+        item.get_item(1)?.cast_into::<PyBytes>()?,
+    ))
+}
+
+/// `(header dict, header bytes)` in one pass: the dict of `header_dict` and the
+/// total the size limit counts (name + value + 4 per header).
+#[pyfunction]
+pub fn request_headers(
+    py: Python<'_>,
+    headers: &Bound<'_, PyAny>,
+) -> PyResult<(Py<PyDict>, usize)> {
+    headers_and_size(py, headers)
+}
+
+/// The final header list of a response: the handler's headers without the
+/// framework's policy headers and request id, then the policy headers, the
+/// route's own headers that nothing above already set, and the request id.
+/// Returns the list and whether the handler's own headers carried
+/// `allow_origin`, which decides whether CORS headers are added afterwards.
+#[pyfunction]
+pub fn response_headers<'py>(
+    py: Python<'py>,
+    headers: &Bound<'py, PyList>,
+    policy: &Bound<'py, PyList>,
+    route_headers: &Bound<'py, PyAny>,
+    request_id_name: &Bound<'py, PyBytes>,
+    request_id: &Bound<'py, PyBytes>,
+    allow_origin: &[u8],
+) -> PyResult<(Bound<'py, PyList>, bool)> {
+    let rid_name = request_id_name.as_bytes();
+    let mut present: Vec<Vec<u8>> = Vec::with_capacity(headers.len() + policy.len());
+    let out = PyList::empty(py);
+    let mut saw_allow_origin = false;
+    for item in headers.iter() {
+        let (name, value) = byte_pair(&item)?;
+        let lower = name.as_bytes().to_ascii_lowercase();
+        if is_policy(&lower) {
+            continue;
+        }
+        saw_allow_origin |= lower == allow_origin;
+        if lower != rid_name {
+            out.append((name, value))?;
+        }
+        present.push(lower);
+    }
+    for item in policy.iter() {
+        let (name, value) = byte_pair(&item)?;
+        present.push(name.as_bytes().to_ascii_lowercase());
+        saw_allow_origin |= name.as_bytes().eq_ignore_ascii_case(allow_origin);
+        out.append((name, value))?;
+    }
+    for item in route_headers.try_iter()? {
+        let (name, value) = item?.extract::<(String, String)>()?;
+        let lower = name.as_bytes().to_ascii_lowercase();
+        if lower == rid_name || is_policy(&lower) || present.contains(&lower) {
+            continue;
+        }
+        out.append((
+            PyBytes::new(py, name.as_bytes()),
+            PyBytes::new(py, value.as_bytes()),
+        ))?;
+    }
+    out.append((request_id_name, request_id))?;
+    Ok((out, saw_allow_origin))
 }
 
 const MAX_PARSE_DEPTH: usize = 128;
