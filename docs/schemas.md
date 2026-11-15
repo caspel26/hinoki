@@ -29,4 +29,39 @@ class NoteOut(Schema):
 
 `Schema.validate(data)` reports structural problems together. Values are not coerced. Declare field constraints with `Field(...)`; use `@field_check` and `@object_check` for synchronous checks that depend on validated schema values.
 
+## Built-in and custom validation
+
+`Field(...)` provides built-in structural constraints. `format=` accepts `email`, `url`, `slug` or `hex_color` and is shorthand for a regular-expression pattern. Numeric bounds apply to numbers; length limits apply to strings and collections; `one_of` restricts a value to the listed choices.
+
+```python
+from typing import Annotated
+
+from hinoki import Field, Invalid, Schema, field_check, object_check
+
+
+class Registration(Schema):
+    username: Annotated[str, Field(min_length=3, max_length=32, pattern=r"[a-z0-9_]+")]
+    email: Annotated[str, Field(format="email")]
+    password: Annotated[str, Field(min_length=12)]
+    confirmation: str
+
+    @field_check("password")
+    def reject_common_password(self, value: str) -> None:
+        if value.lower() in {"password12345", "qwerty123456"}:
+            raise Invalid("common_password", "choose a less common password")
+
+    @object_check
+    def passwords_match(self) -> None:
+        if self.password != self.confirmation:
+            raise Invalid(
+                "password_mismatch",
+                "passwords do not match",
+                path="confirmation",
+            )
+```
+
+Structural checks run first and reject wrong types, missing required values and unknown keys. If they pass, field checks receive validated values and object checks can compare fields. Raise `Invalid(code, message)` to reject a value; checks do not transform it. All applicable custom-check failures are returned together in `errors.ValidationError.details`. They must be synchronous and side-effect free: do not query the database or call external services. Put checks that depend on current data in an operation.
+
+These decorators validate a `Schema` instance passed through `Schema.validate`. They do not validate a `Model` when it is constructed or saved. Model field metadata and database constraints are described in [Models and queries](models.md#model-field-metadata-and-validation).
+
 See also the [glossary](glossary.md) for what "schema" does and does not mean in these docs.
