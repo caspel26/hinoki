@@ -27,14 +27,25 @@ def test_the_old_top_level_names_do_not_exist(name: str) -> None:
 
 
 def test_no_first_party_file_imports_the_old_names() -> None:
-    offenders = []
-    for folder in SOURCES:
-        for path in (ROOT / folder).rglob("*.py"):
-            if "hinoki/http.py" in str(path) or ("/typing/" in str(path) and False):
-                continue
-            for node in ast.walk(ast.parse(path.read_text())):
-                if isinstance(node, ast.ImportFrom) and node.module == "hinoki":
-                    names = {a.name for a in node.names} & VERBS
-                    if names:
-                        offenders.append(f"{path.relative_to(ROOT)}: {sorted(names)}")
+    offenders = [
+        offender
+        for folder in SOURCES
+        for path in (ROOT / folder).rglob("*.py")
+        if not is_exempt(path)
+        for offender in old_name_imports(path)
+    ]
     assert offenders == []
+
+
+def is_exempt(path: Path) -> bool:
+    return "hinoki/http.py" in str(path)
+
+
+def old_name_imports(path: Path) -> list[str]:
+    offenders = []
+    for node in ast.walk(ast.parse(path.read_text())):
+        if isinstance(node, ast.ImportFrom) and node.module == "hinoki":
+            names = {alias.name for alias in node.names} & VERBS
+            if names:
+                offenders.append(f"{path.relative_to(ROOT)}: {sorted(names)}")
+    return offenders

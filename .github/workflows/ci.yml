@@ -75,6 +75,8 @@ jobs:
         run: uv run --locked ruff check .
       - name: Format
         run: uv run --locked ruff format --check .
+      - name: Cognitive complexity
+        run: uv run --locked complexipy . --failed
       - name: Types and typing fixtures
         run: uv run --locked mypy
       - name: Tests
@@ -155,6 +157,13 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Cognitive complexity
+        run: |
+          cargo install rust-code-analysis-cli --version 0.0.25 --locked --root "$RUNNER_TEMP/rust-code-analysis"
+          mkdir -p "$RUNNER_TEMP/rust-complexity"
+          "$RUNNER_TEMP/rust-code-analysis/bin/rust-code-analysis-cli" \
+            -m -p crates -O json --pr -o "$RUNNER_TEMP/rust-complexity"
+          python3 scripts/check_rust_complexity.py "$RUNNER_TEMP/rust-complexity"
       - name: Tests with plaintext and TLS PostgreSQL
         run: |
           set -eu

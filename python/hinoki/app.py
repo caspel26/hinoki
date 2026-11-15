@@ -116,9 +116,32 @@ class Hinoki:
         self._timezone = ZoneInfo(built_in.timezone) if built_in else UTC
         docs = built_in.docs if built_in else DocsSettings()
         self.settings = settings
+        self._configure_runtime(built_in, runtime)
+        self._configure_docs(docs, title, version, openapi_url, docs_url, redoc_url)
+        self._configure_policy(built_in, rules, enforce_rules, parsers, renderers)
+        self._initialize_registries(commands, on_startup, on_shutdown)
+        # The declared form: ``Hinoki(include=[...], modules=[...])``.
+        if modules:
+            self.install(*(self.module_of(m) for m in modules))
+        if include:
+            self.include(*include)
+
+    def _configure_runtime(
+        self, built_in: AppSettings | None, runtime: RuntimeConfig | None
+    ) -> None:
         self.runtime = runtime or (
             built_in.runtime_config() if built_in else RuntimeConfig()
         )
+
+    def _configure_docs(
+        self,
+        docs: DocsSettings,
+        title: str | None,
+        version: str | None,
+        openapi_url: str | None | Unset,
+        docs_url: str | None | Unset,
+        redoc_url: str | None | Unset,
+    ) -> None:
         self.title = title if title is not None else docs.title
         self.version = version if version is not None else docs.version
         # ``None`` disables a page even when the settings enable it; unset defers.
@@ -131,6 +154,15 @@ class Hinoki:
         self.docs_url = docs_url
         self.redoc_url = redoc_url
         docs_pages(openapi_url, docs_url, redoc_url)  # fail early on a bad combination
+
+    def _configure_policy(
+        self,
+        built_in: AppSettings | None,
+        rules: RuleSet | None,
+        enforce_rules: bool,
+        parsers: Sequence[Parser] | None,
+        renderers: Sequence[Renderer] | None,
+    ) -> None:
         self.rules = rules
         self.enforce_rules = enforce_rules
         # Application-wide defaults for actions that declare no parsers/renderers.
@@ -143,6 +175,13 @@ class Hinoki:
             if built_in
             else (DEFAULT_PAGE_SIZE, DEFAULT_MAX_PAGE_SIZE)
         )
+
+    def _initialize_registries(
+        self,
+        commands: Sequence[Command | type[Command]],
+        on_startup: Sequence[Hook],
+        on_shutdown: Sequence[Hook],
+    ) -> None:
         self.errors = ErrorRegistry()
         self._routes: list[Route] = []
         self._bindings: list[Binding] = []
@@ -153,11 +192,6 @@ class Hinoki:
         self._included_groups: set[RouteGroup] = set()
         self._router = Router()
         self._adapter: ASGIAdapter | None = None
-        # The declared form: ``Hinoki(include=[...], modules=[...])``.
-        if modules:
-            self.install(*(self.module_of(m) for m in modules))
-        if include:
-            self.include(*include)
 
     def now(self, clock: Clock = utc_now) -> datetime:
         """Return an aware datetime in this application's configured timezone."""
@@ -205,6 +239,21 @@ class Hinoki:
         All-or-nothing per call: on conflict the application is unchanged.
         """
         self._check_mutable()
+        pending, groups = self._collect_routes(items)
+        pending = [self.with_defaults(route) for route in pending]
+        bound = [bind(route) for route in pending]  # bad signatures fail here
+        staged = self._stage_router(pending)
+        bind_app_timezones(items, self._timezone)
+        self._router = staged
+        self._routes.extend(pending)
+        self._bindings.extend(bound)
+        for group in groups:
+            group._include()
+        self._included_groups.update(groups)
+
+    def _collect_routes(
+        self, items: tuple[object, ...]
+    ) -> tuple[list[Route], list[RouteGroup]]:
         pending: list[Route] = []
         groups: list[RouteGroup] = []
         for item, prefix in flatten(items):
@@ -224,8 +273,9 @@ class Hinoki:
                 else route
                 for route in found
             )
-        pending = [self.with_defaults(route) for route in pending]
-        bound = [bind(route) for route in pending]  # bad signatures fail here
+        return pending, groups
+
+    def _stage_router(self, pending: list[Route]) -> Router:
         staged = Router()
         for index, route in enumerate(self._routes):
             staged.add(route.method, route.path, index)
@@ -234,13 +284,7 @@ class Hinoki:
                 staged.add(route.method, route.path, len(self._routes) + offset)
             except ValueError as exc:
                 raise RegistrationError(f"{route.name}: {exc}") from exc
-        bind_app_timezones(items, self._timezone)
-        self._router = staged
-        self._routes.extend(pending)
-        self._bindings.extend(bound)
-        for group in groups:
-            group._include()
-        self._included_groups.update(groups)
+        return staged
 
     @staticmethod
     def routes_of(item: object) -> list[Route]:
