@@ -59,7 +59,7 @@ An application is a set of modules with explicit dependencies and a lifespan (`D
 
 ## 8. Testing
 
-* Behaviour tests against a **disposable PostgreSQL** (`HINOKI_TEST_DATABASE_URL`); a green run without it proves nothing about the database layer.
+* Run the database tests against disposable servers for the backends you support: PostgreSQL uses `HINOKI_TEST_DATABASE_URL`, with separate migration conformance runs for MySQL (`HINOKI_TEST_MYSQL_URL`) and MariaDB (`HINOKI_TEST_MARIADB_URL`). Without a URL, tests that require that backend are skipped; read the skip summary and do not treat another backend's green run as conformance for it.
 * Drive the application through the ASGI harness (no sockets) for HTTP behaviour; test operations directly.
 * For security code, use independent test vectors and known expected outputs; inject the clock (`JWTAuth.now`) so tests do not depend on elapsed time.
 * Look at rendered UI in real browsers (`tests/browser/verify.py`) before calling it done.

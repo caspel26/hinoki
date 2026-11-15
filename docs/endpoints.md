@@ -13,13 +13,19 @@ Hinoki endpoints are ordinary Python functions decorated with an HTTP method. Th
 ## Declare an action
 
 ```python
-from hinoki import errors, http
+from hinoki import Hinoki, Schema, http
 
 
-@http.post("/tasks", status=201, transaction=True, errors=(errors.NotFound,))
-async def create_task(data: TaskInput) -> TaskOutput:
-    row = await Task.acreate(data)
-    return TaskOutput.from_model(row)
+class Greeting(Schema):
+    name: str
+
+
+@http.post("/greetings", status=201)
+async def greet(data: Greeting) -> Greeting:
+    return data
+
+
+app = Hinoki(include=[greet])
 ```
 
 Use `@http.get`, `@http.post`, `@http.put`, `@http.patch`, `@http.delete` or `@http.query` (`from hinoki import http`). Hinoki also answers `HEAD` through each `GET` route: it runs the GET response path and returns the same status and representation headers without a body. The GET handler therefore runs for HEAD requests too. A `405` response's `Allow` header includes `HEAD` whenever `GET` is available. Supported decorator arguments include `status`, `access`, `transaction`, `pagination`, `parsers`, `renderers`, `errors` and `replaces`. Each is checked when the route is declared or registered.

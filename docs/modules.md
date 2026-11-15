@@ -8,6 +8,8 @@ Modules own resources whose lifetime belongs to a worker or a management command
 
 ## Declare modules
 
+This excerpt uses the `health` route and `Tasks` API from your application; the imports and application-specific declarations are omitted here.
+
 ```python
 class ProjectSettings(settings.AppSettings, prefix="APP_"):
     database: settings.DatabaseSettings
