@@ -16,7 +16,7 @@ from collections.abc import Awaitable, Callable
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, cast
 
-from hinoki import context
+from hinoki import context, core
 from hinoki.context import request_id
 from hinoki.db import Database
 from hinoki.docsui import CSP, Page
@@ -38,7 +38,6 @@ from hinoki.runtime.requests import (
     authorize,
     build_request,
     decode_params,
-    header_map,
     read_body,
 )
 from hinoki.runtime.responses import (
@@ -48,12 +47,7 @@ from hinoki.runtime.responses import (
     Response,
     error_response,
 )
-from hinoki.runtime.security import (
-    POLICY_HEADERS,
-    headers_for,
-    https_redirect,
-    merge_policy_headers,
-)
+from hinoki.runtime.security import headers_for, https_redirect
 from hinoki.schema import encode
 from hinoki.settings import AppSettings, SecuritySettings
 
@@ -209,22 +203,15 @@ class ASGIAdapter:
             database_var.reset(db_token)
             context.sync_runner.reset(runner_token)
             request_id.reset(token)
-        merge_policy_headers(response, self.policy[scope.get("scheme", "") == "https"])
-        present = {name.lower() for name, _ in response.headers}
-        extra = [
-            (name.encode(), value.encode())
-            for name, value in context.route_headers.get()
-            if name.encode().lower() not in present
-            and name.encode().lower() not in POLICY_HEADERS
-        ]
-        request_id_bytes = self.request_id_name
-        headers = [
-            (name, value)
-            for name, value in [*response.headers, *extra]
-            if name.lower() != request_id_bytes
-        ]
-        headers.append((request_id_bytes, rid.encode("ascii")))
-        if self.cors is not None and ALLOW_ORIGIN not in present:
+        headers, has_allow_origin = core.response_headers(
+            response.headers,
+            self.policy[scope.get("scheme", "") == "https"],
+            context.route_headers.get(),
+            self.request_id_name,
+            rid.encode("ascii"),
+            ALLOW_ORIGIN,
+        )
+        if self.cors is not None and not has_allow_origin:
             # An answer that sets its own CORS headers keeps them.
             headers.extend(self.cors.headers(origin_of(scope)))
         if response.status not in BODYLESS:
@@ -262,17 +249,18 @@ class ASGIAdapter:
         the handler."""
         if not self.lifespan.ready:
             raise HTTPError(HTTPStatus.SERVICE_UNAVAILABLE, "not_ready", RETRY_LATER)
-        self._check_request_sizes(scope)
-        early = await self._early_response(scope)
+        headers, header_total = core.request_headers(scope.get("headers", []))
+        self._check_request_sizes(scope, header_total)
+        early = await self._early_response(scope, headers)
         if early is not None:
             return early
-        binding, path_params, headers = self._resolve_request(scope)
+        binding, path_params = self._resolve_request(scope)
         return await self._dispatch_request(
             scope, receive, binding, path_params, headers
         )
 
     async def _early_response(  # noqa: PLR0911 - direct response per early policy
-        self, scope: Scope
+        self, scope: Scope, headers: dict[str, str]
     ) -> Response | None:
         """Apply request policies and serve generated documentation early."""
         if (
@@ -280,7 +268,6 @@ class ASGIAdapter:
             or self.cors is not None
             or self.security.redirect_https
         ):
-            headers = header_map(scope)
             preflight = self._guard(scope["method"], headers)
             if preflight is not None:
                 return preflight
@@ -302,14 +289,12 @@ class ASGIAdapter:
             return docs_response(page)
         return None
 
-    def _resolve_request(
-        self, scope: Scope
-    ) -> tuple[Binding, dict[str, str], dict[str, str]]:
+    def _resolve_request(self, scope: Scope) -> tuple[Binding, dict[str, str]]:
         """Match a route and establish its response-header context."""
         binding, path_params = self._route(scope)
         owner = binding.route.owner
         context.route_headers.set(getattr(owner, "response_headers", ()))
-        return binding, path_params, header_map(scope)
+        return binding, path_params
 
     async def _dispatch_request(
         self,
@@ -350,14 +335,11 @@ class ASGIAdapter:
             raise HTTPError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "payload_too_large")
         return await read_body(receive, limit)
 
-    def _check_request_sizes(self, scope: Scope) -> None:
+    def _check_request_sizes(self, scope: Scope, header_total: int) -> None:
         """Raise for oversized query/header bytes before parsing or routing."""
         if len(scope.get("query_string", b"")) > self.app.runtime.max_query_bytes:
             raise HTTPError(HTTPStatus.REQUEST_URI_TOO_LONG, "uri_too_long")
-        header_bytes = sum(
-            len(name) + len(value) + 4 for name, value in scope.get("headers", ())
-        )
-        if header_bytes > self.app.runtime.max_header_bytes:
+        if header_total > self.app.runtime.max_header_bytes:
             raise HTTPError(
                 HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE, "headers_too_large"
             )
