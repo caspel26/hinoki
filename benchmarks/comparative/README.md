@@ -28,13 +28,25 @@ Each uses its own idiomatic stack, at its own recommended server:
 
 Every service runs 4 server processes with a pool of 10 connections per process. Responses are not cached; no framework-specific response compression or tuning beyond what is in these files. Hinoki's native extension is built with `maturin develop --release`.
 
+`create` uses per-statement autocommit in all four implementations. Hinoki leaves
+the endpoint transaction option off, SQLAlchemy uses PostgreSQL `AUTOCOMMIT`,
+and Django keeps its default autocommit. Each request still issues one `INSERT`
+and one author `SELECT`; the response verifier checks both the SQL count and
+the stored row before measurements.
+
 ## Procedure
 
-`run.py` does, for each framework in turn: reset the database to the seed, start the server pinned to CPUs 0–3, run `verify.py`, warm up every scenario, then measure every scenario three times with `oha` (64 concurrent connections, load generator pinned to CPUs 6–7) and keep each raw JSON result. PostgreSQL runs in a container (`postgres:17`, `pg_stat_statements` enabled). Created rows are removed after the `create` scenario.
+`run.py` does, for each stack in turn: reset the database to the seed, start the server pinned to CPUs 0–3, run `verify.py`, warm up every scenario, then measure each scenario five times with `oha` (64 concurrent connections, load generator pinned to CPUs 6–7) and keep each raw JSON result. PostgreSQL runs in a disposable container (`postgres:17`, `pg_stat_statements` enabled). Created rows are removed after the `create` scenario.
+
+There are two independent runs. The documented-stack run uses Granian for
+Hinoki, Uvicorn for FastAPI and Django Ninja, and Django Bolt's own server. The
+`same-granian` control uses the same Granian configuration for the three ASGI
+applications; it excludes Bolt because Bolt does not expose ASGI. These slices
+answer different questions and must not be combined into a single ranking.
 
 **Nothing is measured unless verification passes.** `verify.py` compares each service with an oracle that reads the rows straight from PostgreSQL: the same status and the same data for the same requests (datetimes compared after parsing), and the same number of SQL statements per scenario, counted with `pg_stat_statements` after every worker has been warmed (PostgreSQL's own foreign-key trigger statements excluded). That is what prevents one framework from looking faster because it loads less, or slower because it issues an N+1.
 
-Transaction control statements are not counted, and the `create` handlers differ there: `hinoki_app.py` (`transaction=True`) and `fastapi_app.py` (session `commit()`) wrap their two statements in `BEGIN`/`COMMIT`, while `ninja_app.py` and `benchapp/api.py` (Bolt) use Django's autocommit. The recorded 2026-11-14 run has this difference; align the handlers (or count transaction control) before the next measured run.
+Transaction control statements are not counted. The refreshed `create` handlers use per-statement autocommit across all four implementations; the earlier 2026-11-14 result predates this alignment and is exploratory only.
 
 ## Reproduce
 
@@ -45,19 +57,28 @@ docker run -d --name hinoki-bench-pg -e POSTGRES_PASSWORD=bench-only -e POSTGRES
 docker exec hinoki-bench-pg psql -U postgres -d bench -c "CREATE EXTENSION pg_stat_statements"
 cargo install oha --locked
 cd benchmarks/comparative
-uv sync
-VIRTUAL_ENV=$PWD/.venv uvx maturin develop --release --uv --manifest-path ../../Cargo.toml   # from the repository root
-uv run python run.py --framework all --out results/YYYY-MM-DD
-uv run python report.py results/YYYY-MM-DD > results/YYYY-MM-DD/report.md
+uv sync --locked
+VIRTUAL_ENV=$PWD/.venv uvx maturin develop --release --uv --manifest-path ../../crates/bindings/Cargo.toml
+BENCH_DATABASE_URL=postgres://postgres:bench-only@127.0.0.1:54402/bench BENCH_POSTGRES_CONTAINER=hinoki-bench-pg \
+  uv run --locked python run.py --server-mode documented --out results/YYYY-MM-DD/documented
+BENCH_DATABASE_URL=postgres://postgres:bench-only@127.0.0.1:54402/bench BENCH_POSTGRES_CONTAINER=hinoki-bench-pg \
+  uv run --locked python run.py --server-mode same-granian --out results/YYYY-MM-DD/same-granian
+uv run --locked python report.py results/YYYY-MM-DD/documented results/YYYY-MM-DD/same-granian \
+  > results/YYYY-MM-DD/report.md
 ```
+
+Use `--smoke` with either `--server-mode` to verify behavior and query counts
+without measuring. Use `--runs`, `--duration` and `--warmup` only when recording
+the chosen values in the report metadata and rationale. Remove the disposable
+container when finished: `docker rm -f hinoki-bench-pg`.
 
 Exact package versions, the CPU model, the load average when the run started and every setting are written to `environment.json`; each raw `oha` result is kept next to the report.
 
 ## Limits
 
 * One machine, one day, a single loopback connection; the load generator, PostgreSQL and the servers share its memory and its other workloads (the machine was not idle: see the load average in the report).
-* Three runs of 20 seconds per scenario. The report shows the median and the range; it does not claim statistical significance.
+* Five runs of 20 seconds per scenario by default. The report shows the median and range; it does not claim statistical significance.
 * A request path that does one fixed row (`detail`) or one fixed page (`list`) is warm in PostgreSQL's cache; it says nothing about cold data or large tables.
 * Connection-pool sizes are equal per process, but each library schedules work differently (Django's async ORM runs queries through a thread, for example); equal settings are not equal behaviour.
 * `create` includes a database write per request; rows are removed afterwards.
-* Servers are the ones each project documents; running the ASGI frameworks under the same server would measure something else.
+* The same-server control covers only the three ASGI applications. Django Bolt's server remains part of the documented-stack slice and cannot be treated as an ASGI control.
