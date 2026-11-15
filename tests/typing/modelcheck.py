@@ -46,12 +46,13 @@ def inherited() -> None:
 
 class Line(Model, table="lines"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
-    item_id: UUID = foreign_key(Item, on_delete="cascade")
-    spare_id: UUID | None = foreign_key(Item, on_delete="set_null", default=None)
+    item_id: UUID = foreign_key(Item, on_delete=OnDelete.CASCADE)
+    spare_id: UUID | None = foreign_key(Item, on_delete=OnDelete.SET_NULL, default=None)
 
 
 def deletion_rules(rule: OnDelete, text: str) -> None:
     foreign_key(Item, on_delete=rule)
-    foreign_key(Item, on_delete="delete")  # type: ignore[arg-type]
+    foreign_key(Item, on_delete="cascade")  # type: ignore[arg-type]
     foreign_key(Item, on_delete=text)  # type: ignore[arg-type]
+    foreign_key(Item, on_delete=OnDelete.DELETE)  # type: ignore[attr-defined]
     foreign_key(Item)  # type: ignore[call-arg]
