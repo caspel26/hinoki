@@ -18,6 +18,7 @@ them with `uv run --project ..` to use the locked environment at the parent.
 | `hinoki new NAME` | Create a starter project with settings, rules, tests and agent instructions. |
 | `hinoki app list` | List registered apps, their model and migration modules, and dependencies without importing app code or opening a database. `--format json` is machine readable. |
 | `hinoki app create NAME` | Add a registered modular app with its own models and migration package. |
+| `hinoki doctor [TARGET]` | Summarize environment, manifest and app construction diagnostics without serving or connecting to a database. |
 | `hinoki dev TARGET` | Run an app with reload during development. |
 | `hinoki serve TARGET` | Run without reload, using the `server` settings group. |
 | `hinoki check TARGET` | Run the application's configured rules; `--rules` and `--package` select rule and source targets. |
@@ -29,6 +30,34 @@ them with `uv run --project ..` to use the locked environment at the parent.
 | `hinoki manage [TARGET] [COMMAND]` | Run an app-defined command with its declared module resources; a project manifest supplies the default target. |
 | `hinoki shell [TARGET]` | Open an interactive Python shell with the app's modules and registered models. |
 | `hinoki mcp TARGET` | Serve project context to an MCP client over stdio. Scenario tools are off by default. |
+
+### `doctor`
+
+```sh
+uv run hinoki doctor
+uv run hinoki doctor notes.main:app --format json
+```
+
+With no target, `doctor` uses `project.application` from `hinoki.toml`. If there
+is no manifest or default target, it reports environment checks and marks app
+checks as skipped. An explicit `TARGET` can be an app or factory. Loading it
+imports your Python code, so module-level code and the factory may have their
+own side effects. Hinoki does not start app or module lifespans, run hooks,
+start a server, run architecture rules, connect to a database, or write files.
+
+The report covers manifest validity, Python/native extension and optional
+Granian availability, route registration, configured typed settings, and
+in-memory OpenAPI generation. An app with no settings object reports that
+check as skipped; a custom non-`Settings` object is a warning. JSON output has
+`schema_version: 1` and stable check IDs. Settings values and exception
+messages are not included. Exit status is `0` when no
+diagnostic failed, `1` for invalid manifest or app diagnostics, and `2` when a
+requested target cannot be loaded. Warnings and skipped checks remain visible.
+
+Database connectivity and applied migration state are intentionally separate:
+use [`hinoki migrations status`](migrations.md) for the live ledger and
+[`hinoki migrations plan --check`](migrations.md#check-migration-drift) for
+model-to-file drift.
 
 ### `new`
 

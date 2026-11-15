@@ -35,3 +35,8 @@ Review the generated SQL and the data it may remove. Test the change against a d
 If the issue persists, include the Hinoki version, the command or route, the complete diagnostic, and a minimal example. Remove credentials and user data first.
 
 For a version report, run `hinoki version --verbose --format json`. The output includes installed runtime details without reading application settings or opening a database.
+
+For a consolidated local report, run [`hinoki doctor`](cli.md#doctor). It imports
+the selected app target, but does not start its lifecycle, run rules, connect to
+a database or write files. Use the focused commands above for database and
+migration state.
