@@ -9,8 +9,18 @@ from uuid import UUID, uuid4
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import UNSET, Access, BearerAuth, Caller, Hinoki, Schema, Unset, http
-from hinoki.crud import CrudAPI, Resource
+from hinoki import (
+    UNSET,
+    Access,
+    BearerAuth,
+    Caller,
+    CrudAPI,
+    Hinoki,
+    Schema,
+    Unset,
+    http,
+)
+from hinoki.crud import Resource
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import Forbidden, RegistrationError
 from hinoki.orm import Model, QuerySet, field, use_database
@@ -61,20 +71,16 @@ class Tokens(BearerAuth[str]):
 
 auth = Tokens()
 writer = Access(auth=auth, permissions=["memo:write"])
-FULL = Resource(
-    model=Memo,
-    read=MemoOut,
-    create=MemoIn,
-    update=MemoPatch,
-    deletable=True,
-    access=writer,
-    owner="owner",
-    identity_key=str,
-)
 
 
-class Memos(CrudAPI, path="/memos", resource=FULL):
-    pass
+class Memos(CrudAPI, model=Memo, path="/memos"):
+    read_schema = MemoOut
+    create_schema = MemoIn
+    update_schema = MemoPatch
+    deletable = True
+    access = writer
+    owner = "owner"
+    identity_key = str
 
 
 BACKWARDS = Resource(
@@ -84,6 +90,75 @@ BACKWARDS = Resource(
 
 class Backwards(CrudAPI, path="/backwards", resource=BACKWARDS):
     pass
+
+
+class HookedMemos(Memos, path="/hooked"):
+    async def perform_create(
+        self, values: dict[str, Any], principal: Caller[Any]
+    ) -> Any:
+        values["title"] = f"hook:{values['title']}"
+        return await Memo.acreate(**values)
+
+
+class PrivateMemos(Memos, path="/private"):
+    read_access = writer
+
+    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Memo]:
+        assert principal is not None
+        return Memo.filter(owner=principal.user)
+
+
+class UnsafeHooks(Memos, path="/unsafe-hooks"):
+    async def perform_create(
+        self, values: dict[str, Any], principal: Caller[Any]
+    ) -> Any:
+        item = await Memo.acreate(**values)
+        await Memo.aupdate_where({"id": item.id}, {"owner": "bob"})
+        return item
+
+    async def perform_update(
+        self,
+        item: Memo,
+        scoped: QuerySet[Memo],
+        values: dict[str, Any],
+        principal: Caller[Any],
+    ) -> Memo:
+        await Memo.aupdate_where({"id": item.id}, {"owner": "bob"})
+        return item
+
+
+class SyncHooks(Memos, path="/sync-hooks"):
+    pagination = PageNumberPagination(page_size=100, max_page_size=100)
+
+    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Memo]:
+        del principal
+        return Memo.all()
+
+    def written_queryset(self, principal: Caller[Any] | None) -> QuerySet[Memo]:
+        assert principal is not None
+        return Memo.all()
+
+    def to_schema(self, item: Memo) -> MemoOut:
+        return MemoOut(id=item.id, owner=item.owner, title=item.title, body=item.body)
+
+    def perform_create(self, values: dict[str, Any], principal: Caller[Any]) -> Memo:
+        return Memo.create(**values)
+
+    def perform_update(
+        self,
+        item: Memo,
+        scoped: QuerySet[Memo],
+        values: dict[str, Any],
+        principal: Caller[Any],
+    ) -> Memo:
+        if values:
+            scoped.update(values)
+        return item
+
+    def perform_delete(
+        self, item: Memo, scoped: QuerySet[Memo], principal: Caller[Any]
+    ) -> bool:
+        return scoped.delete() > 0
 
 
 def app_for(*apis: type[Any], url: str | None = None) -> Hinoki:
@@ -141,6 +216,103 @@ def test_generated_actions_are_real_routes_in_the_documentation() -> None:
     assert "security" not in document["paths"]["/memos"]["get"]
 
 
+def test_class_configuration_composes_with_custom_routes_and_hooks() -> None:
+    class Base(CrudAPI, model=Memo, path="/base"):
+        read_schema = MemoOut
+        access = writer
+
+        async def perform_create(
+            self, values: dict[str, Any], principal: Caller[Any]
+        ) -> Any:
+            values["title"] = f"hook:{values['title']}"
+            return await Memo.acreate(**values)
+
+    class Posts(Base, path="/posts"):
+        create_schema = MemoIn
+        owner = "owner"
+        identity_key = str
+
+        @http.get("/health")
+        async def health(self, request: Request) -> dict[str, str]:
+            return {"status": "ok"}
+
+    routes = Posts.routes()
+    assert Posts.model is Memo
+    assert {route.handler.__name__ for route in routes} == {
+        "list",
+        "retrieve",
+        "create",
+        "health",
+    }
+    assert all(route.path.startswith("/posts") for route in routes)
+    assert "/posts/health" in app_for(Posts).openapi()["paths"]
+
+
+def test_class_api_custom_route_can_replace_generated_action() -> None:
+    class Custom(CrudAPI, model=Memo, path="/custom"):
+        read_schema = MemoOut
+
+        @http.get("/", replaces="list")
+        async def listing(self, request: Request) -> dict[str, str]:
+            return {"custom": "yes"}
+
+    assert {route.handler.__name__ for route in Custom.routes()} == {
+        "listing",
+        "retrieve",
+    }
+
+
+def test_undecorated_action_name_removes_generated_route() -> None:
+    class NoListing(CrudAPI, model=Memo, path="/no-listing"):
+        read_schema = MemoOut
+
+        def list(self) -> None:
+            """An ordinary same-name method shadows the generated route."""
+
+    assert {route.handler.__name__ for route in NoListing.routes()} == {"retrieve"}
+
+
+def test_legacy_resource_output_and_subclassing_remain_compatible() -> None:
+    class ExtraOut(Schema):
+        title: str
+        display: str
+
+    legacy = Resource(
+        model=Memo,
+        read=ExtraOut,
+        output=lambda item: ExtraOut(title=item.title, display=item.title.upper()),
+    )
+
+    class Legacy(CrudAPI, path="/legacy", resource=legacy):
+        pass
+
+    class Child(Legacy, path="/child"):
+        pass
+
+    assert {route.path for route in Child.routes()} == {"/child", "/child/{item_id}"}
+
+    class Private(Legacy, path="/private-legacy"):
+        read_access = writer
+
+    assert Private.resource.read_access is writer
+    assert all(route.access is writer for route in Private.routes())
+
+    class PrivateAtDeclaration(CrudAPI, path="/private-direct", resource=legacy):
+        read_access = writer
+
+    assert all(route.access is writer for route in PrivateAtDeclaration.routes())
+
+    with pytest.raises(RegistrationError, match="cannot be combined"):
+        type(
+            "Ambiguous",
+            (CrudAPI,),
+            {},
+            path="/ambiguous",
+            model=Memo,
+            resource=legacy,
+        )
+
+
 def test_reads_only_resources_generate_only_reads() -> None:
     api = declare()
     assert {r.handler.__name__ for r in api.routes()} == {"list", "retrieve"}
@@ -179,7 +351,17 @@ async def memos(pool: Pool) -> AsyncIterator[Client]:
         "CREATE TABLE crud_memos (id uuid PRIMARY KEY, owner varchar(20) NOT NULL, "
         "title varchar(40) NOT NULL, body text NOT NULL)"
     )
-    yield await pool.start(app_for(Memos, Backwards, url=URL))
+    yield await pool.start(
+        app_for(
+            Memos,
+            Backwards,
+            HookedMemos,
+            PrivateMemos,
+            UnsafeHooks,
+            SyncHooks,
+            url=URL,
+        )
+    )
     await admin.execute("DROP TABLE IF EXISTS crud_memos")
     admin.close()
 
@@ -206,6 +388,129 @@ async def test_create_assigns_the_owner_and_reads_back(memos: Client) -> None:
         1,
         [created.body["id"]],
     )
+
+
+@needs_database
+async def test_perform_create_hook_runs_inside_generated_action(memos: Client) -> None:
+    created = await memos.request(
+        "POST", "/hooked", body(title="Hello"), content_type=JSON, headers=ANN
+    )
+    assert created.status == 201
+    assert created.body["title"] == "hook:Hello"
+
+
+@needs_database
+async def test_all_crud_hooks_accept_sync_definitions(memos: Client) -> None:
+    created = await memos.request(
+        "POST",
+        "/sync-hooks",
+        body(title="sync"),
+        content_type=JSON,
+        headers=ANN,
+    )
+    assert created.status == 201
+    key = created.body["id"]
+    assert (await memos.request("GET", "/sync-hooks", headers=ANN)).body["total"] == 1
+    assert (await memos.request("GET", f"/sync-hooks/{key}", headers=ANN)).body[
+        "title"
+    ] == "sync"
+    updated = await memos.request(
+        "PATCH",
+        f"/sync-hooks/{key}",
+        body(title="updated"),
+        content_type=JSON,
+        headers=ANN,
+    )
+    assert updated.body["title"] == "updated"
+    assert (
+        await memos.request("DELETE", f"/sync-hooks/{key}", headers=ANN)
+    ).status == 204
+
+
+@needs_database
+async def test_sync_schema_hook_does_not_saturate_executor_for_full_page(
+    memos: Client,
+) -> None:
+    assert URL is not None
+    admin = await Database.connect(URL, max_size=1)
+    for index in range(100):
+        await admin.execute(
+            "INSERT INTO crud_memos (id, owner, title, body) VALUES ($1, $2, $3, $4)",
+            uuid4(),
+            "ann",
+            f"note-{index}",
+            "",
+        )
+    admin.close()
+
+    response = await memos.request(
+        "GET", "/sync-hooks", query="page_size=100", headers=ANN
+    )
+
+    assert response.status == 200, response.body
+    assert response.body["total"] == 100
+    assert len(response.body["items"]) == 100
+
+
+@needs_database
+async def test_get_queryset_receives_caller_and_scopes_private_reads(
+    memos: Client,
+) -> None:
+    ann = (
+        await memos.request(
+            "POST", "/memos", body(title="Ann"), content_type=JSON, headers=ANN
+        )
+    ).body
+    bob = (
+        await memos.request(
+            "POST", "/memos", body(title="Bob"), content_type=JSON, headers=BOB
+        )
+    ).body
+    assert (await memos.request("GET", "/private", headers=ANN)).body["total"] == 1
+    assert (
+        await memos.request("GET", f"/private/{bob['id']}", headers=ANN)
+    ).status == 404
+    assert (
+        await memos.request("GET", f"/private/{ann['id']}", headers=ANN)
+    ).status == 200
+
+
+@needs_database
+async def test_hooks_cannot_commit_server_assigned_owner_changes(memos: Client) -> None:
+    assert URL is not None
+    created = await memos.request(
+        "POST",
+        "/unsafe-hooks",
+        body(title="new"),
+        content_type=JSON,
+        headers=ANN,
+    )
+    assert created.status == 500
+
+    original = (
+        await memos.request(
+            "POST", "/memos", body(title="original"), content_type=JSON, headers=ANN
+        )
+    ).body
+    patch = await memos.request(
+        "PATCH",
+        f"/unsafe-hooks/{original['id']}",
+        body(title="changed"),
+        content_type=JSON,
+        headers=ANN,
+    )
+    assert patch.status == 500
+    admin = await Database.connect(URL, max_size=1)
+    try:
+        rows = await admin.fetch(
+            "SELECT owner, title FROM crud_memos WHERE id = $1",
+            UUID(original["id"]),
+        )
+        assert rows[0]["owner"] == "ann"
+        assert rows[0]["title"] == "original"
+        assert await admin.fetch("SELECT id FROM crud_memos WHERE title = 'new'") == []
+    finally:
+        admin.close()
 
 
 @needs_database

@@ -78,9 +78,14 @@ everything = await Task.all()           # the explicit way around the policy
 Pass the method where the framework asks for a base query, so every operation built on it sees the same rows:
 
 ```python
-from hinoki.crud import Resource
+from hinoki import CrudAPI
 
-Resource(model=Task, read=TaskOut, queryset=Task.active)   # generated list/retrieve only
+
+class Tasks(CrudAPI, model=Task, path="/tasks"):
+    read_schema = TaskOut
+
+    def get_queryset(self, principal):
+        return Task.active()
 
 
 class TaskAdmin(ModelAdmin[Task]):
@@ -93,13 +98,13 @@ Choose the place by what the rule is:
 | Rule | Where | Why |
 | --- | --- | --- |
 | Row order | `@ordered_by(...)` ([model options](model-options.md)) | declared once, replaced by any explicit `order_by` |
-| A policy the whole app shares, such as hiding soft-deleted rows | a named class method such as `Task.active()`, passed as `queryset=` or used in the admin's `queryset()` | visible at each call site and in review; nothing is hidden implicitly |
-| Rows that depend on the caller | `Resource(owner=...)` or `ModelAdmin.queryset(principal)` | the caller is available there; model-level code never sees it |
+| A policy the whole app shares, such as hiding soft-deleted rows | a named class method such as `Task.active()`, used in `CrudAPI.get_queryset()` or the admin's `queryset()` | visible at each call site and in review; nothing is hidden implicitly |
+| Rows that depend on the caller | `CrudAPI.get_queryset(principal)` or `ModelAdmin.queryset(principal)` | the caller is available there; model-level code never sees it |
 
 Authorization must not depend on a default that a call to `all()` or a raw query can skip: keep ownership and permission checks in `access=`, `owner=` and `ModelAdmin.can()`, and treat a reusable query as convenience, not as the security boundary.
 
 To generate write routes as well, provide `create=` or `update=` schemas and/or
-set `deletable=True`; protect generated writes with `access=`. See
+set `deletable = True`; protect generated writes with `access = ...`. See
 [Generate CRUD routes](crud.md) for the full route and ownership contract.
 
 ## Create and update
