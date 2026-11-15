@@ -1,5 +1,6 @@
 """The real ``Model``: construction and ``asave`` are statically checked."""
 
+from typing import assert_type
 from uuid import UUID, uuid4
 
 from hinoki.orm import Model, OnDelete, field, foreign_key
@@ -56,3 +57,32 @@ def deletion_rules(rule: OnDelete, text: str) -> None:
     foreign_key(Item, on_delete=text)  # type: ignore[arg-type]
     foreign_key(Item, on_delete=OnDelete.DELETE)  # type: ignore[attr-defined]
     foreign_key(Item)  # type: ignore[call-arg]
+
+
+async def written(item_id: UUID, flag: bool) -> None:
+    # The default reads the stored row back; returning=False returns what was
+    # sent (insert) or the row count (updates).
+    assert_type(await Item.acreate(title="x"), Item)
+    assert_type(await Item.acreate(title="x", returning=False), Item)
+    assert_type(await Item(title="x").insert(returning=False), Item)
+    assert_type(await Item.aupdate(id=item_id, count=1), Item)
+    assert_type(await Item.aupdate(id=item_id, count=1, returning=False), int)
+    assert_type(await Item.aupdate(id=item_id, returning=flag), Item | int)
+    assert_type(await Item.aupdate_where({"id": item_id}, {"count": 1}), list[Item])
+    assert_type(
+        await Item.aupdate_where({"id": item_id}, {"count": 1}, returning=False), int
+    )
+    query = Item.filter(id=item_id)
+    assert_type(await query.aupdate({"count": 1}), list[Item])
+    assert_type(await query.aupdate({"count": 1}, returning=False), int)
+    assert_type(await query.aupdate({"count": 1}, returning=flag), list[Item] | int)
+
+
+def written_sync(item_id: UUID) -> None:
+    assert_type(Item.create(title="x", returning=False), Item)
+    assert_type(Item.update(id=item_id, count=1), Item)
+    assert_type(Item.update(id=item_id, count=1, returning=False), int)
+    assert_type(Item.update_where({"id": item_id}, {"count": 1}), list[Item])
+    assert_type(Item.update_where({"id": item_id}, {"count": 1}, returning=False), int)
+    assert_type(Item.filter(id=item_id).update({"count": 1}), list[Item])
+    assert_type(Item.filter(id=item_id).update({"count": 1}, returning=False), int)

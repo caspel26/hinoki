@@ -25,7 +25,7 @@ first = await Post.all().afirst()
 | Action handlers | `async def` | `def` | Sync runs on the executor |
 | Generated CRUD hooks (`get_queryset`, `written_queryset`, `to_schema`, `perform_*`) | `async def` | `def` | Sync overrides run on the same bounded executor; use the matching sync or async ORM methods |
 | Auth providers (`authenticate`, `resolve`, `resolve_token`, JWT `resolve_claims`) | `async def` | `def` | Sync hooks run on the executor, so sync model calls are safe inside them |
-| Model: create / get / update / delete | `acreate`, `aget`, `aget_or_none`, `aupdate`, `aupdate_where`, `adelete`, `asave`, `aupdate_from` | `create`, `get`, `get_or_none`, `update`, `update_where`, `delete`, `save`, `update_from` | Sync calls only work inside a sync handler or hook served by Hinoki |
+| Model: create / get / update / delete | `acreate`, `aget`, `aget_or_none`, `aupdate`, `aupdate_where`, `adelete`, `asave`, `aupdate_from` | `create`, `get`, `get_or_none`, `update`, `update_where`, `delete`, `save`, `update_from` | Sync calls only work inside a sync handler or hook served by Hinoki. The sync writes take the same `returning=False` option as their async twins ([models](models.md#writes-that-do-not-read-the-row-back)) |
 | QuerySet: read | `await queryset`, `afirst`, `aget`, `acount`, `aexists`, `apaginate` | `list`, `first`, `get`, `count`, `exists`, `paginate` | |
 | QuerySet: write | `aupdate`, `adelete` | `update`, `delete` | |
 | Relations | explicit loading (`select_related`, `prefetch_related`) | same | never lazy, so no hidden I/O in either style |
