@@ -60,6 +60,8 @@ app = Hinoki(
 
 A hook takes the worker's `ModuleContext` (`ctx.settings`, `ctx.get(Type)`, `ctx.tasks`). It is `async def`, or a plain `def` that runs on the bounded sync executor like a sync handler. Model methods reach the worker's database inside a hook as they do inside a request.
 
+Pass hooks as a `list` or `tuple` when constructing `Hinoki`; the app's `on_startup` and `on_shutdown` tuples are read-only. Hooks must be callables, not async generators, and must return `None`. A plain `def` may instead return an awaitable, which Hinoki awaits; use `async def` when the hook needs to await work directly.
+
 | | Startup hooks | Shutdown hooks |
 | --- | --- | --- |
 | Run | Once per worker, after every module has started, in the listed order | Once per worker, before background tasks, the sync executor and the modules are closed, in the listed order |
