@@ -296,22 +296,12 @@ ownership, schema requirements and route replacement.</p>
 
 
     <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="hinoki.crud._CrudConfig">_CrudConfig</span></code></p>
 
 
 
-        <p>What to generate for <code>model</code>.</p>
-<ul>
-<li><code>read</code> is the output schema; <code>create</code> / <code>update</code> (PATCH, fields left
-  <code>UNSET</code> are untouched) enable those actions; <code>deletable</code> enables delete.</li>
-<li><code>access</code> protects the write actions, <code>read_access</code> the reads.</li>
-<li><code>owner</code> names a column that holds the owner: it is assigned from the
-  caller on create and must match the caller on update and delete.
-  <code>identity_key</code> extracts the owner value from <code>Caller.user</code>.</li>
-<li><code>assign</code> maps other columns to a function of the caller's identity,
-  applied on create; clients cannot send them.</li>
-<li><code>queryset</code> supplies the base query (e.g. with <code>select_related</code>) and
-  <code>output</code> converts a row to the read schema when it is not a plain copy.</li>
-</ul>
+        <p>Compatibility configuration; new declarations should use CrudAPI attrs.</p>
 
 
 
@@ -330,259 +320,6 @@ ownership, schema requirements and route replacement.</p>
 
 
 
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.crud.Resource.model" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">model</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.crud.Resource.model" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">]</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.crud.Resource.read" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">read</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.crud.Resource.read" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">read</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.crud.Resource.create" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">create</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.crud.Resource.create" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">create</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.crud.Resource.update" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">update</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.crud.Resource.update" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">update</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.crud.Resource.deletable" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">deletable</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.crud.Resource.deletable" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">deletable</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.crud.Resource.access" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">access</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.crud.Resource.access" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.crud.Resource.read_access" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">read_access</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.crud.Resource.read_access" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">read_access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.crud.Resource.public_writes" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">public_writes</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.crud.Resource.public_writes" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">public_writes</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.crud.Resource.owner" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">owner</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.crud.Resource.owner" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">owner</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.crud.Resource.identity_key" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">identity_key</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.crud.Resource.identity_key" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">identity_key</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">attrgetter</span><span class="p">(</span><span class="s1">'id'</span><span class="p">)</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.crud.Resource.assign" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">assign</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.crud.Resource.assign" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">assign</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(</span>
-    <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
-<span class="p">)</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
 
 <div class="doc doc-object doc-attribute">
 
@@ -630,29 +367,6 @@ ownership, schema requirements and route replacement.</p>
 
 </div>
 
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.crud.Resource.pagination" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">pagination</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.crud.Resource.pagination" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">=</span> <span class="n">PageNumberPagination</span><span class="p">()</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
 
 
 
@@ -677,181 +391,10 @@ ownership, schema requirements and route replacement.</p>
     <span class="n">owner</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">identity_key</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">attrgetter</span><span class="p">(</span><span class="s2">"id"</span><span class="p">),</span>
     <span class="n">assign</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(),</span>
+    <span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">=</span> <span class="n">PageNumberPagination</span><span class="p">(),</span>
     <span class="n">queryset</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">output</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">=</span> <span class="n">PageNumberPagination</span><span class="p">(),</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.crud.Resource.assigned" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">assigned</span>
-
-
-<a href="#hinoki.crud.Resource.assigned" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">assigned</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Any</span><span class="p">]]</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.crud.Resource.writes" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">writes</span>
-
-
-<a href="#hinoki.crud.Resource.writes" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">writes</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.crud.Resource.check" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">check</span>
-
-
-<a href="#hinoki.crud.Resource.check" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">check</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Fail at class creation, not on the first request.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.crud.Resource.check_schemas" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">check_schemas</span>
-
-
-<a href="#hinoki.crud.Resource.check_schemas" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">check_schemas</span><span class="p">(</span><span class="n">columns</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.crud.Resource.check_names" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">check_names</span>
-
-
-<a href="#hinoki.crud.Resource.check_names" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">check_names</span><span class="p">(</span>
-    <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">],</span> <span class="n">columns</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.crud.Resource.check_input" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">check_input</span>
-
-
-<a href="#hinoki.crud.Resource.check_input" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">check_input</span><span class="p">(</span>
-    <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">],</span> <span class="n">columns</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.crud.Resource.check_patch" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">check_patch</span>
-
-
-<a href="#hinoki.crud.Resource.check_patch" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">check_patch</span><span class="p">(</span><span class="n">update</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>PATCH touches only what was sent: every field defaults to UNSET and
-the primary key is not changeable.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.crud.Resource.check_nullable" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">check_nullable</span>
-
-
-<a href="#hinoki.crud.Resource.check_nullable" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">check_nullable</span><span class="p">(</span><span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.crud.Resource.check_required" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">check_required</span>
-
-
-<a href="#hinoki.crud.Resource.check_required" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">check_required</span><span class="p">(</span><span class="n">create</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -900,45 +443,6 @@ the primary key is not changeable.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.Resource.values" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">values</span>
-
-
-<a href="#hinoki.crud.Resource.values" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">values</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">Schema</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.crud.Resource.owner_of" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">owner_of</span>
-
-
-<a href="#hinoki.crud.Resource.owner_of" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">owner_of</span><span class="p">(</span><span class="n">principal</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>The caller's owner value; a caller without one may change nothing,
-or <code>None</code> would match every ownerless row.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
 <h3 id="hinoki.crud.Resource.scope" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">scope</span>
 
@@ -948,10 +452,6 @@ or <code>None</code> would match every ownerless row.</p>
 </code></pre></div>
 
     <div class="doc doc-contents ">
-
-        <p>The rows a change may touch: the base query, the primary key and the
-owner, all in the UPDATE/DELETE itself, so a row that was hidden or
-changed hands meanwhile is untouched.</p>
 
 
     </div>
@@ -974,81 +474,6 @@ changed hands meanwhile is untouched.</p>
 </code></pre></div>
 
     <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.crud.Resource.written" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">written</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-async"><code>async</code></small>
-  </span>
-
-<a href="#hinoki.crud.Resource.written" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">written</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Read back a row the caller just wrote. It may now be outside the
-base query (archived, unpublished); the writer still sees the result.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.crud.Resource.guard" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">guard</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-async"><code>async</code></small>
-  </span>
-
-<a href="#hinoki.crud.Resource.guard" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">guard</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>404 for a row outside the base query (or missing), 403 when somebody
-else owns it. Rows the base query hides look the same as missing ones.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.crud.Resource.refused" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">refused</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-async"><code>async</code></small>
-  </span>
-
-<a href="#hinoki.crud.Resource.refused" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">refused</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Forbidden</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>A write matched no row: 404 if the row is gone or hidden by now,
-otherwise the owner changed under the caller.</p>
 
 
     </div>
@@ -1080,7 +505,7 @@ otherwise the owner changed under the caller.</p>
 
 
 
-        <p>Base class: <code>class Posts(CrudAPI, path="/posts", resource=...)</code>.</p>
+        <p>CRUD-generating API class, mounted once with <code>app.include(Posts)</code>.</p>
 
 
 
@@ -1104,6 +529,270 @@ otherwise the owner changed under the caller.</p>
 
 
 
+<h3 id="hinoki.crud.CrudAPI.model" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">model</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.model" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.crud.CrudAPI.read_schema" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">read_schema</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.read_schema" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">read_schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.crud.CrudAPI.create_schema" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">create_schema</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.create_schema" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">create_schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.crud.CrudAPI.update_schema" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">update_schema</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.update_schema" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">update_schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.crud.CrudAPI.deletable" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">deletable</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.deletable" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">deletable</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.crud.CrudAPI.access" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">access</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.access" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.crud.CrudAPI.read_access" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">read_access</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.read_access" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">read_access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.crud.CrudAPI.public_writes" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">public_writes</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.public_writes" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">public_writes</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.crud.CrudAPI.owner" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">owner</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.owner" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">owner</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.crud.CrudAPI.identity_key" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">identity_key</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.identity_key" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">identity_key</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">attrgetter</span><span class="p">(</span><span class="s1">'id'</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.crud.CrudAPI.assign" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">assign</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.assign" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">assign</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.crud.CrudAPI.pagination" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">pagination</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.pagination" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">=</span> <span class="n">PageNumberPagination</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="hinoki.crud.CrudAPI.resource" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">resource</span>
 
@@ -1113,7 +802,7 @@ otherwise the owner changed under the caller.</p>
   </span>
 
 <a href="#hinoki.crud.CrudAPI.resource" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">resource</span><span class="p">:</span> <span class="n">Resource</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">resource</span><span class="p">:</span> <span class="n">_CrudConfig</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1135,9 +824,318 @@ otherwise the owner changed under the caller.</p>
 <a href="#hinoki.crud.CrudAPI.__init_subclass__" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">__init_subclass__</span><span class="p">(</span>
     <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">resource</span><span class="p">:</span> <span class="n">Resource</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.crud.CrudAPI.get_queryset" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_queryset</span>
+
+
+<a href="#hinoki.crud.CrudAPI.get_queryset" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">get_queryset</span><span class="p">(</span>
+    <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Build the visible query; public routes receive <code>None</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.crud.CrudAPI.written_queryset" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">written_queryset</span>
+
+
+<a href="#hinoki.crud.CrudAPI.written_queryset" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">written_queryset</span><span class="p">(</span>
+    <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Build a query for reading back a successful write.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.crud.CrudAPI.read_written" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">read_written</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.read_written" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">read_written</span><span class="p">(</span><span class="n">item_id</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Read back a write, retaining legacy eager-load and hidden-row behavior.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.crud.CrudAPI.to_schema" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">to_schema</span>
+
+
+<a href="#hinoki.crud.CrudAPI.to_schema" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">to_schema</span><span class="p">(</span><span class="n">item</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Schema</span> <span class="o">|</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.crud.CrudAPI.validate_hook_item" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">validate_hook_item</span>
+
+
+<a href="#hinoki.crud.CrudAPI.validate_hook_item" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">validate_hook_item</span><span class="p">(</span><span class="n">item</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.crud.CrudAPI.refused" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">refused</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.refused" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">refused</span><span class="p">(</span><span class="n">item_id</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Forbidden</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Preserve hidden-row 404s and owner-change 403s after a race.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.crud.CrudAPI.perform_create" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">perform_create</span>
+
+
+<a href="#hinoki.crud.CrudAPI.perform_create" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">perform_create</span><span class="p">(</span>
+    <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Model</span> <span class="o">|</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">Model</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.crud.CrudAPI.perform_update" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">perform_update</span>
+
+
+<a href="#hinoki.crud.CrudAPI.perform_update" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">perform_update</span><span class="p">(</span>
+    <span class="n">item</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">scoped</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span> <span class="o">|</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.crud.CrudAPI.update_item" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">update_item</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.update_item" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">update_item</span><span class="p">(</span>
+    <span class="n">item</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">scoped</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.crud.CrudAPI.perform_delete" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">perform_delete</span>
+
+
+<a href="#hinoki.crud.CrudAPI.perform_delete" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">perform_delete</span><span class="p">(</span>
+    <span class="n">item</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">scoped</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">Awaitable</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.crud.CrudAPI.delete_items" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">delete_items</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.delete_items" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">delete_items</span><span class="p">(</span><span class="n">scoped</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.crud.CrudAPI.invoke_hook" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">invoke_hook</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.invoke_hook" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">invoke_hook</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="n">arguments</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Run overrides as async, or on the bounded executor when sync.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.crud.CrudAPI.invoke_default_hook" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">invoke_default_hook</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.invoke_default_hook" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">invoke_default_hook</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="n">arguments</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.crud.CrudAPI.invoke_custom_hook" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">invoke_custom_hook</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.crud.CrudAPI.invoke_custom_hook" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">invoke_custom_hook</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="n">arguments</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1220,9 +1218,9 @@ otherwise the owner changed under the caller.</p>
           
           
             <ul><li><a href="#hinoki.crud.Resource">Resource</a>
-            <ul><li><a href="#hinoki.crud.Resource.model">model</a></li><li><a href="#hinoki.crud.Resource.read">read</a></li><li><a href="#hinoki.crud.Resource.create">create</a></li><li><a href="#hinoki.crud.Resource.update">update</a></li><li><a href="#hinoki.crud.Resource.deletable">deletable</a></li><li><a href="#hinoki.crud.Resource.access">access</a></li><li><a href="#hinoki.crud.Resource.read_access">read_access</a></li><li><a href="#hinoki.crud.Resource.public_writes">public_writes</a></li><li><a href="#hinoki.crud.Resource.owner">owner</a></li><li><a href="#hinoki.crud.Resource.identity_key">identity_key</a></li><li><a href="#hinoki.crud.Resource.assign">assign</a></li><li><a href="#hinoki.crud.Resource.queryset">queryset</a></li><li><a href="#hinoki.crud.Resource.output">output</a></li><li><a href="#hinoki.crud.Resource.pagination">pagination</a></li><li><a href="#hinoki.crud.Resource.__init__">__init__</a></li><li><a href="#hinoki.crud.Resource.assigned">assigned</a></li><li><a href="#hinoki.crud.Resource.writes">writes</a></li><li><a href="#hinoki.crud.Resource.check">check</a></li><li><a href="#hinoki.crud.Resource.check_schemas">check_schemas</a></li><li><a href="#hinoki.crud.Resource.check_names">check_names</a></li><li><a href="#hinoki.crud.Resource.check_input">check_input</a></li><li><a href="#hinoki.crud.Resource.check_patch">check_patch</a></li><li><a href="#hinoki.crud.Resource.check_nullable">check_nullable</a></li><li><a href="#hinoki.crud.Resource.check_required">check_required</a></li><li><a href="#hinoki.crud.Resource.base">base</a></li><li><a href="#hinoki.crud.Resource.present">present</a></li><li><a href="#hinoki.crud.Resource.values">values</a></li><li><a href="#hinoki.crud.Resource.owner_of">owner_of</a></li><li><a href="#hinoki.crud.Resource.scope">scope</a></li><li><a href="#hinoki.crud.Resource.fetch">fetch</a></li><li><a href="#hinoki.crud.Resource.written">written</a></li><li><a href="#hinoki.crud.Resource.guard">guard</a></li><li><a href="#hinoki.crud.Resource.refused">refused</a></li></ul>
+            <ul><li><a href="#hinoki.crud.Resource.queryset">queryset</a></li><li><a href="#hinoki.crud.Resource.output">output</a></li><li><a href="#hinoki.crud.Resource.__init__">__init__</a></li><li><a href="#hinoki.crud.Resource.base">base</a></li><li><a href="#hinoki.crud.Resource.present">present</a></li><li><a href="#hinoki.crud.Resource.scope">scope</a></li><li><a href="#hinoki.crud.Resource.fetch">fetch</a></li></ul>
           </li><li><a href="#hinoki.crud.CrudAPI">CrudAPI</a>
-            <ul><li><a href="#hinoki.crud.CrudAPI.resource">resource</a></li><li><a href="#hinoki.crud.CrudAPI.__init_subclass__">__init_subclass__</a></li></ul>
+            <ul><li><a href="#hinoki.crud.CrudAPI.model">model</a></li><li><a href="#hinoki.crud.CrudAPI.read_schema">read_schema</a></li><li><a href="#hinoki.crud.CrudAPI.create_schema">create_schema</a></li><li><a href="#hinoki.crud.CrudAPI.update_schema">update_schema</a></li><li><a href="#hinoki.crud.CrudAPI.deletable">deletable</a></li><li><a href="#hinoki.crud.CrudAPI.access">access</a></li><li><a href="#hinoki.crud.CrudAPI.read_access">read_access</a></li><li><a href="#hinoki.crud.CrudAPI.public_writes">public_writes</a></li><li><a href="#hinoki.crud.CrudAPI.owner">owner</a></li><li><a href="#hinoki.crud.CrudAPI.identity_key">identity_key</a></li><li><a href="#hinoki.crud.CrudAPI.assign">assign</a></li><li><a href="#hinoki.crud.CrudAPI.pagination">pagination</a></li><li><a href="#hinoki.crud.CrudAPI.resource">resource</a></li><li><a href="#hinoki.crud.CrudAPI.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.crud.CrudAPI.get_queryset">get_queryset</a></li><li><a href="#hinoki.crud.CrudAPI.written_queryset">written_queryset</a></li><li><a href="#hinoki.crud.CrudAPI.read_written">read_written</a></li><li><a href="#hinoki.crud.CrudAPI.to_schema">to_schema</a></li><li><a href="#hinoki.crud.CrudAPI.validate_hook_item">validate_hook_item</a></li><li><a href="#hinoki.crud.CrudAPI.refused">refused</a></li><li><a href="#hinoki.crud.CrudAPI.perform_create">perform_create</a></li><li><a href="#hinoki.crud.CrudAPI.perform_update">perform_update</a></li><li><a href="#hinoki.crud.CrudAPI.update_item">update_item</a></li><li><a href="#hinoki.crud.CrudAPI.perform_delete">perform_delete</a></li><li><a href="#hinoki.crud.CrudAPI.delete_items">delete_items</a></li><li><a href="#hinoki.crud.CrudAPI.invoke_hook">invoke_hook</a></li><li><a href="#hinoki.crud.CrudAPI.invoke_default_hook">invoke_default_hook</a></li><li><a href="#hinoki.crud.CrudAPI.invoke_custom_hook">invoke_custom_hook</a></li></ul>
           </li><li><a href="#hinoki.crud.Crud">Crud</a></li></ul>
           
         </nav>

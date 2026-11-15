@@ -520,7 +520,9 @@ transaction defaults, or declared errors. A group must contain at least one
 action and becomes immutable after successful inclusion.</p>
 <h2 id="organising-a-large-application">Organising a large application<a class="headerlink" href="#organising-a-large-application" title="Permanent link">&para;</a></h2>
 <p>When the ordinary list/retrieve/create/update/delete routes fit a model,
-<code>CrudAPI</code> can generate them from a <code>Resource</code>. Start with
+<code>CrudAPI</code> can generate them from a model and schemas declared on one API class.
+Mount that class once in <code>Hinoki</code>; generated and handwritten decorated actions
+can share it. Start with
 <a href="../crud/">Generate CRUD routes</a>; use handwritten actions for domain workflows
 or to replace an individual generated action.</p>
 <p>Give each feature one module that owns its routes and exports them as a list, with paths relative to the feature. Choose where each feature lives in the root declaration with <code>Mount</code>, so the paths stay visible in one place:</p>
@@ -598,7 +600,7 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   examples.blog.api.Pos
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.10</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 15:34:17 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
