@@ -8,17 +8,30 @@ A relation is never fetched by attribute access: the descriptor returns what
 from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING, Any, Literal, Self, overload
+import enum
+from typing import TYPE_CHECKING, Any, Self, overload
 
 from hinoki.errors import RelationNotLoaded
 
 if TYPE_CHECKING:
     from hinoki.orm import Model
 
-OnDelete = Literal["restrict", "cascade", "set_null", "no_action"]
-"""What the database does with a row when the row it references is deleted."""
 
-ON_DELETE: dict[OnDelete, str] = {
+class OnDelete(enum.Enum):
+    """What the database does with the rows that reference a deleted row."""
+
+    RESTRICT = "restrict"
+    """Refuse the delete while referencing rows exist."""
+    CASCADE = "cascade"
+    """Delete the referencing rows too."""
+    SET_NULL = "set_null"
+    """Set the column to NULL; the field must be annotated ``| None``."""
+    NO_ACTION = "no_action"
+    """Like ``RESTRICT``, checked by the database at the end of the statement."""
+
+
+# The SQL keyword for each rule, by the value stored in the migration state.
+ON_DELETE = {
     "restrict": "RESTRICT",
     "cascade": "CASCADE",
     "set_null": "SET NULL",
