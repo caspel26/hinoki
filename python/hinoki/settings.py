@@ -15,6 +15,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import hmac
+import ipaddress
 import json
 import logging
 import math
@@ -40,6 +41,17 @@ MAX_SYNC_WORKERS = 1024
 MAX_PORT = 65536
 MAX_WORKERS = 256
 QUOTED = 2  # shortest quoted value: the two quotes
+MAX_CORS_AGE = 86400
+ANY = "*"
+HOST_PATTERN = re.compile(
+    r"\.?(?:[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)(?:\.[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)*",
+    re.ASCII | re.IGNORECASE,
+)
+ORIGIN = re.compile(
+    r"[a-z][a-z0-9+.-]*://(?:[a-z0-9.-]+|\[[0-9a-f:.]+\])(?::[0-9]{1,5})?",
+    re.ASCII | re.IGNORECASE,
+)
+TOKEN = re.compile(r"[!#$%&'*+.^_`|~0-9a-z-]+", re.ASCII | re.IGNORECASE)
 
 
 class SettingsError(ValueError):
@@ -787,6 +799,44 @@ class PaginationSettings(Settings):
             raise ValueError("need 1 <= page_size <= max_page_size")
 
 
+def is_host_pattern(entry: str) -> bool:
+    """``*``, a host name, ``.domain`` (the domain and its subdomains) or an IP
+    address; never a scheme, port or path."""
+    if entry == ANY:
+        return True
+    if ":" in entry:  # only an IPv6 address may contain colons
+        try:
+            ipaddress.IPv6Address(entry)
+        except ValueError:
+            return False
+        return True
+    return HOST_PATTERN.fullmatch(entry) is not None
+
+
+class CorsSettings(Settings):
+    """Which browser origins may read responses. Off while ``origins`` is empty."""
+
+    origins: tuple[str, ...] = ()
+    methods: tuple[str, ...] = ("GET", "POST", "PUT", "PATCH", "DELETE", "QUERY")
+    headers: tuple[str, ...] = ("authorization", "content-type")
+    expose_headers: tuple[str, ...] = ()
+    credentials: bool = False
+    max_age: int = 600
+
+    def validate(self) -> None:
+        if ANY in self.origins and len(self.origins) > 1:
+            raise ValueError("origins: '*' must be the only entry")
+        if ANY in self.origins and self.credentials:
+            raise ValueError("origins: '*' cannot be combined with credentials")
+        if any(o != ANY and ORIGIN.fullmatch(o) is None for o in self.origins):
+            raise ValueError("origins must look like scheme://host[:port], or be '*'")
+        names = (*self.methods, *self.headers, *self.expose_headers)
+        if any(TOKEN.fullmatch(name) is None for name in names):
+            raise ValueError("methods and headers must be HTTP token names")
+        if not 0 <= self.max_age <= MAX_CORS_AGE:
+            raise ValueError(f"max_age must be 0 to {MAX_CORS_AGE} seconds")
+
+
 class AppSettings(Settings):
     """The built-in groups every application has; subclass to add your own."""
 
@@ -798,9 +848,21 @@ class AppSettings(Settings):
     pagination: PaginationSettings = dataclasses.field(
         default_factory=PaginationSettings
     )
+    cors: CorsSettings = dataclasses.field(default_factory=CorsSettings)
     timezone: str = "UTC"
+    debug: bool = False
+    allowed_hosts: tuple[str, ...] = (ANY,)
 
     def validate(self) -> None:
+        if not self.allowed_hosts:
+            raise ValueError("allowed_hosts must name at least one host, or '*'")
+        if ANY in self.allowed_hosts and len(self.allowed_hosts) > 1:
+            raise ValueError("allowed_hosts: '*' must be the only entry")
+        if not all(is_host_pattern(entry) for entry in self.allowed_hosts):
+            raise ValueError(
+                "allowed_hosts entries are host names, '.domain' or '*' "
+                "(no scheme, port or path)"
+            )
         try:
             ZoneInfo(self.timezone)
         except (TypeError, ZoneInfoNotFoundError, ValueError) as exc:

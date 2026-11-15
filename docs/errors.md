@@ -28,9 +28,9 @@ An action may declare several errors. The runtime maps a declared `APIError` to 
 
 ## Validation and binding errors
 
-Input that does not match a path, query, header or body annotation fails before the handler runs. Schema validation is strict and reports field paths with `422`. Unsupported content types receive `415`; malformed supported content receives a parser error. A body larger than `execution.max_body_bytes` receives `413 payload_too_large`. These are framework-level failures and do not need to be listed in the action's `errors=`.
+Input that does not match a path, query, header or body annotation fails before the handler runs. Schema validation is strict and reports field paths with `422`. Unsupported content types receive `415`; malformed supported content receives a parser error. A body larger than `execution.max_body_bytes` receives `413 payload_too_large`. A `Host` outside the `allowed_hosts` setting receives `400 disallowed_host`, and a CORS preflight from an origin outside `cors.origins` receives `403 cors_origin_denied` ([settings](settings.md#debug-allowed-hosts-and-cors)). These are framework-level failures and do not need to be listed in the action's `errors=`.
 
-Every HTTP request receives a generated request ID. The response includes it in the `x-request-id` header; built-in error bodies also include `request_id`. Use the ID to connect a client report with the server log entry. Unhandled exceptions are logged with the ID and returned as `500 internal_error` without exposing exception text.
+Every HTTP request receives a generated request ID. The response includes it in the `x-request-id` header; built-in error bodies also include `request_id`. Use the ID to connect a client report with the server log entry. Unhandled exceptions are logged with the ID and returned as `500 internal_error` without exposing exception text. The `debug` setting adds the exception type, message and traceback to that answer for development.
 
 ## Check the contract
 
