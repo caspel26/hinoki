@@ -4,7 +4,7 @@ This page connects the main parts of Hinoki. The guides explain each API in deta
 
 ## A model is stored data; a Schema is API data
 
-`Model` describes a database row and its queries (PostgreSQL or SQLite). `Schema` validates the values an endpoint accepts or returns. A response schema should expose only the fields clients are meant to see. Model-derived `Schema` classes are a convenience, not a replacement for deciding that boundary.
+`Model` describes a database row and its queries (SQLite, PostgreSQL, MySQL or MariaDB). `Schema` validates the values an endpoint accepts or returns. A response schema should expose only the fields clients are meant to see. Model-derived `Schema` classes are a convenience, not a replacement for deciding that boundary.
 
 ## A declaration is reused
 

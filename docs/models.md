@@ -8,7 +8,7 @@ related:
 
 # Models and queries
 
-`Model` maps a Python class to one database table. PostgreSQL, SQLite and MySQL are supported. Its annotated fields define the columns; queries are explicit and do not load relations implicitly. See [configure a database](databases.md) for setup and backend-specific limits.
+`Model` maps a Python class to one database table. SQLite, PostgreSQL, MySQL and MariaDB are supported. Its annotated fields define the columns; queries are explicit and do not load relations implicitly. See [configure a database](databases.md) for setup and backend-specific limits.
 
 ## Define a model
 
