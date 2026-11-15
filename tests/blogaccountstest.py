@@ -7,9 +7,9 @@ from collections.abc import AsyncIterator, Sequence
 from typing import Any, ClassVar
 
 import pytest
+from blog.main import create_app
+from blog.models import User
 
-from examples.blog.main import create_app
-from examples.blog.models import User
 from hinoki import Caller
 from hinoki.crypto import JWTAuth, JWTKey, PasswordHasher
 from hinoki.db import Database

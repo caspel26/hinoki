@@ -1,10 +1,10 @@
 """The blog keeps the promises its rules state (and the rules can fail)."""
 
 import pytest
+from blog.main import create_app
+from blog.rules import blog_rules
+from blog.settings import BlogSettings
 
-from examples.blog.main import create_app
-from examples.blog.rules import blog_rules
-from examples.blog.settings import BlogSettings
 from hinoki import Actions, Hinoki, Request, http
 from hinoki.__main__ import main
 from hinoki.rules import Project, RuleSet, failing
@@ -12,11 +12,11 @@ from hinoki.rules import Project, RuleSet, failing
 SECRET = "b" * 40
 CHECK = [
     "check",
-    "examples.blog.main:create_app",
+    "blog.main:create_app",
     "--rules",
-    "examples.blog.rules:blog_rules",
+    "blog.rules:blog_rules",
     "--package",
-    "examples",
+    "blog",
 ]
 
 
@@ -59,7 +59,7 @@ def test_a_new_unprotected_write_would_be_caught() -> None:
     @http.delete("/posts/purge")
     def purge(request: Request) -> None: ...
 
-    purge.__module__ = "examples.blog.api"
+    purge.__module__ = "blog.api"
     app.include(purge)
     found = RuleSet(*blog_rules.rules[:2]).run(Project(app))
     messages = " ".join(d.message for d in failing(found))
