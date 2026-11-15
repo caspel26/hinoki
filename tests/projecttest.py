@@ -186,7 +186,7 @@ def test_failed_manifest_replace_removes_only_the_new_app(
     def fail_replace(*_args: object, **_kwargs: object) -> None:
         raise OSError("disk full")
 
-    monkeypatch.setattr(projectcli.os, "replace", fail_replace)
+    monkeypatch.setattr("hinoki.projectcli.os.replace", fail_replace)
     with pytest.raises(ProjectError, match="could not create app"):
         projectcli.create_app("billing", project)
 
