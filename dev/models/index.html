@@ -516,6 +516,43 @@ set <code>deletable = True</code>; protect generated writes with <code>access = 
 </code></pre></div>
 <p>Server-supplied keywords take precedence over values from a <code>Schema</code>. A loaded model remembers its stored values; <code>asave()</code> updates changed columns and refuses primary-key changes. For a conditional write, use <code>aupdate_where</code> so ownership and state checks are part of the SQL condition. <code>QuerySet.aupdate(...)</code> and <code>adelete()</code> act on every row the filters match; they ignore ordering and refuse a queryset with <code>limit</code> or <code>offset</code>, so select the rows first and then filter on their keys (<code>filter(id__in=[...])</code>).</p>
 <p>The model constructor is statically typed. Some keyword-based model methods still have broader type-checker signatures; see <a href="../typing/">typing</a>.</p>
+<h3 id="writes-that-do-not-read-the-row-back">Writes that do not read the row back<a class="headerlink" href="#writes-that-do-not-read-the-row-back" title="Permanent link">&para;</a></h3>
+<p>By default every write returns the row as the database stored it: PostgreSQL and SQLite add <code>RETURNING</code> with every column, and MySQL/MariaDB select the row again in the same transaction. When the caller does not need that row, pass <code>returning=False</code>; the statement then has no <code>RETURNING</code> (and no follow-up <code>SELECT</code> on MySQL/MariaDB):</p>
+<div class="highlight"><pre><span></span><code><span class="n">task</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Draft"</span><span class="p">,</span> <span class="n">owner_id</span><span class="o">=</span><span class="n">me</span><span class="p">,</span> <span class="n">returning</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># as sent</span>
+<span class="n">count</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">aupdate</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">task</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">returning</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>       <span class="c1"># rows written</span>
+<span class="n">count</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">aupdate_where</span><span class="p">({</span><span class="s2">"owner_id"</span><span class="p">:</span> <span class="n">me</span><span class="p">},</span> <span class="p">{</span><span class="s2">"done"</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span> <span class="n">returning</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">count</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">owner_id</span><span class="o">=</span><span class="n">me</span><span class="p">)</span><span class="o">.</span><span class="n">aupdate</span><span class="p">({</span><span class="s2">"done"</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span> <span class="n">returning</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Default</th>
+<th><code>returning=False</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>acreate</code>, <code>insert</code> (<code>create</code>)</td>
+<td>the stored row</td>
+<td>the same instance, holding the values that were sent</td>
+</tr>
+<tr>
+<td><code>aupdate</code> (<code>update</code>)</td>
+<td>the stored row, <code>Model.NotFound</code> if no row matches</td>
+<td><code>int</code> row count; 0 when no row matches, no <code>NotFound</code></td>
+</tr>
+<tr>
+<td><code>aupdate_where</code>, <code>QuerySet.aupdate</code> (<code>update_where</code>, <code>update</code>)</td>
+<td><code>list</code> of stored rows</td>
+<td><code>int</code> row count</td>
+</tr>
+</tbody>
+</table>
+<p>What <code>returning=False</code> gives back is the client's side of the write. An insert sends every column, after defaults and factories ran in Python, so the returned instance holds exactly those values and remembers them, so a later <code>asave()</code> updates the row instead of inserting it again. An update returns no values at all; the <code>@timestamps</code> column is still set by the clock and validation still runs. Nothing is re-read from the database, so anything the database changes on the way in is not reflected: timestamp precision, numeric scale, JSON normalization, column types that store a different representation and triggers. Read the row with <code>aget</code> when you need the stored values.</p>
+<p>The count is the number the database reports. PostgreSQL and SQLite count the rows the statement matched; MySQL and MariaDB, with the driver's default connection settings, count the rows whose values actually changed, so a row that already held the new values counts 0.</p>
+<p>The cost of the default is the data sent back. In a raw-SQL measurement on PostgreSQL 17 with 16 statements in flight, a statement returning every column of a narrow row took 83.7 µs per operation against 75.8 µs returning only the key (+10%); with a ~10 KB <code>jsonb</code> column it took 143.4 µs against 75.9 µs (+89%). This is a single-machine measurement, not a guarantee for other workloads.</p>
+<p><code>returning</code> is a keyword-only option of these methods, so a model cannot declare a field named <code>returning</code>: the class definition raises <code>RegistrationError</code> and asks for another name.</p>
 <h2 id="share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins<a class="headerlink" href="#share-fields-abstract-models-and-mixins" title="Permanent link">&para;</a></h2>
 <p>Fields, options and methods that several models need can live in a base class. An <strong>abstract model</strong> has no table of its own: it is not migrated, cannot be queried or saved, and exists to be subclassed.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
@@ -580,15 +617,17 @@ set <code>deletable = True</code>; protect generated writes with <code>access = 
           
             <ul><li><a href="#define-a-model">Define a model</a>
             <ul><li><a href="#model-field-constraints-and-validators">Model field constraints and validators</a></li></ul>
-          </li><li><a href="#query-rows">Query rows</a></li><li><a href="#reusable-queries">Reusable queries</a></li><li><a href="#create-and-update">Create and update</a></li><li><a href="#share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins</a></li><li><a href="#relations">Relations</a></li><li><a href="#schema-options">Schema options</a></li><li><a href="#migrations">Migrations</a></li></ul>
+          </li><li><a href="#query-rows">Query rows</a></li><li><a href="#reusable-queries">Reusable queries</a></li><li><a href="#create-and-update">Create and update</a>
+            <ul><li><a href="#writes-that-do-not-read-the-row-back">Writes that do not read the row back</a></li></ul>
+          </li><li><a href="#share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins</a></li><li><a href="#relations">Relations</a></li><li><a href="#schema-options">Schema options</a></li><li><a href="#migrations">Migrations</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 17:54:14 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>8 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 21:18:38 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>10 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
