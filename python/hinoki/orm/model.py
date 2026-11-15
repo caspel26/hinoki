@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import datetime
 import inspect
 import json
 import sys
 import types
 import typing
 from collections.abc import Callable, Sequence
+from decimal import Decimal
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -26,6 +28,7 @@ from typing import (
     get_args,
     get_origin,
 )
+from uuid import UUID
 
 from hinoki import core
 from hinoki.blocking import run_sync
@@ -48,6 +51,23 @@ if TYPE_CHECKING:
 
 MARK = "hinoki_field"
 SNAPSHOT = "hinoki_snapshot"
+# Values that cannot change in place, so a snapshot may keep the same object.
+_IMMUTABLE = frozenset(
+    {
+        str,
+        int,
+        float,
+        bool,
+        bytes,
+        type(None),
+        UUID,
+        datetime.datetime,
+        datetime.date,
+        datetime.time,
+        datetime.timedelta,
+        Decimal,
+    }
+)
 PLACEHOLDER = "{model}"
 
 
@@ -549,7 +569,12 @@ class Model:
     def remember(self) -> None:
         """Record the stored values, so ``asave`` writes only what changed."""
         columns = type(self).__columns__
-        self.__dict__[SNAPSHOT] = {c: copy.deepcopy(getattr(self, c)) for c in columns}
+        self.__dict__[SNAPSHOT] = {
+            c: value
+            if type(value := getattr(self, c)) in _IMMUTABLE
+            else copy.deepcopy(value)
+            for c in columns
+        }
 
     async def asave(self) -> Self:
         """Insert a new instance, or update the columns changed since it was
