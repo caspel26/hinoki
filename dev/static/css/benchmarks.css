@@ -1,0 +1,71 @@
+.benchmark-result {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: var(--sp-4);
+  align-items: start;
+  margin-block: var(--sp-3) var(--sp-6);
+}
+
+.benchmark-figure,
+.benchmark-table-wrap {
+  min-width: 0;
+  margin: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--hn-edge);
+  border-radius: var(--hn-radius-m);
+  background: var(--hn-surface-1);
+}
+
+.benchmark-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.benchmark-figure figcaption {
+  margin-top: var(--sp-2);
+  color: var(--hn-text-2);
+  font-size: var(--fs-s);
+}
+
+.benchmark-table-wrap {
+  overflow-x: auto;
+}
+
+.benchmark-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-s);
+}
+
+.benchmark-table caption {
+  padding: 0 0 var(--sp-2);
+  color: var(--hn-text-2);
+  text-align: left;
+}
+
+.benchmark-table th,
+.benchmark-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--hn-edge);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.benchmark-table th:first-child,
+.benchmark-table td:first-child {
+  text-align: left;
+}
+
+.benchmark-table thead th {
+  color: var(--hn-text-2);
+  font-weight: 600;
+}
+
+@media (max-width: 940px) {
+  .benchmark-result {
+    grid-template-columns: 1fr;
+  }
+}
