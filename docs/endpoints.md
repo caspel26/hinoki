@@ -198,43 +198,63 @@ app = Hinoki(
 )
 ```
 
-For a versioned API, collect the CRUD classes in one module and mount their
-routes once. Each class keeps its resource path; the version prefix is declared
-only at the application boundary:
+For a versioned API, let each feature module export its routes and compose them
+under one version mount. Each CRUD class keeps its resource path; the version
+prefix is declared once in `api/v1.py`:
 
 ```python
-# api/v1.py
+# api/people.py
 from hinoki import CrudAPI
 
-from app.models import Person, Team
-from app.schemas import PersonOut, TeamOut
+from app.models import Person
+from app.schemas import PersonOut
 
 
 class People(CrudAPI, model=Person, path="/people"):
     read_schema = PersonOut
 
 
+# Each feature exports a list of routes relative to that feature.
+routes = [People]
+```
+
+```python
+# api/teams.py
+from hinoki import CrudAPI
+
+from app.models import Team
+from app.schemas import TeamOut
+
+
 class Teams(CrudAPI, model=Team, path="/teams"):
     read_schema = TeamOut
 
 
-routes = [People, Teams]
+routes = [Teams]
+```
+
+```python
+# api/v1.py
+from hinoki import Mount
+from app.api import people, teams
+
+routes = Mount("/api/v1", people.routes, teams.routes)
 ```
 
 ```python
 # app.py
-from hinoki import Hinoki, Mount
+from hinoki import Hinoki
 from app.api import v1
 
-app = Hinoki(include=[Mount("/api/v1", v1.routes)])
+app = Hinoki(include=[v1.routes])
 ```
 
 The resulting paths include `/api/v1/people`,
 `/api/v1/people/{item_id}`, `/api/v1/teams`, and
-`/api/v1/teams/{item_id}`. Add another version by exporting a separate route
-list and mounting it at `/api/v2`; the shared feature classes or mixins can be
-reused where their behavior is genuinely the same. Route collisions are still
-checked after prefixes are composed.
+`/api/v1/teams/{item_id}`. Add `api/v2.py` with its own `Mount("/api/v2", ...)`
+when a new version is needed. Feature route lists and mixins can be shared
+where their behavior is genuinely the same. Route collisions are still checked
+after prefixes are composed.
 
 `include` spreads nested lists and tuples in place, so order is the order you wrote. `Mount(prefix, *items)` prepends its prefix to every route it holds; mounts nest and prefixes join from the outside in. The prefix starts with `/` and does not end with one. Items you do not mount keep their own paths, so small apps can stay a flat list. Mounting changes only the path: access, errors and transactions are unchanged, and a route that ends up at the same method and path as another still fails at declaration time. A `RouteGroup` reached twice, an item that is not an action, class or group, or a module passed instead of its list is refused and named; a module gets a hint to export a list.
 
