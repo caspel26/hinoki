@@ -140,6 +140,8 @@ def column_state(
             "column": meta.references.__primary_key__,
             "on_delete": meta.on_delete,
         }
+        # Keep this check for string/forward annotations which were unresolved
+        # when the model class was declared; get_type_hints() above resolves them.
         if meta.on_delete == "set_null" and not nullable:
             raise MigrationError(f"{model.__name__}.{name}: set_null needs `| None`")
     return {

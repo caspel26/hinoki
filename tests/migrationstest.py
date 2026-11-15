@@ -75,6 +75,61 @@ def test_first_plan_creates_tables_in_dependency_order(tmp_path: Path) -> None:
     assert state["tables"]["mig_things"]["columns"]["seen"]["nullable"] is True
 
 
+def test_nullable_set_null_foreign_key_is_written_to_migration_state(
+    tmp_path: Path,
+) -> None:
+    owner = owners()
+    nullable_ref = model(
+        "mig_nullable_ref",
+        {
+            "id": (int, field(primary_key=True)),
+            "owner_id": (
+                int | None,
+                foreign_key(owner, on_delete=OnDelete.SET_NULL, default=None),
+            ),
+        },
+    )
+
+    result = plan([nullable_ref, owner], tmp_path, "set-null")
+
+    assert result.path is not None
+    state = json.loads(result.path.with_suffix(".state.json").read_text())
+    assert (
+        state["tables"]["mig_nullable_ref"]["columns"]["owner_id"]["references"][
+            "on_delete"
+        ]
+        == "set_null"
+    )
+    assert "ON DELETE SET NULL" in result.path.read_text()
+
+
+def test_late_resolved_set_null_annotation_is_checked_during_planning(
+    tmp_path: Path,
+) -> None:
+    owner = owners()
+    alias = "_MigrationLateOwnerId"
+    globals().pop(alias, None)
+    nullable_ref = type(
+        "LateNullableRef",
+        (Model,),
+        {
+            "__module__": __name__,
+            "__annotations__": {"id": int, "owner_id": alias},
+            "id": field(primary_key=True),
+            "owner_id": foreign_key(owner, on_delete=OnDelete.SET_NULL),
+        },
+        table="mig_late_nullable_ref",
+    )
+    globals()[alias] = int
+    try:
+        with pytest.raises(
+            MigrationError, match=r"LateNullableRef\.owner_id.*set_null"
+        ):
+            plan([nullable_ref, owner], tmp_path, "late-set-null")
+    finally:
+        globals().pop(alias, None)
+
+
 def test_mysql_plan_uses_mysql_types_and_quoting(tmp_path: Path) -> None:
     owner = owners()
     result = plan([things(owner), owner], tmp_path, "mysql", dialect="mysql")
