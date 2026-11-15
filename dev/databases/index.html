@@ -379,10 +379,10 @@
       <article class="prose" style="--sheet: '3.2'">
         <p class="kicker" data-search-exclude>3.2 · Guides</p>
         <h1 id="configure-a-database">Configure a database<a class="headerlink" href="#configure-a-database" title="Permanent link">&para;</a></h1>
-<p>Hinoki's ORM supports PostgreSQL, SQLite and MySQL. SQLite is the default for
-local development. The backend is selected by the database URL; an application
-uses the same <code>Model</code> and query APIs across these backends where their SQL
-features overlap.</p>
+<p>Hinoki's ORM supports PostgreSQL, SQLite, MySQL and MariaDB. SQLite is the
+default for local development. The backend is selected by the database URL; an
+application uses the same <code>Model</code> and query APIs across these backends where
+their SQL features overlap.</p>
 <h2 id="configure-the-application">Configure the application<a class="headerlink" href="#configure-the-application" title="Permanent link">&para;</a></h2>
 <p>Declare <code>DatabaseSettings</code> on your app settings and install <code>DatabaseModule</code>.
 The module opens one bounded pool per worker during startup and closes it during
@@ -454,10 +454,16 @@ provided <code>Database</code> instance.</p>
 <td><code>mysql://user:password@host/database</code></td>
 <td>Supported. Uses username/password authentication and requires TLS by default, with certificate and host verification. The system trust store must trust the server certificate. <code>require_ssl=false</code> disables encryption and is only for an isolated disposable local server. MySQL uses InnoDB and MySQL-native JSON; <code>RETURNING</code> is unavailable.</td>
 </tr>
+<tr>
+<td>MariaDB</td>
+<td><code>mariadb://user:password@host/database</code></td>
+<td>Supported and tested separately on MariaDB 11.4. Uses the MySQL wire driver and SQL dialect. MariaDB's <code>JSON</code> alias is text; typed ORM <code>dict</code>/<code>list</code> fields are decoded by their model declaration. Low-level <code>Database.fetch()</code> returns MariaDB JSON values as bytes because server metadata cannot safely distinguish JSON from arbitrary text. TLS is required by default.</td>
+</tr>
 </tbody>
 </table>
-<p>MariaDB, SQL Server and Oracle are not supported by this release. MySQL's URL
-scheme does not imply MariaDB compatibility.</p>
+<p>SQL Server and Oracle are not supported by this release. MySQL and MariaDB are
+separate URL/backend identities and each has its own real-server conformance
+job; MySQL's URL scheme does not imply MariaDB compatibility.</p>
 <h2 id="create-and-apply-migrations">Create and apply migrations<a class="headerlink" href="#create-and-apply-migrations" title="Permanent link">&para;</a></h2>
 <p>Migrations use the same selected URL. With no explicit URL, the CLI uses the
 local SQLite database. For another backend, export the URL without passing it
@@ -487,6 +493,10 @@ opens the selected database and creates its ledger table if needed.</p>
   may already have changed the schema; Hinoki reports that partial application
   is possible. Inspect schema and migration status before retrying, and retain
   a recoverable backup.</li>
+<li><strong>MariaDB</strong> uses the MySQL wire protocol, but is a separate backend and is
+  tested against its own service. Its JSON type is a text alias: <code>Model</code>
+  fields annotated <code>dict</code> or <code>list</code> are decoded by the typed ORM, while the
+  low-level <code>Database.fetch()</code> API returns JSON column values as bytes.</li>
 </ul>
 <p>See the <a href="../migrations/">migration guide</a> for destructive-change review and
 planning details, and the <a href="../reference/database/">database API reference</a> for
@@ -520,8 +530,8 @@ types, raw SQL placeholders and backend limits.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.2</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 01:43:07 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 04:32:59 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/databases.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

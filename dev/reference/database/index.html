@@ -273,10 +273,11 @@
         <h1 id="database-api">Database API<a class="headerlink" href="#database-api" title="Permanent link">&para;</a></h1>
 <p>For setup, application settings, URL examples and migration workflow, see
 <a href="../../databases/">configure a database</a>.</p>
-<p>The ORM supports PostgreSQL, SQLite and MySQL. SQLite is the local-development
-default; configure an explicit URL for PostgreSQL or MySQL deployments. Raw SQL
-uses the selected driver's placeholders: PostgreSQL uses <code>$1</code>, while SQLite
-and MySQL use <code>?</code>. ORM-generated queries select the dialect automatically.</p>
+<p>The ORM supports PostgreSQL, SQLite, MySQL and MariaDB. SQLite is the
+local-development default; configure an explicit URL to select a server
+backend. Raw SQL uses the selected driver's placeholders: PostgreSQL uses
+<code>$1</code>, while SQLite, MySQL and MariaDB use <code>?</code>. ORM-generated queries select
+the dialect automatically.</p>
 <h2 id="configure-a-backend">Configure a backend<a class="headerlink" href="#configure-a-backend" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="k">[database]</span>
 <span class="n">url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"sqlite://./local.db"</span>
@@ -286,7 +287,9 @@ For MySQL, use <code>mysql://user:password@host/db</code>. MySQL connections req
 by default; the driver verifies the server certificate and hostname. Configure
 the system trust store to trust your server certificate. <code>require_ssl=false</code>
 is only suitable for isolated local testing and disables transport encryption.
-Do not put production credentials in source-controlled settings files.</p>
+Do not put production credentials in source-controlled settings files.
+For MariaDB, use <code>mariadb://user:password@host/db</code>; it is selected and tested
+as a distinct backend even though it uses the MySQL wire driver and SQL dialect.</p>
 <h2 id="backend-behavior-and-limits">Backend behavior and limits<a class="headerlink" href="#backend-behavior-and-limits" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -312,12 +315,17 @@ Do not put production credentials in source-controlled settings files.</p>
 <td>Supported</td>
 <td>Uses InnoDB tables, binary UUIDs and MySQL-native JSON. MySQL DDL implicitly commits, so a failed migration can leave earlier DDL applied; inspect migration status and database schema before retrying. <code>RETURNING</code> is not supported by the compiler; ORM create/update operations use follow-up reads. TLS is required by default.</td>
 </tr>
+<tr>
+<td>MariaDB</td>
+<td>Supported</td>
+<td>Tested independently on MariaDB 11.4. Its <code>JSON</code> alias is text, so typed ORM <code>dict</code>/<code>list</code> fields are decoded from the model declaration. Low-level <code>Database.fetch()</code> returns JSON values as bytes because arbitrary text columns cannot be safely inferred as JSON. DDL can implicitly commit; TLS is required by default.</td>
+</tr>
 </tbody>
 </table>
-<p>MariaDB, SQL Server and Oracle are not currently supported. Do not assume that
-MySQL compatibility implies MariaDB compatibility. Hinoki does not silently
-roll back MySQL DDL: review generated migrations and keep a recoverable backup
-before applying schema changes.</p>
+<p>SQL Server and Oracle are not currently supported. Do not assume that MySQL
+compatibility implies MariaDB compatibility. Hinoki does not silently roll
+back MySQL-family DDL: review generated migrations and keep a recoverable
+backup before applying schema changes.</p>
 <p>Datetime values stored in MySQL <code>DATETIME</code> columns use Hinoki's UTC-naive
 storage convention; values returned by the ORM are interpreted as UTC. MySQL
 pool capacity and acquisition wait are bounded by the database pool settings.</p>
@@ -401,7 +409,7 @@ operations may need backend-specific SQL.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The selected SQL dialect (currently <code>postgres</code> or <code>sqlite</code>).</p>
+        <p>The selected dialect: <code>postgres</code>, <code>sqlite</code>, <code>mysql</code> or <code>mariadb</code>.</p>
 
     </div>
 
@@ -490,7 +498,7 @@ operations may need backend-specific SQL.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Rows as dicts. PostgreSQL uses <code>$1</code>; SQLite uses <code>?1</code>.</p>
+        <p>Rows as dicts, with placeholders selected by the active backend.</p>
 
 
     </div>
@@ -1091,7 +1099,7 @@ max_size), so <code>Hinoki(settings=..., modules=[DatabaseModule])</code> works.
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.7</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 00:18:33 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 04:32:59 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/database.md">Edit on GitHub</a></dd></div>
         </dl>

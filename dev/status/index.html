@@ -242,17 +242,17 @@
 <p>Hinoki is pre-alpha. The public API and migration format may change; it is not published on PyPI. Use a checkout for evaluation and test against disposable data.</p>
 <p>The <a href="../documentation-versions/">documentation site</a> separates current development docs from release-tagged versions. Until the first release, the site root points to the <code>dev</code> docs.</p>
 <h2 id="implemented-and-exercised">Implemented and exercised<a class="headerlink" href="#implemented-and-exercised" title="Permanent link">&para;</a></h2>
-<p>The repository includes typed function and class APIs; request binding and strict schemas; access policies and declared errors; optional architecture rules; settings and worker modules; SQLite, PostgreSQL and MySQL ORM backends with relations, querysets and file-based migrations; sync and async handlers; OpenAPI, parsers, renderers, development and application MCP; and an optional admin with four styles.</p>
+<p>The repository includes typed function and class APIs; request binding and strict schemas; access policies and declared errors; optional architecture rules; settings and worker modules; SQLite, PostgreSQL, MySQL and MariaDB ORM backends with relations, querysets and file-based migrations; sync and async handlers; OpenAPI, parsers, renderers, development and application MCP; and an optional admin with four styles.</p>
 <p>The examples are the best way to see the pieces together: <a href="https://github.com/caspel26/hinoki/tree/main/examples/notes">Notes</a> for a small declared app, <a href="https://github.com/caspel26/hinoki/tree/main/examples/tracker">Tracker</a> for layers, ownership and rules, and <a href="https://github.com/caspel26/hinoki/tree/main/examples/blog">Blog</a> for relations, auth and admin.</p>
 <h2 id="current-boundaries">Current boundaries<a class="headerlink" href="#current-boundaries" title="Permanent link">&para;</a></h2>
 <ul>
-<li>SQLite, PostgreSQL and MySQL are supported ORM databases; SQLite is the local-development default. MySQL has real-server integration coverage in CI. MariaDB, SQL Server and Oracle are not supported, and MySQL compatibility does not imply MariaDB compatibility. See the <a href="../databases/">database guide</a> for backend-specific TLS, migration and feature limits.</li>
+<li>SQLite, PostgreSQL, MySQL and MariaDB are supported ORM databases; SQLite is the local-development default. MySQL and MariaDB have separate real-server integration coverage in CI. SQL Server and Oracle are not supported. See the <a href="../databases/">database guide</a> for backend-specific TLS, migration and feature limits, including MariaDB JSON behavior.</li>
 <li>Hinoki does not open database connections at import or apply migrations automatically.</li>
 <li>The ASGI adapter and application handler calls run in Python. The Rust extension currently provides path matching, selected query/header/cookie parsing, schema validation/serialization, cryptography and SQL ORM compilation/execution.</li>
 <li>Built-in security settings add browser response headers, HSTS on effective HTTPS requests, and an opt-in <code>308</code> HTTPS redirect that requires explicit allowed hosts.</li>
 <li>Generated typing for some keyword-based ORM calls is less precise than model construction; see <a href="../typing/">typing</a>.</li>
 <li>Many-to-many links use an explicit model with two foreign keys and a composite uniqueness constraint. Implicit join models, direct collection access such as <code>post.tags</code>, and advanced relation paths are not available.</li>
-<li>Additional database backends and end-to-end performance claims are not available.</li>
+<li>SQL Server and Oracle backends are not available. End-to-end performance claims are not made without comparable retained measurements.</li>
 <li>The server adapter is ASGI. <code>hinoki.wsgi.WSGIAdapter</code> wraps an application for WSGI servers (buffered bodies, no streaming); verified with Granian only, see <a href="../serving/#wsgi">serving</a>.</li>
 <li>CORS is one application-wide policy in the <code>cors</code> settings group; there is no per-route CORS option. Application MCP has its own allowed-origin check. Cursor pagination is not available; pagination currently uses page numbers.</li>
 <li>Pagination page-size defaults are <code>20</code> and <code>100</code>; the <code>pagination</code> settings group changes them for the whole app and an action's own <code>PageNumberPagination</code> values win. See <a href="../pagination/">pagination</a>.</li>
@@ -284,7 +284,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>6.1</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 04:02:50 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 04:32:59 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/status.md">Edit on GitHub</a></dd></div>
         </dl>
