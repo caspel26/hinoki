@@ -221,6 +221,15 @@ class Schema:
         return dump_instance(self, False, list(exclude))
 
     @classmethod
+    def from_models(cls, rows: Iterable[object], **extra: Any) -> list[Self]:
+        """Build a list from a synchronous iterable of model rows.
+
+        Each row follows ``from_model`` exactly. The iterable is consumed once,
+        eagerly; this reads already-loaded attributes and never performs I/O.
+        """
+        return [cls.from_model(row, **extra) for row in rows]
+
+    @classmethod
     def from_model(cls, row: object, **extra: Any) -> Self:
         """Build this schema from a model instance: every field is read from the
         attribute of the same name, ``extra`` supplies or overrides values (for
