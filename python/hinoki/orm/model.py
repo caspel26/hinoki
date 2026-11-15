@@ -23,16 +23,17 @@ from typing import (
     TYPE_CHECKING,
     Any,
     ClassVar,
+    Literal,
     Self,
     TypeGuard,
     cast,
     dataclass_transform,
     get_args,
     get_origin,
+    overload,
 )
 from uuid import UUID
 
-from hinoki import core
 from hinoki.blocking import run_sync
 from hinoki.errors import (
     ErrorDetail,
@@ -45,7 +46,7 @@ from hinoki.errors import (
 from hinoki.fields import FieldInfo
 from hinoki.fieldtypes import FieldType, parse_annotation, split_annotated
 from hinoki.orm.context import current_database
-from hinoki.orm.queryset import QuerySet
+from hinoki.orm.queryset import QuerySet, write_statement, written_rows
 from hinoki.orm.relations import OnDelete, Related, Relation
 from hinoki.utils import Clock, utc_now
 
@@ -57,6 +58,9 @@ if TYPE_CHECKING:
 
 MARK = "hinoki_field"
 SNAPSHOT = "hinoki_snapshot"
+# Keyword-only options of the ``**values`` write methods (``acreate``,
+# ``aupdate``): a column with one of these names could not be passed to them.
+WRITE_OPTIONS = frozenset({"returning"})
 # Values that cannot change in place, so a snapshot may keep the same object.
 _IMMUTABLE = frozenset(
     {
@@ -716,6 +720,13 @@ class Model:
             raise RegistrationError(
                 f"{cls.__name__}: field names {reserved} collide with Model attributes"
             )
+        options = sorted(n for n in columns if n in WRITE_OPTIONS)
+        if options:
+            raise RegistrationError(
+                f"{cls.__name__}: field names {options} are reserved for the "
+                "keyword options of acreate/aupdate; rename the field "
+                "(for example 'returns')"
+            )
 
     @classmethod
     def check_set_null(cls, column: dataclasses.Field[Any], meta: FieldMeta) -> None:
@@ -874,42 +885,30 @@ class Model:
             self.refresh(updated)
         return self
 
-    async def insert(self) -> Self:
+    async def insert(self, *, returning: bool = True) -> Self:
+        """Insert this instance and load the stored row into it. With
+        ``returning=False`` nothing is read back: the instance keeps the values
+        it sent (every column is sent, defaults and factories applied)."""
         cls = type(self).concrete()
         assignments = [(c, getattr(self, c)) for c in cls.__columns__]
         cls.validate_values(dict(assignments))
         database = current_database()
-        returning = (
-            [] if database.dialect in {"mysql", "mariadb"} else list(cls.__columns__)
-        )
-        sql, params = core.compile_query(
+        sql, params = write_statement(
+            cls,
             "insert",
-            cls.__table__,
-            assignments=assignments,
+            assignments,
+            [],
             returning=returning,
             dialect=database.dialect,
         )
-        if database.dialect in {"mysql", "mariadb"}:
-            # MySQL has no INSERT ... RETURNING. Read the row by its already
-            # materialized Hinoki primary key inside the same transaction.
-            async with database.transaction():
-                await database.execute(sql, *params)
-                select_sql, select_params = core.compile_query(
-                    "select",
-                    cls.__table__,
-                    columns=list(cls.__columns__),
-                    filters=[
-                        (
-                            cls.__primary_key__,
-                            "eq",
-                            [getattr(self, cls.__primary_key__)],
-                        )
-                    ],
-                    dialect=database.dialect,
-                )
-                rows = await database.fetch(select_sql, *select_params)
-        else:
-            rows = await database.fetch(sql, *params)
+        if not returning:
+            await database.execute(sql, *params)
+            self.remember()
+            return self
+        key = cls.__primary_key__
+        # The Hinoki primary key is materialized before the write, so the
+        # MySQL family can read the row back by it.
+        rows = await written_rows(cls, sql, params, [(key, "eq", [getattr(self, key)])])
         self.refresh(cls.from_row(rows[0]))
         return self
 
@@ -945,10 +944,16 @@ class Model:
         return cls(**merged)
 
     @classmethod
-    async def acreate(cls, data: Schema | None = None, /, **values: Any) -> Self:
+    async def acreate(
+        cls, data: Schema | None = None, /, *, returning: bool = True, **values: Any
+    ) -> Self:
         """Insert a row (defaults and factories apply) and return it:
-        ``await Post.acreate(data, author_id=me)`` or ``acreate(title="x")``."""
-        return await cls.from_schema(data, **values).insert()
+        ``await Post.acreate(data, author_id=me)`` or ``acreate(title="x")``.
+        ``returning=False``: the instance holds the sent values, not re-read."""
+        instance = cls.from_schema(data, **values)
+        if not returning:
+            return await instance.insert(returning=False)
+        return await instance.insert()
 
     def assign(self, data: Schema | None = None, /, **values: Any) -> Self:
         """Set fields from a schema (fields the client left ``UNSET`` are
@@ -980,28 +985,74 @@ class Model:
         except cls.NotFound:
             return None
 
+    @overload
     @classmethod
-    async def aupdate(cls, **values: Any) -> Self:
-        """Update by primary key (``id=...``) and return the updated row."""
+    async def aupdate(
+        cls, *, returning: Literal[True] = ..., **values: Any
+    ) -> Self: ...
+    @overload
+    @classmethod
+    async def aupdate(cls, *, returning: Literal[False], **values: Any) -> int: ...
+    @overload
+    @classmethod
+    async def aupdate(cls, *, returning: bool, **values: Any) -> Self | int: ...
+    @classmethod
+    async def aupdate(cls, *, returning: bool = True, **values: Any) -> Self | int:
+        """Update by primary key (``id=...``) and return the updated row.
+        ``returning=False`` reads nothing back and returns the row count the
+        database reports (no ``NotFound``: 0 means no row was written)."""
         key = cls.__primary_key__
         if key not in values:
             raise FieldError(f"{cls.__name__}.aupdate needs {key}=...")
         identity = values.pop(key)
+        if not returning:
+            return await cls.aupdate_where({key: identity}, values, returning=False)
         rows = await cls.aupdate_where({key: identity}, values)
         if not rows:
             raise cls.NotFound(f"{cls.__name__} not found")
         return rows[0]
 
+    @overload
     @classmethod
     async def aupdate_where(
-        cls, conditions: dict[str, Any], values: dict[str, Any]
-    ) -> list[Self]:
-        """Update every row matching ``conditions`` and return the new rows.
+        cls,
+        conditions: dict[str, Any],
+        values: dict[str, Any],
+        *,
+        returning: Literal[True] = ...,
+    ) -> list[Self]: ...
+    @overload
+    @classmethod
+    async def aupdate_where(
+        cls,
+        conditions: dict[str, Any],
+        values: dict[str, Any],
+        *,
+        returning: Literal[False],
+    ) -> int: ...
+    @overload
+    @classmethod
+    async def aupdate_where(
+        cls, conditions: dict[str, Any], values: dict[str, Any], *, returning: bool
+    ) -> list[Self] | int: ...
+    @classmethod
+    async def aupdate_where(
+        cls,
+        conditions: dict[str, Any],
+        values: dict[str, Any],
+        *,
+        returning: bool = True,
+    ) -> list[Self] | int:
+        """Update every row matching ``conditions`` and return the new rows
+        (or, with ``returning=False``, the row count the database reports).
         Conditions are part of the statement, so a row that stopped matching
         (for example after a concurrent owner change) is not touched."""
         if not conditions:
             raise FieldError("aupdate_where needs conditions and values")
-        return await QuerySet(cls.concrete()).filter(**conditions).aupdate(values)
+        query = QuerySet(cls.concrete()).filter(**conditions)
+        if not returning:
+            return await query.aupdate(values, returning=False)
+        return await query.aupdate(values)
 
     @classmethod
     async def adelete(cls, **conditions: Any) -> int:
@@ -1012,19 +1063,52 @@ class Model:
         return await QuerySet(cls.concrete()).filter(**conditions).adelete()
 
     @classmethod
-    def create(cls, data: Schema | None = None, /, **values: Any) -> Self:
+    def create(
+        cls, data: Schema | None = None, /, *, returning: bool = True, **values: Any
+    ) -> Self:
         """Sync ``acreate`` for sync handlers."""
+        if not returning:
+            return run_sync(cls.acreate(data, returning=False, **values))
         return run_sync(cls.acreate(data, **values))
 
     def update_from(self, data: Schema | None = None, /, **values: Any) -> Self:
         """Sync ``aupdate_from`` for sync handlers."""
         return run_sync(self.aupdate_from(data, **values))
 
+    @overload
     @classmethod
     def update_where(
-        cls, conditions: dict[str, Any], values: dict[str, Any]
-    ) -> list[Self]:
+        cls,
+        conditions: dict[str, Any],
+        values: dict[str, Any],
+        *,
+        returning: Literal[True] = ...,
+    ) -> list[Self]: ...
+    @overload
+    @classmethod
+    def update_where(
+        cls,
+        conditions: dict[str, Any],
+        values: dict[str, Any],
+        *,
+        returning: Literal[False],
+    ) -> int: ...
+    @overload
+    @classmethod
+    def update_where(
+        cls, conditions: dict[str, Any], values: dict[str, Any], *, returning: bool
+    ) -> list[Self] | int: ...
+    @classmethod
+    def update_where(
+        cls,
+        conditions: dict[str, Any],
+        values: dict[str, Any],
+        *,
+        returning: bool = True,
+    ) -> list[Self] | int:
         """Sync ``aupdate_where`` for sync handlers."""
+        if not returning:
+            return run_sync(cls.aupdate_where(conditions, values, returning=False))
         return run_sync(cls.aupdate_where(conditions, values))
 
     @classmethod
@@ -1035,9 +1119,21 @@ class Model:
     def get_or_none(cls, **conditions: Any) -> Self | None:
         return run_sync(cls.aget_or_none(**conditions))
 
+    @overload
     @classmethod
-    def update(cls, **values: Any) -> Self:
-        return run_sync(cls.aupdate(**values))
+    def update(cls, *, returning: Literal[True] = ..., **values: Any) -> Self: ...
+    @overload
+    @classmethod
+    def update(cls, *, returning: Literal[False], **values: Any) -> int: ...
+    @overload
+    @classmethod
+    def update(cls, *, returning: bool, **values: Any) -> Self | int: ...
+    @classmethod
+    def update(cls, *, returning: bool = True, **values: Any) -> Self | int:
+        """Sync ``aupdate`` for sync handlers."""
+        if not returning:
+            return run_sync(cls.aupdate(returning=False, **values))
+        return run_sync(cls.aupdate(returning=True, **values))
 
     @classmethod
     def delete(cls, **conditions: Any) -> int:
