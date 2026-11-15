@@ -144,3 +144,37 @@ async def test_uuid_parameters_round_trip_through_the_database(db: Database) -> 
 
     assert rows[0]["id"] == sent
     assert rows[0]["text"] == str(sent)
+
+
+def test_dump_leaves_a_uuid_subclass_as_it_was() -> None:
+    """Only the exact UUID class is turned into text, as before the native change."""
+
+    class Marked(UUID):
+        pass
+
+    class Holder(Schema):
+        id: UUID
+
+    holder = Holder(id=Marked(SAMPLE))
+    dumped = core.dump_instance(holder, True)
+
+    assert type(dumped["id"]) is Marked
+
+
+@needs_database
+async def test_database_uuids_are_built_without_running_uuid_init(
+    db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await db.fetch("SELECT gen_random_uuid() AS id")  # the one-time self-check
+    calls: list[int] = []
+    original = UUID.__init__
+
+    def counting(self: UUID, *args: Any, **kwargs: Any) -> None:
+        calls.append(1)
+        original(self, *args, **kwargs)
+
+    monkeypatch.setattr(UUID, "__init__", counting)
+    rows = await db.fetch("SELECT gen_random_uuid() AS a, gen_random_uuid() AS b")
+
+    assert type(rows[0]["a"]) is UUID
+    assert calls == []
