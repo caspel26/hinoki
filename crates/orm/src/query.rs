@@ -102,6 +102,7 @@ pub enum QueryError {
     BadIdentifier(String),
     BadFilter(String),
     Empty(&'static str),
+    Unsupported(&'static str),
 }
 
 impl fmt::Display for QueryError {
@@ -110,6 +111,7 @@ impl fmt::Display for QueryError {
             Self::BadIdentifier(name) => write!(f, "invalid identifier {name:?}"),
             Self::BadFilter(why) => write!(f, "invalid filter: {why}"),
             Self::Empty(what) => write!(f, "{what} must not be empty"),
+            Self::Unsupported(what) => write!(f, "{what} is not supported by this dialect"),
         }
     }
 }
@@ -124,18 +126,28 @@ pub enum Dialect {
     #[default]
     Postgres,
     Sqlite,
+    Mysql,
 }
 
 /// `name` must be `[A-Za-z_][A-Za-z0-9_]*`; the result is double-quoted.
 pub fn quote(name: &str) -> Result<String, QueryError> {
+    quote_with(name, Dialect::Postgres)
+}
+
+fn quote_with(name: &str, dialect: Dialect) -> Result<String, QueryError> {
     let mut chars = name.chars();
     let valid = chars
         .next()
         .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
         && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
-        && name.len() <= 63;
+        && name.len()
+            <= match dialect {
+                Dialect::Mysql => 64,
+                Dialect::Postgres | Dialect::Sqlite => 63,
+            };
     if valid {
-        Ok(format!("\"{name}\""))
+        let delimiter = if dialect == Dialect::Mysql { '`' } else { '"' };
+        Ok(format!("{delimiter}{name}{delimiter}"))
     } else {
         Err(QueryError::BadIdentifier(name.to_owned()))
     }
@@ -143,12 +155,20 @@ pub fn quote(name: &str) -> Result<String, QueryError> {
 
 /// A column reference: `name` (qualified with `base` when given) or
 /// `alias.name` for a joined table.
-fn column_ref(name: &str, base: Option<&str>) -> Result<String, QueryError> {
+fn column_ref(name: &str, base: Option<&str>, dialect: Dialect) -> Result<String, QueryError> {
     match name.split_once('.') {
-        Some((alias, column)) => Ok(format!("{}.{}", quote(alias)?, quote(column)?)),
+        Some((alias, column)) => Ok(format!(
+            "{}.{}",
+            quote_with(alias, dialect)?,
+            quote_with(column, dialect)?
+        )),
         None => match base {
-            Some(table) => Ok(format!("{}.{}", quote(table)?, quote(name)?)),
-            None => quote(name),
+            Some(table) => Ok(format!(
+                "{}.{}",
+                quote_with(table, dialect)?,
+                quote_with(name, dialect)?
+            )),
+            None => quote_with(name, dialect),
         },
     }
 }
@@ -161,13 +181,16 @@ fn like(column: &str, holder: &str, dialect: Dialect) -> String {
         Dialect::Sqlite => format!(
             "CAST({column} AS TEXT) LIKE '%' || replace(replace(replace({holder}, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%' ESCAPE '\\'"
         ),
+        Dialect::Mysql => format!(
+            "LOWER(CAST({column} AS CHAR)) LIKE CONCAT('%', LOWER(REPLACE(REPLACE(REPLACE({holder}, '\\\\', '\\\\\\\\'), '%', '\\\\%'), '_', '\\\\_')), '%') ESCAPE '\\\\'"
+        ),
     }
 }
 
-fn quote_all(names: &[String]) -> Result<String, QueryError> {
+fn quote_all(names: &[String], dialect: Dialect) -> Result<String, QueryError> {
     Ok(names
         .iter()
-        .map(|n| quote(n))
+        .map(|n| quote_with(n, dialect))
         .collect::<Result<Vec<_>, _>>()?
         .join(", "))
 }
@@ -195,6 +218,7 @@ impl<V: Clone> Builder<V> {
         match self.dialect {
             Dialect::Postgres => format!("${}", self.params.len()),
             Dialect::Sqlite => format!("?{}", self.params.len()),
+            Dialect::Mysql => "?".to_owned(),
         }
     }
 
@@ -214,7 +238,7 @@ impl<V: Clone> Builder<V> {
         if filter.op == Op::ContainsAny {
             return self.contains_any(filter);
         }
-        let column = column_ref(&filter.column, self.base.as_deref())?;
+        let column = column_ref(&filter.column, self.base.as_deref(), self.dialect)?;
         let symbol = match filter.op {
             Op::Eq => "=",
             Op::Ne => "<>",
@@ -271,12 +295,18 @@ impl<V: Clone> Builder<V> {
         };
         let mut columns = Vec::new();
         for name in filter.column.split(',') {
-            columns.push(column_ref(name, self.base.as_deref())?);
+            columns.push(column_ref(name, self.base.as_deref(), self.dialect)?);
         }
-        let holder = self.placeholder(value.clone());
+        let shared_holder =
+            (self.dialect != Dialect::Mysql).then(|| self.placeholder(value.clone()));
         let clauses: Vec<String> = columns
             .iter()
-            .map(|c| like(c, &holder, self.dialect))
+            .map(|column| {
+                let holder = shared_holder
+                    .clone()
+                    .unwrap_or_else(|| self.placeholder(value.clone()));
+                like(column, &holder, self.dialect)
+            })
             .collect();
         Ok(format!("({})", clauses.join(" OR ")))
     }
@@ -295,14 +325,17 @@ impl<V: Clone> Builder<V> {
 
     fn returning(&mut self, columns: &[String]) -> Result<(), QueryError> {
         if !columns.is_empty() {
+            if self.dialect == Dialect::Mysql {
+                return Err(QueryError::Unsupported("RETURNING"));
+            }
             self.sql.push_str(" RETURNING ");
-            self.sql.push_str(&quote_all(columns)?);
+            self.sql.push_str(&quote_all(columns, self.dialect)?);
         }
         Ok(())
     }
 }
 
-fn select_list<V>(q: &Select<V>, joined: bool) -> Result<String, QueryError> {
+fn select_list<V>(q: &Select<V>, joined: bool, dialect: Dialect) -> Result<String, QueryError> {
     if q.count {
         return Ok("count(*)".to_owned());
     }
@@ -313,21 +346,21 @@ fn select_list<V>(q: &Select<V>, joined: bool) -> Result<String, QueryError> {
     let mut parts = q
         .columns
         .iter()
-        .map(|c| column_ref(c, base))
+        .map(|c| column_ref(c, base, dialect))
         .collect::<Result<Vec<_>, _>>()?;
     for join in &q.joins {
         for (index, column) in join.columns.iter().enumerate() {
             parts.push(format!(
                 "{} AS {}",
-                column_ref(&format!("{}.{column}", join.alias), None)?,
-                quote(&format!("{}__{index}", join.alias))?
+                column_ref(&format!("{}.{column}", join.alias), None, dialect)?,
+                quote_with(&format!("{}__{index}", join.alias), dialect)?
             ));
         }
     }
     Ok(parts.join(", "))
 }
 
-fn join_clauses<V>(q: &Select<V>) -> Result<String, QueryError> {
+fn join_clauses<V>(q: &Select<V>, dialect: Dialect) -> Result<String, QueryError> {
     let mut sql = String::new();
     for join in &q.joins {
         if join.alias == q.table {
@@ -339,10 +372,10 @@ fn join_clauses<V>(q: &Select<V>) -> Result<String, QueryError> {
         let kind = if join.left { "LEFT JOIN" } else { "INNER JOIN" };
         sql.push_str(&format!(
             " {kind} {} AS {} ON {} = {}",
-            quote(&join.table)?,
-            quote(&join.alias)?,
-            column_ref(&format!("{}.{}", join.alias, join.remote), None)?,
-            column_ref(&join.local, Some(&q.table))?
+            quote_with(&join.table, dialect)?,
+            quote_with(&join.alias, dialect)?,
+            column_ref(&format!("{}.{}", join.alias, join.remote), None, dialect)?,
+            column_ref(&join.local, Some(&q.table), dialect)?
         ));
     }
     Ok(sql)
@@ -353,14 +386,14 @@ pub fn compile_select<V: Clone>(q: &Select<V>) -> Compiled<V> {
 }
 
 pub fn compile_select_with<V: Clone>(q: &Select<V>, dialect: Dialect) -> Compiled<V> {
-    let table = quote(&q.table)?;
+    let table = quote_with(&q.table, dialect)?;
     let joined = !q.joins.is_empty();
-    let mut columns = select_list(q, joined)?;
+    let mut columns = select_list(q, joined, dialect)?;
     if q.count && dialect == Dialect::Sqlite {
         columns.push_str(" AS \"count\"");
     }
     let mut b = Builder::new(format!("SELECT {columns} FROM {table}"), dialect);
-    b.sql.push_str(&join_clauses(q)?);
+    b.sql.push_str(&join_clauses(q, dialect)?);
     if joined {
         b.base = Some(q.table.clone());
     }
@@ -370,7 +403,7 @@ pub fn compile_select_with<V: Clone>(q: &Select<V>, dialect: Dialect) -> Compile
             .order
             .iter()
             .map(|(c, desc)| {
-                column_ref(c, b.base.as_deref()).map(|c| {
+                column_ref(c, b.base.as_deref(), dialect).map(|c| {
                     if *desc {
                         format!("{c} DESC")
                     } else {
@@ -383,6 +416,8 @@ pub fn compile_select_with<V: Clone>(q: &Select<V>, dialect: Dialect) -> Compile
     }
     if let Some(limit) = q.limit {
         b.sql.push_str(&format!(" LIMIT {limit}"));
+    } else if dialect == Dialect::Mysql && q.offset.is_some() {
+        b.sql.push_str(" LIMIT 18446744073709551615");
     }
     if let Some(offset) = q.offset {
         b.sql.push_str(&format!(" OFFSET {offset}"));
@@ -395,7 +430,7 @@ pub fn compile_insert<V: Clone>(q: &Insert<V>) -> Compiled<V> {
 }
 
 pub fn compile_insert_with<V: Clone>(q: &Insert<V>, dialect: Dialect) -> Compiled<V> {
-    let table = quote(&q.table)?;
+    let table = quote_with(&q.table, dialect)?;
     if q.assignments.is_empty() {
         let mut b = Builder::new(format!("INSERT INTO {table} DEFAULT VALUES"), dialect);
         b.returning(&q.returning)?;
@@ -410,7 +445,7 @@ pub fn compile_insert_with<V: Clone>(q: &Insert<V>, dialect: Dialect) -> Compile
         .collect();
     b.sql = format!(
         "INSERT INTO {table} ({}) VALUES ({})",
-        quote_all(&names)?,
+        quote_all(&names, dialect)?,
         holders.join(", ")
     );
     b.returning(&q.returning)?;
@@ -422,7 +457,7 @@ pub fn compile_update<V: Clone>(q: &Update<V>) -> Compiled<V> {
 }
 
 pub fn compile_update_with<V: Clone>(q: &Update<V>, dialect: Dialect) -> Compiled<V> {
-    let table = quote(&q.table)?;
+    let table = quote_with(&q.table, dialect)?;
     if q.assignments.is_empty() {
         return Err(QueryError::Empty("assignments"));
     }
@@ -431,7 +466,7 @@ pub fn compile_update_with<V: Clone>(q: &Update<V>, dialect: Dialect) -> Compile
     for (column, value) in &q.assignments {
         sets.push(format!(
             "{} = {}",
-            quote(column)?,
+            quote_with(column, dialect)?,
             b.placeholder(value.clone())
         ));
     }
@@ -446,7 +481,10 @@ pub fn compile_delete<V: Clone>(q: &Delete<V>) -> Compiled<V> {
 }
 
 pub fn compile_delete_with<V: Clone>(q: &Delete<V>, dialect: Dialect) -> Compiled<V> {
-    let mut b = Builder::new(format!("DELETE FROM {}", quote(&q.table)?), dialect);
+    let mut b = Builder::new(
+        format!("DELETE FROM {}", quote_with(&q.table, dialect)?),
+        dialect,
+    );
     b.filters(&q.filters)?;
     Ok((b.sql, b.params))
 }
@@ -608,6 +646,64 @@ mod tests {
         let sql = compile_select_with(&query, Dialect::Sqlite).unwrap().0;
         assert!(sql.contains("CAST(\"title\" AS TEXT) LIKE"));
         assert!(sql.ends_with("ESCAPE '\\'"));
+    }
+
+    #[test]
+    fn mysql_uses_backticks_positional_holders_and_concat() {
+        let query = select(vec![
+            f("title", Op::Eq, &[1]),
+            f("body", Op::Contains, &[2]),
+        ]);
+        let (sql, params) = compile_select_with(&query, Dialect::Mysql).unwrap();
+        assert_eq!(
+            sql,
+            "SELECT `id`, `title` FROM `posts` WHERE `title` = ? AND ".to_owned()
+                + "LOWER(CAST(`body` AS CHAR)) LIKE CONCAT('%', LOWER(REPLACE(REPLACE(REPLACE(?, "
+                + "'\\\\', '\\\\\\\\'), '%', '\\\\%'), '_', '\\\\_')), '%') ESCAPE '\\\\'"
+        );
+        assert_eq!(params, vec![1, 2]);
+
+        let insert = Insert {
+            table: "posts".into(),
+            assignments: vec![("title".into(), 1)],
+            returning: vec!["id".into()],
+        };
+        assert_eq!(
+            compile_insert_with(&insert, Dialect::Mysql),
+            Err(QueryError::Unsupported("RETURNING"))
+        );
+    }
+
+    #[test]
+    fn mysql_contains_any_allocates_one_placeholder_per_column() {
+        let query = Select {
+            table: "posts".into(),
+            columns: vec!["id".into()],
+            joins: vec![],
+            filters: vec![Filter {
+                column: "title,body".into(),
+                op: Op::ContainsAny,
+                values: vec!["needle".to_owned()],
+            }],
+            order: vec![],
+            limit: None,
+            offset: None,
+            count: false,
+        };
+        let (sql, params) = compile_select_with(&query, Dialect::Mysql).unwrap();
+        assert!(sql.contains("LOWER(CAST(`title` AS CHAR)) LIKE CONCAT('%', LOWER("));
+        assert!(sql.contains(" OR LOWER(CAST(`body` AS CHAR)) LIKE CONCAT('%', LOWER("));
+        assert_eq!(sql.matches('?').count(), 2);
+        assert_eq!(params, vec!["needle", "needle"]);
+    }
+
+    #[test]
+    fn mysql_offset_without_limit_uses_the_maximum_limit() {
+        let mut query = select(vec![]);
+        query.offset = Some(4);
+        let (sql, params) = compile_select_with(&query, Dialect::Mysql).unwrap();
+        assert!(sql.ends_with(" LIMIT 18446744073709551615 OFFSET 4"));
+        assert!(params.is_empty());
     }
 
     #[test]
