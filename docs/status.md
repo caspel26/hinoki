@@ -14,7 +14,7 @@ The examples are the best way to see the pieces together: [Notes](https://github
 
 * SQLite, PostgreSQL and MySQL are supported ORM databases; SQLite is the local-development default. MySQL has real-server integration coverage in CI. MariaDB, SQL Server and Oracle are not supported, and MySQL compatibility does not imply MariaDB compatibility. See the [database guide](databases.md) for backend-specific TLS, migration and feature limits.
 * Hinoki does not open database connections at import or apply migrations automatically.
-* The ASGI path uses Python for server adaptation and handler calls; selected work is implemented in Rust.
+* The ASGI adapter and application handler calls run in Python. The Rust extension currently provides path matching, selected query/header/cookie parsing, schema validation/serialization, cryptography and SQL ORM compilation/execution.
 * Built-in security settings add browser response headers, HSTS on effective HTTPS requests, and an opt-in `308` HTTPS redirect that requires explicit allowed hosts.
 * Generated typing for some keyword-based ORM calls is less precise than model construction; see [typing](typing.md).
 * Many-to-many links use an explicit model with two foreign keys and a composite uniqueness constraint. Implicit join models, direct collection access such as `post.tags`, and advanced relation paths are not available.
