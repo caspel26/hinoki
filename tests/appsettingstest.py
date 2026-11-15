@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import Access, BearerAuth, Caller, Hinoki, errors, http
+from hinoki import Access, BearerAuth, Caller, Hinoki, Reply, errors, http
 from hinoki.__main__ import main
 from hinoki.runtime.origins import HostPolicy, host_name
 from hinoki.settings import AppSettings, SettingsError
@@ -62,6 +62,23 @@ def problem(**env: str) -> str:
     return str(caught.value)
 
 
+async def raw_request(
+    app: Hinoki, method: str, path: str, headers: list[tuple[bytes, bytes]]
+) -> dict[str, Any]:
+    """The response start for a scope with repeated headers, which the test
+    client cannot send."""
+    sent: list[dict[str, Any]] = []
+
+    async def send(message: dict[str, Any]) -> None:
+        sent.append(message)
+
+    adapter = app.asgi()
+    adapter.lifespan._started = True  # serve without the lifespan protocol
+    scope = {"type": "http", "method": method, "path": path, "query_string": b""}
+    await adapter({**scope, "headers": headers}, None, send)
+    return sent[0]
+
+
 def test_the_defaults_change_nothing() -> None:
     settings = load()
     assert settings.debug is False
@@ -92,12 +109,19 @@ def test_values_load_from_the_environment() -> None:
         "*.example.com",
         "api example.com",
         "-bad.example.com",
+        "1:2",
+        "..:",
+        "::1,[::1]",
     ],
 )
 def test_a_host_entry_is_a_name_not_a_url(hosts: str) -> None:
     message = problem(APP_ALLOWED_HOSTS=hosts)
     assert "APP_: allowed_hosts entries are host names" in message
     assert hosts not in message  # values are never echoed
+
+
+def test_any_host_is_not_mixed_with_names() -> None:
+    assert "'*' must be the only entry" in problem(APP_ALLOWED_HOSTS="*,a.test")
 
 
 def test_ip_addresses_are_host_entries() -> None:
@@ -134,7 +158,19 @@ def test_cors_mistakes_fail_at_load(env: dict[str, str], reason: str) -> None:
         ("api.example.com.", "api.example.com"),
         ("[::1]:8000", "::1"),
         ("[::1]", "::1"),
+        ("[0:0:0:0:0:0:0:1]:80", "::1"),
         ("", ""),
+        ("api.example.com:", ""),
+        ("api.example.com:\u00b2", ""),
+        ("api.example.com:123456", ""),
+        ("evil.test, x.example.org", ""),
+        ("evil.test/.example.org", ""),
+        ("evil.test@x.example.org", ""),
+        ("evil.test x.example.org", ""),
+        ("[evil.test/.example.org]", ""),
+        (".example.org", ""),
+        ("a..example.org", ""),
+        ("[1:2]", ""),
         ("api.example.com:port", ""),
         ("api.example.com:1:2", ""),
         ("[::1", ""),
@@ -147,10 +183,19 @@ def test_the_host_header_is_reduced_to_its_name(header: str, name: str) -> None:
 
 
 def test_host_patterns_match_exact_names_and_subdomains() -> None:
-    policy = HostPolicy.of(load(APP_ALLOWED_HOSTS="api.example.com,.example.org,::1"))
+    policy = HostPolicy.of(
+        load(APP_ALLOWED_HOSTS="api.example.com,.example.org,0:0:0:0:0:0:0:1")
+    )
     assert policy is not None
     allowed = ["api.example.com", "example.org", "a.b.example.org:80", "[::1]:8000"]
-    refused = ["example.com", "evil-example.org", "api.example.com.evil.test", ""]
+    refused = [
+        "example.com",
+        "evil-example.org",
+        "api.example.com.evil.test",
+        "evil.test/.example.org",
+        "evil.test, x.example.org",
+        "",
+    ]
     assert all(policy.allows(host) for host in allowed)
     assert not any(policy.allows(host) for host in refused)
     assert HostPolicy.of(load()) is None  # any host: nothing to check
@@ -168,6 +213,12 @@ async def test_a_disallowed_host_is_refused_before_authentication() -> None:
             assert refused.body["error"] == "disallowed_host"
             assert "evil.test" not in json.dumps(refused.body)
         assert (await client.get("/ping")).status == 400  # no Host header at all
+
+
+async def test_two_host_headers_never_pass_the_check() -> None:
+    app = app_of(APP_ALLOWED_HOSTS=".example.org")
+    hosts = [(b"host", b"evil.test"), (b"host", b"x.example.org")]
+    assert (await raw_request(app, "GET", "/ping", hosts))["status"] == 400
 
 
 async def test_cors_is_off_until_an_origin_is_configured() -> None:
@@ -200,8 +251,36 @@ async def test_an_allowed_origin_can_read_responses_and_errors() -> None:
             other = await client.get("/ping", headers={"origin": origin})
             assert other.status == 200  # served; the browser blocks the read
             assert "access-control-allow-origin" not in other.headers
+            assert other.headers["vary"] == "origin"  # caches keep them apart
         plain = await client.get("/ping")
         assert "access-control-allow-origin" not in plain.headers
+        assert plain.headers["vary"] == "origin"
+
+
+@http.get("/own")
+async def own_cors() -> Reply:
+    return Reply(200, b"x", headers=[("Access-Control-Allow-Origin", "https://o.test")])
+
+
+async def test_an_answer_with_its_own_cors_headers_keeps_them() -> None:
+    app = Hinoki(settings=load(APP_CORS__ORIGINS=APP), include=[own_cors])
+    start = await raw_request(app, "GET", "/own", [(b"origin", APP.encode())])
+    allow = [v for k, v in start["headers"] if k == b"access-control-allow-origin"]
+    assert allow == [b"https://o.test"]
+
+
+async def test_two_origin_headers_are_not_an_allowed_origin() -> None:
+    app = app_of(APP_CORS__ORIGINS=APP, APP_CORS__CREDENTIALS="true")
+    headers = [
+        (b"origin", APP.encode()),
+        (b"origin", b"https://evil.test"),
+        (b"access-control-request-method", b"GET"),
+    ]
+    start = await raw_request(app, "OPTIONS", "/ping", headers)
+    names = {name for name, _ in start["headers"]}
+    assert start["status"] == 403
+    assert b"access-control-allow-origin" not in names
+    assert b"access-control-allow-credentials" not in names
 
 
 async def test_any_origin_is_answered_with_a_wildcard() -> None:
@@ -229,6 +308,7 @@ async def test_a_preflight_is_answered_without_reaching_the_route() -> None:
         )
         assert (denied.status, denied.body["error"]) == (403, "cors_origin_denied")
         assert "access-control-allow-origin" not in denied.headers
+        assert denied.headers["vary"] == "origin"
         # Not a preflight: no Access-Control-Request-Method, or no Origin.
         for headers in ({"origin": APP}, {"access-control-request-method": "GET"}):
             plain = await client.request("OPTIONS", "/ping", headers=headers)
