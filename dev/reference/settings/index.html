@@ -1058,6 +1058,52 @@ The message is shown in <code>SettingsError</code>: never put a field's value in
 
 </div>
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ExecutionSettings.max_query_bytes" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">max_query_bytes</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ExecutionSettings.max_query_bytes" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">max_query_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8192</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ExecutionSettings.max_header_bytes" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">max_header_bytes</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ExecutionSettings.max_header_bytes" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">max_header_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">32768</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
 
 
 
@@ -1664,6 +1710,75 @@ call again, it replaces its own handler.</p>
 
 <a href="#hinoki.settings.ServerSettings.access_log" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">access_log</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.trusted_proxies" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">trusted_proxies</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.trusted_proxies" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">trusted_proxies</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.request_id_header" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">request_id_header</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.request_id_header" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">request_id_header</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'x-request-id'</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.trust_request_id" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">trust_request_id</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.trust_request_id" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">trust_request_id</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2409,7 +2524,7 @@ call again, it replaces its own handler.</p>
           </li><li><a href="#hinoki.settings.SettingsError">SettingsError</a></li><li><a href="#hinoki.settings.AppSettings">AppSettings</a>
             <ul><li><a href="#hinoki.settings.AppSettings.execution">execution</a></li><li><a href="#hinoki.settings.AppSettings.lifecycle">lifecycle</a></li><li><a href="#hinoki.settings.AppSettings.logging">logging</a></li><li><a href="#hinoki.settings.AppSettings.docs">docs</a></li><li><a href="#hinoki.settings.AppSettings.server">server</a></li><li><a href="#hinoki.settings.AppSettings.pagination">pagination</a></li><li><a href="#hinoki.settings.AppSettings.cors">cors</a></li><li><a href="#hinoki.settings.AppSettings.security">security</a></li><li><a href="#hinoki.settings.AppSettings.timezone">timezone</a></li><li><a href="#hinoki.settings.AppSettings.debug">debug</a></li><li><a href="#hinoki.settings.AppSettings.allowed_hosts">allowed_hosts</a></li><li><a href="#hinoki.settings.AppSettings.runtime_config">runtime_config</a></li></ul>
           </li><li><a href="#hinoki.settings.ExecutionSettings">ExecutionSettings</a>
-            <ul><li><a href="#hinoki.settings.ExecutionSettings.sync_workers">sync_workers</a></li><li><a href="#hinoki.settings.ExecutionSettings.sync_queue">sync_queue</a></li><li><a href="#hinoki.settings.ExecutionSettings.request_timeout">request_timeout</a></li><li><a href="#hinoki.settings.ExecutionSettings.max_body_bytes">max_body_bytes</a></li></ul>
+            <ul><li><a href="#hinoki.settings.ExecutionSettings.sync_workers">sync_workers</a></li><li><a href="#hinoki.settings.ExecutionSettings.sync_queue">sync_queue</a></li><li><a href="#hinoki.settings.ExecutionSettings.request_timeout">request_timeout</a></li><li><a href="#hinoki.settings.ExecutionSettings.max_body_bytes">max_body_bytes</a></li><li><a href="#hinoki.settings.ExecutionSettings.max_query_bytes">max_query_bytes</a></li><li><a href="#hinoki.settings.ExecutionSettings.max_header_bytes">max_header_bytes</a></li></ul>
           </li><li><a href="#hinoki.settings.LifecycleSettings">LifecycleSettings</a>
             <ul><li><a href="#hinoki.settings.LifecycleSettings.startup_timeout">startup_timeout</a></li><li><a href="#hinoki.settings.LifecycleSettings.shutdown_timeout">shutdown_timeout</a></li></ul>
           </li><li><a href="#hinoki.settings.LoggingSettings">LoggingSettings</a>
@@ -2417,7 +2532,7 @@ call again, it replaces its own handler.</p>
           </li><li><a href="#hinoki.settings.DocsSettings">DocsSettings</a>
             <ul><li><a href="#hinoki.settings.DocsSettings.title">title</a></li><li><a href="#hinoki.settings.DocsSettings.version">version</a></li><li><a href="#hinoki.settings.DocsSettings.openapi_url">openapi_url</a></li><li><a href="#hinoki.settings.DocsSettings.docs_url">docs_url</a></li><li><a href="#hinoki.settings.DocsSettings.redoc_url">redoc_url</a></li></ul>
           </li><li><a href="#hinoki.settings.ServerSettings">ServerSettings</a>
-            <ul><li><a href="#hinoki.settings.ServerSettings.host">host</a></li><li><a href="#hinoki.settings.ServerSettings.port">port</a></li><li><a href="#hinoki.settings.ServerSettings.workers">workers</a></li><li><a href="#hinoki.settings.ServerSettings.runtime_threads">runtime_threads</a></li><li><a href="#hinoki.settings.ServerSettings.backlog">backlog</a></li><li><a href="#hinoki.settings.ServerSettings.access_log">access_log</a></li></ul>
+            <ul><li><a href="#hinoki.settings.ServerSettings.host">host</a></li><li><a href="#hinoki.settings.ServerSettings.port">port</a></li><li><a href="#hinoki.settings.ServerSettings.workers">workers</a></li><li><a href="#hinoki.settings.ServerSettings.runtime_threads">runtime_threads</a></li><li><a href="#hinoki.settings.ServerSettings.backlog">backlog</a></li><li><a href="#hinoki.settings.ServerSettings.access_log">access_log</a></li><li><a href="#hinoki.settings.ServerSettings.trusted_proxies">trusted_proxies</a></li><li><a href="#hinoki.settings.ServerSettings.request_id_header">request_id_header</a></li><li><a href="#hinoki.settings.ServerSettings.trust_request_id">trust_request_id</a></li></ul>
           </li><li><a href="#hinoki.settings.PaginationSettings">PaginationSettings</a>
             <ul><li><a href="#hinoki.settings.PaginationSettings.page_size">page_size</a></li><li><a href="#hinoki.settings.PaginationSettings.max_page_size">max_page_size</a></li></ul>
           </li><li><a href="#hinoki.settings.CorsSettings">CorsSettings</a>
@@ -2433,7 +2548,7 @@ call again, it replaces its own handler.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.9</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 03:54:26 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/settings.md">Edit on GitHub</a></dd></div>
         </dl>

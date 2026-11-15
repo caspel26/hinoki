@@ -386,13 +386,19 @@
         <h1 id="endpoints">Endpoints<a class="headerlink" href="#endpoints" title="Permanent link">&para;</a></h1>
 <p>Hinoki endpoints are ordinary Python functions decorated with an HTTP method. The decorator records metadata; <code>Hinoki.include(...)</code> registers the function or an <code>API</code> class. The registered declarations also supply the generated <a href="../openapi/">OpenAPI document</a>.</p>
 <h2 id="declare-an-action">Declare an action<a class="headerlink" href="#declare-an-action" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">errors</span><span class="p">,</span> <span class="n">http</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
 
 
-<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">,</span> <span class="n">transaction</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">NotFound</span><span class="p">,))</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_task</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">TaskInput</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskOutput</span><span class="p">:</span>
-    <span class="n">row</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">TaskOutput</span><span class="o">.</span><span class="n">from_model</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Greeting</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/greetings"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">greet</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">Greeting</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Greeting</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">data</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">greet</span><span class="p">])</span>
 </code></pre></div>
 <p>Use <code>@http.get</code>, <code>@http.post</code>, <code>@http.put</code>, <code>@http.patch</code>, <code>@http.delete</code> or <code>@http.query</code> (<code>from hinoki import http</code>). Hinoki also answers <code>HEAD</code> through each <code>GET</code> route: it runs the GET response path and returns the same status and representation headers without a body. The GET handler therefore runs for HEAD requests too. A <code>405</code> response's <code>Allow</code> header includes <code>HEAD</code> whenever <code>GET</code> is available. Supported decorator arguments include <code>status</code>, <code>access</code>, <code>transaction</code>, <code>pagination</code>, <code>parsers</code>, <code>renderers</code>, <code>errors</code> and <code>replaces</code>. Each is checked when the route is declared or registered.</p>
 <h2 id="read-with-a-body-httpquery">Read with a body: <code>@http.query</code><a class="headerlink" href="#read-with-a-body-httpquery" title="Permanent link">&para;</a></h2>
@@ -592,7 +598,7 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   examples.blog.api.Pos
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.10</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:01:56 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>

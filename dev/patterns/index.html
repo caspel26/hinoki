@@ -321,7 +321,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 <p><code>hinoki migrations plan</code> writes reviewable SQL and a state file; destructive operations are flagged and need <code>--allow-destructive</code>; adding a NOT NULL column without a default is flagged. Review the SQL like code, apply with <code>migrations apply</code> against a disposable database first.</p>
 <h2 id="8-testing">8. Testing<a class="headerlink" href="#8-testing" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Behaviour tests against a <strong>disposable PostgreSQL</strong> (<code>HINOKI_TEST_DATABASE_URL</code>); a green run without it proves nothing about the database layer.</li>
+<li>Run the database tests against disposable servers for the backends you support: PostgreSQL uses <code>HINOKI_TEST_DATABASE_URL</code>, with separate migration conformance runs for MySQL (<code>HINOKI_TEST_MYSQL_URL</code>) and MariaDB (<code>HINOKI_TEST_MARIADB_URL</code>). Without a URL, tests that require that backend are skipped; read the skip summary and do not treat another backend's green run as conformance for it.</li>
 <li>Drive the application through the ASGI harness (no sockets) for HTTP behaviour; test operations directly.</li>
 <li>For security code, use independent test vectors and known expected outputs; inject the clock (<code>JWTAuth.now</code>) so tests do not depend on elapsed time.</li>
 <li>Look at rendered UI in real browsers (<code>tests/browser/verify.py</code>) before calling it done.</li>
@@ -375,7 +375,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.3</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:48:24 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/patterns.md">Edit on GitHub</a></dd></div>
         </dl>

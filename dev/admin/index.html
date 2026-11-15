@@ -384,8 +384,13 @@
       <article class="prose" style="--sheet: '3.25'">
         <p class="kicker" data-search-exclude>3.25 · Guides</p>
         <h1 id="the-admin">The admin<a class="headerlink" href="#the-admin" title="Permanent link">&para;</a></h1>
-<p>An optional extra (<code>hinoki.admin</code>) that gives staff a list, search, create, edit, bulk delete and a dashboard for your models, with the same access policies and CSRF protection as the rest of the app. Nothing is mounted unless you ask, and importing it never touches a database.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">Admin</span><span class="p">,</span> <span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">Badge</span><span class="p">,</span> <span class="n">Tab</span><span class="p">,</span> <span class="n">Fieldset</span>
+<p>The optional <code>hinoki.admin</code> module gives staff a list, search, create, edit, bulk delete and a dashboard for your models, with the same access policies and CSRF protection as the rest of the app. It is included in the framework package; nothing is mounted unless you ask, and importing it never touches a database.</p>
+<p>The following excerpt follows the <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/adminsite.py">Blog admin module</a>. The <code>PostAdmin</code> class configures the model; <code>build_admin()</code> creates the cookie-authenticated <code>editors</code> policy, registers the class and returns the <code>Admin</code>. The app factory mounts that API. The snippet shows the relevant imports and function context; consult the linked module for the complete cookie-auth implementation.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.blog.adminsite</span><span class="w"> </span><span class="kn">import</span> <span class="n">CookieAuth</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">examples.blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">examples.blog.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">WRITE</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Access</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">Admin</span><span class="p">,</span> <span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">Badge</span><span class="p">,</span> <span class="n">Tab</span><span class="p">,</span> <span class="n">Fieldset</span>
 
 <span class="k">class</span><span class="w"> </span><span class="nc">PostAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">[</span><span class="n">Post</span><span class="p">]):</span>
     <span class="n">label</span> <span class="o">=</span> <span class="s2">"Posts"</span>
@@ -399,10 +404,17 @@
     <span class="n">tabs</span> <span class="o">=</span> <span class="p">(</span><span class="n">Tab</span><span class="p">(</span><span class="s2">"Published"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"published"</span><span class="p">:</span> <span class="kc">True</span><span class="p">}),</span> <span class="n">Tab</span><span class="p">(</span><span class="s2">"Drafts"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"published"</span><span class="p">:</span> <span class="kc">False</span><span class="p">}))</span>
     <span class="n">fieldsets</span> <span class="o">=</span> <span class="p">(</span><span class="n">Fieldset</span><span class="p">(</span><span class="s2">"Organization"</span><span class="p">,</span> <span class="p">(</span><span class="s2">"author_id"</span><span class="p">,</span> <span class="s2">"published"</span><span class="p">)),)</span>
 
-<span class="n">admin</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">access</span><span class="o">=</span><span class="n">editors</span><span class="p">,</span> <span class="n">secret</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">admin_secret</span><span class="o">.</span><span class="n">reveal</span><span class="p">(),</span>
-              <span class="n">prefix</span><span class="o">=</span><span class="s2">"/admin"</span><span class="p">,</span> <span class="n">theme</span><span class="o">=</span><span class="s2">"studio"</span><span class="p">,</span> <span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">)</span>
-<span class="n">admin</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">PostAdmin</span><span class="p">,</span> <span class="n">slug</span><span class="o">=</span><span class="s2">"posts"</span><span class="p">)</span>
-<span class="n">app</span><span class="o">.</span><span class="n">include</span><span class="p">(</span><span class="n">admin</span><span class="o">.</span><span class="n">api</span><span class="p">())</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_admin</span><span class="p">(</span><span class="n">secret</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">theme</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"studio"</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Admin</span><span class="p">:</span>
+    <span class="n">editors</span> <span class="o">=</span> <span class="n">Access</span><span class="p">(</span><span class="n">auth</span><span class="o">=</span><span class="n">CookieAuth</span><span class="p">(),</span> <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">WRITE</span><span class="p">])</span>
+    <span class="n">admin</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span>
+        <span class="n">access</span><span class="o">=</span><span class="n">editors</span><span class="p">,</span>
+        <span class="n">secret</span><span class="o">=</span><span class="n">secret</span><span class="p">,</span>
+        <span class="n">prefix</span><span class="o">=</span><span class="s2">"/admin"</span><span class="p">,</span>
+        <span class="n">theme</span><span class="o">=</span><span class="n">theme</span><span class="p">,</span>
+        <span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">admin</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">PostAdmin</span><span class="p">,</span> <span class="n">slug</span><span class="o">=</span><span class="s2">"posts"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">admin</span>
 </code></pre></div>
 <p><code>search</code> names the columns the list's search box and the global search look in: a row matches when any of them contains the typed text, compared case-insensitively as text (so a number or date column matches on its printed form). Without <code>search</code> the box is inert.</p>
 <p>Row visibility, field assignment and which columns are shown are decided in the admin class; hooks (<code>queryset</code>, <code>can</code>, <code>display</code>, <code>stats</code>, <code>check</code>, <code>save</code>, <code>remove</code>) override what you need. <code>queryset(principal)</code> is the primary way to decide which rows a caller sees: counts and page numbers come from it. <code>can(principal, "view", row)</code> is also applied row by row to what a list page or the dashboard fetched, so a denied row is not shown; it can only trim the page already fetched, so a page may hold fewer rows than <code>per_page</code> and the totals still count the queryset. Mass assignment, excluded columns and out-of-scope rows are refused by the framework, and every form carries a signed CSRF token bound to the signed-in subject.</p>
@@ -525,8 +537,8 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.25</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 20:57:56 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>4 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -387,7 +387,10 @@
 <p>Hinoki has two useful levels of application tests: call the operation functions directly, then exercise the app through its ASGI interface.</p>
 <h2 id="test-the-application-over-asgi">Test the application over ASGI<a class="headerlink" href="#test-the-application-over-asgi" title="Permanent link">&para;</a></h2>
 <p><code>ASGIClient</code> drives startup, HTTP requests and shutdown without opening a network socket:</p>
-<div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">with</span> <span class="n">ASGIClient</span><span class="p">(</span><span class="n">create_app</span><span class="p">(</span><span class="n">TEST_DATABASE_URL</span><span class="p">),</span> <span class="n">strict_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ASGIClient</span>
+
+<span class="c1"># create_app and TEST_DATABASE_URL come from the application under test.</span>
+<span class="k">async</span> <span class="k">with</span> <span class="n">ASGIClient</span><span class="p">(</span><span class="n">create_app</span><span class="p">(</span><span class="n">TEST_DATABASE_URL</span><span class="p">),</span> <span class="n">strict_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
     <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"title"</span><span class="p">:</span> <span class="s2">"Write docs"</span><span class="p">},</span> <span class="n">token</span><span class="o">=</span><span class="s2">"member"</span><span class="p">)</span>
     <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">201</span>
 </code></pre></div>
@@ -415,7 +418,7 @@ cargo<span class="w"> </span>fmt<span class="w"> </span>--all<span class="w"> </
 cargo<span class="w"> </span>clippy<span class="w"> </span>--workspace<span class="w"> </span>--all-targets<span class="w"> </span>--<span class="w"> </span>-D<span class="w"> </span>warnings
 cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace
 </code></pre></div>
-<p>Database-dependent Python and Rust tests require <code>HINOKI_TEST_DATABASE_URL</code>; without it those tests are skipped. CI provides a disposable PostgreSQL service. See <a href="../toolchain/">toolchain and CI</a> for packaging and docs checks too.</p>
+<p>PostgreSQL-dependent Python and Rust tests require <code>HINOKI_TEST_DATABASE_URL</code>; without it those tests are skipped. Migration conformance tests for MySQL and MariaDB also require <code>HINOKI_TEST_MYSQL_URL</code> and <code>HINOKI_TEST_MARIADB_URL</code>, respectively. CI provides disposable real-server services. See <a href="../toolchain/">toolchain and CI</a> for packaging and docs checks too.</p>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
@@ -445,7 +448,7 @@ cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.22</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 01:22:24 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/testing.md">Edit on GitHub</a></dd></div>
         </dl>

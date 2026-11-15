@@ -384,45 +384,45 @@
       <article class="prose" style="--sheet: '3.15'">
         <p class="kicker" data-search-exclude>3.15 · Guides</p>
         <h1 id="parsers-and-renderers">Parsers and renderers<a class="headerlink" href="#parsers-and-renderers" title="Permanent link">&para;</a></h1>
-<p>A <strong>parser</strong> turns a request body into Python data; a <strong>renderer</strong> turns a handler's result into response bytes. The built-in ones run in Rust and are the base classes you inherit from.</p>
+<p>A <strong>parser</strong> turns a request body into Python data; a <strong>renderer</strong> turns a handler's result into response bytes. Built-ins use Rust for selected parsing and JSON encoding work; Python still selects codecs, calls customization hooks and assembles framework objects.</p>
 <table>
 <thead>
 <tr>
 <th>Built in</th>
-<th>Rust does</th>
-<th>You can customise</th>
+<th>Rust work</th>
+<th>Python work and options</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>JSONParser</code></td>
-<td>strict decoding (no NaN, no lone surrogates, depth limit)</td>
-<td><code>prepare(data)</code> hook, <code>media_type</code></td>
+<td>Strict JSON decoding (no NaN, no lone surrogates, depth limit)</td>
+<td><code>prepare(data)</code> hook and <code>media_type</code></td>
 </tr>
 <tr>
 <td><code>FormParser</code></td>
-<td><code>application/x-www-form-urlencoded</code> decoding with a field cap</td>
-<td><code>max_fields</code></td>
+<td><code>application/x-www-form-urlencoded</code> parsing with a field cap</td>
+<td>Builds the Python mappings; <code>max_fields</code></td>
 </tr>
 <tr>
 <td><code>MultiPartParser</code></td>
-<td><code>multipart/form-data</code> (limits, hardening)</td>
-<td>part and file limits</td>
+<td><code>multipart/form-data</code> parsing and byte/part limits</td>
+<td>Builds <code>UploadedFile</code> and form objects; <code>max_parts</code>, <code>max_part_bytes</code></td>
 </tr>
 <tr>
 <td><code>TextParser</code></td>
-<td>UTF-8 text body</td>
-<td><code>media_type</code></td>
+<td>—</td>
+<td>Decodes UTF-8 in Python; <code>media_type</code></td>
 </tr>
 <tr>
 <td><code>JSONRenderer</code></td>
-<td>encoding of dicts, lists, <code>Schema</code>, UUID, datetime, <code>dump()</code> objects</td>
-<td><code>indent</code>, <code>sort_keys</code>, <code>default</code>, <code>prepare(value, request)</code> hook, <code>media_type</code></td>
+<td>Encodes <code>dict</code>, <code>list</code>, <code>Schema</code>, UUID, datetime and <code>dump()</code> objects</td>
+<td><code>prepare(value, request)</code> and <code>default</code> callbacks run in Python; <code>indent</code>, <code>sort_keys</code>, <code>media_type</code></td>
 </tr>
 <tr>
 <td><code>HTMLRenderer</code>, <code>TextRenderer</code></td>
-<td>(UTF-8 text)</td>
-<td><code>media_type</code></td>
+<td>—</td>
+<td>Type-check and UTF-8 encode strings in Python; <code>media_type</code></td>
 </tr>
 </tbody>
 </table>
@@ -437,11 +437,11 @@
 <span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/hook"</span><span class="p">,</span> <span class="n">parsers</span><span class="o">=</span><span class="p">[</span><span class="n">JSONParser</span><span class="p">(),</span> <span class="n">TextParser</span><span class="p">()])</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">hook</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>   <span class="c1"># request.data is a dict or a str</span>
 </code></pre></div>
-<h2 id="customise-without-leaving-rust">Customise without leaving Rust<a class="headerlink" href="#customise-without-leaving-rust" title="Permanent link">&para;</a></h2>
+<h2 id="configure-the-rust-json-encoder">Configure the Rust JSON encoder<a class="headerlink" href="#configure-the-rust-json-encoder" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="n">JSONRenderer</span><span class="p">(</span><span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>                 <span class="c1"># pretty, stable output</span>
 <span class="n">JSONRenderer</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="nb">str</span><span class="p">)</span>                              <span class="c1"># Decimal, Path, ... become text</span>
 </code></pre></div>
-<p><code>default</code> is called for a value the encoder does not know and must return something that is JSON (returning the same object is an error). It does not override what the encoder already handles (UUID, datetime, <code>Schema</code>, anything with <code>dump()</code>). With <code>sort_keys=True</code> object keys are ordered by their encoded text (quotes and escapes included), which is deterministic but not always <code>json.dumps</code> order for unusual keys, and integer keys sort as text. <code>indent</code> is 0 to 256 (the renderer allows 0 to 16).</p>
+<p><code>default</code> is a Python callback for a value the encoder does not know and must return something that is JSON (returning the same object is an error). It does not override what the encoder already handles (UUID, datetime, <code>Schema</code>, anything with <code>dump()</code>). With <code>sort_keys=True</code> object keys are ordered by their encoded text (quotes and escapes included), which is deterministic but not always <code>json.dumps</code> order for unusual keys, and integer keys sort as text. The public renderer accepts <code>indent</code> from 0 to 16, or <code>None</code> for compact output.</p>
 <h2 id="inherit-and-override">Inherit and override<a class="headerlink" href="#inherit-and-override" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Envelope</span><span class="p">(</span><span class="n">JSONRenderer</span><span class="p">):</span>
     <span class="n">media_type</span> <span class="o">=</span> <span class="s2">"application/vnd.myapp+json"</span>
@@ -471,14 +471,14 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#choose-them">Choose them</a></li><li><a href="#customise-without-leaving-rust">Customise without leaving Rust</a></li><li><a href="#inherit-and-override">Inherit and override</a></li></ul>
+            <ul><li><a href="#choose-them">Choose them</a></li><li><a href="#configure-the-rust-json-encoder">Configure the Rust JSON encoder</a></li><li><a href="#inherit-and-override">Inherit and override</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.15</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 13:28:57 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/codecs.md">Edit on GitHub</a></dd></div>
         </dl>

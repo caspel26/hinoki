@@ -224,7 +224,7 @@
       <article class="prose" style="--sheet: '1.1'">
         <p class="kicker" data-search-exclude>1.1 · Get started</p>
         <h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
-<p>Hinoki is pre-alpha and is not published on PyPI. Install it from its public repository with <a href="https://docs.astral.sh/uv/">uv</a> and a stable Rust toolchain:</p>
+<p>Hinoki is pre-alpha and this repository is not published on PyPI. The <a href="https://pypi.org/project/hinoki/"><code>hinoki</code> project name</a> currently resolves to an unrelated legacy package. Install this repository from source with <a href="https://docs.astral.sh/uv/">uv</a> and a stable Rust toolchain:</p>
 <div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/caspel26/hinoki
 <span class="nb">cd</span><span class="w"> </span>hinoki
 uv<span class="w"> </span>sync<span class="w"> </span>--locked
@@ -237,7 +237,7 @@ uv<span class="w"> </span>sync<span class="w"> </span>--locked
 uv<span class="w"> </span>sync
 uv<span class="w"> </span>run<span class="w"> </span>pytest
 </code></pre></div>
-<p>The generated project includes a health route, a test that needs no database, a <code>README.md</code> with its commands and a development MCP configuration. Review <code>AGENTS.md</code> for its project commands and conventions. <code>pyproject.toml</code> names where <code>uv</code> finds Hinoki, since it is not on PyPI; see <a href="../cli/#new"><code>hinoki new</code></a> to choose a checkout or a git revision with <code>--hinoki</code>.</p>
+<p>The generated project includes a health route, a test that needs no database, a <code>README.md</code> with its commands and a development MCP configuration. Review <code>AGENTS.md</code> for its project commands and conventions. <code>pyproject.toml</code> names this repository as the source for <code>uv</code>, so it does not install the unrelated package by name; see <a href="../cli/#new"><code>hinoki new</code></a> to choose a checkout or a git revision with <code>--hinoki</code>.</p>
 <p>Continue with the <a href="../quick-start/">Quick start</a> to run the Notes API, create its table with a reviewed migration and make a request.</p>
         
       </article>
@@ -263,7 +263,7 @@ uv<span class="w"> </span>run<span class="w"> </span>pytest
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>1.1</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 15:02:25 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/getting-started.md">Edit on GitHub</a></dd></div>
         </dl>

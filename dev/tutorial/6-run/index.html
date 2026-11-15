@@ -273,12 +273,17 @@
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">TRACKER_DATABASE_URL</span><span class="o">=</span><span class="s1">'postgresql://user:password@127.0.0.1:5432/tracker'</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$TRACKER_DATABASE_URL</span><span class="s2">"</span>
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/tracker/migrations<span class="w"> </span>plan<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--models<span class="w"> </span>examples.tracker.models<span class="w"> </span>--name<span class="w"> </span>initial
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/tracker/migrations<span class="w"> </span>status
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/tracker/migrations<span class="w"> </span>sql<span class="w"> </span><span class="m">0001</span>-initial
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/tracker/migrations<span class="w"> </span>sql<span class="w"> </span><span class="m">0002</span>-indexes
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>examples/tracker/migrations<span class="w"> </span>apply
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w"> </span>examples.tracker.app:create_app
 </code></pre></div>
-<p>Review the generated migration before applying it to a disposable database.
+<p>The Tracker example already includes its initial and index migrations, so this
+command sequence inspects and applies those checked-in files. After changing a
+model, generate a new migration with <code>plan</code> and review its SQL before applying
+it to a disposable database; do not expect <code>plan --name initial</code> to recreate
+the existing initial migration.
 <code>dev</code> reloads on change; <code>serve</code> runs without reload and takes host, port and
 workers from the <code>server</code> settings (<a href="../../serving/">serving</a>). Open <code>/docs</code> or
 <code>/redoc</code>.</p>
@@ -342,7 +347,7 @@ declare. For tests without <code>async</code>, use <code>SyncClient</code>.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.7</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:02:01 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/6-run.md">Edit on GitHub</a></dd></div>
         </dl>
