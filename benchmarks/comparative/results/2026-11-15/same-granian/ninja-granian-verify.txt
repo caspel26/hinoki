@@ -1,0 +1,10 @@
+== ninja-granian
+list:
+  1x SELECT COUNT(*) AS "__count" FROM "posts" WHERE "posts"."published"
+  1x SELECT "posts"."id", "posts"."author_id", "posts"."title", "posts"."body", "posts"."published", "posts"."created_at", "authors"."id", "authors"."name"
+detail:
+  1x SELECT "posts"."id", "posts"."author_id", "posts"."title", "posts"."body", "posts"."published", "posts"."created_at", "authors"."id", "authors"."name"
+create:
+  1x INSERT INTO "posts" ("id", "author_id", "title", "body", "published", "created_at") VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::timestamptz)
+  1x SELECT "authors"."id", "authors"."name" FROM "authors" WHERE "authors"."id" = $1::uuid LIMIT $2
+OK: behaviour and statement counts match the oracle
