@@ -172,7 +172,9 @@ action and becomes immutable after successful inclusion.
 ## Organising a large application
 
 When the ordinary list/retrieve/create/update/delete routes fit a model,
-`CrudAPI` can generate them from a `Resource`. Start with
+`CrudAPI` can generate them from a model and schemas declared on one API class.
+Mount that class once in `Hinoki`; generated and handwritten decorated actions
+can share it. Start with
 [Generate CRUD routes](crud.md); use handwritten actions for domain workflows
 or to replace an individual generated action.
 
