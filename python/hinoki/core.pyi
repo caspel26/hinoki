@@ -182,7 +182,7 @@ class ServerCore:
         self,
         routes: list[RouteSpec],
         early_bodies: list[tuple[str, bytes]],
-        policy: list[tuple[bytes, bytes]],
+        policies: tuple[list[tuple[bytes, bytes]], list[tuple[bytes, bytes]]],
         request_id_name: bytes,
         request_id_prefix: str,
         limits: tuple[int, int, int, int] = ...,
@@ -190,6 +190,7 @@ class ServerCore:
         trust_request_id: bool = False,
         defer_policies: bool = False,
         python_paths: list[str] = ...,
+        cors: tuple[bool, list[bytes], bool, bytes] | None = None,
     ) -> None: ...
     def set_ready(self, ready: bool) -> None: ...
     @property
@@ -205,4 +206,6 @@ class ServerCore:
         path: str,
         query: bytes,
         headers: list[tuple[bytes, bytes]],
+        trusted: bool = False,
+        https: bool = False,
     ) -> Submission: ...

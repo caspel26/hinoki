@@ -9,6 +9,7 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 
+use hinoki_server::cors::Cors;
 use hinoki_server::early::BodyError;
 use hinoki_server::headers::{final_headers, Header};
 use hinoki_server::queue::Push;
@@ -22,6 +23,7 @@ use tokio::sync::oneshot;
 
 use crate::router::{Match, Router};
 
+#[derive(Clone)]
 struct Reply {
     status: u16,
     headers: Vec<Header>,
@@ -50,7 +52,7 @@ pub struct PreparedRequest {
     needs_headers: bool,
     params: Vec<(String, String)>,
     reply: Mutex<Option<oneshot::Sender<Reply>>>,
-    _permit: Permit,
+    permit: Mutex<Option<Permit>>,
 }
 
 #[pymethods]
@@ -111,6 +113,11 @@ impl PreparedRequest {
     /// Complete the request with the final status, headers and body. Returns
     /// `False` when it was already completed or nobody is waiting any more.
     fn respond(&self, status: u16, headers: Vec<(Vec<u8>, Vec<u8>)>, body: &[u8]) -> bool {
+        // The slot is free as soon as the answer is given, not when Python lets
+        // go of this object.
+        if let Ok(mut permit) = self.permit.lock() {
+            permit.take();
+        }
         let sender = self.reply.lock().ok().and_then(|mut slot| slot.take());
         sender.is_some_and(|tx| {
             tx.send(Reply {
@@ -129,6 +136,7 @@ pub struct Submission {
     early: Option<Reply>,
     wake: bool,
     receiver: Mutex<Option<oneshot::Receiver<Reply>>>,
+    delivered: Mutex<Option<Reply>>,
 }
 
 #[pymethods]
@@ -145,16 +153,28 @@ impl Submission {
         self.wake
     }
 
-    /// The answer given through `respond`, if it has arrived (never blocks).
+    /// The answer given through `respond`, once it has arrived (never blocks);
+    /// the same answer on every later call. `None` while it is pending. Raises
+    /// `RuntimeError` when the request was dropped without being answered, so a
+    /// poller does not wait for an answer that will never come.
     fn reply<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
-        let mut slot = self.receiver.lock().map_err(|_| poisoned())?;
-        let Some(receiver) = slot.as_mut() else {
-            return Ok(None);
-        };
-        match receiver.try_recv() {
-            Ok(reply) => reply_to_py(py, &reply).map(Some),
-            Err(_) => Ok(None),
+        let mut delivered = self.delivered.lock().map_err(|_| poisoned())?;
+        if delivered.is_none() {
+            let mut slot = self.receiver.lock().map_err(|_| poisoned())?;
+            let Some(receiver) = slot.as_mut() else {
+                return Ok(None);
+            };
+            match receiver.try_recv() {
+                Ok(reply) => *delivered = Some(reply),
+                Err(oneshot::error::TryRecvError::Empty) => return Ok(None),
+                Err(oneshot::error::TryRecvError::Closed) => {
+                    return Err(PyRuntimeError::new_err(
+                        "the request was dropped without an answer",
+                    ))
+                }
+            }
         }
+        delivered.as_ref().map(|r| reply_to_py(py, r)).transpose()
     }
 
     /// Stop waiting, as a client that went away does.
@@ -184,6 +204,9 @@ type RouteSpec = (
     bool,                  // is async
     bool,                  // takes request
 );
+
+/// `(any_origin, origins, credentials, expose)` of the CORS policy.
+type CorsSpec = (bool, Vec<Vec<u8>>, bool, Vec<u8>);
 
 fn kind_of(name: &str) -> PyResult<Early> {
     Ok(match name {
@@ -218,7 +241,8 @@ pub struct ServerCore {
     queue: Queue<PreparedRequest>,
     in_flight: InFlight,
     ready: AtomicBool,
-    policy: Vec<Header>,
+    policies: [Vec<Header>; 2],
+    cors: Option<Cors>,
     id_name: Vec<u8>,
     prefix: String,
     counter: AtomicU64,
@@ -231,15 +255,16 @@ pub struct ServerCore {
 impl ServerCore {
     #[new]
     #[pyo3(signature = (
-        routes, early_bodies, policy, request_id_name, request_id_prefix,
+        routes, early_bodies, policies, request_id_name, request_id_prefix,
         limits=(8192, 32_768, 1_048_576, 288), queue_capacity=4096,
-        trust_request_id=false, defer_policies=false, python_paths=Vec::new()
+        trust_request_id=false, defer_policies=false, python_paths=Vec::new(),
+        cors=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         routes: Vec<RouteSpec>,
         early_bodies: Vec<(String, Vec<u8>)>,
-        policy: Vec<Header>,
+        policies: (Vec<Header>, Vec<Header>),
         request_id_name: Vec<u8>,
         request_id_prefix: String,
         limits: (usize, usize, usize, usize),
@@ -247,6 +272,7 @@ impl ServerCore {
         trust_request_id: bool,
         defer_policies: bool,
         python_paths: Vec<String>,
+        cors: Option<CorsSpec>,
     ) -> PyResult<Self> {
         let (router, plan) = build_routes(routes)?;
         let rendered = early_bodies
@@ -270,7 +296,13 @@ impl ServerCore {
             queue: Queue::new(queue_capacity),
             in_flight: InFlight::new(max_in_flight),
             ready: AtomicBool::new(false),
-            policy,
+            policies: [policies.0, policies.1],
+            cors: cors.map(|(any_origin, origins, credentials, expose)| Cors {
+                any_origin,
+                origins,
+                credentials,
+                expose,
+            }),
             id_name: request_id_name,
             prefix: request_id_prefix,
             counter: AtomicU64::new(0),
@@ -309,25 +341,35 @@ impl ServerCore {
     }
 
     /// Classify one request. `path` is the raw target path (percent-encoded),
-    /// `query` the raw query bytes.
+    /// `query` the raw query bytes. `trusted` says the peer is a trusted proxy
+    /// (only then may an inbound request id be used) and `https` that the
+    /// effective scheme is https (it selects the policy headers).
+    #[pyo3(signature = (method, path, query, headers, trusted=false, https=false))]
     fn submit(
         &self,
         method: &str,
         path: &str,
         query: &[u8],
         headers: Vec<Header>,
+        trusted: bool,
+        https: bool,
     ) -> PyResult<Submission> {
-        let request_id = self.request_id(&headers);
+        let asked = Asked {
+            method,
+            request_id: self.request_id(&headers, trusted),
+            https,
+            origin: origin_of(&headers),
+        };
         if let Some(early) = self.refuse(query, &headers) {
-            return self.answer(method, early, Vec::new(), &request_id);
+            return self.answer(&asked, early, Vec::new());
         }
         let (action, params) = match self.resolve(method, path) {
-            _ if self.is_python_path(method, path) => (None, Vec::new()),
+            // A raw target the server cannot read as a plain path, and the
+            // documentation pages, are the Python pipeline's to answer.
+            _ if !path.is_ascii() || self.is_python_path(method, path) => (None, Vec::new()),
             Resolved::Route(action, params) => (Some(action), params),
             Resolved::Missing(_, _) if self.defer_policies => (None, Vec::new()),
-            Resolved::Missing(early, extra) => {
-                return self.answer(method, early, extra, &request_id)
-            }
+            Resolved::Missing(early, extra) => return self.answer(&asked, early, extra),
         };
         let needs_headers = match action {
             Some(number) => self
@@ -338,7 +380,7 @@ impl ServerCore {
             None => true,
         };
         let Some(permit) = self.in_flight.try_acquire() else {
-            return self.answer(method, Early::Overloaded, Vec::new(), &request_id);
+            return self.answer(&asked, Early::Overloaded, Vec::new());
         };
         let (sender, receiver) = oneshot::channel();
         let request = PreparedRequest {
@@ -346,20 +388,21 @@ impl ServerCore {
             path: path.to_owned(),
             query: query.to_vec(),
             headers,
-            request_id: request_id.clone(),
+            request_id: asked.request_id.clone(),
             action,
             needs_headers,
             params,
             reply: Mutex::new(Some(sender)),
-            _permit: permit,
+            permit: Mutex::new(Some(permit)),
         };
         match self.queue.push(request) {
             Ok(pushed) => Ok(Submission {
                 early: None,
                 wake: pushed == Push::Wake,
                 receiver: Mutex::new(Some(receiver)),
+                delivered: Mutex::new(None),
             }),
-            Err(_full) => self.answer(method, Early::Overloaded, Vec::new(), &request_id),
+            Err(_full) => self.answer(&asked, Early::Overloaded, Vec::new()),
         }
     }
 }
@@ -404,8 +447,10 @@ fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
 }
 
 impl ServerCore {
-    fn request_id(&self, headers: &[Header]) -> String {
-        if self.trust_request_id {
+    /// The inbound id only from a trusted peer (the caller knows the peer) and
+    /// only when the application trusts inbound ids.
+    fn request_id(&self, headers: &[Header], trusted: bool) -> String {
+        if trusted && self.trust_request_id {
             let found: Vec<&[u8]> = headers
                 .iter()
                 .filter(|(name, _)| name.eq_ignore_ascii_case(&self.id_name))
@@ -420,7 +465,14 @@ impl ServerCore {
 
     /// Documentation and OpenAPI paths are answered by the Python pipeline.
     fn is_python_path(&self, method: &str, path: &str) -> bool {
-        matches!(method, "GET" | "HEAD") && self.python_paths.iter().any(|p| p == path)
+        if !matches!(method, "GET" | "HEAD") {
+            return false;
+        }
+        // Python compares the decoded path (`/openapi%2Ejson` is the document).
+        let decoded = percent_decode(path);
+        self.python_paths
+            .iter()
+            .any(|p| p.as_bytes() == decoded.as_slice())
     }
 
     /// Not-ready and oversized requests are refused before routing, in this order.
@@ -456,18 +508,16 @@ impl ServerCore {
         }
     }
 
-    /// An answer without Python: final headers, body with the request id, and
-    /// no body for HEAD (the length stays).
-    fn answer(
-        &self,
-        method: &str,
-        early: Early,
-        extra: Vec<Header>,
-        request_id: &str,
-    ) -> PyResult<Submission> {
-        let mut body = self.bodies.render(&early, request_id).ok_or_else(|| {
-            PyRuntimeError::new_err(format!("no early body registered for {early:?}"))
-        })?;
+    /// An answer without Python: final headers (policy for the effective
+    /// scheme, request id, CORS), body with the request id, and no body for HEAD
+    /// (the length stays).
+    fn answer(&self, asked: &Asked, early: Early, extra: Vec<Header>) -> PyResult<Submission> {
+        let mut body = self
+            .bodies
+            .render(&early, &asked.request_id)
+            .ok_or_else(|| {
+                PyRuntimeError::new_err(format!("no early body registered for {early:?}"))
+            })?;
         let mut own: Vec<Header> = vec![(b"content-type".to_vec(), b"application/json".to_vec())];
         own.extend(
             early
@@ -476,16 +526,21 @@ impl ServerCore {
                 .map(|(n, v)| (n.as_bytes().to_vec(), v.as_bytes().to_vec())),
         );
         own.extend(extra);
+        let cors = self
+            .cors
+            .as_ref()
+            .map(|c| c.headers(&asked.origin))
+            .unwrap_or_default();
         let headers = final_headers(
             &own,
-            &self.policy,
+            &self.policies[usize::from(asked.https)],
             &[],
-            &self.id_name,
-            request_id.as_bytes(),
+            (&self.id_name, asked.request_id.as_bytes()),
+            &cors,
             early.status(),
             body.len(),
         );
-        if method == "HEAD" {
+        if asked.method == "HEAD" {
             body.clear();
         }
         Ok(Submission {
@@ -496,8 +551,52 @@ impl ServerCore {
             }),
             wake: false,
             receiver: Mutex::new(None),
+            delivered: Mutex::new(None),
         })
     }
+}
+
+/// What `answer` needs to know about the request it refuses.
+struct Asked<'a> {
+    method: &'a str,
+    request_id: String,
+    https: bool,
+    origin: Vec<u8>,
+}
+
+/// The `Origin` header as `origin_of` in the Python pipeline reads it: repeated
+/// headers are joined with ", ", so they match no single origin.
+fn origin_of(headers: &[Header]) -> Vec<u8> {
+    let found: Vec<&[u8]> = headers
+        .iter()
+        .filter(|(name, _)| name == b"origin")
+        .map(|(_, value)| value.as_slice())
+        .collect();
+    found.join(&b", "[..])
+}
+
+fn percent_decode(path: &str) -> Vec<u8> {
+    let bytes = path.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        let hex = |b: u8| char::from(b).to_digit(16);
+        let decoded = match (bytes[at], bytes.get(at + 1), bytes.get(at + 2)) {
+            (b'%', Some(&hi), Some(&lo)) => hex(hi).zip(hex(lo)).map(|(h, l)| (h * 16 + l) as u8),
+            _ => None,
+        };
+        match decoded {
+            Some(byte) => {
+                out.push(byte);
+                at += 3;
+            }
+            None => {
+                out.push(bytes[at]);
+                at += 1;
+            }
+        }
+    }
+    out
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
