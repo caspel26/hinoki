@@ -8,7 +8,7 @@ coming back, so it must not gain the future import.
 
 from uuid import UUID, uuid4
 
-from hinoki.orm import Model, field, foreign_key
+from hinoki.orm import Model, OnDelete, field, foreign_key
 
 
 class LazyOwner(Model, table="lazy_owners"):
@@ -17,14 +17,16 @@ class LazyOwner(Model, table="lazy_owners"):
 
 class Carried:
     owner_id: UUID = foreign_key(
-        LazyOwner, on_delete="cascade", related_name="{model}_set"
+        LazyOwner, on_delete=OnDelete.CASCADE, related_name="{model}_set"
     )
     label: str = ""
 
 
 class LazyThing(Model, table="lazy_things"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
-    owner_id: UUID = foreign_key(LazyOwner, on_delete="cascade", related_name="things")
+    owner_id: UUID = foreign_key(
+        LazyOwner, on_delete=OnDelete.CASCADE, related_name="things"
+    )
 
 
 class LazyCarrier(Carried, Model, table="lazy_carriers"):

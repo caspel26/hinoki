@@ -11,7 +11,7 @@ import pytest
 
 from hinoki.db import Database, DatabaseError, ForeignKeyViolation, UniqueViolation
 from hinoki.errors import DestructiveMigration, MigrationError
-from hinoki.orm import Model, field, foreign_key, use_database
+from hinoki.orm import Model, OnDelete, field, foreign_key, use_database
 from hinoki.orm.migrations import plan
 from hinoki.orm.migrator import apply
 
@@ -37,7 +37,7 @@ class AfterMigration(Model, table="q045_rebuild"):
 
 class MigrationChild(Model, table="q045_child"):
     id: int = field(primary_key=True)
-    parent_id: UUID = foreign_key(BeforeMigration, on_delete="restrict")
+    parent_id: UUID = foreign_key(BeforeMigration, on_delete=OnDelete.RESTRICT)
 
 
 @pytest.fixture
