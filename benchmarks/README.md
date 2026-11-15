@@ -180,25 +180,51 @@ PROFILE_DATABASE_URL=postgres://postgres:bench-only@127.0.0.1:54402/bench \
   uv run python profile_request.py --profile --output ../results/request-profile.json
 ```
 
-Measured 2026-11-15 on one Apple M4 Pro (macOS 26.2, Python 3.14.0, release-profile extension), PostgreSQL 17 inside the Docker Desktop virtual machine, host not idle (one-minute load average 4 to 7, including unrelated system and container activity). Samples and metadata: [`request-profile-before-snapshot-fix-macos-m4pro.json`](results/request-profile-before-snapshot-fix-macos-m4pro.json) and [`request-profile-after-snapshot-fix-macos-m4pro.json`](results/request-profile-after-snapshot-fix-macos-m4pro.json).
+Measured 2026-11-15 on one Apple M4 Pro (macOS 26.2, Python 3.14.0, release-profile extension), PostgreSQL 17 inside the Docker Desktop virtual machine, host not idle (one-minute load average 2 to 11, including unrelated system and container activity). Samples and metadata are in `results/request-profile-*-macos-m4pro.json`.
 
-CPU per request with 64 requests in flight (µs; the event-loop thread, then all other threads), and the requests per second one process then serves:
+CPU per request with 64 requests in flight (µs; the event-loop thread, then all other threads), and the requests per second one process then serves. Each cell reads *before → after the row-snapshot change → after the native row changes* (the other-thread column: before → after the native changes):
 
 | Scenario | Event-loop CPU | Other-thread CPU | Requests/s (one process) |
 | --- | ---: | ---: | ---: |
-| `health` (no database) | 12.7 | 0 | 78 600 |
-| `detail` | 106 → 92 | 67 → 68 | 7 350 → 8 170 |
-| `detail`, bearer-protected | 110 → 97 | 66 → 67 | 7 210 → 7 910 |
-| `list`, 20 rows | 517 → 357 | 178 → 182 | 1 570 → 2 080 |
-| `list`, 100 rows | 1 938 → 1 203 | 416 → 419 | 433 → 631 |
-| `create` | 159 → 134 | 135 → 132 | 4 620 → 5 010 |
+| `health` (no database) | 13 → 13 → 13 | 0 → 0 | 78 664 → 78 524 → 77 902 |
+| `detail` | 106 → 92 → 88 | 67 → 62 | 7 345 → 8 167 → 8 781 |
+| `detail`, bearer-protected | 110 → 97 → 92 | 66 → 61 | 7 211 → 7 908 → 8 366 |
+| `list`, 20 rows | 517 → 357 → 285 | 178 → 154 | 1 572 → 2 083 → 2 632 |
+| `list`, 100 rows | 1 938 → 1 203 → 866 | 416 → 290 | 433 → 631 → 915 |
+| `create` | 159 → 134 → 130 | 135 → 127 | 4 620 → 5 008 → 5 193 |
 
-Arrows are before and after skipping `copy.deepcopy` for immutable column values in the row snapshot that `asave` uses for dirty tracking (`Model.remember`). The deep copy of UUIDs and datetimes went through `copy`'s generic reconstruction on every loaded row, even in read-only paths. Three alternating baseline/candidate pairs gave event-loop CPU of 105–106 / 92–94 µs (`detail`), 511–520 / 357–364 µs (`list`, 20 rows) and 1 923–1 956 / 1 187–1 226 µs (`list`, 100 rows); the ranges do not overlap and the within-run CV was 0.3–3.2%. This is a Python change, not a Rust one.
+Two changes produced the arrows:
+
+* **Row snapshots.** `Model.remember` deep-copied every column of every loaded row (the snapshot `asave` uses for dirty tracking), also in read-only requests; UUIDs and datetimes went through `copy`'s generic reconstruction. Values of immutable types are now kept as they are and mutable ones are still copied. Three alternating baseline/candidate pairs gave event-loop CPU of 105–106 / 92–94 µs (`detail`), 511–520 / 357–364 µs (`list`, 20 rows) and 1 923–1 956 / 1 187–1 226 µs (`list`, 100 rows); the ranges do not overlap. This is a Python change.
+* **Native row values.** `Schema.dump()` ran `import uuid`, `import datetime` and a failing `hasattr("dump")` for every scalar of every row; scalars of exact built-in types now return straight away, and the exact `UUID` and `datetime` classes are looked up once. A UUID read from the database was built by calling `uuid.UUID(text)` and printed through `str(UUID)`; it is now built without running `UUID.__init__` (after checking once at first use that the result equals `UUID(text)`, otherwise the old call is used) and printed from its integer value. A change that skipped the dict copy in the queryset row builder gave nothing measurable (849–855 µs against 844–849 µs, `list`, 100 rows) and was not kept.
+
+Isolated per-row costs (`rowcostbench.py`, a nested `PostOut` with two UUIDs and a datetime; two alternating before/after pairs): `Schema.dump()` 7.07 and 7.08 µs → 3.20 and 3.05 µs, `encode_json` 4.01 and 3.94 µs → 2.41 and 2.28 µs; `Post.from_row` (0.55 µs) and Python's own `str(UUID)` (0.25 µs) are unchanged, as expected. Samples: `results/row-cost-before-native-macos-m4pro.json` and `results/row-cost-after-native-macos-m4pro.json`.
 
 Readings, and their limits:
 
-* A request that does no database work costs about 13 µs inside Hinoki. A listening server's own per-request work is outside this measurement.
-* The database round trip dominates a single request: the wait is about 270 µs for `detail` (a bare `SELECT 1` through the virtual machine's port forward is about 240 µs) and about 1.8 ms for `list` (two statements, one of them a `COUNT`).
-* After the snapshot change, the largest remaining per-row costs in a list are the native serializer (`dump_instance`, itself partly building Python objects), constructing `uuid.UUID` objects (`uuid.UUID.__init__`) and `str(UUID)`, and the queryset row builder. These are per-row costs, so they grow with page size.
-* Event-loop CPU is not the only limit of a served worker. Granian's HTTP handling, the load generator, PostgreSQL and the Docker virtual machine share the same cores, and this measurement says nothing about how they interact.
+* A request that does no database work costs about 13 µs of event-loop CPU inside Hinoki.
+* The database round trip dominates a single request: the wait is about 260 µs for `detail` (a bare `SELECT 1` through the virtual machine's port forward is about 240 µs) and about 1.5 to 1.8 ms for `list` (two statements, one of them a `COUNT`).
+* Remaining per-row costs in a list are the native serializer (`dump_instance`, about 17 to 26% of event-loop CPU), `Model.remember`, `from_row` and the queryset row builder; they grow with page size.
+* Event-loop CPU is not the only limit of a served worker. Granian's HTTP handling, the load generator, PostgreSQL and the Docker virtual machine share the same cores.
 * One machine, one day, in process: not a throughput claim, not a comparison with any other framework, and not a prediction for Linux.
+
+## `comparative/server_floor.py` — server cost next to Hinoki's own
+
+Question: how much of a served request is the server and its protocol, and how much is Hinoki? The same `oha` run (64 connections, three runs of 15 s) hits Granian with the same number of worker processes serving a minimal ASGI application, a minimal RSGI application and `hinoki_app`'s `/health`.
+
+```sh
+cd benchmarks/comparative
+uv run python server_floor.py --workers 1 --output ../results/server-floor.json
+```
+
+Measured 2026-11-15 on the same Apple M4 Pro (load average 6 to 12 at the start of the runs):
+
+| Granian workers | Minimal ASGI app | Minimal RSGI app | Hinoki `/health` (ASGI) |
+| ---: | ---: | ---: | ---: |
+| 1 | 131 600 req/s | 133 600 req/s | 42 100 req/s |
+| 4 | 124 300 req/s (runs 109 000 to 127 200) | 119 800 req/s (runs 105 300 to 122 900) | 91 600 req/s (runs 78 100 to 101 600) |
+
+* With one worker the server is the limit. A request costs about 7.6 µs of worker time for the minimal ASGI application and about 23.7 µs for Hinoki's `/health`, so Hinoki's layer is about 16 µs of it, consistent with the 13 µs measured in process. On a path with no database work that layer is about two thirds of the request.
+* ASGI against RSGI differs by about 1.5% with one worker and not measurably with four: the protocol is not where the time goes here.
+* With four workers the minimal applications already serve about 120 000 requests per second and their runs vary by more than 10%; the load generator and the other processes share the machine, so these runs do not separate the server from the client. Use the one-worker row for per-request costs.
+* For a request that reaches the database, Hinoki's 13 µs is a small part of the roughly 90 µs of event-loop CPU of `detail` and of the 260 µs it waits for PostgreSQL.
