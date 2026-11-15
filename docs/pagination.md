@@ -6,10 +6,21 @@ status: implemented
 
 An action opts into page-number pagination with `pagination=PageNumberPagination()`. A size you leave out comes from the application's `pagination` settings group; without settings the defaults are `page_size=20` and `max_page_size=100`. The framework parses and validates `page` and `page_size`, injects a `PageParams` value, and documents both query parameters in OpenAPI.
 
+This is the Tracker's authenticated list pattern: it limits each page to the
+caller’s own tasks. Include the route in an app that installs `DatabaseModule`,
+as the [Tracker app factory](tutorial/6-run.md) does.
+
 ```python
-@http.get("/tasks", pagination=PageNumberPagination())
-async def list_tasks(page: PageParams) -> Page[TaskOut]:
-    rows = await Task.all().apaginate(page)
+from examples.tracker.models import Member, Task
+from examples.tracker.schemas import TaskOut
+from examples.tracker.security import member_only
+from hinoki import Caller, http
+from hinoki.pagination import Page, PageNumberPagination, PageParams
+
+
+@http.get("/tasks", access=member_only, pagination=PageNumberPagination())
+async def list_tasks(page: PageParams, caller: Caller[Member]) -> Page[TaskOut]:
+    rows = await Task.filter(owner_id=caller.user.id).apaginate(page)
     return rows.map(TaskOut.from_model)
 ```
 
@@ -22,12 +33,18 @@ Pages are one-based. `page_size` defaults to the strategy's configured size and 
 `settings.AppSettings` has a `pagination` group, set in code, in the environment (`BLOG_PAGINATION__PAGE_SIZE=25`, `BLOG_PAGINATION__MAX_PAGE_SIZE=200`) or in TOML:
 
 ```python
+from hinoki import settings
+
+
 class BlogSettings(settings.AppSettings, prefix="BLOG_"):
     pass
 
 # BLOG_PAGINATION__PAGE_SIZE=25  BLOG_PAGINATION__MAX_PAGE_SIZE=200
-app = Hinoki(settings=BlogSettings, include=[tasks])
 ```
+
+Pass `BlogSettings` to `Hinoki(settings=BlogSettings, ...)` in your app
+factory; keep that app's database module and access policy in the same
+assembly.
 
 Precedence, from strongest to weakest: a size set on the action's `PageNumberPagination(...)`, the application's `pagination` settings, then 20 and 100. Each size is resolved separately, so `PageNumberPagination(page_size=10)` keeps its 10 and takes its maximum from the settings. The result must satisfy `1 <= page_size <= max_page_size`: invalid settings fail when they load, and an action whose own size does not fit the resolved other one (for example `PageNumberPagination(max_page_size=10)` under a settings `page_size` of 25) fails when it is included, naming the action. The generated OpenAPI parameters show the resolved values.
 

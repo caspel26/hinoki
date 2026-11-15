@@ -36,7 +36,7 @@
 </p>
 
 > [!WARNING]
-> **Pre-alpha.** The API and the migration format may change, and Hinoki is not published on PyPI. Use a source checkout to evaluate it, with disposable data; do not run it in production.
+> **Pre-alpha.** The API and migration format may change. This repository's Hinoki is not published on PyPI; the [`hinoki` name there belongs to an unrelated legacy package](https://pypi.org/project/hinoki/). Install from this source checkout to evaluate it, use disposable data, and do not run it in production.
 
 ## What Hinoki is
 
@@ -50,7 +50,7 @@ Hinoki is a Python framework for HTTP APIs, built around three ideas.
 
 | Area | What you get |
 | --- | --- |
-| **Endpoints** | `@http.get`, `post`, `put`, `patch`, `delete` and `query` on functions, route groups or classes, with typed path, query and body parameters |
+| **Endpoints** | `@http.get`, `post`, `put`, `patch`, `delete` and `query` on functions, route groups or classes, with typed path, query and body parameters; optional model-backed CRUD routes ([guide](docs/crud.md)) |
 | **Schemas** | Strict validation without type coercion, response shaping, and schemas derived from a model |
 | **Access and errors** | Reusable access policies with permissions; declared errors that appear in OpenAPI |
 | **SQL ORM** | SQLite (the local default), PostgreSQL, MySQL and MariaDB models; relations loaded only when you ask, querysets, transactions, and migration files that you review and apply yourself |
@@ -273,7 +273,7 @@ POST    /tasks/{task_id}/complete  MemberTokens[tasks:use]  examples.tracker.api
 uv run hinoki new shop --dir ..
 ```
 
-This writes `../shop` with an application, a rule set, a test, settings, and instructions and an MCP configuration for coding agents. Its `pyproject.toml` points at this checkout, because Hinoki is not on PyPI. The [AI workflow guide](https://caspel26.github.io/hinoki/dev/ai-workflow/) describes how an agent can use the development MCP server.
+This writes `../shop` with an application, a rule set, a test, settings, and instructions and an MCP configuration for coding agents. Its `pyproject.toml` points at this checkout, because this repository's framework is not published on PyPI and the `hinoki` name there belongs to an unrelated legacy package. The [AI workflow guide](https://caspel26.github.io/hinoki/dev/ai-workflow/) describes how an agent can use the development MCP server.
 
 ## Admin
 

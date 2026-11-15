@@ -245,14 +245,25 @@ class ASGIAdapter:
         except Exception as exc:
             return await error_response(exc, rid, self.app.errors, self.debug)
 
-    async def _serve(self, scope: Scope, receive: Any) -> Response:  # noqa: PLR0911, PLR0912 - response per request failure class
+    async def _serve(self, scope: Scope, receive: Any) -> Response:
         """Ready check, host and preflight policies, routing, authentication,
         then (only if the action takes a body) reading and validating it, then
         the handler."""
         if not self.lifespan.ready:
             raise HTTPError(HTTPStatus.SERVICE_UNAVAILABLE, "not_ready", RETRY_LATER)
         self._check_request_sizes(scope)
-        headers: dict[str, str] | None = None
+        early = await self._early_response(scope)
+        if early is not None:
+            return early
+        binding, path_params, headers = self._resolve_request(scope)
+        return await self._dispatch_request(
+            scope, receive, binding, path_params, headers
+        )
+
+    async def _early_response(  # noqa: PLR0911 - direct response per early policy
+        self, scope: Scope
+    ) -> Response | None:
+        """Apply request policies and serve generated documentation early."""
         if (
             self.hosts is not None
             or self.cors is not None
@@ -278,11 +289,26 @@ class ASGIAdapter:
         )
         if page is not None:
             return docs_response(page)
+        return None
+
+    def _resolve_request(
+        self, scope: Scope
+    ) -> tuple[Binding, dict[str, str], dict[str, str]]:
+        """Match a route and establish its response-header context."""
         binding, path_params = self._route(scope)
         owner = binding.route.owner
         context.route_headers.set(getattr(owner, "response_headers", ()))
-        if headers is None:
-            headers = header_map(scope)
+        return binding, path_params, header_map(scope)
+
+    async def _dispatch_request(
+        self,
+        scope: Scope,
+        receive: Any,
+        binding: Binding,
+        path_params: dict[str, str],
+        headers: dict[str, str],
+    ) -> Response:
+        """Authorize, negotiate, read only required bodies, and invoke."""
         access = binding.route.access
         query = principal = None
         if access is not None:

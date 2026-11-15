@@ -131,6 +131,26 @@ async def test_application_wide_defaults_apply_unless_an_action_chooses() -> Non
 TEXT_CHARS = 'ab"\\\n\u00e9\U0001f600 '
 
 
+def random_tree(  # noqa: PLR0911 - each branch represents a JSON value kind
+    rng: random.Random, depth: int
+) -> object:
+    pick = rng.randrange(7 if depth else 4)
+    if pick == 0:
+        return rng.choice([None, True, False])
+    if pick == 1:
+        return rng.randint(-(10**20), 10**20)
+    if pick == 2:
+        return rng.random() * 1e6
+    if pick == 3:
+        return "".join(rng.choice('ab"\\\\né\U0001f600 ') for _ in range(5))
+    if pick in (4, 5):
+        return [random_tree(rng, depth - 1) for _ in range(rng.randrange(4))]
+    return {
+        f"k{rng.randrange(9)}{rng.choice('xé')}": random_tree(rng, depth - 1)
+        for _ in range(3)
+    }
+
+
 class Dumper:
     def dump(self) -> dict[str, object]:
         return {"a": [1, {"b": 2}]}
@@ -161,25 +181,8 @@ def test_endless_replacements_and_absurd_indents_are_refused_cleanly() -> None:
 
 def test_random_trees_round_trip_with_every_option() -> None:
     rng = random.Random(7)  # noqa: S311 - a test fixture, not security
-
-    def tree(depth: int) -> object:  # noqa: PLR0911 - one shape per random pick
-        pick = rng.randrange(7 if depth else 4)
-        if pick == 0:
-            return rng.choice([None, True, False])
-        if pick == 1:
-            return rng.randint(-(10**20), 10**20)
-        if pick == 2:
-            return rng.random() * 1e6
-        if pick == 3:
-            return "".join(rng.choice('ab"\\\né\U0001f600 ') for _ in range(5))
-        if pick in (4, 5):
-            return [tree(depth - 1) for _ in range(rng.randrange(4))]
-        return {
-            f"k{rng.randrange(9)}{rng.choice('xé')}": tree(depth - 1) for _ in range(3)
-        }
-
     for _ in range(300):
-        value = tree(4)
+        value = random_tree(rng, 4)
         for indent in (None, 0, 2, 16):
             for sort in (False, True):
                 assert json.loads(core.encode_json(value, indent, sort)) == value
