@@ -1,0 +1,92 @@
+{
+  "benchmark": "benchmarks/protectedgetbench.py",
+  "date": "2026-11-15T06:40:53.778856+00:00",
+  "runtime_baseline_commit": "306d0cd103ec6f6bda5a54dd89ecf82076c8b97e",
+  "environment": {
+    "python": "3.14.8 (main, Oct  2 2026, 10:23:31) [GCC 16.2.1 20260810]",
+    "platform": "Linux-7.2.11-arch1-1-x86_64-with-glibc2.44",
+    "processor": "",
+    "extension_profile": "release",
+    "loadavg_after": [
+      1.787109375,
+      2.33740234375,
+      4.59326171875
+    ]
+  },
+  "scenario": "in-process async protected GET, route param + query + bearer auth; scope includes raw_path; no network/database",
+  "method": {
+    "blocks": 5,
+    "warmup_samples_per_block": 1,
+    "samples_per_block": 7,
+    "requests_per_sample": 20000
+  },
+  "runs": [
+    {
+      "median_us": 57.615,
+      "cv_pct": 2.92,
+      "samples_us": [
+        56.971,
+        60.62,
+        57.615,
+        59.673,
+        56.716,
+        57.471,
+        60.582
+      ]
+    },
+    {
+      "median_us": 57.791,
+      "cv_pct": 2.66,
+      "samples_us": [
+        55.929,
+        57.916,
+        55.98,
+        58.809,
+        57.791,
+        55.998,
+        59.749
+      ]
+    },
+    {
+      "median_us": 57.125,
+      "cv_pct": 2.8,
+      "samples_us": [
+        55.975,
+        57.125,
+        57.324,
+        58.814,
+        55.83,
+        56.463,
+        60.229
+      ]
+    },
+    {
+      "median_us": 56.753,
+      "cv_pct": 3.68,
+      "samples_us": [
+        59.705,
+        56.004,
+        55.923,
+        59.738,
+        56.753,
+        60.637,
+        55.817
+      ]
+    },
+    {
+      "median_us": 57.008,
+      "cv_pct": 2.99,
+      "samples_us": [
+        56.019,
+        58.607,
+        56.093,
+        58.339,
+        57.008,
+        56.07,
+        60.567
+      ]
+    }
+  ],
+  "median_of_block_medians_us": 57.125,
+  "cv_of_block_medians_pct": 0.7546034054088864
+}
