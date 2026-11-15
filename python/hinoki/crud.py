@@ -258,9 +258,12 @@ async def list_rows(
     if not query.order:
         query = query.order_by(resource.model.__primary_key__)
     result = await query.apaginate(page)
-    items = await asyncio.gather(
-        *(self.invoke_hook("to_schema", row) for row in result.items)
-    )
+    if inspect.iscoroutinefunction(self.to_schema):
+        items = await asyncio.gather(
+            *(self.invoke_hook("to_schema", row) for row in result.items)
+        )
+    else:
+        items = [await self.invoke_hook("to_schema", row) for row in result.items]
     return Page(list(items), result.page, result.page_size, result.total)
 
 
