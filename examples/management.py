@@ -1,11 +1,13 @@
 """A small app for trying project management commands.
 
-Run ``uv run hinoki manage examples.management:app greet``.
+Run ``uv run hinoki manage greet`` from the examples project root, or pass
+``examples.management:app`` explicitly outside a registered project.
 """
 
 from argparse import ArgumentParser, Namespace
 
-from hinoki import Hinoki
+from hinoki import Hinoki, settings
+from hinoki.db import DatabaseModule
 from hinoki.management import Command, CommandContext
 
 
@@ -20,4 +22,8 @@ class Greet(Command):
         print(f"Hello, {args.name}!")
 
 
-app = Hinoki(commands=[Greet])
+class ExampleSettings(settings.AppSettings, prefix="EXAMPLES_"):
+    database: settings.DatabaseSettings
+
+
+app = Hinoki(settings=ExampleSettings, commands=[Greet], modules=[DatabaseModule])
