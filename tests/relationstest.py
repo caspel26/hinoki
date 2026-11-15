@@ -8,7 +8,12 @@ from uuid import UUID, uuid4
 import pytest
 
 from hinoki.db import Database, ForeignKeyViolation
-from hinoki.errors import FieldError, RegistrationError, RelationNotLoaded
+from hinoki.errors import (
+    FieldError,
+    MultipleObjectsReturned,
+    RegistrationError,
+    RelationNotLoaded,
+)
 from hinoki.orm import Model, OnDelete, field, foreign_key, use_database
 from hinoki.orm.relations import ON_DELETE, Related
 
@@ -28,6 +33,7 @@ class Writer(Model, table="rel_writers"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     name: str
     articles: ClassVar["Related[list[Article]]"]
+    profile: ClassVar["Related[Profile | None]"]
 
 
 class Article(Model, table="rel_articles"):
@@ -48,11 +54,30 @@ class Note(Model, table="rel_notes"):
     article: ClassVar[Related[Article | None]]
 
 
+class Profile(Model, table="rel_profiles"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    writer_id: UUID = foreign_key(
+        Writer,
+        on_delete=OnDelete.CASCADE,
+        related_name="profile",
+        unique=True,
+    )
+    display_name: str
+    writer: ClassVar[Related[Writer]]
+
+
 def test_foreign_keys_register_both_directions() -> None:
     assert Article.__relations__["writer"].forward
     assert Writer.__relations__["articles"].model is Article
     assert not Writer.__relations__["articles"].forward
     assert "writer" not in Article.__columns__
+
+
+def test_unique_foreign_key_registers_one_to_one_cardinality() -> None:
+    assert Profile.__relations__["writer"].one_to_one
+    assert Writer.__relations__["profile"].one_to_one
+    assert Profile.__relations__["writer"].forward
+    assert not Writer.__relations__["profile"].forward
 
 
 def test_relations_are_never_loaded_by_attribute_access() -> None:
@@ -172,7 +197,7 @@ def statements(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 async def db() -> AsyncIterator[Database]:
     assert URL is not None
     database = await Database.connect(URL, max_size=3, wait=0.5)
-    tables = ("rel_notes", "rel_articles", "rel_writers")
+    tables = ("rel_notes", "rel_articles", "rel_profiles", "rel_writers")
     for table in tables:
         await database.execute(f"DROP TABLE IF EXISTS {table}")
     await database.execute(
@@ -185,6 +210,11 @@ async def db() -> AsyncIterator[Database]:
     await database.execute(
         "CREATE TABLE rel_notes (id uuid PRIMARY KEY, article_id uuid "
         "REFERENCES rel_articles(id) ON DELETE SET NULL, text text NOT NULL)"
+    )
+    await database.execute(
+        "CREATE TABLE rel_profiles (id uuid PRIMARY KEY, writer_id uuid NOT NULL "
+        "REFERENCES rel_writers(id) ON DELETE CASCADE, display_name text NOT NULL, "
+        "CONSTRAINT rel_profiles_writer_id_unique UNIQUE (writer_id))"
     )
     with use_database(database):
         yield database
@@ -225,6 +255,41 @@ async def test_prefetch_related_uses_one_extra_query_per_relation(
     articles = await Article.all().prefetch_related("writer")
     assert len(statements) == 2
     assert {a.writer.name for a in articles} == {"Ada"}
+
+
+@needs_database
+async def test_one_to_one_prefetch_is_batched_and_returns_none_when_absent(
+    db: Database, statements: list[str]
+) -> None:
+    ada = await Writer.acreate(name="Ada")
+    bob = await Writer.acreate(name="Bob")
+    profile = await Profile.acreate(writer_id=ada.id, display_name="Ada L.")
+
+    statements.clear()
+    writers = await Writer.all().order_by("name").prefetch_related("profile")
+    assert len(statements) == 2
+    assert [writer.profile for writer in writers] == [profile, None]
+    assert [writer.id for writer in writers] == [ada.id, bob.id]
+
+    statements.clear()
+    loaded = await Profile.all().select_related("writer").aget()
+    assert len(statements) == 1
+    assert loaded.writer.id == ada.id
+
+
+@needs_database
+async def test_one_to_one_prefetch_rejects_duplicate_rows_when_constraint_is_missing(
+    db: Database,
+) -> None:
+    writer = await Writer.acreate(name="Ada")
+    await db.execute(
+        "ALTER TABLE rel_profiles DROP CONSTRAINT rel_profiles_writer_id_unique"
+    )
+    await Profile.acreate(writer_id=writer.id, display_name="first")
+    await Profile.acreate(writer_id=writer.id, display_name="second")
+
+    with pytest.raises(MultipleObjectsReturned, match="expected at most one Profile"):
+        await Writer.all().prefetch_related("profile").aget()
 
 
 @needs_database
@@ -293,7 +358,7 @@ def test_assigning_a_relation_is_refused() -> None:
 def test_models_with_foreign_keys_can_be_subclassed_and_redefined() -> None:
     child = cast(type[Model], type("Child", (Article,), {}, table="rel_children"))
     assert child.__relations__["writer"].forward
-    assert len(Writer.__relations__) == 1
+    assert set(Writer.__relations__) == {"articles", "profile"}
 
     owner = make(
         "Owner",
