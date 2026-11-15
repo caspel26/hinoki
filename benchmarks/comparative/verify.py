@@ -12,18 +12,22 @@ be meaningless.
 
 import json
 import math
+import os
 import re
 import sys
 import time
 import urllib.error
 import urllib.request
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import psycopg
 from seed import author_id, post_id
 
-DB = "postgres://postgres:bench-only@127.0.0.1:54402/bench"
+DB = os.environ.get(
+    "BENCH_DATABASE_URL", "postgres://postgres:bench-only@127.0.0.1:54402/bench"
+)
 STATEMENT = re.compile(r"^\s*(select|insert|update|delete)\b", re.I)
 
 
@@ -37,6 +41,19 @@ def call(base: str, method: str, path: str, body: object = None) -> tuple[int, o
             return reply.status, json.loads(reply.read() or b"null")
     except urllib.error.HTTPError as error:
         return error.code, None
+
+
+def warm_database_connections(base: str) -> None:
+    with ThreadPoolExecutor(max_workers=64) as executor:
+        replies = list(
+            executor.map(
+                lambda _index: call(base, "GET", "/posts?page=1&page_size=20"),
+                range(64),
+            )
+        )
+    if any(status != 200 for status, _data in replies):
+        raise SystemExit("database connection warm-up failed")
+    time.sleep(3)
 
 
 def statements(conn: psycopg.Connection) -> list[tuple[str, int]]:
@@ -87,18 +104,14 @@ def main(name: str, base: str) -> None:
         def counted(
             method: str, path: str, body: object = None
         ) -> tuple[int, object, list]:
-            for _ in range(
-                60
-            ):  # warm every worker: connections, caches, driver introspection
+            for _ in range(60):  # warm worker-side route and response caches
                 call(base, method, path, body)
-            time.sleep(
-                3
-            )  # let connection pools finish opening (each new connection runs setup SQL)
             conn.execute("SELECT pg_stat_statements_reset()")
             status, data = call(base, method, path, body)
             return status, data, statements(conn)
 
         check(call(base, "GET", "/health") == (200, {"status": "ok"}), "health")
+        warm_database_connections(base)
 
         status, data, sql = counted("GET", "/posts?page=2&page_size=5")
         expected = oracle(
