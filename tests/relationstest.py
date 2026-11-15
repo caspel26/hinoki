@@ -63,7 +63,20 @@ def test_relations_are_never_loaded_by_attribute_access() -> None:
 
 def test_declaration_errors() -> None:
     with pytest.raises(RegistrationError, match="on_delete"):
-        foreign_key(Writer, on_delete="whatever")
+        foreign_key(Writer, on_delete="whatever")  # type: ignore[arg-type]
+    for annotation in (UUID, "UUID"):
+        with pytest.raises(RegistrationError, match=r"Bad\.writer_id.*set_null"):
+            type(
+                "Bad",
+                (Model,),
+                {
+                    "__annotations__": {"id": int, "writer_id": annotation},
+                    "id": field(primary_key=True),
+                    "writer_id": foreign_key(Writer, on_delete="set_null"),
+                },
+                table="rel_bad_null",
+            )
+    assert "bad" not in Writer.__relations__  # a refused model attaches nothing
     with pytest.raises(RegistrationError, match="_id"):
         type(
             "Bad",

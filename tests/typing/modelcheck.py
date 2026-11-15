@@ -2,7 +2,7 @@
 
 from uuid import UUID, uuid4
 
-from hinoki.orm import Model, field
+from hinoki.orm import Model, OnDelete, field, foreign_key
 
 
 class Item(Model, table="items"):
@@ -42,3 +42,16 @@ def inherited() -> None:
 
     Product(price=3)  # type: ignore[call-arg]
     Product(name=3)  # type: ignore[arg-type]
+
+
+class Line(Model, table="lines"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    item_id: UUID = foreign_key(Item, on_delete="cascade")
+    spare_id: UUID | None = foreign_key(Item, on_delete="set_null", default=None)
+
+
+def deletion_rules(rule: OnDelete, text: str) -> None:
+    foreign_key(Item, on_delete=rule)
+    foreign_key(Item, on_delete="delete")  # type: ignore[arg-type]
+    foreign_key(Item, on_delete=text)  # type: ignore[arg-type]
+    foreign_key(Item)  # type: ignore[call-arg]
