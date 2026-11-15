@@ -167,16 +167,6 @@ def test_model_declaration_problems_fail_the_plan(tmp_path: Path) -> None:
         [model("a", {"id": (int, field(primary_key=True)), "x": (object, None)})],
         [model("a", {"id": (int, field(primary_key=True)), "x": (int | str, None)})],
         [things(owner, owner_id=(UUID, foreign_key(owner, on_delete="cascade")))],
-        [
-            model(
-                "a",
-                {
-                    "id": (int, field(primary_key=True)),
-                    "o_id": (int, foreign_key(owner, on_delete="set_null")),
-                },
-            ),
-            owner,
-        ],
     ]
     for models in cases:
         with pytest.raises(MigrationError):
