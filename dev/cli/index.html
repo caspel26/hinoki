@@ -570,7 +570,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
 <span class="w">  </span>--rules<span class="w"> </span>examples.tracker.rules:tracker_rules<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--package<span class="w"> </span>examples.tracker<span class="w"> </span>--models<span class="w"> </span>examples.tracker.models
 </code></pre></div>
-<p>The development server uses MCP over stdio. It accepts <code>--rules</code>, repeatable <code>--package</code>, repeatable <code>--models</code>, and <code>--waivers</code> with the same target meanings as <code>check</code>. <code>--scenarios off|read|write</code> controls whether <code>run_scenario</code> is registered: <code>read</code> allows GET, HEAD and OPTIONS; <code>write</code> allows every supported method. Scenarios start the real app, run handlers and lifespan hooks, and may write data even for a GET. Keep the tool server owner-controlled and point the app at a disposable database.</p>
+<p>The development server uses MCP over stdio. It accepts <code>--rules</code>, repeatable <code>--package</code>, repeatable <code>--models</code>, and <code>--waivers</code> with the same target meanings as <code>check</code>. <code>--scenarios off|read|write</code> controls whether <code>run_scenario</code> is registered: <code>read</code> allows GET, HEAD, OPTIONS and QUERY; <code>write</code> allows every supported method. Scenarios start the real app, run handlers and lifespan hooks, and may write data even for a GET. Keep the tool server owner-controlled and point the app at a disposable database.</p>
 <p>The development MCP is separate from application MCP, which is mounted with <code>expose_as_mcp</code> and an explicit action allowlist. See the <a href="../dev-mcp/">development MCP guide</a> for tool inputs and results.</p>
 <h2 id="import-target-examples">Import target examples<a class="headerlink" href="#import-target-examples" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>dev<span class="w"> </span>examples.notes.main:app
@@ -606,7 +606,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 16:44:38 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 17:54:14 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>8 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>

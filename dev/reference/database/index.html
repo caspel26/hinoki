@@ -284,8 +284,13 @@ backend. Raw SQL uses the selected driver's placeholders: PostgreSQL uses
 <code>$1</code>, while SQLite, MySQL and MariaDB use <code>?</code>. ORM-generated queries select
 the dialect automatically.</p>
 <h2 id="configure-a-backend">Configure a backend<a class="headerlink" href="#configure-a-backend" title="Permanent link">&para;</a></h2>
+<p>Database URLs are secrets, so configure them through the environment rather
+than TOML. For local development, leave the URL unset to use the default
+SQLite file. To select another database for migration commands, set
+<code>HINOKI_DATABASE_URL</code>; an app can use its own secret environment setting. TOML may configure
+non-secret pool options, for example:</p>
 <div class="highlight"><pre><span></span><code><span class="k">[database]</span>
-<span class="n">url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"sqlite://./local.db"</span>
+<span class="n">max_size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">8</span>
 </code></pre></div>
 <p>For PostgreSQL, use a driver URL such as <code>postgresql://user:password@host/db</code>.
 For MySQL, use <code>mysql://user:password@host/db</code>. MySQL connections require TLS
@@ -1104,7 +1109,7 @@ max_size), so <code>Hinoki(settings=..., modules=[DatabaseModule])</code> works.
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.8</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 04:32:59 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 17:54:14 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/database.md">Edit on GitHub</a></dd></div>
         </dl>

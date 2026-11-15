@@ -435,7 +435,7 @@
 </tbody>
 </table>
 <p><code>run_scenario</code> is omitted unless explicitly enabled with <code>--scenarios read</code> or <code>--scenarios write</code>. Its input requires <code>path</code>, a plain URL path beginning with <code>/</code>; optional fields are <code>method</code> (default <code>GET</code>), <code>query</code> (query string without <code>?</code>), string-valued <code>headers</code>, and <code>json</code>. The result contains HTTP <code>status</code>, response <code>headers</code>, bounded body text, <code>truncated</code>, and parsed JSON when available.</p>
-<p>Scenarios run the real app lifespan and handlers in-process. <code>read</code> accepts GET, HEAD and OPTIONS; a GET handler may still change data. <code>write</code> also accepts POST, PUT, PATCH and DELETE. Scenario requests have a 15-second limit and response bodies are capped at 20,000 bytes. The tool is marked as effectful. Enable it only under owner control and use a disposable database.</p>
+<p>Scenarios run the real app lifespan and handlers in-process. <code>read</code> accepts GET, HEAD, OPTIONS and QUERY; a GET handler may still change data. <code>write</code> also accepts POST, PUT, PATCH and DELETE. Scenario requests have a 15-second limit and response bodies are capped at 20,000 bytes. The tool is marked as effectful. Enable it only under owner control and use a disposable database.</p>
 <p>See <a href="../cli/#mcp">CLI options</a> for startup configuration and <a href="../app-mcp/">application MCP</a> for exposing selected routes as remote tools.</p>
         
         <aside class="related" aria-label="Related pages">
@@ -466,7 +466,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.27</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 02:07:08 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 17:54:14 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/dev-mcp.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -401,7 +401,7 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>examples.notes.main
 <span class="p">)</span>
 </code></pre></div>
 <p>The corresponding <code>docs.openapi_url</code>, <code>docs.docs_url</code> and <code>docs.redoc_url</code> settings provide the same defaults. A viewer requires <code>openapi_url</code>. <code>Hinoki(...)</code> arguments override settings; passing <code>None</code> disables a page. The packaged viewers work without a CDN.</p>
-<p>The generated OpenAPI document, Swagger UI, ReDoc and their assets answer <code>HEAD</code> with the same status and representation headers as <code>GET</code>, without a response body. Each request still has its own <code>x-request-id</code> header.</p>
+<p>The generated OpenAPI document, Swagger UI, ReDoc and their assets answer <code>HEAD</code> with the same status and representation headers as <code>GET</code>, without a response body. Each request still has its own request ID in the configured response header (<code>x-request-id</code> by default).</p>
 <h2 id="query-operations">QUERY operations<a class="headerlink" href="#query-operations" title="Permanent link">&para;</a></h2>
 <p>The document is OpenAPI 3.1, which has no field for the <code>QUERY</code> method (OpenAPI 3.2 adds <code>query</code>). An action declared with <code>@http.query</code> is therefore written under the path item's <code>x-query</code> extension field, with the same operation object as any other method: operation ID, parameters, request body, responses and security. The document stays valid 3.1.</p>
 <p>Tools that only read the standard method fields do not see these operations: Swagger UI and ReDoc do not list them, and a client generator skips them unless it is told about <code>x-query</code>. The application MCP and <code>explain_action</code> read the field.</p>
@@ -454,7 +454,7 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>examples.notes.main
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.12</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 01:10:18 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 17:54:14 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/openapi.md">Edit on GitHub</a></dd></div>
         </dl>
