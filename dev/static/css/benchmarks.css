@@ -1,6 +1,6 @@
 .benchmark-result {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-4);
   align-items: start;
   margin-block: var(--sp-3) var(--sp-6);
@@ -16,10 +16,134 @@
   background: var(--hn-surface-1);
 }
 
-.benchmark-chart {
+.benchmark-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.lat-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  margin-bottom: var(--sp-3);
+  color: var(--hn-text-2);
+  font-size: var(--fs-s);
+}
+
+.lat-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lat-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.lat-p50 { background: color-mix(in srgb, var(--hn-brand-fill) 55%, transparent); }
+.lat-p95 { background: color-mix(in srgb, var(--hn-brand-fill) 72%, transparent); }
+.lat-p99 { background: var(--hn-brand-fill); }
+
+.lat-group {
+  padding-block: var(--sp-2);
+  border-bottom: 1px solid var(--hn-edge);
+}
+
+.lat-name {
+  margin-bottom: 4px;
+  color: var(--hn-text);
+  font-size: var(--fs-s);
+  font-weight: 600;
+}
+
+.lat-row,
+.lat-scale {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr) 5.5rem;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-s);
+  font-variant-numeric: tabular-nums;
+}
+
+.lat-row { margin-block: 3px; }
+
+.lat-p { color: var(--hn-text-2); }
+
+.lat-val {
+  color: var(--hn-text);
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.lat-track {
+  position: relative;
   display: block;
-  width: 100%;
-  height: auto;
+  height: 14px;
+  background: linear-gradient(to right, var(--hn-edge) 1px, transparent 1px) 0 0 / 25% 100% repeat-x;
+  border-right: 1px solid var(--hn-edge);
+}
+
+.lat-bar {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  min-width: 2px;
+  border-radius: 0 3px 3px 0;
+}
+
+.lat-whisker {
+  position: absolute;
+  top: 50%;
+  height: 8px;
+  min-width: 1px;
+  border-inline: 1.5px solid var(--hn-text);
+  transform: translateY(-50%);
+}
+
+.lat-whisker::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  border-top: 2px solid var(--hn-text);
+}
+
+.lat-ticks {
+  position: relative;
+  display: block;
+  height: 1.4em;
+  color: var(--hn-text-2);
+}
+
+.lat-ticks span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.lat-ticks span:first-child { transform: none; }
+.lat-ticks span:last-child { transform: translateX(-100%); }
+
+.lat-unit {
+  margin-top: var(--sp-1);
+  color: var(--hn-text-2);
+  font-size: var(--fs-s);
+  text-align: center;
+}
+
+.benchmark-table .range {
+  display: block;
+  color: var(--hn-text-2);
+  font-size: 0.92em;
 }
 
 .benchmark-figure figcaption {
@@ -34,7 +158,7 @@
 
 .benchmark-table {
   width: 100%;
-  min-width: 620px;
+  min-width: 440px;
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-s);
@@ -51,21 +175,16 @@
   padding: 7px 8px;
   border-bottom: 1px solid var(--hn-edge);
   text-align: right;
-  white-space: nowrap;
 }
 
+.benchmark-table td { white-space: nowrap; }
+
 .benchmark-table th:first-child,
-.benchmark-table td:first-child {
+.benchmark-table th[scope="row"] {
   text-align: left;
 }
 
 .benchmark-table thead th {
   color: var(--hn-text-2);
   font-weight: 600;
-}
-
-@media (max-width: 940px) {
-  .benchmark-result {
-    grid-template-columns: 1fr;
-  }
 }
