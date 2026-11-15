@@ -192,7 +192,7 @@ The `Host` header of every request must match one entry:
 | `.example.org` | `example.org` and every subdomain |
 | `127.0.0.1`, `::1` | That address (`[::1]:8000` in the header) |
 
-Matching ignores case, the port and a trailing dot. A request for another host, or without a usable `Host` header, receives `400 disallowed_host` before routing, authentication and body reading; documentation routes are covered too. Entries are names: a scheme, port, path or a partial wildcard such as `*.example.com` fails at load.
+Matching ignores case, the port and a trailing dot. The header must be exactly one host with an optional port; a request for another host, with two `Host` headers or without a usable one, receives `400 disallowed_host` before routing, authentication and body reading; documentation routes are covered too. Entries are names: a scheme, port, path or a partial wildcard such as `*.example.com` fails at load, and `*` cannot be mixed with other entries. A dot entry is as wide as it reads: `.com` allows every `.com` host.
 
 Set the list in a deployment that is reachable under more names than it should answer to. The in-process test clients send no `Host` header, so a test of an application with a restrictive list passes one: `await client.get("/x", headers={"host": "api.example.com"})`.
 
@@ -201,12 +201,12 @@ Set the list in a deployment that is reachable under more names than it should a
 CORS is off while `cors.origins` is empty: no header is added and `OPTIONS` requests receive `405`. With origins configured:
 
 - A request whose `Origin` is listed receives `access-control-allow-origin` with that origin and `vary: origin`, on every answer including errors, so a browser client can read a `401` or `422` body. `credentials = true` adds `access-control-allow-credentials: true`; `expose_headers` is sent as `access-control-expose-headers`.
-- A request from any other origin is served normally without those headers; the browser refuses to hand the response to the page. CORS tells browsers what to allow. It is not authentication and does not stop a non-browser client.
+- A request from any other origin, or without an `Origin`, is served normally without the permission headers and still carries `vary: origin`, so a shared cache never hands one origin's answer to another; the browser refuses to hand the response to the page. CORS tells browsers what to allow. It is not authentication and does not stop a non-browser client.
 - A preflight (`OPTIONS` with `Origin` and `Access-Control-Request-Method`) is answered with `204`, the configured `methods`, `headers` and `max_age`, without reaching a route or its access policy. A preflight from an origin that is not listed receives `403 cors_origin_denied`.
 
-Origins are compared exactly, in lower case as browsers send them: `https://app.example.com` and `https://app.example.com:8443` are different origins, and a trailing slash or path is refused at load. The single entry `*` answers every origin with `access-control-allow-origin: *`; it cannot be combined with `credentials`, and browsers will not send cookies or HTTP authentication to it.
+Origins are compared exactly, in lower case as browsers send them: `https://app.example.com` and `https://app.example.com:8443` are different origins, and a trailing slash or path is refused at load. Browsers leave a default port out of `Origin`, so list `https://app.example.com`, not `https://app.example.com:443`. The single entry `*` answers every origin with `access-control-allow-origin: *`; it cannot be combined with `credentials`, and browsers will not send cookies or HTTP authentication to it.
 
-The policy applies to the whole application, including the ASGI and WSGI adapters; there is no per-route CORS option.
+The policy applies to the whole application, including the ASGI and WSGI adapters; there is no per-route CORS option. An answer that already sets `access-control-allow-origin` itself (a `Reply` with that header) is sent as it is, without the policy's headers.
 
 ## 8. Database connection ownership
 
