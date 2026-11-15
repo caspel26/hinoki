@@ -9,6 +9,7 @@ import pytest
 from hinoki import Hinoki, RuntimeConfig, core, http
 from hinoki.request import Request
 from hinoki.runtime.servercore import SENTINEL, build_server_core, early_bodies
+from hinoki.settings import AppSettings, CorsSettings, SecuritySettings, ServerSettings
 from tests.harness import Client, Pool
 
 HEX32 = re.compile(r"[0-9a-f]{32}")
@@ -199,7 +200,7 @@ def test_configured_policies_send_unrouted_requests_to_python() -> None:
     server = core.ServerCore(
         [],
         early_bodies(),
-        [],
+        ([], []),
         b"x-request-id",
         "0123456789abcdef",
         defer_policies=True,
@@ -214,9 +215,112 @@ def test_configured_policies_send_unrouted_requests_to_python() -> None:
 def test_a_body_without_one_sentinel_is_refused() -> None:
     bad = [(kind, b"{}") for kind, _ in early_bodies()]
     with pytest.raises(ValueError, match="sentinels"):
-        core.ServerCore([], bad, [], b"x-request-id", "0123456789abcdef")
+        core.ServerCore([], bad, ([], []), b"x-request-id", "0123456789abcdef")
 
 
 def test_bodies_are_rendered_with_the_sentinel() -> None:
     for kind, body in early_bodies():
         assert body.count(SENTINEL.encode()) == 1, kind
+
+
+def cors_app() -> Hinoki:
+    app = Hinoki(
+        settings=AppSettings(cors=CorsSettings(origins=("https://a.example",)))
+    )
+    app.include(ping)
+    return app
+
+
+@pytest.mark.parametrize("origin", [b"https://a.example", b"https://b.example", b""])
+async def test_cors_headers_on_native_answers_match_the_pipeline(
+    pool: Pool, origin: bytes
+) -> None:
+    app = cors_app()
+    client = await pool.start(app)
+    headers = [(b"origin", origin)] if origin else []
+    query = "q=" + "x" * 9000
+    reply = await client.request("GET", "/ping", query=query, raw_headers=headers)
+    submission = classifier(app).submit("GET", "/ping", query.encode(), headers)
+    assert submission.early is not None
+    assert normalized(*submission.early) == expected(reply)
+
+
+def test_https_selects_the_https_policy_headers() -> None:
+    app = Hinoki(
+        settings=AppSettings(
+            security=SecuritySettings(hsts_seconds=31_536_000),
+            server=ServerSettings(trusted_proxies=("10.0.0.0/8",)),
+        )
+    )
+    app.include(ping)
+    server = classifier(app)
+    names = [
+        {k for k, _ in server.submit("GET", "/nope", b"", [], https=secure).early[1]}  # type: ignore[index]
+        for secure in (False, True)
+    ]
+    assert b"strict-transport-security" not in names[0]
+    assert b"strict-transport-security" in names[1]
+
+
+def inbound_core() -> core.ServerCore:
+    return core.ServerCore(
+        [],
+        early_bodies(),
+        ([], []),
+        b"x-request-id",
+        "0123456789abcdef",
+        trust_request_id=True,
+    )
+
+
+def test_an_inbound_request_id_is_used_only_from_a_trusted_peer() -> None:
+    server = inbound_core()
+    server.set_ready(True)
+    sent = [(b"x-request-id", b"abc-123")]
+    untrusted = server.submit("GET", "/x", b"", sent).early
+    trusted = server.submit("GET", "/x", b"", sent, trusted=True).early
+    assert untrusted is not None
+    assert trusted is not None
+    assert dict(untrusted[1])[b"x-request-id"] != b"abc-123"
+    assert dict(trusted[1])[b"x-request-id"] == b"abc-123"
+
+
+def test_a_trusted_id_with_quotes_keeps_the_body_valid_json() -> None:
+    server = inbound_core()
+    server.set_ready(True)
+    hostile = b'a"}\\'
+    early = server.submit(
+        "GET", "/x", b"", [(b"x-request-id", hostile)], trusted=True
+    ).early
+    assert early is not None
+    assert json.loads(early[2])["request_id"] == hostile.decode()
+
+
+def test_the_slot_is_freed_when_the_request_is_answered() -> None:
+    server = classifier(make_app())
+    server.submit("GET", "/ping", b"", [])
+    [request] = server.drain(1)
+    assert server.in_flight == 1
+    request.respond(200, [], b"")
+    assert server.in_flight == 0  # while Python still holds the object
+
+
+def test_reply_is_stable_and_a_dropped_request_is_an_error() -> None:
+    server = classifier(make_app())
+    answered = server.submit("GET", "/ping", b"", [])
+    [request] = server.drain(1)
+    request.respond(200, [], b"ok")
+    assert answered.reply() == answered.reply() == (200, [], b"ok")
+    lost = server.submit("GET", "/ping", b"", [])
+    server.drain(1).clear()
+    with pytest.raises(RuntimeError, match="dropped"):
+        lost.reply()
+
+
+def test_python_paths_are_compared_decoded_and_odd_targets_go_to_python() -> None:
+    app = Hinoki(openapi_url="/openapi.json", docs_url="/docs")
+    app.include(ping)
+    server = classifier(app)
+    server.submit("GET", "/openapi%2Ejson", b"", [])
+    server.submit("GET", "/café", b"", [])
+    assert [r.action for r in server.drain(10)] == [None, None]
