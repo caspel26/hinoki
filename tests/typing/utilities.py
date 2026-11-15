@@ -1,9 +1,10 @@
 """The public time and model timestamp helpers remain statically usable."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from hinoki.orm import Model, field, timestamps
+from hinoki.testing import ManualClock
 from hinoki.utils import Clock, utc_now
 
 
@@ -12,6 +13,7 @@ def fixed_clock() -> datetime:
 
 
 clock: Clock = fixed_clock
+manual_clock: Clock = ManualClock(datetime(2026, 1, 1, tzinfo=UTC))
 
 
 @timestamps(clock=clock)
