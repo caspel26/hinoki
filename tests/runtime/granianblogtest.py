@@ -9,8 +9,8 @@ import urllib.request
 from pathlib import Path
 
 import pytest
+from blog.models import User
 
-from examples.blog.models import User
 from hinoki.db import Database
 from hinoki.orm import use_database
 from tests.blogschema import drop, reset
@@ -54,14 +54,14 @@ async def test_blog_flow_over_http_and_clean_shutdown(tmp_path: Path) -> None:
         await User.acreate(name="Ada", token="editor-token", is_editor=True)
     port = free_port()
     proc = spawn(
-        "examples.blog.main:create_app",
+        "blog.main:create_app",
         tmp_path / "events.log",
         port,
         factory=True,
-        cwd=ROOT,
+        cwd=ROOT / "examples",
         BLOG_DATABASE__URL=URL,
         BLOG_ADMIN_SECRET="g" * 40,
-        PYTHONPATH=str(ROOT),
+        PYTHONPATH=str(ROOT / "examples"),
     )
     try:
         await asyncio.to_thread(wait_ready, port, "/health")
