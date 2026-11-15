@@ -3,8 +3,7 @@
 from typing import Any
 from uuid import UUID, uuid4
 
-from hinoki import Caller, Schema
-from hinoki.crud import CrudAPI
+from hinoki import Caller, CrudAPI, Schema
 from hinoki.orm import Model, QuerySet, field
 
 
