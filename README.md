@@ -172,6 +172,8 @@ uv run hinoki migrations --dir examples/notes/migrations sql 0001-initial
 uv run hinoki migrations --dir examples/notes/migrations apply
 ```
 
+In a project created with `hinoki new`, omit `--models` and `--dir`: its manifest discovers the app. Migration numbering and a slug based on the schema change are generated automatically; `--name initial-notes` can override the slug.
+
 Start the development server and send two requests from another terminal:
 
 ```sh
