@@ -1,6 +1,6 @@
 """Synthetic demo data for a disposable database (never use real people).
 
-BLOG_DATABASE__URL=postgres://... uv run python -m examples.blog.seed
+BLOG_DATABASE__URL=postgres://... uv run --project .. python -m blog.seed
 
 Applies the migrations and inserts three users and twelve posts. The editor's
 token is ``demo-editor-token`` (users ``ada`` and ``rae`` can also log in with
@@ -11,11 +11,12 @@ the ``blog_token`` cookie for /admin or as a bearer token for the API.
 import asyncio
 from pathlib import Path
 
-from examples.blog.models import Post, User
 from hinoki.crypto import PasswordHasher
 from hinoki.db import Database
 from hinoki.orm import migrator, use_database
 from hinoki.settings import DatabaseSettings
+
+from .models import Post, User
 
 MIGRATIONS = Path(__file__).parent / "migrations"
 DEMO_PASSWORD = "demo-password-change-me"  # noqa: S105 - synthetic; the demo users are fake

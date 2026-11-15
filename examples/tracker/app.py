@@ -3,20 +3,21 @@
 The MCP endpoint is derived from the assembled API, so this example composes
 the app in a factory before exposing the allowlisted action.
 
-    hinoki dev examples.tracker.app:create_app
+    hinoki dev tracker.app:create_app
 
 Set ``TRACKER_DATABASE__URL`` to use a server database instead of SQLite.
 
 Layers (see docs/patterns.md): ``api`` -> ``operations`` -> ``models``.
 """
 
-from examples.tracker import api
-from examples.tracker.rules import tracker_rules
-from examples.tracker.security import member_only
-from examples.tracker.settings import TrackerSettings
 from hinoki import Hinoki
 from hinoki.db import DatabaseModule
 from hinoki.mcpapp import expose_as_mcp
+
+from . import api
+from .rules import tracker_rules
+from .security import member_only
+from .settings import TrackerSettings
 
 
 def create_app(database_url: str | None = None) -> Hinoki:

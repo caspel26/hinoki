@@ -2,8 +2,9 @@
 
 from typing import Annotated
 
-from examples.tracker.models import Task
 from hinoki import Field, Schema, derive
+
+from .models import Task
 
 
 class TaskIn(Schema):

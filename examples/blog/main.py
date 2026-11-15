@@ -4,18 +4,19 @@ This example uses a factory because it conditionally installs accounts when the
 JWT secret is configured and builds the optional admin from settings.
 
     BLOG_ADMIN_SECRET=... \
-      hinoki dev examples.blog.main:create_app
+      hinoki dev blog.main:create_app
 
 The factory builds declarations only; the pool opens in the worker's lifespan.
 """
 
-from examples.blog.accounts import build_accounts
-from examples.blog.adminsite import build_admin
-from examples.blog.api import Posts, health
-from examples.blog.rules import blog_rules
-from examples.blog.settings import BlogSettings
 from hinoki import Hinoki, errors
 from hinoki.db import DatabaseModule, UniqueViolation
+
+from .accounts import build_accounts
+from .adminsite import build_admin
+from .api import Posts, health
+from .rules import blog_rules
+from .settings import BlogSettings
 
 
 def unique_to_conflict(_error: UniqueViolation) -> errors.Conflict:
