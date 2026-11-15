@@ -244,8 +244,22 @@
       <article class="prose" style="--sheet: '2.4'">
         <p class="kicker" data-search-exclude>2.4 · Tutorial</p>
         <h1 id="3-operations">3. Operations<a class="headerlink" href="#3-operations" title="Permanent link">&para;</a></h1>
-<p>The rules of the application live in plain async functions that take the acting member's id and plain values. No <code>Request</code>, no HTTP types: an action, a CLI, a test or an admin hook can all call them.</p>
-<div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_tasks</span><span class="p">(</span><span class="n">owner_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">page</span><span class="p">:</span> <span class="n">PageParams</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Page</span><span class="p">[</span><span class="n">Task</span><span class="p">]:</span>
+<p>The rules of the application live in plain async functions that take the acting member's id and plain values. No <code>Request</code>, no HTTP types: an action, a CLI, a test or an admin hook can all call them. This excerpt follows <code>examples/tracker/operations.py</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">TaskAlreadyDone</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Task</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">examples.tracker.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">TaskIn</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuerySet</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.pagination</span><span class="w"> </span><span class="kn">import</span> <span class="n">Page</span><span class="p">,</span> <span class="n">PageParams</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">utc_now</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">mine</span><span class="p">(</span><span class="n">owner_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Task</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="n">Task</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">owner_id</span><span class="o">=</span><span class="n">owner_id</span><span class="p">)</span>
+
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_tasks</span><span class="p">(</span><span class="n">owner_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">page</span><span class="p">:</span> <span class="n">PageParams</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Page</span><span class="p">[</span><span class="n">Task</span><span class="p">]:</span>
     <span class="k">return</span> <span class="k">await</span> <span class="n">mine</span><span class="p">(</span><span class="n">owner_id</span><span class="p">)</span><span class="o">.</span><span class="n">apaginate</span><span class="p">(</span><span class="n">page</span><span class="p">)</span>   <span class="c1"># Task is @ordered_by newest first</span>
 
 
@@ -257,7 +271,7 @@
 <span class="w">    </span><span class="sd">"""Mark an own open task done in one statement."""</span>
     <span class="n">changed</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">aupdate_where</span><span class="p">(</span>
         <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="n">task_id</span><span class="p">,</span> <span class="s2">"owner_id"</span><span class="p">:</span> <span class="n">owner_id</span><span class="p">,</span> <span class="s2">"done"</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span>
-        <span class="p">{</span><span class="s2">"done"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"completed_at"</span><span class="p">:</span> <span class="n">now</span><span class="p">()},</span>
+        <span class="p">{</span><span class="s2">"done"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"completed_at"</span><span class="p">:</span> <span class="n">utc_now</span><span class="p">()},</span>
     <span class="p">)</span>
     <span class="k">if</span> <span class="n">changed</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">changed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
@@ -266,7 +280,10 @@
 </code></pre></div>
 <p>The important line is the <code>WHERE</code>: the owner is part of the statement. There is no "read the row, check the owner, then update" gap, and another member's task looks exactly like a missing one (404), so nothing leaks.</p>
 <p>The business failures are named after the rule they report:</p>
-<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">TaskAlreadyDone</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">Conflict</span><span class="p">):</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">errors</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TaskAlreadyDone</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">Conflict</span><span class="p">):</span>
     <span class="n">code</span> <span class="o">=</span> <span class="s2">"task_already_done"</span>
     <span class="n">message</span> <span class="o">=</span> <span class="s2">"The task is already done."</span>
 </code></pre></div>
@@ -296,7 +313,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.4</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:48:24 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:02:01 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/3-operations.md">Edit on GitHub</a></dd></div>
         </dl>

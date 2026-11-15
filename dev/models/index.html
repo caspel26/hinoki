@@ -259,19 +259,23 @@
               
             
               
-                <li><a class="side__link" href="../openapi/"><i>3.11</i><span>OpenAPI</span></a></li>
+                <li><a class="side__link" href="../crud/"><i>3.11</i><span>Generate CRUD routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../errors/"><i>3.12</i><span>Errors</span></a></li>
+                <li><a class="side__link" href="../openapi/"><i>3.12</i><span>OpenAPI</span></a></li>
               
             
               
-                <li><a class="side__link" href="../pagination/"><i>3.13</i><span>Pagination</span></a></li>
+                <li><a class="side__link" href="../errors/"><i>3.13</i><span>Errors</span></a></li>
               
             
               
-                <li><a class="side__link" href="../codecs/"><i>3.14</i><span>Parsers and renderers</span></a></li>
+                <li><a class="side__link" href="../pagination/"><i>3.14</i><span>Pagination</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../codecs/"><i>3.15</i><span>Parsers and renderers</span></a></li>
               
             
             </ul>
@@ -283,11 +287,11 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../authentication/"><i>3.15</i><span>Authentication and access</span></a></li>
+                <li><a class="side__link" href="../authentication/"><i>3.16</i><span>Authentication and access</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rules/"><i>3.16</i><span>Rules</span></a></li>
+                <li><a class="side__link" href="../rules/"><i>3.17</i><span>Rules</span></a></li>
               
             
             </ul>
@@ -299,31 +303,31 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../modules/"><i>3.17</i><span>Application modules</span></a></li>
+                <li><a class="side__link" href="../modules/"><i>3.18</i><span>Application modules</span></a></li>
               
             
               
-                <li><a class="side__link" href="../transactions/"><i>3.18</i><span>Transactions</span></a></li>
+                <li><a class="side__link" href="../transactions/"><i>3.19</i><span>Transactions</span></a></li>
               
             
               
-                <li><a class="side__link" href="../settings/"><i>3.19</i><span>Settings</span></a></li>
+                <li><a class="side__link" href="../settings/"><i>3.20</i><span>Settings</span></a></li>
               
             
               
-                <li><a class="side__link" href="../serving/"><i>3.20</i><span>Serving</span></a></li>
+                <li><a class="side__link" href="../serving/"><i>3.21</i><span>Serving</span></a></li>
               
             
               
-                <li><a class="side__link" href="../testing/"><i>3.21</i><span>Testing</span></a></li>
+                <li><a class="side__link" href="../testing/"><i>3.22</i><span>Testing</span></a></li>
               
             
               
-                <li><a class="side__link" href="../cli/"><i>3.22</i><span>Command line</span></a></li>
+                <li><a class="side__link" href="../cli/"><i>3.23</i><span>Command line</span></a></li>
               
             
               
-                <li><a class="side__link" href="../typing/"><i>3.23</i><span>Typing</span></a></li>
+                <li><a class="side__link" href="../typing/"><i>3.24</i><span>Typing</span></a></li>
               
             
             </ul>
@@ -335,19 +339,19 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../admin/"><i>3.24</i><span>Admin</span></a></li>
+                <li><a class="side__link" href="../admin/"><i>3.25</i><span>Admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../app-mcp/"><i>3.25</i><span>Application MCP</span></a></li>
+                <li><a class="side__link" href="../app-mcp/"><i>3.26</i><span>Application MCP</span></a></li>
               
             
               
-                <li><a class="side__link" href="../dev-mcp/"><i>3.26</i><span>Development MCP</span></a></li>
+                <li><a class="side__link" href="../dev-mcp/"><i>3.27</i><span>Development MCP</span></a></li>
               
             
               
-                <li><a class="side__link" href="../ai-workflow/"><i>3.27</i><span>Development tools</span></a></li>
+                <li><a class="side__link" href="../ai-workflow/"><i>3.28</i><span>Development tools</span></a></li>
               
             
             </ul>
@@ -359,11 +363,11 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../sync-async/"><i>3.28</i><span>Sync and async</span></a></li>
+                <li><a class="side__link" href="../sync-async/"><i>3.29</i><span>Sync and async</span></a></li>
               
             
               
-                <li><a class="side__link" href="../benchmarks/"><i>3.29</i><span>Benchmarks</span></a></li>
+                <li><a class="side__link" href="../benchmarks/"><i>3.30</i><span>Benchmarks</span></a></li>
               
             
             </ul>
@@ -431,7 +435,9 @@
 <span class="n">everything</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>           <span class="c1"># the explicit way around the policy</span>
 </code></pre></div>
 <p>Pass the method where the framework asks for a base query, so every operation built on it sees the same rows:</p>
-<div class="highlight"><pre><span></span><code><span class="n">Resource</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Task</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">TaskOut</span><span class="p">,</span> <span class="n">queryset</span><span class="o">=</span><span class="n">Task</span><span class="o">.</span><span class="n">active</span><span class="p">)</span>   <span class="c1"># list, read, update, delete</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.crud</span><span class="w"> </span><span class="kn">import</span> <span class="n">Resource</span>
+
+<span class="n">Resource</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Task</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">TaskOut</span><span class="p">,</span> <span class="n">queryset</span><span class="o">=</span><span class="n">Task</span><span class="o">.</span><span class="n">active</span><span class="p">)</span>   <span class="c1"># generated list/retrieve only</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">TaskAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">[</span><span class="n">Task</span><span class="p">]):</span>
@@ -466,6 +472,9 @@
 </tbody>
 </table>
 <p>Authorization must not depend on a default that a call to <code>all()</code> or a raw query can skip: keep ownership and permission checks in <code>access=</code>, <code>owner=</code> and <code>ModelAdmin.can()</code>, and treat a reusable query as convenience, not as the security boundary.</p>
+<p>To generate write routes as well, provide <code>create=</code> or <code>update=</code> schemas and/or
+set <code>deletable=True</code>; protect generated writes with <code>access=</code>. See
+<a href="../crud/">Generate CRUD routes</a> for the full route and ownership contract.</p>
 <h2 id="create-and-update">Create and update<a class="headerlink" href="#create-and-update" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="n">task</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">TaskInput</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Write docs"</span><span class="p">),</span> <span class="n">owner_id</span><span class="o">=</span><span class="n">member_id</span><span class="p">)</span>
 <span class="n">task</span><span class="o">.</span><span class="n">done</span> <span class="o">=</span> <span class="kc">True</span>
@@ -542,7 +551,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 04:32:59 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:01:56 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>

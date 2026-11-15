@@ -238,7 +238,7 @@
 <h2 id="a-declaration-is-reused">A declaration is reused<a class="headerlink" href="#a-declaration-is-reused" title="Permanent link">&para;</a></h2>
 <p>An action's Python signature and decorator options describe routing, binding, access, transaction behavior, expected errors, OpenAPI and MCP metadata. A route can be included as a standalone function, grouped in an <code>API</code> resource class, or collected in an includable <code>RouteGroup</code> of functions with shared defaults.</p>
 <h2 id="one-request">One request<a class="headerlink" href="#one-request" title="Permanent link">&para;</a></h2>
-<p>The server passes an ASGI request through the Python adapter, the compiled router and binding layer. Hinoki validates inputs, resolves authentication and access, runs the handler, validates the response and renders it. For a transactional action, commit happens after successful response validation; failures roll back before HTTP error translation. The ASGI boundary still crosses Python objects; the runtime is not an all-Rust server.</p>
+<p>The server passes an ASGI request through the Python adapter, the compiled router and binding layer. Hinoki validates inputs, resolves authentication and access, runs the handler, then encodes and renders its response. Runtime response values are not validated against their return annotations. For a transactional action, commit happens after successful response encoding and rendering; failures roll back before HTTP error translation. The ASGI boundary still crosses Python objects; the runtime is not an all-Rust server.</p>
 <h2 id="worker-resources">Worker resources<a class="headerlink" href="#worker-resources" title="Permanent link">&para;</a></h2>
 <p>Each server worker owns its module lifespan and database pool. Startup creates resources; shutdown closes them. A pool is not opened at import or shared across workers. Scripts outside the server manage their own short-lived connections.</p>
 <h2 id="optional-rules">Optional rules<a class="headerlink" href="#optional-rules" title="Permanent link">&para;</a></h2>
@@ -274,7 +274,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.1</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 04:32:59 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:02:01 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/concepts.md">Edit on GitHub</a></dd></div>
         </dl>

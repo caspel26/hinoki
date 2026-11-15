@@ -245,7 +245,11 @@
         <p class="kicker" data-search-exclude>2.6 · Tutorial</p>
         <h1 id="5-rules">5. Rules<a class="headerlink" href="#5-rules" title="Permanent link">&para;</a></h1>
 <p>Rules turn promises into failures with a stable id and a location.</p>
-<div class="highlight"><pre><span></span><code><span class="n">tracker_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Actions</span><span class="p">,</span> <span class="n">Imports</span><span class="p">,</span> <span class="n">Schemas</span><span class="p">,</span> <span class="n">Transactions</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">RuleSet</span>
+
+
+<span class="n">tracker_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
     <span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"examples.tracker.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"examples.tracker.api.health"</span><span class="p">]),</span>
     <span class="n">Actions</span><span class="o">.</span><span class="n">forbid_model_responses</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"examples.tracker.*"</span><span class="p">),</span>
     <span class="n">Transactions</span><span class="o">.</span><span class="n">require_atomic</span><span class="p">(</span><span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"hinoki.mcpapp.*"</span><span class="p">]),</span>
@@ -292,7 +296,7 @@ tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does 
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.6</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 03:28:41 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:02:01 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/5-rules.md">Edit on GitHub</a></dd></div>
         </dl>
