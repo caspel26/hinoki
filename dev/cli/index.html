@@ -597,12 +597,25 @@ experimenting.</p>
 <h3 id="migrations"><code>migrations</code><a class="headerlink" href="#migrations" title="Permanent link">&para;</a></h3>
 <p>In a project created by <code>hinoki new</code>, migration modules are read from the manifest; users do not supply model or migration paths:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--name<span class="w"> </span>add-index<span class="w"> </span>--dry-run
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--check
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>billing<span class="w"> </span>--name<span class="w"> </span>add-invoice-index
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>status
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>billing<span class="w"> </span><span class="m">0001</span>-initial
 </code></pre></div>
 <p><code>status</code> and <code>apply</code> cover all registered apps in dependency order. <code>plan</code> requires one app when multiple are registered, selected with <code>--app</code>; <code>sql</code> likewise requires an app in a multi-app project. <code>--name</code> is optional: Hinoki derives a stable slug from the first planned schema change (for example, <code>create-table-notes</code>); pass <code>--name initial-notes</code> to override it. Numbering is automatic. <code>apply</code> initializes the configured local SQLite database when no database URL is set. Added apps have separate migration ledger namespaces, so identical numbered filenames do not collide; the scaffolded root app retains its existing unprefixed migration keys. <code>--app billing</code> includes its declared prerequisite apps for migration application.</p>
+<p>Use <code>plan --check</code> in CI to fail when model changes are missing from committed
+migration files. It exits <code>1</code> when operations are pending and <code>0</code> when the
+files match the models. It is read-only: it imports registered model modules
+and the selected migration package but does not write migration files or
+connect to a database. Project planning loads every registered app's models
+to validate cross-app foreign keys, even when <code>--app</code> selects one migration
+package. Destructive operations are reported as pending too. In a multi-app
+project, run the check once for each app with <code>--app NAME</code>; like <code>plan</code>, it
+requires <code>--app</code> when more than one app is registered. This checks
+model-to-file drift only; <code>migrations status</code> checks which migration files
+have been applied to a live database. <code>plan --dry-run</code> remains a human preview
+and exits successfully when it prints planned operations.</p>
 <p>Without a <code>hinoki.toml</code>, the explicit legacy form remains:</p>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>myapp/migrations<span class="w"> </span>plan<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--models<span class="w"> </span>myapp.models<span class="w"> </span>--name<span class="w"> </span>add-index<span class="w"> </span>--dry-run
@@ -654,7 +667,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class=
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 21:40:35 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>10 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>

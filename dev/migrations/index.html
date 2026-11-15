@@ -398,6 +398,20 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 generated SQL uses the selected backend's types. Existing state files that
 recorded SQLite or MySQL-specific type names are normalized when planning, so
 switching the planner's backend does not appear as a destructive type change.</p>
+<p>To check that model changes have a committed migration file in CI, run:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--check
+</code></pre></div>
+<p>It exits <code>1</code> when operations are pending, including destructive operations,
+and <code>0</code> when the model state matches the latest migration state file. It does
+not write migration files or connect to a database. It imports the selected
+app's migration module and every registered app's model module (cross-app
+foreign keys require the other models for validation), so those imports must
+be safe for a CI check. In a multi-app project, pass <code>--app NAME</code> and run the
+check once for each registered app; without a selection, it asks for <code>--app</code>
+just like <code>plan</code>. This check concerns file state only. Use <code>migrations status</code>
+to compare the files with a live database's applied migration ledger.
+<code>--dry-run</code> remains a preview that prints operations and exits successfully
+when changes are pending.</p>
 <p>For example, <code>billing</code> can depend on <code>accounts</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="k">[[apps]]</span>
 <span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"billing"</span>
@@ -447,7 +461,7 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.9</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 19:50:28 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 21:40:35 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/migrations.md">Edit on GitHub</a></dd></div>
         </dl>
