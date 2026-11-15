@@ -156,7 +156,7 @@ uv run hinoki migrations apply
 uv run hinoki migrations sql --app billing 0001-initial
 ```
 
-`status` and `apply` cover all registered apps in dependency order. `plan` requires one app when multiple are registered, selected with `--app`; `sql` likewise requires an app in a multi-app project. `apply` initializes the configured local SQLite database when no database URL is set. Each app has a separate migration ledger namespace, so identical numbered filenames do not collide. `--app billing` includes its declared prerequisite apps for migration application.
+`status` and `apply` cover all registered apps in dependency order. `plan` requires one app when multiple are registered, selected with `--app`; `sql` likewise requires an app in a multi-app project. `--name` is optional: Hinoki derives a stable slug from the first planned schema change (for example, `create-table-notes`); pass `--name initial-notes` to override it. Numbering is automatic. `apply` initializes the configured local SQLite database when no database URL is set. Added apps have separate migration ledger namespaces, so identical numbered filenames do not collide; the scaffolded root app retains its existing unprefixed migration keys. `--app billing` includes its declared prerequisite apps for migration application.
 
 Without a `hinoki.toml`, the explicit legacy form remains:
 
@@ -171,7 +171,7 @@ hinoki migrations --dir examples/blog/migrations apply
 hinoki migrations --dir examples/blog/migrations sql 0001-initial
 ```
 
-`plan` requires `--models MODULE`; `--name` defaults to `changes`. `--dry-run` prints operations without writing files. Destructive operations require `--allow-destructive`. Without `HINOKI_DATABASE_URL`, plan/status/apply target the local SQLite file at `.hinoki/local.sqlite3`; `--database URL` selects another supported backend. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints `error: database: …` with a `fix:` line and exits 1; the URL is not printed. `sql NAME` prints a migration's SQL. Use a disposable database while reviewing migrations.
+`plan` requires `--models MODULE`; `--name` is an optional slug override and is derived from the first planned schema change when omitted. `--dry-run` prints operations without writing files. Destructive operations require `--allow-destructive`. Without `HINOKI_DATABASE_URL`, plan/status/apply target the local SQLite file at `.hinoki/local.sqlite3`; `--database URL` selects another supported backend. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints `error: database: …` with a `fix:` line and exits 1; the URL is not printed. `sql NAME` prints a migration's SQL. Use a disposable database while reviewing migrations.
 
 ### `mcp`
 
