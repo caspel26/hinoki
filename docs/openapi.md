@@ -11,6 +11,15 @@ related:
 
 `Hinoki.openapi()` builds an OpenAPI 3.1 document from the routes registered with the app. Paths, parameters, request bodies, response schemas, declared errors and supported authentication schemes come from the action declarations and type annotations.
 
+Generate the document from a project target without starting a server:
+
+```sh
+hinoki openapi examples.notes.main:app --output openapi.json
+hinoki openapi examples.notes.main:app --check openapi.json
+```
+
+The command does not open a database and works even when `openapi_url` is disabled. It writes stable, sorted JSON, and `--check` compares parsed JSON so whitespace-only changes do not report drift. See the [command-line guide](cli.md#openapi) for output and exit-status details.
+
 ## Serve the document and viewers
 
 All three URLs are disabled by default. Set `openapi_url` to serve JSON; add `docs_url` for the bundled Swagger UI or `redoc_url` for ReDoc:
