@@ -1,0 +1,96 @@
+{
+  "benchmark": "benchmarks/protectedgetbench.py",
+  "date": "2026-11-15T06:48:59.819049+00:00",
+  "runtime_candidate": "Rust decoded route parameters fused into native route lookup",
+  "runtime_candidate_commit": "uncommitted prototype, branch base 306d0cd",
+  "environment": {
+    "python": "3.14.8 (main, Oct  2 2026, 10:23:31) [GCC 16.2.1 20260810]",
+    "platform": "Linux-7.2.11-arch1-1-x86_64-with-glibc2.44",
+    "processor": "",
+    "loadavg_after": [
+      2.32568359375,
+      2.0927734375,
+      3.46533203125
+    ],
+    "extension_profile": "release"
+  },
+  "scenario": "in-process async protected GET with ASGI raw_path, no network/database",
+  "method": {
+    "blocks": 5,
+    "warmup_samples_per_block": 1,
+    "samples_per_block": 7,
+    "requests_per_sample": 20000
+  },
+  "runs": [
+    {
+      "median_us": 55.874,
+      "cv_pct": 3.47,
+      "samples_us": [
+        55.211,
+        56.534,
+        55.874,
+        57.38,
+        55.818,
+        55.153,
+        60.778
+      ]
+    },
+    {
+      "median_us": 59.031,
+      "cv_pct": 2.64,
+      "samples_us": [
+        60.079,
+        59.031,
+        57.085,
+        60.049,
+        57.833,
+        57.259,
+        61.051
+      ]
+    },
+    {
+      "median_us": 56.402,
+      "cv_pct": 3.73,
+      "samples_us": [
+        54.621,
+        56.096,
+        54.873,
+        59.034,
+        56.402,
+        56.512,
+        60.369
+      ]
+    },
+    {
+      "median_us": 56.362,
+      "cv_pct": 2.83,
+      "samples_us": [
+        56.362,
+        57.059,
+        55.724,
+        58.808,
+        55.652,
+        55.122,
+        59.238
+      ]
+    },
+    {
+      "median_us": 56.931,
+      "cv_pct": 3.23,
+      "samples_us": [
+        56.931,
+        57.777,
+        55.853,
+        59.995,
+        56.044,
+        55.697,
+        59.948
+      ]
+    }
+  ],
+  "median_of_block_medians_us": 56.402,
+  "cv_of_block_medians_pct": 2.1749238926226937,
+  "baseline_median_us": 57.125,
+  "change_pct": -1.2656455142231904,
+  "experiment_status": "prototype rejected: -1.27% median change, below 15% detector and within observed variance; do not treat as a Rust speedup"
+}
