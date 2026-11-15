@@ -1,5 +1,8 @@
 # Database API
 
+For setup, application settings, URL examples and migration workflow, see
+[configure a database](../databases.md).
+
 The ORM supports PostgreSQL, SQLite and MySQL. SQLite is the local-development
 default; configure an explicit URL for PostgreSQL or MySQL deployments. Raw SQL
 uses the selected driver's placeholders: PostgreSQL uses ``$1``, while SQLite
