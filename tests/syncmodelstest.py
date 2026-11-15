@@ -3,7 +3,7 @@
 import os
 import time
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, ClassVar
 from uuid import UUID, uuid4
 
 import pytest
@@ -12,7 +12,15 @@ from hinoki import Hinoki, RuntimeConfig, http
 from hinoki.blocking import run_sync
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import FieldError
-from hinoki.orm import Model, current_database, field, use_database
+from hinoki.orm import (
+    Model,
+    OnDelete,
+    current_database,
+    field,
+    foreign_key,
+    use_database,
+)
+from hinoki.orm.relations import Related
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from hinoki.request import Request
 from tests.harness import Client, Pool
@@ -28,6 +36,24 @@ class Gadget(Model, table="sync_gadgets"):
     name: str
     tags: list[str] = field(default_factory=list)
     stock: int = 0
+
+
+class SyncOwner(Model, table="sync_owners"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    name: str
+    profile: ClassVar["Related[SyncProfile | None]"]
+
+
+class SyncProfile(Model, table="sync_profiles"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    owner_id: UUID = foreign_key(
+        SyncOwner,
+        on_delete=OnDelete.CASCADE,
+        related_name="profile",
+        unique=True,
+    )
+    label: str
+    owner: ClassVar[Related[SyncOwner]]
 
 
 @http.post("/gadgets", status=201, transaction=True)
@@ -71,20 +97,37 @@ async def blocking_on_the_loop(request: Request) -> dict[str, str]:
     return {}
 
 
+@http.get("/owners/{owner_id}/profile")
+def sync_profile(request: Request, owner_id: UUID) -> dict[str, str | None]:
+    owner = SyncOwner.filter(id=owner_id).prefetch_related("profile").get()
+    return {"label": owner.profile.label if owner.profile is not None else None}
+
+
 @pytest.fixture
 async def client(pool: Pool) -> AsyncIterator[Client]:
     assert URL is not None
     admin = await Database.connect(URL, max_size=1)
     await admin.execute("DROP TABLE IF EXISTS sync_gadgets")
+    await admin.execute("DROP TABLE IF EXISTS sync_profiles")
+    await admin.execute("DROP TABLE IF EXISTS sync_owners")
     await admin.execute(
         "CREATE TABLE sync_gadgets (id uuid PRIMARY KEY, name text NOT NULL, "
         "tags jsonb NOT NULL, stock int NOT NULL)"
     )
+    await admin.execute(
+        "CREATE TABLE sync_owners (id uuid PRIMARY KEY, name text NOT NULL)"
+    )
+    await admin.execute(
+        "CREATE TABLE sync_profiles (id uuid PRIMARY KEY, owner_id uuid NOT NULL "
+        "UNIQUE REFERENCES sync_owners(id) ON DELETE CASCADE, label text NOT NULL)"
+    )
     app = Hinoki()
-    app.include(add, show, listing, restock, blocking_on_the_loop)
+    app.include(add, show, listing, restock, blocking_on_the_loop, sync_profile)
     app.install(DatabaseModule(URL, max_size=3))
     yield await pool.start(app)
     await admin.execute("DROP TABLE IF EXISTS sync_gadgets")
+    await admin.execute("DROP TABLE IF EXISTS sync_profiles")
+    await admin.execute("DROP TABLE IF EXISTS sync_owners")
     admin.close()
 
 
@@ -117,6 +160,24 @@ async def test_sync_pagination(client: Client) -> None:
         await client.request("POST", "/gadgets", query=f"name={name}")
     page = (await client.request("GET", "/gadgets", query="page=2")).body
     assert (page["total"], [i["name"] for i in page["items"]]) == (3, ["c"])
+
+
+async def test_sync_handler_prefetches_one_to_one_relation(client: Client) -> None:
+    assert URL is not None
+    admin = await Database.connect(URL)
+    try:
+        with use_database(admin):
+            owner = await SyncOwner.acreate(name="linked")
+            empty = await SyncOwner.acreate(name="empty")
+            await SyncProfile.acreate(owner_id=owner.id, label="profile")
+    finally:
+        admin.close()
+
+    linked = await client.request("GET", f"/owners/{owner.id}/profile")
+    unlinked = await client.request("GET", f"/owners/{empty.id}/profile")
+
+    assert linked.body == {"label": "profile"}
+    assert unlinked.body == {"label": None}
 
 
 async def test_blocking_on_the_event_loop_is_refused_not_deadlocked(
