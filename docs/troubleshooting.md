@@ -29,3 +29,5 @@ Sync code runs on a bounded executor and can saturate. Prefer async database and
 Review the generated SQL and the data it may remove. Test the change against a disposable database backup before using `--allow-destructive`. See [migrations](migrations.md).
 
 If the issue persists, include the Hinoki version, the command or route, the complete diagnostic, and a minimal example. Remove credentials and user data first.
+
+For a version report, run `hinoki version --verbose --format json`. The output includes installed runtime details without reading application settings or opening a database.
