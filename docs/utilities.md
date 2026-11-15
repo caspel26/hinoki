@@ -28,6 +28,21 @@ class Event(Model, table="events"):
 
 The clock is a callable, so code that depends on time can accept a `Clock` and tests can supply a fixed function. No process-wide clock patch is needed.
 
+For tests that need to move time more than once, use `ManualClock` from `hinoki.testing`:
+
+```python
+from datetime import UTC, datetime
+
+from hinoki.testing import ManualClock
+
+clock = ManualClock(datetime(2026, 1, 1, tzinfo=UTC))
+first = clock()
+clock.advance(seconds=60)
+second = clock()
+```
+
+It stores instants in UTC, accepts only timezone-aware values, and can be passed to `app.now(clock)` or `utc_today(clock)`.
+
 ## Application timezone
 
 Set an IANA timezone name in the app's global settings. It defaults to `UTC`; invalid names fail while settings are constructed:
