@@ -188,6 +188,8 @@ def environment(args: argparse.Namespace) -> dict:
             "warmup_s": args.warmup,
             "duration_s": args.duration,
             "runs": args.runs,
+            "run_offset": args.run_offset,
+            "scenarios": args.scenario or list(SCENARIOS),
             "server_cpus": SERVER_CPUS,
             "load_cpus": LOAD_CPUS,
         },
@@ -202,6 +204,8 @@ def arguments() -> argparse.Namespace:
     )
     parser.add_argument("--out", type=Path, default=HERE / "results" / "scratch")
     parser.add_argument("--runs", type=int, default=5)
+    parser.add_argument("--run-offset", type=int, default=0)
+    parser.add_argument("--scenario", choices=tuple(SCENARIOS), nargs="+")
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--duration", type=int, default=DURATION)
     parser.add_argument("--warmup", type=int, default=WARMUP)
@@ -265,17 +269,20 @@ def measure_stack(name: str, args: argparse.Namespace, body: Path, post: str) ->
         verify_stack(name, args.out)
         if args.smoke:
             return
-        for scenario, (method, path, payload) in SCENARIOS.items():
+        scenarios = args.scenario or list(SCENARIOS)
+        for scenario in scenarios:
+            method, path, payload = SCENARIOS[scenario]
             url = f"http://127.0.0.1:{PORT}" + path.format(post=post)
             data = body if payload else None
             oha(url, method, data, args.warmup, None)
             for run in range(1, args.runs + 1):
+                sample = run + args.run_offset
                 oha(
                     url,
                     method,
                     data,
                     args.duration,
-                    args.out / f"{name}-{scenario}-{run}.json",
+                    args.out / f"{name}-{scenario}-{sample}.json",
                 )
             if scenario == "create":
                 reset_benchmark_rows()
@@ -290,9 +297,11 @@ def main() -> None:
     args.selected_stacks = names
     args.out.mkdir(parents=True, exist_ok=True)
     if not args.smoke:
-        (args.out / "environment.json").write_text(
-            json.dumps(environment(args), indent=2)
-        )
+        metadata = args.out / "environment.json"
+        if metadata.exists():
+            stamp = time.strftime("%H%M%S")
+            metadata = args.out / f"environment-{args.server_mode}-{stamp}.json"
+        metadata.write_text(json.dumps(environment(args), indent=2))
     body = args.out / "create.json"
     from seed import author_id, post_id
 

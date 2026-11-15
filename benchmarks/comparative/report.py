@@ -29,6 +29,7 @@ def load_runs(directory: Path, stack: str, scenario: str) -> list[dict]:
 
 def run_summary(runs: list[dict], expected_status: str) -> dict:
     rps = [float(run["summary"]["requestsPerSec"]) for run in runs]
+    mean_rps = statistics.mean(rps)
     wrong = sum(
         count
         for run in runs
@@ -45,6 +46,7 @@ def run_summary(runs: list[dict], expected_status: str) -> dict:
         "median": statistics.median(rps),
         "low": min(rps),
         "high": max(rps),
+        "cv_pct": statistics.stdev(rps) / mean_rps * 100 if len(rps) > 1 else None,
         "p50": statistics.median(run["latencyPercentiles"]["p50"] for run in runs),
         "p95": statistics.median(run["latencyPercentiles"]["p95"] for run in runs),
         "p99": statistics.median(run["latencyPercentiles"]["p99"] for run in runs),
@@ -100,6 +102,21 @@ def svg_chart(scenario: str, rows: list[tuple[str, dict]], chart_id: str) -> str
     )
 
 
+def additional_capture_lines(directory: Path) -> list[str]:
+    captures = []
+    for capture_path in sorted(directory.glob("environment-*.json")):
+        capture = json.loads(capture_path.read_text())
+        settings = capture["settings"]
+        captures.append(
+            f"Additional capture {capture_path.name}: {capture['date']}; "
+            f"load average {', '.join(f'{value:.2f}' for value in capture['loadavg_at_start'])}; "
+            f"stacks {', '.join(settings['stacks'])}; "
+            f"{settings['runs']} runs x {settings['duration_s']} s for "
+            f"{', '.join(settings.get('scenarios', SCENARIOS))}."
+        )
+    return captures + ([""] if captures else [])
+
+
 def render_mode(directory: Path) -> str:
     env_path = directory / "environment.json"
     if not env_path.exists():
@@ -129,6 +146,7 @@ def render_mode(directory: Path) -> str:
         f"{settings['runs']} measured runs of {settings['duration_s']} s; {env['postgres']}; {env['oha']}.",
         "",
     ]
+    lines.extend(additional_capture_lines(directory))
     for scenario in SCENARIOS:
         summaries = [
             (
@@ -141,6 +159,7 @@ def render_mode(directory: Path) -> str:
         rows_html = "".join(
             f'<tr><th scope="row">{html.escape(label)}</th>'
             f"<td>{row['median']:,.0f}</td><td>{row['low']:,.0f}&ndash;{row['high']:,.0f}</td>"
+            f"<td>{row['cv_pct']:.1f}{'%' if row['cv_pct'] is not None else ''}</td>"
             f"<td>{row['p50'] * 1000:.1f}</td><td>{row['p95'] * 1000:.1f}</td><td>{row['p99'] * 1000:.1f}</td>"
             f"<td>{row['wrong']}</td><td>{row['runs']}</td></tr>"
             for label, row in summaries
@@ -158,6 +177,7 @@ def render_mode(directory: Path) -> str:
                 '<table class="benchmark-table">',
                 f"<caption>{scenario.title()} results across {len(summaries)} stacks</caption>",
                 '<thead><tr><th scope="col">Stack</th><th scope="col">Median req/s</th><th scope="col">Range req/s</th>'
+                '<th scope="col">CV</th>'
                 '<th scope="col">p50 ms</th><th scope="col">p95 ms</th><th scope="col">p99 ms</th>'
                 '<th scope="col">Unexpected responses</th><th scope="col">Runs</th></tr></thead>',
                 f"<tbody>{rows_html}</tbody>",
@@ -167,7 +187,7 @@ def render_mode(directory: Path) -> str:
         )
     lines.extend(
         [
-            "Requests in flight when a sample ended were aborted by `oha`; these deadline aborts are excluded from unexpected-error totals. All listed stacks passed the correctness and SQL statement-count verifier before measurement.",
+            "Requests in flight when a sample ended were aborted by `oha`; these deadline aborts are excluded from unexpected-error totals. All listed stacks passed the correctness and SQL statement-count verifier before measurement. CV is the sample coefficient of variation across requests/second samples; values above 15% are a signal to investigate host variance and repeat when justified, not proof that the run is invalid.",
             "",
         ]
     )
@@ -175,16 +195,33 @@ def render_mode(directory: Path) -> str:
 
 
 def main(directories: list[Path]) -> None:
-    print("# Measured results\n")
+    print("---\nstatus: implemented\n---\n")
+    print("# Benchmarks\n")
     print(
         "These measurements describe the recorded implementations, machine and workload only. They are not a universal comparison or a production-readiness claim. `health` is diagnostic; database-backed list, detail and create are the primary scenarios. No overall winner is calculated.\n"
     )
     for directory in directories:
         print(render_mode(directory))
+    create_summaries = [
+        run_summary(load_runs(directory, stack, "create"), EXPECTED["create"])
+        for directory in directories
+        for stack in json.loads((directory / "environment.json").read_text())[
+            "settings"
+        ]["stacks"]
+    ]
+    noisy_create = [summary for summary in create_summaries if summary["cv_pct"] > 15]
+    if noisy_create:
+        print(
+            "## Interpretation\n\n"
+            "Create throughput remains variable: at least one stack in each measured slice "
+            "has a sample CV above 15%, including after ten samples in the create scenario. "
+            "Treat these write measurements as inconclusive for close performance comparisons; "
+            "the median and range are descriptive and do not establish a winner.\n"
+        )
     print(
         "## Method and limits\n\n"
         "Each stack used the same PostgreSQL seed and request/response oracle. The verifier checked response content, status and SQL statement counts before measurement. Create uses per-statement autocommit in each implementation. The documented-stack and same-Granian ASGI slices answer different questions: Bolt stays on its own server and is not included in the ASGI same-server control.\n\n"
-        "This is one host and one run window. Drivers and ORM scheduling differ; equal pool settings do not imply identical behavior. The dataset is small and warm, networking is loopback, and this does not measure TLS, proxies, authentication, compression, memory, cold data or other workloads. A min-to-max range is descriptive, not a confidence interval. Inspect retained raw JSON, environment metadata, server logs and verification output before drawing conclusions.\n"
+        "This is one host and one run window. Drivers and ORM scheduling differ; equal pool settings do not imply identical behavior. The dataset is small and warm, networking is loopback, and this does not measure TLS, proxies, authentication, compression, memory, cold data or other workloads. A min-to-max range is descriptive, not a confidence interval. Raw JSON, environment metadata, server logs and verification output are retained in `benchmarks/comparative/results/2026-11-15/`; reproduction instructions are in `benchmarks/comparative/README.md`. Inspect them before drawing conclusions."
     )
 
 
