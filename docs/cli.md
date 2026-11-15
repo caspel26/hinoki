@@ -16,6 +16,7 @@ The `hinoki` command accepts a `module:attribute` target for an application, fac
 | `hinoki check TARGET` | Run the application's configured rules; `--rules` and `--package` select rule and source targets. |
 | `hinoki routes TARGET` | List every method, path, handler and access policy in path order. `--path` and `--method` filter; `--format json` is machine readable. Nothing is served. |
 | `hinoki openapi TARGET` | Print or write the generated OpenAPI document, or check a JSON file for drift. Nothing is served and no database is opened. |
+| `hinoki version` | Show the Hinoki version; `--verbose` includes Python, platform, native core and optional Granian details. `--format json` is machine readable. |
 | `hinoki settings TARGET` | Show effective settings and their source, with secrets redacted. `--dotenv` and `--toml` select optional files. |
 | `hinoki migrations ...` | Plan, inspect and apply database migrations. |
 | `hinoki manage TARGET COMMAND` | Run an app-defined command with its declared module resources. |
@@ -77,6 +78,16 @@ hinoki openapi examples.notes.main:app --check openapi.json
 ```
 
 The command builds the app without serving it or opening a database; it works even when `openapi_url` is disabled. With no file option it prints deterministic JSON (sorted keys, two-space indentation and a trailing newline). `--output FILE` writes those bytes. `--check FILE` compares parsed JSON, so formatting differences do not count as drift. Exit status is `0` when the file matches or is written, `1` when its JSON differs, and `2` when the target cannot load or the check file is missing or invalid JSON. `--output` and `--check` cannot be used together.
+
+### `version`
+
+```sh
+hinoki version
+hinoki version --verbose
+hinoki version --verbose --format json
+```
+
+The default prints `hinoki X.Y.Z`. `--verbose` adds the Python version, platform, native extension path and Granian version; Granian is reported as `not installed` when its optional package is absent. Use `--format json` for machine-readable output. Details the binding does not expose, including its bundled SQLite library version, are omitted rather than inferred.
 
 ### `settings`
 
