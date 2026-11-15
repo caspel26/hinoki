@@ -80,12 +80,21 @@ metadata files rather than replacing the first environment record.
 
 Exact package versions, the CPU model, the load average when the run started and every setting are written to `environment.json`; each raw `oha` result is kept next to the report.
 
-The refreshed 2026-11-15 samples and generated report are retained under
-`results/2026-11-15/`. Create had ten samples per stack across the documented
-and same-Granian slices; the extra blocks have separate environment records.
-Its CV remains above 15% for every stack, so treat create throughput as noisy
-and inconclusive for close comparisons. The public chart page is generated
-from these raw JSON files with `report.py`.
+Two independent result sets are retained, and they are never combined:
+
+* `results/2026-11-15-macos-m4pro/`: Apple M4 Pro, macOS, no CPU pinning,
+  PostgreSQL inside the Docker Desktop virtual machine. Create CV stayed below
+  5% for every stack, so no extra create block was captured. Django Bolt is
+  not charted from this run: its worker file shows one busy process out of the
+  four it was started with, so it is not a four-process result.
+* `results/2026-11-15/`: Linux, i5-10300H, CPU pinning. Create had ten samples
+  per stack across the documented and same-Granian slices; the extra blocks
+  have separate environment records. Its CV remains above 15% for every stack,
+  so treat create throughput there as noisy and inconclusive for close
+  comparisons.
+
+The public chart page is generated from the raw JSON files of both with
+`report.py`; pass the macOS directories first.
 
 ## Limits
 
@@ -95,3 +104,5 @@ from these raw JSON files with `report.py`.
 * Connection-pool sizes are equal per process, but each library schedules work differently (Django's async ORM runs queries through a thread, for example); equal settings are not equal behaviour.
 * `create` includes a database write per request; rows are removed afterwards.
 * The same-server control covers only the three ASGI applications. Django Bolt's server remains part of the documented-stack slice and cannot be treated as an ASGI control.
+* The macOS run was not taken on an idle host: the one-minute load average was about 3 to 5 when it started, with background system services running. `quiet-condition.txt` in its results directory lists the busiest processes at that moment. macOS has no hard CPU affinity, so servers and the load generator were scheduled by the operating system.
+* On macOS, Hinoki's Granian workers were unevenly loaded (one of the four used noticeably less CPU time than the others; see the `*-workers.txt` files), and Django Bolt used only one of its four processes. The two machines and operating systems differ, and on macOS PostgreSQL ran inside a virtual machine, so no number from one run may be compared with the other.
