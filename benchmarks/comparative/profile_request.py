@@ -319,7 +319,9 @@ def cleanup() -> None:
 async def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--blocks", type=int, default=5)
-    parser.add_argument("--prod", action="store_true", help="browser-facing policy stack")
+    parser.add_argument(
+        "--prod", action="store_true", help="browser-facing policy stack"
+    )
     parser.add_argument("--profile", action="store_true")
     parser.add_argument("--scenario", nargs="+", choices=tuple(SCENARIOS))
     parser.add_argument("--output")
