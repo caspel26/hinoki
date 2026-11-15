@@ -91,11 +91,11 @@ class Database:
 
     @property
     def dialect(self) -> str:
-        """The selected SQL dialect (currently ``postgres`` or ``sqlite``)."""
+        """The selected dialect: ``postgres``, ``sqlite``, ``mysql`` or ``mariadb``."""
         return self.engine.dialect
 
     async def fetch(self, sql: str, *params: Param) -> list[Row]:
-        """Rows as dicts. PostgreSQL uses ``$1``; SQLite uses ``?1``."""
+        """Rows as dicts, with placeholders selected by the active backend."""
         active = self.active()
         target = active.native if active else self.engine
         return await target.fetch(sql, list(params))
