@@ -617,6 +617,7 @@ dependencies = [
  "ed25519-dalek",
  "getrandom 0.4.3",
  "hinoki-orm",
+ "hinoki-server",
  "hmac",
  "pyo3",
  "pyo3-async-runtimes",

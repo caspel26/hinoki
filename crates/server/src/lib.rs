@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 pub mod early;
+pub mod headers;
 pub mod limits;
 pub mod plan;
 pub mod queue;
