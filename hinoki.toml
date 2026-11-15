@@ -1,0 +1,20 @@
+[project]
+application = "examples.management:app"
+
+[[apps]]
+name = "notes"
+models = "examples.notes.models"
+migrations = "examples.notes.migrations"
+requires = []
+
+[[apps]]
+name = "tracker"
+models = "examples.tracker.models"
+migrations = "examples.tracker.migrations"
+requires = []
+
+[[apps]]
+name = "blog"
+models = "examples.blog.models"
+migrations = "examples.blog.migrations"
+requires = []

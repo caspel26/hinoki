@@ -2,25 +2,17 @@
 
     uv run hinoki dev examples.notes.main:app
 
-Create the table with ``hinoki migrations --dir examples/notes/migrations apply``;
+The root project manifest registers this model and its migration package;
 nothing here touches a database at import.
 """
 
 from typing import Annotated
-from uuid import UUID, uuid4
+from uuid import UUID
 
+from examples.notes.models import Note
 from examples.notes.settings import NotesSettings
 from hinoki import Field, Hinoki, Schema, http
 from hinoki.db import DatabaseModule
-from hinoki.orm import Model, field, indexed, ordered_by
-
-
-@indexed("title")
-@ordered_by("title")
-class Note(Model, table="notes"):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-    title: str = field(max_length=80)
-    body: str = ""
 
 
 class NoteIn(Schema):
