@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import inspect
 import logging
 from collections.abc import Awaitable, Callable, Sequence
@@ -21,7 +22,16 @@ Hook = Callable[[ModuleContext], Awaitable[None] | None]
 """An application startup or shutdown hook: ``async def`` or plain ``def``."""
 
 
+class _HookRaised(Exception):
+    """Carry a hook's BaseException without letting it escape an asyncio task."""
+
+    def __init__(self, cause: BaseException) -> None:
+        self.cause = cause
+
+
 def hook_name(hook: Hook) -> str:
+    while isinstance(hook, functools.partial):
+        hook = hook.func
     return getattr(hook, "__name__", type(hook).__name__)
 
 
@@ -82,10 +92,11 @@ class Lifespan:
                     current = STARTUP_HOOK + hook_name(hook)
                     await self._call(hook)
         except BaseException as exc:
-            await self._close()
-            if isinstance(exc, asyncio.CancelledError):
+            await self._close_after_cancellation()
+            if self._is_external_cancellation(exc):
                 raise
-            raise StartupError(current, exc) from exc
+            cause = exc.cause if isinstance(exc, _HookRaised) else exc
+            raise StartupError(current, cause) from exc
         self._started = True
 
     def _check_database(self) -> None:
@@ -104,25 +115,69 @@ class Lifespan:
             return
         completed, self._started = self._started, False
         causes: list[BaseException] = []
-        if completed:  # hooks never run against a worker that did not start
-            for hook in self.on_shutdown:
-                await self._step(self._call(hook), causes)
-        causes.extend(await self._close())
+        cancelled = await self._run_shutdown_hooks(causes) if completed else None
+        cancelled = await self._finish_close(causes, cancelled)
+        if cancelled is not None:
+            raise cancelled
         if causes:
             raise ShutdownError(causes)
 
-    async def _call(self, hook: Hook) -> None:
+    async def _run_shutdown_hooks(
+        self, causes: list[BaseException]
+    ) -> asyncio.CancelledError | None:
+        cancelled: asyncio.CancelledError | None = None
+        for hook in self.on_shutdown:
+            try:
+                await self._step(
+                    self._call(hook, shutdown=True),
+                    causes,
+                    label=f"shutdown hook {hook_name(hook)!r}",
+                )
+            except asyncio.CancelledError as exc:
+                if self._is_external_cancellation(exc):
+                    cancelled = exc
+                else:
+                    causes.append(exc)
+        return cancelled
+
+    async def _finish_close(
+        self,
+        causes: list[BaseException],
+        cancelled: asyncio.CancelledError | None,
+    ) -> asyncio.CancelledError | None:
+        close_task = asyncio.create_task(self._close())
+        while True:
+            try:
+                causes.extend(await asyncio.shield(close_task))
+                return cancelled
+            except asyncio.CancelledError as exc:
+                if cancelled is None:
+                    cancelled = exc
+
+    async def _call(self, hook: Hook, *, shutdown: bool = False) -> None:
         """Await an ``async def`` hook; run a plain ``def`` one on the bounded
         sync executor, as sync handlers run."""
         # Models reach the worker's Database in a hook as they do in a request.
         token = database_var.set(self.ctx.find(Database))
         try:
-            if inspect.iscoroutinefunction(hook):
-                await hook(self.ctx)
-                return
-            result = await self.executor.run(hook, self.ctx)
-            if inspect.isawaitable(result):  # a sync wrapper around a coroutine
-                await result
+            try:
+                if inspect.iscoroutinefunction(hook):
+                    result = await hook(self.ctx)
+                else:
+                    run_sync = (
+                        self.executor.run_shutdown if shutdown else self.executor.run
+                    )
+                    result = await run_sync(hook, self.ctx)
+                    if inspect.isawaitable(result):  # a sync wrapper around a coroutine
+                        result = await result
+                if result is not None:
+                    raise TypeError(
+                        f"hook {hook_name(hook)!r} must return None or an awaitable"
+                    )
+            except BaseException as exc:
+                if self._is_external_cancellation(exc):
+                    raise
+                raise _HookRaised(exc) from None
         finally:
             database_var.reset(token)
 
@@ -141,10 +196,43 @@ class Lifespan:
         self._running = False
         return causes
 
-    async def _step(self, work: Awaitable[object], causes: list[BaseException]) -> None:
+    async def _close_after_cancellation(self) -> None:
+        """Finish resource cleanup even when startup itself was cancelled."""
+        task = asyncio.create_task(self._close())
+        while True:
+            try:
+                await asyncio.shield(task)
+                return
+            except asyncio.CancelledError:
+                if task.done():
+                    task.result()
+                    return
+
+    @staticmethod
+    def _is_external_cancellation(exc: BaseException) -> bool:
+        if not isinstance(exc, asyncio.CancelledError):
+            return False
+        task = asyncio.current_task()
+        return task is not None and task.cancelling() > 0
+
+    async def _step(
+        self,
+        work: Awaitable[object],
+        causes: list[BaseException],
+        *,
+        label: str = "worker resource cleanup",
+    ) -> None:
         try:
             async with asyncio.timeout(self.config.shutdown_timeout):
                 await work
-        except Exception as exc:
-            log.exception("error while closing worker resources")
+        except asyncio.CancelledError as exc:
+            if self._is_external_cancellation(exc):
+                raise
+            log.error("error during %s: CancelledError", label)
+            causes.append(exc)
+        except _HookRaised as exc:
+            log.error("error during %s: %s", label, type(exc.cause).__name__)
+            causes.append(exc.cause)
+        except BaseException as exc:
+            log.exception("error during %s", label)
             causes.append(exc)
