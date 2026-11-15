@@ -23,6 +23,7 @@ first = await Post.all().afirst()
 | Surface | Async | Sync | Notes |
 | --- | --- | --- | --- |
 | Action handlers | `async def` | `def` | Sync runs on the executor |
+| Generated CRUD hooks (`get_queryset`, `written_queryset`, `to_schema`, `perform_*`) | `async def` | `def` | Sync overrides run on the same bounded executor; use the matching sync or async ORM methods |
 | Auth providers (`authenticate`, `resolve`, `resolve_token`, JWT `resolve_claims`) | `async def` | `def` | Sync hooks run on the executor, so sync model calls are safe inside them |
 | Model: create / get / update / delete | `acreate`, `aget`, `aget_or_none`, `aupdate`, `aupdate_where`, `adelete`, `asave`, `aupdate_from` | `create`, `get`, `get_or_none`, `update`, `update_where`, `delete`, `save`, `update_from` | Sync calls only work inside a sync handler or hook served by Hinoki |
 | QuerySet: read | `await queryset`, `afirst`, `aget`, `acount`, `aexists`, `apaginate` | `list`, `first`, `get`, `count`, `exists`, `paginate` | |
@@ -41,7 +42,7 @@ first = await Post.all().afirst()
 
 ## Limits to know
 
-* **Sync hooks use the same pool as sync handlers.** A request to a protected route with a plain-`def` auth hook takes an executor slot for the whole hook, also when its credentials are wrong; a flood of bad tokens can fill the queue and make legitimate sync work answer 503 (`overloaded`, with `Retry-After`). Keep sync hooks short, reject malformed credentials before touching the database, and prefer an `async def` provider on exposed endpoints.
+* **Sync hooks use the same pool as sync handlers.** Sync auth and CRUD hooks take an executor slot; a flood of bad credentials or long-running hooks can fill the queue and make legitimate sync work answer 503 (`overloaded`, with `Retry-After`). Keep sync hooks short, reject malformed credentials before touching the database, and prefer async hooks when they can use async APIs.
 * **A sync auth hook runs before the action's transaction opens**, so it is never part of it.
 * **Sync model calls only work inside the application's sync handlers and hooks.** In a test body use the async API (an async fixture) or your own connection, also with `SyncClient`.
 * **No sync lifespan, sync admin hooks, sync background tasks (`ctx.tasks.start_soon` takes coroutines) or sync `Database` SQL.** A sync *error handler* runs on the loop and must not call the ORM (its failure is treated as "unhandled").
