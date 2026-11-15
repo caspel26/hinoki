@@ -26,6 +26,9 @@
       members: true
       show_if_no_docstring: true
 
+For model-backed route generation, see [Generate CRUD routes](../crud.md) and
+the [CRUD API reference](crud.md).
+
 ## HTTP method decorators
 
 Import the namespace and decorate actions: `from hinoki import http`, then `@http.get(...)`. The names are not available at the top level of `hinoki`.

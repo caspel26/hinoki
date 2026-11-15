@@ -5,6 +5,7 @@ Reference for Hinoki's public Python surface. Public names are imported from `hi
 | Area | Package | Reference |
 | --- | --- | --- |
 | Application, routes and HTTP | `hinoki` | [Core API](web.md) |
+| Generated model-backed routes | `hinoki.crud` | [CRUD](crud.md) |
 | Validation and serialization | `hinoki` | [Schemas](schemas.md) |
 | Models, columns and queries | `hinoki.orm` | [ORM](orm.md) |
 | Parsers and response rendering | `hinoki.parsers` / `hinoki.renderers` | [Codecs](codecs.md) |
@@ -16,5 +17,6 @@ Reference for Hinoki's public Python surface. Public names are imported from `hi
 | MCP and project scaffold | `hinoki.mcpapp` / `hinoki.mcp` | [Tools](tools.md) |
 | Admin | `hinoki.admin` | [Admin](admin.md) |
 | Tests | `hinoki.testing` | [Testing](testing.md) |
+| Developer helpers | `hinoki.utils` | [Utilities](utilities.md) |
 
 Signatures are generated from the installed source tree when the docs build. The framework is pre-alpha; check the source revision used by your checkout. Use the Guides menu for task-oriented explanations.
