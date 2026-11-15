@@ -390,7 +390,7 @@
     <span class="n">admin_theme</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"studio"</span><span class="p">,</span> <span class="s2">"console"</span><span class="p">,</span> <span class="s2">"paper"</span><span class="p">,</span> <span class="s2">"bento"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"studio"</span>
 </code></pre></div>
 <p>Settings types live in the <code>hinoki.settings</code> namespace: <code>from hinoki import settings</code>, then <code>settings.AppSettings</code>, <code>settings.DatabaseSettings</code>, <code>settings.Secret</code>, <code>settings.Settings</code> and <code>settings.SettingsError</code>. Name your own subclass for your project (<code>BlogSettings</code> above) and keep a loaded value in a variable such as <code>app_settings</code>, so the namespace is not shadowed. Earlier revisions exported these types from <code>hinoki</code> itself and called the base class <code>FrameworkSettings</code>; <code>from hinoki import FrameworkSettings</code> now raises <code>ImportError</code>.</p>
-<p><code>settings.AppSettings</code> brings seven groups every app has: <code>execution</code> (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit, 8 KiB query limit and 32 KiB header limit), <code>lifecycle</code> (30-second startup and 10-second shutdown limits), <code>logging</code> (level, text or JSON), <code>docs</code> (title, version and optional OpenAPI/Swagger/ReDoc URLs), <code>server</code> (host, port and workers), <code>pagination</code> (default <code>page_size</code> and <code>max_page_size</code> for <code>PageNumberPagination</code>, see <a href="../pagination/#defaults-for-the-whole-application">pagination</a>) and <code>cors</code> (which browser origins may read responses). Three values sit beside the groups: <code>timezone</code>, <code>debug</code> and <code>allowed_hosts</code>; see <a href="#debug-allowed-hosts-and-cors">Debug, allowed hosts and CORS</a>. A field without a default is <strong>required</strong>. Request IDs and timeout responses are described in the <a href="../request-lifecycle/">request lifecycle</a>.</p>
+<p><code>settings.AppSettings</code> brings eight groups every app has: <code>execution</code> (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit, 8 KiB query limit and 32 KiB header limit), <code>lifecycle</code> (30-second startup and 10-second shutdown limits), <code>logging</code> (level, text or JSON), <code>docs</code> (title, version and optional OpenAPI/Swagger/ReDoc URLs), <code>server</code> (host, port and workers), <code>pagination</code> (default <code>page_size</code> and <code>max_page_size</code> for <code>PageNumberPagination</code>, see <a href="../pagination/#defaults-for-the-whole-application">pagination</a>), <code>cors</code> (which browser origins may read responses) and <code>security</code> (browser response headers and optional HTTPS redirect). Three values sit beside the groups: <code>timezone</code>, <code>debug</code> and <code>allowed_hosts</code>; see <a href="#debug-allowed-hosts-and-cors">Debug, allowed hosts and CORS</a>. A field without a default is <strong>required</strong>. Request IDs and timeout responses are described in the <a href="../request-lifecycle/">request lifecycle</a>.</p>
 <p><code>docs.openapi_url</code>, <code>docs.docs_url</code> and <code>docs.redoc_url</code> default to <code>None</code>, so no API document or viewer route is served until configured. Swagger UI or ReDoc requires an <code>openapi_url</code>. The same values can be supplied as <code>Hinoki(...)</code> arguments; explicit arguments win over <code>docs</code> settings, and <code>None</code> disables a page.</p>
 <h2 id="built-in-fields-and-defaults">Built-in fields and defaults<a class="headerlink" href="#built-in-fields-and-defaults" title="Permanent link">&para;</a></h2>
 <table>
@@ -582,6 +582,42 @@
 <td><code>max_age</code></td>
 <td><code>600</code> seconds</td>
 <td><code>0</code> to <code>86400</code>; how long a browser may cache a preflight</td>
+</tr>
+<tr>
+<td><code>security</code></td>
+<td><code>redirect_https</code></td>
+<td><code>false</code></td>
+<td>Send known HTTP requests to HTTPS with <code>308</code>; requires explicit <code>allowed_hosts</code></td>
+</tr>
+<tr>
+<td><code>security</code></td>
+<td><code>hsts_seconds</code></td>
+<td><code>0</code></td>
+<td><code>0</code> to <code>63072000</code>; emit HSTS only when the effective scheme is HTTPS</td>
+</tr>
+<tr>
+<td><code>security</code></td>
+<td><code>hsts_include_subdomains</code></td>
+<td><code>false</code></td>
+<td>Add <code>includeSubDomains</code>; requires nonzero <code>hsts_seconds</code></td>
+</tr>
+<tr>
+<td><code>security</code></td>
+<td><code>hsts_preload</code></td>
+<td><code>false</code></td>
+<td>Add <code>preload</code>; requires subdomains and at least one year of HSTS</td>
+</tr>
+<tr>
+<td><code>security</code></td>
+<td><code>frame_options</code></td>
+<td><code>sameorigin</code></td>
+<td><code>settings.FrameOptions.DENY</code> or <code>.SAMEORIGIN</code></td>
+</tr>
+<tr>
+<td><code>security</code></td>
+<td><code>referrer_policy</code></td>
+<td><code>same-origin</code></td>
+<td>A supported <code>settings.ReferrerPolicy</code> enum value</td>
 </tr>
 <tr>
 <td>(top level)</td>
@@ -790,6 +826,22 @@ BLOG_JWT_SECRET               file         ***
 </ul>
 <p>Origins are compared exactly, in lower case as browsers send them: <code>https://app.example.com</code> and <code>https://app.example.com:8443</code> are different origins, and a trailing slash or path is refused at load. Browsers leave a default port out of <code>Origin</code>, so list <code>https://app.example.com</code>, not <code>https://app.example.com:443</code>. The single entry <code>*</code> answers every origin with <code>access-control-allow-origin: *</code>; it cannot be combined with <code>credentials</code>, and browsers will not send cookies or HTTP authentication to it.</p>
 <p>The policy applies to the whole application, including the ASGI and WSGI adapters; there is no per-route CORS option. An answer that already sets <code>access-control-allow-origin</code> itself (a <code>Reply</code> with that header) is sent as it is, without the policy's headers.</p>
+<h2 id="browser-security-headers-and-https">Browser security headers and HTTPS<a class="headerlink" href="#browser-security-headers-and-https" title="Permanent link">&para;</a></h2>
+<p>Every HTTP response gets <code>X-Content-Type-Options: nosniff</code>, the configured <code>X-Frame-Options</code> and <code>Referrer-Policy</code>, including errors, OpenAPI/docs and admin responses. Defaults are <code>SAMEORIGIN</code> and <code>same-origin</code>, preserving the admin's existing referrer privacy default. These fields are owned by the app security policy: configured values replace same-named headers returned by a route.</p>
+<p>The choices are enums rather than arbitrary strings, and environment/TOML values must match the listed wire values exactly. <code>FrameOptions</code> provides <code>deny</code> and <code>sameorigin</code>. <code>ReferrerPolicy</code> provides <code>no-referrer</code>, <code>no-referrer-when-downgrade</code>, <code>same-origin</code>, <code>origin</code>, <code>strict-origin</code>, <code>origin-when-cross-origin</code>, <code>strict-origin-when-cross-origin</code> and <code>unsafe-url</code>. <code>unsafe-url</code> can disclose the full referring URL to another origin; use it only when that is intended.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">):</span>
+    <span class="n">security</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">SecuritySettings</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">SecuritySettings</span><span class="p">(</span>
+        <span class="n">redirect_https</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">hsts_seconds</span><span class="o">=</span><span class="mi">31_536_000</span><span class="p">,</span>
+        <span class="n">hsts_include_subdomains</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">frame_options</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">FrameOptions</span><span class="o">.</span><span class="n">DENY</span><span class="p">,</span>
+        <span class="n">referrer_policy</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">ReferrerPolicy</span><span class="o">.</span><span class="n">STRICT_ORIGIN</span><span class="p">,</span>
+    <span class="p">)</span>
+</code></pre></div>
+<p>For configuration loaded from the environment, set <code>BLOG_ALLOWED_HOSTS=api.example.com</code> and <code>BLOG_SECURITY__REDIRECT_HTTPS=true</code>. A wildcard host policy cannot be combined with the redirect: Hinoki requires an explicit host allowlist before constructing an absolute <code>Location</code>, which avoids redirecting an attacker supplied <code>Host</code> value. The redirect is <code>308</code>, preserves the method and raw path/query, and runs before route lookup, authentication and body reading. A configured CORS preflight is answered before redirecting so browser preflight requests remain usable.</p>
+<p>HSTS defaults off. Hinoki emits it only when the request's effective scheme is HTTPS. Behind TLS termination, configure the exact proxy addresses in <code>server.trusted_proxies</code>; an untrusted <code>X-Forwarded-Proto</code> does not enable HSTS or suppress the redirect. <code>hsts_preload</code> also requires <code>hsts_include_subdomains</code> and a <code>max-age</code> of at least one year. Use HSTS only after confirming that HTTPS is available for every covered host: browsers retain the policy after the response.</p>
 <h2 id="8-database-connection-ownership">8. Database connection ownership<a class="headerlink" href="#8-database-connection-ownership" title="Permanent link">&para;</a></h2>
 <p>For local development, <code>DatabaseSettings.url</code> defaults to <code>sqlite://./.hinoki/local.sqlite3</code>. Hinoki creates the hidden directory and database file when the module starts; it does not connect at module import or when models are imported. Set the URL explicitly for a server database or deployment. Environment, dotenv, TOML and constructor values override the local default.</p>
 <p>For a server database, put its explicit connection URL in <code>settings.DatabaseSettings</code> and list <code>DatabaseModule</code> in the app declaration (or install a configured module in a factory). The module opens a pool in each worker's startup lifespan, fails startup if the database is unreachable, and closes that worker's pool on shutdown. Each worker owns its own pool, so budget <code>replicas × workers × max_size</code> against the server database's connection limit.</p>
@@ -833,15 +885,15 @@ BLOG_JWT_SECRET               file         ***
             <ul><li><a href="#reverse-proxies-and-request-ids">Reverse proxies and request IDs</a></li></ul>
           </li><li><a href="#2-load-them-when-the-app-is-built">2. Load them when the app is built</a></li><li><a href="#3-names">3. Names</a></li><li><a href="#4-mistakes-fail-at-startup-all-at-once">4. Mistakes fail at startup, all at once</a></li><li><a href="#5-secrets">5. Secrets</a></li><li><a href="#6-see-what-is-in-effect">6. See what is in effect</a></li><li><a href="#7-use-them">7. Use them</a></li><li><a href="#debug-allowed-hosts-and-cors">Debug, allowed hosts and CORS</a>
             <ul><li><a href="#debug">debug</a></li><li><a href="#allowed_hosts">allowed_hosts</a></li><li><a href="#cors">cors</a></li></ul>
-          </li><li><a href="#8-database-connection-ownership">8. Database connection ownership</a></li></ul>
+          </li><li><a href="#browser-security-headers-and-https">Browser security headers and HTTPS</a></li><li><a href="#8-database-connection-ownership">8. Database connection ownership</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.19</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 02:55:28 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>13 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 03:32:25 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>15 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
