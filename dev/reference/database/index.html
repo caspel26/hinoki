@@ -271,10 +271,59 @@
       <article class="prose" style="--sheet: '5.7'">
         <p class="kicker" data-search-exclude>5.7 · Reference</p>
         <h1 id="database-api">Database API<a class="headerlink" href="#database-api" title="Permanent link">&para;</a></h1>
-<p>The ORM supports PostgreSQL and SQLite. SQLite is the local-development
-default; configure an explicit URL for PostgreSQL or deployments. Raw SQL uses
-the selected driver's placeholders: PostgreSQL uses <code>$1</code>, <code>$2</code>, and SQLite
-uses <code>?1</code>, <code>?2</code>. ORM-generated queries select the dialect automatically.</p>
+<p>For setup, application settings, URL examples and migration workflow, see
+<a href="../../databases/">configure a database</a>.</p>
+<p>The ORM supports PostgreSQL, SQLite and MySQL. SQLite is the local-development
+default; configure an explicit URL for PostgreSQL or MySQL deployments. Raw SQL
+uses the selected driver's placeholders: PostgreSQL uses <code>$1</code>, while SQLite
+and MySQL use <code>?</code>. ORM-generated queries select the dialect automatically.</p>
+<h2 id="configure-a-backend">Configure a backend<a class="headerlink" href="#configure-a-backend" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="k">[database]</span>
+<span class="n">url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"sqlite://./local.db"</span>
+</code></pre></div>
+<p>For PostgreSQL, use a driver URL such as <code>postgresql://user:password@host/db</code>.
+For MySQL, use <code>mysql://user:password@host/db</code>. MySQL connections require TLS
+by default; the driver verifies the server certificate and hostname. Configure
+the system trust store to trust your server certificate. <code>require_ssl=false</code>
+is only suitable for isolated local testing and disables transport encryption.
+Do not put production credentials in source-controlled settings files.</p>
+<h2 id="backend-behavior-and-limits">Backend behavior and limits<a class="headerlink" href="#backend-behavior-and-limits" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Backend</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQLite</td>
+<td>Supported</td>
+<td>Default for local development. SQLite permits one writer at a time. Schema changes that SQLite cannot express directly use a table rebuild.</td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td>Supported</td>
+<td>Uses PostgreSQL-native UUID, timestamp, JSON and byte types.</td>
+</tr>
+<tr>
+<td>MySQL</td>
+<td>Supported</td>
+<td>Uses InnoDB tables, binary UUIDs and MySQL-native JSON. MySQL DDL implicitly commits, so a failed migration can leave earlier DDL applied; inspect migration status and database schema before retrying. <code>RETURNING</code> is not supported by the compiler; ORM create/update operations use follow-up reads. TLS is required by default.</td>
+</tr>
+</tbody>
+</table>
+<p>MariaDB, SQL Server and Oracle are not currently supported. Do not assume that
+MySQL compatibility implies MariaDB compatibility. Hinoki does not silently
+roll back MySQL DDL: review generated migrations and keep a recoverable backup
+before applying schema changes.</p>
+<p>Datetime values stored in MySQL <code>DATETIME</code> columns use Hinoki's UTC-naive
+storage convention; values returned by the ORM are interpreted as UTC. MySQL
+pool capacity and acquisition wait are bounded by the database pool settings.</p>
+<p>Raw SQL must use the placeholders for the configured backend. Prefer ORM query
+methods when the same code should work across backends; raw SQL and migration
+operations may need backend-specific SQL.</p>
 
 
 <div class="doc doc-object doc-class">
@@ -1031,7 +1080,7 @@ max_size), so <code>Hinoki(settings=..., modules=[DatabaseModule])</code> works.
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#hinoki.db.Database">Database</a>
+            <ul><li><a href="#configure-a-backend">Configure a backend</a></li><li><a href="#backend-behavior-and-limits">Backend behavior and limits</a></li><li><a href="#hinoki.db.Database">Database</a>
             <ul><li><a href="#hinoki.db.Database.engine">engine</a></li><li><a href="#hinoki.db.Database.dialect">dialect</a></li><li><a href="#hinoki.db.Database.__init__">__init__</a></li><li><a href="#hinoki.db.Database.connect">connect</a></li><li><a href="#hinoki.db.Database.active">active</a></li><li><a href="#hinoki.db.Database.fetch">fetch</a></li><li><a href="#hinoki.db.Database.fetch_one">fetch_one</a></li><li><a href="#hinoki.db.Database.execute">execute</a></li><li><a href="#hinoki.db.Database.transaction">transaction</a></li><li><a href="#hinoki.db.Database.migration">migration</a></li><li><a href="#hinoki.db.Database.close">close</a></li><li><a href="#hinoki.db.Database.status">status</a></li></ul>
           </li><li><a href="#hinoki.db.DatabaseModule">DatabaseModule</a>
             <ul><li><a href="#hinoki.db.DatabaseModule.name">name</a></li><li><a href="#hinoki.db.DatabaseModule.url">url</a></li><li><a href="#hinoki.db.DatabaseModule.max_size">max_size</a></li><li><a href="#hinoki.db.DatabaseModule.wait">wait</a></li><li><a href="#hinoki.db.DatabaseModule.__init__">__init__</a></li><li><a href="#hinoki.db.DatabaseModule.from_settings">from_settings</a></li><li><a href="#hinoki.db.DatabaseModule.lifespan">lifespan</a></li></ul>
@@ -1042,8 +1091,8 @@ max_size), so <code>Hinoki(settings=..., modules=[DatabaseModule])</code> works.
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.7</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 22:32:50 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 00:18:33 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/database.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
