@@ -8,7 +8,7 @@ One page for each part of an application. Start with the data and endpoint guide
 
 ## Data
 
-- [Models and queries](models.md): Model maps a Python class to one supported database table.
+- [Models and queries](models.md): Models map Python classes to database tables, with typed queries and opt-in write-time field validation.
 - [Configure a database](databases.md): Set the backend URL, install the database module and apply migrations safely.
 - [Schemas and validation](schemas.md): A Schema describes data that crosses the API boundary, with built-in constraints and custom validation checks.
 - [Model-derived schemas](model-schemas.md): A Schema can take its fields and constraints from a Model.
