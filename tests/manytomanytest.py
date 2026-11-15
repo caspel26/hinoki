@@ -9,7 +9,7 @@ import pytest
 
 from hinoki.db import Database, UniqueViolation
 from hinoki.errors import MigrationError, RegistrationError
-from hinoki.orm import Model, field, foreign_key, migrator, use_database
+from hinoki.orm import Model, OnDelete, field, foreign_key, migrator, use_database
 from hinoki.orm.migrations import plan
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -30,8 +30,8 @@ class Tag(Model, table="m2m_tags"):
 
 class PostTag(Model, table="m2m_post_tags", unique=[("post_id", "tag_id")]):
     id: UUID = field(primary_key=True, default_factory=uuid4)
-    post_id: UUID = foreign_key(Post, on_delete="cascade", related_name="links")
-    tag_id: UUID = foreign_key(Tag, on_delete="cascade", related_name="links")
+    post_id: UUID = foreign_key(Post, on_delete=OnDelete.CASCADE, related_name="links")
+    tag_id: UUID = foreign_key(Tag, on_delete=OnDelete.CASCADE, related_name="links")
 
 
 def test_composite_unique_is_recorded_on_the_model() -> None:
@@ -69,8 +69,8 @@ def test_the_plan_creates_the_constraint_and_refuses_to_change_it(
         {
             "__annotations__": {"id": UUID, "post_id": UUID, "tag_id": UUID},
             "id": field(primary_key=True),
-            "post_id": foreign_key(Post, on_delete="cascade"),
-            "tag_id": foreign_key(Tag, on_delete="cascade"),
+            "post_id": foreign_key(Post, on_delete=OnDelete.CASCADE),
+            "tag_id": foreign_key(Tag, on_delete=OnDelete.CASCADE),
         },
         table="m2m_post_tags",
     )
