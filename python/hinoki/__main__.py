@@ -19,7 +19,7 @@ from hinoki.checkcli import add_arguments, run_check
 from hinoki.db import Database, DatabaseError
 from hinoki.errors import MigrationError
 from hinoki.orm import migrator
-from hinoki.orm.migrations import migration_files, models_of, plan
+from hinoki.orm.migrations import Plan, migration_files, models_of, plan
 from hinoki.project import ProjectError
 from hinoki.projectmigrations import (
     manifest_for,
@@ -73,6 +73,11 @@ def parser() -> argparse.ArgumentParser:
     planner.add_argument("--allow-destructive", action="store_true")
     planner.add_argument("--dry-run", action="store_true", help="print, write nothing")
     planner.add_argument(
+        "--check",
+        action="store_true",
+        help="fail if model changes are missing from migration files",
+    )
+    planner.add_argument(
         "--database",
         default=os.environ.get(URL_VARIABLE),
         help=f"target database URL; defaults to local SQLite or {URL_VARIABLE}",
@@ -94,31 +99,40 @@ def parser() -> argparse.ArgumentParser:
     return root
 
 
-def run_plan(args: argparse.Namespace) -> None:
-    manifest = manifest_for(args)
-    if manifest is not None:
-        plan_project(args, manifest)
-        return
-    if not args.models:
-        raise MigrationError("pass --models without a project hinoki.toml")
-    database_url = args.database or DatabaseSettings().url.reveal()
-    dialect = database_dialect(database_url)
-    result = plan(
-        models_of(args.models),
-        Path(args.dir or "migrations"),
-        args.name,
-        allow_destructive=args.allow_destructive,
-        write=not args.dry_run,
-        dialect=dialect,
-    )
+def run_plan(args: argparse.Namespace) -> int:
+    result = migration_plan(args)
     if not result.operations:
         print("no changes")
     for operation in result.operations:
         print(
             f"{'DESTRUCTIVE ' if operation.destructive else ''}{operation.description}"
         )
+    if args.check and result.operations:
+        count = len(result.operations)
+        noun = "operation" if count == 1 else "operations"
+        print(f"pending migrations: {count} {noun}")
+        return 1
     if result.path:
         print(f"wrote {result.path}")
+    return 0
+
+
+def migration_plan(args: argparse.Namespace) -> Plan:
+    """Build the model/file-state plan for project or legacy CLI usage."""
+    manifest = manifest_for(args)
+    if manifest is not None:
+        return plan_project(args, manifest)
+    if not args.models:
+        raise MigrationError("pass --models without a project hinoki.toml")
+    database_url = args.database or DatabaseSettings().url.reveal()
+    return plan(
+        models_of(args.models),
+        Path(args.dir or "migrations"),
+        args.name,
+        allow_destructive=args.allow_destructive or args.check,
+        write=not args.dry_run and not args.check,
+        dialect=database_dialect(database_url),
+    )
 
 
 async def run_database(args: argparse.Namespace) -> None:
@@ -172,14 +186,40 @@ def run_mcp_command(args: argparse.Namespace) -> int:
     return run_mcp(args)
 
 
+def plan_check_option_error(args: argparse.Namespace) -> str | None:
+    """Describe options that are meaningless alongside the read-only check."""
+    options = []
+    if args.dry_run:
+        options.append("--dry-run")
+    if args.name is not None:
+        options.append("--name")
+    if args.allow_destructive:
+        options.append("--allow-destructive")
+    return ", ".join(options) if options else None
+
+
+def run_migration_action(args: argparse.Namespace) -> int:
+    """Execute one validated migration subcommand."""
+    if args.action == "plan":
+        return run_plan(args)
+    if args.action == "sql":
+        run_sql(args)
+        return 0
+    asyncio.run(run_database(args))
+    return 0
+
+
 def run_migrations(args: argparse.Namespace) -> int:
+    if args.action == "plan" and args.check:
+        options = plan_check_option_error(args)
+        if options is not None:
+            print(
+                f"error: --check cannot be combined with {options}",
+                file=sys.stderr,
+            )
+            return 2
     try:
-        if args.action == "plan":
-            run_plan(args)
-        elif args.action == "sql":
-            run_sql(args)
-        else:
-            asyncio.run(run_database(args))
+        return run_migration_action(args)
     except (MigrationError, ProjectError) as error:
         print(f"error: {error}", file=sys.stderr)
         print(
@@ -196,7 +236,6 @@ def run_migrations(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
-    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
