@@ -5,11 +5,11 @@ The HTTP layer maps requests to operations and operations to responses. It conta
 ```python
 from uuid import UUID
 
-from examples.tracker import operations
-from examples.tracker.errors import DoneTasksAreKept, TaskAlreadyDone
-from examples.tracker.models import Member, Task
-from examples.tracker.schemas import TaskIn, TaskOut
-from examples.tracker.security import member_only
+from tracker import operations
+from tracker.errors import DoneTasksAreKept, TaskAlreadyDone
+from tracker.models import Member, Task
+from tracker.schemas import TaskIn, TaskOut
+from tracker.security import member_only
 from hinoki import Caller, Hinoki, RouteGroup, errors, http
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 

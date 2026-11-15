@@ -11,9 +11,9 @@ caller’s own tasks. Include the route in an app that installs `DatabaseModule`
 as the [Tracker app factory](tutorial/6-run.md) does.
 
 ```python
-from examples.tracker.models import Member, Task
-from examples.tracker.schemas import TaskOut
-from examples.tracker.security import member_only
+from tracker.models import Member, Task
+from tracker.schemas import TaskOut
+from tracker.security import member_only
 from hinoki import Caller, http
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 

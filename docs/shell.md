@@ -8,7 +8,8 @@ Use `hinoki shell` to inspect application state and run ORM queries from an
 interactive Python prompt:
 
 ```sh
-uv run hinoki shell
+cd examples
+uv run --project .. hinoki shell
 ```
 
 The project manifest supplies the application target and model modules. To
@@ -16,7 +17,7 @@ open an app outside a project manifest, pass its `module:attribute` target and
 model modules explicitly:
 
 ```sh
-uv run hinoki shell examples.blog.main:app --models examples.blog.models
+uv run --project .. hinoki shell blog.main:app --models blog.models
 ```
 
 The shell exposes `app`, its validated `settings`, and concrete model classes

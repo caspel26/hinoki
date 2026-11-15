@@ -17,10 +17,10 @@ The built-in set is intentionally small: access declarations, atomic writes, mod
 ```python
 # examples/blog/rules.py
 blog_rules = RuleSet(
-    Actions.require_access(match="examples.blog.api.*", except_=PUBLIC),  # HNK-ACC-001
+    Actions.require_access(match="blog.api.*", except_=PUBLIC),  # HNK-ACC-001
     Transactions.require_atomic(),                                         # HNK-TXN-001
     Schemas.forbid_exposure("token", "password_hash"),                     # HNK-SCH-001
-    Imports.forbid(source="examples.blog.models", target="examples.blog.api"),  # HNK-IMP-001
+    Imports.forbid(source="blog.models", target="blog.api"),  # HNK-IMP-001
 )
 
 # examples/blog/main.py
@@ -39,9 +39,13 @@ app = Hinoki(..., rules=blog_rules)   # startup rules fail the app if a promise 
 
 ## Run them
 
+The Blog target is part of the checked-in project in `examples/`. Run this from
+that directory, using the locked environment in the parent directory:
+
 ```sh
-hinoki check examples.blog.main:create_app \
-    --rules examples.blog.rules:blog_rules --package examples
+cd examples
+uv run --project .. hinoki check blog.main:create_app \
+    --rules blog.rules:blog_rules --package blog
 # 4 rule(s): 0 violated, 0 unverifiable, 0 waived        (exit 0)
 ```
 

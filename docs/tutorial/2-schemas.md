@@ -5,7 +5,7 @@ A model describes a table; a `Schema` describes what crosses the API. A column r
 ```python
 from typing import Annotated
 
-from examples.tracker.models import Task
+from tracker.models import Task
 from hinoki import Field, Schema, derive
 
 

@@ -11,10 +11,11 @@ related:
 `hinoki mcp TARGET` starts a newline-delimited JSON-RPC MCP server on stdio. It reads the registered application, enabled rules and optional model modules. It writes protocol messages to stdout and diagnostics to stderr. It does not write source code, rule configuration or waivers.
 
 ```sh
-hinoki mcp examples.tracker.app:create_app \
-  --rules examples.tracker.rules:tracker_rules \
-  --package examples.tracker \
-  --models examples.tracker.models
+cd examples
+uv run --project .. hinoki mcp tracker.app:create_app \
+  --rules tracker.rules:tracker_rules \
+  --package tracker \
+  --models tracker.models
 ```
 
 `TARGET` is an app or a no-argument factory. `--rules` selects a `RuleSet`; `--package` and `--models` can be repeated; `--waivers` selects the waiver file (default `hinoki-rules.toml`). Rule checks with side effects are not run by this server.
