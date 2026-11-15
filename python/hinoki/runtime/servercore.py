@@ -71,6 +71,15 @@ def route_spec(action: int, binding: Binding) -> core.RouteSpec:
     )
 
 
+def cors_of(pipeline: Pipeline) -> tuple[bool, list[bytes], bool, bytes] | None:
+    """The CORS policy as the classifier needs it to decorate its own answers."""
+    policy = pipeline.cors
+    if policy is None:
+        return None
+    origins = sorted(origin.encode("ascii") for origin in policy.origins)
+    return policy.any_origin, origins, policy.credentials, policy.expose
+
+
 def build_server_core(pipeline: Pipeline) -> core.ServerCore:
     """The classifier for one worker. It starts not ready; the lifespan flips it."""
     app = pipeline.app
@@ -86,7 +95,7 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
     return core.ServerCore(
         [route_spec(i, b) for i, b in enumerate(pipeline.bindings)],
         early_bodies(),
-        pipeline.policy[False],
+        (pipeline.policy[False], pipeline.policy[True]),
         pipeline.request_id_name,
         pipeline.request_id_prefix,
         limits=(
@@ -95,6 +104,8 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
             runtime.max_body_bytes,
             4 * (runtime.sync_workers + runtime.sync_queue),
         ),
+        trust_request_id=pipeline.trust_request_id,
         defer_policies=defer,
         python_paths=python_paths,
+        cors=cors_of(pipeline),
     )
