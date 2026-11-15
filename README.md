@@ -53,7 +53,7 @@ Hinoki is a Python framework for HTTP APIs, built around three ideas.
 | **Endpoints** | `@http.get`, `post`, `put`, `patch`, `delete` and `query` on functions, route groups or classes, with typed path, query and body parameters; optional model-backed CRUD routes ([guide](docs/crud.md)) |
 | **Schemas and validation** | Strict request validation, response shaping, model-derived schemas, and optional Model field constraints or custom validators before ORM writes |
 | **Access and errors** | Reusable access policies with permissions; declared errors that appear in OpenAPI |
-| **SQL ORM** | SQLite (the local default), PostgreSQL, MySQL and MariaDB models; relations loaded only when you ask, querysets, transactions, and migration files that you review and apply yourself |
+| **SQL ORM** | SQLite (the local default), PostgreSQL, MySQL and MariaDB models; unique-FK one-to-one relations, explicit eager loading, querysets, transactions, and migration files that you review and apply yourself |
 | **Architecture rules** | Five focused built-ins for access, transactions, schemas and import direction; `hinoki check` reports violations and fails CI, with reasoned, owned waivers that can expire |
 | **Settings and modules** | Typed settings from the environment, files or TOML; per-worker resources with startup and shutdown |
 | **Tools** | OpenAPI with Swagger UI and ReDoc, in-process test clients, a project scaffold, an MCP server for coding agents, and an optional admin |

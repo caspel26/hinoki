@@ -84,7 +84,7 @@ class ObjectNotFound(ModelError):
 
 
 class MultipleObjectsReturned(ModelError):
-    """A query that must return one row returned several."""
+    """A single-row query or relation returned more than one row."""
 
 
 class FieldError(ModelError, ValueError):
