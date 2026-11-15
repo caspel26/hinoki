@@ -252,6 +252,32 @@ def stack_names(directory: Path, settings: dict) -> list[str]:
     return stacks
 
 
+def cpu_seconds(text: str) -> float:
+    minutes, seconds = text.split(":")
+    return int(minutes) * 60 + float(seconds)
+
+
+def busy_share(directory: Path, stack: str, workers: int) -> float | None:
+    """Share of CPU time held by the busiest of the `workers` busiest processes."""
+    path = directory / f"{stack}-workers.txt"
+    if not path.exists():
+        return None
+    times = sorted(
+        (cpu_seconds(line.split()[2]) for line in path.read_text().splitlines()[1:]),
+        reverse=True,
+    )[:workers]
+    total = sum(times)
+    return times[0] / total if workers > 1 and len(times) > 1 and total else None
+
+
+def single_process_stacks(
+    directory: Path, stacks: list[str], workers: int
+) -> list[str]:
+    """Stacks where one process did nearly all the work despite several being started."""
+    shares = {stack: busy_share(directory, stack, workers) for stack in stacks}
+    return [stack for stack, share in shares.items() if share and share > 0.8]
+
+
 def render_mode(directory: Path) -> str:
     env_path = directory / "environment.json"
     if not env_path.exists():
@@ -260,12 +286,26 @@ def render_mode(directory: Path) -> str:
     settings = env["settings"]
     mode = settings.get("server_mode", "documented")
     stacks = stack_names(directory, settings)
+    single = single_process_stacks(directory, stacks, settings["workers"])
+    stacks = [stack for stack in stacks if stack not in single]
     lines = [
         f"## {mode.replace('-', ' ').title()} server slice: {env['cpu']}",
         "",
         *machine_lines(env),
     ]
     lines.extend(additional_capture_lines(directory))
+    for stack in single:
+        lines.extend(
+            [
+                f"{FRAMEWORKS[stack]} is not charted here: it was started with {settings['workers']} processes, "
+                "but its per-process CPU time (`"
+                + f"{stack}-workers.txt"
+                + "`) shows one process did nearly all the work. "
+                f"That is not a {settings['workers']}-process result and is not comparable with the other stacks; "
+                "its raw samples are retained in the results directory.",
+                "",
+            ]
+        )
     by_scenario = {
         scenario: [
             (
@@ -305,6 +345,12 @@ def render_mode(directory: Path) -> str:
     return "\n".join(lines)
 
 
+def slice_label(directory: Path) -> str:
+    env = json.loads((directory / "environment.json").read_text())
+    mode = env["settings"].get("server_mode", "documented").replace("-", " ")
+    return f"the {mode} slice on {env['cpu']}"
+
+
 def noisy_create_slices(directories: list[Path]) -> list[Path]:
     noisy = []
     for directory in directories:
@@ -333,10 +379,11 @@ def main(directories: list[Path]) -> None:
         print(render_mode(directory))
     noisy = noisy_create_slices(directories)
     if noisy:
+        names = ", ".join(slice_label(directory) for directory in noisy)
         print(
             "## Interpretation\n\n"
-            f"Create varied by more than 15% (coefficient of variation of requests per second) in {len(noisy)} of {len(directories)} slices. "
-            "Treat write measurements, including their latency percentiles, as inconclusive for close comparisons; "
+            f"Create varied by more than 15% (coefficient of variation of requests per second) in: {names}. "
+            "Treat write measurements in those slices, including their latency percentiles, as inconclusive for close comparisons; "
             "the median and range are descriptive and do not establish a winner.\n"
         )
     locations = ", ".join(
@@ -349,7 +396,7 @@ def main(directories: list[Path]) -> None:
         "Each stack used the same PostgreSQL seed and request/response oracle. The verifier checked response content, status and SQL statement counts before measurement. Create uses per-statement autocommit in each implementation. The documented-stack and same-Granian ASGI slices answer different questions: Bolt stays on its own server and is not included in the ASGI same-server control, so differences in the documented slice may come from the server as well as the framework.\n\n"
         "Latency is the time `oha` measured from sending a request to receiving the full response, over loopback, with a fixed number of concurrent connections that send the next request as soon as one finishes. Latency and throughput are therefore linked (at fixed concurrency, higher latency means fewer requests per second) and are not independent evidence. "
         "Each percentile shown is the median of that percentile across the individual runs, with the lowest and highest run as the range; it is not a percentile of all requests pooled together. A min-to-max range is descriptive, not a confidence interval.\n\n"
-        "Each section is one host and one run window. Drivers and ORM scheduling differ; equal pool settings do not imply identical behavior. The dataset is small and warm and this does not measure TLS, proxies, authentication, compression, memory, cold data or other workloads. "
+        "Each section is one host and one run window, and none was taken on an idle host: the load average at the start of each run is listed in its section. Drivers and ORM scheduling differ; equal pool settings do not imply identical behavior. The dataset is small and warm and this does not measure TLS, proxies, authentication, compression, memory, cold data or other workloads. "
         f"Raw JSON, environment metadata, server logs, per-worker CPU time and verification output are retained in {locations}; reproduction instructions are in `benchmarks/comparative/README.md`. Inspect them before drawing conclusions."
     )
 
