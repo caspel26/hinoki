@@ -71,16 +71,3 @@ def https_redirect(
     if query:
         target += b"?" + query
     return Response(308, b"", [(b"location", target)])
-
-
-def merge_policy_headers(
-    response: Response,
-    policy_headers: list[tuple[bytes, bytes]],
-) -> None:
-    """Make framework security settings authoritative, without duplicate fields."""
-    response.headers = [
-        (name, value)
-        for name, value in response.headers
-        if name.lower() not in POLICY_HEADERS
-    ]
-    response.headers.extend(policy_headers)
