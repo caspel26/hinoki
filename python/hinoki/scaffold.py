@@ -144,6 +144,9 @@ uv run pytest           # the tests need no database
 uv run hinoki dev {name}.main:app     # serve with reload on http://127.0.0.1:8000
 uv run hinoki routes {name}.main:app  # list the routes
 uv run hinoki check {name}.main:app   # run the project's rules
+uv run hinoki migrations plan        # plan the default app's migrations
+uv run hinoki migrations apply       # initialize the local SQLite database
+uv run hinoki manage                 # list project management commands
 ```
 
 Hinoki is pre-alpha and not published on PyPI: `pyproject.toml` names where `uv`
@@ -182,7 +185,7 @@ uv run hinoki dev {name}.main:app      # reload; `serve` runs it for production
 * Request and response bodies are `Schema` classes. Never return a `Model`; list the fields a response may contain. Fields named in the exposure rule (`password_hash`, ...) never appear in a response schema.
 * Relations are loaded explicitly (`select_related` / `prefetch_related`); there is no lazy loading.
 * Create from a schema with `Model.acreate(data, owner_id=me)`: keyword values set by the server win over the client's. Build responses with `Out.from_model(row)`.
-* Schema changes go through migrations (`hinoki migrations plan ...`), reviewed as SQL. Never apply them at startup.
+* Schema changes go through `hinoki migrations plan`, reviewed as SQL. Never apply them at startup.
 * Configuration is typed settings (`{name}/settings.py`, loaded from `{upper}_*` environment variables); add fields there instead of reading `os.environ` in code. Secrets are `settings.Secret` fields.
 * No underscores in file names; tests are `*test.py`.
 
@@ -195,7 +198,7 @@ The generated app has neither. The reference is `examples/tracker` in the framew
 3. `operations.py`: plain async functions taking `owner_id` and values; row permission goes in the statement (`Model.filter(owner_id=me)`, `aupdate_where({{...}})`), so someone else's row looks missing (404).
 4. `security.py`: a `BearerAuth` that resolves a token to `Caller(id=..., user=member, permissions=...)` and an `Access(...)`.
 5. `api.py`: actions with `access=...`, `caller: Caller[Member]`, `transaction=True` on writes, `pagination=` on lists; `main.py`: `modules=[DatabaseModule]` in `Hinoki(...)`, which reads `database.url` from the settings.
-6. `hinoki migrations plan --models {name}.models`, then review the SQL.
+6. `hinoki migrations plan`, then review the SQL. The project manifest discovers app models and migration packages.
 7. Tests: `from hinoki.testing import ASGIClient`; `async with ASGIClient(app) as client: await client.post("/x", json={{...}}, token="...")`.
 
 ## What you may not do
@@ -263,6 +266,15 @@ def files(name: str, source: str | None = None) -> dict[str, str]:
     }
     return {
         "pyproject.toml": PYPROJECT.format(**values),
+        "hinoki.toml": (
+            "[project]\n"
+            f'application = "{name}.main:app"\n\n'
+            "[[apps]]\n"
+            f'name = "{name}"\n'
+            f'models = "{name}.models"\n'
+            f'migrations = "{name}.migrations"\n'
+            "requires = []\n"
+        ),
         "README.md": README.format(**values),
         "AGENTS.md": AGENTS.format(**values),
         "CLAUDE.md": CLAUDE,
@@ -273,9 +285,14 @@ def files(name: str, source: str | None = None) -> dict[str, str]:
         f"{name}/api.py": API.format(**values),
         f"{name}/rules.py": RULES.format(**values),
         f"{name}/settings.py": SETTINGS.format(**values),
+        f"{name}/models.py": '"""Models owned by the project app."""\n',
+        f"{name}/migrations/__init__.py": "",
         "tests/__init__.py": "",
         "tests/healthtest.py": TEST.format(**values),
-        ".gitignore": ".venv/\n__pycache__/\n*.pyc\n.mypy_cache/\n.ruff_cache/\n",
+        ".gitignore": (
+            ".venv/\n__pycache__/\n*.pyc\n.mypy_cache/\n.ruff_cache/\n.hinoki/\n"
+            ".hinoki-app-create.lock\n"
+        ),
     }
 
 
