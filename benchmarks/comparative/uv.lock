@@ -320,12 +320,12 @@ version = "0.0.1"
 source = { editable = "../../" }
 
 [package.metadata]
-requires-dist = [{ name = "granian", marker = "extra == 'server'", specifier = ">=2.8,<3" }]
+requires-dist = [{ name = "granian", extras = ["reload"], marker = "extra == 'server'", specifier = ">=2.8,<3" }]
 provides-extras = ["server"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "granian", specifier = ">=2.8,<3" },
+    { name = "granian", extras = ["reload"], specifier = ">=2.8,<3" },
     { name = "mypy", specifier = ">=1.14" },
     { name = "openapi-spec-validator", specifier = ">=0.7" },
     { name = "pre-commit", specifier = ">=4.0" },
@@ -342,7 +342,7 @@ docs = [
 ]
 lint = [{ name = "ruff", specifier = "==0.15.12" }]
 test = [
-    { name = "granian", specifier = ">=2.8,<3" },
+    { name = "granian", extras = ["reload"], specifier = ">=2.8,<3" },
     { name = "openapi-spec-validator", specifier = ">=0.7" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-asyncio", specifier = ">=1.0" },
