@@ -5,7 +5,7 @@ Hinoki is pre-alpha. This is a short public view of the work; implementation sta
 ## Available today
 
 - Typed Python HTTP APIs with optional architecture rules and declared errors.
-- Rust-backed request processing, schema validation/serialization, cryptography and PostgreSQL ORM execution.
+- Rust-backed request processing, schema validation/serialization, cryptography, and PostgreSQL, SQLite and MySQL ORM execution. SQLite is the local-development default.
 - Sync and async handlers, settings, modules, migrations, OpenAPI, MCP tools and an optional admin with four themes.
 
 See the [documentation](https://caspel26.github.io/hinoki/) and runnable [examples](examples/) for current details. No performance claims are made without comparable retained measurements.
