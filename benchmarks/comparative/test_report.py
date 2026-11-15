@@ -22,6 +22,7 @@ def test_summarizes_median_range_and_unexpected_responses() -> None:
     assert (summary["low"], summary["high"]) == (10, 40)
     assert summary["wrong"] == 0
     assert summary["runs"] == 3
+    assert summary["cv_pct"] > 15
 
 
 def test_chart_has_accessible_label_and_table_is_next_to_it() -> None:
@@ -51,6 +52,13 @@ def test_chart_has_accessible_label_and_table_is_next_to_it() -> None:
                 }
             )
         )
+        extra_environment = json.loads((directory / "environment.json").read_text())
+        extra_environment["date"] = "2026-11-15 11:00:00 +0100"
+        extra_environment["loadavg_at_start"] = [1.0, 1.5, 2.0]
+        extra_environment["settings"]["scenarios"] = ["create"]
+        (directory / "environment-same-granian-110000.json").write_text(
+            json.dumps(extra_environment)
+        )
         (directory / "hinoki-granian-verify.txt").write_text("OK")
         for scenario in report.SCENARIOS:
             for index, rate in enumerate((10.0, 12.0), start=1):
@@ -66,6 +74,8 @@ def test_chart_has_accessible_label_and_table_is_next_to_it() -> None:
     assert rendered.index("</figure>") < rendered.index("<table")
     assert "Median req/s" in rendered
     assert "Unexpected responses" in rendered
+    assert 'scope="col">CV<' in rendered
+    assert "Additional capture environment-same-granian-110000.json" in rendered
 
 
 def test_missing_raw_scenario_fails_instead_of_partial_report() -> None:
