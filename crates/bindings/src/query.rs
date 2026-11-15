@@ -3,11 +3,12 @@
 //! are mapped back afterwards, so nothing is converted or interpolated here.
 
 use hinoki_orm::query::{
-    compile_delete_with, compile_insert_with, compile_select_with, compile_update_with, Delete,
-    Dialect, Filter, Insert, Join, Op, QueryError, Select, Update,
+    compile_delete_with, compile_insert_with, compile_select_with, compile_update_with,
+    like_pattern, Delete, Dialect, Filter, Insert, Join, Op, QueryError, Select, Update,
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyString;
 
 type RawJoin = (String, String, String, String, bool, Vec<String>);
 type RawFilter = (String, String, Vec<Py<PyAny>>);
@@ -28,11 +29,17 @@ impl Store {
         self.items.len() - 1
     }
 
-    fn filters(&mut self, raw: Vec<RawFilter>) -> PyResult<Vec<Filter<usize>>> {
+    fn filters(
+        &mut self,
+        py: Python<'_>,
+        dialect: Dialect,
+        raw: Vec<RawFilter>,
+    ) -> PyResult<Vec<Filter<usize>>> {
         raw.into_iter()
             .map(|(column, op, values)| {
                 let op = Op::parse(&op)
                     .ok_or_else(|| PyValueError::new_err(format!("unknown operator {op:?}")))?;
+                let (op, values) = prebuild_pattern(py, dialect, op, values);
                 let values = values.into_iter().map(|v| self.add(v)).collect();
                 Ok(Filter { column, op, values })
             })
@@ -54,6 +61,35 @@ impl Store {
             .map(|&i| self.items[i].clone_ref(py))
             .collect();
         (sql, params)
+    }
+}
+
+/// A `contains` filter on a text value becomes a pattern filter whose value is
+/// the escaped, wrapped pattern, so the database does not escape it for every
+/// row. Other values and MySQL keep the escaping SQL.
+fn prebuild_pattern(
+    py: Python<'_>,
+    dialect: Dialect,
+    op: Op,
+    values: Vec<Py<PyAny>>,
+) -> (Op, Vec<Py<PyAny>>) {
+    let pattern_op = match op {
+        Op::Contains => Op::ContainsPattern,
+        Op::ContainsAny => Op::ContainsAnyPattern,
+        _ => return (op, values),
+    };
+    if dialect == Dialect::Mysql {
+        return (op, values);
+    }
+    let [value] = values.as_slice() else {
+        return (op, values);
+    };
+    match value.bind(py).extract::<String>() {
+        Ok(text) => {
+            let pattern = PyString::new(py, &like_pattern(&text)).into_any().unbind();
+            (pattern_op, vec![pattern])
+        }
+        Err(_) => (op, values),
     }
 }
 
@@ -88,7 +124,7 @@ pub fn compile_query(
         }
     };
     let mut store = Store::default();
-    let filters = store.filters(filters.unwrap_or_default())?;
+    let filters = store.filters(py, dialect, filters.unwrap_or_default())?;
     let assignments = store.assignments(assignments.unwrap_or_default());
     let returning = returning.unwrap_or_default();
     let compiled = match kind {
