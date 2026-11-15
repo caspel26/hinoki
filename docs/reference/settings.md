@@ -13,7 +13,7 @@
 
 ::: hinoki.settings.AppSettings
     options:
-      members: [execution, lifecycle, logging, docs, server, pagination, cors, timezone, debug, allowed_hosts, runtime_config]
+      members: [execution, lifecycle, logging, docs, server, pagination, cors, security, timezone, debug, allowed_hosts, runtime_config]
       show_if_no_docstring: true
 
 ::: hinoki.settings.ExecutionSettings
@@ -50,6 +50,15 @@
     options:
       members: [origins, methods, headers, expose_headers, credentials, max_age]
       show_if_no_docstring: true
+
+::: hinoki.settings.SecuritySettings
+    options:
+      members: [redirect_https, hsts_seconds, hsts_include_subdomains, hsts_preload, frame_options, referrer_policy]
+      show_if_no_docstring: true
+
+::: hinoki.settings.FrameOptions
+
+::: hinoki.settings.ReferrerPolicy
 
 ::: hinoki.settings.DatabaseSettings
     options:
