@@ -380,6 +380,7 @@
         <p class="kicker" data-search-exclude>3.16 · Guides</p>
         <h1 id="rules-architecture-you-can-check">Rules: architecture you can check<a class="headerlink" href="#rules-architecture-you-can-check" title="Permanent link">&para;</a></h1>
 <p>Rules are optional, typed promises about your application that a tool checks and that fail with a stable ID, a location and an explanation. They are not a linter for style and not an AI prompt: each rule is a Python object with deterministic behaviour. Nothing runs unless you enable rules.</p>
+<p>The built-in set is intentionally small: access declarations, atomic writes, model responses, schema exposure and import direction. Add a custom <code>Rule</code> only when a project has a concrete invariant that these checks cannot express.</p>
 <h2 id="enable-them-the-blog-does">Enable them (the blog does)<a class="headerlink" href="#enable-them-the-blog-does" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="c1"># examples/blog/rules.py</span>
 <span class="n">blog_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
@@ -503,8 +504,8 @@ shop/models.py:11: HNK-IMP-001 [violated] shop.models imports shop.api, which is
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.16</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 02:07:13 UTC">November 14, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 04:02:50 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/rules.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

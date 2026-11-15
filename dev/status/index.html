@@ -248,7 +248,7 @@
 <ul>
 <li>SQLite, PostgreSQL and MySQL are supported ORM databases; SQLite is the local-development default. MySQL has real-server integration coverage in CI. MariaDB, SQL Server and Oracle are not supported, and MySQL compatibility does not imply MariaDB compatibility. See the <a href="../databases/">database guide</a> for backend-specific TLS, migration and feature limits.</li>
 <li>Hinoki does not open database connections at import or apply migrations automatically.</li>
-<li>The ASGI path uses Python for server adaptation and handler calls; selected work is implemented in Rust.</li>
+<li>The ASGI adapter and application handler calls run in Python. The Rust extension currently provides path matching, selected query/header/cookie parsing, schema validation/serialization, cryptography and SQL ORM compilation/execution.</li>
 <li>Built-in security settings add browser response headers, HSTS on effective HTTPS requests, and an opt-in <code>308</code> HTTPS redirect that requires explicit allowed hosts.</li>
 <li>Generated typing for some keyword-based ORM calls is less precise than model construction; see <a href="../typing/">typing</a>.</li>
 <li>Many-to-many links use an explicit model with two foreign keys and a composite uniqueness constraint. Implicit join models, direct collection access such as <code>post.tags</code>, and advanced relation paths are not available.</li>
@@ -284,7 +284,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>6.1</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 03:32:25 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 04:02:50 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/status.md">Edit on GitHub</a></dd></div>
         </dl>
