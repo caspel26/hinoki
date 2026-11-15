@@ -54,6 +54,7 @@ class Relation:
     model: type[Model]
     column: str
     forward: bool
+    one_to_one: bool = False
 
 
 class Related[T]:
