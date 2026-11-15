@@ -223,6 +223,7 @@ __marimo__/
 framework-handoff/
 handoff.md
 docs/*-DESIGN.md
+docs/Q060-SERVER-DECISION-BRIEF.md
 docs/IDENTITY.md
 .playwright-mcp/
 

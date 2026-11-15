@@ -5,6 +5,7 @@ docs_dir: docs
 strict: true
 exclude_docs: |
   **/*-DESIGN.md
+  Q060-SERVER-DECISION-BRIEF.md
   IDENTITY.md
   adr/**
 validation:
@@ -91,6 +92,7 @@ nav:
           - Migrations: migrations.md
       - Endpoints:
           - Endpoint declarations: endpoints.md
+          - Generate CRUD routes: crud.md
           - OpenAPI: openapi.md
           - Errors: errors.md
           - Pagination: pagination.md
@@ -122,6 +124,7 @@ nav:
   - Reference:
       - Overview: reference/index.md
       - Core API: reference/web.md
+      - Generated CRUD: reference/crud.md
       - Schemas: reference/schemas.md
       - Models and queries: reference/orm.md
       - Parsers and renderers: reference/codecs.md
