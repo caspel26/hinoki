@@ -22,6 +22,7 @@ The `hinoki` command accepts a `module:attribute` target for an application, fac
 | `hinoki settings TARGET` | Show effective settings and their source, with secrets redacted. `--dotenv` and `--toml` select optional files. |
 | `hinoki migrations ...` | Plan, inspect and apply project app migrations in dependency order. Legacy explicit targets remain available without a manifest. |
 | `hinoki manage [TARGET] [COMMAND]` | Run an app-defined command with its declared module resources; a project manifest supplies the default target. |
+| `hinoki shell [TARGET]` | Open an interactive Python shell with the app's modules and registered models. |
 | `hinoki mcp TARGET` | Serve project context to an MCP client over stdio. Scenario tools are off by default. |
 
 ### `new`
@@ -155,6 +156,41 @@ The same example is in `examples/management.py` and can be run from the reposito
 `handle(context, args)` may be synchronous or asynchronous. A sync handler runs on Hinoki's bounded executor. It can read `context.settings` and retrieve resources with `context.get(Type)` or `context.find(Type)`. Declare module classes in the command's `requires` tuple; Hinoki starts those modules and their dependencies for the command, then closes them before it exits. Other app modules are not started. A command with no requirements starts no app modules.
 
 Commands run inside the project process and can modify data. Use disposable databases when developing or testing a command that writes. A handler returns `None` for success or an exit code from 0 through 255. Unknown commands and invalid arguments exit 2; a command failure exits nonzero. App settings load when Hinoki constructs the app, but module resources open only for the selected command.
+
+### `shell`
+
+```sh
+uv run hinoki shell
+uv run hinoki shell examples.blog.main:app --models examples.blog.models
+```
+
+In a project with `hinoki.toml`, the target defaults to `project.application`
+and the shell loads every registered app's model module. Repeat `--models`
+to select model modules explicitly. Outside a project, pass a target; `--models`
+is optional. The interactive namespace contains `app`, its validated
+`settings`, and concrete model classes. Conflicting model class names fail
+before the prompt.
+
+The shell keeps one event loop and supports top-level `await`:
+
+```pycon
+>>> await Note.all()
+[Note(id=1, title='Hello')]
+>>> app.title
+'Hinoki Blog'
+```
+
+Use async ORM queries with `await`; synchronous ORM methods cannot block the
+shell's event loop. Unmanaged tasks are cancelled on exit and cleanup is
+bounded by `app.runtime.shutdown_timeout`.
+
+Installed module resources are started and closed for the session, so ORM
+queries use the app's configured database. App `on_startup` and `on_shutdown`
+hooks do not run, and migrations are never applied. The shell requires a TTY;
+Ctrl-D exits, Ctrl-C at the prompt exits, and Ctrl-C during a cell interrupts
+that cell. It executes Python with the current user's process privileges and
+may write to the configured database, so use a development database when
+experimenting.
 
 ### `migrations`
 
