@@ -37,6 +37,13 @@ class Post(Model, table="orm_posts"):
     note: str | None = None
 
 
+class JsonDocument(Model, table="orm_json_documents"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    object_value: dict[str, Any]
+    optional_list: list[str] | None = None
+    text_value: str = ""
+
+
 def sql_of(query: QuerySet[Any]) -> tuple[str, list[Any]]:
     return query.compile()
 
@@ -139,6 +146,33 @@ def test_instances_are_checked_dataclasses() -> None:
     assert (post.stars, post.published, post.note) == (0, False, None)
     with pytest.raises(TypeError):
         Post()  # type: ignore[call-arg]
+
+
+def test_model_rows_decode_declared_json_fields_without_changing_text() -> None:
+    key = UUID(int=1)
+    document = JsonDocument.from_row(
+        {
+            "id": key,
+            "object_value": b'{"ready":true}',
+            "optional_list": '["a","b"]',
+            "text_value": '{"kept":"as text"}',
+        }
+    )
+    assert document.object_value == {"ready": True}
+    assert document.optional_list == ["a", "b"]
+    assert document.text_value == '{"kept":"as text"}'
+
+
+def test_model_rows_refuse_invalid_declared_json() -> None:
+    with pytest.raises(FieldError, match=r"JsonDocument.object_value.*valid JSON"):
+        JsonDocument.from_row(
+            {
+                "id": UUID(int=1),
+                "object_value": b"not json",
+                "optional_list": None,
+                "text_value": "plain text",
+            }
+        )
 
 
 async def test_models_need_an_active_database() -> None:
