@@ -24,7 +24,24 @@ class Post(Model, table="posts"):
     title: str
 ```
 
-The `author_id` field is stored on `posts`. The forward relation is `post.author`; `author.posts` is the reverse relation. The foreign-key type must match the referenced primary-key type. Choose an `on_delete` rule explicitly: `restrict`, `cascade`, `set_null` or `no_action`. A nullable `set_null` field should use an optional annotation.
+The `author_id` field is stored on `posts`. The forward relation is `post.author`; `author.posts` is the reverse relation. The foreign-key type must match the referenced primary-key type. `on_delete` is required, so what happens to a row when the row it references is deleted is always a decision:
+
+| `on_delete` | When the referenced row is deleted |
+| --- | --- |
+| `"restrict"` | The delete is refused while referencing rows exist |
+| `"cascade"` | The referencing rows are deleted too |
+| `"set_null"` | The column is set to `NULL`; the field must be annotated `| None` |
+| `"no_action"` | Like `restrict`, checked by the database at the end of the statement |
+
+The accepted values are the type `hinoki.orm.OnDelete`, so a type checker reports a misspelled rule, and the declaration refuses it with a `RegistrationError` when the module is imported. `set_null` on a field without `| None` is refused the same way, before any migration is planned:
+
+```python
+class Note(Model, table="notes"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    post_id: UUID | None = foreign_key(Post, on_delete="set_null", default=None)
+```
+
+The rule is written into the `REFERENCES ... ON DELETE` clause of the generated migration and enforced by the database.
 
 ## Foreign keys in abstract models and mixins
 
