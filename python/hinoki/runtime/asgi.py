@@ -211,6 +211,7 @@ class ASGIAdapter:
         the handler."""
         if not self.lifespan.ready:
             raise HTTPError(HTTPStatus.SERVICE_UNAVAILABLE, "not_ready", RETRY_LATER)
+        self._check_request_sizes(scope)
         headers: dict[str, str] | None = None
         if self.hosts is not None or self.cors is not None:
             headers = header_map(scope)
@@ -258,6 +259,18 @@ class ASGIAdapter:
         if declared.isascii() and declared.isdigit() and int(declared) > limit:
             raise HTTPError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "payload_too_large")
         return await read_body(receive, limit)
+
+    def _check_request_sizes(self, scope: Scope) -> None:
+        """Raise for oversized query/header bytes before parsing or routing."""
+        if len(scope.get("query_string", b"")) > self.app.runtime.max_query_bytes:
+            raise HTTPError(HTTPStatus.REQUEST_URI_TOO_LONG, "uri_too_long")
+        header_bytes = sum(
+            len(name) + len(value) + 4 for name, value in scope.get("headers", ())
+        )
+        if header_bytes > self.app.runtime.max_header_bytes:
+            raise HTTPError(
+                HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE, "headers_too_large"
+            )
 
     def _guard(self, method: str, headers: dict[str, str]) -> Response | None:
         """Refuse a host that is not allowed; answer a CORS preflight."""
