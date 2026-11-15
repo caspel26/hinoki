@@ -80,6 +80,7 @@ nav:
       - 5. Rules: tutorial/5-rules.md
       - 6. Run and test it: tutorial/6-run.md
       - 7. Validate input: tutorial/7-validation.md
+      - 8. Projects and apps: tutorial/8-projects.md
   - Guides:
       - Overview: guides.md
       - Data:
