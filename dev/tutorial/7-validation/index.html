@@ -302,7 +302,29 @@
 </code></pre></div>
 <p>The invalid call reports a <code>common_password</code> error on <code>password</code> and a <code>password_mismatch</code> error on <code>confirmation</code>. <code>min_length</code>, <code>max_length</code> and <code>pattern</code> are built-in field constraints. <code>format="email"</code> is a ready-made pattern; <code>url</code>, <code>slug</code> and <code>hex_color</code> are also available. Numeric fields can use <code>gt</code>, <code>ge</code>, <code>lt</code> and <code>le</code>, and <code>one_of</code> restricts a value to a fixed set. An invalid built-in constraint prevents custom checks from running.</p>
 <p><code>@field_check("password")</code> receives the already validated value. <code>@object_check</code> receives the complete schema and can compare fields. Raise <code>Invalid(code, message)</code> to report a failure; the method does not transform the value. Checks are synchronous, have no I/O, and all applicable failures are collected. Structural failures such as a missing field or wrong type are reported first. A check that needs current database state, such as whether an email is already registered, belongs in an operation where it can be made race-safe.</p>
-<p>Model fields declare column metadata such as type, nullability, uniqueness, length metadata, defaults and foreign keys. That metadata is not a general runtime validator; <code>Model</code> does not currently run custom validators on construction or save. Validate external input with a <code>Schema</code>, and keep database-dependent business rules in operations. See <a href="../../models/#model-field-metadata-and-validation">Models and queries</a>.</p>
+<h2 id="validate-values-at-model-write-boundaries">Validate values at Model write boundaries<a class="headerlink" href="#validate-values-at-model-write-boundaries" title="Permanent link">&para;</a></h2>
+<p>Use the same built-in constraints on Model fields when data can be written outside an HTTP Schema, such as from a management command or the admin. Custom callbacks are synchronous and raise <code>ValueError</code> to refuse a value:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">field</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">normalized</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="o">!=</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"surrounding whitespace is not allowed"</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Product</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"products"</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">sku</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+        <span class="n">constraints</span><span class="o">=</span><span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="sa">r</span><span class="s2">"[A-Z0-9-]+"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">,</span> <span class="n">validators</span><span class="o">=</span><span class="p">(</span><span class="n">normalized</span><span class="p">,))</span>
+    <span class="n">price</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">constraints</span><span class="o">=</span><span class="n">Field</span><span class="p">(</span><span class="n">gt</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+</code></pre></div>
+<p>The checks run before <code>await Product.acreate(...)</code>, <code>await product.asave()</code> and <code>await Product.filter(...).aupdate(...)</code>, as well as their synchronous counterparts. Construction and assignment stay ordinary dataclass operations; existing rows are not revalidated when read. Invalid writes raise <code>ModelValidationError</code> with structured <code>details</code>, and no SQL is issued for that write. Validators must not perform I/O or change values. Keep request parsing in a Schema, and put rules that depend on other rows or permissions in an operation. See <a href="../../models/#model-field-constraints-and-validators">Model field constraints and validators</a>.</p>
 <p>More: <a href="../../schemas/#built-in-and-custom-validation">Schema constraints and checks</a>, <a href="../../model-schemas/">schemas derived from models</a>.</p>
         
       </article>
@@ -321,14 +343,14 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#7-validate-input">7. Validate input</a></li></ul>
+            <ul><li><a href="#validate-values-at-model-write-boundaries">Validate values at Model write boundaries</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.8</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 16:59:36 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 17:34:09 UTC">November 15, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/7-validation.md">Edit on GitHub</a></dd></div>
         </dl>

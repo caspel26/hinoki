@@ -409,9 +409,31 @@
 </code></pre></div>
 <p><code>table=</code> is required. A model has exactly one primary key. Fields are keyword-only when constructing a model. Single-column uniqueness is <code>field(unique=True)</code>; use <code>@unique("a", "b")</code> for a composite constraint. There is no nested <code>class Meta</code>.</p>
 <p>Supported field metadata includes primary key, uniqueness, maximum string length, defaults and foreign-key behavior. Database types are inferred from annotations; unsupported types fail during model or migration validation.</p>
-<h3 id="model-field-metadata-and-validation">Model field metadata and validation<a class="headerlink" href="#model-field-metadata-and-validation" title="Permanent link">&para;</a></h3>
-<p><code>field()</code> metadata describes the database column and its migration: <code>max_length</code> becomes a bounded string column and a derived <code>Schema</code> constraint, <code>unique</code> becomes a database constraint, and <code>default</code> / <code>default_factory</code> provide values when constructing an instance. A <code>foreign_key(...)</code> declares the referenced table and its <code>OnDelete</code> behavior. The Python annotation supplies the column type and nullability. These declarations are not general runtime validators: constructing a <code>Model</code>, assigning a field or saving an instance does not run a custom per-field validation hook. Database enforcement varies by backend (for example SQLite does not enforce a <code>varchar</code> length).</p>
-<p>For untrusted HTTP input, validate with a <code>Schema</code> before passing data to model operations. <code>@field_check</code> and <code>@object_check</code> belong to <code>Schema</code> and are not applied to <code>Model</code>. Hinoki does not yet have custom Model field validators. Keep rules that need other rows, permissions or current database state in an operation; see <a href="../schemas/#built-in-and-custom-validation">Schema validation</a>.</p>
+<h3 id="model-field-constraints-and-validators">Model field constraints and validators<a class="headerlink" href="#model-field-constraints-and-validators" title="Permanent link">&para;</a></h3>
+<p><code>field()</code> metadata describes the database column and its migration: <code>max_length</code> becomes a bounded string column and a derived <code>Schema</code> constraint, <code>unique</code> becomes a database constraint, and <code>default</code> / <code>default_factory</code> provide values when constructing an instance. A <code>foreign_key(...)</code> declares the referenced table and its <code>OnDelete</code> behavior. The Python annotation supplies the column type and nullability.</p>
+<p>Use <code>constraints=Field(...)</code> for built-in value checks and <code>validators=(...)</code> for synchronous, application-specific checks. Existing <code>max_length=</code> remains a shorthand:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">field</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">normalized</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="o">!=</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"surrounding whitespace is not allowed"</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Product</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"products"</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">sku</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+        <span class="n">constraints</span><span class="o">=</span><span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="sa">r</span><span class="s2">"[A-Z0-9-]+"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">price</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">constraints</span><span class="o">=</span><span class="n">Field</span><span class="p">(</span><span class="n">gt</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">,</span> <span class="n">validators</span><span class="o">=</span><span class="p">(</span><span class="n">normalized</span><span class="p">,))</span>
+</code></pre></div>
+<p>Built-in checks support string/list lengths, string patterns and membership, and numeric bounds and membership. Before applying checks, runtime type validation follows annotations for fields that declare constraints or validators, including nested list and dict values. Invalid declarations fail when the model class is created. Validators run immediately before inserts and ORM updates, including filtered bulk updates; they do not run on construction, assignment or reads. A refusal raises <code>ModelValidationError</code> with <code>details</code> containing each field's <code>path</code>, stable <code>code</code> and <code>message</code>, before SQL is sent. In an HTTP request it produces the standard 422 validation response; the admin displays the field messages. Custom validators are synchronous; raise <code>ValueError</code> to refuse a value. Do not perform database I/O or mutate values inside a validator. Rules involving other rows, permissions or current state belong in an operation.</p>
+<p>These checks complement, rather than replace, a <code>Schema</code> at the HTTP boundary. Schema validation can report request errors before calling an operation; Model validation also protects CLI, admin and direct ORM writes. Database constraints remain authoritative, and their enforcement varies by backend; see <a href="../schemas/#built-in-and-custom-validation">Schema validation</a>.</p>
 <p>Hinoki stores PostgreSQL UUID, timestamp, JSON and byte values in their native column types. SQLite stores UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string <code>contains</code> matching follows SQLite's case-folding behavior (ASCII case-insensitive).</p>
 <h2 id="query-rows">Query rows<a class="headerlink" href="#query-rows" title="Permanent link">&para;</a></h2>
 <p>Class methods and querysets offer sync and async variants for common operations. Async variants are preferred in async handlers:</p>
@@ -553,7 +575,7 @@ set <code>deletable = True</code>; protect generated writes with <code>access = 
           
           
             <ul><li><a href="#define-a-model">Define a model</a>
-            <ul><li><a href="#model-field-metadata-and-validation">Model field metadata and validation</a></li></ul>
+            <ul><li><a href="#model-field-constraints-and-validators">Model field constraints and validators</a></li></ul>
           </li><li><a href="#query-rows">Query rows</a></li><li><a href="#reusable-queries">Reusable queries</a></li><li><a href="#create-and-update">Create and update</a></li><li><a href="#share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins</a></li><li><a href="#relations">Relations</a></li><li><a href="#schema-options">Schema options</a></li><li><a href="#migrations">Migrations</a></li></ul>
           
         </nav>
@@ -561,8 +583,8 @@ set <code>deletable = True</code>; protect generated writes with <code>access = 
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 16:59:36 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>7 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 17:34:09 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>8 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
