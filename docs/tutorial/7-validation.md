@@ -59,6 +59,32 @@ The invalid call reports a `common_password` error on `password` and a `password
 
 `@field_check("password")` receives the already validated value. `@object_check` receives the complete schema and can compare fields. Raise `Invalid(code, message)` to report a failure; the method does not transform the value. Checks are synchronous, have no I/O, and all applicable failures are collected. Structural failures such as a missing field or wrong type are reported first. A check that needs current database state, such as whether an email is already registered, belongs in an operation where it can be made race-safe.
 
-Model fields declare column metadata such as type, nullability, uniqueness, length metadata, defaults and foreign keys. That metadata is not a general runtime validator; `Model` does not currently run custom validators on construction or save. Validate external input with a `Schema`, and keep database-dependent business rules in operations. See [Models and queries](../models.md#model-field-metadata-and-validation).
+## Validate values at Model write boundaries
+
+Use the same built-in constraints on Model fields when data can be written outside an HTTP Schema, such as from a management command or the admin. Custom callbacks are synchronous and raise `ValueError` to refuse a value:
+
+```python
+from uuid import UUID, uuid4
+
+from hinoki import Field
+from hinoki.orm import Model, field
+
+
+def normalized(value: str) -> None:
+    if value != value.strip():
+        raise ValueError("surrounding whitespace is not allowed")
+
+
+class Product(Model, table="products"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    sku: str = field(
+        max_length=32,
+        constraints=Field(min_length=3, pattern=r"[A-Z0-9-]+"),
+    )
+    name: str = field(max_length=120, validators=(normalized,))
+    price: float = field(constraints=Field(gt=0))
+```
+
+The checks run before `await Product.acreate(...)`, `await product.asave()` and `await Product.filter(...).aupdate(...)`, as well as their synchronous counterparts. Construction and assignment stay ordinary dataclass operations; existing rows are not revalidated when read. Invalid writes raise `ModelValidationError` with structured `details`, and no SQL is issued for that write. Validators must not perform I/O or change values. Keep request parsing in a Schema, and put rules that depend on other rows or permissions in an operation. See [Model field constraints and validators](../models.md#model-field-constraints-and-validators).
 
 More: [Schema constraints and checks](../schemas.md#built-in-and-custom-validation), [schemas derived from models](../model-schemas.md).

@@ -32,6 +32,8 @@ Input that does not match a path, query, header or body annotation fails before 
 
 When `security.redirect_https` is enabled, a plain HTTP request receives `308` with an HTTPS `Location` before routing or body parsing. The redirect requires an explicit `allowed_hosts` list and preserves the request method and target. See [browser security settings](settings.md#browser-security-headers-and-https).
 
+`ModelValidationError` is raised before an ORM insert or update when a Model field constraint or custom validator refuses a value. In an HTTP request it uses the same `422 validation_error` response shape as Schema validation, including field paths, codes and messages. The admin displays the field messages in its form. Keep Schema validation at the request boundary; Model checks also cover non-HTTP writes. See [Model field constraints and validators](models.md#model-field-constraints-and-validators).
+
 Every HTTP request receives a generated request ID. The response includes it in the `x-request-id` header; built-in error bodies also include `request_id`. Use the ID to connect a client report with the server log entry. Unhandled exceptions are logged with the ID and returned as `500 internal_error` without exposing exception text. The `debug` setting adds the exception type, message and traceback to that answer for development.
 
 ## Check the contract
