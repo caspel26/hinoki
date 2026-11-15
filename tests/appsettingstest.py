@@ -7,11 +7,11 @@ from typing import Any
 
 import pytest
 
-from hinoki import Access, BearerAuth, Caller, Hinoki, Reply, errors, http
+from hinoki import Access, BearerAuth, Caller, Hinoki, Reply, Request, errors, http
 from hinoki.__main__ import main
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.runtime.origins import HostPolicy, host_name
-from hinoki.settings import AppSettings, SettingsError
+from hinoki.settings import AppSettings, ServerSettings, SettingsError
 from hinoki.testing import ASGIClient
 from hinoki.wsgi import WSGIAdapter
 
@@ -57,6 +57,16 @@ def app_of(**env: str) -> Hinoki:
     return Hinoki(settings=load(**env), include=[ping, private, boom, declared])
 
 
+def trusted_proxy_settings() -> AppSettings:
+    return AppSettings(
+        server=ServerSettings(
+            trusted_proxies=("10.0.0.0/8",),
+            request_id_header="x-correlation-id",
+            trust_request_id=True,
+        )
+    )
+
+
 def problem(**env: str) -> str:
     with pytest.raises(SettingsError) as caught:
         load(**env)
@@ -69,6 +79,8 @@ async def raw_request(
     path: str,
     headers: list[tuple[bytes, bytes]],
     query: bytes = b"",
+    client: tuple[str, int] = ("127.0.0.1", 12345),
+    scheme: str = "http",
 ) -> dict[str, Any]:
     """The response start for a scope with repeated headers, which the test
     client cannot send."""
@@ -84,9 +96,225 @@ async def raw_request(
         "method": method,
         "path": path,
         "query_string": query,
+        "client": client,
+        "scheme": scheme,
+        "server": ("example.test", 80),
     }
     await adapter({**scope, "headers": headers}, None, send)
+    sent[0]["response_body"] = sent[1]["body"]
     return sent[0]
+
+
+@http.get("/proxy-info")
+async def proxy_info(request: Request) -> dict[str, Any]:
+    return {
+        "scheme": request.scheme,
+        "client": request.client,
+        "host": request.host,
+        "request_id": request.request_id,
+    }
+
+
+def test_trusted_proxy_settings_validate_networks_and_request_header() -> None:
+    settings = load(
+        APP_SERVER__TRUSTED_PROXIES="10.0.0.0/8,2001:db8::1",
+        APP_SERVER__REQUEST_ID_HEADER="x-correlation-id",
+        APP_SERVER__TRUST_REQUEST_ID="true",
+    )
+    assert settings.server.trusted_proxies == ("10.0.0.0/8", "2001:db8::1")
+    assert settings.server.request_id_header == "x-correlation-id"
+    assert settings.server.trust_request_id is True
+    assert "trusted_proxies entries" in problem(
+        APP_SERVER__TRUSTED_PROXIES="10.0.0.1/not-a-mask"
+    )
+    assert "request_id_header must be an HTTP token" in problem(
+        APP_SERVER__REQUEST_ID_HEADER="x bad"
+    )
+    assert "conflicts with a framework header" in problem(
+        APP_SERVER__REQUEST_ID_HEADER="content-length"
+    )
+    assert "conflicts with a framework header" in problem(
+        APP_SERVER__REQUEST_ID_HEADER="Access-Control-Allow-Origin"
+    )
+    assert "conflicts with a framework header" in problem(
+        APP_SERVER__REQUEST_ID_HEADER="content-security-policy"
+    )
+    assert "conflicts with a framework header" in problem(
+        APP_SERVER__REQUEST_ID_HEADER="www-authenticate"
+    )
+    assert "conflicts with a framework header" in problem(
+        APP_SERVER__REQUEST_ID_HEADER="allow"
+    )
+    assert "conflicts with a framework header" in problem(
+        APP_SERVER__REQUEST_ID_HEADER="retry-after"
+    )
+
+
+async def test_proxy_metadata_and_request_id_require_a_trusted_peer() -> None:
+    settings = trusted_proxy_settings()
+    app = Hinoki(settings=settings, include=[proxy_info])
+    sent = await raw_request(
+        app,
+        "GET",
+        "/proxy-info",
+        [
+            (b"host", b"raw.example.test"),
+            (b"x-forwarded-host", b"forged.example.test"),
+            (b"x-forwarded-proto", b"https"),
+            (b"x-forwarded-for", b"198.51.100.9, 10.1.2.3"),
+            (b"x-correlation-id", b"forged-id"),
+        ],
+        client=("192.0.2.1", 1234),
+    )
+    payload = json.loads(sent["response_body"])
+    assert payload["scheme"] == "http"
+    assert payload["client"] == ["192.0.2.1", 1234]
+    assert payload["host"] == "raw.example.test"
+    assert payload["request_id"] != "forged-id"
+    assert (b"x-correlation-id", payload["request_id"].encode()) in sent["headers"]
+
+
+async def test_trusted_proxy_resolves_client_scheme_and_valid_request_id() -> None:
+    settings = trusted_proxy_settings()
+    app = Hinoki(settings=settings, include=[proxy_info])
+    sent = await raw_request(
+        app,
+        "GET",
+        "/proxy-info",
+        [
+            (b"host", b"raw.example.test"),
+            (b"x-forwarded-host", b"forged.example.test"),
+            (b"x-forwarded-proto", b"https"),
+            (b"x-forwarded-for", b"198.51.100.9, 10.1.2.3"),
+            (b"x-correlation-id", b"gateway-42"),
+        ],
+        client=("10.2.3.4", 443),
+    )
+    payload = json.loads(sent["response_body"])
+    assert payload == {
+        "scheme": "https",
+        "client": ["198.51.100.9", 0],
+        "host": "raw.example.test",
+        "request_id": "gateway-42",
+    }
+    assert (b"x-correlation-id", b"gateway-42") in sent["headers"]
+
+
+@pytest.mark.parametrize(
+    ("forwarded_for", "request_id"),
+    [
+        (b"198.51.100.9", b"two,values"),
+        (b"bad-address", b"bad\x00value"),
+        (b"198.51.100.9,10.1.2.3,10.2.3.4", b""),
+    ],
+)
+async def test_ambiguous_proxy_metadata_falls_back_to_socket_and_generated_id(
+    forwarded_for: bytes, request_id: bytes
+) -> None:
+    settings = trusted_proxy_settings()
+    app = Hinoki(settings=settings, include=[proxy_info])
+    sent = await raw_request(
+        app,
+        "GET",
+        "/proxy-info",
+        [
+            (b"host", b"raw.example.test"),
+            (b"x-forwarded-proto", b"https, http"),
+            (b"x-forwarded-for", forwarded_for),
+            (b"x-correlation-id", request_id),
+        ],
+        client=("10.2.3.4", 443),
+    )
+    payload = json.loads(sent["response_body"])
+    assert payload["scheme"] == "http"
+    expected_client = (
+        ["10.2.3.4", 443] if forwarded_for == b"bad-address" else ["198.51.100.9", 0]
+    )
+    assert payload["client"] == expected_client
+    assert payload["request_id"] != request_id.decode("latin-1")
+
+
+async def test_repeated_forwarding_headers_are_ignored() -> None:
+    settings = trusted_proxy_settings()
+    app = Hinoki(settings=settings, include=[proxy_info])
+    sent = await raw_request(
+        app,
+        "GET",
+        "/proxy-info",
+        [
+            (b"host", b"raw.example.test"),
+            (b"x-forwarded-proto", b"https"),
+            (b"x-forwarded-proto", b"http"),
+            (b"x-forwarded-for", b"198.51.100.9"),
+            (b"x-forwarded-for", b"203.0.113.8"),
+            (b"x-correlation-id", b"gateway-42"),
+        ],
+        client=("10.2.3.4", 443),
+    )
+    payload = json.loads(sent["response_body"])
+    assert payload["scheme"] == "http"
+    assert payload["client"] == ["10.2.3.4", 443]
+    assert payload["request_id"] == "gateway-42"
+
+
+async def test_forwarded_chain_without_an_untrusted_client_uses_socket_peer() -> None:
+    settings = AppSettings(server=ServerSettings(trusted_proxies=("10.0.0.0/8",)))
+    app = Hinoki(settings=settings, include=[proxy_info])
+    sent = await raw_request(
+        app,
+        "GET",
+        "/proxy-info",
+        [
+            (b"host", b"raw.example.test"),
+            (b"x-forwarded-for", b"10.1.1.1"),
+        ],
+        client=("10.2.3.4", 443),
+    )
+    payload = json.loads(sent["response_body"])
+    assert payload["client"] == ["10.2.3.4", 443]
+
+
+def test_wsgi_uses_the_same_trusted_proxy_policy() -> None:
+    settings = trusted_proxy_settings()
+    adapter = WSGIAdapter(Hinoki(settings=settings, include=[proxy_info]))
+    answer: dict[str, Any] = {}
+
+    def start_response(status: str, headers: list[tuple[str, str]]) -> None:
+        answer["status"] = status
+        answer["headers"] = dict(headers)
+
+    try:
+        body = b"".join(
+            adapter(
+                {
+                    "REQUEST_METHOD": "GET",
+                    "PATH_INFO": "/proxy-info",
+                    "QUERY_STRING": "",
+                    "SERVER_PROTOCOL": "HTTP/1.1",
+                    "SERVER_NAME": "example.test",
+                    "SERVER_PORT": "80",
+                    "REMOTE_ADDR": "10.1.2.3",
+                    "wsgi.url_scheme": "http",
+                    "wsgi.input": io.BytesIO(),
+                    "CONTENT_LENGTH": "0",
+                    "HTTP_HOST": "raw.example.test",
+                    "HTTP_X_FORWARDED_PROTO": "https",
+                    "HTTP_X_FORWARDED_FOR": "198.51.100.9",
+                    "HTTP_X_CORRELATION_ID": "gateway-42",
+                },
+                start_response,
+            )
+        )
+    finally:
+        adapter.close()
+    assert answer["status"].startswith("200 ")
+    assert answer["headers"]["x-correlation-id"] == "gateway-42"
+    assert json.loads(body) == {
+        "scheme": "https",
+        "client": ["198.51.100.9", 0],
+        "host": "raw.example.test",
+        "request_id": "gateway-42",
+    }
 
 
 def test_the_defaults_change_nothing() -> None:
