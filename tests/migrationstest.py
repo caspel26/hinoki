@@ -76,6 +76,14 @@ def test_first_plan_creates_tables_in_dependency_order(tmp_path: Path) -> None:
     assert state["tables"]["mig_things"]["columns"]["seen"]["nullable"] is True
 
 
+def test_migration_name_is_derived_and_can_be_overridden(tmp_path: Path) -> None:
+    automatic = plan([owners()], tmp_path / "automatic")
+    assert automatic.path == tmp_path / "automatic/0001-create-table-mig-owners.sql"
+
+    explicit = plan([owners()], tmp_path / "explicit", "initial")
+    assert explicit.path == tmp_path / "explicit/0001-initial.sql"
+
+
 def test_nullable_set_null_foreign_key_is_written_to_migration_state(
     tmp_path: Path,
 ) -> None:
