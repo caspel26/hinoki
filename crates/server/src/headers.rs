@@ -23,13 +23,13 @@ pub const fn is_bodyless(status: u16) -> bool {
 
 /// The answer's own headers without policy headers and the request id, then the
 /// policy headers, the route headers nothing above already set, the request id,
-/// and `content-length` unless the status is bodyless.
+/// `extra` (CORS), and `content-length` unless the status is bodyless.
 pub fn final_headers(
     own: &[Header],
     policy: &[Header],
     route: &[(String, String)],
-    request_id_name: &[u8],
-    request_id: &[u8],
+    (request_id_name, request_id): (&[u8], &[u8]),
+    extra: &[Header],
     status: u16,
     body_len: usize,
 ) -> Vec<Header> {
@@ -57,6 +57,7 @@ pub fn final_headers(
         out.push((name.as_bytes().to_vec(), value.as_bytes().to_vec()));
     }
     out.push((request_id_name.to_vec(), request_id.to_vec()));
+    out.extend(extra.iter().cloned());
     if !is_bodyless(status) {
         out.push((
             b"content-length".to_vec(),
@@ -86,8 +87,8 @@ mod tests {
                 ("x-route".into(), "1".into()),
                 ("content-type".into(), "x".into()),
             ],
-            b"x-request-id",
-            b"abc",
+            (b"x-request-id", b"abc"),
+            &[h("vary", "origin")],
             200,
             7,
         );
@@ -98,6 +99,7 @@ mod tests {
                 h("x-frame-options", "DENY"),
                 h("x-route", "1"),
                 h("x-request-id", "abc"),
+                h("vary", "origin"),
                 h("content-length", "7"),
             ]
         );
@@ -109,8 +111,8 @@ mod tests {
             &[h("X-Request-Id", "old")],
             &[],
             &[],
-            b"x-request-id",
-            b"new",
+            (b"x-request-id", b"new"),
+            &[],
             204,
             0,
         );

@@ -6,6 +6,7 @@
 //! calls into Python; the glue lives in `crates/bindings`.
 #![forbid(unsafe_code)]
 
+pub mod cors;
 pub mod early;
 pub mod headers;
 pub mod limits;
