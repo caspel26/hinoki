@@ -313,7 +313,7 @@ def read_toml_source(
     return flatten_toml(cls, prefix, document, problems)
 
 
-def flatten_toml(  # noqa: PLR0912
+def flatten_toml(
     cls: type[Settings],
     prefix: str,
     table: Mapping[str, Any],
@@ -329,29 +329,31 @@ def flatten_toml(  # noqa: PLR0912
             (field for field in hints if field.casefold() == name.casefold()), None
         )
         hint = hints.get(field_name) if field_name is not None else None
-        full = prefix + key
-        if is_secret_hint(hint):
-            problems.append(f"{full}: secrets must come from environment or *_FILE")
-            continue
-        if isinstance(hint, type) and issubclass(hint, Settings):
-            if isinstance(value, Mapping):
-                flattened.update(
-                    flatten_toml(hint, prefix, value, problems, key + SEPARATOR)
-                )
-            else:
-                problems.append(f"{full}: a settings group must be a TOML table")
-            continue
-        if isinstance(value, dict):
-            if hint is not None:
-                problems.append(f"{full}: TOML value has an incompatible type")
-            else:
-                flattened[full] = value  # strict unknown-key checking reports its path
-            continue
-        if hint is not None and not toml_value_matches(hint, value):
-            problems.append(f"{full}: TOML value has an incompatible type")
-            continue
-        flattened[full] = value
+        flattened.update(_flatten_toml_value(prefix, key, hint, value, problems))
     return flattened
+
+
+def _flatten_toml_value(  # noqa: PLR0911 - direct result per TOML value kind
+    prefix: str, key: str, hint: Any, value: Any, problems: list[str]
+) -> dict[str, Any]:
+    full = prefix + key
+    if is_secret_hint(hint):
+        problems.append(f"{full}: secrets must come from environment or *_FILE")
+        return {}
+    if isinstance(hint, type) and issubclass(hint, Settings):
+        if isinstance(value, Mapping):
+            return flatten_toml(hint, prefix, value, problems, key + SEPARATOR)
+        problems.append(f"{full}: a settings group must be a TOML table")
+        return {}
+    if isinstance(value, dict):
+        if hint is not None:
+            problems.append(f"{full}: TOML value has an incompatible type")
+            return {}
+        return {full: value}  # strict unknown-key checking reports its path
+    if hint is not None and not toml_value_matches(hint, value):
+        problems.append(f"{full}: TOML value has an incompatible type")
+        return {}
+    return {full: value}
 
 
 def is_secret_hint(hint: Any) -> bool:
@@ -361,23 +363,37 @@ def is_secret_hint(hint: Any) -> bool:
     return origin in (typing.Union, types.UnionType) and Secret in typing.get_args(hint)
 
 
-def toml_value_matches(hint: Any, value: Any) -> bool:  # noqa: PLR0911 - each type has a direct check
+def toml_value_matches(hint: Any, value: Any) -> bool:
     """Check TOML's native type before applying the shared settings converter."""
     origin = typing.get_origin(hint)
     arguments = typing.get_args(hint)
     if origin in (typing.Union, types.UnionType):
-        return any(
-            value is None if option is type(None) else toml_value_matches(option, value)
-            for option in arguments
-        )
+        return _matches_union(arguments, value)
     if origin is Literal:
-        return any(
-            type(value) is type(choice) and value == choice for choice in arguments
-        )
+        return _matches_literal(arguments, value)
     if origin in (list, tuple):
-        return isinstance(value, list) and all(
-            toml_value_matches(arguments[0], item) for item in value
-        )
+        return _matches_sequence(arguments, value)
+    return _matches_scalar(hint, value)
+
+
+def _matches_union(arguments: tuple[Any, ...], value: Any) -> bool:
+    return any(
+        value is None if option is type(None) else toml_value_matches(option, value)
+        for option in arguments
+    )
+
+
+def _matches_literal(arguments: tuple[Any, ...], value: Any) -> bool:
+    return any(type(value) is type(choice) and value == choice for choice in arguments)
+
+
+def _matches_sequence(arguments: tuple[Any, ...], value: Any) -> bool:
+    return isinstance(value, list) and all(
+        toml_value_matches(arguments[0], item) for item in value
+    )
+
+
+def _matches_scalar(hint: Any, value: Any) -> bool:  # noqa: PLR0911 - type checks
     if hint is bool:
         return isinstance(value, bool)
     if hint is int:
@@ -551,24 +567,43 @@ def build(
     for name, hint in cls.fields_of().items():
         if name.startswith("_") or typing.get_origin(hint) is typing.ClassVar:
             continue
-        key = f"{path}{name.upper()}"
-        if isinstance(hint, type) and issubclass(hint, Settings):
-            nested = overrides.get(name, {})
-            if not isinstance(nested, Mapping):
-                problems.append(
-                    f"{prefix}{key}: overrides for a group must be a mapping"
-                )
-                nested = {}
-            value = build(hint, prefix, source, dict(nested), problems, key + SEPARATOR)
-            value = MISSING if value is None else value
-            failed |= value is MISSING
-        else:
-            value = scalar(cls, name, hint, prefix + key, source, overrides, problems)
-            failed |= value is MISSING
+        value = _build_field(cls, name, hint, prefix, source, overrides, problems, path)
+        failed |= value is MISSING
         if value is not MISSING and value is not DEFAULT:
             values[name] = value
     if failed:
         return None
+    return _construct_settings(cls, prefix, path, values, problems)
+
+
+def _build_field(  # noqa: PLR0913 - settings build context is shared through recursion
+    cls: type[Settings],
+    name: str,
+    hint: Any,
+    prefix: str,
+    source: Mapping[str, Any],
+    overrides: dict[str, Any],
+    problems: list[str],
+    path: str,
+) -> Any:
+    key = f"{path}{name.upper()}"
+    if not (isinstance(hint, type) and issubclass(hint, Settings)):
+        return scalar(cls, name, hint, prefix + key, source, overrides, problems)
+    nested = overrides.get(name, {})
+    if not isinstance(nested, Mapping):
+        problems.append(f"{prefix}{key}: overrides for a group must be a mapping")
+        nested = {}
+    value = build(hint, prefix, source, dict(nested), problems, key + SEPARATOR)
+    return MISSING if value is None else value
+
+
+def _construct_settings(
+    cls: type[Settings],
+    prefix: str,
+    path: str,
+    values: dict[str, Any],
+    problems: list[str],
+) -> Any:
     try:
         return cls(**values)
     except (ValueError, TypeError) as reason:  # never carries a configured value

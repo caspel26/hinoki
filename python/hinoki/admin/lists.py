@@ -45,8 +45,23 @@ def column_label(name: str) -> str:
     return label_of(name)
 
 
-def table_head(site: Site, slug: str, entry: ModelAdmin[Any], bulk: bool) -> Raw:
+def _heading_for_column(site: Site, slug: str, name: str, label: str) -> str:
     state = site.state
+    flip = "desc" if state.sort == name and state.direction == "asc" else "asc"
+    href = site.url(slug, **state.query(sort=name, direction=flip, page=1))
+    mark = (
+        ' <svg class="hn-icon" aria-hidden="true"><use href="#i-arrow-down-up"/></svg>'
+        if state.sort == name
+        else ""
+    )
+    current = ""
+    if state.sort == name:
+        direction = "descending" if state.direction == "desc" else "ascending"
+        current = f' aria-sort="{direction}"'
+    return f'<th scope="col"{current}><a href="{escape(href)}">{label}{mark}</a></th>'
+
+
+def table_head(site: Site, slug: str, entry: ModelAdmin[Any], bulk: bool) -> Raw:
     cells = []
     if bulk:
         cells.append(
@@ -57,22 +72,7 @@ def table_head(site: Site, slug: str, entry: ModelAdmin[Any], bulk: bool) -> Raw
     for name in entry.shown_columns():
         label = escape(column_label(name))
         if name in columns:
-            flip = "desc" if state.sort == name and state.direction == "asc" else "asc"
-            href = site.url(slug, **state.query(sort=name, direction=flip, page=1))
-            mark = ""
-            if state.sort == name:
-                arrow = "arrow-down-up"
-                mark = f' <svg class="hn-icon" aria-hidden="true"><use href="#i-{arrow}"/></svg>'
-            current = ""
-            if state.sort == name:
-                current = (
-                    ' aria-sort="'
-                    + ("descending" if state.direction == "desc" else "ascending")
-                    + '"'
-                )
-            cells.append(
-                f'<th scope="col"{current}><a href="{escape(href)}">{label}{mark}</a></th>'
-            )
+            cells.append(_heading_for_column(site, slug, name, label))
         else:
             cells.append(f'<th scope="col">{label}</th>')
     return Raw("".join(cells))

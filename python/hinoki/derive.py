@@ -21,6 +21,27 @@ def derive(
     partial: bool | tuple[str, ...] = False,
 ) -> Callable[[type[Schema]], type[Schema]]:
     """Select and mark optional the model fields on a Schema with ``model=``."""
+    _validate_options(only, exclude, partial)
+
+    def apply(cls: type[Schema]) -> type[Schema]:
+        source = cls.__dict__.get("__derived_model__")
+        if source is None:
+            raise RegistrationError(
+                f"{cls.__name__}: @derive requires model=Model on the Schema class"
+            )
+        return rebuild(
+            cls,
+            (source, only, exclude or (), True if partial is True else partial),
+        )
+
+    return apply
+
+
+def _validate_options(
+    only: tuple[str, ...] | None,
+    exclude: tuple[str, ...] | None,
+    partial: bool | tuple[str, ...],
+) -> None:
     if only is not None and not isinstance(only, tuple):
         raise RegistrationError("derive: only must be a tuple of field names")
     if exclude is not None and not isinstance(exclude, tuple):
@@ -41,19 +62,6 @@ def derive(
         not isinstance(name, str) for name in partial
     ):
         raise RegistrationError("derive: field names must be strings")
-
-    def apply(cls: type[Schema]) -> type[Schema]:
-        source = cls.__dict__.get("__derived_model__")
-        if source is None:
-            raise RegistrationError(
-                f"{cls.__name__}: @derive requires model=Model on the Schema class"
-            )
-        return rebuild(
-            cls,
-            (source, only, exclude or (), True if partial is True else partial),
-        )
-
-    return apply
 
 
 def rebuild(cls: type[Schema], plan: Derivation) -> type[Schema]:
@@ -84,21 +92,7 @@ def _class_cells_for(value: object, cls: type[Schema]) -> tuple[CellType, ...]:
     elif isinstance(value, cached_property):
         members = (value.func,)
     elif isinstance(value, FunctionType):
-        cells = value.__closure__ or ()
-        names = value.__code__.co_freevars
-        if "__class__" in names:
-            cell = cells[names.index("__class__")]
-            try:
-                if cell.cell_contents is cls:
-                    wrapped = getattr(value, "__wrapped__", None)
-                    nested = (
-                        _class_cells_for(wrapped, cls) if wrapped is not None else ()
-                    )
-                    return (cell, *nested)
-            except ValueError:
-                pass
-        wrapped = getattr(value, "__wrapped__", None)
-        return _class_cells_for(wrapped, cls) if wrapped is not None else ()
+        return _function_class_cells(value, cls)
     else:
         return ()
     return tuple(
@@ -107,3 +101,23 @@ def _class_cells_for(value: object, cls: type[Schema]) -> tuple[CellType, ...]:
         if member is not None
         for cell in _class_cells_for(member, cls)
     )
+
+
+def _function_class_cells(
+    value: FunctionType, cls: type[Schema]
+) -> tuple[CellType, ...]:
+    cell = _class_cell(value, cls)
+    wrapped = getattr(value, "__wrapped__", None)
+    nested = _class_cells_for(wrapped, cls) if wrapped is not None else ()
+    return (cell, *nested) if cell is not None else nested
+
+
+def _class_cell(value: FunctionType, cls: type[Schema]) -> CellType | None:
+    names = value.__code__.co_freevars
+    if "__class__" not in names:
+        return None
+    cell = (value.__closure__ or ())[names.index("__class__")]
+    try:
+        return cell if cell.cell_contents is cls else None
+    except ValueError:
+        return None
