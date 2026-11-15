@@ -36,9 +36,21 @@ jobs:
         options: >-
           --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -phinoki --silent"
           --health-interval 5s --health-timeout 5s --health-retries 20
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: hinoki
+          MARIADB_DATABASE: hinoki
+          MARIADB_USER: hinoki
+          MARIADB_PASSWORD: hinoki
+        ports: ["3307:3306"]
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       HINOKI_TEST_DATABASE_URL: postgres://postgres:hinoki@localhost:5432/hinoki
       HINOKI_TEST_MYSQL_URL: mysql://hinoki:hinoki@localhost:3306/hinoki?require_ssl=false
+      HINOKI_TEST_MARIADB_URL: mariadb://hinoki:hinoki@localhost:3307/hinoki?require_ssl=false
       # Without this, `uv run` follows .python-version and every job runs on 3.13.
       UV_PYTHON: ${{ matrix.python }}
     strategy:
@@ -118,9 +130,21 @@ jobs:
         options: >-
           --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -phinoki --silent"
           --health-interval 5s --health-timeout 5s --health-retries 20
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: hinoki
+          MARIADB_DATABASE: hinoki
+          MARIADB_USER: hinoki
+          MARIADB_PASSWORD: hinoki
+        ports: ["3307:3306"]
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       HINOKI_TEST_DATABASE_URL: postgres://postgres:hinoki@localhost:5432/hinoki
       HINOKI_TEST_MYSQL_URL: mysql://hinoki:hinoki@localhost:3306/hinoki?require_ssl=false
+      HINOKI_TEST_MARIADB_URL: mariadb://hinoki:hinoki@localhost:3307/hinoki?require_ssl=false
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -168,6 +192,10 @@ jobs:
           done
           HINOKI_TEST_DATABASE_TLS_URL="postgres://postgres:hinoki@localhost:5433/hinoki?sslmode=require&sslrootcert=$TLS_DIR/ca.crt" \
             cargo test --workspace
+      - name: Test ORM against MariaDB
+        env:
+          HINOKI_TEST_MYSQL_URL: mariadb://hinoki:hinoki@localhost:3307/hinoki?require_ssl=false
+        run: cargo test --locked -p hinoki-orm --test mysql
 
   audit:
     runs-on: ubuntu-latest
