@@ -73,6 +73,7 @@ engine = create_async_engine(
     os.environ["BENCH_DATABASE_URL"].replace("postgres://", "postgresql+asyncpg://"),
     pool_size=int(os.environ.get("BENCH_POOL", "10")),
     max_overflow=0,
+    isolation_level="AUTOCOMMIT",
 )
 sessions = async_sessionmaker(engine, expire_on_commit=False)
 

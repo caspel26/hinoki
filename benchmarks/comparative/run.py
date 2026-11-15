@@ -21,7 +21,10 @@ import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).parent
-DB = "postgres://postgres:bench-only@127.0.0.1:54402/bench"
+DB = os.environ.get(
+    "BENCH_DATABASE_URL", "postgres://postgres:bench-only@127.0.0.1:54402/bench"
+)
+POSTGRES_CONTAINER = os.environ.get("BENCH_POSTGRES_CONTAINER", "hinoki-bench-pg")
 PORT = 8801
 SERVER_CPUS = "0-3"
 LOAD_CPUS = "6-7"
@@ -29,7 +32,7 @@ WORKERS = 4
 POOL = 10
 OHA = os.environ.get("OHA", shutil.which("oha") or "oha")
 
-SERVERS = {
+DOCUMENTED_SERVERS = {
     "hinoki": (
         ["granian", "--interface", "asgi", "--workers", str(WORKERS), "--port", str(PORT),
          "--no-log", "hinoki_app:app"],
@@ -52,6 +55,29 @@ SERVERS = {
          "DJANGO_SETTINGS_MODULE": "dj_settings"},
     ),
 }  # fmt: skip
+GRANIAN_SERVERS = {
+    "hinoki-granian": DOCUMENTED_SERVERS["hinoki"],
+    "fastapi-granian": (
+        ["granian", "--interface", "asgi", "--workers", str(WORKERS), "--port", str(PORT),
+         "--no-log", "fastapi_app:app"],
+        {"BENCH_DATABASE_URL": DB, "BENCH_POOL": str(POOL)},
+    ),
+    "ninja-granian": (
+        ["granian", "--interface", "asgi", "--workers", str(WORKERS), "--port", str(PORT),
+         "--no-log", "ninja_app:application"],
+        {"BENCH_DATABASE_URL": DB, "BENCH_POOL": str(POOL),
+         "DJANGO_SETTINGS_MODULE": "dj_settings"},
+    ),
+}  # fmt: skip
+LABELS = {
+    "hinoki": "Hinoki · Granian",
+    "fastapi": "FastAPI · Uvicorn",
+    "ninja": "Django Ninja · Uvicorn",
+    "bolt": "Django Bolt · Actix",
+    "hinoki-granian": "Hinoki · Granian",
+    "fastapi-granian": "FastAPI · Granian",
+    "ninja-granian": "Django Ninja · Granian",
+}
 CONCURRENCY = 64
 WARMUP = 10
 DURATION = 20
@@ -83,10 +109,16 @@ def wait_ready(timeout: float = 60) -> None:
 
 
 def start(name: str, log: Path) -> subprocess.Popen:
-    command, env = SERVERS[name]
+    servers = DOCUMENTED_SERVERS if name in DOCUMENTED_SERVERS else GRANIAN_SERVERS
+    command, env = servers[name]
     full_env = {**os.environ, "PYTHONPATH": str(HERE), **env}
-    for variable in ("BENCH_DATABASE_URL", "BENCH_POOL", "BENCH_BOLT"):
-        if name == "hinoki":
+    for variable in (
+        "BENCH_DATABASE_URL",
+        "BENCH_POOL",
+        "BENCH_BOLT",
+        "BENCH_POSTGRES_CONTAINER",
+    ):
+        if name.startswith("hinoki"):
             full_env.pop(variable, None)
     exe = (
         [sys.executable, "-m", command[0], *command[1:]]
@@ -144,37 +176,132 @@ def environment(args: argparse.Namespace) -> dict:
         if False
         else sh(["uv", "pip", "list", "--format=json"]).stdout,
         "postgres": sh(
-            ["docker", "exec", "hinoki-bench-pg", "postgres", "--version"]
+            ["docker", "exec", POSTGRES_CONTAINER, "postgres", "--version"]
         ).stdout.strip(),
         "oha": sh([OHA, "--version"]).stdout.strip(),
         "settings": {
+            "server_mode": args.server_mode,
+            "stacks": args.selected_stacks,
             "workers": WORKERS,
             "pool_per_worker": POOL,
             "concurrency": CONCURRENCY,
             "warmup_s": args.warmup,
             "duration_s": args.duration,
             "runs": args.runs,
+            "run_offset": args.run_offset,
+            "scenarios": args.scenario or list(SCENARIOS),
             "server_cpus": SERVER_CPUS,
             "load_cpus": LOAD_CPUS,
         },
     }
 
 
-def main() -> None:
+def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--framework", default="all")
+    parser.add_argument(
+        "--server-mode", choices=("documented", "same-granian"), default="documented"
+    )
     parser.add_argument("--out", type=Path, default=HERE / "results" / "scratch")
-    parser.add_argument("--runs", type=int, default=3)
+    parser.add_argument("--runs", type=int, default=5)
+    parser.add_argument("--run-offset", type=int, default=0)
+    parser.add_argument("--scenario", choices=tuple(SCENARIOS), nargs="+")
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--duration", type=int, default=DURATION)
     parser.add_argument("--warmup", type=int, default=WARMUP)
-    args = parser.parse_args()
-    names = list(SERVERS) if args.framework == "all" else [args.framework]
+    return parser.parse_args()
+
+
+def selected_stacks(args: argparse.Namespace) -> list[str]:
+    names = list(
+        DOCUMENTED_SERVERS if args.server_mode == "documented" else GRANIAN_SERVERS
+    )
+    if args.framework != "all":
+        if args.framework not in names:
+            raise SystemExit(
+                f"{args.framework!r} is not available in {args.server_mode!r} mode"
+            )
+        names = [args.framework]
+    return names
+
+
+def verify_stack(name: str, output: Path) -> None:
+    verified = subprocess.run(
+        check=False,
+        args=[
+            sys.executable,
+            str(HERE / "verify.py"),
+            name,
+            f"http://127.0.0.1:{PORT}",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=HERE,
+    )
+    (output / f"{name}-verify.txt").write_text(verified.stdout + verified.stderr)
+    print(verified.stdout, verified.stderr[-1500:])
+    if verified.returncode != 0:
+        raise SystemExit(f"{name} failed verification; no measurement taken")
+
+
+def reset_benchmark_rows() -> None:
+    sh(
+        [
+            "docker",
+            "exec",
+            POSTGRES_CONTAINER,
+            "psql",
+            "-U",
+            "postgres",
+            "-d",
+            "bench",
+            "-c",
+            "DELETE FROM posts WHERE title LIKE 'bench-new%' OR title = 'verify-new'",
+        ]
+    )
+
+
+def measure_stack(name: str, args: argparse.Namespace, body: Path, post: str) -> None:
+    reset_db()
+    process = start(name, args.out / f"{name}-server.log")
+    try:
+        wait_ready()
+        verify_stack(name, args.out)
+        if args.smoke:
+            return
+        scenarios = args.scenario or list(SCENARIOS)
+        for scenario in scenarios:
+            method, path, payload = SCENARIOS[scenario]
+            url = f"http://127.0.0.1:{PORT}" + path.format(post=post)
+            data = body if payload else None
+            oha(url, method, data, args.warmup, None)
+            for run in range(1, args.runs + 1):
+                sample = run + args.run_offset
+                oha(
+                    url,
+                    method,
+                    data,
+                    args.duration,
+                    args.out / f"{name}-{scenario}-{sample}.json",
+                )
+            if scenario == "create":
+                reset_benchmark_rows()
+    finally:
+        stop(process)
+        time.sleep(2)
+
+
+def main() -> None:
+    args = arguments()
+    names = selected_stacks(args)
+    args.selected_stacks = names
     args.out.mkdir(parents=True, exist_ok=True)
     if not args.smoke:
-        (args.out / "environment.json").write_text(
-            json.dumps(environment(args), indent=2)
-        )
+        metadata = args.out / "environment.json"
+        if metadata.exists():
+            stamp = time.strftime("%H%M%S")
+            metadata = args.out / f"environment-{args.server_mode}-{stamp}.json"
+        metadata.write_text(json.dumps(environment(args), indent=2))
     body = args.out / "create.json"
     from seed import author_id, post_id
 
@@ -189,64 +316,7 @@ def main() -> None:
     )
     post = str(post_id(1))  # published (1 % 5 != 0)
     for name in names:
-        reset_db()
-        process = start(name, args.out / f"{name}-server.log")
-        try:
-            wait_ready()
-            verified = subprocess.run(
-                check=False,
-                args=[
-                    sys.executable,
-                    str(HERE / "verify.py"),
-                    name,
-                    f"http://127.0.0.1:{PORT}",
-                ],
-                capture_output=True,
-                text=True,
-                cwd=HERE,
-            )
-            (args.out / f"{name}-verify.txt").write_text(
-                verified.stdout + verified.stderr
-            )
-            print(verified.stdout, verified.stderr[-1500:])
-            if verified.returncode != 0:
-                raise SystemExit(f"{name} failed verification; no measurement taken")
-            if args.smoke:
-                continue
-
-            def reset_db_state() -> None:
-                sh(
-                    [
-                        "docker",
-                        "exec",
-                        "hinoki-bench-pg",
-                        "psql",
-                        "-U",
-                        "postgres",
-                        "-d",
-                        "bench",
-                        "-c",
-                        "DELETE FROM posts WHERE title LIKE 'bench-new%' OR title = 'verify-new'",
-                    ]
-                )
-
-            for scenario, (method, path, payload) in SCENARIOS.items():
-                url = f"http://127.0.0.1:{PORT}" + path.format(post=post)
-                data = body if payload else None
-                oha(url, method, data, args.warmup, None)
-                for run in range(1, args.runs + 1):
-                    oha(
-                        url,
-                        method,
-                        data,
-                        args.duration,
-                        args.out / f"{name}-{scenario}-{run}.json",
-                    )
-                if scenario == "create":
-                    reset_db_state()
-        finally:
-            stop(process)
-            time.sleep(2)
+        measure_stack(name, args, body, post)
 
 
 if __name__ == "__main__":

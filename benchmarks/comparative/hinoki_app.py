@@ -94,7 +94,7 @@ async def one(post_id: UUID) -> PostOut:
     return with_author(post)
 
 
-@http.post("/posts", status=201, transaction=True)
+@http.post("/posts", status=201)
 async def create(data: PostIn) -> PostOut:
     post = await Post.acreate(
         author_id=data.author_id, title=data.title, body=data.body, published=True
