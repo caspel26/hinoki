@@ -28,6 +28,49 @@ A module calls `ctx.provide(Type, value)` during lifespan startup. Other modules
 
 Module lifespan hooks are async. Keep startup bounded, fail fast when a required service is unavailable, and close each owned resource in `finally`.
 
+## Startup and shutdown hooks
+
+For an action at the edge of a worker's life that owns no resource, such as warming a cache, logging the build or flushing a counter, list functions on the application instead of writing a module:
+
+```python
+import logging
+
+from hinoki import Hinoki, ModuleContext
+from hinoki.db import Database, DatabaseModule
+
+log = logging.getLogger("app")
+
+
+async def warm_cache(ctx: ModuleContext) -> None:
+    await ctx.get(Database).fetch("SELECT 1")
+
+
+def say_goodbye(ctx: ModuleContext) -> None:
+    log.info("worker stopping")
+
+
+app = Hinoki(
+    settings=ProjectSettings,
+    include=[health, Tasks],
+    modules=[DatabaseModule],
+    on_startup=[warm_cache],
+    on_shutdown=[say_goodbye],
+)
+```
+
+A hook takes the worker's `ModuleContext` (`ctx.settings`, `ctx.get(Type)`, `ctx.tasks`). It is `async def`, or a plain `def` that runs on the bounded sync executor like a sync handler. Model methods reach the worker's database inside a hook as they do inside a request.
+
+| | Startup hooks | Shutdown hooks |
+| --- | --- | --- |
+| Run | Once per worker, after every module has started, in the listed order | Once per worker, before background tasks, the sync executor and the modules are closed, in the listed order |
+| Time limit | Share `lifecycle.startup_timeout` with the modules | Each has its own `lifecycle.shutdown_timeout` |
+| Requests | Answered `503 not_ready` until the last hook returns | Answered `503 not_ready` from the moment shutdown begins |
+| A hook fails or times out | Startup fails: later hooks do not run, no shutdown hook runs, the modules already started are closed, and the server is told that startup failed. The log has the traceback; the message names the hook (`startup hook 'warm_cache' failed to start: TimeoutError`) | It is logged and reported as a shutdown error; the remaining hooks and the module cleanup still run |
+
+Shutdown hooks run only after a startup that completed, and a shutdown hook is not the `finally` of a startup hook. Use this rule to choose: **a resource you own is a module** (its lifespan closes it even when a later step of startup fails); **an action is a hook**. A plain `def` hook that is still running when its time limit passes cannot be interrupted; it keeps its executor thread until it returns.
+
+Hooks run where the application serves requests: under `hinoki dev`/`serve` and any ASGI server, on the first request of each WSGI worker, and in the [test clients](testing.md). `hinoki manage` commands, `check`, `routes` and `migrations` do not run them.
+
 ## Standalone scripts
 
 For app maintenance tasks, declare a [management command](cli.md#manage) and list its required module classes in `Command.requires`. Hinoki starts only those modules and their dependencies for one command run, so a database module is opened and closed without starting the HTTP server or unrelated modules.
