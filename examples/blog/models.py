@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import ClassVar
 from uuid import UUID, uuid4
 
-from hinoki.orm import Model, field, foreign_key
+from hinoki.orm import Model, OnDelete, field, foreign_key
 from hinoki.orm.relations import Related
 from hinoki.utils import utc_now
 
@@ -21,7 +21,9 @@ class User(Model, table="blog_users"):
 
 class Post(Model, table="blog_posts"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
-    author_id: UUID = foreign_key(User, on_delete="restrict", related_name="posts")
+    author_id: UUID = foreign_key(
+        User, on_delete=OnDelete.RESTRICT, related_name="posts"
+    )
     title: str = field(max_length=160)
     slug: str = field(unique=True, max_length=180)
     body: str

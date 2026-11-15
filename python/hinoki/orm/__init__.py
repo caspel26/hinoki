@@ -24,7 +24,7 @@ from hinoki.orm.queryset import (
     condition,
     fetch_in,
 )
-from hinoki.orm.relations import Related, Relation
+from hinoki.orm.relations import OnDelete, Related, Relation
 
 __all__ = [
     "IN_CHUNK",
@@ -35,6 +35,7 @@ __all__ = [
     "FieldMeta",
     "Loading",
     "Model",
+    "OnDelete",
     "QuerySet",
     "Related",
     "Relation",
