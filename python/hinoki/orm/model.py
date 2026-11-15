@@ -33,7 +33,7 @@ from hinoki.errors import (
 )
 from hinoki.orm.context import current_database
 from hinoki.orm.queryset import QuerySet
-from hinoki.orm.relations import ON_DELETE, OnDelete, Related, Relation
+from hinoki.orm.relations import OnDelete, Related, Relation
 from hinoki.utils import Clock, utc_now
 
 if sys.version_info >= (3, 14):
@@ -124,7 +124,7 @@ class FieldMeta:
     unique: bool = False
     max_length: int | None = None
     references: type[Model] | None = None
-    on_delete: OnDelete | None = None
+    on_delete: str = ""
     related_name: str = ""
 
 
@@ -156,24 +156,30 @@ def foreign_key(
 ) -> Any:
     """Declare a column that references ``model``'s primary key.
 
-    ``author_id: UUID = foreign_key(User, on_delete="restrict", related_name="posts")``
+    ``author_id: UUID = foreign_key(User, on_delete=OnDelete.RESTRICT)``
 
-    ``on_delete`` is required (``restrict``, ``cascade``, ``set_null`` or
-    ``no_action``) so a deletion rule is always a decision; a type checker
-    refuses any other text and so does the declaration. ``set_null`` needs a
+    ``on_delete`` is required and is an ``OnDelete`` member (``RESTRICT``,
+    ``CASCADE``, ``SET_NULL`` or ``NO_ACTION``), so a deletion rule is always a
+    decision; text such as ``"cascade"`` is refused. ``SET_NULL`` needs a
     column annotated ``| None``. The relation is
     named after the column without ``_id`` and is loaded only by
     ``select_related`` / ``prefetch_related``.
     """
-    if on_delete not in ON_DELETE:
-        raise RegistrationError(f"on_delete must be one of {sorted(ON_DELETE)}")
+    if not isinstance(on_delete, OnDelete):
+        raise RegistrationError(
+            "on_delete takes an OnDelete member, such as OnDelete.RESTRICT "
+            "(from hinoki.orm import OnDelete)"
+        )
     if getattr(model, "__abstract__", False):
         raise RegistrationError(
             f"foreign_key: {model.__name__} is abstract and has no table to "
             "reference; point at a model with table=..."
         )
     meta = FieldMeta(
-        unique=unique, references=model, on_delete=on_delete, related_name=related_name
+        unique=unique,
+        references=model,
+        on_delete=on_delete.value,
+        related_name=related_name,
     )
     return dataclasses.field(default=default, metadata={MARK: meta})
 
@@ -385,13 +391,13 @@ class Model:
         """``set_null`` on a column that cannot hold NULL fails every delete of
         the referenced row, so it is refused when the model is declared. An
         annotation that cannot be resolved yet is left to the migration plan."""
-        if meta.on_delete != "set_null":
+        if meta.on_delete != OnDelete.SET_NULL.value:
             return
         hint = resolve_annotation(cls, column.name, column.type)
         if isinstance(hint, str) or type(None) in typing.get_args(hint):
             return
         raise RegistrationError(
-            f'{cls.__name__}.{column.name}: on_delete="set_null" needs a column '
+            f"{cls.__name__}.{column.name}: on_delete=OnDelete.SET_NULL needs a column "
             "that can hold NULL; annotate it `<type> | None`"
         )
 
