@@ -132,3 +132,77 @@ def compile_query(
     joins: list[tuple[str, str, str, str, bool, list[str]]] | None = None,
     dialect: str = "postgres",
 ) -> tuple[str, list[Any]]: ...
+
+class Submission:
+    @property
+    def early(self) -> tuple[int, list[tuple[bytes, bytes]], bytes] | None: ...
+    @property
+    def wake(self) -> bool: ...
+    def reply(self) -> tuple[int, list[tuple[bytes, bytes]], bytes] | None: ...
+    def cancel(self) -> None: ...
+
+class PreparedRequest:
+    @property
+    def method(self) -> str: ...
+    @property
+    def path(self) -> str: ...
+    @property
+    def query(self) -> bytes: ...
+    @property
+    def request_id(self) -> str: ...
+    @property
+    def action(self) -> int | None: ...
+    @property
+    def needs_headers(self) -> bool: ...
+    @property
+    def params(self) -> dict[str, str]: ...
+    @property
+    def headers(self) -> list[tuple[bytes, bytes]]: ...
+    def respond(
+        self, status: int, headers: list[tuple[bytes, bytes]], body: bytes
+    ) -> bool: ...
+
+RouteSpec = tuple[
+    int,
+    str,
+    str,
+    list[str],
+    bool,
+    bool,
+    list[str],
+    int,
+    list[tuple[str, str]],
+    bool,
+    bool,
+    bool,
+]
+
+class ServerCore:
+    def __init__(
+        self,
+        routes: list[RouteSpec],
+        early_bodies: list[tuple[str, bytes]],
+        policy: list[tuple[bytes, bytes]],
+        request_id_name: bytes,
+        request_id_prefix: str,
+        limits: tuple[int, int, int, int] = ...,
+        queue_capacity: int = 4096,
+        trust_request_id: bool = False,
+        defer_policies: bool = False,
+        python_paths: list[str] = ...,
+    ) -> None: ...
+    def set_ready(self, ready: bool) -> None: ...
+    @property
+    def ready(self) -> bool: ...
+    @property
+    def pending(self) -> int: ...
+    @property
+    def in_flight(self) -> int: ...
+    def drain(self, max: int) -> list[PreparedRequest]: ...
+    def submit(
+        self,
+        method: str,
+        path: str,
+        query: bytes,
+        headers: list[tuple[bytes, bytes]],
+    ) -> Submission: ...

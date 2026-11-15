@@ -1,0 +1,508 @@
+//! Glue between `hinoki-server` and Python: the in-process request classifier
+//! (`ServerCore`), the request handed to the pipeline (`PreparedRequest`) and the
+//! handle a test or connection holds to see the answer (`Submission`).
+//!
+//! Python objects exist only on the calling thread: `PreparedRequest` holds Rust
+//! data and a oneshot sender, so it can be dropped on any thread without the GIL.
+//! No socket is involved; a connection layer calls `submit` the way the tests do.
+
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Mutex;
+
+use hinoki_server::early::BodyError;
+use hinoki_server::headers::{final_headers, Header};
+use hinoki_server::queue::Push;
+use hinoki_server::{
+    requestid, Early, EarlyBodies, InFlight, Limits, Permit, Plan, Queue, RoutePlan,
+};
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use pyo3::prelude::*;
+use pyo3::types::{PyBytes, PyDict, PyList};
+use tokio::sync::oneshot;
+
+use crate::router::{Match, Router};
+
+struct Reply {
+    status: u16,
+    headers: Vec<Header>,
+    body: Vec<u8>,
+}
+
+fn reply_to_py<'py>(py: Python<'py>, reply: &Reply) -> PyResult<Bound<'py, PyAny>> {
+    let headers = PyList::empty(py);
+    for (name, value) in &reply.headers {
+        headers.append((PyBytes::new(py, name), PyBytes::new(py, value)))?;
+    }
+    Ok((reply.status, headers, PyBytes::new(py, &reply.body))
+        .into_pyobject(py)?
+        .into_any())
+}
+
+/// A request accepted for the Python pipeline. `respond` completes it once.
+#[pyclass(name = "PreparedRequest", module = "hinoki.core", frozen)]
+pub struct PreparedRequest {
+    method: String,
+    path: String,
+    query: Vec<u8>,
+    headers: Vec<Header>,
+    request_id: String,
+    action: Option<u32>,
+    needs_headers: bool,
+    params: Vec<(String, String)>,
+    reply: Mutex<Option<oneshot::Sender<Reply>>>,
+    _permit: Permit,
+}
+
+#[pymethods]
+impl PreparedRequest {
+    #[getter]
+    fn method(&self) -> &str {
+        &self.method
+    }
+
+    #[getter]
+    fn path(&self) -> &str {
+        &self.path
+    }
+
+    #[getter]
+    fn query<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.query)
+    }
+
+    #[getter]
+    fn request_id(&self) -> &str {
+        &self.request_id
+    }
+
+    /// The action number, or `None` when no route matched and the Python
+    /// pipeline must produce the answer (a policy is configured).
+    #[getter]
+    fn action(&self) -> Option<u32> {
+        self.action
+    }
+
+    /// Whether the route reads the headers as a mapping (access, negotiation
+    /// among several renderers, or a `Request` parameter). `True` when unrouted.
+    #[getter]
+    fn needs_headers(&self) -> bool {
+        self.needs_headers
+    }
+
+    /// Path parameters as matched, still percent-encoded.
+    #[getter]
+    fn params<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let out = PyDict::new(py);
+        for (name, value) in &self.params {
+            out.set_item(name, value)?;
+        }
+        Ok(out)
+    }
+
+    #[getter]
+    fn headers<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        let out = PyList::empty(py);
+        for (name, value) in &self.headers {
+            out.append((PyBytes::new(py, name), PyBytes::new(py, value)))?;
+        }
+        Ok(out)
+    }
+
+    /// Complete the request with the final status, headers and body. Returns
+    /// `False` when it was already completed or nobody is waiting any more.
+    fn respond(&self, status: u16, headers: Vec<(Vec<u8>, Vec<u8>)>, body: &[u8]) -> bool {
+        let sender = self.reply.lock().ok().and_then(|mut slot| slot.take());
+        sender.is_some_and(|tx| {
+            tx.send(Reply {
+                status,
+                headers,
+                body: body.to_vec(),
+            })
+            .is_ok()
+        })
+    }
+}
+
+/// What `ServerCore.submit` returns: an immediate answer, or a queued request.
+#[pyclass(name = "Submission", module = "hinoki.core", frozen)]
+pub struct Submission {
+    early: Option<Reply>,
+    wake: bool,
+    receiver: Mutex<Option<oneshot::Receiver<Reply>>>,
+}
+
+#[pymethods]
+impl Submission {
+    /// `(status, headers, body)` when the answer needed no Python.
+    #[getter]
+    fn early<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.early.as_ref().map(|r| reply_to_py(py, r)).transpose()
+    }
+
+    /// Whether the queue went from empty to non-empty (the consumer needs a wake).
+    #[getter]
+    fn wake(&self) -> bool {
+        self.wake
+    }
+
+    /// The answer given through `respond`, if it has arrived (never blocks).
+    fn reply<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        let mut slot = self.receiver.lock().map_err(|_| poisoned())?;
+        let Some(receiver) = slot.as_mut() else {
+            return Ok(None);
+        };
+        match receiver.try_recv() {
+            Ok(reply) => reply_to_py(py, &reply).map(Some),
+            Err(_) => Ok(None),
+        }
+    }
+
+    /// Stop waiting, as a client that went away does.
+    fn cancel(&self) {
+        if let Ok(mut slot) = self.receiver.lock() {
+            slot.take();
+        }
+    }
+}
+
+fn poisoned() -> PyErr {
+    PyRuntimeError::new_err("server state is poisoned")
+}
+
+/// A route as Python describes it: the plan fields plus the router entry.
+type RouteSpec = (
+    u32,                   // action
+    String,                // method
+    String,                // template
+    Vec<String>,           // path parameter names
+    bool,                  // has body
+    bool,                  // has access
+    Vec<String>,           // media types
+    u16,                   // status
+    Vec<(String, String)>, // route headers
+    bool,                  // transaction
+    bool,                  // is async
+    bool,                  // takes request
+);
+
+fn kind_of(name: &str) -> PyResult<Early> {
+    Ok(match name {
+        "uri_too_long" => Early::UriTooLong,
+        "headers_too_large" => Early::HeadersTooLarge,
+        "not_ready" => Early::NotReady,
+        "overloaded" => Early::Overloaded,
+        "not_found" => Early::NotFound,
+        "method_not_allowed" => Early::MethodNotAllowed,
+        other => {
+            return Err(PyValueError::new_err(format!(
+                "unknown early kind {other:?}"
+            )))
+        }
+    })
+}
+
+enum Resolved {
+    Route(u32, Vec<(String, String)>),
+    /// No route: answer natively, with extra headers (`allow`).
+    Missing(Early, Vec<Header>),
+}
+
+/// The classifier a connection layer drives: ready check, limits, request id,
+/// routing, early answers, then the bounded queue towards the pipeline.
+#[pyclass(name = "ServerCore", module = "hinoki.core", frozen)]
+pub struct ServerCore {
+    router: Router,
+    plan: Plan,
+    limits: Limits,
+    bodies: EarlyBodies,
+    queue: Queue<PreparedRequest>,
+    in_flight: InFlight,
+    ready: AtomicBool,
+    policy: Vec<Header>,
+    id_name: Vec<u8>,
+    prefix: String,
+    counter: AtomicU64,
+    trust_request_id: bool,
+    defer_policies: bool,
+    python_paths: Vec<String>,
+}
+
+#[pymethods]
+impl ServerCore {
+    #[new]
+    #[pyo3(signature = (
+        routes, early_bodies, policy, request_id_name, request_id_prefix,
+        limits=(8192, 32_768, 1_048_576, 288), queue_capacity=4096,
+        trust_request_id=false, defer_policies=false, python_paths=Vec::new()
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        routes: Vec<RouteSpec>,
+        early_bodies: Vec<(String, Vec<u8>)>,
+        policy: Vec<Header>,
+        request_id_name: Vec<u8>,
+        request_id_prefix: String,
+        limits: (usize, usize, usize, usize),
+        queue_capacity: usize,
+        trust_request_id: bool,
+        defer_policies: bool,
+        python_paths: Vec<String>,
+    ) -> PyResult<Self> {
+        let (router, plan) = build_routes(routes)?;
+        let rendered = early_bodies
+            .into_iter()
+            .map(|(kind, body)| kind_of(&kind).map(|k| (k, body)))
+            .collect::<PyResult<Vec<_>>>()?;
+        let bodies = EarlyBodies::new(&rendered).map_err(|BodyError::Sentinel(n)| {
+            PyValueError::new_err(format!("early body has {n} sentinels, expected 1"))
+        })?;
+        let (max_query_bytes, max_header_bytes, max_body_bytes, max_in_flight) = limits;
+        Ok(Self {
+            router,
+            plan,
+            limits: Limits {
+                max_query_bytes,
+                max_header_bytes,
+                max_body_bytes,
+                max_in_flight,
+            },
+            bodies,
+            queue: Queue::new(queue_capacity),
+            in_flight: InFlight::new(max_in_flight),
+            ready: AtomicBool::new(false),
+            policy,
+            id_name: request_id_name,
+            prefix: request_id_prefix,
+            counter: AtomicU64::new(0),
+            trust_request_id,
+            defer_policies,
+            python_paths,
+        })
+    }
+
+    fn set_ready(&self, ready: bool) {
+        self.ready.store(ready, Ordering::Release);
+    }
+
+    #[getter]
+    fn ready(&self) -> bool {
+        self.ready.load(Ordering::Acquire)
+    }
+
+    #[getter]
+    fn pending(&self) -> usize {
+        self.queue.len()
+    }
+
+    #[getter]
+    fn in_flight(&self) -> usize {
+        self.in_flight.current()
+    }
+
+    /// Take up to `max` queued requests in arrival order.
+    fn drain<'py>(&self, py: Python<'py>, max: usize) -> PyResult<Bound<'py, PyList>> {
+        let out = PyList::empty(py);
+        for request in self.queue.drain(max) {
+            out.append(Py::new(py, request)?)?;
+        }
+        Ok(out)
+    }
+
+    /// Classify one request. `path` is the raw target path (percent-encoded),
+    /// `query` the raw query bytes.
+    fn submit(
+        &self,
+        method: &str,
+        path: &str,
+        query: &[u8],
+        headers: Vec<Header>,
+    ) -> PyResult<Submission> {
+        let request_id = self.request_id(&headers);
+        if let Some(early) = self.refuse(query, &headers) {
+            return self.answer(method, early, Vec::new(), &request_id);
+        }
+        let (action, params) = match self.resolve(method, path) {
+            _ if self.is_python_path(method, path) => (None, Vec::new()),
+            Resolved::Route(action, params) => (Some(action), params),
+            Resolved::Missing(_, _) if self.defer_policies => (None, Vec::new()),
+            Resolved::Missing(early, extra) => {
+                return self.answer(method, early, extra, &request_id)
+            }
+        };
+        let needs_headers = match action {
+            Some(number) => self
+                .plan
+                .get(number)
+                .ok_or_else(|| PyRuntimeError::new_err(format!("no plan for action {number}")))?
+                .needs_headers(),
+            None => true,
+        };
+        let Some(permit) = self.in_flight.try_acquire() else {
+            return self.answer(method, Early::Overloaded, Vec::new(), &request_id);
+        };
+        let (sender, receiver) = oneshot::channel();
+        let request = PreparedRequest {
+            method: method.to_owned(),
+            path: path.to_owned(),
+            query: query.to_vec(),
+            headers,
+            request_id: request_id.clone(),
+            action,
+            needs_headers,
+            params,
+            reply: Mutex::new(Some(sender)),
+            _permit: permit,
+        };
+        match self.queue.push(request) {
+            Ok(pushed) => Ok(Submission {
+                early: None,
+                wake: pushed == Push::Wake,
+                receiver: Mutex::new(Some(receiver)),
+            }),
+            Err(_full) => self.answer(method, Early::Overloaded, Vec::new(), &request_id),
+        }
+    }
+}
+
+fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
+    let mut router = Router::new();
+    let mut planned = Vec::with_capacity(routes.len());
+    for (
+        action,
+        method,
+        template,
+        path_params,
+        has_body,
+        has_access,
+        media_types,
+        status,
+        headers,
+        transaction,
+        is_async,
+        takes_request,
+    ) in routes
+    {
+        router
+            .add(&method, &template, action)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        planned.push(RoutePlan {
+            action,
+            method,
+            path_params,
+            has_body,
+            has_access,
+            media_types,
+            status,
+            headers,
+            transaction,
+            is_async,
+            takes_request,
+        });
+    }
+    let plan = Plan::new(planned).map_err(|e| PyValueError::new_err(format!("{e:?}")))?;
+    Ok((router, plan))
+}
+
+impl ServerCore {
+    fn request_id(&self, headers: &[Header]) -> String {
+        if self.trust_request_id {
+            let found: Vec<&[u8]> = headers
+                .iter()
+                .filter(|(name, _)| name.eq_ignore_ascii_case(&self.id_name))
+                .map(|(_, value)| value.as_slice())
+                .collect();
+            if let Some(id) = requestid::inbound(&found) {
+                return id.to_owned();
+            }
+        }
+        requestid::generated(&self.prefix, self.counter.fetch_add(1, Ordering::Relaxed))
+    }
+
+    /// Documentation and OpenAPI paths are answered by the Python pipeline.
+    fn is_python_path(&self, method: &str, path: &str) -> bool {
+        matches!(method, "GET" | "HEAD") && self.python_paths.iter().any(|p| p == path)
+    }
+
+    /// Not-ready and oversized requests are refused before routing, in this order.
+    fn refuse(&self, query: &[u8], headers: &[Header]) -> Option<Early> {
+        if !self.ready.load(Ordering::Acquire) {
+            return Some(Early::NotReady);
+        }
+        let total = hinoki_server::limits::header_total(
+            headers.iter().map(|(n, v)| (n.as_slice(), v.as_slice())),
+        );
+        self.limits.check_request(query.len(), total)
+    }
+
+    /// Route lookup with the Python `Hinoki.lookup` rules: HEAD borrows a GET
+    /// route, and a wrong method advertises HEAD whenever GET is allowed.
+    fn resolve(&self, method: &str, path: &str) -> Resolved {
+        match self.router.find(method, path) {
+            Match::Found { action, params } => Resolved::Route(action, params),
+            Match::NotFound => Resolved::Missing(Early::NotFound, Vec::new()),
+            Match::MethodNotAllowed { allowed } => {
+                let has_get = allowed.iter().any(|m| m == "GET");
+                if method == "HEAD" && has_get {
+                    return self.resolve("GET", path);
+                }
+                let mut allowed = allowed;
+                if has_get && !allowed.iter().any(|m| m == "HEAD") {
+                    allowed.push("HEAD".to_owned());
+                    allowed.sort();
+                }
+                let allow = (b"allow".to_vec(), allowed.join(", ").into_bytes());
+                Resolved::Missing(Early::MethodNotAllowed, vec![allow])
+            }
+        }
+    }
+
+    /// An answer without Python: final headers, body with the request id, and
+    /// no body for HEAD (the length stays).
+    fn answer(
+        &self,
+        method: &str,
+        early: Early,
+        extra: Vec<Header>,
+        request_id: &str,
+    ) -> PyResult<Submission> {
+        let mut body = self.bodies.render(&early, request_id).ok_or_else(|| {
+            PyRuntimeError::new_err(format!("no early body registered for {early:?}"))
+        })?;
+        let mut own: Vec<Header> = vec![(b"content-type".to_vec(), b"application/json".to_vec())];
+        own.extend(
+            early
+                .headers()
+                .iter()
+                .map(|(n, v)| (n.as_bytes().to_vec(), v.as_bytes().to_vec())),
+        );
+        own.extend(extra);
+        let headers = final_headers(
+            &own,
+            &self.policy,
+            &[],
+            &self.id_name,
+            request_id.as_bytes(),
+            early.status(),
+            body.len(),
+        );
+        if method == "HEAD" {
+            body.clear();
+        }
+        Ok(Submission {
+            early: Some(Reply {
+                status: early.status(),
+                headers,
+                body,
+            }),
+            wake: false,
+            receiver: Mutex::new(None),
+        })
+    }
+}
+
+pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<ServerCore>()?;
+    m.add_class::<PreparedRequest>()?;
+    m.add_class::<Submission>()?;
+    Ok(())
+}
