@@ -4,6 +4,7 @@ import pytest
 
 from examples.blog.main import create_app
 from examples.blog.rules import blog_rules
+from examples.blog.settings import BlogSettings
 from hinoki import Actions, Hinoki, Request, http
 from hinoki.__main__ import main
 from hinoki.rules import Project, RuleSet, failing
@@ -21,7 +22,7 @@ CHECK = [
 
 @pytest.fixture(autouse=True)
 def environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("BLOG_DATABASE_URL", "postgres://unused")
+    monkeypatch.delenv("BLOG_DATABASE__URL", raising=False)
     monkeypatch.setenv("BLOG_ADMIN_SECRET", SECRET)
 
 
@@ -37,8 +38,19 @@ def test_the_blog_passes_its_own_rules_from_the_command_line(
 
 def test_the_blog_app_enforces_them_at_startup() -> None:
     app = create_app("postgres://unused", SECRET)
+    assert isinstance(app.settings, BlogSettings)
     assert app.rules is blog_rules and app.enforce_rules
+    assert app.settings.database.url.reveal() == "postgres://unused"
     assert app.asgi() is not None  # would raise RegistrationError on a violation
+
+
+def test_local_settings_default_to_sqlite_without_opening_a_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("BLOG_DATABASE__URL", raising=False)
+    app = create_app(admin_secret=SECRET)
+    assert isinstance(app.settings, BlogSettings)
+    assert app.settings.database.url.reveal() == "sqlite://./.hinoki/local.sqlite3"
 
 
 def test_a_new_unprotected_write_would_be_caught() -> None:
