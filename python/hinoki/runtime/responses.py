@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import traceback
 from dataclasses import asdict, dataclass, field
 from http import HTTPStatus
 from typing import Any
@@ -75,8 +76,21 @@ def builtin_error(exc: Exception) -> Response | None:
     return None
 
 
-async def error_response(exc: Exception, rid: str, registry: ErrorRegistry) -> Response:
-    """The HTTP answer for any exception raised while serving a request."""
+def debug_details(exc: Exception) -> dict[str, Any]:
+    """What ``debug=True`` adds to the answer for an unhandled exception."""
+    kind = type(exc)
+    return {
+        "exception": f"{kind.__module__}.{kind.__qualname__}",
+        "message": str(exc),
+        "traceback": traceback.format_exception(exc),
+    }
+
+
+async def error_response(
+    exc: Exception, rid: str, registry: ErrorRegistry, debug: bool = False
+) -> Response:
+    """The HTTP answer for any exception raised while serving a request. With
+    ``debug`` an unhandled exception is also described in the body."""
     known = builtin_error(exc)
     if known is not None:
         return known
@@ -85,4 +99,9 @@ async def error_response(exc: Exception, rid: str, registry: ErrorRegistry) -> R
         return public_error(public)
     log.error("unhandled error in request %s", rid, exc_info=exc)
     status = HTTPStatus.INTERNAL_SERVER_ERROR
+    if debug:
+        details = debug_details(exc)
+        return HTTPError(
+            status, "internal_error", request_id=rid, debug=details
+        ).response
     return HTTPError(status, "internal_error", request_id=rid).response

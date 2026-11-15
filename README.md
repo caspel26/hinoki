@@ -289,7 +289,7 @@ Hinoki is pre-alpha and has no release. What exists is tested in CI on Python 3.
 
 - SQLite is the local-development default; PostgreSQL is also supported. Other SQL backends are planned but not supported yet.
 - The server path is ASGI on [Granian](https://github.com/emmett-framework/granian); a WSGI adapter exists and is verified with Granian only. Streaming responses and WebSockets are not available.
-- There is no general CORS middleware and no cursor pagination.
+- CORS is one application-wide policy (the `cors` settings group); there is no cursor pagination.
 - Many-to-many relations use an explicit join model.
 - Type checkers verify model construction, but not every keyword-based ORM call.
 - There are no end-to-end performance claims. One measured comparison, with its method and limits, is on the [benchmarks page](https://caspel26.github.io/hinoki/dev/benchmarks/).

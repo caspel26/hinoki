@@ -114,6 +114,14 @@ CATALOG: dict[str, tuple[str, str]] = {
         "The body is over the 1 MiB limit (HTTP 413).",
         "Send a smaller body.",
     ),
+    "disallowed_host": (
+        "The Host header is not in the `allowed_hosts` setting (HTTP 400).",
+        "Add the host (or `.domain`) to `allowed_hosts`, or send the right Host.",
+    ),
+    "cors_origin_denied": (
+        "A CORS preflight came from an origin not in `cors.origins` (HTTP 403).",
+        "Add the origin (scheme://host[:port]) to the `cors.origins` setting.",
+    ),
     "unauthorized": (
         "Missing or invalid credentials (HTTP 401).",
         "Send valid credentials for the action's Access policy.",
