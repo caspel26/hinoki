@@ -19,6 +19,8 @@ Requires: uv ≥ 0.9, a stable Rust toolchain (rustup) with `rustfmt` and `clipp
 | Lint (+ autofix) | `uv run --locked ruff check --fix .` |
 | Format | `uv run --locked ruff format .` |
 | Types + typing fixtures | `uv run --locked mypy` |
+| Python cognitive complexity | `uv run --locked complexipy . --failed` |
+| Rust cognitive complexity | Install `rust-code-analysis-cli` 0.0.25, then run `rust-code-analysis-cli -m -p crates -O json --pr -o /tmp/hinoki-rust-complexity && python scripts/check_rust_complexity.py /tmp/hinoki-rust-complexity` |
 | Python tests + coverage | `uv run --locked pytest --cov` |
 | Only the real-server tests | `uv run --locked pytest -m runtime` |
 | Rust format / lints / tests | `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnings` · `cargo test --workspace` |
@@ -53,7 +55,7 @@ test gate.
 * **Ruff** is the only linter/formatter (`ruff check` with `--fix`, then `ruff format`), version pinned in `pyproject.toml` (`lint` group) and in `.pre-commit-config.yaml`; keep them equal when bumping.
 * **mypy --strict** is the separate type check. No overlapping tools (no black, isort, flake8, pylint).
 * **maturin** is the build backend (`python-source = "python"`, extension `hinoki.core`); uv rebuilds when Rust sources change (`tool.uv.cache-keys`).
-* Complexity: Ruff `C901` ≤ 10 as the Python budget; the Shiori budget of 15 was a design target, not tied to this tooling. Rust gets clippy defaults for now.
+* Cognitive complexity is capped at 15 for every Python function and Rust function/closure. CI runs pinned `complexipy` and `rust-code-analysis-cli`; test and development code are included. Refactor over-budget functions instead of suppressing analyzer findings.
 * Dependency groups: `lint`, `typecheck`, `test`, aggregated by `dev`. Granian is both the optional runtime server extra and a test dependency for server integration coverage.
 
 ## Two environments, two responsibilities
