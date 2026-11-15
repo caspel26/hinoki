@@ -229,7 +229,13 @@ def creation_order(tables: State) -> list[str]:
     return ordered
 
 
-def column_sql(name: str, column: State, dialect: str = "postgres") -> str:
+def column_sql(
+    name: str,
+    column: State,
+    dialect: str = "postgres",
+    *,
+    inline_references: bool = True,
+) -> str:
     parts = [quote(name, dialect), dialect_type(column["type"], dialect)]
     if column["primary_key"]:
         parts.append("PRIMARY KEY")
@@ -238,7 +244,7 @@ def column_sql(name: str, column: State, dialect: str = "postgres") -> str:
     if column["unique"] and not column["primary_key"]:
         parts.append("UNIQUE")
     target = column["references"]
-    if target:
+    if target and inline_references:
         rule = ON_DELETE[target["on_delete"]]
         target_table = quote(target["table"], dialect)
         target_column = quote(target["column"], dialect)
@@ -266,11 +272,21 @@ def create_table(name: str, spec: State, dialect: str = "postgres") -> Operation
 
 
 def create_table_sql(name: str, spec: State, dialect: str = "postgres") -> str:
-    lines = [f"    {column_sql(c, s, dialect)}" for c, s in spec["columns"].items()]
+    mysql_family = dialect in {"mysql", "mariadb"}
+    lines = [
+        f"    {column_sql(c, s, dialect, inline_references=not mysql_family)}"
+        for c, s in spec["columns"].items()
+    ]
     lines.extend(
         f"    UNIQUE ({', '.join(quote(c, dialect) for c in group)})"
         for group in spec.get("unique", [])
     )
+    if mysql_family:
+        lines.extend(
+            f"    {foreign_key_sql(name, column, state, dialect)}"
+            for column, state in spec["columns"].items()
+            if state["references"] is not None
+        )
     text = ",\n".join(lines)
     suffix = " ENGINE=InnoDB" if dialect in {"mysql", "mariadb"} else ""
     return f"CREATE TABLE {quote(name, dialect)} (\n{text}\n){suffix};"
@@ -290,6 +306,31 @@ def create_index_sql(table: str, columns: list[str], dialect: str = "postgres") 
     cols = ", ".join(quote(c, dialect) for c in columns)
     name = quote(index_name(table, columns, dialect), dialect)
     return f"CREATE INDEX {name} ON {quote(table, dialect)} ({cols});"
+
+
+def foreign_key_sql(table: str, column: str, state: State, dialect: str) -> str:
+    """Render a named table-level FK, required by MySQL-family servers."""
+    target = state["references"]
+    if target is None:
+        raise MigrationError(f"{table}.{column} is not a foreign key")
+    rule = ON_DELETE[target["on_delete"]]
+    name = foreign_key_name(table, column, dialect)
+    return (
+        f"CONSTRAINT {quote(name, dialect)} FOREIGN KEY ({quote(column, dialect)}) "
+        f"REFERENCES {quote(target['table'], dialect)} "
+        f"({quote(target['column'], dialect)}) ON DELETE {rule}"
+    )
+
+
+def foreign_key_name(table: str, column: str, dialect: str) -> str:
+    """Stable FK names, shortened to the backend's identifier limit."""
+    limit = 64 if dialect in {"mysql", "mariadb"} else MAX_IDENTIFIER
+    identity = f"{len(table)}:{table}:{len(column)}:{column}"
+    # The digest distinguishes ambiguous underscore pairs and case variants;
+    # MySQL compares FK symbols case-insensitively across the schema.
+    digest = hashlib.sha256(identity.encode()).hexdigest()[:16]
+    prefix = f"fk_{len(table)}_{table}_{column}"
+    return f"{prefix[: limit - 17]}_{digest}"
 
 
 def alter_column(
@@ -341,11 +382,21 @@ NOT_NULL_RISK = "adding a NOT NULL column without a default fails when rows exis
 
 def add_column(
     table: str, name: str, column: State, dialect: str = "postgres"
-) -> Operation:
-    definition = column_sql(name, column, dialect)
+) -> list[Operation]:
+    mysql_family = dialect in {"mysql", "mariadb"}
+    definition = column_sql(name, column, dialect, inline_references=not mysql_family)
     statement = f"ALTER TABLE {quote(table, dialect)} ADD COLUMN {definition};"
     risk = "" if column["nullable"] else NOT_NULL_RISK
-    return Operation(f"add {table}.{name}", statement, risk)
+    operations = [Operation(f"add {table}.{name}", statement, risk)]
+    if mysql_family and column["references"] is not None:
+        constraint = foreign_key_sql(table, name, column, dialect)
+        operations.append(
+            Operation(
+                f"add foreign key {table}.{name}",
+                f"ALTER TABLE {quote(table, dialect)} ADD {constraint};",
+            )
+        )
+    return operations
 
 
 def drop_column(table: str, name: str, dialect: str = "postgres") -> Operation:
@@ -471,16 +522,30 @@ def table_changes(table: str, old: State, new: State, dialect: str) -> list[Oper
     operations.extend(index_changes(table, old, new, dialect))
     for name, column in new["columns"].items():
         if name not in old["columns"]:
-            operations.append(add_column(table, name, column, dialect))
+            operations.extend(add_column(table, name, column, dialect))
         elif old["columns"][name] != column:
             operations.extend(
                 alter_column(table, name, old["columns"][name], column, dialect)
             )
-    operations.extend(
-        drop_column(table, name, dialect)
-        for name in old["columns"]
-        if name not in new["columns"]
-    )
+    operations.extend(removed_columns(table, old, new, dialect))
+    return operations
+
+
+def removed_columns(
+    table: str, old: State, new: State, dialect: str
+) -> list[Operation]:
+    """Plan removed columns unless legacy FK DDL makes removal ambiguous."""
+    operations = []
+    for name, old_column in old["columns"].items():
+        if name in new["columns"]:
+            continue
+        if dialect in {"mysql", "mariadb"} and old_column["references"] is not None:
+            raise MigrationError(
+                f"{table}.{name}: dropping a foreign-key column is not planned "
+                "automatically for MySQL/MariaDB; older Hinoki migrations may "
+                "not have created the constraint, so write a reviewed migration"
+            )
+        operations.append(drop_column(table, name, dialect))
     return operations
 
 

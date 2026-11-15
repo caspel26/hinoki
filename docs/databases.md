@@ -126,6 +126,14 @@ Migration behavior differs by backend:
   fields annotated `dict` or `list` are decoded by the typed ORM, while the
   low-level `Database.fetch()` API returns JSON column values as bytes.
 
+Hinoki creates MySQL and MariaDB foreign keys as table-level constraints for
+consistent behavior across the two dialects. MySQL ignores inline `REFERENCES`
+clauses; MariaDB behavior differs by server version. For schemas created by an
+older Hinoki version, inspect `SHOW CREATE TABLE` before relying on referential
+integrity or `on_delete`. A migration ledger entry alone does not establish
+that MySQL created the constraint. Write a reviewed repair migration where a
+constraint is missing; Hinoki does not silently rewrite applied migrations.
+
 See the [migration guide](migrations.md) for destructive-change review and
 planning details, and the [database API reference](reference/database.md) for
 types, raw SQL placeholders and backend limits.

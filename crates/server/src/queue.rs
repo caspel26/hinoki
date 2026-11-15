@@ -89,14 +89,25 @@ impl InFlight {
     }
 
     pub fn try_acquire(&self) -> Option<Permit> {
-        let taken = self
-            .count
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
-                (n < self.max).then_some(n + 1)
-            });
-        taken.ok().map(|_| Permit {
-            count: Arc::clone(&self.count),
-        })
+        let mut taken = self.count.load(Ordering::Acquire);
+        loop {
+            if taken >= self.max {
+                return None;
+            }
+            match self.count.compare_exchange_weak(
+                taken,
+                taken + 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    return Some(Permit {
+                        count: Arc::clone(&self.count),
+                    })
+                }
+                Err(seen) => taken = seen,
+            }
+        }
     }
 
     pub fn current(&self) -> usize {
