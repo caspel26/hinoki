@@ -165,6 +165,11 @@ action and becomes immutable after successful inclusion.
 
 ## Organising a large application
 
+When the ordinary list/retrieve/create/update/delete routes fit a model,
+`CrudAPI` can generate them from a `Resource`. Start with
+[Generate CRUD routes](crud.md); use handwritten actions for domain workflows
+or to replace an individual generated action.
+
 Give each feature one module that owns its routes and exports them as a list, with paths relative to the feature. Choose where each feature lives in the root declaration with `Mount`, so the paths stay visible in one place:
 
 ```python

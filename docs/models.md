@@ -78,7 +78,9 @@ everything = await Task.all()           # the explicit way around the policy
 Pass the method where the framework asks for a base query, so every operation built on it sees the same rows:
 
 ```python
-Resource(model=Task, read=TaskOut, queryset=Task.active)   # list, read, update, delete
+from hinoki.crud import Resource
+
+Resource(model=Task, read=TaskOut, queryset=Task.active)   # generated list/retrieve only
 
 
 class TaskAdmin(ModelAdmin[Task]):
@@ -95,6 +97,10 @@ Choose the place by what the rule is:
 | Rows that depend on the caller | `Resource(owner=...)` or `ModelAdmin.queryset(principal)` | the caller is available there; model-level code never sees it |
 
 Authorization must not depend on a default that a call to `all()` or a raw query can skip: keep ownership and permission checks in `access=`, `owner=` and `ModelAdmin.can()`, and treat a reusable query as convenience, not as the security boundary.
+
+To generate write routes as well, provide `create=` or `update=` schemas and/or
+set `deletable=True`; protect generated writes with `access=`. See
+[Generate CRUD routes](crud.md) for the full route and ownership contract.
 
 ## Create and update
 

@@ -12,7 +12,7 @@ An action's Python signature and decorator options describe routing, binding, ac
 
 ## One request
 
-The server passes an ASGI request through the Python adapter, the compiled router and binding layer. Hinoki validates inputs, resolves authentication and access, runs the handler, validates the response and renders it. For a transactional action, commit happens after successful response validation; failures roll back before HTTP error translation. The ASGI boundary still crosses Python objects; the runtime is not an all-Rust server.
+The server passes an ASGI request through the Python adapter, the compiled router and binding layer. Hinoki validates inputs, resolves authentication and access, runs the handler, then encodes and renders its response. Runtime response values are not validated against their return annotations. For a transactional action, commit happens after successful response encoding and rendering; failures roll back before HTTP error translation. The ASGI boundary still crosses Python objects; the runtime is not an all-Rust server.
 
 ## Worker resources
 
