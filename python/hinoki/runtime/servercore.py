@@ -36,6 +36,10 @@ EARLY_ERRORS: dict[str, tuple[int, str, list[tuple[bytes, bytes]] | None]] = {
         "method_not_allowed",
         None,
     ),
+    # HTTP/1.1 without exactly one Host header (RFC 9112 3.2).
+    "bad_host": (HTTPStatus.BAD_REQUEST, "bad_host", None),
+    # A request with a body: this server does not read bodies yet.
+    "not_implemented": (HTTPStatus.NOT_IMPLEMENTED, "not_implemented", None),
 }
 
 

@@ -142,12 +142,15 @@ class Pipeline:
             raise RegistrationError(f"{app.openapi_url} is already used by a route")
         return app.openapi()
 
-    async def handle(self, scope: Scope, source: BodySource) -> Response:
+    async def handle(
+        self, scope: Scope, source: BodySource, rid: str | None = None
+    ) -> Response:
         """Answer one request. The returned response carries its final headers
         (policy, route, request id, CORS, content-length) and its full body; a
-        transport only drops the body for HEAD and writes it out."""
+        transport only drops the body for HEAD and writes it out. A transport
+        that already chose the request id passes it as ``rid``."""
         scope, trusted = effective_scope(scope, self.trusted_proxies)
-        rid = self._request_id(scope, trusted)
+        rid = rid or self._request_id(scope, trusted)
         token = request_id.set(rid)
         context.route_headers.set(())
         runner_token = context.sync_runner.set(self.executor.run)
@@ -159,7 +162,7 @@ class Pipeline:
             database_var.reset(db_token)
             context.sync_runner.reset(runner_token)
             request_id.reset(token)
-        return self._with_headers(response, scope, rid)
+        return self.with_headers(response, scope, rid)
 
     def _request_id(self, scope: Scope, trusted: bool) -> str:
         """The trusted inbound request id when configured and valid, else a new
@@ -179,7 +182,7 @@ class Pipeline:
         prefix and a counter), without a system call per request."""
         return f"{self.request_id_prefix}{next(self.request_ids):016x}"
 
-    def _with_headers(self, response: Response, scope: Scope, rid: str) -> Response:
+    def with_headers(self, response: Response, scope: Scope, rid: str) -> Response:
         """Replace the answer's headers with the final ones."""
         headers, has_allow_origin = core.response_headers(
             response.headers,
