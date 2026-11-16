@@ -216,6 +216,15 @@ mod tests {
         r
     }
 
+    #[test]
+    fn extracts_template_parameters_in_path_order() {
+        assert_eq!(
+            Router::parameter_names("/items/{item_id}/owners/{owner_id}").unwrap(),
+            ["item_id", "owner_id"]
+        );
+        assert!(Router::parameter_names("/items/{bad").is_err());
+    }
+
     fn found(action: u32, params: &[(&str, &str)]) -> Match {
         Match::Found {
             action,

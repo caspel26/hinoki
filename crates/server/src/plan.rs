@@ -115,6 +115,7 @@ mod tests {
             action,
             method: "GET".into(),
             path_params: vec![],
+            input_params: vec![],
             has_body: false,
             has_access: false,
             media_types: vec!["application/json".into()],
@@ -173,5 +174,36 @@ mod tests {
         r.media_types.pop();
         r.takes_request = true;
         assert!(r.needs_headers());
+    }
+
+    #[test]
+    fn native_handler_accepts_required_string_path_and_query_inputs() {
+        let mut r = route(0);
+        r.path_params = vec!["item_id".into()];
+        r.input_params = vec![
+            ("path".into(), "item_id".into()),
+            ("query".into(), "term".into()),
+        ];
+        r.native_handler = true;
+        assert!(Plan::new(vec![r]).is_ok());
+    }
+
+    #[test]
+    fn native_handler_rejects_incomplete_or_unsupported_input_plans() {
+        let mut missing = route(0);
+        missing.path_params = vec!["item_id".into()];
+        missing.native_handler = true;
+        assert_eq!(
+            Plan::new(vec![missing]).unwrap_err(),
+            PlanError::InvalidNativeHandler(0)
+        );
+
+        let mut unsupported = route(1);
+        unsupported.input_params = vec![("body".into(), "payload".into())];
+        unsupported.native_handler = true;
+        assert_eq!(
+            Plan::new(vec![unsupported]).unwrap_err(),
+            PlanError::InvalidNativeHandler(1)
+        );
     }
 }
