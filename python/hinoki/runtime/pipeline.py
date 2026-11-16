@@ -11,6 +11,7 @@ header policy exist once. The handlers and this pipeline run in Python.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import ipaddress
 import itertools
 import logging
@@ -24,7 +25,7 @@ from hinoki.context import request_id
 from hinoki.db import Database
 from hinoki.docsui import CSP, Page
 from hinoki.docsui import pages as docs_pages
-from hinoki.errors import RegistrationError
+from hinoki.errors import ErrorDetail, InvalidBody, RegistrationError, ValidationError
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
 from hinoki.renderers import Renderer, negotiate
@@ -83,6 +84,33 @@ def origin_of(scope: Scope) -> str:
     are joined as ``header_map`` joins them, so they match no single origin."""
     found = [value for name, value in scope.get("headers", ()) if name == b"origin"]
     return b", ".join(found).decode("latin-1")
+
+
+def native_input_exception(
+    error: tuple[str, str, str | None, list[tuple[str, str, str]]],
+) -> Exception:
+    """Map Rust's bounded native input errors to the public pipeline errors."""
+    code, message, available, details = error
+    if code == "bad_path_encoding":
+        mapped: Exception = HTTPError(HTTPStatus.BAD_REQUEST, code)
+    elif code == "not_acceptable":
+        mapped = HTTPError(
+            HTTPStatus.NOT_ACCEPTABLE,
+            code,
+            available=available or "application/json",
+        )
+    elif code == "invalid_query":
+        mapped = InvalidBody(code, message)
+    elif code == "validation_error":
+        mapped = ValidationError(
+            [
+                ErrorDetail(path, item_code, item_message)
+                for path, item_code, item_message in details
+            ]
+        )
+    else:
+        mapped = RuntimeError(message)
+    return mapped
 
 
 class Pipeline:
@@ -166,11 +194,15 @@ class Pipeline:
         return self.with_headers(response, scope, rid)
 
     async def handle_native(
-        self, scope: Scope, binding: Binding, rid: str, accept: str
+        self,
+        binding: Binding,
+        rid: str,
+        args: dict[str, object],
+        input_error: tuple[str, str, str | None, list[tuple[str, str, str]]] | None,
     ) -> Response:
-        """Run an eligible handler without routing or request binding."""
+        """Run an eligible handler with Rust-prepared path and query inputs."""
         return await self._in_request_context(
-            rid, self._respond_native(scope, binding, rid, accept)
+            rid, self._respond_native(binding, rid, args, input_error)
         )
 
     async def _in_request_context(
@@ -188,23 +220,18 @@ class Pipeline:
             request_id.reset(token)
 
     async def _respond_native(
-        self, scope: Scope, binding: Binding, rid: str, accept: str
+        self,
+        binding: Binding,
+        rid: str,
+        args: dict[str, object],
+        input_error: tuple[str, str, str | None, list[tuple[str, str, str]]] | None,
     ) -> Response:
         response: Response
         try:
             async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
-                renderer = negotiate(accept, binding.route.renderers)
-                if renderer is None:
-                    wanted = ", ".join(
-                        item.media_type for item in binding.route.renderers
-                    )
-                    raise HTTPError(
-                        HTTPStatus.NOT_ACCEPTABLE,
-                        "not_acceptable",
-                        available=wanted,
-                    )
-                parse_query(scope.get("query_string", b""))
-                response = await self._call_native(binding)
+                if input_error is not None:
+                    raise native_input_exception(input_error)
+                response = await self._call_native(binding, args)
         except TimeoutError as exc:
             if limit.expired():
                 response = HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
@@ -448,10 +475,10 @@ class Pipeline:
         no_content = route.status == HTTPStatus.OK
         return Response(HTTPStatus.NO_CONTENT if no_content else route.status)
 
-    async def _call_native(self, binding: Binding) -> Response:
+    async def _call_native(self, binding: Binding, args: dict[str, object]) -> Response:
         """Run a selected no-Request JSON handler and encode through Rust."""
         route = binding.route
-        result = await self._handler_result(binding, None, {})
+        result = await self._handler_result(binding, None, args)
         if isinstance(result, Reply):
             return Response(result.status, result.body, result.headers)
         if result is not None and route.status not in BODYLESS:
@@ -480,7 +507,10 @@ class Pipeline:
             if binding.is_async:
                 handler = cast(Callable[..., Awaitable[object]], route.handler)
                 return await handler(*args, **kwargs)
-            return await self.executor.run(route.handler, *args, **kwargs)
+            result = await self.executor.run(route.handler, *args, **kwargs)
+            if inspect.isawaitable(result):
+                return await result
+            return result
         except ExecutorSaturated:
             raise HTTPError(
                 HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER

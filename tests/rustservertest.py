@@ -1,6 +1,7 @@
 """The Rust HTTP/1.1 server over real loopback sockets."""
 
 import asyncio
+import inspect
 import json
 import os
 import shutil
@@ -10,7 +11,7 @@ import ssl
 import subprocess
 import sys
 import threading
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Coroutine
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -49,6 +50,8 @@ class Probe:
     shutdown_ran: bool = False
     sync_entered: threading.Event = field(default_factory=threading.Event)
     sync_gate: threading.Event = field(default_factory=threading.Event)
+    native_input_calls: int = 0
+    late_coroutine: Coroutine[Any, Any, dict[str, str]] | None = None
 
 
 PROBE = Probe()
@@ -73,6 +76,36 @@ async def context_async() -> dict[str, str]:
 @http.get("/context-sync")
 def context_sync() -> dict[str, str]:
     return {"request_id": request_id.get() or "missing"}
+
+
+async def sync_awaitable_result() -> dict[str, str]:
+    await asyncio.sleep(0)
+    return {"request_id": request_id.get() or "missing"}
+
+
+@http.get("/context-sync-awaitable")
+def context_sync_awaitable() -> object:
+    return sync_awaitable_result()
+
+
+@http.get("/native/echo/{item_id}")
+async def native_echo(item_id: str, term: str) -> dict[str, str]:
+    PROBE.native_input_calls += 1
+    return {"item_id": item_id, "term": term}
+
+
+@http.get("/native/sync-echo/{item_id}")
+def native_sync_echo(item_id: str, term: str) -> dict[str, str]:
+    PROBE.native_input_calls += 1
+    return {"item_id": item_id, "term": term}
+
+
+@http.get("/native/sync-late-awaitable")
+def native_sync_late_awaitable() -> object:
+    PROBE.sync_entered.set()
+    PROBE.sync_gate.wait(2)
+    PROBE.late_coroutine = sync_awaitable_result()
+    return PROBE.late_coroutine
 
 
 @http.get("/context-overlap")
@@ -179,6 +212,10 @@ def make_app(**config: Any) -> Hinoki:
             health,
             context_async,
             context_sync,
+            context_sync_awaitable,
+            native_echo,
+            native_sync_echo,
+            native_sync_late_awaitable,
             context_overlap,
             native_none,
             native_reply,
@@ -248,6 +285,44 @@ async def fetch(port: int, method: str, target: str, extra: str = "") -> Receive
     return received
 
 
+async def pipeline_fetch(
+    method: str, target: str, headers: dict[str, str] | None = None
+) -> Any:
+    path, _, query = target.partition("?")
+    client = Client(make_app().asgi())
+    await client.lifespan_event("startup")
+    try:
+        return await client.request(
+            method,
+            path,
+            query=query,
+            raw_path=path.encode("ascii"),
+            headers=headers,
+        )
+    finally:
+        await client.lifespan_event("shutdown")
+
+
+def assert_pipeline_parity(received: Received, expected: Any) -> None:
+    assert received.status == expected.status
+    actual_headers = comparable(received.headers)
+    pipeline_headers = [
+        (name, value)
+        for name, value in expected.headers.items()
+        if name not in {"x-request-id", "date"}
+    ]
+    assert dict(actual_headers) == dict(pipeline_headers)
+    actual_body = received.json() if received.body else None
+    expected_body = expected.body
+    if (
+        isinstance(expected_body, dict)
+        and "request_id" in expected_body
+        and actual_body is not None
+    ):
+        expected_body = {**expected_body, "request_id": received.header("x-request-id")}
+    assert actual_body == expected_body
+
+
 async def eof(reader: asyncio.StreamReader, timeout: float = 5) -> bool:
     return await asyncio.wait_for(reader.read(1), timeout) == b""
 
@@ -280,7 +355,9 @@ async def test_get_matches_the_asgi_answer(served: tuple[RustWorker, int]) -> No
     assert len(over_socket.header("x-request-id")) == 32
 
 
-@pytest.mark.parametrize("path", ["/context-async", "/context-sync"])
+@pytest.mark.parametrize(
+    "path", ["/context-async", "/context-sync", "/context-sync-awaitable"]
+)
 async def test_native_handler_keeps_the_request_context(
     served: tuple[RustWorker, int], path: str
 ) -> None:
@@ -301,6 +378,61 @@ async def test_native_handler_context_is_isolated_between_concurrent_requests(
     ids = [reply.header("x-request-id") for reply in replies]
     assert ids[0] != ids[1]
     assert [reply.json()["request_id"] for reply in replies] == ids
+
+
+async def test_native_string_inputs_match_pipeline_and_head() -> None:
+    app = make_app()
+    worker = RustWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        target = "/native/echo/a%2Fb+c?term=green+tea"
+        received = await fetch(port, "GET", target)
+        expected = await pipeline_fetch("GET", target)
+        assert_pipeline_parity(received, expected)
+        assert received.json()["item_id"] == "a/b+c"
+        assert received.json()["term"] == "green tea"
+
+        sync_target = "/native/sync-echo/value?term=sync"
+        sync_received = await fetch(port, "GET", sync_target)
+        sync_expected = await pipeline_fetch("GET", sync_target)
+        assert_pipeline_parity(sync_received, sync_expected)
+
+        head = await fetch(port, "HEAD", target)
+        get = await fetch(port, "GET", target)
+        assert head.status == get.status == 200
+        assert head.body == b""
+        assert head.header("content-length") == get.header("content-length")
+    finally:
+        await worker.stop()
+
+
+@pytest.mark.parametrize(
+    ("target", "extra", "status", "error"),
+    [
+        (
+            "/native/echo/bad%FF?term=x",
+            "accept: text/plain\r\n",
+            400,
+            "bad_path_encoding",
+        ),
+        ("/native/echo/x?term=%FF", "accept: text/plain\r\n", 406, "not_acceptable"),
+        ("/native/echo/x", "", 422, "validation_error"),
+        ("/native/echo/x?term=a&term=b", "", 422, "validation_error"),
+        ("/native/echo/x?unknown=%FF", "", 400, "invalid_query"),
+    ],
+)
+async def test_native_input_errors_match_pipeline(
+    served: tuple[RustWorker, int], target: str, extra: str, status: int, error: str
+) -> None:
+    _, port = served
+    before = PROBE.native_input_calls
+    received = await fetch(port, "GET", target, extra)
+    headers = {"accept": "text/plain"} if extra else None
+    expected = await pipeline_fetch("GET", target, headers)
+    assert_pipeline_parity(received, expected)
+    assert received.status == status
+    assert received.json()["error"] == error
+    assert PROBE.native_input_calls == before
 
 
 async def test_native_none_and_reply_results_keep_pipeline_semantics(
@@ -363,6 +495,34 @@ async def test_native_sync_handler_saturation_answers_503() -> None:
     finally:
         PROBE.sync_gate.set()
         await first
+        await worker.stop()
+
+
+async def test_native_timeout_closes_awaitable_returned_by_abandoned_sync_handler() -> (
+    None
+):
+    worker = RustWorker(
+        Hinoki(
+            include=[native_sync_late_awaitable],
+            runtime=RuntimeConfig(request_timeout=0.02, sync_workers=1, sync_queue=0),
+        ),
+        "127.0.0.1",
+        0,
+    )
+    port = await worker.start()
+    pending = asyncio.create_task(fetch(port, "GET", "/native/sync-late-awaitable"))
+    try:
+        assert await asyncio.to_thread(PROBE.sync_entered.wait, 1)
+        expired = await pending
+        assert (expired.status, expired.json()["error"]) == (504, "timeout")
+        PROBE.sync_gate.set()
+        await worker.pipeline.executor.drain(2)
+        assert PROBE.late_coroutine is not None
+        assert inspect.getcoroutinestate(PROBE.late_coroutine) == inspect.CORO_CLOSED
+    finally:
+        PROBE.sync_gate.set()
+        if not pending.done():
+            await pending
         await worker.stop()
 
 
@@ -727,7 +887,7 @@ def recording_scope_of(*args: Any, **kwargs: Any) -> dict[str, Any]:
     return scope
 
 
-async def curl_status(port: int, protocol: str) -> str:
+async def curl_status(port: int, protocol: str, path: str = "/health") -> str:
     process = await asyncio.create_subprocess_exec(
         "curl",
         "-sk",
@@ -736,7 +896,7 @@ async def curl_status(port: int, protocol: str) -> str:
         "/dev/null",
         "-w",
         "%{http_version} %{http_code}",
-        f"https://127.0.0.1:{port}/health",
+        f"https://127.0.0.1:{port}{path}",
         stdout=asyncio.subprocess.PIPE,
     )
     out, _ = await asyncio.wait_for(process.communicate(), 20)
@@ -769,8 +929,8 @@ async def test_http2_reaches_the_pipeline_with_http_version_2(
     )
     port = await worker.start()
     try:
-        over_h2 = await curl_status(port, "--http2")
-        over_h1 = await curl_status(port, "--http1.1")
+        over_h2 = await curl_status(port, "--http2", "/scheme")
+        over_h1 = await curl_status(port, "--http1.1", "/scheme")
     finally:
         await worker.stop()
     assert (over_h2, over_h1) == ("2 200", "1.1 200")

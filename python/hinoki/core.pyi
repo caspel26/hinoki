@@ -187,6 +187,12 @@ class PreparedRequest:
     def body(self, limit: int) -> Awaitable[bytes]: ...
     @property
     def native_handler(self) -> bool: ...
+    @property
+    def native_args(self) -> dict[str, object]: ...
+    @property
+    def native_error(
+        self,
+    ) -> tuple[str, str, str | None, list[tuple[str, str, str]]] | None: ...
     def respond(
         self, status: int, headers: list[tuple[bytes, bytes]], body: bytes
     ) -> bool: ...
@@ -200,7 +206,6 @@ RouteSpec = tuple[
     int,
     str,
     str,
-    list[str],
     bool,
     bool,
     list[str],
@@ -208,7 +213,7 @@ RouteSpec = tuple[
     list[tuple[str, str]],
     bool,
     bool,
-    bool,
+    tuple[bool, list[tuple[str, str]]],
 ]
 
 class ServerCore:

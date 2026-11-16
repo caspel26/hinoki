@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator
 import pytest
 
 from hinoki import Access, BearerAuth, Caller, Hinoki, Request, Schema, http
+from hinoki.context import request_id
 from hinoki.db import Database, DatabaseModule
 from hinoki.orm import Model, field, use_database
 from hinoki.runtime.config import RuntimeConfig
@@ -73,6 +74,16 @@ def build() -> Hinoki:
     return app
 
 
+async def sync_result() -> dict[str, str]:
+    await asyncio.sleep(0)
+    return {"request_id": request_id.get() or "missing"}
+
+
+@http.get("/sync-awaitable")
+def sync_awaitable() -> object:
+    return sync_result()
+
+
 @pytest.fixture
 async def seeded() -> AsyncIterator[None]:
     assert URL is not None
@@ -104,6 +115,14 @@ async def test_async_client_sync_and_async_handlers_agree(seeded: None) -> None:
         ).status == 401
         assert (await client.post("/sync/1/hit")).body["hits"] == 6
         assert (await client.post("/async/1/hit")).body["hits"] == 6
+
+
+async def test_sync_handler_returning_awaitable_runs_in_request_context() -> None:
+    app = Hinoki(include=[sync_awaitable])
+    async with ASGIClient(app) as client:
+        response = await client.get("/sync-awaitable")
+    assert response.status == 200
+    assert response.body["request_id"] == response.headers["x-request-id"]
 
 
 @needs_database

@@ -1,7 +1,10 @@
 import asyncio
 import contextvars
+import inspect
 import threading
 import time
+from collections.abc import Coroutine
+from typing import Any
 
 import pytest
 
@@ -13,6 +16,22 @@ var: contextvars.ContextVar[str] = contextvars.ContextVar("var", default="unset"
 
 def read_context() -> tuple[str, str]:
     return var.get(), threading.current_thread().name
+
+
+async def coroutine_result() -> int:
+    return 1
+
+
+def delayed_coroutine_call(
+    started: threading.Event,
+    release: threading.Event,
+    results: list[Coroutine[Any, Any, int]],
+) -> Coroutine[Any, Any, int]:
+    started.set()
+    release.wait(5)
+    coroutine = coroutine_result()
+    results.append(coroutine)
+    return coroutine
 
 
 async def test_runs_on_worker_thread_with_copied_context() -> None:
@@ -64,6 +83,24 @@ async def test_abandoned_call_keeps_its_slot_until_the_thread_finishes() -> None
         release.set()
         await asyncio.sleep(0.1)
         assert executor.in_flight == 0
+
+
+async def test_abandoned_call_closes_a_late_coroutine_result() -> None:
+    started = threading.Event()
+    release = threading.Event()
+    results: list[Coroutine[Any, Any, int]] = []
+
+    async with SyncExecutor(workers=1, queue=0) as executor:
+        task = asyncio.create_task(
+            executor.run(delayed_coroutine_call, started, release, results)
+        )
+        assert await asyncio.to_thread(started.wait, 1)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        release.set()
+        await executor.drain(2)
+        assert len(results) == 1
+        assert inspect.getcoroutinestate(results[0]) == inspect.CORO_CLOSED
 
 
 async def test_cancelled_call_cancels_the_work_it_handed_to_the_loop() -> None:
