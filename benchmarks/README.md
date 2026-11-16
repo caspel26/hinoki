@@ -125,6 +125,8 @@ PYTHONPATH=. uv run --locked python benchmarks/schemabench.py
 
 Observation (2026-11-13, one 8-core Linux laptop, Python 3.14, debug-profile extension): Python ≈ 34.8 µs, Rust ≈ 17.1 µs per call, **2.0× faster** (CV 3–4 %). Instance construction (calling the dataclass constructors) and datetime/UUID object creation still happen through Python, which bounds the gain. Serialising the same post to JSON bytes (`encode_json` on the instance against `json.dumps(encode(instance))`): ≈ 31.6 µs against ≈ 14.8 µs, **2.1× faster**. Not end to end: no HTTP, binding or I/O.
 
+Control run for the Schema alias change (2026-11-16, Linux, Python 3.13.18): five invocations of the existing non-aliased workload gave Rust validation medians of 19.16 µs before and 19.58 µs after; Rust encoding was 14.46 µs before and 14.62 µs after. These changes (about 2.2% and 1.1%) are below the 15% investigation threshold. This did not measure aliased fields and makes no performance claim about them. Per-invocation results and variation are in [`schema-aliases-control-2026-11-16.json`](results/schema-aliases-control-2026-11-16.json).
+
 ## `frommodelbench.py` — `Schema.from_model`, Rust plan vs the former Python loop
 
 Question: does moving `from_model` (read each field from the row, convert nested models, build the instance) into Rust pay off? A model row with eight columns, 7 samples × 20 000 calls (2026-11-13, same machine, **release-profile extension**: `uvx maturin develop --release --uv`).

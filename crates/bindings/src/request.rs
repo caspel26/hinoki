@@ -967,7 +967,7 @@ impl<'py> Encoder<'py> {
                 &value.call_method0("isoformat")?.str()?.to_string(),
             );
         }
-        if let Some((names, unset)) = crate::schema::instance_fields(value, true)? {
+        if let Some((names, unset)) = crate::schema::instance_fields(value, true, true)? {
             self.schema_object(value, names, &unset, depth)?;
         } else if is_instance_of_named(value, "uuid", "UUID")? {
             write_string(&mut self.out, &value.str()?.to_string())?;
@@ -998,15 +998,15 @@ impl<'py> Encoder<'py> {
     fn schema_object(
         &mut self,
         value: &Bound<'py, PyAny>,
-        names: Vec<String>,
+        names: Vec<(String, String)>,
         unset: &Py<PyAny>,
         depth: usize,
     ) -> PyResult<()> {
         let mut present = Vec::new();
-        for name in names {
+        for (name, wire_name) in names {
             let item = value.getattr(name.as_str())?;
             if !item.is(unset) {
-                present.push((name, item));
+                present.push((wire_name, item));
             }
         }
         if self.sort_keys {
