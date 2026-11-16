@@ -19,10 +19,11 @@ The examples are the best way to see the pieces together: [Notes](https://github
 * Generated typing for some keyword-based ORM calls is less precise than model construction; see [typing](typing.md).
 * Many-to-many links use an explicit model with two foreign keys and a composite uniqueness constraint. Implicit join models, direct collection access such as `post.tags`, and advanced relation paths are not available.
 * End-to-end performance claims are not made without comparable retained measurements; see the [benchmark report](benchmarks.md) and its limits.
+* The default server is Granian. An opt-in Rust HTTP/1.1 server (`hinoki serve --server rust`) is available for `serve` and `dev`: HTTP/1.1 only, no TLS, HTTP/2 or WebSocket upgrades, no access log, handlers and the request pipeline still run in Python, and no performance figure is claimed. See [serving](serving.md#the-rust-server).
 * The server adapter is ASGI. `hinoki.wsgi.WSGIAdapter` wraps an application for WSGI servers (buffered bodies, no streaming); verified with Granian only, see [serving](serving.md#wsgi).
 * CORS is one application-wide policy in the `cors` settings group; there is no per-route CORS option. Application MCP has its own allowed-origin check. Cursor pagination is not available; pagination currently uses page numbers.
 * Pagination page-size defaults are `20` and `100`; the `pagination` settings group changes them for the whole app and an action's own `PageNumberPagination` values win. See [pagination](pagination.md).
 * OpenAPI generation creates operation IDs and reads summary/description from handler docstrings. Per-action `tags`, `deprecated`, custom `operation_id` and `include_in_schema` controls are not available.
-* There is no maintained Docker image or deployment recipe. `hinoki serve` runs the app with Granian; container packaging and process orchestration are application deployment choices.
+* There is no maintained Docker image or deployment recipe. `hinoki serve` runs the app with Granian (or the opt-in Rust server); container packaging and process orchestration are application deployment choices.
 
 See the [roadmap](https://github.com/caspel26/hinoki/blob/main/ROADMAP.md) for project direction and [contributing](https://github.com/caspel26/hinoki/blob/main/CONTRIBUTING.md) for local checks.

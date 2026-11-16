@@ -42,6 +42,8 @@ MAX_BODY_LIMIT = 1 << 30  # 1 GiB: a larger "limit" is no limit
 MAX_SYNC_WORKERS = 1024
 MAX_PORT = 65536
 MAX_WORKERS = 256
+MAX_CONNECTIONS = 1_000_000
+MAX_READ_TIMEOUT = 3600
 QUOTED = 2  # shortest quoted value: the two quotes
 MAX_CORS_AGE = 86400
 HSTS_MAX_SECONDS = 63_072_000
@@ -887,8 +889,14 @@ class DatabaseSettings(Settings):
 
 
 class ServerSettings(Settings):
-    """How ``hinoki serve`` and ``dev`` run the application (Granian).
-    ``serve`` applies these; they do nothing when another runner starts the app."""
+    """How ``hinoki serve`` and ``dev`` run the application. ``serve`` applies
+    these; they do nothing when another runner starts the app.
+
+    ``server`` picks Granian (the default) or the Rust server. ``access_log``
+    belongs to Granian; ``max_connections``, ``header_read_timeout`` and
+    ``body_read_timeout`` belong to the Rust server (``None`` keeps its
+    default). ``hinoki serve`` refuses a setting the chosen server cannot honour.
+    """
 
     host: str = "127.0.0.1"
     port: int = 8000
@@ -899,6 +907,10 @@ class ServerSettings(Settings):
     trusted_proxies: tuple[str, ...] = ()
     request_id_header: str = "x-request-id"
     trust_request_id: bool = False
+    server: Literal["granian", "rust"] = "granian"
+    max_connections: int | None = None
+    header_read_timeout: float | None = None
+    body_read_timeout: float | None = None
 
     def validate(self) -> None:
         if not 0 < self.port < MAX_PORT:
@@ -908,12 +920,18 @@ class ServerSettings(Settings):
         if self.backlog < 1:
             raise ValueError("backlog must be positive")
         for proxy in self.trusted_proxies:
+            if "%" in proxy:
+                raise ValueError(
+                    "trusted_proxies entries cannot carry an IPv6 zone id "
+                    f"({proxy!r}); list the address without '%zone'"
+                )
             try:
                 ipaddress.ip_network(proxy, strict=False)
             except ValueError as exc:
                 raise ValueError(
                     "trusted_proxies entries must be IP addresses or CIDRs"
                 ) from exc
+        self.validate_rust_limits()
         if TOKEN.fullmatch(self.request_id_header) is None:
             raise ValueError("request_id_header must be an HTTP token")
         request_id_header = self.request_id_header.lower()
@@ -922,6 +940,25 @@ class ServerSettings(Settings):
             and request_id_header != "x-request-id"
         ) or request_id_header.startswith("access-control-"):
             raise ValueError("request_id_header conflicts with a framework header")
+
+    def validate_rust_limits(self) -> None:
+        if self.max_connections is not None and not (
+            0 < self.max_connections <= MAX_CONNECTIONS
+        ):
+            raise ValueError(f"max_connections must be 1 to {MAX_CONNECTIONS}")
+        for name in ("header_read_timeout", "body_read_timeout"):
+            value = getattr(self, name)
+            if value is not None and not 0 < value <= MAX_READ_TIMEOUT:
+                raise ValueError(
+                    f"{name} must be above 0 and at most {MAX_READ_TIMEOUT}"
+                )
+
+    def conflicts(self, server: str | None = None) -> list[str]:
+        """The settings that ``server`` (default: this group's) cannot honour."""
+        if (server or self.server) == "rust":
+            return ["access_log"] if self.access_log else []
+        rust_only = ("max_connections", "header_read_timeout", "body_read_timeout")
+        return [name for name in rust_only if getattr(self, name) is not None]
 
 
 class FrameOptions(StrEnum):

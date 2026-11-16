@@ -638,7 +638,7 @@ async def test_a_busy_port_fails_and_closes_the_lifespan() -> None:
         taken.bind(("127.0.0.1", 0))
         taken.listen()
         worker = RustWorker(make_app(), "127.0.0.1", taken.getsockname()[1])
-        with pytest.raises(RuntimeError):
+        with pytest.raises(OSError, match="in use"):
             await worker.start()
     assert PROBE.shutdown_ran
 
