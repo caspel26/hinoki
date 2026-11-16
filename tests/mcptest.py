@@ -430,8 +430,32 @@ def test_propose_model_with_an_owner_scopes_every_query_and_paginates() -> None:
     assert "TODO: add access" not in source
     compile(source, "<proposal>", "exec")
     with pytest.raises(ProposalError):
-        propose("A", None, [{"name": "x"}], path="/Bad Path")
+        propose("Article", None, [{"name": "x"}], path="/Bad Path")
     with pytest.raises(ProposalError):
-        propose("A", None, [{"name": "x"}], unique_together=[["nope"]])
+        propose("Article", None, [{"name": "x"}], unique_together=[["nope"]])
     with pytest.raises(ProposalError):
-        propose("A", None, [{"name": "owner_id"}], owner="Member")
+        propose("Article", None, [{"name": "owner_id"}], owner="Member")
+
+
+@pytest.mark.parametrize("groups", ["not-a-list", [[]], [["x", 1]], [["x"], []]])
+def test_propose_model_rejects_malformed_unique_groups(groups: object) -> None:
+    with pytest.raises(ProposalError, match="unique_together is a list"):
+        propose("Article", None, [{"name": "x"}], unique_together=groups)
+
+
+def test_propose_model_rejects_duplicate_or_empty_fields() -> None:
+    with pytest.raises(ProposalError, match="fields is a list"):
+        propose("Article", None, [])
+    with pytest.raises(ProposalError, match="field names must be unique"):
+        propose("Article", None, [{"name": "title"}, {"name": "title"}])
+    with pytest.raises(ProposalError, match="each field is an object"):
+        propose("Article", None, [None])
+
+
+def test_propose_model_rejects_non_class_owner_and_uses_explicit_names() -> None:
+    with pytest.raises(ProposalError, match="owning model class name"):
+        propose("Article", None, [{"name": "title"}], owner="member")
+
+    result = propose("Article", "articles_v2", [{"name": "title"}], path="/articles/v2")
+    assert 'table="articles_v2"' in result["source"]
+    assert '"/articles/v2"' in result["source"]
