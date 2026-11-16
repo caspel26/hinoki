@@ -1,8 +1,10 @@
 """Project registry and modular-app commands."""
 
 import json
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
@@ -386,6 +388,251 @@ def test_cross_app_reference_requires_dependency_registration(tmp_path: Path) ->
 
     with pytest.raises(ProjectError, match="add 'accounts' to its requires list"):
         load_manifest(path).all_models()
+
+
+def _modular_project(tmp_path: Path) -> tuple[Path, str, Path]:
+    name = f"safety{uuid4().hex[:10]}"
+    project = create(name, tmp_path)
+    (project / name / "models.py").write_text(
+        "from hinoki.orm import Model, field\n\n"
+        "class Account(Model, table='accounts'):\n"
+        "    id: int = field(primary_key=True)\n",
+        encoding="utf-8",
+    )
+    projectcli.create_app("billing", project)
+    manifest = project / "hinoki.toml"
+    text = manifest.read_text(encoding="utf-8")
+    billing_section = text.index('name = "billing"')
+    text = text[:billing_section] + text[billing_section:].replace(
+        "requires = []", f'requires = ["{name}"]', 1
+    )
+    manifest.write_text(text, encoding="utf-8")
+    billing_models = project / name / "apps" / "billing" / "models.py"
+    billing_models.write_text(
+        f"from hinoki.orm import Model, OnDelete, field, foreign_key\n"
+        f"from {name}.models import Account\n\n"
+        "class Invoice(Model, table='invoices'):\n"
+        "    id: int = field(primary_key=True)\n"
+        "    account_id: int = foreign_key(Account, on_delete=OnDelete.RESTRICT)\n",
+        encoding="utf-8",
+    )
+    return project, name, billing_models
+
+
+def _clear_project_model_modules(name: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delitem(sys.modules, f"{name}.models", raising=False)
+    monkeypatch.delitem(sys.modules, f"{name}.apps.billing.models", raising=False)
+
+
+def test_focused_child_plan_requires_recorded_parent_table(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, _name, _billing_models = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+    billing_dir = project / _name / "apps" / "billing" / "migrations"
+
+    assert main(["migrations", "plan", "--app", "billing"]) == 1
+    error = capsys.readouterr().err
+    assert "absent from recorded migrations" in error
+    assert f"plan {_name} first" in error
+    assert not list(billing_dir.glob("*.sql"))
+    assert not list(billing_dir.glob("*.state.json"))
+
+    assert main(["migrations", "plan", "--app", _name]) == 0
+    capsys.readouterr()
+    assert main(["migrations", "plan", "--app", "billing"]) == 0
+    assert "wrote" in capsys.readouterr().out
+    assert len(list(billing_dir.glob("*.sql"))) == 1
+
+
+def test_focused_child_plan_normalizes_legacy_sqlite_uuid_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, name, billing_models = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+    account_models = project / name / "models.py"
+    account_models.write_text(
+        "from uuid import UUID\nfrom hinoki.orm import Model, field\n\n"
+        "class Account(Model, table='accounts'):\n"
+        "    id: UUID = field(primary_key=True)\n",
+        encoding="utf-8",
+    )
+    billing_models.write_text(
+        "from uuid import UUID\n"
+        "from hinoki.orm import Model, OnDelete, field, foreign_key\n"
+        f"from {name}.models import Account\n\n"
+        "class Invoice(Model, table='invoices'):\n"
+        "    id: int = field(primary_key=True)\n"
+        "    account_id: UUID = foreign_key(\n"
+        "        Account, on_delete=OnDelete.RESTRICT\n"
+        "    )\n",
+        encoding="utf-8",
+    )
+    _clear_project_model_modules(name, monkeypatch)
+
+    assert main(["migrations", "plan", "--app", name]) == 0
+    capsys.readouterr()
+    account_state = next((project / name / "migrations").glob("*.state.json"))
+    state = json.loads(account_state.read_text(encoding="utf-8"))
+    state["tables"]["accounts"]["columns"]["id"]["type"] = "UUID"
+    account_state.write_text(json.dumps(state), encoding="utf-8")
+
+    assert main(["migrations", "plan", "--app", "billing"]) == 0
+    assert "wrote" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("change", ["type", "primary-key-column"])
+def test_focused_child_plan_rejects_unrecorded_parent_target_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    change: str,
+) -> None:
+    project, name, billing_models = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+    assert main(["migrations", "plan", "--app", name]) == 0
+    capsys.readouterr()
+
+    if change == "type":
+        (project / name / "models.py").write_text(
+            "from hinoki.orm import Model, field\n\n"
+            "class Account(Model, table='accounts'):\n"
+            "    id: float = field(primary_key=True)\n",
+            encoding="utf-8",
+        )
+        billing_models.write_text(
+            f"from hinoki.orm import Model, OnDelete, field, foreign_key\n"
+            f"from {name}.models import Account\n\n"
+            "class Invoice(Model, table='invoices'):\n"
+            "    id: int = field(primary_key=True)\n"
+            "    account_id: float = foreign_key(\n"
+            "        Account, on_delete=OnDelete.RESTRICT\n"
+            "    )\n",
+            encoding="utf-8",
+        )
+        message = "incompatible with recorded target"
+    else:
+        (project / name / "models.py").write_text(
+            "from hinoki.orm import Model, field\n\n"
+            "class Account(Model, table='accounts'):\n"
+            "    key: int = field(primary_key=True)\n",
+            encoding="utf-8",
+        )
+        message = "absent from recorded migrations"
+
+    _clear_project_model_modules(name, monkeypatch)
+    assert main(["migrations", "plan", "--app", "billing"]) == 1
+    assert message in capsys.readouterr().err
+    assert len(list((project / name / "apps/billing/migrations").glob("*.sql"))) == 0
+
+
+def test_parent_teardown_checks_all_child_history_snapshots(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, name, billing_models = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+    assert main(["migrations", "plan", "--app", name]) == 0
+    capsys.readouterr()
+    assert main(["migrations", "plan", "--app", "billing"]) == 0
+    capsys.readouterr()
+
+    billing_models.write_text(
+        "from hinoki.orm import Model, field\n\n"
+        "class Invoice(Model, table='invoices'):\n"
+        "    id: int = field(primary_key=True)\n",
+        encoding="utf-8",
+    )
+    (project / name / "models.py").write_text(
+        "from hinoki.orm import Model, field\n\n"
+        "class Account(Model, table='accounts'):\n"
+        "    id: int = field(primary_key=True)\n",
+        encoding="utf-8",
+    )
+    _clear_project_model_modules(name, monkeypatch)
+    assert main(["migrations", "plan", "--app", "billing", "--allow-destructive"]) == 0
+    capsys.readouterr()
+
+    (project / name / "models.py").write_text(
+        "from hinoki.orm import Model, field\n",
+        encoding="utf-8",
+    )
+    _clear_project_model_modules(name, monkeypatch)
+    parent_dir = project / name / "migrations"
+    before = set(parent_dir.iterdir())
+    assert main(["migrations", "plan", "--app", name, "--allow-destructive"]) == 1
+    error = capsys.readouterr().err
+    assert "recorded migrations for app 'billing' reference" in error
+    assert "separate reviewed deployment phase" in error
+    assert set(parent_dir.iterdir()) == before
+
+
+@pytest.mark.parametrize("layout", ["same-package", "symlink", "nested"])
+def test_project_migrations_reject_shared_or_overlapping_directories_before_connect(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    layout: str,
+) -> None:
+    project, name, _billing_models = _modular_project(tmp_path)
+    manifest = project / "hinoki.toml"
+    text = manifest.read_text(encoding="utf-8")
+    if layout == "same-package":
+        text = text.replace(
+            f'migrations = "{name}.apps.billing.migrations"',
+            f'migrations = "{name}.migrations"',
+        )
+    elif layout == "symlink":
+        (project / name / "migrations_alias").symlink_to(
+            "migrations", target_is_directory=True
+        )
+        text = text.replace(
+            f'migrations = "{name}.apps.billing.migrations"',
+            f'migrations = "{name}.migrations_alias"',
+        )
+    else:
+        nested = project / name / "migrations" / "nested"
+        nested.mkdir()
+        (nested / "__init__.py").write_text("", encoding="utf-8")
+        text = text.replace(
+            f'migrations = "{name}.apps.billing.migrations"',
+            f'migrations = "{name}.migrations.nested"',
+        )
+    manifest.write_text(text, encoding="utf-8")
+    monkeypatch.chdir(project)
+
+    async def fail_connect(*_args: object, **_kwargs: object) -> Database:
+        raise AssertionError("directory validation must precede database connect")
+
+    monkeypatch.setattr(Database, "connect", fail_connect)
+    assert main(["migrations", "status"]) == 1
+    error = capsys.readouterr().err
+    assert "same or overlapping migrations directories" in error
+    assert name in error and "billing" in error
+
+
+def test_project_migration_history_fails_closed_on_malformed_older_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, name, _billing_models = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+    assert main(["migrations", "plan", "--app", name]) == 0
+    capsys.readouterr()
+    accounts_dir = project / name / "migrations"
+    (accounts_dir / "0000-old.sql").write_text("SELECT 1;\n", encoding="utf-8")
+    (accounts_dir / "0000-old.state.json").write_text("{bad", encoding="utf-8")
+
+    assert main(["migrations", "plan", "--app", "billing"]) == 1
+    error = capsys.readouterr().err
+    assert "0000-old.state.json is not valid JSON" in error
+    assert not list((project / name / "apps/billing/migrations").glob("*.sql"))
 
 
 async def test_app_migrations_with_same_filename_have_separate_sqlite_ledger_entries(

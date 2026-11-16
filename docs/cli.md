@@ -258,6 +258,15 @@ model-to-file drift only; `migrations status` checks which migration files
 have been applied to a live database. `plan --dry-run` remains a human preview
 and exits successfully when it prints planned operations.
 
+Before writing a focused plan, Hinoki verifies that cross-app foreign-key
+targets exist in the prerequisite app's recorded migration state and have a
+compatible primary-key column. It also refuses to generate a parent teardown
+while any recorded state of another app still refers to that target, even with
+`--allow-destructive`. Remove and apply the child foreign key in a separate
+deployment phase before preparing the parent teardown. See
+[`migrations`](migrations.md#cross-app-migration-safety) for the limits of this
+file-based check.
+
 Without a `hinoki.toml`, the explicit legacy form remains:
 
 ```sh

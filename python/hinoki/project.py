@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import importlib
+import os
 import re
 import sys
 import tomllib
@@ -98,6 +99,29 @@ class ProjectManifest:
             )
         return Path(next(iter(paths)))
 
+    def migration_directories(self) -> dict[str, Path]:
+        """Resolve every registered migration package and reject aliases/overlap."""
+        resolved: list[tuple[str, Path]] = []
+        for app in self.ordered_apps():
+            try:
+                directory = self.migrations_path(app).resolve(strict=True)
+            except (OSError, RuntimeError) as error:
+                raise ProjectError(
+                    f"cannot resolve migrations directory for app {app.name!r}"
+                ) from error
+            if not directory.is_dir():
+                raise ProjectError(
+                    f"migrations package for app {app.name!r} is not a directory"
+                )
+            for other_name, other_directory in resolved:
+                if _migration_directories_conflict(directory, other_directory):
+                    raise ProjectError(
+                        f"apps {other_name!r} and {app.name!r} use the same or "
+                        "overlapping migrations directories; choose separate packages"
+                    )
+            resolved.append((app.name, directory))
+        return dict(resolved)
+
     def migration_namespace(self, app: ProjectApp) -> str:
         """Keep the scaffolded root app compatible with the legacy ledger."""
         root_package = self.application.partition(":")[0].split(".", maxsplit=1)[0]
@@ -157,6 +181,17 @@ class ProjectManifest:
         for app_name, models in app_models.items():
             allowed = {item.name for item in self.ordered_apps(app_name)}
             _check_app_model_references(app_name, models, owners, allowed)
+
+
+def _migration_directories_conflict(left: Path, right: Path) -> bool:
+    if left == right or left in right.parents or right in left.parents:
+        return True
+    try:
+        return os.path.samefile(left, right)
+    except OSError as error:
+        raise ProjectError(
+            "cannot compare registered migrations directories"
+        ) from error
 
 
 def _check_app_model_references(
