@@ -132,13 +132,15 @@ def migration_plan(args: argparse.Namespace) -> Plan:
 
 async def run_database(args: argparse.Namespace) -> None:
     manifest = manifest_for(args)
+    migration_directories: dict[str, Path] = {}
     if manifest is not None:
         manifest.ordered_apps(args.app)
+        migration_directories = manifest.migration_directories()
     database_url = migration_database_url(args, manifest)
     database = await Database.connect(database_url, max_size=1)
     try:
         if manifest is not None:
-            await run_database_project(args, manifest, database)
+            await run_database_project(args, manifest, database, migration_directories)
         elif args.action == "apply":
             applied = await migrator.apply(database, Path(args.dir or "migrations"))
             print("\n".join(applied) or "nothing to apply")
