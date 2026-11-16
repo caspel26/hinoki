@@ -132,7 +132,7 @@ def test_project_migration_check_fails_on_file_drift_without_database_io(
     assert (project / ".hinoki/local.sqlite3").exists() is False
 
 
-def test_project_migration_check_requires_each_app_in_multi_app_projects(
+def test_project_migration_check_covers_all_apps_by_default(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -155,9 +155,9 @@ def test_project_migration_check_requires_each_app_in_multi_app_projects(
     capsys.readouterr()
 
     assert main(["migrations", "plan", "--check"]) == 1
-    assert (
-        "pass --app because this project has multiple apps" in capsys.readouterr().err
-    )
+    output = capsys.readouterr().out
+    assert "checkmulti:" in output and "billing:" in output
+    assert "pending migrations: 1 operation across apps" in output
 
     assert main(["migrations", "plan", "--app", "checkmulti", "--check"]) == 1
     assert "pending migrations:" in capsys.readouterr().out
@@ -445,6 +445,142 @@ def test_focused_child_plan_requires_recorded_parent_table(
     assert main(["migrations", "plan", "--app", "billing"]) == 0
     assert "wrote" in capsys.readouterr().out
     assert len(list(billing_dir.glob("*.sql"))) == 1
+
+
+def test_multi_app_offline_preview_checks_and_summarizes_all_apps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, name, _billing_models = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    async def fail_connect(*_args: object, **_kwargs: object) -> Database:
+        raise AssertionError("offline previews must not connect to a database")
+
+    monkeypatch.setattr(Database, "connect", fail_connect)
+
+    assert main(["migrations", "plan", "--dry-run"]) == 0
+    output = capsys.readouterr().out
+    assert f"{name}:" in output
+    assert "billing:" in output
+    assert "create table accounts" in output
+    assert "create table invoices" in output
+    assert "all-app preview only" in output
+    assert not list(project.rglob("*.sql"))
+    assert not list(project.rglob("*.state.json"))
+
+    assert main(["migrations", "plan", "--check"]) == 1
+    output = capsys.readouterr().out
+    assert f"{name}:" in output and "billing:" in output
+    assert "pending migrations:" in output
+    assert not (project / ".hinoki/local.sqlite3").exists()
+
+    assert main(["migrations", "plan", "--app", name]) == 0
+    capsys.readouterr()
+    assert main(["migrations", "plan", "--app", "billing"]) == 0
+    capsys.readouterr()
+    assert main(["migrations", "plan", "--check"]) == 0
+    assert capsys.readouterr().out.endswith("no migrations are pending\n")
+
+
+def test_multi_app_preview_rejects_name_as_ambiguous(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, _name, _billing_models = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    assert main(["migrations", "plan", "--dry-run", "--name", "preview"]) == 1
+    assert "--name requires --app for a multi-app preview" in capsys.readouterr().err
+
+
+def test_project_dry_run_shows_destructive_changes_without_write_permission(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = create("dryrun", tmp_path)
+    model_file = project / "dryrun/models.py"
+    model_file.write_text(
+        "from hinoki.orm import Model, field\n\n"
+        "class Note(Model, table='dryrun_notes'):\n"
+        "    id: int = field(primary_key=True)\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(project)
+    assert main(["migrations", "plan", "--app", "dryrun"]) == 0
+    capsys.readouterr()
+    migration_dir = project / "dryrun/migrations"
+    before = {
+        path.name: path.read_bytes()
+        for path in migration_dir.iterdir()
+        if path.suffix in {".sql", ".json"}
+    }
+
+    model_file.write_text("from hinoki.orm import Model\n", encoding="utf-8")
+    monkeypatch.delitem(sys.modules, "dryrun.models", raising=False)
+    assert main(["migrations", "plan", "--app", "dryrun", "--dry-run"]) == 0
+    assert "DESTRUCTIVE drop table dryrun_notes" in capsys.readouterr().out
+    assert {
+        path.name: path.read_bytes()
+        for path in migration_dir.iterdir()
+        if path.suffix in {".sql", ".json"}
+    } == before
+
+
+@pytest.mark.parametrize("option", ["--dry-run", "--check"])
+def test_all_app_preview_discards_partial_output_when_teardown_is_blocked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    option: str,
+) -> None:
+    project, name, billing_models = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+    assert main(["migrations", "plan", "--app", name]) == 0
+    capsys.readouterr()
+    assert main(["migrations", "plan", "--app", "billing"]) == 0
+    capsys.readouterr()
+
+    billing_models.write_text(
+        "from hinoki.orm import Model, field\n\n"
+        "class Invoice(Model, table='invoices'):\n"
+        "    id: int = field(primary_key=True)\n",
+        encoding="utf-8",
+    )
+    _clear_project_model_modules(name, monkeypatch)
+    assert main(["migrations", "plan", "--app", "billing", "--allow-destructive"]) == 0
+    capsys.readouterr()
+
+    (project / name / "models.py").write_text(
+        "from hinoki.orm import Model, field\n",
+        encoding="utf-8",
+    )
+    _clear_project_model_modules(name, monkeypatch)
+    assert main(["migrations", "plan", option]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "recorded migrations for app 'billing' reference" in captured.err
+
+
+def test_bare_migrations_command_prints_workflow_help_without_io(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    async def fail_connect(*_args: object, **_kwargs: object) -> Database:
+        raise AssertionError("group help must not connect to a database")
+
+    monkeypatch.setattr(Database, "connect", fail_connect)
+    monkeypatch.setattr(
+        "hinoki.__main__.models_of",
+        lambda _module: (_ for _ in ()).throw(AssertionError("models imported")),
+    )
+
+    assert main(["migrations"]) == 0
+    output = capsys.readouterr().out
+    assert "plan" in output and "apply" in output and "status" in output
+    assert "workflow:" in output.lower()
 
 
 def test_focused_child_plan_normalizes_legacy_sqlite_uuid_state(
