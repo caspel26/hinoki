@@ -279,10 +279,10 @@ class OpenAPIBuilder:
         specs = schema.fields()
         result: dict[str, Any] = {
             "type": "object",
-            "properties": {n: self.field(s.ftype) for n, s in specs.items()},
+            "properties": {s.wire_name: self.field(s.ftype) for s in specs.values()},
             "additionalProperties": False,
         }
-        required = [n for n, s in specs.items() if s.required]
+        required = [s.wire_name for s in specs.values() if s.required]
         if required:
             result["required"] = required
         if schema.__doc__:

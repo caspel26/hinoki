@@ -6,6 +6,7 @@ import dataclasses
 import datetime as dt
 import inspect
 import typing
+import unicodedata
 import uuid
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -95,8 +96,50 @@ class FieldSpec:
     """Introspection record of one schema field."""
 
     name: str
+    alias: str | None
     ftype: FieldType
     required: bool
+
+    @property
+    def wire_name(self) -> str:
+        return self.alias or self.name
+
+
+def merge_alias(
+    schema_name: str, field_name: str, annotated: str | None, assigned: str | None
+) -> str | None:
+    """Resolve aliases from Annotated metadata and an assigned Field value."""
+    if annotated is not None and assigned is not None and annotated != assigned:
+        raise RegistrationError(
+            f"{schema_name}.{field_name}: conflicting aliases "
+            f"{annotated!r} and {assigned!r}"
+        )
+    return annotated if annotated is not None else assigned
+
+
+def validate_aliases(cls: type[Schema], specs: dict[str, FieldSpec]) -> None:
+    """Reject ambiguous wire names and paths at schema declaration."""
+    owners: dict[str, str] = {}
+    for spec in specs.values():
+        alias = spec.alias
+        if alias is not None and (
+            not isinstance(alias, str)
+            or not alias
+            or any(char in alias for char in ".[]")
+            or any(unicodedata.category(char) == "Cc" for char in alias)
+        ):
+            raise RegistrationError(
+                f"{cls.__name__}.{spec.name}: alias must be non-empty and "
+                "cannot contain '.', '[', ']', or control characters"
+            )
+        wire_name = spec.wire_name
+        previous = owners.get(wire_name)
+        if previous is not None:
+            raise RegistrationError(
+                f"{cls.__name__}: fields {previous!r} and {spec.name!r} "
+                f"share wire name {wire_name!r}"
+            )
+        owners[wire_name] = spec.name
 
 
 @dataclass_transform(
@@ -112,6 +155,7 @@ class Schema:
 
     __hinoki_schema__: ClassVar[bool] = True
     __specs__: ClassVar[dict[str, FieldSpec] | None] = None
+    __assigned_field_info__: ClassVar[dict[str, FieldInfo]] = {}
     __native__: ClassVar[core.CompiledSchema | None] = None
     __native_dump__: ClassVar[bool] = True
     __checks__: ClassVar[tuple[tuple[str, tuple[str, ...], str], ...]] = ()
@@ -122,6 +166,11 @@ class Schema:
     def __init_subclass__(cls, model: object = _NO_MODEL, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
         cls.__source__ = class_source(cls)
+        cls.__assigned_field_info__ = {
+            name: value
+            for name in inspect.get_annotations(cls)
+            if isinstance((value := cls.__dict__.get(name)), FieldInfo)
+        }
         plan = cls.__dict__.get("__derivation__")
         if plan is not None:
             derive_from_model(cls, *plan)
@@ -174,13 +223,22 @@ class Schema:
                 raise ForwardReference from exc
             raise RegistrationError(f"{cls.__name__}: {exc}") from exc
         specs: dict[str, FieldSpec] = {}
+        assigned_info = cls.__dict__.get("__assigned_field_info__", {})
         for item in dataclasses.fields(cast(Any, cls)):
             ftype = parse_annotation(hints[item.name], f"{cls.__name__}.{item.name}")
+            assigned = assigned_info.get(item.name)
+            alias = merge_alias(
+                cls.__name__,
+                item.name,
+                ftype.info.alias,
+                assigned.alias if isinstance(assigned, FieldInfo) else None,
+            )
             required = (
                 item.default is dataclasses.MISSING
                 and item.default_factory is dataclasses.MISSING
             )
-            specs[item.name] = FieldSpec(item.name, ftype, required)
+            specs[item.name] = FieldSpec(item.name, alias, ftype, required)
+        validate_aliases(cls, specs)
         return specs
 
     @classmethod
@@ -218,7 +276,7 @@ class Schema:
         """The field values as Python objects (UUID, datetime stay what they are),
         nested schemas converted too. Fields left ``UNSET`` are omitted, so the
         result is exactly "what the client sent" for a partial update."""
-        return dump_instance(self, False, list(exclude))
+        return dump_instance(self, False, list(exclude), False)
 
     @classmethod
     def from_models(cls, rows: Iterable[object], **extra: Any) -> list[Self]:
@@ -245,7 +303,7 @@ class Schema:
     def dump(self) -> dict[str, Any]:
         """JSON-compatible form; ``UNSET`` fields are omitted. Built in Rust,
         like the JSON answers themselves."""
-        return dump_instance(self, True)
+        return dump_instance(self, True, by_alias=True)
 
 
 def chosen_columns(
@@ -321,11 +379,15 @@ def nested_schemas(cls: type[Schema]) -> list[type[Schema]]:
 def run_checks(instance: Any, path: str) -> list[ErrorDetail]:
     """Run the checks of an instance and of every schema inside it."""
     problems: list[ErrorDetail] = []
-    for name in type(instance).specs():
-        problems.extend(_nested_check_problems(getattr(instance, name), name, path))
+    specs = type(instance).specs()
+    for name, spec in specs.items():
+        problems.extend(
+            _nested_check_problems(getattr(instance, name), spec.wire_name, path)
+        )
     for kind, names, method in type(instance).__checks__:
         for target in names if kind == "field" else (None,):
-            problems += call_check(instance, method, target, path)
+            wire_name = specs[target].wire_name if target is not None else None
+            problems += call_check(instance, method, target, wire_name, path)
     return problems
 
 
@@ -344,10 +406,14 @@ def _nested_check_problems(value: Any, name: str, path: str) -> list[ErrorDetail
 
 
 def call_check(
-    instance: Any, method: str, target: str | None, path: str
+    instance: Any,
+    method: str,
+    target: str | None,
+    wire_name: str | None,
+    path: str,
 ) -> list[ErrorDetail]:
     """One check on one field (or on the object when ``target`` is ``None``)."""
-    where = f"{path}.{target}" if path and target else (target or path)
+    where = f"{path}.{wire_name}" if path and wire_name else (wire_name or path)
     try:
         if target is None:
             getattr(instance, method)()
@@ -436,7 +502,7 @@ def compile_native(root: type[Schema]) -> core.CompiledSchema:
         current = queue[position]
         position += 1
         fields = [
-            (name, node_of(spec.ftype, index_of, queue), spec.required)
+            (name, spec.wire_name, node_of(spec.ftype, index_of, queue), spec.required)
             for name, spec in current.specs().items()
         ]
         definitions.append((current, fields))
