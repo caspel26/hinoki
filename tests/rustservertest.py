@@ -49,6 +49,11 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@http.get("/big")
+async def big() -> dict[str, str]:
+    return {"data": "x" * (64 * 1024 * 1024)}
+
+
 @http.get("/host")
 async def host_of(request: Request) -> dict[str, str]:
     return {"host": request.host}
@@ -95,7 +100,7 @@ async def fail_startup(ctx: ModuleContext) -> None:
 
 def make_app(**config: Any) -> Hinoki:
     return Hinoki(
-        include=[health, host_of, made, note, secured, block],
+        include=[health, big, host_of, made, note, secured, block],
         runtime=RuntimeConfig(**config),
         on_shutdown=[note_shutdown],
     )
@@ -430,6 +435,21 @@ async def test_a_stalled_body_is_a_408_before_the_request_timeout() -> None:
         await worker.stop()
     assert (stalled.status, stalled.json()["error"]) == (408, "request_timeout")
     assert stalled.header("connection") == "close"
+
+
+async def test_a_client_that_stops_reading_frees_its_connection_slot() -> None:
+    worker = RustWorker(
+        make_app(), "127.0.0.1", 0, max_connections=1, write_timeout=0.3
+    )
+    port = await worker.start()
+    try:
+        _, stalled = await open_connection(port)
+        stalled.write(b"GET /big HTTP/1.1\r\nhost: t\r\n\r\n")
+        served = await fetch(port, "GET", "/health")
+        stalled.close()
+    finally:
+        await worker.stop()
+    assert served.status == 200
 
 
 async def test_a_body_timeout_above_the_request_timeout_is_clamped() -> None:
