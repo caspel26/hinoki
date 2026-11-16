@@ -340,7 +340,10 @@ impl<T: AsyncRead + AsyncWrite + Unpin> AsyncWrite for Guarded<T> {
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let this = self.get_mut();
         if !this.shut {
-            ready!(Pin::new(&mut this.inner).poll_shutdown(cx))?;
+            // Over TLS this writes `close_notify`, which a client that stopped
+            // reading can stall: the stall timer covers it too.
+            let polled = Pin::new(&mut this.inner).poll_shutdown(cx);
+            ready!(this.guard_write(cx, polled))?;
             this.shut = true;
         }
         if this.signals.linger.load(Ordering::Acquire) {

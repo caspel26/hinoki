@@ -87,18 +87,30 @@ impl Networks {
     }
 }
 
-/// `true` when exactly one `x-forwarded-proto` header holds `https` (after
-/// trimming and ignoring case); any other value, repeated or not, is the socket
-/// scheme. Names in `headers` are lowercase.
-pub fn forwarded_https(headers: &[Header]) -> bool {
+/// The scheme a single `x-forwarded-proto` header names (after trimming and
+/// ignoring case): `Some(true)` for `https`, `Some(false)` for `http`. Any other
+/// value, or a repeated header, names nothing and the socket scheme stands.
+/// Names in `headers` are lowercase.
+pub fn forwarded_scheme(headers: &[Header]) -> Option<bool> {
     let mut found = headers
         .iter()
         .filter(|(name, _)| name == b"x-forwarded-proto");
-    match (found.next(), found.next()) {
-        (Some((_, value)), None) => std::str::from_utf8(value)
-            .is_ok_and(|text| text.trim_matches([' ', '\t']).eq_ignore_ascii_case("https")),
-        _ => false,
+    let (Some((_, value)), None) = (found.next(), found.next()) else {
+        return None;
+    };
+    let text = std::str::from_utf8(value).ok()?.trim_matches([' ', '\t']);
+    if text.eq_ignore_ascii_case("https") {
+        Some(true)
+    } else if text.eq_ignore_ascii_case("http") {
+        Some(false)
+    } else {
+        None
     }
+}
+
+/// `true` when [`forwarded_scheme`] says https.
+pub fn forwarded_https(headers: &[Header]) -> bool {
+    forwarded_scheme(headers) == Some(true)
 }
 
 #[cfg(test)]
@@ -196,6 +208,20 @@ mod tests {
 
     fn h(name: &str, value: &str) -> Header {
         (name.as_bytes().to_vec(), value.as_bytes().to_vec())
+    }
+
+    #[test]
+    fn forwarded_scheme_tells_http_from_nothing() {
+        assert_eq!(
+            forwarded_scheme(&[h("x-forwarded-proto", "http")]),
+            Some(false)
+        );
+        assert_eq!(
+            forwarded_scheme(&[h("x-forwarded-proto", "HTTPS")]),
+            Some(true)
+        );
+        assert_eq!(forwarded_scheme(&[h("x-forwarded-proto", "ws")]), None);
+        assert_eq!(forwarded_scheme(&[]), None);
     }
 
     #[test]
