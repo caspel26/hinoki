@@ -6,9 +6,9 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import Access, Caller, Hinoki, Request, Schema, http
+from hinoki import Access, Caller, Hinoki, Reply, Request, Schema, http
 from hinoki.errors import Conflict
-from hinoki.mcpapp import ExposureError, expose_as_mcp
+from hinoki.mcpapp import ExposureError, expose_as_mcp, place, select
 from hinoki.testing import ASGIClient
 from tests.providers import TokenAuth
 
@@ -47,6 +47,11 @@ async def add_note(request: Request, data: NoteIn, caller: Caller[str]) -> NoteO
 
 @http.delete("/notes/{note_id}", status=204, access=writer)
 async def drop_note(request: Request, note_id: str) -> None: ...
+
+
+@http.get("/plain")
+async def plain_output(request: Request) -> Reply:
+    return Reply(body=b"plain", content_type="text/plain")
 
 
 @http.get("/secret")
@@ -166,6 +171,15 @@ async def test_arguments_are_checked_and_path_values_cannot_escape() -> None:
             assert result["isError"] is True and "_meta" not in result
         sneaky = await tool(client, read, note_id="../secret")
         assert sneaky["structuredContent"]["title"] == "../secret"  # one segment
+        multiple = await tool(client, read, note_id=["one", "two"])
+        assert multiple["isError"] is True
+        assert "takes one value" in multiple["content"][0]["text"]
+        boolean = await tool(
+            client,
+            next(t["name"] for t in listed if "search" in t["name"]),
+            q=True,
+        )
+        assert boolean["structuredContent"]["q"] == "true"
         unknown = await call(
             client, rpc("tools/call", {"name": "nope", "arguments": {}})
         )
@@ -238,6 +252,74 @@ async def test_browser_style_requests_are_refused() -> None:
             "/mcp", json=message, headers={**HEADERS, "origin": "http://app.example"}
         )
         assert trusted.status == 200
+
+
+def test_mcp_path_arguments_must_be_scalar() -> None:
+    with pytest.raises(ValueError, match="takes one value"):
+        place("/notes/{note_id}", "note_id", "path", ["a", "b"])
+
+
+async def test_missing_required_tool_body_is_reported_to_the_caller() -> None:
+    async with ASGIClient(build(allow_writes=True)) as client:
+        listed = (await call(client, rpc("tools/list"))).body["result"]["tools"]
+        create = next(item["name"] for item in listed if "add_note" in item["name"])
+        result = await tool(client, create)
+        assert result["isError"] is True
+        assert result["content"][0]["text"] == "missing argument 'body'"
+
+
+def test_select_reports_an_action_missing_from_openapi(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = Hinoki()
+    app.include(public_secret)
+    monkeypatch.setattr(app, "openapi", lambda: {"paths": {}})
+    with pytest.raises(ExposureError, match="not in the OpenAPI document"):
+        select(app, ["*.public_secret"], False, "/mcp")
+
+
+async def test_invalid_json_decoder_is_reported_as_parse_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def decode(body: bytes) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return json.loads(body)
+        raise ValueError
+
+    monkeypatch.setattr("hinoki.mcpapp.decode_json", decode)
+    async with ASGIClient(build()) as client:
+        listed = (await call(client, rpc("tools/list"))).body["result"]["tools"]
+        calls = 0
+        search = next(item["name"] for item in listed if "search" in item["name"])
+        result = await tool(client, search, q="x")
+    assert "structuredContent" not in result
+
+
+async def test_non_json_action_output_is_kept_as_text() -> None:
+    app = Hinoki()
+    app.include(plain_output)
+    app.include(*expose_as_mcp(app, tools=["*.plain_output"], access=reader))
+    async with ASGIClient(app) as client:
+        listed = (await call(client, rpc("tools/list"))).body["result"]["tools"]
+        plain = next(item["name"] for item in listed)
+        result = await tool(client, plain)
+    assert result["content"][0]["text"] == "plain"
+    assert "structuredContent" not in result
+
+
+async def test_tool_table_must_select_at_least_one_allowed_action() -> None:
+    app = Hinoki()
+    app.include(add_note)
+    app.include(
+        *expose_as_mcp(app, tools=["*.add_note"], access=writer, allow_writes=False)
+    )
+    async with ASGIClient(app) as client:
+        response = await call(client, rpc("tools/list"))
+    assert response.status == 500
 
 
 async def test_the_nested_request_sees_the_client_and_a_second_mount_is_hidden() -> (
