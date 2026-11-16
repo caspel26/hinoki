@@ -539,13 +539,30 @@ impl<'py> Run<'_, 'py> {
             .iter()
             .map(|field| field.wire_name.as_str())
             .collect();
-        let mut duplicate_names: HashSet<String> = HashSet::new();
+        let duplicate_names = self.duplicate_python_names(definition, object, path)?;
+        self.reject_unknown_fields(object, &known, &duplicate_names, path)?;
+        let values = self.validate_fields(definition, object, &duplicate_names, path, depth)?;
+        if self.problems.len() > before {
+            return Ok(None);
+        }
+        Ok(Some(
+            definition.class.bind(self.py).call((), Some(&values))?,
+        ))
+    }
+
+    fn duplicate_python_names(
+        &mut self,
+        definition: &Definition,
+        object: &Bound<'py, PyDict>,
+        path: &str,
+    ) -> Result<HashSet<String>, Abort> {
+        let mut duplicates = HashSet::new();
         for field in &definition.fields {
             if field.name != field.wire_name
                 && object.contains(&field.name)?
                 && object.contains(&field.wire_name)?
             {
-                duplicate_names.insert(field.name.clone());
+                duplicates.insert(field.name.clone());
                 self.fail(
                     &join(path, &field.wire_name),
                     "duplicate_field",
@@ -553,6 +570,16 @@ impl<'py> Run<'_, 'py> {
                 )?;
             }
         }
+        Ok(duplicates)
+    }
+
+    fn reject_unknown_fields(
+        &mut self,
+        object: &Bound<'py, PyDict>,
+        known: &HashSet<&str>,
+        duplicate_names: &HashSet<String>,
+        path: &str,
+    ) -> Result<(), Abort> {
         for key in object.keys() {
             let name = key.str()?.to_string_lossy().into_owned();
             let known_wire_name = key
@@ -570,6 +597,17 @@ impl<'py> Run<'_, 'py> {
                 )?;
             }
         }
+        Ok(())
+    }
+
+    fn validate_fields(
+        &mut self,
+        definition: &Definition,
+        object: &Bound<'py, PyDict>,
+        duplicate_names: &HashSet<String>,
+        path: &str,
+        depth: usize,
+    ) -> Result<Bound<'py, PyDict>, Abort> {
         let values = PyDict::new(self.py);
         for field in &definition.fields {
             if duplicate_names.contains(&field.name) {
@@ -588,12 +626,7 @@ impl<'py> Run<'_, 'py> {
                 None => {}
             }
         }
-        if self.problems.len() > before {
-            return Ok(None);
-        }
-        Ok(Some(
-            definition.class.bind(self.py).call((), Some(&values))?,
-        ))
+        Ok(values)
     }
 }
 
