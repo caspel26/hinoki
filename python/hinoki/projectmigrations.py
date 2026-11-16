@@ -80,8 +80,14 @@ def manifest_for(args: argparse.Namespace) -> ProjectManifest | None:
     return load_manifest(path)
 
 
-def plan_project(args: argparse.Namespace, manifest: ProjectManifest) -> Plan:
-    app = manifest.app(args.app)
+def plan_project(
+    args: argparse.Namespace,
+    manifest: ProjectManifest,
+    app_name: str | None = None,
+    *,
+    all_app_preview: bool = False,
+) -> Plan:
+    app = manifest.app(args.app if app_name is None else app_name)
     models = manifest.all_models()
     directories = manifest.migration_directories()
     dependencies = manifest.ordered_apps(app.name)
@@ -100,13 +106,14 @@ def plan_project(args: argparse.Namespace, manifest: ProjectManifest) -> Plan:
     latest = {name: states[-1] if states else EMPTY for name, states in history.items()}
     owners = _table_history_owners(history)
     _add_current_table_owners(owners, models)
-    _validate_recorded_prerequisites(app.name, candidate, owners, latest)
+    if not all_app_preview:
+        _validate_recorded_prerequisites(app.name, candidate, owners, latest)
     _reject_cross_app_teardown(app.name, latest[app.name], candidate, owners, history)
     return plan(
         models[app.name],
         directories[app.name],
         args.name,
-        allow_destructive=args.allow_destructive or args.check,
+        allow_destructive=args.allow_destructive or args.check or args.dry_run,
         write=not args.dry_run and not args.check,
         dialect=database_dialect(migration_database_url(args, manifest)),
         reference_models=external,
