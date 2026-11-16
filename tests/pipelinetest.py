@@ -161,3 +161,10 @@ async def test_native_request_handler_without_request_fails_clearly() -> None:
         RuntimeError, match="a handler requiring Request has no request"
     ):
         await built._handler_result(binding, None, {})
+
+
+def test_startup_probe_rejects_a_missing_prebuilt_response() -> None:
+    built = Pipeline(Hinoki(startup_url="/health"))
+    built.startup_response = None
+    with pytest.raises(RuntimeError, match="startup response was not initialized"):
+        built._startup_response(scope("GET", "/health"), {})
