@@ -61,12 +61,15 @@ class RustBody:
 
 
 def body_failure(kind: str) -> Exception:
-    """The error for a native body failure: ``too_large``, ``timeout``, or
-    ``disconnected`` (which also covers a broken body framing)."""
+    """The error for a native body failure: ``too_large``, ``timeout``,
+    ``malformed`` (broken framing) or ``disconnected``. The last two share the
+    ASGI path's ``disconnected`` code and status; only the message differs."""
     if kind == "too_large":
         return HTTPError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "payload_too_large")
     if kind == "timeout":
         return HTTPError(HTTPStatus.REQUEST_TIMEOUT, "request_timeout")
+    if kind == "malformed":
+        return InvalidBody("disconnected", "the request body is malformed")
     return InvalidBody("disconnected", "the client disconnected")
 
 

@@ -38,9 +38,10 @@ pub struct ServerConfig {
     /// Time a client has to send a complete request head, also while idle
     /// between requests on a kept-alive connection.
     pub header_read_timeout: Duration,
-    /// How long a client may stay silent while its body is read. It is below
-    /// the pipeline's request timeout, so a stalled body is answered 408 and not
-    /// 504.
+    /// How long a client may stay silent between two chunks of its body. Total
+    /// silence is answered 408 (the setting stays below the pipeline's request
+    /// timeout); a client that drips a byte per interval is bounded only by the
+    /// request timeout (504), as on the ASGI path.
     pub body_read_timeout: Duration,
     /// Time running connections get to finish after a stop.
     pub shutdown_timeout: Duration,
@@ -114,6 +115,8 @@ async fn run_connection<B: Backend>(
         // the answer (`nc`, some health checkers).
         .half_close(true)
         .max_buf_size(head_limit)
+        // The guard refuses the same bound, so both agree on what a head is.
+        .max_header_size(head_limit)
         .max_headers(config.max_headers)
         .serve_connection(TokioIo::new(guarded), service);
     tokio::pin!(connection);

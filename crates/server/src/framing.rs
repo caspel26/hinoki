@@ -15,8 +15,9 @@
 //!   other than exactly `chunked`;
 //! * a body with a plain `Content-Length` is skipped by count, never scanned
 //!   (a JSON body may hold any byte);
-//! * a chunked body, or a head above the bound, stops the scan and sets the
-//!   `close` flag, so the connection layer ends the connection after that
+//! * a head above the bound is refused the same way (hyper's own
+//!   `max_header_size` is set to the same bound);
+//! * a chunked body stops the scan and sets the `close` flag, so the connection layer ends the connection after that
 //!   answer and no later head goes unchecked. A chunked request therefore does
 //!   not keep the connection alive.
 //!
@@ -161,10 +162,12 @@ impl Framing {
             let bare = *byte == b'\n' && self.previous != b'\r';
             self.previous = *byte;
             self.collected.push(*byte);
-            let refused = bare || (*byte == b'\n' && self.line_refused());
-            if refused || self.collected.len() > self.max_head {
-                // The NUL makes httparse refuse the head.
-                *byte = if refused { 0 } else { *byte };
+            // A head above the bound fails closed like any other refusal: the
+            // NUL makes httparse refuse it, so nothing past the bound is
+            // accepted unscanned.
+            let oversized = self.collected.len() > self.max_head;
+            if bare || oversized || (*byte == b'\n' && self.line_refused()) {
+                *byte = 0;
                 self.give_up();
                 return index + 1;
             }
@@ -223,6 +226,8 @@ impl Framing {
         self.reset_head();
         self.collected = Vec::new();
         self.signals.close.store(true, Ordering::Release);
+        // hyper answers its 400 while the client may still be sending.
+        self.signals.linger.store(true, Ordering::Release);
     }
 }
 

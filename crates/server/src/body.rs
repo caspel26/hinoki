@@ -15,6 +15,7 @@ use std::time::Duration;
 use bytes::Bytes;
 use http_body_util::BodyExt;
 use hyper::body::{Body, Incoming as RequestBody};
+use std::io::ErrorKind;
 use tokio::time::timeout;
 
 /// Why a body could not be read in full.
@@ -22,9 +23,11 @@ use tokio::time::timeout;
 pub enum BodyError {
     /// The declared or the received size is above the limit.
     TooLarge,
-    /// The client went away, or the framing was broken (hyper ends the
-    /// connection in both cases).
+    /// The client went away or the body was cut short (hyper ends the
+    /// connection).
     Disconnected,
+    /// The body framing is broken (an invalid chunk size, for example).
+    Malformed,
     /// No data for longer than the idle timeout.
     Timeout,
 }
@@ -34,12 +37,32 @@ impl fmt::Display for BodyError {
         f.write_str(match self {
             BodyError::TooLarge => "too_large",
             BodyError::Disconnected => "disconnected",
+            BodyError::Malformed => "malformed",
             BodyError::Timeout => "timeout",
         })
     }
 }
 
 impl Error for BodyError {}
+
+/// Bytes reserved before the first one arrives; the buffer grows as data does,
+/// so a large declared length costs nothing until it is sent.
+const FIRST_RESERVE: usize = 64 * 1024;
+
+/// A body error caused by malformed framing (hyper reports it as invalid data).
+fn is_malformed(error: &(dyn Error + 'static)) -> bool {
+    let mut current = Some(error);
+    while let Some(e) = current {
+        let invalid = e
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|io| io.kind() == ErrorKind::InvalidData);
+        if invalid {
+            return true;
+        }
+        current = e.source();
+    }
+    false
+}
 
 /// A request body that has not been read yet. Dropping it unread is how a
 /// request is refused without reading: the connection layer then closes the
@@ -54,6 +77,7 @@ pub struct BodyReader<B = RequestBody> {
 impl<B> BodyReader<B>
 where
     B: Body<Data = Bytes> + Unpin,
+    B::Error: Error + 'static,
 {
     /// `idle` is how long the client may stay silent between two chunks.
     pub fn new(inner: B, idle: Duration) -> Self {
@@ -77,7 +101,12 @@ where
         if declared.is_some_and(|n| n > limit as u64) {
             return Err(BodyError::TooLarge);
         }
-        let capacity = declared.map_or(0, |n| usize::try_from(n).unwrap_or(0).min(limit));
+        let capacity = declared.map_or(0, |n| {
+            usize::try_from(n)
+                .unwrap_or(0)
+                .min(limit)
+                .min(FIRST_RESERVE)
+        });
         let mut out = Vec::with_capacity(capacity);
         loop {
             let frame = timeout(self.idle, self.inner.frame())
@@ -85,6 +114,7 @@ where
                 .map_err(|_| BodyError::Timeout)?;
             match frame {
                 None => break,
+                Some(Err(e)) if is_malformed(&e) => return Err(BodyError::Malformed),
                 Some(Err(_)) => return Err(BodyError::Disconnected),
                 Some(Ok(frame)) => {
                     let Ok(data) = frame.into_data() else {
@@ -116,6 +146,7 @@ mod tests {
     enum Step {
         Data(&'static [u8]),
         Fail,
+        Garbage,
         Stall,
     }
 
@@ -141,6 +172,7 @@ mod tests {
                 Some(Step::Data(bytes)) => {
                     Poll::Ready(Some(Ok(Frame::data(Bytes::from_static(bytes)))))
                 }
+                Some(Step::Garbage) => Poll::Ready(Some(Err(io::ErrorKind::InvalidData.into()))),
                 Some(Step::Fail) => Poll::Ready(Some(Err(io::ErrorKind::UnexpectedEof.into()))),
                 Some(Step::Stall) => unreachable!(),
             }
@@ -196,6 +228,21 @@ mod tests {
             body.read_all(10).await.unwrap_err(),
             BodyError::Disconnected
         );
+    }
+
+    #[tokio::test]
+    async fn broken_framing_is_told_apart_from_a_disconnect() {
+        let body = reader(vec![Step::Garbage], None);
+        assert_eq!(body.read_all(10).await.unwrap_err(), BodyError::Malformed);
+    }
+
+    #[tokio::test]
+    async fn a_large_declared_length_reserves_nothing_before_data_arrives() {
+        let limit = 1 << 30;
+        let body = reader(vec![Step::Data(b"abc")], Some(limit as u64));
+        let out = body.read_all(limit).await.unwrap();
+        assert_eq!(out, b"abc");
+        assert!(out.capacity() <= FIRST_RESERVE);
     }
 
     #[tokio::test]
