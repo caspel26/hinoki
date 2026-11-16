@@ -31,10 +31,13 @@ class ModelPlan:
     def build(self, row: Any, extra: dict[str, Any] | None = None) -> Any: ...
 
 def dump_instance(
-    value: Any, json_mode: bool, exclude: list[str] = ...
+    value: Any,
+    json_mode: bool,
+    exclude: list[str] = ...,
+    by_alias: bool = True,
 ) -> dict[str, Any]: ...
 def compile_schemas(
-    definitions: list[tuple[type, list[tuple[str, tuple[Any, ...], bool]]]],
+    definitions: list[tuple[type, list[tuple[str, str, tuple[Any, ...], bool]]]],
     root: int,
     uuid_class: type,
     from_iso: Any,

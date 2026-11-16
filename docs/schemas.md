@@ -29,6 +29,28 @@ class NoteOut(Schema):
 
 `Schema.validate(data)` reports structural problems together. Values are not coerced. Declare field constraints with `Field(...)`; use `@field_check` and `@object_check` for synchronous checks that depend on validated schema values.
 
+## Wire aliases
+
+Use `Field(alias=...)` when the public JSON name should differ from the Python attribute. The alias is the only accepted input key; sending both names is an error. `dump()` writes aliases, including in nested schemas and lists, while `to_dict()` keeps Python attribute names. Validation errors and OpenAPI properties use the wire names. A custom check's default field path is translated to its alias; an explicit `Invalid(path=...)` is already a wire path.
+
+```python
+from typing import Annotated
+
+from hinoki import Field, Schema
+
+
+class PersonOut(Schema):
+    first_name: Annotated[str, Field(alias="firstName")]
+
+
+person = PersonOut.validate({"firstName": "Aki"})
+assert person.first_name == "Aki"
+assert person.dump() == {"firstName": "Aki"}
+assert person.to_dict() == {"first_name": "Aki"}
+```
+
+An assigned declaration such as `display_name: str = Field(alias="displayName")` is also supported, including alongside `default_factory`. Aliases must be unique within a schema and cannot contain `.`, `[` or `]`, which are reserved by error paths. Model columns do not accept wire aliases; put API naming on the `Schema`.
+
 ## Built-in and custom validation
 
 `Field(...)` provides built-in structural constraints. `format=` accepts `email`, `url`, `slug` or `hex_color` and is shorthand for a regular-expression pattern. Numeric bounds apply to numbers; length limits apply to strings and collections; `one_of` restricts a value to the listed choices.

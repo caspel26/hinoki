@@ -7,7 +7,7 @@ import types
 import typing
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Annotated, Any, get_args, get_origin
+from typing import TYPE_CHECKING, Annotated, Any, cast, get_args, get_origin
 from uuid import UUID
 
 from hinoki import core
@@ -50,16 +50,57 @@ def is_union(annotation: object) -> bool:
     return get_origin(annotation) in {typing.Union, types.UnionType}
 
 
-def split_annotated(annotation: object) -> tuple[Any, FieldInfo]:
+def split_annotated(annotation: object, where: str = "field") -> tuple[Any, FieldInfo]:
     """Strip ``Annotated`` and merge its ``Field`` metadata."""
     merged: dict[str, object] = {}
+    alias: str | None = None
     while get_origin(annotation) is Annotated:
         base, *extras = get_args(annotation)
-        for extra in extras:
-            if isinstance(extra, FieldInfo):
-                merged = {**extra.constraints(), **merged}
+        merged, alias = merge_field_metadata(extras, merged, alias, where)
         annotation = base
-    return annotation, FieldInfo(**merged)  # type: ignore[arg-type]
+    return annotation, field_info_from_constraints(merged, alias)
+
+
+def merge_field_metadata(
+    extras: list[object],
+    merged: dict[str, object],
+    alias: str | None,
+    where: str,
+) -> tuple[dict[str, object], str | None]:
+    """Combine one Annotated layer, rejecting ambiguous wire names."""
+    for extra in extras:
+        if not isinstance(extra, FieldInfo):
+            continue
+        merged = {**extra.constraints(), **merged}
+        if extra.alias is not None:
+            alias = merge_alias(alias, extra.alias, where)
+    return merged, alias
+
+
+def merge_alias(current: str | None, candidate: str, where: str) -> str:
+    """Merge aliases from nested annotations if they describe one wire name."""
+    if current is not None and current != candidate:
+        raise RegistrationError(
+            f"{where}: conflicting aliases {current!r} and {candidate!r}"
+        )
+    return candidate
+
+
+def field_info_from_constraints(
+    constraints: dict[str, object], alias: str | None
+) -> FieldInfo:
+    """Build typed metadata after precedence has been resolved."""
+    return FieldInfo(
+        min_length=cast(int | None, constraints.get("min_length")),
+        max_length=cast(int | None, constraints.get("max_length")),
+        pattern=cast(str | None, constraints.get("pattern")),
+        ge=cast(float | None, constraints.get("ge")),
+        le=cast(float | None, constraints.get("le")),
+        gt=cast(float | None, constraints.get("gt")),
+        lt=cast(float | None, constraints.get("lt")),
+        one_of=cast(tuple[Any, ...] | None, constraints.get("one_of")),
+        alias=alias,
+    )
 
 
 def check_pattern(pattern: str, where: str) -> None:
@@ -111,7 +152,7 @@ def check_one_of(info: FieldInfo, kind: str, where: str) -> None:
 
 def parse_annotation(annotation: object, where: str) -> FieldType:
     """Turn an annotation into a ``FieldType`` or fail with a clear error."""
-    base, info = split_annotated(annotation)
+    base, info = split_annotated(annotation, where)
     nullable = allows_unset = False
     if is_union(base):
         members = list(get_args(base))
@@ -120,8 +161,20 @@ def parse_annotation(annotation: object, where: str) -> FieldType:
         rest = [m for m in members if m is not type(None) and m is not Unset]
         if len(rest) != 1:
             raise RegistrationError(f"{where}: unsupported union {annotation!r}")
-        base, inner = split_annotated(rest[0])
-        info = FieldInfo(**{**inner.constraints(), **info.constraints()})  # type: ignore[arg-type]
+        base, inner = split_annotated(rest[0], where)
+        if (
+            info.alias is not None
+            and inner.alias is not None
+            and info.alias != inner.alias
+        ):
+            raise RegistrationError(
+                f"{where}: conflicting aliases {inner.alias!r} and {info.alias!r}"
+            )
+        constraints = {**inner.constraints(), **info.constraints()}
+        info = field_info_from_constraints(
+            constraints,
+            alias=info.alias if info.alias is not None else inner.alias,
+        )
     return build(base, info, nullable, allows_unset, where)
 
 
