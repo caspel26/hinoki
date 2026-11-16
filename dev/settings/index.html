@@ -570,6 +570,12 @@
 </tr>
 <tr>
 <td><code>server</code></td>
+<td><code>write_timeout</code></td>
+<td>unset (30 seconds)</td>
+<td>Rust server only: how long a response write may make no progress before the connection is closed; above 0 and at most 3600; refused under Granian</td>
+</tr>
+<tr>
+<td><code>server</code></td>
 <td><code>trusted_proxies</code></td>
 <td>empty</td>
 <td>IP addresses or CIDRs allowed to supply forwarded client/protocol metadata; an IPv6 zone id (<code>fe80::1%lo0</code>) is refused when settings load, whichever server runs</td>
@@ -941,7 +947,7 @@ BLOG_JWT_SECRET               file         ***
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.20</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 04:15:41 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 08:33:48 UTC">November 16, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>16 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>

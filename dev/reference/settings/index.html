@@ -1562,9 +1562,10 @@ call again, it replaces its own handler.</p>
         <p>How <code>hinoki serve</code> and <code>dev</code> run the application. <code>serve</code> applies
 these; they do nothing when another runner starts the app.</p>
 <p><code>server</code> picks Granian (the default) or the Rust server. <code>access_log</code>
-belongs to Granian; <code>max_connections</code>, <code>header_read_timeout</code> and
-<code>body_read_timeout</code> belong to the Rust server (<code>None</code> keeps its
-default). <code>hinoki serve</code> refuses a setting the chosen server cannot honour.</p>
+belongs to Granian; <code>max_connections</code>, <code>header_read_timeout</code>,
+<code>body_read_timeout</code> and <code>write_timeout</code> belong to the Rust server
+(<code>None</code> keeps its default). <code>hinoki serve</code> refuses a setting the chosen
+server cannot honour.</p>
 
 
 

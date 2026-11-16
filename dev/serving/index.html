@@ -477,6 +477,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <li>HTTP/1.1 only: no TLS (terminate it at a reverse proxy), no HTTP/2 and no WebSocket or other protocol upgrades.</li>
 <li>A request line plus headers larger than <code>execution.max_header_bytes</code>, or a query longer than <code>execution.max_query_bytes</code>, is refused (<code>431</code>, <code>414</code>). A body larger than <code>execution.max_body_bytes</code> is refused with <code>413</code>, by <code>Content-Length</code> before any byte is read or, for chunked bodies, as soon as the total passes the limit. A client that sends nothing for <code>body_read_timeout</code> seconds (10 by default, never more than half of <code>execution.request_timeout</code>) gets <code>408</code>.</li>
 <li>A client that does not finish its request headers within <code>header_read_timeout</code> seconds (10 by default) is disconnected; the same timer closes idle keep-alive connections.</li>
+<li>A client that stops reading a response for <code>write_timeout</code> seconds (30 by default) is disconnected; any progress restarts the timer.</li>
 <li><code>max_connections</code> (10000 by default) bounds open connections. Requests waiting for the application are bounded by an in-flight limit and a queue; beyond them the answer is <code>503</code>.</li>
 <li>Requests with ambiguous framing (for example <code>Content-Length</code> together with <code>Transfer-Encoding</code>, repeated lengths, or a bare line feed in the head) are refused with <code>400</code> and the connection is closed.</li>
 <li>There is no access log: <code>server.access_log=true</code> is refused with <code>--server rust</code>.</li>
@@ -504,7 +505,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <td>applied</td>
 </tr>
 <tr>
-<td><code>max_connections</code>, <code>header_read_timeout</code>, <code>body_read_timeout</code></td>
+<td><code>max_connections</code>, <code>header_read_timeout</code>, <code>body_read_timeout</code>, <code>write_timeout</code></td>
 <td>applied when set</td>
 <td>refused when set</td>
 </tr>
@@ -591,8 +592,8 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 04:15:41 UTC">November 16, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>9 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 08:33:48 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>10 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
