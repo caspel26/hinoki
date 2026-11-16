@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ from benchmarks.rowwirebench import (
     database_identity,
     ensure_clean_for_timing,
     ensure_empty_output,
+    ensure_port_available,
     metrics,
     requested_cpus,
 )
@@ -163,6 +165,33 @@ def test_timed_run_requires_clean_committed_source_but_preflight_does_not() -> N
 
     ensure_clean_for_timing(" M python/hinoki/crud.py", verify_only=True)
     ensure_clean_for_timing("", verify_only=False)
+
+
+def test_port_check_rejects_an_active_listener() -> None:
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+
+        with pytest.raises(SystemExit, match=r"benchmark port .* is unavailable"):
+            ensure_port_available(port)
+
+
+def test_port_check_reuses_a_recently_closed_local_port() -> None:
+    listener = socket.socket()
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen()
+    port = listener.getsockname()[1]
+    client = socket.socket()
+    client.connect(("127.0.0.1", port))
+    accepted, _address = listener.accept()
+    accepted.close()
+    listener.close()
+    client.recv(1)
+    client.close()
+
+    ensure_port_available(port)
 
 
 def test_host_cpu_parser_and_database_metadata_avoid_credentials() -> None:
