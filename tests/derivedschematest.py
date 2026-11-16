@@ -1,7 +1,7 @@
 """Schemas derived from models with ``@derive(...)`` and ``model=``."""
 
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -71,7 +71,7 @@ def post_row(title: str = "title") -> Post:
         slug=f"{title}-slug",
         body="body",
         published=True,
-        created_at=datetime.now(),
+        created_at=datetime.now(UTC),
     )
 
 
@@ -142,7 +142,7 @@ def test_exclude_adds_declared_fields_and_keeps_nullable_types() -> None:
         slug="s",
         body="b",
         published=True,
-        created_at=datetime.now(),
+        created_at=datetime.now(UTC),
         author_name="Ann",
     )
     assert shown.dump()["author_name"] == "Ann"

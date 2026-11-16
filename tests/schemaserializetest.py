@@ -5,7 +5,7 @@ import json
 from copy import copy
 from dataclasses import dataclass, replace
 from pickle import dumps, loads
-from typing import Annotated
+from typing import Annotated, cast
 
 import pytest
 
@@ -45,9 +45,9 @@ def test_exclude_unset_uses_constructor_presence_not_default_equality() -> None:
         "note": None,
         "items": [],
     }
-    assert empty.serialize(exclude_unset=True) == {}
-    assert empty.serialize() == empty.dump()
-    assert explicit.serialize(exclude_unset=True) == {
+    assert empty.dump(exclude_unset=True) == {}
+    assert empty.dump() == empty.dump()
+    assert explicit.dump(exclude_unset=True) == {
         "label": "default",
         "amount": 0,
         "enabled": False,
@@ -58,17 +58,17 @@ def test_exclude_unset_uses_constructor_presence_not_default_equality() -> None:
 
 def test_validate_and_from_model_track_only_values_that_were_provided() -> None:
     validated = Defaults.validate({"amount": 0, "note": None})
-    assert validated.serialize(exclude_unset=True) == {"amount": 0, "note": None}
+    assert validated.dump(exclude_unset=True) == {"amount": 0, "note": None}
 
     class Output(Schema):
         name: str
         label: str = "default"
 
     from_model = Output.from_model(type("Row", (), {"name": "Aki"})())
-    assert from_model.serialize(exclude_unset=True) == {"name": "Aki"}
+    assert from_model.dump(exclude_unset=True) == {"name": "Aki"}
     assert Output.from_model(
         type("Row", (), {"name": "Aki", "label": "default"})()
-    ).serialize(exclude_unset=True) == {"name": "Aki", "label": "default"}
+    ).dump(exclude_unset=True) == {"name": "Aki", "label": "default"}
 
     post_init_exports: list[dict[str, object]] = []
 
@@ -78,11 +78,11 @@ def test_validate_and_from_model_track_only_values_that_were_provided() -> None:
 
         def __post_init__(self) -> None:
             object.__setattr__(self, "cached", self.value == "known")
-            post_init_exports.append(self.serialize(exclude_unset=True))
+            post_init_exports.append(self.dump(exclude_unset=True))
 
     normalized = Normalized.from_model(type("Row", (), {"value": "known"})())
     assert normalized.cached is True
-    assert normalized.serialize(exclude_unset=True) == {"value": "known"}
+    assert normalized.dump(exclude_unset=True) == {"value": "known"}
     assert post_init_exports == [{"value": "known"}]
 
 
@@ -90,17 +90,17 @@ def test_selectors_are_shallow_python_names_and_aliases_are_recursive() -> None:
     card = Card.validate({"displayName": "Aki"})
     board = Board(title="notes", cards=[card])
 
-    assert board.serialize(include={"cards"}, exclude_unset=True) == {
+    assert board.dump(include={"cards"}, exclude_unset=True) == {
         "cards": [{"displayName": "Aki"}]
     }
-    assert board.serialize(include={"cards"}, by_alias=False) == {
+    assert board.dump(include={"cards"}, by_alias=False) == {
         "cards": [{"display_name": "Aki", "note": "new"}]
     }
-    assert board.serialize(include=set()) == {}
-    assert board.serialize(include={"title", "cards"}, exclude={"title"}) == {
+    assert board.dump(include=set()) == {}
+    assert board.dump(include={"title", "cards"}, exclude={"title"}) == {
         "cards": [card.dump()]
     }
-    assert board.serialize(exclude={"title"}) == {"cards": [card.dump()]}
+    assert board.dump(exclude={"title"}) == {"cards": [card.dump()]}
 
 
 @pytest.mark.parametrize(
@@ -118,12 +118,12 @@ def test_invalid_serialization_options_fail_before_export(
     kwargs: dict[str, object], error: type[Exception], message: str
 ) -> None:
     with pytest.raises(error, match=message):
-        Board(title="x", cards=[]).serialize(**kwargs)  # type: ignore[arg-type]
+        Board(title="x", cards=[]).dump(**kwargs)  # type: ignore[arg-type]
 
 
 def test_tracking_survives_copy_pickle_and_replace() -> None:
     original = Defaults(amount=0)
-    assert replace(original).serialize(exclude_unset=True) == {
+    assert replace(original).dump(exclude_unset=True) == {
         "label": "default",
         "amount": 0,
         "enabled": False,
@@ -132,16 +132,16 @@ def test_tracking_survives_copy_pickle_and_replace() -> None:
     }
     # dataclasses.replace passes every field to the constructor by design.
     restored = loads(dumps(original))  # noqa: S301 - round trip our own local object
-    assert restored.serialize(exclude_unset=True) == {"amount": 0}
-    assert copy(original).serialize(exclude_unset=True) == {"amount": 0}
+    assert restored.dump(exclude_unset=True) == {"amount": 0}
+    assert copy(original).dump(exclude_unset=True) == {"amount": 0}
 
 
-def test_custom_dump_cannot_be_filtered_and_untracked_init_is_explicit() -> None:
+def test_custom_dump_controls_preserve_privacy_and_untracked_init_is_explicit() -> None:
     class Secret(Schema):
         public: str
         hidden: str
 
-        def dump(self) -> dict[str, str]:
+        def dump(self) -> dict[str, str]:  # type: ignore[override]
             return {"public": self.public}
 
     class Envelope(Schema):
@@ -156,13 +156,14 @@ def test_custom_dump_cannot_be_filtered_and_untracked_init_is_explicit() -> None
         "title": "x",
         "secret": {"public": "ok"},
     }
-    with pytest.raises(TypeError, match="overrides dump"):
-        secret.serialize()
-    with pytest.raises(TypeError, match="overrides dump"):
-        envelope.serialize()
-    assert envelope.serialize(include={"title"}) == {"title": "x"}
+    with pytest.raises(TypeError):
+        cast(Schema, secret).dump(exclude={"hidden"})
+    with pytest.raises(TypeError):
+        envelope.dump(exclude_unset=True)
+    assert envelope.dump(include={"title"}) == {"title": "x"}
+    assert envelope.dump(include={"secret"}) == {"secret": {"public": "ok"}}
     with pytest.raises(TypeError, match="no reliable supplied-field tracking"):
-        CustomInit(value="x").serialize(exclude_unset=True)
+        CustomInit(value="x").dump(exclude_unset=True)
 
 
 class CustomInit(Schema):
@@ -174,7 +175,7 @@ class CustomInit(Schema):
 
 def test_custom_init_supports_unfiltered_explicit_serialization() -> None:
     value = CustomInit(value="ok")
-    assert value.serialize() == {"value": "ok"}
+    assert value.dump() == {"value": "ok"}
 
 
 def test_custom_subclass_cannot_inherit_partial_presence_metadata() -> None:
@@ -189,9 +190,9 @@ def test_custom_subclass_cannot_inherit_partial_presence_metadata() -> None:
             object.__setattr__(self, "own", own)
 
     child = CustomChild(inherited=5, own=8)
-    assert child.serialize() == {"inherited": 5, "own": 8}
+    assert child.dump() == {"inherited": 5, "own": 8}
     with pytest.raises(TypeError, match="no reliable supplied-field tracking"):
-        child.serialize(exclude_unset=True)
+        child.dump(exclude_unset=True)
 
 
 def test_base_constructor_cannot_overwrite_derived_presence_metadata() -> None:
@@ -205,7 +206,7 @@ def test_base_constructor_cannot_overwrite_derived_presence_metadata() -> None:
             super().__init__(inherited=self.inherited)
 
     child = Derived(inherited=5, own=8)
-    assert child.serialize(exclude_unset=True) == {"inherited": 5, "own": 8}
+    assert child.dump(exclude_unset=True) == {"inherited": 5, "own": 8}
 
 
 def test_generated_constructor_signature_and_reserved_metadata() -> None:
@@ -228,21 +229,17 @@ def test_generated_constructor_signature_and_reserved_metadata() -> None:
         class Bad(Schema):
             __hinoki_supplied_fields__: str
 
-    with pytest.raises(
-        RegistrationError, match=r"conflicts with the Schema\.serialize"
-    ):
+    with pytest.raises(RegistrationError, match=r"conflicts with the Schema\.dump"):
 
         class Colliding(Schema):
             # Runtime must reject this instead of inheriting the method default.
-            serialize: str  # type: ignore[assignment]
+            dump: str  # type: ignore[assignment]
 
     @dataclass(frozen=True, kw_only=True)
     class Mixin:
-        serialize: str
+        dump: str
 
-    with pytest.raises(
-        RegistrationError, match=r"conflicts with the Schema\.serialize"
-    ):
+    with pytest.raises(RegistrationError, match=r"conflicts with the Schema\.dump"):
         type("Combined", (Mixin, Schema), {})
 
     @dataclass(frozen=True, kw_only=True)
