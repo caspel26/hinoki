@@ -394,7 +394,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 </code></pre></div>
 <p><code>TARGET</code> is <code>module:name</code>, where <code>name</code> is an application (<code>Hinoki</code>) or a function that returns one (a factory: the usual choice, because it builds the app inside each worker). The factory builds declarations only; databases and pools open in the worker's lifespan.</p>
 <p>With a declared app, settings load when the target module creates the <code>Hinoki</code> object. A configured <code>DatabaseModule</code> opens that worker's pool during lifespan startup and closes it during shutdown. The pool is per worker; no database connection is opened by importing model or route modules. See <a href="../settings/#8-database-connection-ownership">settings and database ownership</a>.</p>
-<p>Both commands run the app under Granian. In the Hinoki checkout,
+<p>Both commands run the app under Granian unless you choose the <a href="#the-rust-server">Rust server</a> with <code>--server rust</code> or <code>server.server</code>. In the Hinoki checkout,
 <code>uv sync --locked</code> installs the development environment, including Granian's
 reload support. A project created by <code>hinoki new</code> declares the server extra in
 its source dependency; run <code>uv sync</code> in that project. The extra includes
@@ -451,9 +451,84 @@ index; see <a href="../getting-started/">installation</a> for setup.</p>
 <td><code>false</code></td>
 <td></td>
 </tr>
+<tr>
+<td><code>server.server</code></td>
+<td><code>BLOG_SERVER__SERVER</code></td>
+<td><code>granian</code></td>
+<td><code>--server</code></td>
+</tr>
 </tbody>
 </table>
 <p><code>dev</code> always runs one worker with reload. The settings command shows what is in effect: <code>hinoki settings blog.settings:BlogSettings</code>.</p>
+<h2 id="the-rust-server">The Rust server<a class="headerlink" href="#the-rust-server" title="Permanent link">&para;</a></h2>
+<p><code>hinoki serve --server rust</code> (or <code>server.server = "rust"</code>) runs the application on a second server that is part of Hinoki's native extension. Granian stays the default and <code>--server granian</code> always selects it; nothing changes for an app that does not opt in.</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>rust
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>rust<span class="w"> </span>--workers<span class="w"> </span><span class="m">4</span>
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w">   </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>rust
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"BLOG_"</span><span class="p">):</span>
+    <span class="n">server</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span><span class="p">(</span><span class="n">server</span><span class="o">=</span><span class="s2">"rust"</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="what-is-native-and-what-still-runs-in-python">What is native and what still runs in Python<a class="headerlink" href="#what-is-native-and-what-still-runs-in-python" title="Permanent link">&para;</a></h3>
+<p>The listener, HTTP/1.1 parsing, connection and header limits, body framing and its limits and timeouts, route matching, the request ID, and the answers that need no application code run on the native runtime without taking the Python interpreter lock. A request the native layer can answer by itself is answered there: unknown paths and methods (<code>404</code>, <code>405</code> with <code>Allow</code>), oversized request lines or headers, <code>503</code> while the worker is not ready or the in-flight limit is reached, and malformed requests. The response carries the same security headers, request ID, CORS and HSTS policy as one produced by the application.</p>
+<p>Everything else still runs in Python on the asyncio loop: the lifespan, the request pipeline (binding, access policies, validation, the handler, error translation and response assembly), synchronous handlers on the bounded executor, the documentation and OpenAPI pages, and the completion of database calls. The request body is read natively, but only when the pipeline asks for it, after authentication, so an unauthenticated client cannot make the server buffer a body. This is a faster front end, not an application written in Rust; no performance figure is claimed here.</p>
+<h3 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h3>
+<ul>
+<li>HTTP/1.1 only: no TLS (terminate it at a reverse proxy), no HTTP/2 and no WebSocket or other protocol upgrades.</li>
+<li>A request line plus headers larger than <code>execution.max_header_bytes</code>, or a query longer than <code>execution.max_query_bytes</code>, is refused (<code>431</code>, <code>414</code>). A body larger than <code>execution.max_body_bytes</code> is refused with <code>413</code>, by <code>Content-Length</code> before any byte is read or, for chunked bodies, as soon as the total passes the limit. A client that sends nothing for <code>body_read_timeout</code> seconds (10 by default, never more than half of <code>execution.request_timeout</code>) gets <code>408</code>.</li>
+<li>A client that does not finish its request headers within <code>header_read_timeout</code> seconds (10 by default) is disconnected; the same timer closes idle keep-alive connections.</li>
+<li><code>max_connections</code> (10000 by default) bounds open connections. Requests waiting for the application are bounded by an in-flight limit and a queue; beyond them the answer is <code>503</code>.</li>
+<li>Requests with ambiguous framing (for example <code>Content-Length</code> together with <code>Transfer-Encoding</code>, repeated lengths, or a bare line feed in the head) are refused with <code>400</code> and the connection is closed.</li>
+<li>There is no access log: <code>server.access_log=true</code> is refused with <code>--server rust</code>.</li>
+<li>A client that disconnects does not cancel its running handler; the handler finishes and its answer is discarded.</li>
+</ul>
+<h3 id="settings-that-apply-to-one-server-only">Settings that apply to one server only<a class="headerlink" href="#settings-that-apply-to-one-server-only" title="Permanent link">&para;</a></h3>
+<p><code>hinoki serve</code> refuses a setting the chosen server cannot honour, by name, and exits with status 2; it never ignores it or falls back to the other server.</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Rust server</th>
+<th>Granian</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>host</code>, <code>port</code>, <code>workers</code>, <code>runtime_threads</code>, <code>backlog</code>, <code>trusted_proxies</code>, <code>request_id_header</code>, <code>trust_request_id</code></td>
+<td>applied</td>
+<td>applied</td>
+</tr>
+<tr>
+<td><code>access_log</code></td>
+<td>refused when <code>true</code></td>
+<td>applied</td>
+</tr>
+<tr>
+<td><code>max_connections</code>, <code>header_read_timeout</code>, <code>body_read_timeout</code></td>
+<td>applied when set</td>
+<td>refused when set</td>
+</tr>
+</tbody>
+</table>
+<p>If the native extension of a build has no Rust server, <code>--server rust</code> fails with an error that says so.</p>
+<h3 id="workers-signals-and-restarts">Workers, signals and restarts<a class="headerlink" href="#workers-signals-and-restarts" title="Permanent link">&para;</a></h3>
+<p>With one worker <code>hinoki serve</code> runs the server in its own process. With several workers (and always under <code>hinoki dev</code>) it starts a supervisor that opens the listening socket once (honouring <code>backlog</code>), starts each worker as a fresh process that imports the target and builds the application, and passes the socket down. Workers share the one socket, so connections are spread by the operating system's accept; Hinoki does not balance them. Databases and pools open inside each worker's lifespan, never in the supervisor.</p>
+<ul>
+<li><code>SIGTERM</code>, <code>SIGINT</code> (Ctrl-C) or <code>SIGHUP</code> stops accepting, lets running requests finish for up to <code>lifecycle.shutdown_timeout</code>, runs the lifespan shutdown and exits. A worker still running five seconds after that is killed. A second signal kills the workers immediately. Once the stop begins the supervisor closes its own copy of the socket, so a client that connects while the workers drain is refused. <code>--workers</code> must be 1 to 256 (<code>0</code> uses <code>server.workers</code>).</li>
+<li>A worker that exits on its own, whether it failed to start or crashed, is not restarted: the supervisor stops the other workers and exits with a non-zero status. Restart policy belongs to the process manager (systemd, a container runtime) that runs <code>hinoki serve</code>.</li>
+<li>The listening socket is opened before the lifespan startup of a supervised worker finishes, so connections wait in the backlog until a worker accepts them. With one worker the socket is opened after a successful startup.</li>
+<li>If the supervisor is killed without a chance to clean up, its workers notice within a second of finishing their startup and stop. The workers' copy of the listening socket is not inherited by processes a handler starts.</li>
+<li>A socket that cannot be opened (address in use, a bad port or host) is reported as <code>error: cannot listen on HOST:PORT: ...</code> with exit status 2, with one worker or several.</li>
+</ul>
+<h3 id="hinoki-dev-server-rust"><code>hinoki dev --server rust</code><a class="headerlink" href="#hinoki-dev-server-rust" title="Permanent link">&para;</a></h3>
+<p>The supervisor watches the project directory (<code>*.py</code>, <code>*.toml</code> and <code>.env</code> files; <code>.venv</code>, <code>.git</code> and caches are ignored) and, on a change, stops the worker gracefully and starts a new one on the same socket, so a client connecting during the restart waits instead of being refused. If the new code fails to import or start, the error is printed (a short <code>error: cannot load ...</code> line for a missing module or name, a traceback for other failures), <code>waiting for changes</code> follows, and the next edit starts the worker again; connections wait in the meantime. The host, port, <code>backlog</code> and the choice of server are read once when <code>hinoki dev</code> starts: change them and restart the command. The other <code>server</code> settings (limits, <code>trusted_proxies</code>, <code>runtime_threads</code>) are read again by every restarted worker. The watcher ignores <code>.venv</code> but not a virtual environment with another name, such as <code>venv/</code>: keep it outside the project directory or it triggers reloads. The first import of the target happens in the command itself, so an error there stops it with a message instead of waiting. <code>dev</code> needs <code>watchfiles</code> (the <code>hinoki[server]</code> extra) and uses one worker.</p>
+<h3 id="behind-a-reverse-proxy">Behind a reverse proxy<a class="headerlink" href="#behind-a-reverse-proxy" title="Permanent link">&para;</a></h3>
+<p><code>server.trusted_proxies</code> works as described in <a href="../settings/#reverse-proxies-and-request-ids">settings</a>: the native layer matches the TCP peer against it for the request ID and the HSTS and scheme policy of its own answers, and the request pipeline resolves the forwarded scheme and client address of the requests it handles from the same peer. Two points to know:</p>
+<ul>
+<li>Entries are IP addresses or CIDRs. An IPv6 address with a zone id such as <code>fe80::1%lo0</code> is refused when settings load, for either server (earlier versions loaded it and the ASGI path matched it; the Rust server cannot take it).</li>
+<li>On a listener bound to <code>::</code> that also accepts IPv4 (the default on many systems, for example Linux with <code>bindv6only=0</code> and macOS), an IPv4 peer appears as <code>::ffff:a.b.c.d</code>. A plain IPv4 entry such as <code>10.0.0.5</code> or <code>10.0.0.0/8</code> then never matches, and the proxy is treated as untrusted. That fails closed, and the ASGI path behaves the same. Either bind an IPv4 host (<code>--host 0.0.0.0</code>) or list the mapped form, for example <code>::ffff:10.0.0.0/104</code>.</li>
+<li>A request ID that a trusted proxy sent and Hinoki refused is logged as <code>ignored invalid request ID from trusted proxy</code>; for requests answered natively the warning is aggregated once a second with a count.</li>
+</ul>
 <h2 id="declaring-where-settings-are-read">Declaring where settings are read<a class="headerlink" href="#declaring-where-settings-are-read" title="Permanent link">&para;</a></h2>
 <p>The settings class says its own prefix and <code>.env</code> file, so nothing is repeated at the call site:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
@@ -507,15 +582,17 @@ index; see <a href="../getting-started/">installation</a> for setup.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#where-host-port-and-workers-come-from">Where host, port and workers come from</a></li><li><a href="#declaring-where-settings-are-read">Declaring where settings are read</a></li><li><a href="#other-runners">Other runners</a></li><li><a href="#wsgi">WSGI</a></li></ul>
+            <ul><li><a href="#where-host-port-and-workers-come-from">Where host, port and workers come from</a></li><li><a href="#the-rust-server">The Rust server</a>
+            <ul><li><a href="#what-is-native-and-what-still-runs-in-python">What is native and what still runs in Python</a></li><li><a href="#limits">Limits</a></li><li><a href="#settings-that-apply-to-one-server-only">Settings that apply to one server only</a></li><li><a href="#workers-signals-and-restarts">Workers, signals and restarts</a></li><li><a href="#hinoki-dev-server-rust">hinoki dev --server rust</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li></ul>
+          </li><li><a href="#declaring-where-settings-are-read">Declaring where settings are read</a></li><li><a href="#other-runners">Other runners</a></li><li><a href="#wsgi">WSGI</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 04:15:41 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>9 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

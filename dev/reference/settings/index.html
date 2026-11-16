@@ -1559,8 +1559,12 @@ call again, it replaces its own handler.</p>
 
 
 
-        <p>How <code>hinoki serve</code> and <code>dev</code> run the application (Granian).
-<code>serve</code> applies these; they do nothing when another runner starts the app.</p>
+        <p>How <code>hinoki serve</code> and <code>dev</code> run the application. <code>serve</code> applies
+these; they do nothing when another runner starts the app.</p>
+<p><code>server</code> picks Granian (the default) or the Rust server. <code>access_log</code>
+belongs to Granian; <code>max_connections</code>, <code>header_read_timeout</code> and
+<code>body_read_timeout</code> belong to the Rust server (<code>None</code> keeps its
+default). <code>hinoki serve</code> refuses a setting the chosen server cannot honour.</p>
 
 
 
@@ -1579,6 +1583,29 @@ call again, it replaces its own handler.</p>
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.server" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">server</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.server" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">server</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'granian'</span><span class="p">,</span> <span class="s1">'rust'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'granian'</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-attribute">
 
@@ -1710,6 +1737,75 @@ call again, it replaces its own handler.</p>
 
 <a href="#hinoki.settings.ServerSettings.access_log" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">access_log</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.max_connections" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">max_connections</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.max_connections" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">max_connections</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.header_read_timeout" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">header_read_timeout</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.header_read_timeout" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">header_read_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.body_read_timeout" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">body_read_timeout</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.body_read_timeout" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">body_read_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2532,7 +2628,7 @@ call again, it replaces its own handler.</p>
           </li><li><a href="#hinoki.settings.DocsSettings">DocsSettings</a>
             <ul><li><a href="#hinoki.settings.DocsSettings.title">title</a></li><li><a href="#hinoki.settings.DocsSettings.version">version</a></li><li><a href="#hinoki.settings.DocsSettings.openapi_url">openapi_url</a></li><li><a href="#hinoki.settings.DocsSettings.docs_url">docs_url</a></li><li><a href="#hinoki.settings.DocsSettings.redoc_url">redoc_url</a></li></ul>
           </li><li><a href="#hinoki.settings.ServerSettings">ServerSettings</a>
-            <ul><li><a href="#hinoki.settings.ServerSettings.host">host</a></li><li><a href="#hinoki.settings.ServerSettings.port">port</a></li><li><a href="#hinoki.settings.ServerSettings.workers">workers</a></li><li><a href="#hinoki.settings.ServerSettings.runtime_threads">runtime_threads</a></li><li><a href="#hinoki.settings.ServerSettings.backlog">backlog</a></li><li><a href="#hinoki.settings.ServerSettings.access_log">access_log</a></li><li><a href="#hinoki.settings.ServerSettings.trusted_proxies">trusted_proxies</a></li><li><a href="#hinoki.settings.ServerSettings.request_id_header">request_id_header</a></li><li><a href="#hinoki.settings.ServerSettings.trust_request_id">trust_request_id</a></li></ul>
+            <ul><li><a href="#hinoki.settings.ServerSettings.server">server</a></li><li><a href="#hinoki.settings.ServerSettings.host">host</a></li><li><a href="#hinoki.settings.ServerSettings.port">port</a></li><li><a href="#hinoki.settings.ServerSettings.workers">workers</a></li><li><a href="#hinoki.settings.ServerSettings.runtime_threads">runtime_threads</a></li><li><a href="#hinoki.settings.ServerSettings.backlog">backlog</a></li><li><a href="#hinoki.settings.ServerSettings.access_log">access_log</a></li><li><a href="#hinoki.settings.ServerSettings.max_connections">max_connections</a></li><li><a href="#hinoki.settings.ServerSettings.header_read_timeout">header_read_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.body_read_timeout">body_read_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.trusted_proxies">trusted_proxies</a></li><li><a href="#hinoki.settings.ServerSettings.request_id_header">request_id_header</a></li><li><a href="#hinoki.settings.ServerSettings.trust_request_id">trust_request_id</a></li></ul>
           </li><li><a href="#hinoki.settings.PaginationSettings">PaginationSettings</a>
             <ul><li><a href="#hinoki.settings.PaginationSettings.page_size">page_size</a></li><li><a href="#hinoki.settings.PaginationSettings.max_page_size">max_page_size</a></li></ul>
           </li><li><a href="#hinoki.settings.CorsSettings">CorsSettings</a>
@@ -2548,7 +2644,7 @@ call again, it replaces its own handler.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.9</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 04:15:41 UTC">November 16, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/settings.md">Edit on GitHub</a></dd></div>
         </dl>

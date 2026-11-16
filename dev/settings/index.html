@@ -399,7 +399,7 @@
     <span class="n">admin_theme</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"studio"</span><span class="p">,</span> <span class="s2">"console"</span><span class="p">,</span> <span class="s2">"paper"</span><span class="p">,</span> <span class="s2">"bento"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"studio"</span>
 </code></pre></div>
 <p>Settings types live in the <code>hinoki.settings</code> namespace: <code>from hinoki import settings</code>, then <code>settings.AppSettings</code>, <code>settings.DatabaseSettings</code>, <code>settings.Secret</code>, <code>settings.Settings</code> and <code>settings.SettingsError</code>. Name your own subclass for your project (<code>BlogSettings</code> above) and keep a loaded value in a variable such as <code>app_settings</code>, so the namespace is not shadowed. Earlier revisions exported these types from <code>hinoki</code> itself and called the base class <code>FrameworkSettings</code>; <code>from hinoki import FrameworkSettings</code> now raises <code>ImportError</code>.</p>
-<p><code>settings.AppSettings</code> brings eight groups every app has: <code>execution</code> (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit, 8 KiB query limit and 32 KiB header limit), <code>lifecycle</code> (30-second startup and 10-second shutdown limits), <code>logging</code> (level, text or JSON, optional request ID correlation), <code>docs</code> (title, version and optional OpenAPI/Swagger/ReDoc URLs), <code>server</code> (host, port and workers), <code>pagination</code> (default <code>page_size</code> and <code>max_page_size</code> for <code>PageNumberPagination</code>, see <a href="../pagination/#defaults-for-the-whole-application">pagination</a>), <code>cors</code> (which browser origins may read responses) and <code>security</code> (browser response headers and optional HTTPS redirect). Three values sit beside the groups: <code>timezone</code>, <code>debug</code> and <code>allowed_hosts</code>; see <a href="#debug-allowed-hosts-and-cors">Debug, allowed hosts and CORS</a>. A field without a default is <strong>required</strong>. Request IDs and timeout responses are described in the <a href="../request-lifecycle/">request lifecycle</a>.</p>
+<p><code>settings.AppSettings</code> brings eight groups every app has: <code>execution</code> (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit, 8 KiB query limit and 32 KiB header limit), <code>lifecycle</code> (30-second startup and 10-second shutdown limits), <code>logging</code> (level, text or JSON, optional request ID correlation), <code>docs</code> (title, version and optional OpenAPI/Swagger/ReDoc URLs), <code>server</code> (which server, host, port, workers and proxy trust), <code>pagination</code> (default <code>page_size</code> and <code>max_page_size</code> for <code>PageNumberPagination</code>, see <a href="../pagination/#defaults-for-the-whole-application">pagination</a>), <code>cors</code> (which browser origins may read responses) and <code>security</code> (browser response headers and optional HTTPS redirect). Three values sit beside the groups: <code>timezone</code>, <code>debug</code> and <code>allowed_hosts</code>; see <a href="#debug-allowed-hosts-and-cors">Debug, allowed hosts and CORS</a>. A field without a default is <strong>required</strong>. Request IDs and timeout responses are described in the <a href="../request-lifecycle/">request lifecycle</a>.</p>
 <p><code>docs.openapi_url</code>, <code>docs.docs_url</code> and <code>docs.redoc_url</code> default to <code>None</code>, so no API document or viewer route is served until configured. Swagger UI or ReDoc requires an <code>openapi_url</code>. The same values can be supplied as <code>Hinoki(...)</code> arguments; explicit arguments win over <code>docs</code> settings, and <code>None</code> disables a page.</p>
 <h2 id="built-in-fields-and-defaults">Built-in fields and defaults<a class="headerlink" href="#built-in-fields-and-defaults" title="Permanent link">&para;</a></h2>
 <table>
@@ -510,9 +510,15 @@
 </tr>
 <tr>
 <td><code>server</code></td>
+<td><code>server</code></td>
+<td><code>granian</code></td>
+<td><code>granian</code> or <code>rust</code>; <code>--server</code> overrides it. See <a href="../serving/#the-rust-server">Running an application</a></td>
+</tr>
+<tr>
+<td><code>server</code></td>
 <td><code>host</code></td>
 <td><code>127.0.0.1</code></td>
-<td>Granian bind address used by <code>hinoki dev/serve</code></td>
+<td>Bind address used by <code>hinoki dev/serve</code></td>
 </tr>
 <tr>
 <td><code>server</code></td>
@@ -542,13 +548,31 @@
 <td><code>server</code></td>
 <td><code>access_log</code></td>
 <td><code>false</code></td>
-<td>Enables Granian access logging</td>
+<td>Enables Granian access logging; refused when <code>true</code> with the Rust server</td>
+</tr>
+<tr>
+<td><code>server</code></td>
+<td><code>max_connections</code></td>
+<td>unset (10000)</td>
+<td>Rust server only: open-connection limit, <code>1</code> to <code>1000000</code>; refused under Granian</td>
+</tr>
+<tr>
+<td><code>server</code></td>
+<td><code>header_read_timeout</code></td>
+<td>unset (10 seconds)</td>
+<td>Rust server only: time to receive request headers, and the keep-alive idle limit; refused under Granian</td>
+</tr>
+<tr>
+<td><code>server</code></td>
+<td><code>body_read_timeout</code></td>
+<td>unset (10 seconds)</td>
+<td>Rust server only: silence allowed while a body is read (at most half of <code>execution.request_timeout</code>); refused under Granian</td>
 </tr>
 <tr>
 <td><code>server</code></td>
 <td><code>trusted_proxies</code></td>
 <td>empty</td>
-<td>IP addresses or CIDRs allowed to supply forwarded client/protocol metadata</td>
+<td>IP addresses or CIDRs allowed to supply forwarded client/protocol metadata; an IPv6 zone id (<code>fe80::1%lo0</code>) is refused when settings load, whichever server runs</td>
 </tr>
 <tr>
 <td><code>server</code></td>
@@ -668,6 +692,7 @@
 </code></pre></div>
 <p>Set <code>logging.include_request_id=true</code> to add the resolved ID to Hinoki's own log records while a request is being handled. Text logs append <code>request_id=&lt;id&gt;</code> and JSON logs include a <code>request_id</code> field. The ID matches the response's configured request ID header. Startup and other records outside a request omit the field. This setting is off by default, and it does not change application or third-party logger handlers.</p>
 <p>From a trusted peer, Hinoki accepts a single <code>X-Forwarded-Proto</code> value of <code>http</code> or <code>https</code> and walks a bounded <code>X-Forwarded-For</code> chain from the peer side to the first untrusted address. <code>Request.scheme</code> and <code>Request.client</code> use those validated values. Invalid, repeated or ambiguous values fall back to the socket scope. <code>X-Forwarded-Host</code> is never used: <code>Host</code>, <code>allowed_hosts</code> and generated URLs continue to use the original Host header.</p>
+<p>On a listener bound to <code>::</code>, an IPv4 peer can appear as <code>::ffff:a.b.c.d</code>, which a plain IPv4 entry does not match (the proxy is then untrusted); see <a href="../serving/#behind-a-reverse-proxy">behind a reverse proxy</a>.</p>
 <p>Request IDs are generated by default. With <code>trust_request_id=True</code>, one inbound configured header is accepted only from a trusted immediate peer and only when it is 1–128 visible ASCII characters without commas or controls. Otherwise Hinoki generates a new ID. The selected value appears in <code>Request.request_id</code>, built-in error JSON and the configured response header. The proxy must sanitize the incoming header before forwarding it; do not trust a broad network range merely because it is private.</p>
 <h2 id="2-load-them-when-the-app-is-built">2. Load them when the app is built<a class="headerlink" href="#2-load-them-when-the-app-is-built" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">settings</span>
@@ -790,7 +815,7 @@ BLOG_JWT_SECRET               file         ***
 </code></pre></div>
 <h2 id="7-use-them">7. Use them<a class="headerlink" href="#7-use-them" title="Permanent link">&para;</a></h2>
 <p><code>Hinoki(settings=app_settings)</code> derives the runtime limits, the docs URLs, logging setup and application timezone from the built-in settings (an explicit argument such as <code>title=</code> still wins). <code>app.now()</code> returns an aware <code>datetime</code> in the configured timezone; it defaults to UTC. The timezone is configured in settings, not as a <code>Hinoki(...)</code> argument. Your own fields are on <code>app.settings</code>, and modules reach them as <code>ctx.settings</code> in their lifespan.</p>
-<p>The <code>server</code> group (host, port, workers) is applied by <code>hinoki serve</code>/<code>dev</code> (<a href="../serving/">Running an application</a>). Hinoki does not connect to secret-manager services itself; use a provider that supplies environment values or secret files.</p>
+<p>The <code>server</code> group (server, host, port, workers and the rest) is applied by <code>hinoki serve</code>/<code>dev</code> (<a href="../serving/">Running an application</a>). Hinoki does not connect to secret-manager services itself; use a provider that supplies environment values or secret files.</p>
 <h2 id="debug-allowed-hosts-and-cors">Debug, allowed hosts and CORS<a class="headerlink" href="#debug-allowed-hosts-and-cors" title="Permanent link">&para;</a></h2>
 <p>These three are off or permissive by default, so an application behaves the same until you set them. Set them from the environment like any other field:</p>
 <div class="highlight"><pre><span></span><code><span class="nv">BLOG_DEBUG</span><span class="o">=</span><span class="nb">true</span>
@@ -916,8 +941,8 @@ BLOG_JWT_SECRET               file         ***
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.20</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>15 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 04:15:41 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>16 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
