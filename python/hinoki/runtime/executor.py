@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import contextvars
 import functools
+import inspect
 import logging
 import threading
 from collections.abc import Callable
@@ -23,6 +24,32 @@ log = logging.getLogger("hinoki.runtime")
 
 class ExecutorSaturated(Exception):
     """All workers are busy and the queue is full: shed load, do not wait."""
+
+
+class AbandonedResult[T]:
+    """Close a coroutine result if its executor request has been cancelled."""
+
+    def __init__(self) -> None:
+        self._abandoned = threading.Event()
+        self._lock = threading.Lock()
+        self._discarded = False
+
+    def abandon(self) -> None:
+        self._abandoned.set()
+
+    def discard(self, done: Future[T]) -> None:
+        if not self._abandoned.is_set() or not done.done():
+            return
+        with self._lock:
+            if self._discarded:
+                return
+            self._discarded = True
+        try:
+            result = done.result()
+        except BaseException:
+            return
+        if inspect.iscoroutine(result):
+            result.close()
 
 
 class SyncExecutor:
@@ -109,12 +136,17 @@ class SyncExecutor:
         except BaseException:
             self.in_flight -= 1
             raise
+        abandoned: AbandonedResult[R] = AbandonedResult()
         future.add_done_callback(functools.partial(self._notify, loop))
+        future.add_done_callback(abandoned.discard)
         try:
             return await asyncio.wrap_future(future)
         except asyncio.CancelledError:
             # The deadline fired: stop work the thread handed to the loop, so a
-            # pending query cannot pin the connection past the request.
+            # pending query cannot pin the connection past the request. A late
+            # coroutine result has no request task left to own it, so close it.
+            abandoned.abandon()
+            abandoned.discard(future)
             handed.close()
             raise
 
