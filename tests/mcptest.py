@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import Access, Hinoki, Request, http, mcp
+from hinoki import API, Access, Hinoki, Request, http, mcp
 from hinoki.mcp import DevProject, Server, serve
 from hinoki.modules import Module, ModuleContext
 from hinoki.orm import Model, field
@@ -134,6 +134,35 @@ def test_propose_model_tool_returns_proposals_and_translates_errors(
         mcp.tool_propose_model(project, {"name": "bad name", "fields": []})
 
 
+def test_action_lookup_reports_ambiguous_short_names() -> None:
+    class First(API):
+        @http.get("/first")
+        def listing(self) -> dict[str, bool]:
+            return {"ok": True}
+
+    class Second(API):
+        @http.get("/second")
+        def listing(self) -> dict[str, bool]:
+            return {"ok": True}
+
+    app = Hinoki()
+    app.include(First, Second)
+    project = DevProject(app, rules)
+    with pytest.raises(mcp.ToolFailure, match="is ambiguous"):
+        project.find("listing")
+
+
+def test_explain_error_validates_codes_and_describes_enabled_rules(
+    server: Server,
+) -> None:
+    with pytest.raises(mcp.ToolFailure, match="must be an error code"):
+        mcp.tool_explain_error(server.project, {"code": ""})
+    result = mcp.tool_explain_error(server.project, {"code": "HNK-ACC-001"})
+    assert result["kind"] == "rule"
+    with pytest.raises(mcp.ToolFailure, match="unknown code"):
+        mcp.tool_explain_error(server.project, {"code": "unknown-code"})
+
+
 def test_answer_line_contains_unexpected_tool_failures(
     server: Server, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -158,6 +187,42 @@ def test_run_mcp_reports_invalid_targets_to_stderr(
     args = argparse.Namespace(target="missing:app")
     assert mcp.run_mcp(args) == 2
     assert "bad target" in capsys.readouterr().err
+
+
+def test_run_mcp_restores_stdout_after_serving(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    protocol = io.StringIO()
+    diagnostics = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", protocol)
+    monkeypatch.setattr(sys, "stderr", diagnostics)
+    monkeypatch.setattr("hinoki.mcp.build_app", lambda _target: Hinoki())
+    monkeypatch.setattr("hinoki.mcp.build_rules", lambda _rules, _app: rules)
+    monkeypatch.setattr("hinoki.mcp.default_packages", lambda _target: ())
+
+    def serve_once(_server: Server, _source: Any, sink: Any) -> None:
+        assert sys.stdout is diagnostics
+        assert sink is protocol
+
+    monkeypatch.setattr("hinoki.mcp.serve", serve_once)
+    args = argparse.Namespace(
+        target="tests.projects.rulesapp:create_app",
+        rules=None,
+        package=None,
+        models=None,
+        waivers=None,
+        scenarios="off",
+    )
+    assert mcp.run_mcp(args) == 0
+    assert sys.stdout is protocol
+
+
+def test_problem_of_rejects_boolean_request_ids() -> None:
+    assert mcp.problem_of({"id": True, "method": "ping"}) == (
+        None,
+        -32600,
+        "id must be a string or an integer",
+    )
 
 
 def test_list_rules_reports_waivers_read_only(tmp_path: Path) -> None:
