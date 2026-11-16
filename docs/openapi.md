@@ -54,6 +54,21 @@ Tools that only read the standard method fields do not see these operations: Swa
 * `access=...` adds a security requirement when its authentication provider supplies an OpenAPI scheme. Authentication responses are included in the operation.
 * Admin HTML routes marked `hide_from_docs` are omitted.
 
+Discriminated unions declared as `Schema` fields become OpenAPI `oneOf` schemas with a `discriminator` and explicit tag-to-component mapping. Variant tag fields appear as required string enums; the runtime uses the same tags to select exactly one branch. List items, nested fields and nullable unions retain that structure. For route input and response documentation, put the union inside a wrapper `Schema`; bare union return annotations are rejected instead of producing an incomplete schema. As elsewhere, the response annotation does not cause runtime response validation.
+
+```yaml
+oneOf:
+  - $ref: "#/components/schemas/Cat"
+  - $ref: "#/components/schemas/Dog"
+discriminator:
+  propertyName: type
+  mapping:
+    cat: "#/components/schemas/Cat"
+    dog: "#/components/schemas/Dog"
+```
+
+See [Schemas: discriminated unions](schemas.md#discriminated-unions) for the Python declarations and validation behavior.
+
 Add a useful docstring to each handler because it is the source for operation text:
 
 ```python

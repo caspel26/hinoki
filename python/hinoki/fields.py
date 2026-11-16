@@ -40,6 +40,7 @@ class FieldInfo:
     lt: float | None = None
     one_of: tuple[Any, ...] | None = None
     alias: str | None = None
+    discriminator: str | None = None
     default_factory: Callable[[], Any] | None = None
 
     def constraints(self) -> dict[str, object]:
@@ -72,6 +73,7 @@ def Field(
     lt: float | None = None,
     one_of: Sequence[Any] | None = None,
     format: str | None = None,
+    discriminator: str | None = None,
 ) -> Any: ...
 @overload
 def Field(
@@ -86,6 +88,7 @@ def Field(
     one_of: Sequence[Any] | None = None,
     format: str | None = None,
     alias: str | None = None,
+    discriminator: str | None = None,
 ) -> FieldInfo: ...
 def Field(**options: Any) -> Any:
     """Declare constraints (inside ``Annotated``) or a default factory.
