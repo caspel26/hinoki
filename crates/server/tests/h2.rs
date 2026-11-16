@@ -64,6 +64,12 @@ fn hosts_of(request: &Incoming) -> String {
 impl Backend for Fake {
     async fn handle(&self, mut request: Incoming) -> Answer {
         self.started.fetch_add(1, Ordering::SeqCst);
+        if let Some(early) = &request.refusal {
+            return Answer {
+                status: early.status(),
+                ..answer(b"")
+            };
+        }
         match request.path.as_str() {
             "/info" => answer(
                 format!(
@@ -240,6 +246,21 @@ fn get_frame(stream: u32, path: &str) -> Vec<u8> {
     frame(1, 5, stream, &block)
 }
 
+/// GET `path` with no `:authority` and these literal headers (names and values
+/// under 127 bytes), END_STREAM | END_HEADERS.
+fn get_without_authority(stream: u32, path: &str, extra: &[(&str, &str)]) -> Vec<u8> {
+    let mut block = vec![0x82, 0x87, 0x04, u8::try_from(path.len()).unwrap()];
+    block.extend(path.as_bytes());
+    for (name, value) in extra {
+        block.push(0x00);
+        block.push(u8::try_from(name.len()).unwrap());
+        block.extend(name.as_bytes());
+        block.push(u8::try_from(value.len()).unwrap());
+        block.extend(value.as_bytes());
+    }
+    frame(1, 5, stream, &block)
+}
+
 fn reset_frame(stream: u32) -> Vec<u8> {
     frame(3, 0, stream, &8u32.to_be_bytes())
 }
@@ -258,9 +279,14 @@ async fn next_frame(stream: &mut TlsStream<TcpStream>) -> Option<Frame> {
 
 /// The preface and an empty SETTINGS, then the server's SETTINGS acknowledged.
 async fn raw_h2(running: &Running) -> TlsStream<TcpStream> {
+    raw_h2_with(running, &[]).await
+}
+
+/// As [`raw_h2`], with these SETTINGS payload entries.
+async fn raw_h2_with(running: &Running, settings: &[u8]) -> TlsStream<TcpStream> {
     let mut stream = secure(running, &[b"h2"]).await;
     stream.write_all(PREFACE).await.unwrap();
-    stream.write_all(&frame(4, 0, 0, &[])).await.unwrap();
+    stream.write_all(&frame(4, 0, 0, settings)).await.unwrap();
     loop {
         let (kind, flags, _, _) = timeout(WAIT, next_frame(&mut stream))
             .await
@@ -408,10 +434,10 @@ async fn a_rapid_reset_client_is_cut_off_and_the_server_keeps_serving() {
 }
 
 #[tokio::test]
-async fn the_101st_concurrent_stream_is_refused() {
+async fn the_33rd_concurrent_stream_is_refused() {
     let running = start(quick(), true).await;
     let mut raw = raw_h2(&running).await;
-    for n in 0..101u32 {
+    for n in 0..33u32 {
         raw.write_all(&get_frame(2 * n + 1, "/hold")).await.unwrap();
     }
     let refused = timeout(WAIT, async {
@@ -425,17 +451,17 @@ async fn the_101st_concurrent_stream_is_refused() {
     .await
     .unwrap()
     .expect("no stream was refused");
-    assert_eq!(refused.0, 201, "the refused stream");
+    assert_eq!(refused.0, 65, "the refused stream");
     assert_eq!(refused.1, 7u32.to_be_bytes(), "REFUSED_STREAM");
     timeout(WAIT, async {
-        while running.backend.started.load(Ordering::SeqCst) < 100 {
+        while running.backend.started.load(Ordering::SeqCst) < 32 {
             sleep(Duration::from_millis(10)).await;
         }
     })
     .await
-    .expect("the 100 streams did not all reach the backend");
+    .expect("the 32 streams did not all reach the backend");
     sleep(Duration::from_millis(100)).await;
-    assert_eq!(running.backend.started.load(Ordering::SeqCst), 100);
+    assert_eq!(running.backend.started.load(Ordering::SeqCst), 32);
     running.stop.send(true).unwrap();
 }
 
@@ -537,5 +563,111 @@ async fn a_connection_that_opens_no_stream_is_closed() {
     let (_send, driver) = h2_client(&running).await;
     let ended = timeout(Duration::from_secs(3), driver).await;
     assert!(ended.is_ok(), "an idle h2 connection was kept open");
+    running.stop.send(true).unwrap();
+}
+
+/// Reads frames until the server closes the connection or `bound` passes.
+async fn closed_within(stream: &mut TlsStream<TcpStream>, bound: Duration) -> bool {
+    timeout(bound, async { while next_frame(stream).await.is_some() {} })
+        .await
+        .is_ok()
+}
+
+fn config_with_timeouts() -> ServerConfig {
+    ServerConfig {
+        header_read_timeout: Duration::from_millis(300),
+        write_timeout: Duration::from_millis(300),
+        ..quick()
+    }
+}
+
+#[tokio::test]
+async fn a_connection_that_goes_idle_after_a_stream_is_closed() {
+    let running = start(config_with_timeouts(), true).await;
+    let (send, driver) = h2_client(&running).await;
+    let (parts, _) = call(&send, request("GET", "/info").body(()).unwrap(), None).await;
+    assert_eq!(parts.status, 200);
+    let ended = timeout(Duration::from_secs(3), driver).await;
+    assert!(ended.is_ok(), "an idle h2 connection kept its slot");
+    drop(send);
+    running.stop.send(true).unwrap();
+}
+
+#[tokio::test]
+async fn a_client_that_never_opens_its_window_is_closed_after_the_write_timeout() {
+    let running = start(config_with_timeouts(), true).await;
+    // SETTINGS_INITIAL_WINDOW_SIZE = 0: no DATA may ever be sent.
+    let mut raw = raw_h2_with(&running, &[0, 4, 0, 0, 0, 0]).await;
+    raw.write_all(&get_frame(1, "/big")).await.unwrap();
+    assert!(
+        closed_within(&mut raw, Duration::from_secs(3)).await,
+        "a stalled response held the connection"
+    );
+    running.stop.send(true).unwrap();
+}
+
+#[tokio::test]
+async fn paced_resets_of_accepted_streams_get_the_connection_dropped() {
+    let running = start(quick(), true).await;
+    let mut raw = raw_h2(&running).await;
+    for n in 0..400u32 {
+        let pair = [get_frame(2 * n + 1, "/slow"), reset_frame(2 * n + 1)].concat();
+        if raw.write_all(&pair).await.is_err() {
+            break;
+        }
+        sleep(Duration::from_millis(2)).await;
+    }
+    assert!(
+        closed_within(&mut raw, WAIT).await,
+        "the reset flood went on"
+    );
+    assert!(running.backend.started.load(Ordering::SeqCst) < 400);
+    let (send, _driver) = h2_client(&running).await;
+    let (parts, _) = call(&send, request("GET", "/info").body(()).unwrap(), None).await;
+    assert_eq!(parts.status, 200);
+    running.stop.send(true).unwrap();
+}
+
+#[tokio::test]
+async fn several_host_headers_without_authority_are_refused() {
+    let running = start(quick(), true).await;
+    let mut raw = raw_h2(&running).await;
+    let two = [("host", "a.example"), ("host", "b.example")];
+    raw.write_all(&get_without_authority(1, "/info", &two))
+        .await
+        .unwrap();
+    raw.write_all(&get_without_authority(3, "/info", &two[..1]))
+        .await
+        .unwrap();
+    let mut statuses = Vec::new();
+    while statuses.len() < 2 {
+        let (kind, _, id, payload) = timeout(WAIT, next_frame(&mut raw))
+            .await
+            .unwrap()
+            .expect("an answer");
+        // The first HPACK byte of a response head: 0x88 is `:status 200`,
+        // anything else is another status (400 is a literal).
+        if kind == 1 {
+            statuses.push((id, payload[0]));
+        }
+    }
+    statuses.sort_unstable();
+    assert_eq!(statuses[1], (3, 0x88), "one host header is served");
+    assert_ne!(statuses[0].1, 0x88, "two host headers are not");
+    running.stop.send(true).unwrap();
+}
+
+#[tokio::test]
+async fn more_headers_than_the_limit_are_refused_with_431() {
+    let running = start(quick(), true).await;
+    let (send, _driver) = h2_client(&running).await;
+    let mut many = request("GET", "/info");
+    for n in 0..600 {
+        many = many.header(format!("x-n{n}"), "v");
+    }
+    let (parts, _) = call(&send, many.body(()).unwrap(), None).await;
+    assert_eq!(parts.status, 431);
+    let (parts, _) = call(&send, request("GET", "/info").body(()).unwrap(), None).await;
+    assert_eq!(parts.status, 200);
     running.stop.send(true).unwrap();
 }
