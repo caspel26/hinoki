@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import functools
 import inspect
 import typing
 import unicodedata
@@ -34,6 +35,12 @@ from hinoki.fields import UNSET, Field, FieldInfo, Unset
 from hinoki.fieldtypes import FieldType, parse_annotation
 
 _NO_MODEL = object()
+_SUPPLIED_FIELDS = "__hinoki_supplied_fields__"
+_TRACKS_SUPPLIED_FIELDS = "__hinoki_tracks_supplied_fields__"
+_TRUSTED_CONSTRUCTOR = "__hinoki_construct_validated__"
+_MODEL_CONSTRUCTOR = "__hinoki_construct_from_model__"
+_INSTANCE_MISSING = object()
+_INVALID_INSTANCE_VALUE = object()
 
 __all__ = [
     "UNSET",
@@ -142,6 +149,284 @@ def validate_aliases(cls: type[Schema], specs: dict[str, FieldSpec]) -> None:
         owners[wire_name] = spec.name
 
 
+def validate_reserved_names(cls: type, annotations: dict[str, Any]) -> None:
+    """Keep tracking internals and the controlled-export method out of fields."""
+    tracking_names = {
+        _SUPPLIED_FIELDS,
+        _TRACKS_SUPPLIED_FIELDS,
+        _TRUSTED_CONSTRUCTOR,
+        _MODEL_CONSTRUCTOR,
+    }
+    if tracking_names & (set(cls.__dict__) | set(annotations)):
+        raise RegistrationError(
+            f"{cls.__name__}: supplied-field tracking metadata is reserved by Hinoki"
+        )
+    inherited_fields: set[str] = set()
+    inherited_annotations: set[str] = set()
+    for base in cls.__mro__[1:]:
+        inherited_annotations.update(inspect.get_annotations(base))
+        if dataclasses.is_dataclass(base):
+            inherited_fields.update(item.name for item in dataclasses.fields(base))
+    if "dump" in annotations or "dump" in inherited_fields:
+        raise RegistrationError(
+            f"{cls.__name__}.dump: field name conflicts with the "
+            "Schema.dump() method; rename the Python field"
+        )
+    if tracking_names & (inherited_fields | inherited_annotations):
+        raise RegistrationError(
+            f"{cls.__name__}: supplied-field tracking metadata is reserved by Hinoki"
+        )
+
+
+_MAX_INSTANCE_DEPTH = 128
+
+
+def instance_error(path: str) -> ValidationError:
+    return ValidationError([ErrorDetail(path, "depth", "input is nested too deeply")])
+
+
+def schema_instance_values(
+    cls: type[Schema],
+    instance: Schema,
+    *,
+    use_aliases: bool = False,
+    active: set[int] | None = None,
+    depth: int = 0,
+    path: str = "",
+) -> dict[str, Any]:
+    """Convert a bounded Python instance graph for Rust's validator."""
+    if depth > _MAX_INSTANCE_DEPTH or (active is not None and id(instance) in active):
+        raise instance_error(path)
+    active = set() if active is None else active
+    active.add(id(instance))
+    try:
+        values: dict[str, Any] = {}
+        for name, spec in cls.specs().items():
+            value = getattr(instance, name, _INSTANCE_MISSING)
+            if value is _INSTANCE_MISSING:
+                continue
+            key = spec.wire_name if use_aliases else name
+            field_path = f"{path}.{key}" if path else key
+            checked = instance_value(
+                spec.ftype,
+                value,
+                use_aliases=use_aliases,
+                active=active,
+                depth=depth + 1,
+                path=field_path,
+            )
+            if checked is not _INSTANCE_MISSING:
+                values[key] = checked
+        return values
+    finally:
+        active.remove(id(instance))
+
+
+def instance_value(
+    ftype: FieldType,
+    value: Any,
+    *,
+    use_aliases: bool,
+    active: set[int],
+    depth: int,
+    path: str,
+) -> Any:
+    """Convert typed Python values into the Rust validator's wire primitives."""
+    if value is UNSET:
+        return _INSTANCE_MISSING if ftype.allows_unset else _INVALID_INSTANCE_VALUE
+    if value is None:
+        return None
+    return typed_instance_value(
+        ftype,
+        value,
+        use_aliases=use_aliases,
+        active=active,
+        depth=depth,
+        path=path,
+    )
+
+
+def typed_instance_value(
+    ftype: FieldType,
+    value: Any,
+    *,
+    use_aliases: bool,
+    active: set[int],
+    depth: int,
+    path: str,
+) -> Any:
+    """Convert one non-null, non-UNSET typed value for native validation."""
+    if ftype.schema is not None:
+        checked = nested_instance_value(
+            ftype.schema, value, use_aliases, active, depth, path
+        )
+    elif ftype.item is not None:
+        checked = list_instance_value(
+            ftype.item, value, use_aliases, active, depth, path
+        )
+    elif ftype.kind == "uuid":
+        checked = str(value) if isinstance(value, UUID) else _INVALID_INSTANCE_VALUE
+    elif ftype.kind == "datetime":
+        checked = (
+            value.isoformat()
+            if isinstance(value, datetime)
+            else _INVALID_INSTANCE_VALUE
+        )
+    else:
+        checked = value
+    return checked
+
+
+def nested_instance_value(
+    schema: type[Schema],
+    value: Any,
+    use_aliases: bool,
+    active: set[int],
+    depth: int,
+    path: str,
+) -> Any:
+    if not isinstance(value, schema):
+        return _INVALID_INSTANCE_VALUE
+    return schema_instance_values(
+        schema,
+        value,
+        use_aliases=use_aliases,
+        active=active,
+        depth=depth,
+        path=path,
+    )
+
+
+def list_instance_value(
+    item_type: FieldType,
+    value: Any,
+    use_aliases: bool,
+    active: set[int],
+    depth: int,
+    path: str,
+) -> Any:
+    if not isinstance(value, list):
+        return value
+    if depth > _MAX_INSTANCE_DEPTH:
+        raise instance_error(path)
+    return [
+        instance_value(
+            item_type,
+            item,
+            use_aliases=use_aliases,
+            active=active,
+            depth=depth + 1,
+            path=f"{path}[{index}]",
+        )
+        for index, item in enumerate(value)
+    ]
+
+
+def validate_constructed(
+    instance: Schema, *, from_model: bool = False, use_aliases: bool = False
+) -> None:
+    """Validate values and custom checks after construction has completed."""
+    cls = type(instance)
+    cls._validate_instance(
+        instance,
+        allow_naive_datetime=from_model,
+        use_aliases=use_aliases,
+    )
+    if graph_has_checks(cls):
+        found = run_checks(instance, "", use_aliases=use_aliases)
+        if found:
+            raise ValidationError(found)
+
+
+def allocate_schema_instance(cls: type[Schema], values: dict[str, Any]) -> Schema:
+    """Call a custom ``__new__`` as normal class construction would."""
+    allocator = cls.__new__
+    if allocator is object.__new__:
+        return object.__new__(cls)
+    return allocator(cls, **values)
+
+
+def install_generated_init(cls: type[Schema], generated_init: Any) -> None:
+    """Install direct, wire-validated and model-conversion constructors."""
+
+    def construct_validated(
+        schema_cls: type[Schema], values: dict[str, Any], path_prefix: str = ""
+    ) -> Schema:
+        instance = allocate_schema_instance(schema_cls, values)
+        if type(instance).__dict__.get(_TRACKS_SUPPLIED_FIELDS, False):
+            object.__setattr__(instance, _SUPPLIED_FIELDS, frozenset(values))
+        generated_init(instance, **values)
+        if hasattr(schema_cls, "__post_init__"):
+            schema_cls._validate_instance(
+                instance, use_aliases=True, path_prefix=path_prefix
+            )
+        else:
+            schema_cls._validate_instance(
+                instance,
+                skip_fields=set(values),
+                use_aliases=True,
+                path_prefix=path_prefix,
+            )
+        return instance
+
+    def construct_from_model(
+        schema_cls: type[Schema], values: dict[str, Any]
+    ) -> Schema:
+        instance = allocate_schema_instance(schema_cls, values)
+        if type(instance).__dict__.get(_TRACKS_SUPPLIED_FIELDS, False):
+            object.__setattr__(instance, _SUPPLIED_FIELDS, frozenset(values))
+        generated_init(instance, **values)
+        if not uses_generated_init(schema_cls):
+            validate_constructed(instance, from_model=True)
+        return instance
+
+    @functools.wraps(generated_init)
+    def tracked_init(self: Schema, **values: Any) -> None:
+        if type(self) is cls and type(self).__dict__.get(
+            _TRACKS_SUPPLIED_FIELDS, False
+        ):
+            object.__setattr__(self, _SUPPLIED_FIELDS, frozenset(values))
+        generated_init(self, **values)
+        if type(self) is cls:
+            validate_constructed(self)
+
+    setattr(cls, _TRUSTED_CONSTRUCTOR, classmethod(construct_validated))
+    setattr(cls, _MODEL_CONSTRUCTOR, classmethod(construct_from_model))
+    cls.__init__ = cast(Any, tracked_init)  # type: ignore[method-assign]
+
+
+def install_custom_init(cls: type[Schema], original_init: Any) -> None:
+    """Install validated construction around an application-defined init."""
+
+    def construct_validated(
+        schema_cls: type[Schema], values: dict[str, Any], path_prefix: str = ""
+    ) -> Schema:
+        instance = allocate_schema_instance(schema_cls, values)
+        original_init(instance, **values)
+        schema_cls._validate_instance(
+            instance, use_aliases=True, path_prefix=path_prefix
+        )
+        return instance
+
+    def construct_from_model(
+        schema_cls: type[Schema], values: dict[str, Any]
+    ) -> Schema:
+        instance = allocate_schema_instance(schema_cls, values)
+        original_init(instance, **values)
+        validate_constructed(instance, from_model=True)
+        return instance
+
+    @functools.wraps(original_init)
+    def validated_init(self: Schema, *args: Any, **values: Any) -> None:
+        original_init(self, *args, **values)
+        if type(self) is cls:
+            validate_constructed(self)
+
+    setattr(cls, _TRUSTED_CONSTRUCTOR, classmethod(construct_validated))
+    setattr(cls, _MODEL_CONSTRUCTOR, classmethod(construct_from_model))
+    cls.__init__ = cast(Any, validated_init)  # type: ignore[method-assign]
+
+
 @dataclass_transform(
     kw_only_default=True, frozen_default=True, field_specifiers=(Field,)
 )
@@ -165,6 +450,7 @@ class Schema:
 
     def __init_subclass__(cls, model: object = _NO_MODEL, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
+        custom_init = "__init__" in cls.__dict__
         cls.__source__ = class_source(cls)
         cls.__assigned_field_info__ = {
             name: value
@@ -180,9 +466,16 @@ class Schema:
             cls.__derivation__ = (source, None, (), False)
             derive_from_model(cls, source, None, (), False)
         cls.__checks__ = collect_checks(cls)
-        for name in inspect.get_annotations(cls):
+        annotations = inspect.get_annotations(cls)
+        validate_reserved_names(cls, annotations)
+        for name in annotations:
             cls.apply_default(name)
         dataclasses.dataclass(frozen=True, kw_only=True)(cls)
+        setattr(cls, _TRACKS_SUPPLIED_FIELDS, not custom_init)
+        if custom_init:
+            install_custom_init(cls, cls.__init__)
+        else:
+            install_generated_init(cls, cls.__init__)
         try:
             cls.__specs__ = cls.build_specs()
         except ForwardReference:
@@ -268,6 +561,41 @@ class Schema:
         return cast(Self, instance)
 
     @classmethod
+    def _validate_instance(
+        cls,
+        instance: Schema,
+        *,
+        allow_naive_datetime: bool = False,
+        skip_fields: set[str] | None = None,
+        use_aliases: bool = False,
+        path_prefix: str = "",
+    ) -> None:
+        """Validate final Python values on a manually constructed instance."""
+        values = schema_instance_values(
+            cls, instance, use_aliases=use_aliases, path=path_prefix
+        )
+        _, problems = cls.native_schema().validate(
+            values,
+            construct=False,
+            use_aliases=use_aliases,
+            allow_naive_datetime=allow_naive_datetime,
+            skip_fields=sorted(skip_fields or ()),
+        )
+        if problems:
+            raise ValidationError(
+                [
+                    ErrorDetail(
+                        f"{path_prefix}.{path}"
+                        if path_prefix and path
+                        else path_prefix or path,
+                        code,
+                        message,
+                    )
+                    for path, code, message in problems
+                ]
+            )
+
+    @classmethod
     def fields(cls) -> dict[str, FieldSpec]:
         """Immutable description shared by binding, docs and rules."""
         return dict(cls.specs())
@@ -298,12 +626,68 @@ class Schema:
             unknown = set(extra) - set(cls.specs())
             if unknown:
                 raise TypeError(f"{cls.__name__} has no fields {sorted(unknown)}")
-        return cast(Self, model_plan(cls).build(row, extra))
+        instance = cast(Self, model_plan(cls).build(row, extra))
+        if uses_generated_init(cls):
+            cls._validate_instance(instance, allow_naive_datetime=True)
+            if graph_has_checks(cls):
+                found = run_checks(instance, "", use_aliases=False)
+                if found:
+                    raise ValidationError(found)
+        return instance
 
-    def dump(self) -> dict[str, Any]:
-        """JSON-compatible form; ``UNSET`` fields are omitted. Built in Rust,
-        like the JSON answers themselves."""
-        return dump_instance(self, True, by_alias=True)
+    def dump(
+        self,
+        *,
+        include: Iterable[str] | None = None,
+        exclude: Iterable[str] = (),
+        exclude_unset: bool = False,
+        by_alias: bool = True,
+    ) -> dict[str, Any]:
+        """Return JSON-compatible data with optional projection controls.
+
+        Selectors use Python field names. ``exclude_unset`` omits defaulted
+        fields not supplied at construction. HTTP responses use default options.
+        """
+        if type(exclude_unset) is not bool or type(by_alias) is not bool:
+            raise TypeError("exclude_unset and by_alias must be bool")
+        selected_include = normalize_selector(include, "include", self.specs())
+        selected_exclude = normalize_selector(exclude, "exclude", self.specs()) or []
+        if (
+            selected_include is None
+            and not selected_exclude
+            and not exclude_unset
+            and by_alias
+        ):
+            return dump_instance(self, True, by_alias=True)
+        return core.serialize_instance(
+            self,
+            selected_include,
+            selected_exclude,
+            exclude_unset,
+            by_alias,
+        )
+
+
+def normalize_selector(
+    values: Iterable[str] | None, label: str, specs: dict[str, FieldSpec]
+) -> list[str] | None:
+    """Validate one shallow Python-name field selector."""
+    if values is None:
+        if label == "include":
+            return None
+        raise TypeError(f"{label} must be an iterable of field names")
+    if isinstance(values, str):
+        raise TypeError(f"{label} must be an iterable of field names, not str")
+    try:
+        names = list(values)
+    except TypeError as exc:
+        raise TypeError(f"{label} must be an iterable of field names") from exc
+    if any(not isinstance(name, str) for name in names):
+        raise TypeError(f"{label} members must be strings")
+    unknown = sorted(set(names) - specs.keys())
+    if unknown:
+        raise ValueError(f"unknown {label} fields: {unknown}")
+    return names
 
 
 def chosen_columns(
@@ -376,31 +760,83 @@ def nested_schemas(cls: type[Schema]) -> list[type[Schema]]:
     return found
 
 
-def run_checks(instance: Any, path: str) -> list[ErrorDetail]:
+def run_checks(
+    instance: Any,
+    path: str,
+    *,
+    use_aliases: bool = True,
+    seen: set[int] | None = None,
+) -> list[ErrorDetail]:
     """Run the checks of an instance and of every schema inside it."""
-    problems: list[ErrorDetail] = []
-    specs = type(instance).specs()
-    for name, spec in specs.items():
-        problems.extend(
-            _nested_check_problems(getattr(instance, name), spec.wire_name, path)
-        )
-    for kind, names, method in type(instance).__checks__:
-        for target in names if kind == "field" else (None,):
-            wire_name = specs[target].wire_name if target is not None else None
-            problems += call_check(instance, method, target, wire_name, path)
+    checked_instances = seen if seen is not None else set()
+    identity = id(instance)
+    if identity in checked_instances:
+        return []
+    checked_instances.add(identity)
+    problems = nested_instance_checks(instance, path, use_aliases, checked_instances)
+    problems.extend(declared_instance_checks(instance, path, use_aliases))
     return problems
 
 
-def _nested_check_problems(value: Any, name: str, path: str) -> list[ErrorDetail]:
+def nested_instance_checks(
+    instance: Any, path: str, use_aliases: bool, seen: set[int]
+) -> list[ErrorDetail]:
+    """Run checks for every Schema field nested in an instance."""
+    problems: list[ErrorDetail] = []
+    for name, spec in type(instance).specs().items():
+        field_name = spec.wire_name if use_aliases else name
+        problems.extend(
+            _nested_check_problems(
+                getattr(instance, name),
+                field_name,
+                path,
+                use_aliases=use_aliases,
+                seen=seen,
+            )
+        )
+    return problems
+
+
+def declared_instance_checks(
+    instance: Any, path: str, use_aliases: bool
+) -> list[ErrorDetail]:
+    """Run the checks declared directly or inherited by one Schema class."""
+    problems: list[ErrorDetail] = []
+    specs = type(instance).specs()
+    for kind, names, method in type(instance).__checks__:
+        for target in names if kind == "field" else (None,):
+            wire_name = check_wire_name(specs, target, use_aliases)
+            problems.extend(call_check(instance, method, target, wire_name, path))
+    return problems
+
+
+def check_wire_name(
+    specs: dict[str, FieldSpec], target: str | None, use_aliases: bool
+) -> str | None:
+    if target is None:
+        return None
+    return specs[target].wire_name if use_aliases else target
+
+
+def _nested_check_problems(
+    value: Any,
+    name: str,
+    path: str,
+    *,
+    use_aliases: bool,
+    seen: set[int],
+) -> list[ErrorDetail]:
     where = f"{path}.{name}" if path else name
     if isinstance(value, Schema):
-        return run_checks(value, where)
+        return run_checks(value, where, use_aliases=use_aliases, seen=seen)
     if isinstance(value, list):
         return [
             problem
             for index, item in enumerate(value)
             if isinstance(item, Schema)
-            for problem in run_checks(item, f"{where}[{index}]")
+            for problem in run_checks(
+                item, f"{where}[{index}]", use_aliases=use_aliases, seen=seen
+            )
         ]
     return []
 
@@ -431,6 +867,7 @@ SOURCE_SKIP = frozenset(
         "__dict__", "__weakref__", "__annotations__", "__annotate__",
         "__annotate_func__", "__annotations_cache__", "__source__",
         "__derivation__", "__derived_model__",
+        _SUPPLIED_FIELDS, _TRACKS_SUPPLIED_FIELDS,
     }
 )  # fmt: skip
 
@@ -529,9 +966,14 @@ def uses_generated_init(cls: type) -> bool:
     init = vars(cls).get("__init__") or next(
         (vars(k)["__init__"] for k in cls.__mro__ if "__init__" in vars(k)), None
     )
-    return getattr(
+    init = inspect.unwrap(init) if init is not None else None
+    generated = getattr(
         getattr(init, "__code__", None), "co_filename", ""
     ) == "<string>" and not hasattr(cls, "__post_init__")
+    allocator = inspect.getattr_static(cls, "__new__", object.__new__)
+    if isinstance(allocator, staticmethod):
+        allocator = allocator.__func__
+    return generated and allocator is object.__new__
 
 
 def conversion_of(ftype: FieldType) -> tuple[Any, Any]:

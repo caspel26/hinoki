@@ -97,6 +97,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(schema::compile_schemas, m)?)?;
     m.add_function(wrap_pyfunction!(schema::check_pattern, m)?)?;
     m.add_function(wrap_pyfunction!(schema::dump_instance, m)?)?;
+    m.add_function(wrap_pyfunction!(schema::serialize_instance, m)?)?;
     m.add_class::<schema::ModelPlan>()?;
     m.add_function(wrap_pyfunction!(jwt::jwt_encode, m)?)?;
     m.add_function(wrap_pyfunction!(jwt::jwt_decode, m)?)?;
