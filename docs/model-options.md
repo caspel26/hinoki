@@ -41,8 +41,8 @@ class Bookmark(Model, table="bookmarks", label="Bookmark", plural="Bookmarks"):
 
 | Option | Form | Effect |
 | --- | --- | --- |
-| table | `table="bookmarks"` (class keyword, required) | the table name |
-| labels | `label=`, `plural=` (class keywords) | the singular and plural name the admin shows |
+| table | `table="bookmarks"` (optional class keyword) | overrides the default plural snake-case table name derived from the class |
+| labels | `label=`, `plural=` (optional class keywords) | override the humanized singular and plural display names derived from the class |
 | composite uniqueness | `@unique("a", "b")` | a `UNIQUE (a, b)` constraint; a single column uses `field(unique=True)` |
 | index | `@indexed("a", "b")` | a `CREATE INDEX` planned by the migration tool; adding or removing one is a non-destructive migration |
 | default order | `@ordered_by("-created_at", "id")` | every query without `order_by` (lists, pages) is ordered this way; `"-"` is descending; an explicit `order_by` replaces it, counts and bulk updates ignore it |
@@ -52,6 +52,7 @@ class Bookmark(Model, table="bookmarks", label="Bookmark", plural="Bookmarks"):
 * Stacked decorators are stored in reading order (top to bottom).
 * A model inherits the options of its [abstract bases](models.md#share-fields-abstract-models-and-mixins). A decorator on the subclass replaces everything inherited for that kind of option (`@indexed` replaces the inherited indexes, and so on) and leaves the other kinds inherited. A model that subclasses a table model does not inherit that parent's options.
 * Apply options before the model is used: the migration planner, the query layer and the admin read them from the class.
+* The fallback table/display names use a small deterministic English suffix rule, not an inflector. Use explicit values for irregular, already-plural or localized names. Pin `table=` when a class has an existing migration history; changing an implicit name is a guarded drop/create, not a table rename.
 * Index names are `ix_<table>_<columns>`, shortened deterministically (with a hash) past PostgreSQL's 63 bytes.
 
 Not yet: partial or expression indexes, per-column index options, and soft delete. For timestamps, see [utilities](utilities.md); fields are declared explicitly and migrations remain visible.

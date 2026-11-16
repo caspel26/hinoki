@@ -20,14 +20,14 @@ from hinoki.orm import Model, OnDelete, field, foreign_key, indexed, ordered_by,
 from hinoki.utils import utc_now
 
 
-class Member(Model, table="members"):
+class Member(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     email: str = field(unique=True, max_length=254)
 
 
 @indexed("owner_id", "created_at")
 @ordered_by("-created_at", "-id")
-class Task(Model, table="tasks", label="Task", plural="Tasks"):
+class Task(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     owner_id: UUID = foreign_key(Member, on_delete=OnDelete.RESTRICT, related_name="tasks")
     title: str = field(max_length=120)
@@ -35,7 +35,31 @@ class Task(Model, table="tasks", label="Task", plural="Tasks"):
     created_at: datetime = field(default_factory=utc_now)
 ```
 
-`table=` is required. A model has exactly one primary key. Fields are keyword-only when constructing a model. Single-column uniqueness is `field(unique=True)`; use `@unique("a", "b")` for a composite constraint. There is no nested `class Meta`.
+For a fresh model, Hinoki derives a plural snake-case table name and human
+display names from the class: `Member` becomes `members`, `Member` and
+`Members`; `UserProfile` becomes `user_profiles`, `User profile` and
+`User profiles`. `table=`, `label=` and `plural=` are optional overrides.
+Keep an explicit `table=` when it pins an existing migration history or when
+the physical table needs another name. This matters when renaming a Python
+class: changing an implicit table name is planned as a table drop/create and
+is protected by the destructive-migration guard, not treated as a data-safe
+rename. Irregular or localized plurals such as `Person`/`People` should set
+`table=` and `plural=` explicitly. The fallback inflection is deterministic,
+small and English-oriented; it does not guess irregular nouns. It splits
+underscores and CamelCase into words, lowercases them for the table, and applies
+these suffixes to the final word: consonant plus `y` becomes `ies`; `s`, `x`,
+`z`, `ch` and `sh` take `es`; other words take `s`. Display labels retain
+uppercase acronyms (`APIKey` becomes `API key` / `API keys`). Thus `Person`
+defaults to `persons`, and `Analysis` to `analysises`; provide explicit values
+when those mechanical defaults are not right. Generated identifiers must be
+portable ASCII SQL names of at most 63 characters. Names beginning with
+SQLite's reserved `sqlite_` prefix and Hinoki's `hinoki_migrations` ledger name
+are rejected with an override hint. Physical-table conflicts are reported
+when models are aggregated for migrations, projects or one Admin instance.
+
+A model has exactly one primary key. Fields are keyword-only when constructing a model.
+Single-column uniqueness is `field(unique=True)`; use `@unique("a", "b")` for
+a composite constraint. There is no nested `class Meta`.
 
 Supported field metadata includes primary key, uniqueness, maximum string length, defaults and foreign-key behavior. Optional built-in constraints and custom synchronous validators can also check values before ORM writes. Database types are inferred from annotations; unsupported types fail during model or migration validation.
 
@@ -206,11 +230,11 @@ class Article(Keyed, Tracked, table="articles"):
 
 `Article` has the columns `created_at`, `updated_at`, `id` and `title`, is ordered by `-updated_at`, has the index and refreshes `updated_at` on every update. `Tracked.all()` raises `ModelError`: query `Article`.
 
-* `abstract=True` is not inherited. A subclass is a table model (and needs `table=`) unless it says `abstract=True` again. An abstract model needs no primary key; a table model needs exactly one, its own or an inherited one.
+* `abstract=True` is not inherited. A subclass is a table model unless it says `abstract=True` again; its table name is derived unless `table=` overrides it. An abstract model needs no primary key; a table model needs exactly one, its own or an inherited one.
 * **Options** declared on abstract bases are inherited: every base's `@unique` constraints and `@indexed` indexes, and the order and timestamp column of the first base (in the order the bases resolve) that sets one. Applying a decorator on the subclass *replaces* what was inherited for that kind of option; it does not add to it. To keep an inherited index while adding one, declare both on the subclass. Options you do not touch stay inherited. A replacement made in an abstract base holds for everything below it: a model reads its options from the abstract bases it lists, and each of those already carries what it inherited and replaced.
 * **Plain mixins** work too: a class that is not a model contributes the fields it annotates, `field(...)` and `foreign_key(...)` included, and its methods. An annotation marked `ClassVar` is not a field. A type checker does not see a plain mixin's fields as constructor arguments, so prefer an abstract model when you construct instances with those fields.
 * **One name, two types.** If two bases give the same field name different types and the class does not declare that field itself, the class is refused with an error naming both bases. The same type from two bases is accepted, and a class (or an abstract subclass) that redeclares a field decides its type. A type checker still reports a redeclaration with an incompatible type, as it does for any class.
-* **Subclassing a table model** is allowed: the subclass needs its own `table=` and gets a copy of the parent's columns in a separate table, which `hinoki migrations plan` shows. The two tables are unrelated: there is no join between them and a query on the parent does not return the subclass's rows. A table model does not pass its options on; only abstract bases do.
+* **Subclassing a table model** is allowed: the subclass gets a copy of the parent's columns in a separate table, derived from the subclass name unless `table=` overrides it. `hinoki migrations plan` shows the new table. The two tables are unrelated: there is no join between them and a query on the parent does not return the subclass's rows. A table model does not pass its options on; only abstract bases do.
 * **Column order** follows Python's dataclass rules: the fields of model bases come first, starting from the last base listed, then the fields of plain mixins, then the class's own. Hinoki does not depend on the order; a new table is created with it.
 
 A foreign key in an abstract model or a mixin needs a reverse name that differs per subclass; see [relations](relations.md#foreign-keys-in-abstract-models-and-mixins).
