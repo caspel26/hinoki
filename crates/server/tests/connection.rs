@@ -316,7 +316,8 @@ async fn hyper_backstops_refuse_oversized_heads() {
     }
     many.push_str("\r\n");
     assert!(status_of(&running, many.into_bytes()).await.contains("431"));
-    // A head inside the plan's header limit still reaches the backend.
+    // Over the plan's header limit (32 768) but under hyper's backstop: the
+    // backend still sees it, and the plan answers 431 itself.
     let inside = "a".repeat(33_000);
     let request = format!("GET /health HTTP/1.1\r\nhost: t\r\nx: {inside}\r\n\r\n");
     assert!(status_of(&running, request.into_bytes())

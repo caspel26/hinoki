@@ -149,7 +149,10 @@ async def test_get_matches_the_asgi_answer(served: tuple[RustWorker, int]) -> No
     over_socket = await fetch(port, "GET", "/health")
     client = Client(make_app().asgi())
     await client.lifespan_event("startup")
-    in_process = await client.request("GET", "/health")
+    try:
+        in_process = await client.request("GET", "/health")
+    finally:
+        await client.lifespan_event("shutdown")
     assert over_socket.status == in_process.status == 200
     assert over_socket.json() == in_process.body
     assert dict(comparable(over_socket.headers)) == {
@@ -185,6 +188,19 @@ async def test_head_keeps_the_length_and_sends_no_body(
     assert head.header("content-length") == "15"
     writer.write(b"GET /health HTTP/1.1\r\nhost: t\r\n\r\n")  # framing still intact
     assert (await read_response(reader)).json() == {"status": "ok"}
+    writer.close()
+
+
+async def test_a_non_ascii_target_gets_the_pipelines_400(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    reader, writer = await open_connection(port)
+    writer.write("GET /caf\u00e9 HTTP/1.1\r\nhost: t\r\n\r\n".encode())
+    refused = await read_response(reader)
+    assert refused.status == 400
+    assert refused.json()["error"] == "bad_path_encoding"
+    assert refused.json()["request_id"] == refused.header("x-request-id")
     writer.close()
 
 
