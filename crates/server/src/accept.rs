@@ -43,6 +43,9 @@ pub struct ServerConfig {
     /// timeout); a client that drips a byte per interval is bounded only by the
     /// request timeout (504), as on the ASGI path.
     pub body_read_timeout: Duration,
+    /// How long a response write may make no progress (a client that stopped
+    /// reading) before the connection is closed.
+    pub write_timeout: Duration,
     /// Time running connections get to finish after a stop.
     pub shutdown_timeout: Duration,
     /// The header limit the plan enforces; sizes hyper's backstop buffer.
@@ -56,6 +59,7 @@ impl Default for ServerConfig {
             max_connections: 10_000,
             header_read_timeout: Duration::from_secs(10),
             body_read_timeout: Duration::from_secs(10),
+            write_timeout: Duration::from_secs(30),
             shutdown_timeout: Duration::from_secs(10),
             max_header_bytes: 32_768,
             max_headers: 100,
@@ -107,6 +111,7 @@ async fn run_connection<B: Backend>(
         stream,
         Framing::new(head_limit, Arc::clone(&signals)),
         signals,
+        config.write_timeout,
     );
     let connection = http1::Builder::new()
         .timer(TokioTimer::new())

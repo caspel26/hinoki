@@ -57,6 +57,7 @@ Settings types live in the `hinoki.settings` namespace: `from hinoki import sett
 | `server` | `max_connections` | unset (10000) | Rust server only: open-connection limit, `1` to `1000000`; refused under Granian |
 | `server` | `header_read_timeout` | unset (10 seconds) | Rust server only: time to receive request headers, and the keep-alive idle limit; refused under Granian |
 | `server` | `body_read_timeout` | unset (10 seconds) | Rust server only: silence allowed while a body is read (at most half of `execution.request_timeout`); refused under Granian |
+| `server` | `write_timeout` | unset (30 seconds) | Rust server only: how long a response write may make no progress before the connection is closed; above 0 and at most 3600; refused under Granian |
 | `server` | `trusted_proxies` | empty | IP addresses or CIDRs allowed to supply forwarded client/protocol metadata; an IPv6 zone id (`fe80::1%lo0`) is refused when settings load, whichever server runs |
 | `server` | `request_id_header` | `x-request-id` | HTTP header used for generated request IDs; other framework-owned names are refused |
 | `server` | `trust_request_id` | `false` | Accept a validated inbound ID only from a peer in `trusted_proxies` |
