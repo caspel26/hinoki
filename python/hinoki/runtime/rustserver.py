@@ -1,4 +1,4 @@
-"""One worker of the Rust HTTP/1.1 server (development entry point).
+"""One worker of the Rust HTTP/1.1 server.
 
 The listener, the HTTP parsing and the connection limits run on the native
 tokio runtime (``core.RustServer``). Every request the native classifier does
@@ -12,6 +12,11 @@ native layer with the same limits and error codes. ``server.trusted_proxies``
 applies as on the ASGI path: the native layer matches the TCP peer against it
 (for the request id and the policy headers of its own answers) and the pipeline
 resolves the forwarded scheme and client of queued requests from the same peer.
+
+``hinoki serve --server rust`` runs one worker in the CLI process, or, for
+several workers (and always under ``hinoki dev``), starts this module as a
+process per worker from ``hinoki.runtime.supervisor``, which owns the listening
+socket and passes it down. Run by hand it binds itself:
 
     python -m hinoki.runtime.rustserver module:app --port 8000
 """
@@ -31,10 +36,11 @@ from urllib.parse import unquote
 
 from hinoki import core
 from hinoki.errors import InvalidBody
+from hinoki.runtime.listener import inherited_address, open_listener
 from hinoki.runtime.responses import HTTPError
 from hinoki.runtime.servercore import build_server_core
-from hinoki.serve import load_target
-from hinoki.settings import AppSettings
+from hinoki.serve import load_target, settings_of
+from hinoki.settings import ServerSettings
 
 if TYPE_CHECKING:
     from hinoki.app import Hinoki
@@ -43,6 +49,9 @@ log = logging.getLogger("hinoki.runtime")
 
 # Requests taken from the native queue per call; a short batch means it is empty.
 DRAIN_BATCH = 256
+
+# Seconds between housekeeping passes (native counters, supervisor liveness).
+HOUSEKEEPING = 1.0
 
 
 class RustBody:
@@ -96,7 +105,7 @@ def scope_of(request: core.PreparedRequest, server: tuple[str, int]) -> dict[str
 class RustWorker:
     """Runs one application on the Rust server inside the current event loop."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - one parameter per native limit
         self,
         app: Hinoki,
         host: str,
@@ -105,6 +114,9 @@ class RustWorker:
         max_connections: int = 10_000,
         header_read_timeout: float = 10.0,
         body_read_timeout: float = 10.0,
+        backlog: int = 1024,
+        listener_fd: int | None = None,
+        supervised: bool = False,
     ) -> None:
         self.adapter = app.asgi()
         self.pipeline = self.adapter.pipeline
@@ -113,6 +125,13 @@ class RustWorker:
         self.max_connections = max_connections
         self.header_read_timeout = header_read_timeout
         self.body_read_timeout = body_read_timeout
+        self.backlog = backlog
+        # An inherited listening descriptor (a supervisor owns the socket); the
+        # native server takes it over. Without one, the worker binds itself.
+        self.listener_fd = listener_fd
+        self.supervised = supervised
+        self.parent = os.getppid()
+        self.timer: asyncio.TimerHandle | None = None
         # Starts not ready; the lifespan startup flips it.
         self.core = build_server_core(self.pipeline)
         self.server: core.RustServer | None = None
@@ -146,6 +165,11 @@ class RustWorker:
             raise RuntimeError(f"startup failed: {answer.get('message', '')}")
         runtime = self.pipeline.app.runtime
         try:
+            if self.listener_fd is None:
+                # Bound only now, after the startup succeeded: a failed startup
+                # leaves nothing listening.
+                listener = open_listener(self.host, self.port, self.backlog)
+                self.listener_fd = listener.detach()
             server = core.RustServer.start(
                 self.core,
                 self.host,
@@ -156,6 +180,7 @@ class RustWorker:
                 runtime.max_header_bytes,
                 # Below the request timeout, or a stalled body would be a 504.
                 min(self.body_read_timeout, runtime.request_timeout / 2),
+                self.listener_fd,
             )
         except BaseException:
             await self._lifespan("shutdown")
@@ -163,9 +188,31 @@ class RustWorker:
             raise
         self.server = server
         self.address = (self.host, server.port)
+        self.listener_fd = None  # the native server owns it now
         self.core.set_ready(True)
-        asyncio.get_running_loop().add_reader(server.wake_fd, self._wake, server)
+        loop = asyncio.get_running_loop()
+        loop.add_reader(server.wake_fd, self._wake, server)
+        self.timer = loop.call_later(HOUSEKEEPING, self._tick)
         return server.port
+
+    def _tick(self) -> None:
+        self.housekeeping()
+        self.timer = asyncio.get_running_loop().call_later(HOUSEKEEPING, self._tick)
+
+    def housekeeping(self) -> None:
+        """Once a second: report invalid trusted request ids that native
+        answers ignored (queued requests log their own), and stop when the
+        supervisor that started this worker has died."""
+        ignored = self.core.take_ignored_ids()
+        if ignored:
+            log.warning(
+                "ignored invalid request ID from trusted proxy (%d natively "
+                "answered requests)",
+                ignored,
+            )
+        if self.supervised and os.getppid() != self.parent:
+            log.error("the supervisor is gone; stopping")
+            self.stopping.set()
 
     def _wake(self, server: core.RustServer) -> None:
         """The loop's reader callback: clear the wake socket first, then drain
@@ -244,6 +291,9 @@ class RustWorker:
         server, self.server = self.server, None
         if server is None:
             return 0
+        if self.timer is not None:
+            self.timer.cancel()
+            self.timer = None
         try:
             aborted = await server.shutdown()
         finally:
@@ -259,6 +309,11 @@ class RustWorker:
             task.cancel()
         await asyncio.gather(*self.tasks, return_exceptions=True)
 
+    def _ignore_signal(self) -> None:
+        """A supervised worker leaves SIGINT to its supervisor: a terminal
+        Ctrl-C reaches the whole process group, and a second signal here
+        would abort the graceful stop."""
+
     def _on_signal(self) -> None:
         if self.stopping.is_set():
             os._exit(1)  # a second signal does not wait
@@ -269,9 +324,12 @@ class RustWorker:
         port = await self.start()
         try:
             loop = asyncio.get_running_loop()
-            for number in (signal.SIGINT, signal.SIGTERM):
-                loop.add_signal_handler(number, self._on_signal)
-            print(f"listening on http://{self.host}:{port}", flush=True)
+            loop.add_signal_handler(signal.SIGTERM, self._on_signal)
+            interrupt = self._ignore_signal if self.supervised else self._on_signal
+            loop.add_signal_handler(signal.SIGINT, interrupt)
+            if not self.supervised:
+                shown = f"[{self.host}]" if ":" in self.host else self.host
+                print(f"listening on http://{shown}:{port}", flush=True)
             await self.stopping.wait()
         finally:
             aborted = await self.stop()
@@ -280,18 +338,54 @@ class RustWorker:
         return 0
 
 
+def build_worker(
+    app: Hinoki,
+    host: str,
+    port: int,
+    settings: ServerSettings,
+    *,
+    listener_fd: int | None = None,
+    supervised: bool = False,
+) -> RustWorker:
+    """A worker for ``app`` with the limits of its ``server`` settings group
+    (``None`` keeps the native default)."""
+    limits: dict[str, Any] = {
+        name: getattr(settings, name)
+        for name in ("max_connections", "header_read_timeout", "body_read_timeout")
+        if getattr(settings, name) is not None
+    }
+    return RustWorker(
+        app,
+        host,
+        port,
+        backlog=settings.backlog,
+        listener_fd=listener_fd,
+        supervised=supervised,
+        **limits,
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m hinoki.runtime.rustserver")
     parser.add_argument("target", help="module:application or module:factory")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument(
+        "--fd", type=int, help="an inherited listening socket (host and port ignored)"
+    )
+    parser.add_argument("--supervised", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    host, port = (
+        inherited_address(args.fd) if args.fd is not None else (args.host, args.port)
+    )
     found, is_factory = load_target(args.target)
     app = found() if is_factory else found
-    settings = getattr(app, "settings", None)
-    if isinstance(settings, AppSettings):
-        core.configure_runtime(settings.server.runtime_threads)
-    return asyncio.run(RustWorker(app, args.host, args.port).run())
+    settings = settings_of(app)
+    core.configure_runtime(settings.runtime_threads)
+    worker = build_worker(
+        app, host, port, settings, listener_fd=args.fd, supervised=args.supervised
+    )
+    return asyncio.run(worker.run())
 
 
 if __name__ == "__main__":
