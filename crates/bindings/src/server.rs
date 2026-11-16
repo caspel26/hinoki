@@ -14,19 +14,24 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use hinoki_server::cors::Cors;
-use hinoki_server::early::BodyError;
+use hinoki_server::early::TemplateError;
 use hinoki_server::headers::{final_headers, Header};
 use hinoki_server::queue::Push;
-use hinoki_server::Answer;
 use hinoki_server::{
-    requestid, Early, EarlyBodies, InFlight, Limits, Permit, Plan, Queue, RoutePlan,
+    proxy, requestid, Early, EarlyBodies, InFlight, Limits, Networks, Permit, Plan, Queue,
+    RoutePlan,
 };
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use hinoki_server::{Answer, BodyError, BodyReader};
+use pyo3::exceptions::{PyException, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
 use tokio::sync::oneshot;
 
+use crate::completion;
 use crate::router::{Match, Router};
+
+// `args[0]` is `too_large`, `disconnected` or `timeout`.
+pyo3::create_exception!(core, BodyReadError, PyException);
 
 pub type Reply = Answer;
 
@@ -40,6 +45,15 @@ fn reply_to_py<'py>(py: Python<'py>, reply: &Reply) -> PyResult<Bound<'py, PyAny
         .into_any())
 }
 
+/// Where a request's body is.
+enum BodyState {
+    /// The request has none.
+    Absent,
+    Unread(BodyReader),
+    /// Handed to `body()`, or dropped by `respond`.
+    Taken,
+}
+
 /// A request accepted for the Python pipeline. `respond` completes it once.
 #[pyclass(name = "PreparedRequest", module = "hinoki.core", frozen)]
 pub struct PreparedRequest {
@@ -48,12 +62,14 @@ pub struct PreparedRequest {
     query: Vec<u8>,
     headers: Vec<Header>,
     request_id: String,
+    id_ignored: bool,
     action: Option<u32>,
     needs_headers: bool,
     params: Vec<(String, String)>,
     client: Option<(String, u16)>,
     reply: Mutex<Option<oneshot::Sender<Reply>>>,
     permit: Mutex<Option<Permit>>,
+    body: Mutex<BodyState>,
 }
 
 #[pymethods]
@@ -76,6 +92,13 @@ impl PreparedRequest {
     #[getter]
     fn request_id(&self) -> &str {
         &self.request_id
+    }
+
+    /// A trusted peer sent a request id header that was not valid, so a new id
+    /// was generated; the Python side logs it (the classifier has no logger).
+    #[getter]
+    fn id_ignored(&self) -> bool {
+        self.id_ignored
     }
 
     /// The action number, or `None` when no route matched and the Python
@@ -117,13 +140,55 @@ impl PreparedRequest {
         Ok(out)
     }
 
+    /// Read the request body (empty bytes when there is none), refusing more
+    /// than `limit` bytes. The bytes are read on the runtime and the Python
+    /// object is built on the loop thread. Nothing is read, and no `100
+    /// Continue` sent, before this is called. Raises `BodyReadError` (`args[0]`:
+    /// `too_large`, `disconnected` or `timeout`). Calling it twice raises
+    /// `RuntimeError`.
+    fn body<'py>(&self, py: Python<'py>, limit: usize) -> PyResult<Bound<'py, PyAny>> {
+        let reader = {
+            let mut state = self.body.lock().map_err(|_| poisoned())?;
+            match std::mem::replace(&mut *state, BodyState::Taken) {
+                BodyState::Unread(reader) => Some(reader),
+                BodyState::Absent => {
+                    *state = BodyState::Absent;
+                    None
+                }
+                BodyState::Taken => {
+                    return Err(PyRuntimeError::new_err(
+                        "the request body was already taken",
+                    ))
+                }
+            }
+        };
+        let read = async move {
+            match reader {
+                Some(reader) => reader.read_all(limit).await,
+                None => Ok(Vec::new()),
+            }
+        };
+        let fail = |_: Python<'_>, e: BodyError| BodyReadError::new_err(e.to_string());
+        let panicked = |_: Python<'_>| PyRuntimeError::new_err("the native body task failed");
+        completion::submit_with(
+            py,
+            read,
+            |py, bytes: Vec<u8>| Ok(PyBytes::new(py, &bytes).into_any().unbind()),
+            (fail, panicked),
+        )
+    }
+
     /// Complete the request with the final status, headers and body. Returns
     /// `False` when it was already completed or nobody is waiting any more.
     fn respond(&self, status: u16, headers: Vec<(Vec<u8>, Vec<u8>)>, body: &[u8]) -> bool {
         // The slot is free as soon as the answer is given, not when Python lets
-        // go of this object.
+        // go of this object. So is an unread body: hyper cannot finish a
+        // connection while the body is still held.
         if let Ok(mut permit) = self.permit.lock() {
             permit.take();
+        }
+        if let Ok(mut state) = self.body.lock() {
+            *state = BodyState::Taken;
         }
         let sender = self.reply.lock().ok().and_then(|mut slot| slot.take());
         sender.is_some_and(|tx| {
@@ -224,7 +289,6 @@ fn kind_of(name: &str) -> PyResult<Early> {
         "not_found" => Early::NotFound,
         "method_not_allowed" => Early::MethodNotAllowed,
         "bad_host" => Early::BadHost,
-        "not_implemented" => Early::NotImplemented,
         other => {
             return Err(PyValueError::new_err(format!(
                 "unknown early kind {other:?}"
@@ -256,6 +320,7 @@ pub struct Core {
     prefix: String,
     counter: AtomicU64,
     trust_request_id: bool,
+    proxies: Networks,
     defer_policies: bool,
     python_paths: Vec<String>,
 }
@@ -279,7 +344,7 @@ impl ServerCore {
         routes, early_bodies, policies, request_id_name, request_id_prefix,
         limits=(8192, 32_768, 1_048_576, 288), queue_capacity=4096,
         trust_request_id=false, defer_policies=false, python_paths=Vec::new(),
-        cors=None
+        cors=None, trusted_proxies=Vec::new()
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -294,13 +359,15 @@ impl ServerCore {
         defer_policies: bool,
         python_paths: Vec<String>,
         cors: Option<CorsSpec>,
+        trusted_proxies: Vec<String>,
     ) -> PyResult<Self> {
+        let proxies = Networks::parse(&trusted_proxies).map_err(PyValueError::new_err)?;
         let (router, plan) = build_routes(routes)?;
         let rendered = early_bodies
             .into_iter()
             .map(|(kind, body)| kind_of(&kind).map(|k| (k, body)))
             .collect::<PyResult<Vec<_>>>()?;
-        let bodies = EarlyBodies::new(&rendered).map_err(|BodyError::Sentinel(n)| {
+        let bodies = EarlyBodies::new(&rendered).map_err(|TemplateError::Sentinel(n)| {
             PyValueError::new_err(format!("early body has {n} sentinels, expected 1"))
         })?;
         let (max_query_bytes, max_header_bytes, max_body_bytes, max_in_flight) = limits;
@@ -329,10 +396,19 @@ impl ServerCore {
                 prefix: request_id_prefix,
                 counter: AtomicU64::new(0),
                 trust_request_id,
+                proxies,
                 defer_policies,
                 python_paths,
             }),
         })
+    }
+
+    /// Whether a socket peer address belongs to `trusted_proxies`.
+    fn trusts(&self, address: &str) -> PyResult<bool> {
+        let ip = address
+            .parse()
+            .map_err(|_| PyValueError::new_err(format!("not an IP address: {address:?}")))?;
+        Ok(self.core.proxies.contains(ip))
     }
 
     fn set_ready(&self, ready: bool) {
@@ -386,6 +462,7 @@ impl ServerCore {
             https,
             peer: None,
             refusal: None,
+            body: None,
         };
         let outcome = self.core.classify(head).map_err(PyRuntimeError::new_err)?;
         Ok(match outcome {
@@ -417,6 +494,8 @@ pub struct Head<'a> {
     /// The transport's own verdict on the request, answered right after the
     /// ready and size checks.
     pub refusal: Option<Early>,
+    /// The request body, still unread.
+    pub body: Option<BodyReader>,
 }
 
 /// What the classifier decided.
@@ -477,9 +556,11 @@ impl Core {
     /// Python pipeline. The `Err` is an internal inconsistency (a missing plan or
     /// early body), never a client mistake.
     pub fn classify(&self, head: Head<'_>) -> Result<Outcome, String> {
+        let (request_id, id_ignored) = self.request_id(&head.headers, head.trusted);
         let asked = Asked {
             head_only: head.method == "HEAD",
-            request_id: self.request_id(&head.headers, head.trusted),
+            request_id,
+            id_ignored,
             https: head.https,
             origin: origin_of(&head.headers),
         };
@@ -528,12 +609,14 @@ impl Core {
             query: head.query.to_vec(),
             headers: head.headers,
             request_id: asked.request_id.clone(),
+            id_ignored: asked.id_ignored,
             action,
             needs_headers,
             params,
             client: head.peer.map(|peer| (peer.ip().to_string(), peer.port())),
             reply: Mutex::new(Some(sender)),
             permit: Mutex::new(Some(permit)),
+            body: Mutex::new(head.body.map_or(BodyState::Absent, BodyState::Unread)),
         };
         match self.queue.push(request) {
             Ok(pushed) => Ok(Outcome::Queued {
@@ -545,9 +628,18 @@ impl Core {
         }
     }
 
+    /// Whether the socket peer is a trusted proxy and, only then, whether it
+    /// says the client used https. A forwarded scheme from anyone else is ignored.
+    pub fn peer_view(&self, peer: SocketAddr, headers: &[Header]) -> (bool, bool) {
+        let trusted = self.proxies.contains(peer.ip());
+        (trusted, trusted && proxy::forwarded_https(headers))
+    }
+
     /// The inbound id only from a trusted peer (the caller knows the peer) and
-    /// only when the application trusts inbound ids.
-    fn request_id(&self, headers: &[Header], trusted: bool) -> String {
+    /// only when the application trusts inbound ids. The flag says a trusted
+    /// peer sent an id header that was refused.
+    fn request_id(&self, headers: &[Header], trusted: bool) -> (String, bool) {
+        let mut ignored = false;
         if trusted && self.trust_request_id {
             let found: Vec<&[u8]> = headers
                 .iter()
@@ -555,10 +647,12 @@ impl Core {
                 .map(|(_, value)| value.as_slice())
                 .collect();
             if let Some(id) = requestid::inbound(&found) {
-                return id.to_owned();
+                return (id.to_owned(), false);
             }
+            ignored = !found.is_empty();
         }
-        requestid::generated(&self.prefix, self.counter.fetch_add(1, Ordering::Relaxed))
+        let id = requestid::generated(&self.prefix, self.counter.fetch_add(1, Ordering::Relaxed));
+        (id, ignored)
     }
 
     /// Documentation and OpenAPI paths are answered by the Python pipeline.
@@ -667,6 +761,7 @@ impl Core {
 pub struct Asked {
     head_only: bool,
     request_id: String,
+    id_ignored: bool,
     https: bool,
     origin: Vec<u8>,
 }
@@ -710,5 +805,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ServerCore>()?;
     m.add_class::<PreparedRequest>()?;
     m.add_class::<Submission>()?;
+    m.add("BodyReadError", m.py().get_type::<BodyReadError>())?;
     Ok(())
 }

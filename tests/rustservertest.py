@@ -14,13 +14,13 @@ from typing import Any
 
 import pytest
 
-from hinoki import Hinoki, RuntimeConfig, http
+from hinoki import Access, Hinoki, RuntimeConfig, Schema, http
 from hinoki.modules import ModuleContext
 from hinoki.request import Request
 from hinoki.runtime import rustserver
 from hinoki.runtime.rustserver import RustWorker
-from hinoki.settings import AppSettings, ServerSettings
 from tests.harness import Client
+from tests.providers import TokenAuth
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -59,6 +59,21 @@ async def made(request: Request) -> dict[str, bool]:
     return {"ok": True}
 
 
+class Note(Schema):
+    title: str
+
+
+@http.post("/notes", status=201)
+async def note(request: Request, data: Note) -> dict[str, str]:
+    return {"title": data.title}
+
+
+@http.post("/secured", access=Access(auth=TokenAuth()))
+async def secured(request: Request, data: Note) -> dict[str, str]:
+    PROBE.entered += 1
+    return {"title": data.title}
+
+
 @http.get("/block")
 async def block() -> dict[str, str]:
     PROBE.entered += 1
@@ -80,7 +95,7 @@ async def fail_startup(ctx: ModuleContext) -> None:
 
 def make_app(**config: Any) -> Hinoki:
     return Hinoki(
-        include=[health, host_of, made, block],
+        include=[health, host_of, made, note, secured, block],
         runtime=RuntimeConfig(**config),
         on_shutdown=[note_shutdown],
     )
@@ -227,20 +242,298 @@ async def test_a_post_without_a_body_reaches_the_handler(
     assert (created.status, created.json()) == (201, {"ok": True})
 
 
-async def test_a_request_with_a_body_is_refused_and_closed(
+def post(path: str, body: bytes, extra: str = "") -> bytes:
+    head = f"POST {path} HTTP/1.1\r\nhost: t\r\ncontent-type: application/json\r\n"
+    return f"{head}content-length: {len(body)}\r\n{extra}\r\n".encode() + body
+
+
+async def test_a_json_body_reaches_the_handler_and_the_connection_is_reused(
     served: tuple[RustWorker, int],
 ) -> None:
     _, port = served
     reader, writer = await open_connection(port)
-    writer.write(b"POST /made HTTP/1.1\r\nhost: t\r\ncontent-length: 3\r\n\r\nabc")
-    refused = await read_response(reader)
-    assert refused.status == 501
+    body = json.dumps({"title": "caf\u00e9\nline"}, indent=2).encode()
+    for _ in range(2):
+        writer.write(post("/notes", body))
+        created = await read_response(reader)
+        assert (created.status, created.json()) == (201, {"title": "caf\u00e9\nline"})
+        assert not any(k == "connection" for k, _ in created.headers)
+    writer.close()
+
+
+async def test_a_chunked_json_body_reaches_the_handler(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    reader, writer = await open_connection(port)
+    body = b'{"title": "chunky"}'
+    chunks = b"".join(
+        f"{len(c):x}\r\n".encode() + c + b"\r\n" for c in (body[:7], body[7:])
+    )
+    head = "POST /notes HTTP/1.1\r\nhost: t\r\ncontent-type: application/json\r\n"
+    writer.write(
+        f"{head}transfer-encoding: chunked\r\n\r\n".encode() + chunks + b"0\r\n\r\n"
+    )
+    created = await read_response(reader)
+    assert (created.status, created.json()) == (201, {"title": "chunky"})
+    assert created.header("connection") == "close"
+    assert await eof(reader)
+    writer.close()
+
+
+async def asgi_answer(method: str, path: str, **kwargs: Any) -> Any:
+    client = Client(make_app(max_body_bytes=64).asgi())
+    await client.lifespan_event("startup")
+    try:
+        return await client.request(method, path, **kwargs)
+    finally:
+        await client.lifespan_event("shutdown")
+
+
+async def send_streaming(port: int, head: bytes, body: bytes) -> tuple[Received, bool]:
+    """Send `body` while reading the answer, as a real client does."""
+    reader, writer = await open_connection(port)
+    writer.write(head)
+
+    async def push() -> None:
+        try:
+            writer.write(body)
+            await writer.drain()
+        except ConnectionError:
+            pass  # the server answered and closed first
+
+    sender = asyncio.create_task(push())
+    received = await read_response(reader)
+    closed = await eof(reader)
+    sender.cancel()
+    writer.close()
+    return received, closed
+
+
+async def test_a_declared_length_over_the_limit_is_a_413_like_asgi() -> None:
+    worker = RustWorker(make_app(max_body_bytes=64), "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        size = 256 * 1024
+        head = f"POST /notes HTTP/1.1\r\nhost: t\r\ncontent-length: {size}\r\n\r\n"
+        refused, closed = await send_streaming(port, head.encode(), b"x" * size)
+    finally:
+        await worker.stop()
+    expected = await asgi_answer(
+        "POST",
+        "/notes",
+        body=b"x" * 65,
+        content_type="application/json",
+        headers={"content-length": str(size)},
+    )
+    assert refused.status == expected.status == 413
     assert refused.json() == {
-        "error": "not_implemented",
-        "request_id": refused.header("x-request-id"),
+        **expected.body,
+        "request_id": refused.json()["request_id"],
     }
     assert refused.header("connection") == "close"
+    assert closed
+
+
+async def test_a_chunked_total_over_the_limit_is_a_413() -> None:
+    worker = RustWorker(make_app(max_body_bytes=64), "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        head = b"POST /notes HTTP/1.1\r\nhost: t\r\ntransfer-encoding: chunked\r\n\r\n"
+        chunk = b"80\r\n" + b"y" * 128 + b"\r\n"
+        refused, closed = await send_streaming(port, head, chunk * 2048 + b"0\r\n\r\n")
+    finally:
+        await worker.stop()
+    assert refused.status == 413
+    assert refused.json()["error"] == "payload_too_large"
+    assert closed
+
+
+async def test_the_limit_itself_is_accepted() -> None:
+    body = json.dumps({"title": "a" * 40}).encode()
+    worker = RustWorker(make_app(max_body_bytes=len(body)), "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        accepted = await raw(port, post("/notes", body))
+    finally:
+        await worker.stop()
+    assert accepted.status == 201
+
+
+async def test_authentication_comes_before_the_size_check_and_no_continue_is_sent(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    reader, writer = await open_connection(port)
+    head = (
+        "POST /secured HTTP/1.1\r\nhost: t\r\ncontent-length: 4\r\n"
+        "expect: 100-continue\r\n\r\n"
+    )
+    writer.write(head.encode())
+    refused = await read_response(reader)  # a 100 would be read here instead
+    assert (refused.status, refused.json()["error"]) == (401, "unauthorized")
+    assert PROBE.entered == 0
+    assert refused.header("connection") == "close"
     assert await eof(reader)
+    writer.close()
+
+
+async def test_continue_is_sent_once_the_request_is_authorized(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    reader, writer = await open_connection(port)
+    body = b'{"title": "ok"}'
+    head = (
+        "POST /secured HTTP/1.1\r\nhost: t\r\ncontent-type: application/json\r\n"
+        f"authorization: Bearer editor-token\r\ncontent-length: {len(body)}\r\n"
+        "expect: 100-continue\r\n\r\n"
+    )
+    writer.write(head.encode())
+    interim = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 5)
+    assert interim.startswith(b"HTTP/1.1 100")
+    writer.write(body)
+    done = await read_response(reader)
+    assert (done.status, done.json()) == (200, {"title": "ok"})
+    writer.close()
+
+
+async def test_an_oversized_declared_body_is_refused_without_a_continue() -> None:
+    worker = RustWorker(make_app(max_body_bytes=64), "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        reader, writer = await open_connection(port)
+        head = (
+            "POST /notes HTTP/1.1\r\nhost: t\r\ncontent-length: 9999\r\n"
+            "expect: 100-continue\r\n\r\n"
+        )
+        writer.write(head.encode())
+        refused = await read_response(reader)
+        writer.close()
+    finally:
+        await worker.stop()
+    assert (refused.status, refused.json()["error"]) == (413, "payload_too_large")
+
+
+async def test_a_stalled_body_is_a_408_before_the_request_timeout() -> None:
+    worker = RustWorker(
+        make_app(request_timeout=5), "127.0.0.1", 0, body_read_timeout=0.3
+    )
+    port = await worker.start()
+    try:
+        reader, writer = await open_connection(port)
+        writer.write(post("/notes", b'{"title": "slow"}')[:-6])
+        stalled = await read_response(reader)
+        assert await eof(reader)
+        writer.close()
+    finally:
+        await worker.stop()
+    assert (stalled.status, stalled.json()["error"]) == (408, "request_timeout")
+    assert stalled.header("connection") == "close"
+
+
+async def test_a_body_timeout_above_the_request_timeout_is_clamped() -> None:
+    worker = RustWorker(
+        make_app(request_timeout=1), "127.0.0.1", 0, body_read_timeout=60
+    )
+    port = await worker.start()
+    try:
+        reader, writer = await open_connection(port)
+        writer.write(post("/notes", b'{"title": "slow"}')[:-6])
+        stalled = await read_response(reader)
+        writer.close()
+    finally:
+        await worker.stop()
+    assert (stalled.status, stalled.json()["error"]) == (408, "request_timeout")
+
+
+async def test_a_client_that_leaves_mid_body_does_not_reach_the_handler(
+    served: tuple[RustWorker, int],
+) -> None:
+    worker, port = served
+    _, writer = await open_connection(port)
+    writer.write(
+        post(
+            "/secured", b'{"title": "gone"}', "authorization: Bearer editor-token\r\n"
+        )[:-5]
+    )
+    await writer.drain()
+    writer.close()
+    # The server may not have taken the request yet: wait for the permit to
+    # appear and go away again before reading the counter.
+    seen = False
+    for _ in range(200):
+        seen = seen or bool(worker.core.in_flight)
+        if seen and not worker.core.in_flight and not worker.core.pending:
+            break
+        await asyncio.sleep(0.025)
+    assert worker.core.in_flight == 0
+    assert PROBE.entered == 0
+    assert (await fetch(port, "GET", "/health")).status == 200
+
+
+async def test_a_disconnected_body_is_the_asgi_invalid_body_error() -> None:
+    failure = rustserver.body_failure("disconnected")
+    assert (failure.code, failure.message) == (  # type: ignore[attr-defined]
+        "disconnected",
+        "the client disconnected",
+    )
+
+
+async def test_malformed_body_framing_keeps_the_disconnected_code() -> None:
+    failure = rustserver.body_failure("malformed")
+    assert (failure.code, failure.message) == (  # type: ignore[attr-defined]
+        "disconnected",
+        "the request body is malformed",
+    )
+
+
+async def test_a_bare_lf_in_a_header_is_refused_before_the_body(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    attack = (
+        b"POST /secured HTTP/1.1\r\nhost: t\r\nx: a\n"
+        b"authorization: Bearer editor-token\r\ncontent-length: 5\r\n\r\nabcde"
+    )
+    reader, writer = await open_connection(port)
+    writer.write(attack)
+    refused = await read_response(reader)
+    assert refused.status == 400
+    assert await eof(reader)
+    writer.close()
+    assert PROBE.entered == 0
+
+
+async def test_content_length_with_transfer_encoding_is_refused(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    smuggle = (
+        b"POST /notes HTTP/1.1\r\nhost: t\r\ncontent-length: 4\r\n"
+        b"transfer-encoding: chunked\r\n\r\n0\r\n\r\n"
+        b"GET /health HTTP/1.1\r\nhost: t\r\n\r\n"
+    )
+    reader, writer = await open_connection(port)
+    writer.write(smuggle)
+    refused = await read_response(reader)
+    assert refused.status == 400
+    assert await eof(reader)
+    writer.close()
+
+
+async def test_a_request_pipelined_after_a_refused_body_is_never_answered(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    reader, writer = await open_connection(port)
+    body = b'{"title": "x"}'
+    head = f"POST /secured HTTP/1.1\r\nhost: t\r\ncontent-length: {len(body)}\r\n\r\n"
+    writer.write(head.encode() + body + b"GET /health HTTP/1.1\r\nhost: t\r\n\r\n")
+    refused = await read_response(reader)
+    assert refused.status == 401
+    assert refused.header("connection") == "close"
+    assert await asyncio.wait_for(reader.read(), 5) == b""
     writer.close()
 
 
@@ -348,15 +641,6 @@ async def test_a_busy_port_fails_and_closes_the_lifespan() -> None:
         with pytest.raises(RuntimeError):
             await worker.start()
     assert PROBE.shutdown_ran
-
-
-async def test_trusted_proxies_are_refused_before_startup() -> None:
-    settings = AppSettings(server=ServerSettings(trusted_proxies=("127.0.0.1",)))
-    app = Hinoki(include=[health], settings=settings, on_shutdown=[note_shutdown])
-    worker = RustWorker(app, "127.0.0.1", 0)
-    with pytest.raises(RuntimeError, match="trusted_proxies"):
-        await worker.start()
-    assert not PROBE.shutdown_ran  # the lifespan never started
 
 
 def spawn_server(port: int) -> subprocess.Popen[str]:
@@ -568,3 +852,50 @@ async def test_run_stops_the_server_when_it_fails_after_start() -> None:
         await worker.run()
     assert worker.server is None
     assert PROBE.shutdown_ran
+
+
+BARE_LF = b" HTTP/1.1\r\nhost: t\r\nx: a\ncontent-length: 5\r\n\r\nhello"
+CL_AND_TE = (
+    b" HTTP/1.1\r\nhost: t\r\ncontent-length: 4\r\ntransfer-encoding: chunked\r\n\r\n"
+    b"0\r\n\r\nGET /health HTTP/1.1\r\nhost: t\r\n\r\n"
+)
+
+
+@pytest.mark.parametrize("size", [41_000, 45_000, 48_000])
+@pytest.mark.parametrize("tail", [BARE_LF, CL_AND_TE], ids=["bare_lf", "cl_te"])
+async def test_an_oversized_head_cannot_hide_smuggling(
+    served: tuple[RustWorker, int], size: int, tail: bytes
+) -> None:
+    _, port = served
+    reader, writer = await open_connection(port)
+    writer.write(b"POST /secured/" + b"a" * size + tail)  # one write
+    answers = []
+    try:
+        while True:
+            answers.append(await read_response(reader))
+    except (asyncio.IncompleteReadError, ConnectionError):
+        pass  # the connection ended
+    writer.close()
+    assert [a.status for a in answers] in ([], [400], [431])
+    assert PROBE.entered == 0
+
+
+async def test_a_head_under_the_limits_still_works(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    ok = await fetch(port, "GET", "/health", f"x: {'a' * 30_000}\r\n")
+    assert ok.status == 200
+    plan = await fetch(port, "GET", "/health", f"x: {'a' * 33_000}\r\n")
+    assert plan.status == 431
+    assert plan.json()["error"] == "headers_too_large"
+
+
+async def test_a_refused_head_is_answered_before_the_client_stops_sending(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    head = b"POST /notes HTTP/1.1\r\nhost: t\r\nx: a\ncontent-length: 262144\r\n\r\n"
+    refused, closed = await send_streaming(port, head, b"x" * 262_144)
+    assert refused.status == 400
+    assert closed

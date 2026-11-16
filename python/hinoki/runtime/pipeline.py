@@ -53,6 +53,9 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("hinoki.runtime")
 
+# A route the transport matched: the action number and the raw path parameters.
+MatchedRoute = tuple[int, dict[str, str]]
+
 
 class BodySource(Protocol):
     """Where a request body comes from; the transport supplies it."""
@@ -143,12 +146,18 @@ class Pipeline:
         return app.openapi()
 
     async def handle(
-        self, scope: Scope, source: BodySource, rid: str | None = None
+        self,
+        scope: Scope,
+        source: BodySource,
+        rid: str | None = None,
+        route: MatchedRoute | None = None,
     ) -> Response:
         """Answer one request. The returned response carries its final headers
         (policy, route, request id, CORS, content-length) and its full body; a
         transport only drops the body for HEAD and writes it out. A transport
-        that already chose the request id passes it as ``rid``."""
+        that already chose the request id passes it as ``rid``, and one that
+        already matched the route passes ``route`` (the action number and the
+        raw, still percent-encoded path parameters), so it is not looked up again."""
         scope, trusted = effective_scope(scope, self.trusted_proxies)
         rid = rid or self._request_id(scope, trusted)
         token = request_id.set(rid)
@@ -157,7 +166,7 @@ class Pipeline:
         # Models use the worker's Database without it being passed around.
         db_token = database_var.set(self.ctx.find(Database))
         try:
-            response = await self._respond(scope, source, rid)
+            response = await self._respond(scope, source, rid, route)
         finally:
             database_var.reset(db_token)
             context.sync_runner.reset(runner_token)
@@ -201,11 +210,11 @@ class Pipeline:
         return Response(response.status, response.body, headers)
 
     async def _respond(  # noqa: PLR0911 - one exit per failure class
-        self, scope: Scope, source: BodySource, rid: str
+        self, scope: Scope, source: BodySource, rid: str, route: MatchedRoute | None
     ) -> Response:
         try:
             async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
-                return await self._serve(scope, source)
+                return await self._serve(scope, source, route)
         except TimeoutError as exc:
             if limit.expired():
                 return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
@@ -217,7 +226,9 @@ class Pipeline:
         except Exception as exc:
             return await error_response(exc, rid, self.app.errors, self.debug)
 
-    async def _serve(self, scope: Scope, source: BodySource) -> Response:
+    async def _serve(
+        self, scope: Scope, source: BodySource, route: MatchedRoute | None
+    ) -> Response:
         """Ready check, host and preflight policies, routing, authentication,
         then (only if the action takes a body) reading and validating it, then
         the handler."""
@@ -228,7 +239,7 @@ class Pipeline:
         early = await self._early_response(scope, headers)
         if early is not None:
             return early
-        binding, path_params = self._resolve_request(scope)
+        binding, path_params = self._resolve_request(scope, route)
         return await self._dispatch_request(
             scope, source, binding, path_params, headers
         )
@@ -263,9 +274,15 @@ class Pipeline:
             return docs_response(page)
         return None
 
-    def _resolve_request(self, scope: Scope) -> tuple[Binding, dict[str, str]]:
-        """Match a route and establish its response-header context."""
-        binding, path_params = self._route(scope)
+    def _resolve_request(
+        self, scope: Scope, route: MatchedRoute | None
+    ) -> tuple[Binding, dict[str, str]]:
+        """Match a route (unless the transport did) and establish its
+        response-header context."""
+        if route is None:
+            binding, path_params = self._route(scope)
+        else:
+            binding, path_params = self.bindings[route[0]], decode_params(route[1])
         owner = binding.route.owner
         context.route_headers.set(getattr(owner, "response_headers", ()))
         return binding, path_params

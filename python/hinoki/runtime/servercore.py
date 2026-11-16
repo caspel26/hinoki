@@ -38,8 +38,6 @@ EARLY_ERRORS: dict[str, tuple[int, str, list[tuple[bytes, bytes]] | None]] = {
     ),
     # HTTP/1.1 without exactly one Host header (RFC 9112 3.2).
     "bad_host": (HTTPStatus.BAD_REQUEST, "bad_host", None),
-    # A request with a body: this server does not read bodies yet.
-    "not_implemented": (HTTPStatus.NOT_IMPLEMENTED, "not_implemented", None),
 }
 
 
@@ -112,4 +110,6 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
         defer_policies=defer,
         python_paths=python_paths,
         cors=cors_of(pipeline),
+        # Canonical CIDRs from the same objects the Python path matches against.
+        trusted_proxies=[str(network) for network in pipeline.trusted_proxies],
     )
