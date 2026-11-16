@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from hinoki import Hinoki, core
-from hinoki.runtime.listener import inherited_address, open_listener
+from hinoki.runtime.listener import ListenError, inherited_address, open_listener
 from hinoki.runtime.rustserver import RustWorker
 from hinoki.runtime.supervisor import Supervisor
 from hinoki.serve import add_arguments, choose_server
@@ -249,3 +249,37 @@ def test_a_signal_before_the_workers_start_stops_cleanly(
     assert supervisor.run() == 0
     assert supervisor.processes == []
     assert listener.fileno() == -1  # closed
+
+
+@pytest.mark.parametrize("port", [70000, 65536, -1])
+def test_a_port_out_of_range_is_refused_even_if_the_resolver_wraps_it(
+    port: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = socket.getaddrinfo  # glibc wraps the port to 16 bits instead of failing
+    monkeypatch.setattr(
+        socket, "getaddrinfo", lambda h, p, **k: real(h, p & 0xFFFF, **k)
+    )
+    with pytest.raises(ListenError, match="invalid port"):
+        open_listener("127.0.0.1", port, 4)
+
+
+@pytest.mark.parametrize(
+    "error", [OverflowError("x"), ValueError("y"), UnicodeError("z")]
+)
+def test_resolver_and_bind_errors_that_are_not_oserrors_become_listen_errors(
+    error: Exception, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def resolver(*_: object, **__: object) -> list[object]:
+        raise error
+
+    monkeypatch.setattr(socket, "getaddrinfo", resolver)
+    with pytest.raises(ListenError, match="invalid address"):
+        open_listener("127.0.0.1", 8000, 4)
+
+    def bind(self: socket.socket, address: object) -> None:
+        raise error
+
+    monkeypatch.undo()
+    monkeypatch.setattr(socket.socket, "bind", bind)
+    with pytest.raises(ListenError, match="invalid address"):
+        open_listener("127.0.0.1", 8000, 4)

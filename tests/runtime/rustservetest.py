@@ -318,7 +318,7 @@ def test_sighup_stops_gracefully(served: list[subprocess.Popen[str]]) -> None:
 
 
 @pytest.mark.parametrize("workers", ["1", "2"])
-@pytest.mark.parametrize("fault", ["busy", "port", "host"])
+@pytest.mark.parametrize("fault", ["busy", "port70000", "port-1", "port65536", "host"])
 def test_a_listen_failure_is_one_clean_error_whatever_the_workers(
     workers: str, fault: str
 ) -> None:
@@ -327,7 +327,9 @@ def test_a_listen_failure_is_one_clean_error_whatever_the_workers(
         taken.listen()
         flags = {
             "busy": ["--port", str(taken.getsockname()[1])],
-            "port": ["--port", "70000"],
+            "port70000": ["--port", "70000"],
+            "port-1": ["--port", "-1"],
+            "port65536": ["--port", "65536"],
             "host": ["--host", "no-such-host.invalid"],
         }[fault]
         done = subprocess.run(
