@@ -23,7 +23,7 @@ class BlogSettings(settings.AppSettings):          # keeps the built-in groups
 
 Settings types live in the `hinoki.settings` namespace: `from hinoki import settings`, then `settings.AppSettings`, `settings.DatabaseSettings`, `settings.Secret`, `settings.Settings` and `settings.SettingsError`. Name your own subclass for your project (`BlogSettings` above) and keep a loaded value in a variable such as `app_settings`, so the namespace is not shadowed. Earlier revisions exported these types from `hinoki` itself and called the base class `FrameworkSettings`; `from hinoki import FrameworkSettings` now raises `ImportError`.
 
-`settings.AppSettings` brings eight groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit, 8 KiB query limit and 32 KiB header limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON, optional request ID correlation), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs), `server` (host, port and workers), `pagination` (default `page_size` and `max_page_size` for `PageNumberPagination`, see [pagination](pagination.md#defaults-for-the-whole-application)), `cors` (which browser origins may read responses) and `security` (browser response headers and optional HTTPS redirect). Three values sit beside the groups: `timezone`, `debug` and `allowed_hosts`; see [Debug, allowed hosts and CORS](#debug-allowed-hosts-and-cors). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](request-lifecycle.md).
+`settings.AppSettings` brings eight groups every app has: `execution` (8 sync workers, queue limit 64, request timeout 30 seconds, 1 MiB body limit, 8 KiB query limit and 32 KiB header limit), `lifecycle` (30-second startup and 10-second shutdown limits), `logging` (level, text or JSON, optional request ID correlation), `docs` (title, version and optional OpenAPI/Swagger/ReDoc URLs), `server` (which server, host, port, workers and proxy trust), `pagination` (default `page_size` and `max_page_size` for `PageNumberPagination`, see [pagination](pagination.md#defaults-for-the-whole-application)), `cors` (which browser origins may read responses) and `security` (browser response headers and optional HTTPS redirect). Three values sit beside the groups: `timezone`, `debug` and `allowed_hosts`; see [Debug, allowed hosts and CORS](#debug-allowed-hosts-and-cors). A field without a default is **required**. Request IDs and timeout responses are described in the [request lifecycle](request-lifecycle.md).
 
 `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` default to `None`, so no API document or viewer route is served until configured. Swagger UI or ReDoc requires an `openapi_url`. The same values can be supplied as `Hinoki(...)` arguments; explicit arguments win over `docs` settings, and `None` disables a page.
 
@@ -47,13 +47,17 @@ Settings types live in the `hinoki.settings` namespace: `from hinoki import sett
 | `docs` | `openapi_url` | `None` | JSON document route; disabled when `None` |
 | `docs` | `docs_url` | `None` | Swagger UI route; requires `openapi_url` |
 | `docs` | `redoc_url` | `None` | ReDoc route; requires `openapi_url` |
-| `server` | `host` | `127.0.0.1` | Granian bind address used by `hinoki dev/serve` |
+| `server` | `server` | `granian` | `granian` or `rust`; `--server` overrides it. See [Running an application](serving.md#the-rust-server) |
+| `server` | `host` | `127.0.0.1` | Bind address used by `hinoki dev/serve` |
 | `server` | `port` | `8000` | `1` to `65535` |
 | `server` | `workers` | `1` | `1` to `256`; `dev` uses one worker for reload |
 | `server` | `runtime_threads` | `1` | Must be positive |
 | `server` | `backlog` | `1024` | Must be positive |
-| `server` | `access_log` | `false` | Enables Granian access logging |
-| `server` | `trusted_proxies` | empty | IP addresses or CIDRs allowed to supply forwarded client/protocol metadata |
+| `server` | `access_log` | `false` | Enables Granian access logging; refused when `true` with the Rust server |
+| `server` | `max_connections` | unset (10000) | Rust server only: open-connection limit, `1` to `1000000`; refused under Granian |
+| `server` | `header_read_timeout` | unset (10 seconds) | Rust server only: time to receive request headers, and the keep-alive idle limit; refused under Granian |
+| `server` | `body_read_timeout` | unset (10 seconds) | Rust server only: silence allowed while a body is read (at most half of `execution.request_timeout`); refused under Granian |
+| `server` | `trusted_proxies` | empty | IP addresses or CIDRs allowed to supply forwarded client/protocol metadata; an IPv6 zone id (`fe80::1%lo0`) is refused |
 | `server` | `request_id_header` | `x-request-id` | HTTP header used for generated request IDs; other framework-owned names are refused |
 | `server` | `trust_request_id` | `false` | Accept a validated inbound ID only from a peer in `trusted_proxies` |
 | `cors` | `origins` | empty | Allowed browser origins (`scheme://host[:port]`), or the single entry `*`; empty disables CORS |
@@ -92,6 +96,8 @@ class BlogSettings(settings.AppSettings):
 Set `logging.include_request_id=true` to add the resolved ID to Hinoki's own log records while a request is being handled. Text logs append `request_id=<id>` and JSON logs include a `request_id` field. The ID matches the response's configured request ID header. Startup and other records outside a request omit the field. This setting is off by default, and it does not change application or third-party logger handlers.
 
 From a trusted peer, Hinoki accepts a single `X-Forwarded-Proto` value of `http` or `https` and walks a bounded `X-Forwarded-For` chain from the peer side to the first untrusted address. `Request.scheme` and `Request.client` use those validated values. Invalid, repeated or ambiguous values fall back to the socket scope. `X-Forwarded-Host` is never used: `Host`, `allowed_hosts` and generated URLs continue to use the original Host header.
+
+On a listener bound to `::`, an IPv4 peer can appear as `::ffff:a.b.c.d`, which a plain IPv4 entry does not match (the proxy is then untrusted); see [behind a reverse proxy](serving.md#behind-a-reverse-proxy).
 
 Request IDs are generated by default. With `trust_request_id=True`, one inbound configured header is accepted only from a trusted immediate peer and only when it is 1–128 visible ASCII characters without commas or controls. Otherwise Hinoki generates a new ID. The selected value appears in `Request.request_id`, built-in error JSON and the configured response header. The proxy must sanitize the incoming header before forwarding it; do not trust a broad network range merely because it is private.
 
@@ -192,7 +198,7 @@ uv run --project .. hinoki settings blog.settings:BlogSettings --prefix BLOG_ --
 
 `Hinoki(settings=app_settings)` derives the runtime limits, the docs URLs, logging setup and application timezone from the built-in settings (an explicit argument such as `title=` still wins). `app.now()` returns an aware `datetime` in the configured timezone; it defaults to UTC. The timezone is configured in settings, not as a `Hinoki(...)` argument. Your own fields are on `app.settings`, and modules reach them as `ctx.settings` in their lifespan.
 
-The `server` group (host, port, workers) is applied by `hinoki serve`/`dev` ([Running an application](serving.md)). Hinoki does not connect to secret-manager services itself; use a provider that supplies environment values or secret files.
+The `server` group (server, host, port, workers and the rest) is applied by `hinoki serve`/`dev` ([Running an application](serving.md)). Hinoki does not connect to secret-manager services itself; use a provider that supplies environment values or secret files.
 
 ## Debug, allowed hosts and CORS
 

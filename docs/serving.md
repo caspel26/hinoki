@@ -17,7 +17,7 @@ uv run --project .. hinoki serve blog.main:create_app     # production-style: no
 
 With a declared app, settings load when the target module creates the `Hinoki` object. A configured `DatabaseModule` opens that worker's pool during lifespan startup and closes it during shutdown. The pool is per worker; no database connection is opened by importing model or route modules. See [settings and database ownership](settings.md#8-database-connection-ownership).
 
-Both commands run the app under Granian. In the Hinoki checkout,
+Both commands run the app under Granian unless you choose the [Rust server](#the-rust-server) with `--server rust` or `server.server`. In the Hinoki checkout,
 `uv sync --locked` installs the development environment, including Granian's
 reload support. A project created by `hinoki new` declares the server extra in
 its source dependency; run `uv sync` in that project. The extra includes
@@ -39,8 +39,73 @@ From the application's **`server` settings group** ([settings guide](settings.md
 | `server.runtime_threads` | `BLOG_SERVER__RUNTIME_THREADS` | `1` | |
 | `server.backlog` | `BLOG_SERVER__BACKLOG` | `1024` | |
 | `server.access_log` | `BLOG_SERVER__ACCESS_LOG` | `false` | |
+| `server.server` | `BLOG_SERVER__SERVER` | `granian` | `--server` |
 
 `dev` always runs one worker with reload. The settings command shows what is in effect: `hinoki settings blog.settings:BlogSettings`.
+
+## The Rust server
+
+`hinoki serve --server rust` (or `server.server = "rust"`) runs the application on a second server that is part of Hinoki's native extension. Granian stays the default and `--server granian` always selects it; nothing changes for an app that does not opt in.
+
+```sh
+uv run --project .. hinoki serve blog.main:create_app --server rust
+uv run --project .. hinoki serve blog.main:create_app --server rust --workers 4
+uv run --project .. hinoki dev   blog.main:create_app --server rust
+```
+
+```python
+class BlogSettings(settings.AppSettings, prefix="BLOG_"):
+    server: settings.ServerSettings = settings.ServerSettings(server="rust", workers=4)
+```
+
+### What is native and what still runs in Python
+
+The listener, HTTP/1.1 parsing, connection and header limits, body framing and its limits and timeouts, route matching, the request ID, and the answers that need no application code run on the native runtime without taking the Python interpreter lock. A request the native layer can answer by itself is answered there: unknown paths and methods (`404`, `405` with `Allow`), oversized request lines or headers, `503` while the worker is not ready or the in-flight limit is reached, and malformed requests. The response carries the same security headers, request ID, CORS and HSTS policy as one produced by the application.
+
+Everything else still runs in Python on the asyncio loop: the lifespan, the request pipeline (binding, access policies, validation, the handler, error translation and response assembly), synchronous handlers on the bounded executor, the documentation and OpenAPI pages, and the completion of database calls. The request body is read natively, but only when the pipeline asks for it, after authentication, so an unauthenticated client cannot make the server buffer a body. This is a faster front end, not an application written in Rust; no performance figure is claimed here.
+
+### Limits
+
+* HTTP/1.1 only: no TLS (terminate it at a reverse proxy), no HTTP/2 and no WebSocket or other protocol upgrades.
+* A request line plus headers larger than `execution.max_header_bytes`, or a query longer than `execution.max_query_bytes`, is refused (`431`, `414`). A body larger than `execution.max_body_bytes` is refused with `413`, by `Content-Length` before any byte is read or, for chunked bodies, as soon as the total passes the limit. A client that sends nothing for `body_read_timeout` seconds (10 by default, never more than half of `execution.request_timeout`) gets `408`.
+* A client that does not finish its request headers within `header_read_timeout` seconds (10 by default) is disconnected; the same timer closes idle keep-alive connections.
+* `max_connections` (10000 by default) bounds open connections. Requests waiting for the application are bounded by an in-flight limit and a queue; beyond them the answer is `503`.
+* Requests with ambiguous framing (for example `Content-Length` together with `Transfer-Encoding`, repeated lengths, or a bare line feed in the head) are refused with `400` and the connection is closed.
+* There is no access log: `server.access_log=true` is refused with `--server rust`.
+* A client that disconnects does not cancel its running handler; the handler finishes and its answer is discarded.
+
+### Settings that apply to one server only
+
+`hinoki serve` refuses a setting the chosen server cannot honour, by name, and exits with status 2; it never ignores it or falls back to the other server.
+
+| Setting | Rust server | Granian |
+| --- | --- | --- |
+| `host`, `port`, `workers`, `runtime_threads`, `backlog`, `trusted_proxies`, `request_id_header`, `trust_request_id` | applied | applied |
+| `access_log` | refused when `true` | applied |
+| `max_connections`, `header_read_timeout`, `body_read_timeout` | applied when set | refused when set |
+
+If the native extension of a build has no Rust server, `--server rust` fails with an error that says so.
+
+### Workers, signals and restarts
+
+With one worker `hinoki serve` runs the server in its own process. With several workers (and always under `hinoki dev`) it starts a supervisor that opens the listening socket once (honouring `backlog`), starts each worker as a fresh process that imports the target and builds the application, and passes the socket down. Workers share the one socket, so connections are spread by the operating system's accept; Hinoki does not balance them. Databases and pools open inside each worker's lifespan, never in the supervisor.
+
+* `SIGTERM` or `SIGINT` (Ctrl-C) stops accepting, lets running requests finish for up to `lifecycle.shutdown_timeout`, runs the lifespan shutdown and exits. A worker still running five seconds after that is killed. A second signal kills the workers immediately.
+* A worker that exits on its own, whether it failed to start or crashed, is not restarted: the supervisor stops the other workers and exits with a non-zero status. Restart policy belongs to the process manager (systemd, a container runtime) that runs `hinoki serve`.
+* The listening socket is opened before the lifespan startup of a supervised worker finishes, so connections wait in the backlog until a worker accepts them. With one worker the socket is opened after a successful startup.
+* If the supervisor is killed without a chance to clean up, its workers notice within a second and stop.
+
+### `hinoki dev --server rust`
+
+The supervisor watches the project directory (`*.py`, `*.toml` and `.env` files; `.venv`, `.git` and caches are ignored) and, on a change, stops the worker gracefully and starts a new one on the same socket, so a client connecting during the restart waits instead of being refused. If the new code fails to import or start, the traceback is printed once, `waiting for changes` follows, and the next edit starts the worker again; connections wait in the meantime. Host, port and the `server` group are read once when `hinoki dev` starts: change them and restart the command. The first import of the target happens in the command itself, so an error there stops it with a message instead of waiting. `dev` needs `watchfiles` (the `hinoki[server]` extra) and uses one worker.
+
+### Behind a reverse proxy
+
+`server.trusted_proxies` works as described in [settings](settings.md#reverse-proxies-and-request-ids): the native layer matches the TCP peer against it for the request ID and the HSTS and scheme policy of its own answers, and the request pipeline resolves the forwarded scheme and client address of the requests it handles from the same peer. Two points to know:
+
+* Entries are IP addresses or CIDRs. An IPv6 address with a zone id such as `fe80::1%lo0` is refused when settings load.
+* On a listener bound to `::` that also accepts IPv4 (the default on many systems, for example Linux with `bindv6only=0` and macOS), an IPv4 peer appears as `::ffff:a.b.c.d`. A plain IPv4 entry such as `10.0.0.5` or `10.0.0.0/8` then never matches, and the proxy is treated as untrusted. That fails closed, and the ASGI path behaves the same. Either bind an IPv4 host (`--host 0.0.0.0`) or list the mapped form, for example `::ffff:10.0.0.0/104`.
+* A request ID that a trusted proxy sent and Hinoki refused is logged as `ignored invalid request ID from trusted proxy`; for requests answered natively the warning is aggregated once a second with a count.
 
 ## Declaring where settings are read
 
