@@ -207,10 +207,10 @@ class RustWorker:
             raise
         self.server = server
         self.address = (self.host, server.port)
-        self.core.set_ready(True)
         loop = asyncio.get_running_loop()
         loop.add_reader(server.wake_fd, self._wake, server)
         self.timer = loop.call_later(HOUSEKEEPING, self._tick)
+        self.core.set_ready(True)
         return server.port
 
     def _tick(self) -> None:
@@ -330,6 +330,7 @@ class RustWorker:
         server, self.server = self.server, None
         if server is None:
             return 0
+        self.core.set_ready(False)
         if self.timer is not None:
             self.timer.cancel()
             self.timer = None
@@ -342,7 +343,6 @@ class RustWorker:
         finally:
             asyncio.get_running_loop().remove_reader(server.wake_fd)
             await self._cancel_requests()
-            self.core.set_ready(False)
             await self._lifespan("shutdown")
             await self._finish_lifespan()
         return aborted

@@ -47,10 +47,31 @@ def early_bodies() -> list[tuple[str, bytes]]:
     the sentinel as request id."""
     token = request_id.set(SENTINEL)
     try:
-        return [
+        rendered = [
             (kind, HTTPError(status, error, headers).response.body)
             for kind, (status, error, headers) in EARLY_ERRORS.items()
         ]
+        rendered.extend(
+            [
+                (
+                    "invalid_query",
+                    HTTPError(
+                        HTTPStatus.BAD_REQUEST,
+                        "invalid_query",
+                        message="malformed query string",
+                    ).response.body,
+                ),
+                (
+                    "not_acceptable",
+                    HTTPError(
+                        HTTPStatus.NOT_ACCEPTABLE,
+                        "not_acceptable",
+                        available="application/json",
+                    ).response.body,
+                ),
+            ]
+        )
+        return rendered
     finally:
         request_id.reset(token)
 
@@ -160,4 +181,10 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
         cors=cors_of(pipeline),
         # Canonical CIDRs from the same objects the Python path matches against.
         trusted_proxies=[str(network) for network in pipeline.trusted_proxies],
+        startup_path=pipeline.startup_url,
+        startup_body=(
+            pipeline.startup_response.body
+            if pipeline.startup_response is not None
+            else b""
+        ),
     )

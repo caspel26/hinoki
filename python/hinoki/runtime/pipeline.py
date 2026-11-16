@@ -28,7 +28,7 @@ from hinoki.docsui import pages as docs_pages
 from hinoki.errors import ErrorDetail, InvalidBody, RegistrationError, ValidationError
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
-from hinoki.renderers import Renderer, negotiate
+from hinoki.renderers import JSONRenderer, Renderer, negotiate
 from hinoki.reply import Reply
 from hinoki.request import Request
 from hinoki.routing import MethodNotAllowed
@@ -119,8 +119,15 @@ class Pipeline:
     def __init__(self, app: Hinoki) -> None:
         self.app = app
         self.bindings = app.bindings
+        self.startup_url = app.startup_url
         self.document = self._document(app)
         self.docs = docs_pages(app.openapi_url, app.docs_url, app.redoc_url)
+        self.startup_response = (
+            Response.json(HTTPStatus.OK, {"status": "ok"})
+            if self.startup_url is not None
+            else None
+        )
+        self._check_startup_url()
         for path in self.docs:
             if app.lookup("GET", path) is not None:
                 raise RegistrationError(
@@ -172,6 +179,20 @@ class Pipeline:
         if any(route.path == app.openapi_url for route in app.routes):
             raise RegistrationError(f"{app.openapi_url} is already used by a route")
         return app.openapi()
+
+    def _check_startup_url(self) -> None:
+        """Keep the fixed probe out of application and documentation routes."""
+        path = self.startup_url
+        if path is None:
+            return
+        if path == self.app.openapi_url or path in self.docs:
+            raise RegistrationError(
+                f"{path} is already used by the documentation viewer"
+            )
+        if any(
+            self.app.lookup(route.method, path) is not None for route in self.app.routes
+        ):
+            raise RegistrationError(f"{path} is already matched by a route")
 
     async def handle(
         self,
@@ -337,6 +358,9 @@ class Pipeline:
             )
             if redirect is not None:
                 return redirect
+        startup = self._startup_response(scope, headers)
+        if startup is not None:
+            return startup
         if self.document is not None and self._is_document_request(scope):
             return Response.json(HTTPStatus.OK, self.document)
         page = (
@@ -345,6 +369,37 @@ class Pipeline:
         if page is not None:
             return docs_response(page)
         return None
+
+    def _startup_response(
+        self, scope: Scope, headers: dict[str, str]
+    ) -> Response | None:
+        """Respond to the configured startup probe without resolving a route."""
+        path = self.startup_url
+        if path is None:
+            return None
+        raw_path = scope.get("raw_path")
+        if raw_path is None:
+            if scope.get("path") != path:
+                return None
+        elif raw_path != path.encode("ascii"):
+            return None
+        method = scope["method"]
+        if method not in {"GET", "HEAD"}:
+            raise HTTPError(
+                HTTPStatus.METHOD_NOT_ALLOWED,
+                "method_not_allowed",
+                [(b"allow", b"GET, HEAD")],
+            )
+        if negotiate(headers.get("accept", ""), (JSONRenderer(),)) is None:
+            raise HTTPError(
+                HTTPStatus.NOT_ACCEPTABLE,
+                "not_acceptable",
+                available="application/json",
+            )
+        parse_query(scope.get("query_string", b""))
+        if self.startup_response is None:
+            raise RuntimeError("startup response was not initialized")
+        return self.startup_response
 
     def _resolve_request(
         self, scope: Scope, route: MatchedRoute | None
