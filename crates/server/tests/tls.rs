@@ -5,8 +5,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+use hinoki_server::framing::{Framing, Guarded, Signals};
 use hinoki_server::tls::acceptor;
-use hinoki_server::{serve, Answer, Backend, Incoming, ServerConfig};
+use hinoki_server::{serve, Answer, Backend, Closed, Incoming, ServerConfig};
 use rustls::crypto::ring::default_provider;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, ServerName};
@@ -14,6 +15,7 @@ use rustls::{ClientConfig, RootCertStore};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use tokio_rustls::client::TlsStream;
 use tokio_rustls::TlsConnector;
@@ -45,6 +47,7 @@ fn fixture(name: &str) -> PathBuf {
 struct Running {
     addr: SocketAddr,
     stop: watch::Sender<bool>,
+    task: JoinHandle<Closed>,
 }
 
 async fn start(config: ServerConfig) -> Running {
@@ -56,8 +59,8 @@ async fn start(config: ServerConfig) -> Running {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let (stop, receiver) = watch::channel(false);
-    tokio::spawn(serve(listener, Arc::new(Echo), config, Some(tls), receiver));
-    Running { addr, stop }
+    let task = tokio::spawn(serve(listener, Arc::new(Echo), config, Some(tls), receiver));
+    Running { addr, stop, task }
 }
 
 fn client(versions: &[&'static rustls::SupportedProtocolVersion]) -> TlsConnector {
@@ -152,4 +155,66 @@ async fn a_client_that_never_handshakes_is_closed_by_the_header_read_timeout() {
     let outcome = timeout(WAIT, silent.read(&mut byte)).await.unwrap();
     assert!(matches!(outcome, Ok(0) | Err(_)));
     running.stop.send(true).unwrap();
+}
+
+#[tokio::test]
+async fn a_client_still_in_its_handshake_does_not_hold_a_stop_back() {
+    let config = ServerConfig {
+        header_read_timeout: Duration::from_secs(5),
+        shutdown_timeout: Duration::from_millis(1500),
+        ..ServerConfig::default()
+    };
+    let running = start(config).await;
+    let _silent = TcpStream::connect(running.addr).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    running.stop.send(true).unwrap();
+    let closed = timeout(Duration::from_millis(1000), running.task)
+        .await
+        .expect("the stop waited for the silent client")
+        .unwrap();
+    assert_eq!(closed, Closed { aborted: 0 });
+}
+
+/// `close_notify` is written on shutdown; a client that stopped reading must not
+/// be able to stall it past the write timeout (sizes near a 4 KiB pipe).
+#[tokio::test]
+async fn shutdown_over_tls_is_bounded_by_the_write_timeout() {
+    let tls = acceptor(
+        &fixture("localhost-cert.pem"),
+        &fixture("localhost-key.pem"),
+    )
+    .unwrap();
+    for n in 40..68usize {
+        let (client_io, server_io) = tokio::io::duplex(4096);
+        let connect = client(rustls::ALL_VERSIONS)
+            .connect(ServerName::try_from("localhost").unwrap(), client_io);
+        let (server, client_side) = tokio::join!(tls.accept(server_io), connect);
+        let (server, mut client_side) = (server.unwrap(), client_side.unwrap());
+        // Let the client take what the handshake left, so the pipe starts empty.
+        let mut byte = [0u8; 1];
+        let _ = timeout(Duration::from_millis(20), client_side.read(&mut byte)).await;
+        let signals = Arc::new(Signals::default());
+        let mut guarded = Guarded::new(
+            server,
+            Framing::new(1024, Arc::clone(&signals)),
+            signals,
+            Duration::from_millis(100),
+        );
+        let payload = vec![b'x'; 4096 - 22 - 64 + n];
+        let wrote = timeout(Duration::from_millis(500), async {
+            guarded.write_all(&payload).await?;
+            guarded.flush().await
+        })
+        .await;
+        if matches!(wrote, Ok(Ok(()))) {
+            assert!(
+                timeout(Duration::from_secs(1), guarded.shutdown())
+                    .await
+                    .is_ok(),
+                "shutdown hung with a {} byte payload",
+                payload.len()
+            );
+        }
+        drop(client_side);
+    }
 }

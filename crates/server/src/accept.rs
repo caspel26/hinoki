@@ -102,13 +102,19 @@ async fn run_connection<B: Backend>(
     backend: Arc<B>,
     config: ServerConfig,
     tls: Option<TlsAcceptor>,
-    stop: Stop,
+    mut stop: Stop,
 ) {
     let _ = stream.set_nodelay(true);
     let Some(acceptor) = tls else {
         return serve_stream(stream, false, peer, backend, config, stop).await;
     };
-    if let Ok(Ok(secured)) = timeout(config.header_read_timeout, acceptor.accept(stream)).await {
+    // A client still in its handshake does not hold a stop back.
+    let handshake = timeout(config.header_read_timeout, acceptor.accept(stream));
+    let secured = tokio::select! {
+        done = handshake => done,
+        () = stopped(&mut stop) => return,
+    };
+    if let Ok(Ok(secured)) = secured {
         serve_stream(secured, true, peer, backend, config, stop).await;
     }
 }

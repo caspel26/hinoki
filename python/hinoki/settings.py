@@ -972,7 +972,7 @@ class ServerSettings(Settings):
         for name in ("tls_cert_file", "tls_key_file"):
             path = getattr(self, name)
             if path is not None and not Path(path).is_file():
-                raise ValueError(f"{name} is not a readable file: {path}")
+                raise ValueError(f"{name} is not a file: {path}")
 
     def conflicts(self, server: str | None = None) -> list[str]:
         """The settings that ``server`` (default: this group's) cannot honour."""

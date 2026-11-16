@@ -1,8 +1,11 @@
 """Trusted proxies and single routing in the Rust HTTP/1.1 server, over real sockets."""
 
+import asyncio
 import logging
+import ssl
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -13,7 +16,7 @@ from hinoki.runtime.proxy import trusted_peer
 from hinoki.runtime.rustserver import RustWorker
 from hinoki.runtime.servercore import build_server_core
 from hinoki.settings import AppSettings, SecuritySettings, ServerSettings
-from tests.rustservertest import Received, fetch
+from tests.rustservertest import Received, fetch, read_response
 
 FORWARDED = (
     "x-forwarded-proto: https\r\n"
@@ -280,3 +283,38 @@ async def test_a_failing_housekeeping_pass_does_not_end_the_chain(
     finally:
         monkeypatch.undo()
         await worker.stop()
+
+
+TLS_DIR = Path(__file__).parent / "tls"
+
+
+async def test_a_trusted_proxy_scheme_wins_over_tls_in_python_and_native_answers() -> (
+    None
+):
+    worker = RustWorker(
+        make_app(TRUSTED),
+        "127.0.0.1",
+        0,
+        tls_cert_file=str(TLS_DIR / "localhost-cert.pem"),
+        tls_key_file=str(TLS_DIR / "localhost-key.pem"),
+    )
+    port = await worker.start()
+    context = ssl.create_default_context(cafile=str(TLS_DIR / "localhost-cert.pem"))
+    answers = []
+    try:
+        for path in ("/info", "/nope"):
+            reader, writer = await asyncio.open_connection(
+                "127.0.0.1", port, ssl=context, server_hostname="localhost"
+            )
+            writer.write(
+                f"GET {path} HTTP/1.1\r\nhost: t\r\nx-forwarded-proto: http\r\n"
+                "connection: close\r\n\r\n".encode()
+            )
+            answers.append(await read_response(reader))
+            writer.close()
+    finally:
+        await worker.stop()
+    python, native = answers
+    assert python.json()["scheme"] == "http"
+    assert not hsts(python)
+    assert not hsts(native)  # the native 404 agrees with the Python answer

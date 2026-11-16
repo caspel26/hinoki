@@ -638,11 +638,15 @@ impl Core {
         }
     }
 
-    /// Whether the socket peer is a trusted proxy and, only then, whether it
-    /// says the client used https. A forwarded scheme from anyone else is ignored.
-    pub fn peer_view(&self, peer: SocketAddr, headers: &[Header]) -> (bool, bool) {
+    /// Whether the socket peer is a trusted proxy and, only then, the scheme it
+    /// forwards (`None` when it names none). A forwarded scheme from anyone else
+    /// is ignored.
+    pub fn peer_view(&self, peer: SocketAddr, headers: &[Header]) -> (bool, Option<bool>) {
         let trusted = self.proxies.contains(peer.ip());
-        (trusted, trusted && proxy::forwarded_https(headers))
+        (
+            trusted,
+            trusted.then(|| proxy::forwarded_scheme(headers)).flatten(),
+        )
     }
 
     /// The inbound id only from a trusted peer (the caller knows the peer) and

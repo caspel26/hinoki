@@ -89,7 +89,8 @@ impl Backend for CoreBackend {
             body,
         } = request;
         let (trusted, forwarded) = self.core.peer_view(peer, &headers);
-        let https = secure || forwarded;
+        // A trusted proxy's scheme wins, like the Python resolution does.
+        let https = forwarded.unwrap_or(secure);
         let head = Head {
             method: &method,
             path: &path,
