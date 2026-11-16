@@ -10,7 +10,7 @@ One page for each part of an application. Start with the data and endpoint guide
 
 - [Models and queries](models.md): Models map Python classes to database tables, with typed queries and opt-in write-time field validation.
 - [Configure a database](databases.md): Set the backend URL, install the database module and apply migrations safely.
-- [Schemas and validation](schemas.md): A Schema describes data that crosses the API boundary, with built-in constraints, typed string normalization and custom rejection checks.
+- [Schemas and validation](schemas.md): A Schema describes API data, with typed validation, normalization, rejection checks and class-level unknown-field policies.
 - [Model-derived schemas](model-schemas.md): A Schema can take its fields and constraints from a Model.
 - [Model options](model-options.md): Options that describe a model beyond its columns are decorators, read like the action decorators.
 - [Utilities](utilities.md): Hinoki includes a small set of helpers where the framework can define clear behavior.
