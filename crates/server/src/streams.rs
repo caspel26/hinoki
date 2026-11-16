@@ -6,22 +6,30 @@
 //! head is complete until its response body is dropped, and [`Streams::watch`]
 //! tells the connection task to close:
 //!
-//! * [`Close::Idle`]: no stream was open for `idle` (a connection that only
-//!   answers pings). Graceful: GOAWAY, then drain. A client that trickles the
-//!   head of a stream while others run is not bounded here (h2 exposes no
-//!   per-head timer); it is bounded when it is the only activity.
-//! * [`Close::Hard`], on a flow-control stall: a response body is being sent and
-//!   no DATA moved for `stall` (the peer keeps its window at zero while still
-//!   answering pings). Bodies are handed to hyper in [`CHUNK`]-sized frames, and
-//!   hyper asks for the next one only when the previous was accepted by the
-//!   stream window, so the time between two polls measures send progress. It is
-//!   a connection-wide measure: it fires when no stream makes progress.
-//! * [`Close::Hard`], on a reset flood: more than [`RESET_LIMIT`] streams ended
-//!   without their response being completed ([`RESET_WINDOW`] seconds window)
-//!   are client resets of requests the backend already received, which hyper
-//!   does not count. hyper cannot send `GOAWAY(ENHANCE_YOUR_CALM)` from here, so
-//!   the connection is dropped.
+//! * [`Close::Graceful`], when no stream was open for `idle` (a connection that
+//!   only answers pings): GOAWAY, then drain, bounded by the shutdown timeout. A
+//!   stream opened in the GOAWAY race is accepted and then cut when that bound
+//!   ends. A client that trickles the head of a stream while others run is not
+//!   bounded here (h2 exposes no per-head timer); it is bounded when it is the
+//!   only activity.
+//! * [`Close::Graceful`], when one response made no progress for `stall` (the
+//!   peer keeps that stream's window at zero while answering pings, or stopped
+//!   reading). Bodies are handed to hyper in [`CHUNK`]-sized frames, and hyper
+//!   asks for the next one only when the previous was accepted by the stream
+//!   window, so the time since a stream's last poll measures its own progress; a
+//!   new stream never resets it. hyper offers no way to reset one stream from
+//!   outside (the stalled one is not polled), so the whole connection gets a
+//!   GOAWAY and its other streams get the shutdown timeout to finish, after which
+//!   the stalled one is cut with the connection.
+//! * [`Close::Hard`], on a reset flood: more than [`RESET_LIMIT`] streams of this
+//!   connection ended without their response being completed within a fixed
+//!   [`RESET_WINDOW`] are client resets of requests the backend already received,
+//!   which hyper does not count. The count is per connection, not per client: a
+//!   client can pass up to twice the limit across a window boundary, and a new
+//!   connection starts from zero. hyper cannot send `GOAWAY(ENHANCE_YOUR_CALM)`
+//!   from here, so the connection is dropped.
 
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::future::Future;
 use std::pin::Pin;
@@ -48,7 +56,7 @@ pub const RESET_WINDOW: Duration = Duration::from_secs(10);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Close {
     /// Send GOAWAY and let the connection finish.
-    Idle,
+    Graceful,
     /// Drop the connection.
     Hard,
 }
@@ -56,9 +64,10 @@ pub enum Close {
 pub struct Streams {
     born: Instant,
     open: AtomicUsize,
-    sending: AtomicUsize,
-    /// Milliseconds after `born` of the last DATA frame handed to hyper.
-    progress: AtomicU64,
+    next_id: AtomicU64,
+    /// The responses being sent, with the milliseconds after `born` of the last
+    /// DATA frame of each handed to hyper.
+    sending: Mutex<HashMap<u64, u64>>,
     flooded: AtomicBool,
     window: Mutex<(Instant, u32)>,
     changed: Notify,
@@ -70,8 +79,8 @@ impl Streams {
         Arc::new(Self {
             born: now,
             open: AtomicUsize::new(0),
-            sending: AtomicUsize::new(0),
-            progress: AtomicU64::new(0),
+            next_id: AtomicU64::new(0),
+            sending: Mutex::new(HashMap::new()),
             flooded: AtomicBool::new(false),
             window: Mutex::new((now, 0)),
             changed: Notify::new(),
@@ -85,18 +94,29 @@ impl Streams {
         Entry {
             streams: Arc::clone(self),
             done: false,
+            id: self.next_id.fetch_add(1, Ordering::Relaxed),
             sending: false,
         }
     }
 
-    fn touch(&self) {
-        let millis = u64::try_from(self.born.elapsed().as_millis()).unwrap_or(u64::MAX);
-        self.progress.store(millis, Ordering::Release);
+    fn sending(&self) -> std::sync::MutexGuard<'_, HashMap<u64, u64>> {
+        self.sending.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    fn quiet(&self) -> Duration {
-        let last = Duration::from_millis(self.progress.load(Ordering::Acquire));
-        self.born.elapsed().saturating_sub(last)
+    fn touch(&self, id: u64) {
+        let millis = u64::try_from(self.born.elapsed().as_millis()).unwrap_or(u64::MAX);
+        self.sending().insert(id, millis);
+    }
+
+    /// How long the response that has been quiet the longest has been so, or
+    /// `None` when nothing is being sent.
+    fn quiet(&self) -> Option<Duration> {
+        let oldest = self.sending().values().min().copied()?;
+        Some(
+            self.born
+                .elapsed()
+                .saturating_sub(Duration::from_millis(oldest)),
+        )
     }
 
     fn note_reset(&self) {
@@ -118,22 +138,17 @@ impl Streams {
             }
             let limit = if self.open.load(Ordering::Acquire) == 0 {
                 Some(idle)
-            } else if self.sending.load(Ordering::Acquire) > 0 {
-                Some(stall.saturating_sub(self.quiet()))
             } else {
-                None
+                self.quiet().map(|quiet| stall.saturating_sub(quiet))
             };
             let Some(limit) = limit else {
                 self.changed.notified().await;
                 continue;
             };
-            if timeout(limit, self.changed.notified()).await.is_err() {
-                if self.open.load(Ordering::Acquire) == 0 {
-                    return Close::Idle;
-                }
-                if self.sending.load(Ordering::Acquire) > 0 && self.quiet() >= stall {
-                    return Close::Hard;
-                }
+            let timed_out = timeout(limit, self.changed.notified()).await.is_err();
+            if timed_out && (self.open.load(Ordering::Acquire) == 0 || self.quiet() >= Some(stall))
+            {
+                return Close::Graceful;
             }
         }
     }
@@ -143,13 +158,14 @@ impl Streams {
 pub struct Entry {
     streams: Arc<Streams>,
     done: bool,
+    id: u64,
     sending: bool,
 }
 
 impl Drop for Entry {
     fn drop(&mut self) {
         if self.sending {
-            self.streams.sending.fetch_sub(1, Ordering::AcqRel);
+            self.streams.sending().remove(&self.id);
         }
         if !self.done {
             self.streams.note_reset();
@@ -179,7 +195,7 @@ impl Body for Chunked {
             return Poll::Ready(None);
         }
         let chunk = this.rest.split_to(this.rest.len().min(CHUNK));
-        this.entry.streams.touch();
+        this.entry.streams.touch(this.entry.id);
         this.entry.done = this.rest.is_empty();
         Poll::Ready(Some(Ok(Frame::data(chunk))))
     }
@@ -207,8 +223,7 @@ pub async fn track(
     entry.done = rest.is_empty();
     if !rest.is_empty() {
         entry.sending = true;
-        entry.streams.sending.fetch_add(1, Ordering::AcqRel);
-        entry.streams.touch();
+        entry.streams.touch(entry.id);
         entry.streams.changed.notify_one();
     }
     Ok(Response::from_parts(parts, Chunked { rest, entry }))

@@ -106,7 +106,11 @@ fn incoming_of(
         .collect();
     // hyper enforces `max_headers` on HTTP/1 while parsing; h2 only bounds the
     // list by size, so the count is checked here.
-    let refusal = if headers.len() > transport.max_headers {
+    // h2 sends one `cookie` field per crumb (RFC 9113 8.2.3); they are one line
+    // on HTTP/1, so they count once.
+    let crumbs = headers.iter().filter(|(name, _)| name == b"cookie").count();
+    let fields = headers.len() - crumbs.saturating_sub(1);
+    let refusal = if fields > transport.max_headers {
         Some(Early::HeadersTooLarge)
     } else {
         refusal_of(parts, &mut headers)
