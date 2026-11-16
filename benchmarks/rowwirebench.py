@@ -208,6 +208,7 @@ def wait_for_quiet_host() -> dict[str, Any]:
 
 def ensure_port_available(port: int) -> None:
     with socket.socket() as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             listener.bind((HOST, port))
         except OSError as error:
