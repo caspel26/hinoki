@@ -323,6 +323,11 @@ def resolve_model_field_type(
     cls: type[Model], name: str, hint: object, meta: FieldMeta
 ) -> FieldType:
     base, annotated = split_annotated(hint)
+    if annotated.alias is not None or meta.validation.alias is not None:
+        raise RegistrationError(
+            f"{cls.__name__}.{name}: aliases are supported on Schema fields, "
+            "not Model columns"
+        )
     values = {**annotated.constraints(), **meta.validation.constraints()}
     info = FieldInfo(**cast(Any, values))
     try:
@@ -390,6 +395,8 @@ def field(
     if constraints is not None and not isinstance(constraints, FieldInfo):
         raise RegistrationError("field constraints must be a Field(...) value")
     declared = constraints or FieldInfo()
+    if declared.alias is not None:
+        raise RegistrationError("Field(alias=...) is supported on Schemas, not Models")
     if max_length is not None:
         if declared.max_length is not None and declared.max_length != max_length:
             raise RegistrationError(
