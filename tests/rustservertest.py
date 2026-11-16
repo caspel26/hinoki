@@ -19,7 +19,6 @@ from hinoki.modules import ModuleContext
 from hinoki.request import Request
 from hinoki.runtime import rustserver
 from hinoki.runtime.rustserver import RustWorker
-from hinoki.settings import AppSettings, ServerSettings
 from tests.harness import Client
 from tests.providers import TokenAuth
 
@@ -642,15 +641,6 @@ async def test_a_busy_port_fails_and_closes_the_lifespan() -> None:
         with pytest.raises(RuntimeError):
             await worker.start()
     assert PROBE.shutdown_ran
-
-
-async def test_trusted_proxies_are_refused_before_startup() -> None:
-    settings = AppSettings(server=ServerSettings(trusted_proxies=("127.0.0.1",)))
-    app = Hinoki(include=[health], settings=settings, on_shutdown=[note_shutdown])
-    worker = RustWorker(app, "127.0.0.1", 0)
-    with pytest.raises(RuntimeError, match="trusted_proxies"):
-        await worker.start()
-    assert not PROBE.shutdown_ran  # the lifespan never started
 
 
 def spawn_server(port: int) -> subprocess.Popen[str]:

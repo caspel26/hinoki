@@ -18,7 +18,8 @@ use hinoki_server::early::TemplateError;
 use hinoki_server::headers::{final_headers, Header};
 use hinoki_server::queue::Push;
 use hinoki_server::{
-    requestid, Early, EarlyBodies, InFlight, Limits, Permit, Plan, Queue, RoutePlan,
+    proxy, requestid, Early, EarlyBodies, InFlight, Limits, Networks, Permit, Plan, Queue,
+    RoutePlan,
 };
 use hinoki_server::{Answer, BodyError, BodyReader};
 use pyo3::exceptions::{PyException, PyRuntimeError, PyValueError};
@@ -61,6 +62,7 @@ pub struct PreparedRequest {
     query: Vec<u8>,
     headers: Vec<Header>,
     request_id: String,
+    id_ignored: bool,
     action: Option<u32>,
     needs_headers: bool,
     params: Vec<(String, String)>,
@@ -90,6 +92,13 @@ impl PreparedRequest {
     #[getter]
     fn request_id(&self) -> &str {
         &self.request_id
+    }
+
+    /// A trusted peer sent a request id header that was not valid, so a new id
+    /// was generated; the Python side logs it (the classifier has no logger).
+    #[getter]
+    fn id_ignored(&self) -> bool {
+        self.id_ignored
     }
 
     /// The action number, or `None` when no route matched and the Python
@@ -311,6 +320,7 @@ pub struct Core {
     prefix: String,
     counter: AtomicU64,
     trust_request_id: bool,
+    proxies: Networks,
     defer_policies: bool,
     python_paths: Vec<String>,
 }
@@ -334,7 +344,7 @@ impl ServerCore {
         routes, early_bodies, policies, request_id_name, request_id_prefix,
         limits=(8192, 32_768, 1_048_576, 288), queue_capacity=4096,
         trust_request_id=false, defer_policies=false, python_paths=Vec::new(),
-        cors=None
+        cors=None, trusted_proxies=Vec::new()
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -349,7 +359,9 @@ impl ServerCore {
         defer_policies: bool,
         python_paths: Vec<String>,
         cors: Option<CorsSpec>,
+        trusted_proxies: Vec<String>,
     ) -> PyResult<Self> {
+        let proxies = Networks::parse(&trusted_proxies).map_err(PyValueError::new_err)?;
         let (router, plan) = build_routes(routes)?;
         let rendered = early_bodies
             .into_iter()
@@ -384,10 +396,19 @@ impl ServerCore {
                 prefix: request_id_prefix,
                 counter: AtomicU64::new(0),
                 trust_request_id,
+                proxies,
                 defer_policies,
                 python_paths,
             }),
         })
+    }
+
+    /// Whether a socket peer address belongs to `trusted_proxies`.
+    fn trusts(&self, address: &str) -> PyResult<bool> {
+        let ip = address
+            .parse()
+            .map_err(|_| PyValueError::new_err(format!("not an IP address: {address:?}")))?;
+        Ok(self.core.proxies.contains(ip))
     }
 
     fn set_ready(&self, ready: bool) {
@@ -535,9 +556,11 @@ impl Core {
     /// Python pipeline. The `Err` is an internal inconsistency (a missing plan or
     /// early body), never a client mistake.
     pub fn classify(&self, head: Head<'_>) -> Result<Outcome, String> {
+        let (request_id, id_ignored) = self.request_id(&head.headers, head.trusted);
         let asked = Asked {
             head_only: head.method == "HEAD",
-            request_id: self.request_id(&head.headers, head.trusted),
+            request_id,
+            id_ignored,
             https: head.https,
             origin: origin_of(&head.headers),
         };
@@ -586,6 +609,7 @@ impl Core {
             query: head.query.to_vec(),
             headers: head.headers,
             request_id: asked.request_id.clone(),
+            id_ignored: asked.id_ignored,
             action,
             needs_headers,
             params,
@@ -604,9 +628,18 @@ impl Core {
         }
     }
 
+    /// Whether the socket peer is a trusted proxy and, only then, whether it
+    /// says the client used https. A forwarded scheme from anyone else is ignored.
+    pub fn peer_view(&self, peer: SocketAddr, headers: &[Header]) -> (bool, bool) {
+        let trusted = self.proxies.contains(peer.ip());
+        (trusted, trusted && proxy::forwarded_https(headers))
+    }
+
     /// The inbound id only from a trusted peer (the caller knows the peer) and
-    /// only when the application trusts inbound ids.
-    fn request_id(&self, headers: &[Header], trusted: bool) -> String {
+    /// only when the application trusts inbound ids. The flag says a trusted
+    /// peer sent an id header that was refused.
+    fn request_id(&self, headers: &[Header], trusted: bool) -> (String, bool) {
+        let mut ignored = false;
         if trusted && self.trust_request_id {
             let found: Vec<&[u8]> = headers
                 .iter()
@@ -614,10 +647,12 @@ impl Core {
                 .map(|(_, value)| value.as_slice())
                 .collect();
             if let Some(id) = requestid::inbound(&found) {
-                return id.to_owned();
+                return (id.to_owned(), false);
             }
+            ignored = !found.is_empty();
         }
-        requestid::generated(&self.prefix, self.counter.fetch_add(1, Ordering::Relaxed))
+        let id = requestid::generated(&self.prefix, self.counter.fetch_add(1, Ordering::Relaxed));
+        (id, ignored)
     }
 
     /// Documentation and OpenAPI paths are answered by the Python pipeline.
@@ -726,6 +761,7 @@ impl Core {
 pub struct Asked {
     head_only: bool,
     request_id: String,
+    id_ignored: bool,
     https: bool,
     origin: Vec<u8>,
 }
