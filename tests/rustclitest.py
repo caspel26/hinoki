@@ -2,22 +2,30 @@
 honour, and the listening socket the Rust server is given."""
 
 import argparse
+import asyncio
+import builtins
+import importlib.util
 import os
 import signal
 import socket
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+from unittest.mock import Mock
 
 import pytest
 from granian.constants import HTTPModes, SSLProtocols
 
+import hinoki.serve as serve_module
 from hinoki import Hinoki, core
 from hinoki.runtime.listener import ListenError, inherited_address, open_listener
 from hinoki.runtime.rustserver import RustWorker
 from hinoki.runtime.supervisor import Supervisor
 from hinoki.serve import add_arguments, choose_server, granian_tls
 from hinoki.settings import (
+    MAX_WORKERS,
     AppSettings,
     LifecycleSettings,
     ServerSettings,
@@ -263,6 +271,219 @@ def test_the_supervisor_process_never_starts_the_native_runtime() -> None:
     assert "runtime not started" in done.stdout
 
 
+def test_server_settings_default_when_an_app_has_no_settings() -> None:
+    app = Hinoki()
+    app.settings = object()
+    assert serve_module.settings_of(app) == ServerSettings()
+
+
+def test_built_app_returns_an_app_and_reports_factory_settings_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = Hinoki()
+    monkeypatch.setattr(serve_module, "load_target", lambda _: (app, False))
+    assert serve_module.built_app("app:target") is app
+    monkeypatch.setattr(serve_module, "load_target", lambda _: (lambda: app, True))
+    assert serve_module.built_app("app:factory") is app
+
+    def invalid_factory() -> Hinoki:
+        raise SettingsError(["bad settings"])
+
+    monkeypatch.setattr(serve_module, "load_target", lambda _: (invalid_factory, True))
+    with pytest.raises(SystemExit, match="bad settings"):
+        serve_module.built_app("app:invalid")
+
+
+def test_load_target_accepts_apps_and_only_zero_argument_factories(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = Hinoki()
+    monkeypatch.setattr(serve_module, "import_target", lambda _: app)
+    assert serve_module.load_target("app:instance") == (app, False)
+    monkeypatch.setattr(serve_module, "import_target", lambda _: lambda value: value)
+    with pytest.raises(SystemExit, match="neither an application nor a factory"):
+        serve_module.load_target("app:requires_argument")
+    monkeypatch.setattr(serve_module, "import_target", lambda _: object())
+    with pytest.raises(SystemExit, match="neither an application nor a factory"):
+        serve_module.load_target("app:not_callable")
+
+
+def test_load_target_reports_import_and_attribute_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for error in (
+        ImportError("missing module"),
+        AttributeError("missing name"),
+        ValueError("bad target"),
+    ):
+        monkeypatch.setattr(serve_module, "import_target", Mock(side_effect=error))
+        with pytest.raises(SystemExit, match="cannot load app:target"):
+            serve_module.load_target("app:target")
+
+
+@pytest.mark.parametrize("workers", [-1, MAX_WORKERS + 1])
+def test_rust_server_refuses_worker_counts_outside_bounds(workers: int) -> None:
+    args = argparse.Namespace(workers=workers)
+    assert "--workers" in serve_module.rust_refusal(args, reload=False)  # type: ignore[operator]
+
+
+def test_rust_dev_explains_missing_watchfiles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(importlib.util, "find_spec", lambda _: None)
+    refusal = serve_module.rust_refusal(argparse.Namespace(workers=None), reload=True)
+    assert refusal is not None and "watchfiles" in refusal
+    assert (
+        serve_module.rust_refusal(argparse.Namespace(workers=None), reload=False)
+        is None
+    )
+
+
+def test_run_inline_configures_runtime_before_starting_worker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = Hinoki()
+    settings = ServerSettings(runtime_threads=3)
+    worker = SimpleNamespace(run=lambda: None)
+    configure = Mock()
+    run = Mock(return_value=0)
+    monkeypatch.setattr(core, "configure_runtime", configure)
+    monkeypatch.setattr(asyncio, "run", run)
+    monkeypatch.setattr("hinoki.runtime.rustserver.build_worker", lambda *_: worker)
+    assert serve_module.run_inline(app, ("127.0.0.1", 8123), settings) == 0
+    configure.assert_called_once_with(3)
+    run.assert_called_once_with(None)
+
+
+def test_run_supervised_opens_listener_and_computes_scheme(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listener = open_listener("127.0.0.1", 0, 8)
+    supervisor = Mock()
+    supervisor.return_value.run.return_value = 4
+    monkeypatch.setattr(serve_module, "open_listener", Mock(return_value=listener))
+    monkeypatch.setattr("hinoki.runtime.supervisor.Supervisor", supervisor)
+    args = argparse.Namespace(target="app:factory", workers=None, host=None, port=None)
+    cert = Path(__file__).parent / "tls" / "localhost-cert.pem"
+    key = cert.with_name("localhost-key.pem")
+    settings = ServerSettings(tls_cert_file=str(cert), tls_key_file=str(key))
+    app = Hinoki(settings=AppSettings(server=settings))
+    assert (
+        serve_module.run_supervised(args, app, ("127.0.0.1", 8123), settings, False)
+        == 4
+    )
+    supervisor.assert_called_once()
+    assert supervisor.call_args.kwargs == {"reload": False, "scheme": "https"}
+    listener.close()
+
+
+def test_run_rust_chooses_inline_or_supervised_and_refuses_bad_listener(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    app = Hinoki()
+    settings = ServerSettings()
+    args = argparse.Namespace(host=None, port=None, workers=1)
+    monkeypatch.setattr(serve_module, "check_port", lambda _: None)
+    inline = Mock(return_value=0)
+    supervised = Mock(return_value=0)
+    monkeypatch.setattr(serve_module, "run_inline", inline)
+    monkeypatch.setattr(serve_module, "run_supervised", supervised)
+    assert serve_module.run_rust(args, False, app, settings) == 0
+    inline.assert_called_once()
+    args.workers = 2
+    assert serve_module.run_rust(args, False, app, settings) == 0
+    supervised.assert_called_once()
+    monkeypatch.setattr(
+        serve_module,
+        "check_port",
+        Mock(side_effect=ListenError("invalid port")),
+    )
+    assert serve_module.run_rust(args, False, app, settings) == 2
+    assert "cannot listen" in capsys.readouterr().err
+
+
+def test_run_rust_refuses_unsupported_settings_before_opening_listener(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(serve_module, "check_port", Mock(side_effect=AssertionError))
+    args = argparse.Namespace(host=None, port=None, workers=MAX_WORKERS + 1)
+    assert serve_module.run_rust(args, False, Hinoki(), ServerSettings()) == 2
+
+
+def test_run_dispatches_to_rust_or_granian(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = Hinoki()
+    monkeypatch.setattr(serve_module, "built_app", lambda _: app)
+    monkeypatch.setattr(serve_module, "settings_of", lambda _: ServerSettings())
+    monkeypatch.setattr(serve_module, "choose_server", lambda *_: "rust")
+    rust = Mock(return_value=0)
+    monkeypatch.setattr(serve_module, "run_rust", rust)
+    args = argparse.Namespace(target="app:target")
+    assert serve_module.run(args, False) == 0
+    rust.assert_called_once_with(args, False, app, ServerSettings())
+    monkeypatch.setattr(serve_module, "choose_server", lambda *_: "granian")
+    granian = Mock(return_value=0)
+    monkeypatch.setattr(serve_module, "run_granian", granian)
+    assert serve_module.run(args, True) == 0
+    granian.assert_called_once_with(args, True, ServerSettings())
+
+
+def test_run_returns_server_selection_refusal(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(serve_module, "built_app", lambda _: Hinoki())
+    monkeypatch.setattr(serve_module, "settings_of", lambda _: ServerSettings())
+    monkeypatch.setattr(serve_module, "choose_server", lambda *_: 2)
+    assert serve_module.run(argparse.Namespace(target="app:target"), False) == 2
+
+
+def test_serve_entry_point_selects_production_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args = argparse.Namespace(target="app:target")
+    run = Mock(return_value=0)
+    monkeypatch.setattr(serve_module, "run", run)
+    assert serve_module.run_serve(args) == 0
+    run.assert_called_once_with(args, reload=False)
+
+
+def test_granian_errors_when_optional_dependency_is_absent(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    real_import = builtins.__import__
+
+    def import_without_granian(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name == "granian":
+            raise ImportError("not installed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_granian)
+    args = argparse.Namespace(target="app:target")
+    assert serve_module.run_granian(args, False, ServerSettings()) == 2
+    assert "Granian is not installed" in capsys.readouterr().err
+
+
+def test_granian_refuses_reload_without_watchfiles(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(importlib.util, "find_spec", lambda _: None)
+    args = argparse.Namespace(target="app:target")
+    assert serve_module.run_granian(args, True, ServerSettings()) == 2
+    assert "watchfiles" in capsys.readouterr().err
+
+
+def test_granian_starts_with_settings_and_factory_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+
+    server = Mock()
+    monkeypatch.setattr("granian.Granian", server)
+    monkeypatch.setattr(serve_module, "load_target", lambda _: (object(), True))
+    args = argparse.Namespace(target="app:factory", host=None, port=None, workers=None)
+    assert serve_module.run_granian(args, False, ServerSettings()) == 0
+    assert server.call_args.kwargs["factory"] is True
+    server.return_value.serve.assert_called_once()
+
+
 def is_open(fd: int) -> bool:
     try:
         os.fstat(fd)
@@ -375,3 +596,188 @@ def test_runtime_timeouts_must_be_finite(value: float) -> None:
 
     with pytest.raises(ValueError, match="finite"):
         RuntimeConfig(shutdown_timeout=value)
+
+
+class FakeWorkerProcess:
+    def __init__(self, code: int | None = None, *, times_out: bool = False) -> None:
+        self.code = code
+        self.times_out = times_out
+        self.signals: list[signal.Signals] = []
+        self.killed = False
+        self.waits = 0
+
+    def poll(self) -> int | None:
+        return self.code
+
+    def send_signal(self, number: signal.Signals) -> None:
+        self.signals.append(number)
+
+    def wait(self, timeout: float | None = None) -> int:
+        self.waits += 1
+        if self.times_out and self.waits == 1:
+            raise subprocess.TimeoutExpired("worker", timeout or 0)
+        return self.code or 0
+
+    def kill(self) -> None:
+        self.killed = True
+        self.code = -signal.SIGKILL
+
+
+def test_supervisor_builds_and_spawns_worker_command(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listener = open_listener("127.0.0.1", 0, 8)
+    supervisor = Supervisor("app:make", listener, 1, 2.0)
+    popen = Mock(return_value=FakeWorkerProcess())
+    monkeypatch.setattr("hinoki.runtime.supervisor.subprocess.Popen", popen)
+    command = supervisor.command()
+    assert command[:4] == [
+        sys.executable,
+        "-m",
+        "hinoki.runtime.rustserver",
+        "app:make",
+    ]
+    assert command[4:] == ["--fd", str(listener.fileno()), "--parent", str(os.getpid())]
+    supervisor.spawn()
+    assert popen.call_args.kwargs["pass_fds"] == (listener.fileno(),)
+    listener.close()
+
+
+def test_supervisor_second_signal_kills_and_terminate_skips_exited_workers() -> None:
+    listener = open_listener("127.0.0.1", 0, 8)
+    supervisor = Supervisor("app:make", listener, 1, 2.0)
+    alive = FakeWorkerProcess()
+    stopped = FakeWorkerProcess(code=0)
+    supervisor.processes = [alive, stopped]  # type: ignore[list-item]
+    supervisor.on_signal(signal.SIGTERM, None)
+    assert supervisor.stop.is_set()
+    assert alive.signals == []
+    supervisor.on_signal(signal.SIGTERM, None)
+    assert alive.signals == [signal.SIGKILL]
+    assert stopped.signals == []
+    listener.close()
+
+
+def test_supervisor_wait_all_kills_only_workers_past_the_deadline() -> None:
+    listener = open_listener("127.0.0.1", 0, 8)
+    supervisor = Supervisor("app:make", listener, 1, 2.0)
+    process = FakeWorkerProcess(times_out=True)
+    supervisor.processes = [process]  # type: ignore[list-item]
+    supervisor.wait_all()
+    assert process.killed
+    assert process.waits == 2
+    supervisor.stop_workers()
+    assert supervisor.processes == []
+    listener.close()
+
+
+@pytest.mark.parametrize(("code", "expected"), [(0, 1), (-9, 1), (7, 7), (None, None)])
+def test_supervisor_reports_worker_exit_status(
+    code: int | None, expected: int | None
+) -> None:
+    listener = open_listener("127.0.0.1", 0, 8)
+    supervisor = Supervisor("app:make", listener, 1, 2.0)
+    supervisor.processes = [FakeWorkerProcess(code=code)]  # type: ignore[list-item]
+    assert supervisor.failed() == expected
+    listener.close()
+
+
+def test_supervisor_ticks_end_when_stopping() -> None:
+    listener = open_listener("127.0.0.1", 0, 8)
+    supervisor = Supervisor("app:make", listener, 1, 2.0)
+    supervisor.stop.set()
+    assert list(supervisor.ticks()) == []
+    listener.close()
+
+
+def test_supervisor_ticks_yield_until_stopping(monkeypatch: pytest.MonkeyPatch) -> None:
+    listener = open_listener("127.0.0.1", 0, 8)
+    supervisor = Supervisor("app:make", listener, 1, 2.0)
+    waits = iter([False, True])
+    monkeypatch.setattr(supervisor.stop, "wait", lambda _: next(waits))
+    assert list(supervisor.ticks()) == [set()]
+    listener.close()
+
+
+def test_supervisor_file_watch_uses_python_project_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from watchfiles import PythonFilter  # noqa: PLC0415
+
+    listener = open_listener("127.0.0.1", 0, 8)
+    supervisor = Supervisor("app:make", listener, 1, 2.0, reload=True)
+    watch = Mock(return_value=iter([{(None, "app.py")}]))
+    monkeypatch.setattr("watchfiles.watch", watch)
+    assert list(supervisor.changes()) == [{(None, "app.py")}]
+    options = watch.call_args.kwargs
+    assert isinstance(options["watch_filter"], PythonFilter)
+    assert options["stop_event"] is supervisor.stop
+    assert options["yield_on_timeout"] is True
+    listener.close()
+
+
+def test_supervisor_supervise_stops_on_a_failed_worker(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    listener = open_listener("127.0.0.1", 0, 8)
+    supervisor = Supervisor("app:make", listener, 1, 2.0)
+    supervisor.processes = [FakeWorkerProcess(code=9)]  # type: ignore[list-item]
+    assert supervisor.supervise(iter([set()])) == 9
+    assert "worker exited (9)" in capsys.readouterr().err
+    listener.close()
+
+
+def test_supervisor_supervise_returns_success_when_workers_keep_running() -> None:
+    listener = open_listener("127.0.0.1", 0, 8)
+    supervisor = Supervisor("app:make", listener, 1, 2.0)
+    supervisor.processes = [FakeWorkerProcess()]  # type: ignore[list-item]
+    assert supervisor.supervise(iter([set()])) == 0
+    listener.close()
+
+
+def test_supervisor_watch_restarts_changed_files_and_waits_after_exit(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    listener = open_listener("127.0.0.1", 0, 8)
+    supervisor = Supervisor("app:make", listener, 1, 2.0, reload=True)
+    original = FakeWorkerProcess(code=4)
+    restarted = FakeWorkerProcess()
+    supervisor.processes = [original]  # type: ignore[list-item]
+    spawn = Mock(return_value=restarted)
+    stop_workers = Mock(side_effect=lambda: setattr(supervisor, "processes", []))
+    monkeypatch.setattr(supervisor, "spawn", spawn)
+    monkeypatch.setattr(supervisor, "stop_workers", stop_workers)
+    events = iter([set(), {(None, "z.py"), (None, "a.py")}, set()])
+    assert supervisor.watch(events) == 0
+    assert stop_workers.call_count == 1
+    assert spawn.call_count == 1
+    output = capsys.readouterr().out
+    assert "worker exited; waiting for changes" in output
+    assert "reloading: a.py, z.py changed" in output
+    listener.close()
+
+
+@pytest.mark.parametrize("reload", [False, True])
+def test_supervisor_run_owns_worker_and_listener_until_exit(
+    reload: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    listener = open_listener("127.0.0.1", 0, 8)
+    supervisor = Supervisor("app:make", listener, 1, 2.0, reload=reload)
+    process = FakeWorkerProcess()
+    signals: list[tuple[signal.Signals, object]] = []
+    monkeypatch.setattr(
+        signal,
+        "signal",
+        lambda number, handler: signals.append((number, handler)),
+    )
+    monkeypatch.setattr(supervisor, "changes", lambda: iter([set()]))
+    monkeypatch.setattr(supervisor, "ticks", lambda: iter([set()]))
+    monkeypatch.setattr(supervisor, "spawn", lambda: process)
+    monkeypatch.setattr(supervisor, "watch", lambda _events: 0)
+    monkeypatch.setattr(supervisor, "supervise", lambda _events: 0)
+    assert supervisor.run() == 0
+    assert listener.fileno() == -1
+    assert process.signals == [signal.SIGTERM]
+    assert supervisor.processes == []
+    assert len(signals) == 6
+    assert all(handler is signal.SIG_IGN for _, handler in signals[-3:])
