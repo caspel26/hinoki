@@ -6,9 +6,11 @@ not answer waits in a bounded queue; this module drains it on the asyncio loop,
 runs ``Pipeline.handle`` for each one and hands the answer back to the
 connection. The handlers and the pipeline run in Python, on the loop.
 
-This slice serves requests without a body: a request that carries one is
-refused with 501 by the native layer. ``server.trusted_proxies`` is refused at
-startup, because the peer trust and the effective scheme are not ported yet.
+A request body stays in the native connection until the pipeline asks for it
+(after authentication and negotiation, as on the ASGI path); it is read by the
+native layer with the same limits and error codes. ``server.trusted_proxies`` is
+refused at startup, because the peer trust and the effective scheme are not
+ported yet.
 
     python -m hinoki.runtime.rustserver module:app --port 8000
 """
@@ -22,10 +24,12 @@ import os
 import signal
 import sys
 from collections.abc import Sequence
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
 
 from hinoki import core
+from hinoki.errors import InvalidBody
 from hinoki.runtime.responses import HTTPError
 from hinoki.runtime.servercore import build_server_core
 from hinoki.serve import load_target
@@ -40,11 +44,30 @@ log = logging.getLogger("hinoki.runtime")
 DRAIN_BATCH = 256
 
 
-class NoBody:
-    """Body source of this slice: requests with a body never reach the pipeline."""
+class RustBody:
+    """The body source of a queued request: the native layer reads it, and
+    its failures become the errors the ASGI path raises."""
 
-    async def read(self, limit: int) -> bytes:  # noqa: ARG002 - the protocol's signature
-        return b""
+    __slots__ = ("request",)
+
+    def __init__(self, request: core.PreparedRequest) -> None:
+        self.request = request
+
+    async def read(self, limit: int) -> bytes:
+        try:
+            return await self.request.body(limit)
+        except core.BodyReadError as exc:
+            raise body_failure(exc.args[0]) from None
+
+
+def body_failure(kind: str) -> Exception:
+    """The error for a native body failure: ``too_large``, ``timeout``, or
+    ``disconnected`` (which also covers a broken body framing)."""
+    if kind == "too_large":
+        return HTTPError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "payload_too_large")
+    if kind == "timeout":
+        return HTTPError(HTTPStatus.REQUEST_TIMEOUT, "request_timeout")
+    return InvalidBody("disconnected", "the client disconnected")
 
 
 def scope_of(request: core.PreparedRequest, server: tuple[str, int]) -> dict[str, Any]:
@@ -77,6 +100,7 @@ class RustWorker:
         *,
         max_connections: int = 10_000,
         header_read_timeout: float = 10.0,
+        body_read_timeout: float = 10.0,
     ) -> None:
         self.adapter = app.asgi()
         self.pipeline = self.adapter.pipeline
@@ -84,6 +108,7 @@ class RustWorker:
         self.port = port
         self.max_connections = max_connections
         self.header_read_timeout = header_read_timeout
+        self.body_read_timeout = body_read_timeout
         # Starts not ready; the lifespan startup flips it.
         self.core = build_server_core(self.pipeline)
         self.server: core.RustServer | None = None
@@ -129,6 +154,8 @@ class RustWorker:
                 self.header_read_timeout,
                 runtime.shutdown_timeout,
                 runtime.max_header_bytes,
+                # Below the request timeout, or a stalled body would be a 504.
+                min(self.body_read_timeout, runtime.request_timeout / 2),
             )
         except BaseException:
             await self._lifespan("shutdown")
@@ -195,7 +222,7 @@ class RustWorker:
         client sees EOF, not a 503."""
         try:
             response = await self.pipeline.handle(
-                scope_of(request, self.address), NoBody(), request.request_id
+                scope_of(request, self.address), RustBody(request), request.request_id
             )
         except Exception:
             log.exception("request %s failed", request.request_id)
