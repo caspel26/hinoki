@@ -84,10 +84,13 @@ impl Backend for CoreBackend {
             query,
             headers,
             peer,
+            secure,
             refusal,
             body,
         } = request;
-        let (trusted, https) = self.core.peer_view(peer, &headers);
+        let (trusted, forwarded) = self.core.peer_view(peer, &headers);
+        // A trusted proxy's scheme wins, like the Python resolution does.
+        let https = forwarded.unwrap_or(secure);
         let head = Head {
             method: &method,
             path: &path,
@@ -167,7 +170,7 @@ impl RustServer {
     #[pyo3(signature = (
         core, host, port, max_connections=10_000, header_read_timeout=10.0,
         shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
-        fd=None, write_timeout=30.0
+        fd=None, write_timeout=30.0, tls_cert=None, tls_key=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start(
@@ -181,6 +184,8 @@ impl RustServer {
         body_read_timeout: f64,
         fd: Option<i32>,
         write_timeout: f64,
+        tls_cert: Option<String>,
+        tls_key: Option<String>,
     ) -> PyResult<Self> {
         // First, so that every later error closes the descriptor with it.
         let inherited = fd.map(inherited_listener).transpose()?;
@@ -202,6 +207,18 @@ impl RustServer {
             max_header_bytes,
             ..ServerConfig::default()
         };
+        let tls = match (tls_cert, tls_key) {
+            (Some(cert), Some(key)) => Some(
+                hinoki_server::tls::acceptor(cert.as_ref(), key.as_ref())
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            ),
+            (None, None) => None,
+            _ => {
+                return Err(PyValueError::new_err(
+                    "tls_cert and tls_key must be given together",
+                ))
+            }
+        };
         let listener = match inherited {
             Some(listener) => listener,
             None => std::net::TcpListener::bind((host, port)).map_err(io_error)?,
@@ -221,7 +238,7 @@ impl RustServer {
         let _enter = runtime.enter();
         let listener = TcpListener::from_std(listener).map_err(io_error)?;
         let (stop, receiver) = watch::channel(false);
-        let task = runtime.spawn(serve(listener, backend, config, receiver));
+        let task = runtime.spawn(serve(listener, backend, config, tls, receiver));
         Ok(Self {
             addr,
             reader,

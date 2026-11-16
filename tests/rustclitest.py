@@ -113,6 +113,16 @@ def test_lifecycle_timeouts_must_be_finite_and_positive(value: float) -> None:
         LifecycleSettings(shutdown_timeout=value).validate()
 
 
+def test_tls_files_are_validated() -> None:
+    cert = Path(__file__).parent / "tls" / "localhost-cert.pem"
+    key = cert.with_name("localhost-key.pem")
+    ServerSettings(tls_cert_file=str(cert), tls_key_file=str(key)).validate()
+    with pytest.raises(ValueError, match="together"):
+        ServerSettings(tls_cert_file=str(cert)).validate()
+    with pytest.raises(ValueError, match="tls_key_file"):
+        ServerSettings(tls_cert_file=str(cert), tls_key_file="/absent").validate()
+
+
 def test_a_supervised_worker_ignores_a_repeated_sigterm() -> None:
     worker = RustWorker(Hinoki(), "127.0.0.1", 0, parent=os.getpid())
     worker._on_signal()

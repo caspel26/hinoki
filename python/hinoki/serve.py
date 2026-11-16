@@ -21,6 +21,7 @@ import asyncio
 import importlib.util
 import inspect
 import sys
+from pathlib import Path
 from typing import Any
 
 from hinoki import core
@@ -159,7 +160,10 @@ def run_supervised(
     workers = 1 if reload else (args.workers or settings.workers)
     listener = open_listener(*address, settings.backlog)
     grace = stop_grace(app)
-    return Supervisor(args.target, listener, workers, grace, reload=reload).run()
+    scheme = "https" if settings.tls_cert_file else "http"
+    return Supervisor(
+        args.target, listener, workers, grace, reload=reload, scheme=scheme
+    ).run()
 
 
 def run_rust(
@@ -180,6 +184,22 @@ def run_rust(
         return run_supervised(args, app, address, settings, reload)
     except ListenError as error:  # nothing was served
         return refuse(f"cannot listen on {address[0]}:{address[1]}: {error}")
+
+
+def granian_tls(settings: ServerSettings) -> dict[str, Any]:
+    """Granian's TLS options, matching the Rust server: the same files, TLS 1.2
+    and up (Granian's own default is 1.3) and HTTP/1.1 only. Nothing changes
+    for an application without TLS files."""
+    if settings.tls_cert_file is None or settings.tls_key_file is None:
+        return {}
+    from granian.constants import HTTPModes, SSLProtocols  # noqa: PLC0415
+
+    return {
+        "ssl_cert": Path(settings.tls_cert_file),
+        "ssl_key": Path(settings.tls_key_file),
+        "ssl_protocol_min": SSLProtocols.tls12,
+        "http": HTTPModes.http1,
+    }
 
 
 def run_granian(
@@ -215,6 +235,7 @@ def run_granian(
         log_access=settings.access_log,
         factory=is_factory,
         reload=reload,
+        **granian_tls(settings),
     )
     server.serve()
     return 0

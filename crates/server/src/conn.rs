@@ -42,6 +42,8 @@ pub struct Incoming {
     pub query: Vec<u8>,
     pub headers: Vec<Header>,
     pub peer: SocketAddr,
+    /// The connection is TLS: the request arrived over https.
+    pub secure: bool,
     /// Set when the transport rejects the request ([`Early::BadHost`]): the
     /// backend answers with it and does not route the request.
     pub refusal: Option<Early>,
@@ -81,7 +83,12 @@ fn refusal_of(parts: &Parts, headers: &mut Vec<Header>) -> Option<Early> {
     (parts.version == Version::HTTP_11 && hosts != 1).then_some(Early::BadHost)
 }
 
-fn incoming_of(parts: &Parts, body: Option<BodyReader>, peer: SocketAddr) -> Incoming {
+fn incoming_of(
+    parts: &Parts,
+    body: Option<BodyReader>,
+    peer: SocketAddr,
+    secure: bool,
+) -> Incoming {
     let mut headers: Vec<Header> = parts
         .headers
         .iter()
@@ -94,6 +101,7 @@ fn incoming_of(parts: &Parts, body: Option<BodyReader>, peer: SocketAddr) -> Inc
         query: parts.uri.query().unwrap_or("").as_bytes().to_vec(),
         headers,
         peer,
+        secure,
         refusal,
         body,
     }
@@ -134,6 +142,8 @@ fn response_of(answer: Answer, head_only: bool) -> Response<Full<Bytes>> {
 pub struct Transport {
     /// How long a client may stay silent while its body is read.
     pub body_read_timeout: Duration,
+    /// Whether the connection is TLS.
+    pub secure: bool,
     /// What the framing guard and this layer tell each other about the connection.
     pub signals: Arc<Signals>,
 }
@@ -151,7 +161,7 @@ pub async fn respond<B: Backend>(
     let (parts, body) = request.into_parts();
     let body = (!body.is_end_stream()).then(|| BodyReader::new(body, transport.body_read_timeout));
     let finished = body.as_ref().map(BodyReader::finished);
-    let incoming = incoming_of(&parts, body, peer);
+    let incoming = incoming_of(&parts, body, peer, transport.secure);
     let mut response = response_of(backend.handle(incoming).await, head_only);
     let unread = finished.is_some_and(|done| !done.load(Ordering::Acquire));
     if unread {
