@@ -252,7 +252,9 @@ Under Granian with real sockets (`comparative/run.py --framework hinoki`, 4 work
 | --- | ---: | ---: |
 | `detail` | 20 921 | 27 424 (+31%) |
 | `create` | 11 884 | 14 263 (+20%) |
-| `list` (20 rows) | 1 738 | 1 501 (−14%, ranges disjoint in both rounds) |
+| `list` (20 rows), alone, 4 workers | 6 267 | 6 904 (+10%) |
+| `list` (20 rows), alone, 1 worker | 2 626 | 3 020 (+15%) |
 
-* The in-process gains do not carry over unchanged: `list` is slower under Granian, and the cause is not established (row conversion on the loop thread is a hypothesis, not a measurement).
+* `list` was first measured right after `create` in the same run, on a table the inserts had grown; the faster build inserted more rows, so it paid for a bigger table and looked 14% slower. That was an ordering artifact. The `list` rows above run it alone on a freshly seeded table, three rounds per build with the build order alternated (load 8 to 18, noisy).
+* The in-process gain for `list` is larger than the Granian one; row conversion now runs on the loop thread, which raises event-loop CPU per request on large pages.
 * Not measured: PostgreSQL with `runtime_threads` 2, Linux, a quiet host, the Rust server (not built yet).
