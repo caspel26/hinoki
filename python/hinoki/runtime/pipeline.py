@@ -395,7 +395,7 @@ class Pipeline:
         owner = (route.owner(),) if route.owner is not None else ()
         args = (*owner, request) if binding.takes_request else owner
         try:
-            if route.is_async:
+            if binding.is_async:
                 handler = cast(Callable[..., Awaitable[object]], route.handler)
                 result = await handler(*args, **kwargs)
             else:
