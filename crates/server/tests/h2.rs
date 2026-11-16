@@ -735,7 +735,7 @@ async fn a_stalled_response_does_not_cut_a_slow_stream_on_the_connection() {
         .handshake::<_, Bytes>(stream)
         .await
         .unwrap();
-    let _driver = tokio::spawn(connection);
+    let driver = tokio::spawn(connection);
     // Never read: stuck after the first kibibyte.
     let mut stalled = send.clone().ready().await.unwrap();
     let (_unread, _) = stalled
@@ -745,18 +745,36 @@ async fn a_stalled_response_does_not_cut_a_slow_stream_on_the_connection() {
     let (answer, _) = slow
         .send_request(request("GET", "/slow").body(()).unwrap(), true)
         .unwrap();
-    // The stall is detected (300 ms) while /slow is still being computed.
-    sleep(Duration::from_millis(900)).await;
+    // The stall is detected (300 ms) while /slow is still being computed: the
+    // client is told to open nothing new.
+    let told = timeout(Duration::from_secs(2), async {
+        while send.clone().ready().await.is_ok() {
+            sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await;
+    assert!(told.is_ok(), "the stall never produced a GOAWAY");
     running.backend.release.notify_one();
     let (parts, body) = timeout(WAIT, answer).await.unwrap().unwrap().into_parts();
     assert_eq!(parts.status, 200);
     assert_eq!(read_all(body).await, b"slow done");
+    // The stalled stream is cut with the connection at the shutdown timeout.
+    let ended = timeout(WAIT, driver).await;
+    assert!(
+        ended.is_ok(),
+        "the connection outlived its shutdown timeout"
+    );
     running.stop.send(true).unwrap();
 }
 
 #[tokio::test]
 async fn a_slow_but_progressing_download_is_not_cut() {
-    let running = start(stall_config(), true).await;
+    // The reader pauses 150 ms against a 2 s write timeout, many times over.
+    let config = ServerConfig {
+        write_timeout: Duration::from_secs(2),
+        ..stall_config()
+    };
+    let running = start(config, true).await;
     let (send, _driver) = h2_client(&running).await;
     let ready = send.clone().ready().await.unwrap();
     let (response, _) = {
@@ -778,14 +796,67 @@ async fn a_slow_but_progressing_download_is_not_cut() {
         // A reader that takes its time, but never stops for `write_timeout`.
         if since_pause >= 256 * 1024 {
             since_pause = 0;
-            sleep(Duration::from_millis(60)).await;
+            sleep(Duration::from_millis(150)).await;
         }
     }
     assert_eq!(size, 5 * MEBIBYTE);
     assert!(
-        started.elapsed() > Duration::from_millis(900),
+        started.elapsed() > Duration::from_millis(2200),
         "too fast to prove anything: {:?}",
         started.elapsed()
     );
+    running.stop.send(true).unwrap();
+}
+
+#[tokio::test]
+async fn a_tail_stuck_in_the_window_is_watched_and_new_requests_do_not_save_the_connection() {
+    let running = start(stall_config(), true).await;
+    // One byte of window: "hello" cannot leave, whatever the client asks next.
+    let mut raw = raw_h2_with(&running, &[0, 4, 0, 0, 0, 1]).await;
+    raw.write_all(&get_frame(1, "/other")).await.unwrap();
+    let (mut reader, mut writer) = tokio::io::split(raw);
+    let flood = async {
+        for n in 1..40u32 {
+            if writer
+                .write_all(&get_frame(2 * n + 1, "/other"))
+                .await
+                .is_err()
+            {
+                return;
+            }
+            sleep(Duration::from_millis(500)).await;
+        }
+    };
+    let goaway = timeout(Duration::from_secs(3), async {
+        tokio::select! {
+            found = async {
+                while let Some((kind, ..)) = next_frame(&mut reader).await {
+                    if kind == 7 {
+                        return true;
+                    }
+                }
+                false
+            } => found,
+            () = flood => false,
+        }
+    })
+    .await;
+    assert_eq!(goaway, Ok(true), "a stuck tail kept the connection alive");
+    running.stop.send(true).unwrap();
+}
+
+#[tokio::test]
+async fn cookie_crumbs_do_not_hide_too_many_distinct_headers() {
+    let running = start(quick(), true).await;
+    let (send, _driver) = h2_client(&running).await;
+    let mut many = request("GET", "/info");
+    for n in 0..100 {
+        many = many.header(format!("x-n{n}"), "v");
+    }
+    for n in 0..90 {
+        many = many.header("cookie", format!("c{n}=v"));
+    }
+    let (parts, _) = call(&send, many.body(()).unwrap(), None).await;
+    assert_eq!(parts.status, 431);
     running.stop.send(true).unwrap();
 }
