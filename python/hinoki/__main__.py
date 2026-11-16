@@ -53,11 +53,17 @@ def parser() -> argparse.ArgumentParser:
     shellcli.add_arguments(commands)
     serve.add_arguments(commands)
     commands.add_parser("manage", help="run an app's management commands")
-    group = commands.add_parser("migrations", help="plan, apply and inspect migrations")
+    group = commands.add_parser(
+        "migrations",
+        help="migration workflow: plan, apply and inspect",
+        description=(
+            "Workflow: plan and review migrations, then apply and inspect status."
+        ),
+    )
     group.add_argument(
         "--dir", help="legacy migrations directory (without hinoki.toml)"
     )
-    actions = group.add_subparsers(dest="action", required=True)
+    actions = group.add_subparsers(dest="action")
     planner = actions.add_parser("plan", help="write a migration from the models")
     planner.add_argument("--models", help="legacy module that defines models")
     planner.add_argument("--app", help="project app to plan")
@@ -91,11 +97,18 @@ def parser() -> argparse.ArgumentParser:
     show = actions.add_parser("sql", help="print one migration's SQL")
     show.add_argument("name")
     show.add_argument("--app", help="project app containing the migration")
+    group.set_defaults(group_help=group.format_help())
     return root
 
 
 def run_plan(args: argparse.Namespace) -> int:
-    result = migration_plan(args)
+    results = migration_plans(args)
+    if len(results) == 1:
+        return print_plan_result(args, results[0][1])
+    return print_all_app_plans(args, results)
+
+
+def print_plan_result(args: argparse.Namespace, result: Plan) -> int:
     if not result.operations:
         print("no changes")
     for operation in result.operations:
@@ -112,22 +125,76 @@ def run_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def print_all_app_plans(
+    args: argparse.Namespace, results: list[tuple[str | None, Plan]]
+) -> int:
+    operation_count = sum(len(result.operations) for _, result in results)
+    for app_name, result in results:
+        print_app_plan(app_name, result)
+    return summarize_all_app_plans(args, operation_count)
+
+
+def print_app_plan(app_name: str | None, result: Plan) -> None:
+    print(f"{app_name}:")
+    if not result.operations:
+        print("  no changes")
+    for operation in result.operations:
+        destructive = "DESTRUCTIVE " if operation.destructive else ""
+        print(f"  {destructive}{operation.description}")
+
+
+def summarize_all_app_plans(args: argparse.Namespace, operation_count: int) -> int:
+    if args.check:
+        if operation_count:
+            noun = "operation" if operation_count == 1 else "operations"
+            print(f"pending migrations: {operation_count} {noun} across apps")
+            return 1
+        print("no migrations are pending")
+        return 0
+    if operation_count:
+        noun = "operation" if operation_count == 1 else "operations"
+        print(
+            f"all-app preview only: {operation_count} {noun}; no files written. "
+            "Prerequisite changes shown here may not be ready to apply."
+        )
+    else:
+        print("no changes across registered apps")
+    return 0
+
+
 def migration_plan(args: argparse.Namespace) -> Plan:
     """Build the model/file-state plan for project or legacy CLI usage."""
+    return migration_plans(args)[0][1]
+
+
+def migration_plans(args: argparse.Namespace) -> list[tuple[str | None, Plan]]:
+    """Build one focused plan or a read-only preview for every project app."""
     manifest = manifest_for(args)
     if manifest is not None:
-        return plan_project(args, manifest)
+        if args.app is None and len(manifest.apps) > 1 and (args.check or args.dry_run):
+            if args.name is not None:
+                raise MigrationError("--name requires --app for a multi-app preview")
+            return [
+                (
+                    app.name,
+                    plan_project(args, manifest, app.name, all_app_preview=True),
+                )
+                for app in manifest.ordered_apps()
+            ]
+        app = manifest.app(args.app)
+        return [(app.name, plan_project(args, manifest))]
     if not args.models:
         raise MigrationError("pass --models without a project hinoki.toml")
     database_url = migration_database_url(args, manifest)
-    return plan(
+    result = plan(
         models_of(args.models),
         Path(args.dir or "migrations"),
         args.name,
-        allow_destructive=args.allow_destructive or args.check,
+        allow_destructive=args.allow_destructive or args.check or args.dry_run,
         write=not args.dry_run and not args.check,
         dialect=database_dialect(database_url),
     )
+    return [(None, result)]
 
 
 async def run_database(args: argparse.Namespace) -> None:
@@ -207,6 +274,9 @@ def run_migration_action(args: argparse.Namespace) -> int:
 
 
 def run_migrations(args: argparse.Namespace) -> int:
+    if args.action is None:
+        print(args.group_help, end="")
+        return 0
     if args.action == "plan" and args.check:
         options = plan_check_option_error(args)
         if options is not None:
@@ -215,6 +285,10 @@ def run_migrations(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 2
+    return run_migrations_with_error_handling(args)
+
+
+def run_migrations_with_error_handling(args: argparse.Namespace) -> int:
     try:
         return run_migration_action(args)
     except (MigrationError, ProjectError) as error:
