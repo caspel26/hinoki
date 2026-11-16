@@ -254,7 +254,7 @@
 <li>Generated typing for some keyword-based ORM calls is less precise than model construction; see <a href="../typing/">typing</a>.</li>
 <li>Many-to-many links use an explicit model with two foreign keys and a composite uniqueness constraint. Implicit join models, direct collection access such as <code>post.tags</code>, and advanced relation paths are not available.</li>
 <li>End-to-end performance claims are not made without comparable retained measurements; see the <a href="../benchmarks/">benchmark report</a> and its limits.</li>
-<li>The default server is Granian. An opt-in Rust HTTP server (<code>hinoki serve --server rust</code>) is available for <code>serve</code> and <code>dev</code>: HTTP/1.1, optional TLS and, with <code>server.http2</code> over TLS, HTTP/2 (no h2c, server push or WebSocket upgrades), no access log, handlers and the request pipeline still run in Python, and no performance figure is claimed. See <a href="../serving/#the-rust-server">serving</a>.</li>
+<li>The default server is Granian. An opt-in Rust HTTP server (<code>hinoki serve --server rust</code>) is available for <code>serve</code> and <code>dev</code>: HTTP/1.1, optional TLS and, with <code>server.http2</code> over TLS, HTTP/2 (no h2c, server push or WebSocket upgrades), no access log, handlers and most request-pipeline work still run in Python, and no performance figure is claimed. An optional <code>startup_url</code> can be answered on the Rust runtime when no host, CORS or HTTPS-redirect policy needs Python; it reports startup completion, not general application or database health. See <a href="../serving/#the-rust-server">serving</a>.</li>
 <li>The server adapter is ASGI. <code>hinoki.wsgi.WSGIAdapter</code> wraps an application for WSGI servers (buffered bodies, no streaming); verified with Granian only, see <a href="../serving/#wsgi">serving</a>.</li>
 <li>CORS is one application-wide policy in the <code>cors</code> settings group; there is no per-route CORS option. Application MCP has its own allowed-origin check. Cursor pagination is not available; pagination currently uses page numbers.</li>
 <li>Pagination page-size defaults are <code>20</code> and <code>100</code>; the <code>pagination</code> settings group changes them for the whole app and an action's own <code>PageNumberPagination</code> values win. See <a href="../pagination/">pagination</a>.</li>
@@ -286,7 +286,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>6.1</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 12:43:37 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 16:10:57 UTC">November 16, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/status.md">Edit on GitHub</a></dd></div>
         </dl>

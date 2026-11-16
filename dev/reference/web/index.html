@@ -302,6 +302,9 @@ module:app</code>); the first call freezes the declarations.</p>
 <code>ModuleContext</code> (<code>async def</code> or <code>def</code>). Startup hooks run once per
 worker after the modules have started; shutdown hooks run before they are
 closed, and only after a startup that completed.</p>
+<p><code>startup_url</code> optionally reserves a public GET/HEAD endpoint that returns
+<code>{"status": "ok"}</code> after worker startup. It reports startup completion,
+not application, database, or event-loop health.</p>
 
 
 
@@ -320,6 +323,28 @@ closed, and only after a startup that completed.</p>
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.app.Hinoki._startup_url" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">_startup_url</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.app.Hinoki._startup_url" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">_startup_url</span> <span class="o">=</span> <span class="n">check_startup_url</span><span class="p">(</span><span class="n">startup_url</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-attribute">
 
@@ -382,6 +407,30 @@ closed, and only after a startup that completed.</p>
 </code></pre></div>
 
     <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.app.Hinoki.startup_url" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">startup_url</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.app.Hinoki.startup_url" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">startup_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The fixed startup-probe path, if one was configured.</p>
 
     </div>
 
@@ -522,6 +571,7 @@ closed, and only after a startup that completed.</p>
     <span class="n">commands</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Command</span> <span class="o">|</span> <span class="nb">type</span><span class="p">[</span><span class="n">Command</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">on_startup</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Hook</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">on_shutdown</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Hook</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">startup_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">runtime</span><span class="p">:</span> <span class="n">RuntimeConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -3447,7 +3497,7 @@ override them. <code>details</code> is public data, never internal state.</p>
           
           
             <ul><li><a href="#hinoki.app.Hinoki">Hinoki</a>
-            <ul><li><a href="#hinoki.app.Hinoki._timezone">_timezone</a></li><li><a href="#hinoki.app.Hinoki.settings">settings</a></li><li><a href="#hinoki.app.Hinoki.routes">routes</a></li><li><a href="#hinoki.app.Hinoki.bindings">bindings</a></li><li><a href="#hinoki.app.Hinoki.modules">modules</a></li><li><a href="#hinoki.app.Hinoki.commands">commands</a></li><li><a href="#hinoki.app.Hinoki.on_startup">on_startup</a></li><li><a href="#hinoki.app.Hinoki.on_shutdown">on_shutdown</a></li><li><a href="#hinoki.app.Hinoki.__init__">__init__</a></li><li><a href="#hinoki.app.Hinoki._configure_runtime">_configure_runtime</a></li><li><a href="#hinoki.app.Hinoki._configure_docs">_configure_docs</a></li><li><a href="#hinoki.app.Hinoki._configure_policy">_configure_policy</a></li><li><a href="#hinoki.app.Hinoki._initialize_registries">_initialize_registries</a></li><li><a href="#hinoki.app.Hinoki.now">now</a></li><li><a href="#hinoki.app.Hinoki.module_of">module_of</a></li><li><a href="#hinoki.app.Hinoki.include">include</a></li><li><a href="#hinoki.app.Hinoki._collect_routes">_collect_routes</a></li><li><a href="#hinoki.app.Hinoki._stage_router">_stage_router</a></li><li><a href="#hinoki.app.Hinoki.routes_of">routes_of</a></li><li><a href="#hinoki.app.Hinoki.with_defaults">with_defaults</a></li><li><a href="#hinoki.app.Hinoki.install">install</a></li><li><a href="#hinoki.app.Hinoki.lookup">lookup</a></li><li><a href="#hinoki.app.Hinoki.resolve">resolve</a></li><li><a href="#hinoki.app.Hinoki.openapi">openapi</a></li><li><a href="#hinoki.app.Hinoki.asgi">asgi</a></li><li><a href="#hinoki.app.Hinoki.enforce">enforce</a></li><li><a href="#hinoki.app.Hinoki.__call__">__call__</a></li><li><a href="#hinoki.app.Hinoki._check_mutable">_check_mutable</a></li></ul>
+            <ul><li><a href="#hinoki.app.Hinoki._startup_url">_startup_url</a></li><li><a href="#hinoki.app.Hinoki._timezone">_timezone</a></li><li><a href="#hinoki.app.Hinoki.settings">settings</a></li><li><a href="#hinoki.app.Hinoki.routes">routes</a></li><li><a href="#hinoki.app.Hinoki.startup_url">startup_url</a></li><li><a href="#hinoki.app.Hinoki.bindings">bindings</a></li><li><a href="#hinoki.app.Hinoki.modules">modules</a></li><li><a href="#hinoki.app.Hinoki.commands">commands</a></li><li><a href="#hinoki.app.Hinoki.on_startup">on_startup</a></li><li><a href="#hinoki.app.Hinoki.on_shutdown">on_shutdown</a></li><li><a href="#hinoki.app.Hinoki.__init__">__init__</a></li><li><a href="#hinoki.app.Hinoki._configure_runtime">_configure_runtime</a></li><li><a href="#hinoki.app.Hinoki._configure_docs">_configure_docs</a></li><li><a href="#hinoki.app.Hinoki._configure_policy">_configure_policy</a></li><li><a href="#hinoki.app.Hinoki._initialize_registries">_initialize_registries</a></li><li><a href="#hinoki.app.Hinoki.now">now</a></li><li><a href="#hinoki.app.Hinoki.module_of">module_of</a></li><li><a href="#hinoki.app.Hinoki.include">include</a></li><li><a href="#hinoki.app.Hinoki._collect_routes">_collect_routes</a></li><li><a href="#hinoki.app.Hinoki._stage_router">_stage_router</a></li><li><a href="#hinoki.app.Hinoki.routes_of">routes_of</a></li><li><a href="#hinoki.app.Hinoki.with_defaults">with_defaults</a></li><li><a href="#hinoki.app.Hinoki.install">install</a></li><li><a href="#hinoki.app.Hinoki.lookup">lookup</a></li><li><a href="#hinoki.app.Hinoki.resolve">resolve</a></li><li><a href="#hinoki.app.Hinoki.openapi">openapi</a></li><li><a href="#hinoki.app.Hinoki.asgi">asgi</a></li><li><a href="#hinoki.app.Hinoki.enforce">enforce</a></li><li><a href="#hinoki.app.Hinoki.__call__">__call__</a></li><li><a href="#hinoki.app.Hinoki._check_mutable">_check_mutable</a></li></ul>
           </li><li><a href="#hinoki.api.API">API</a>
             <ul><li><a href="#hinoki.api.API.prefix">prefix</a></li><li><a href="#hinoki.api.API.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.api.API.routes">routes</a></li><li><a href="#hinoki.api.API.apply_replacements">apply_replacements</a></li><li><a href="#hinoki.api.API.declared_route">declared_route</a></li><li><a href="#hinoki.api.API.mount">mount</a></li></ul>
           </li><li><a href="#hinoki.routing.RouteGroup">RouteGroup</a>
