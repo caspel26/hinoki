@@ -274,13 +274,17 @@ Use a disposable PostgreSQL database. The runner verifies GET/HEAD response
 parity and the count/page SQL sequence before timing. Its in-process trace also
 checks that the Rust path avoids row/model/schema materialization and the
 Python path performs it. It pins Granian to CPUs 0–3 and Oha to CPUs 6–7 on
-Linux when those CPUs are available. Before every sample it waits for a stable
-10-second window with one-minute load at or below 1.0, up to five minutes; it
-records the wait, load values and active processes. After the sample it records
-load again. If the host does not become quiet, the campaign stops with a partial
-report and keeps that attempt's raw files isolated. Use a fresh empty output
-directory for each attempt and keep the machine otherwise idle. Timed runs also
-require a clean committed worktree; `--verify-only` can run against local edits.
+Linux when those CPUs are available. For every sample it seeds the database,
+starts and warms the server, then waits with the idle server and database in
+place for a stable 10-second window with one-minute load at or below 1.0, up to
+five minutes. Oha remains stopped during this gate. It records the wait, load
+values and active processes, reads load once more immediately before timing, and
+refuses to start Oha if that reading is missing or above 1.0. It records load
+again after the sample. If the host does not become quiet, the campaign stops
+with a partial report and keeps that attempt's raw files isolated. Use a fresh
+empty output directory for each attempt and keep the machine otherwise idle.
+Timed runs also require a clean committed worktree; `--verify-only` can run
+against local edits.
 
 ```sh
 docker run -d --name hinoki-rowwire-ab \
