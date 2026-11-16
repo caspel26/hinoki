@@ -44,6 +44,12 @@ fn unquote(raw: &[u8], plus: bool) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
+/// Decode one router-matched path parameter. A plus remains a plus and a
+/// percent-encoded slash stays within the segment selected by the router.
+pub fn decode_path_parameter(raw: &str) -> Option<String> {
+    unquote(raw.as_bytes(), false)
+}
+
 /// `a=1&b=2&a=3` into ordered pairs. Blank values are kept, empty pairs are
 /// skipped, the input must be ASCII, every decoded part valid UTF-8 and there
 /// are at most `max_pairs` pairs.

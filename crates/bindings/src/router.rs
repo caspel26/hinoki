@@ -88,6 +88,19 @@ impl Router {
         Self::default()
     }
 
+    /// The parameter names encoded in a route template, in path order.
+    pub fn parameter_names(template: &str) -> Result<Vec<String>, RouteError> {
+        let invalid = || RouteError::InvalidTemplate(template.to_owned());
+        let parts = segments(template).ok_or_else(invalid)?;
+        let mut names = Vec::new();
+        for part in parts {
+            if let Some(name) = param_name(part).map_err(|()| invalid())? {
+                names.push(name.to_owned());
+            }
+        }
+        Ok(names)
+    }
+
     pub fn add(&mut self, method: &str, template: &str, action: u32) -> Result<(), RouteError> {
         let invalid = || RouteError::InvalidTemplate(template.to_owned());
         let segs = segments(template).ok_or_else(invalid)?;

@@ -9,6 +9,9 @@ pub struct RoutePlan {
     pub action: u32,
     pub method: String,
     pub path_params: Vec<String>,
+    /// `(source, name)` for the required string inputs carried by the native
+    /// handler bridge. Sources are only `path` or `query`.
+    pub input_params: Vec<(String, String)>,
     pub has_body: bool,
     pub has_access: bool,
     pub media_types: Vec<String>,
@@ -80,13 +83,27 @@ impl Plan {
 }
 
 fn native_handler_is_valid(route: &RoutePlan) -> bool {
-    let has_no_request_inputs = route.path_params.is_empty()
-        && !route.has_body
-        && !route.has_access
-        && !route.takes_request;
+    let mut names = HashSet::new();
+    let mut path_inputs = HashSet::new();
+    let inputs_are_supported = route.input_params.iter().all(|(source, name)| {
+        let unique = names.insert(name);
+        if source == "path" {
+            path_inputs.insert(name);
+        }
+        unique && !name.is_empty() && matches!(source.as_str(), "path" | "query")
+    });
+    let route_path_params: HashSet<_> = route.path_params.iter().collect();
+    let has_supported_request_inputs = inputs_are_supported
+        && path_inputs == route_path_params
+        && path_inputs.len() == route.path_params.len();
+    let has_no_unsupported_inputs = !route.has_body && !route.has_access && !route.takes_request;
     let uses_default_json = route.media_types.as_slice() == ["application/json"];
     let has_no_response_hooks = route.headers.is_empty() && !route.transaction;
-    route.method == "GET" && has_no_request_inputs && uses_default_json && has_no_response_hooks
+    route.method == "GET"
+        && has_supported_request_inputs
+        && has_no_unsupported_inputs
+        && uses_default_json
+        && has_no_response_hooks
 }
 
 #[cfg(test)]

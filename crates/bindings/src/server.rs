@@ -9,6 +9,7 @@
 //! object; `rustserver.rs` drives `Core::classify` from the connection layer, and
 //! the tests call `submit` the same way without a socket.
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -28,12 +29,16 @@ use pyo3::types::{PyBytes, PyDict, PyList};
 use tokio::sync::oneshot;
 
 use crate::completion;
+use crate::request;
 use crate::router::{Match, Router};
 
 // `args[0]` is `too_large`, `disconnected` or `timeout`.
 pyo3::create_exception!(core, BodyReadError, PyException);
 
 pub type Reply = Answer;
+type NativeArgs = Vec<(String, String)>;
+type NativeDetails = Vec<(String, String, String)>;
+type NativeErrorData = (String, String, Option<String>, NativeDetails);
 
 fn reply_to_py<'py>(py: Python<'py>, reply: &Reply) -> PyResult<Bound<'py, PyAny>> {
     let headers = PyList::empty(py);
@@ -65,6 +70,8 @@ pub struct PreparedRequest {
     id_ignored: bool,
     action: Option<u32>,
     native_handler: bool,
+    native_args: NativeArgs,
+    native_error: Option<NativeInputError>,
     native_policy: Vec<Header>,
     request_id_name: Vec<u8>,
     needs_headers: bool,
@@ -115,6 +122,27 @@ impl PreparedRequest {
     #[getter]
     fn native_handler(&self) -> bool {
         self.native_handler
+    }
+
+    #[getter]
+    fn native_args<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let args = PyDict::new(py);
+        for (name, value) in &self.native_args {
+            args.set_item(name, value)?;
+        }
+        Ok(args)
+    }
+
+    #[getter]
+    fn native_error(&self) -> Option<NativeErrorData> {
+        self.native_error.as_ref().map(|error| {
+            (
+                error.code.clone(),
+                error.message.clone(),
+                error.available.clone(),
+                error.details.clone(),
+            )
+        })
     }
 
     /// Whether the route reads the headers as a mapping (access, negotiation
@@ -315,19 +343,165 @@ fn poisoned() -> PyErr {
 
 /// A route as Python describes it: the plan fields plus the router entry.
 type RouteSpec = (
-    u32,                   // action
-    String,                // method
-    String,                // template
-    Vec<String>,           // path parameter names
-    bool,                  // has body
-    bool,                  // has access
-    Vec<String>,           // media types
-    u16,                   // status
-    Vec<(String, String)>, // route headers
-    bool,                  // transaction
-    bool,                  // takes request
-    bool,                  // native handler eligible
+    u32,                           // action
+    String,                        // method
+    String,                        // template
+    bool,                          // has body
+    bool,                          // has access
+    Vec<String>,                   // media types
+    u16,                           // status
+    Vec<(String, String)>,         // route headers
+    bool,                          // transaction
+    bool,                          // takes request
+    (bool, Vec<(String, String)>), // native handler flag and input source/name
 );
+
+#[derive(Clone)]
+struct NativeInputError {
+    code: String,
+    message: String,
+    available: Option<String>,
+    details: NativeDetails,
+}
+
+#[derive(Default)]
+struct NativeInput {
+    enabled: bool,
+    args: NativeArgs,
+    error: Option<NativeInputError>,
+}
+
+impl NativeInput {
+    fn failed(error: NativeInputError) -> Self {
+        Self {
+            enabled: true,
+            error: Some(error),
+            ..Self::default()
+        }
+    }
+}
+
+fn native_error(code: &str, message: &str) -> NativeInputError {
+    NativeInputError {
+        code: code.to_owned(),
+        message: message.to_owned(),
+        available: None,
+        details: Vec::new(),
+    }
+}
+
+fn prepare_native_inputs(
+    plan: &RoutePlan,
+    path_params: &[(String, String)],
+    query: &[u8],
+    headers: &[Header],
+) -> NativeInput {
+    let decoded_path = match decode_native_path(plan, path_params) {
+        Ok(path) => path,
+        Err(error) => return NativeInput::failed(error),
+    };
+    let joined = request::join_headers(headers);
+    let accept = joined
+        .iter()
+        .find(|(name, _)| name == "accept")
+        .map_or("", |(_, value)| value.as_str());
+    if request::negotiate(accept, &plan.media_types).is_none() {
+        let mut error = native_error("not_acceptable", "not acceptable");
+        error.available = Some(plan.media_types.join(", "));
+        return NativeInput::failed(error);
+    }
+    let parsed = match request::parse_query(query, 1000) {
+        Ok(parsed) => parsed,
+        Err(_) => {
+            return NativeInput::failed(native_error("invalid_query", "malformed query string"));
+        }
+    };
+    let values = query_values(parsed);
+    let (args, errors) = collect_native_args(plan, &decoded_path, &values);
+    if errors.is_empty() {
+        NativeInput {
+            enabled: true,
+            args,
+            error: None,
+        }
+    } else {
+        let mut error = native_error("validation_error", "invalid request parameters");
+        error.details = errors;
+        NativeInput::failed(error)
+    }
+}
+
+fn decode_native_path(
+    plan: &RoutePlan,
+    params: &[(String, String)],
+) -> Result<HashMap<String, String>, NativeInputError> {
+    let raw: HashMap<_, _> = params
+        .iter()
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect();
+    let mut decoded = HashMap::new();
+    for (source, name) in &plan.input_params {
+        if source != "path" {
+            continue;
+        }
+        let Some(value) = raw.get(name) else {
+            return Err(native_error(
+                "internal_error",
+                "missing matched path parameter",
+            ));
+        };
+        let Some(value) = request::decode_path_parameter(value) else {
+            return Err(native_error("bad_path_encoding", "invalid path encoding"));
+        };
+        decoded.insert(name.clone(), value);
+    }
+    Ok(decoded)
+}
+
+fn query_values(pairs: Vec<(String, String)>) -> HashMap<String, Vec<String>> {
+    let mut values = HashMap::new();
+    for (name, value) in pairs {
+        values.entry(name).or_insert_with(Vec::new).push(value);
+    }
+    values
+}
+
+fn collect_native_args(
+    plan: &RoutePlan,
+    path: &HashMap<String, String>,
+    query: &HashMap<String, Vec<String>>,
+) -> (NativeArgs, NativeDetails) {
+    let mut args = Vec::new();
+    let mut errors = Vec::new();
+    for (source, name) in &plan.input_params {
+        let value = if source == "path" {
+            path.get(name)
+        } else {
+            query.get(name).and_then(|values| match values.len() {
+                0 => None,
+                1 => values.first(),
+                _ => {
+                    errors.push((
+                        name.clone(),
+                        "duplicate".into(),
+                        "given more than once".into(),
+                    ));
+                    None
+                }
+            })
+        };
+        if let Some(value) = value {
+            args.push((name.clone(), value.clone()));
+        } else if source == "query" && !errors.iter().any(|(path, _, _)| path == name) {
+            errors.push((
+                name.clone(),
+                "required".into(),
+                "query parameter is required".into(),
+            ));
+        }
+    }
+    (args, errors)
+}
 
 /// `(any_origin, origins, credentials, expose)` of the CORS policy.
 type CorsSpec = (bool, Vec<Vec<u8>>, bool, Vec<u8>);
@@ -584,7 +758,6 @@ fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
         action,
         method,
         template,
-        path_params,
         has_body,
         has_access,
         media_types,
@@ -592,9 +765,11 @@ fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
         headers,
         transaction,
         takes_request,
-        native_handler,
+        (native_handler, input_params),
     ) in routes
     {
+        let path_params = Router::parameter_names(&template)
+            .map_err(|error| PyValueError::new_err(error.to_string()))?;
         router
             .add(&method, &template, action)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -602,6 +777,7 @@ fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
             action,
             method,
             path_params,
+            input_params,
             has_body,
             has_access,
             media_types,
@@ -650,15 +826,28 @@ impl Core {
                 .plan
                 .get(number)
                 .ok_or_else(|| format!("no plan for action {number}"))?,
-            None => return self.enqueue(head, asked, (action, Vec::new()), true, false),
+            None => {
+                return self.enqueue(
+                    head,
+                    asked,
+                    (action, Vec::new()),
+                    true,
+                    NativeInput::default(),
+                )
+            }
         };
         let native_handler = plan.native_handler && !self.defer_policies;
+        let native_input = if native_handler {
+            prepare_native_inputs(plan, &params, head.query, &head.headers)
+        } else {
+            NativeInput::default()
+        };
         self.enqueue(
             head,
             asked,
             (action, params),
             plan.needs_headers(),
-            native_handler,
+            native_input,
         )
     }
 
@@ -669,13 +858,13 @@ impl Core {
         asked: Asked,
         (action, params): (Option<u32>, Vec<(String, String)>),
         needs_headers: bool,
-        native_handler: bool,
+        native_input: NativeInput,
     ) -> Result<Outcome, String> {
         let Some(permit) = self.in_flight.try_acquire() else {
             return self.answer(&asked, Early::Overloaded, Vec::new());
         };
         let (sender, receiver) = oneshot::channel();
-        let native_policy = if native_handler {
+        let native_policy = if native_input.enabled {
             self.policies[usize::from(asked.https)].clone()
         } else {
             Vec::new()
@@ -688,7 +877,9 @@ impl Core {
             request_id: asked.request_id.clone(),
             id_ignored: asked.id_ignored,
             action,
-            native_handler,
+            native_handler: native_input.enabled,
+            native_args: native_input.args,
+            native_error: native_input.error,
             native_policy,
             request_id_name: self.id_name.clone(),
             needs_headers,
