@@ -14,7 +14,7 @@ use hyper::service::service_fn;
 use hyper_util::rt::{TokioExecutor, TokioIo, TokioTimer};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{watch, Notify, OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{watch, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinSet;
 use tokio::time::{sleep, timeout};
 use tokio_rustls::TlsAcceptor;
@@ -22,6 +22,7 @@ use tokio_rustls::TlsAcceptor;
 use crate::conn::{respond, Backend, Transport};
 use crate::framing::{Framing, Guarded, Signals};
 use crate::stall::StallGuard;
+use crate::streams::{track, Close, Streams};
 
 /// Stop signal: `true` (or a dropped sender) means stop.
 pub type Stop = watch::Receiver<bool>;
@@ -31,9 +32,11 @@ pub type Stop = watch::Receiver<bool>;
 const REQUEST_LINE_MARGIN: usize = 8 * 1024;
 
 /// HTTP/2 limits, all explicit rather than hyper's defaults. A connection is
-/// one slot however many streams it carries, so the stream cap bounds the work
-/// a single slot can hold.
-const H2_MAX_CONCURRENT_STREAMS: u32 = 100;
+/// one slot however many streams it carries, and each stream in flight takes
+/// backend capacity (the in-flight limit and the queue), so the stream cap
+/// bounds what a single slot can occupy: 32 streams, so a few hundred
+/// connections, not a few dozen, are needed to fill a 4096-deep queue.
+const H2_MAX_CONCURRENT_STREAMS: u32 = 32;
 const H2_STREAM_WINDOW: u32 = 65_535;
 const H2_CONNECTION_WINDOW: u32 = 65_535 * 4;
 const H2_MAX_FRAME_SIZE: u32 = 16_384;
@@ -155,6 +158,7 @@ async fn serve_h1<S, B>(
     let signals = Arc::new(Signals::default());
     let transport = Transport {
         secure,
+        max_headers: config.max_headers,
         body_read_timeout: config.body_read_timeout,
         signals: Arc::clone(&signals),
     };
@@ -188,10 +192,11 @@ async fn serve_h1<S, B>(
 }
 
 /// One HTTP/2 connection (TLS only). The HTTP/1 text guards do not apply: h2
-/// frames the messages itself. The write-stall timer still does. hyper has no
-/// header timeout for h2, so a connection that opens no stream within
-/// `header_read_timeout` is closed gracefully; the keep-alive ping bounds a
-/// dead peer once streams have been served.
+/// frames the messages itself. The write-stall timer still does. hyper's h2 has
+/// no idle, send-stall or reset-flood limits of its own, so [`Streams`] watches
+/// them: idle for `header_read_timeout` closes gracefully, no response progress
+/// for `write_timeout` or a flood of resets drops the connection; the keep-alive
+/// ping bounds a peer that is gone.
 async fn serve_h2<S, B>(
     stream: S,
     peer: SocketAddr,
@@ -204,14 +209,18 @@ async fn serve_h2<S, B>(
 {
     let transport = Transport {
         secure: true,
+        max_headers: config.max_headers,
         body_read_timeout: config.body_read_timeout,
         signals: Arc::new(Signals::default()),
     };
-    let opened = Arc::new(Notify::new());
-    let first = Arc::clone(&opened);
+    let streams = Streams::new();
+    let counted = Arc::clone(&streams);
     let service = service_fn(move |request| {
-        first.notify_one();
-        respond(Arc::clone(&backend), peer, transport.clone(), request)
+        let entry = counted.enter();
+        track(
+            respond(Arc::clone(&backend), peer, transport.clone(), request),
+            entry,
+        )
     });
     let guarded = StallGuard::new(stream, config.write_timeout);
     let connection = http2::Builder::new(TokioExecutor::new())
@@ -229,15 +238,21 @@ async fn serve_h2<S, B>(
         .max_local_error_reset_streams(H2_MAX_LOCAL_ERROR_RESET)
         .serve_connection(TokioIo::new(guarded), service);
     tokio::pin!(connection);
-    let no_stream = timeout(config.header_read_timeout, opened.notified());
-    tokio::pin!(no_stream);
-    tokio::select! {
+    let close = tokio::select! {
         _ = connection.as_mut() => return,
-        () = stopped(&mut stop) => {}
-        Err(_) = &mut no_stream => {}
+        () = stopped(&mut stop) => None,
+        close = streams.watch(config.header_read_timeout, config.write_timeout) => Some(close),
+    };
+    if close == Some(Close::Hard) {
+        return;
     }
     connection.as_mut().graceful_shutdown();
-    let _ = connection.await;
+    if close.is_some() {
+        // Closed for idleness: a half-sent head must not keep it open.
+        let _ = timeout(config.shutdown_timeout, connection).await;
+    } else {
+        let _ = connection.await;
+    }
 }
 
 /// Let running connections finish, then abort what is left.

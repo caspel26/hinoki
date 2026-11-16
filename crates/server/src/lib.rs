@@ -22,6 +22,7 @@ pub mod proxy;
 pub mod queue;
 pub mod requestid;
 pub mod stall;
+pub mod streams;
 pub mod tls;
 
 pub use accept::{serve, Closed, ServerConfig, Stop};
