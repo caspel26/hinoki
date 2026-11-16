@@ -194,9 +194,9 @@ async fn serve_h1<S, B>(
 /// One HTTP/2 connection (TLS only). The HTTP/1 text guards do not apply: h2
 /// frames the messages itself. The write-stall timer still does. hyper's h2 has
 /// no idle, send-stall or reset-flood limits of its own, so [`Streams`] watches
-/// them: idle for `header_read_timeout` closes gracefully, no response progress
-/// for `write_timeout` or a flood of resets drops the connection; the keep-alive
-/// ping bounds a peer that is gone.
+/// them: idle for `header_read_timeout`, or a response with no progress for
+/// `write_timeout`, closes gracefully (GOAWAY); a flood of resets drops the
+/// connection; the keep-alive ping bounds a peer that is gone.
 async fn serve_h2<S, B>(
     stream: S,
     peer: SocketAddr,
@@ -248,7 +248,8 @@ async fn serve_h2<S, B>(
     }
     connection.as_mut().graceful_shutdown();
     if close.is_some() {
-        // Closed for idleness: a half-sent head must not keep it open.
+        // Closed for idleness or a stall: a half-sent head or a stalled stream must
+        // not keep it open.
         let _ = timeout(config.shutdown_timeout, connection).await;
     } else {
         let _ = connection.await;
