@@ -14,7 +14,7 @@ from http import HTTPStatus
 from hinoki import core
 from hinoki.context import request_id
 from hinoki.renderers import JSONRenderer, Renderer
-from hinoki.runtime.binding import PATH_PARAM, Binding
+from hinoki.runtime.binding import EMPTY, PATH_PARAM, Binding
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.responses import RETRY_LATER, HTTPError
 
@@ -58,11 +58,16 @@ def early_bodies() -> list[tuple[str, bytes]]:
 def route_spec(action: int, binding: Binding, defer_policies: bool) -> core.RouteSpec:
     route = binding.route
     owner = route.owner
+    native_handler = native_handler_eligible(binding, defer_policies)
+    native_inputs = (
+        [(param.source, param.name) for param in binding.params]
+        if native_handler
+        else []
+    )
     return (
         action,
         route.method,
         route.path,
-        PATH_PARAM.findall(route.path),
         binding.needs_body,
         route.access is not None,
         [renderer.media_type for renderer in route.renderers],
@@ -70,7 +75,7 @@ def route_spec(action: int, binding: Binding, defer_policies: bool) -> core.Rout
         [(str(k), str(v)) for k, v in getattr(owner, "response_headers", ())],
         route.transaction,
         binding.takes_request,
-        native_handler_eligible(binding, defer_policies),
+        (native_handler, native_inputs),
     )
 
 
@@ -82,9 +87,20 @@ def native_handler_eligible(binding: Binding, defer_policies: bool) -> bool:
     renderer_ok = len(route.renderers) == 1 and is_default_json_renderer(
         route.renderers[0]
     )
+    path_names = PATH_PARAM.findall(route.path)
+    supported_inputs = all(
+        param.source in {"path", "query"}
+        and param.kind == "str"
+        and param.convert is str
+        and param.default is EMPTY
+        for param in binding.params
+    )
+    bound_path_names = {
+        param.name for param in binding.params if param.source == "path"
+    }
     return bool(
-        not PATH_PARAM.search(route.path)
-        and not binding.params
+        bound_path_names == set(path_names)
+        and supported_inputs
         and not binding.needs_body
         and route.access is None
         and not route.transaction
