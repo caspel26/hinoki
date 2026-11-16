@@ -37,7 +37,9 @@ from hinoki.admin.components import (
 )
 from hinoki.admin.forms import (
     FieldProblem,
+    FormField,
     collect,
+    control,
     convert,
     fields_for,
     input_text,
@@ -448,6 +450,64 @@ def test_forms_follow_the_model_and_convert_strictly() -> None:
         with pytest.raises(FieldProblem, match=message):
             convert(fields[field_name], text)
     assert convert(fields["due"], "2026-11-13T09:30")[1].tzinfo is datetime.UTC
+
+
+def test_form_helpers_cover_uuid_defaults_and_readonly_fields() -> None:
+    identifier = FormField(
+        "identifier", "Identifier", "uuid", True, False, False, None, UUID
+    )
+    with pytest.raises(FieldProblem, match="valid UUID"):
+        convert(identifier, "not-a-uuid")
+
+    defaulted = FormField("title", "Title", "text", True, False, True, None, str)
+    assert convert(defaulted, "") == (False, None)
+
+    shown_only = FormField(
+        "computed",
+        "Computed",
+        "readonly",
+        False,
+        False,
+        False,
+        None,
+        object,
+        shown_only=True,
+    )
+    assert collect([shown_only], {"computed": "spoofed"}) == ({}, {})
+    assert "disabled" in str(control(shown_only, "stored", None))
+    rendered = str(render_field(Templates(), shown_only, "stored", None))
+    assert "Not editable here." in rendered
+
+
+def test_form_controls_cover_empty_select_checkbox_and_error_states() -> None:
+    optional_text = FormField(
+        "nickname", "Nickname", "text", False, False, False, 12, str
+    )
+    assert convert(optional_text, "") == (True, "")
+    text_html = str(
+        render_field(Templates(), optional_text, "", "<invalid>", options=None)
+    )
+    assert 'maxlength="12"' in text_html and 'aria-invalid="true"' in text_html
+    assert "&lt;invalid&gt;" in text_html
+    required = FormField("title", "Title", "text", True, False, False, None, str)
+    assert " required" in str(control(required, "", None))
+
+    choice = FormField(
+        "choice", "Choice", "text", False, True, False, None, str, select=True
+    )
+    empty_select = str(control(choice, None, None, options=[("a", "Alpha")]))
+    unknown_select = str(control(choice, "missing", None, options=[("a", "Alpha")]))
+    assert 'value="">—</option>' in empty_select
+    assert 'value="missing" selected>missing</option>' in unknown_select
+
+    checkbox = FormField(
+        "active", "Active", "checkbox", False, False, False, None, bool
+    )
+    assert "checked" in str(control(checkbox, True, None))
+    assert "checked" not in str(control(checkbox, False, None))
+
+    textarea = FormField("body", "Body", "textarea", False, False, False, None, str)
+    assert "<textarea" in str(control(textarea, "\nfirst", None))
 
 
 def test_unchanged_fields_are_never_rewritten_on_edit() -> None:
