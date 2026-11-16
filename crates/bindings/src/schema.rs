@@ -33,6 +33,11 @@ enum Kind {
     Datetime,
     List(Box<Node>),
     Schema(usize),
+    TaggedUnion {
+        discriminator: String,
+        discriminator_wire_name: String,
+        variants: Vec<(String, usize)>,
+    },
 }
 
 struct Node {
@@ -132,6 +137,16 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node> {
         "schema" => {
             Kind::Schema(index.ok_or_else(|| compile_error("schema type without a schema"))?)
         }
+        "union" => {
+            let discriminator = required_string(&constraints, "discriminator")?;
+            let discriminator_wire_name = required_string(&constraints, "discriminator_wire_name")?;
+            let variants = required_variants(&constraints)?;
+            Kind::TaggedUnion {
+                discriminator,
+                discriminator_wire_name,
+                variants,
+            }
+        }
         other => return Err(compile_error(format!("unknown field kind {other:?}"))),
     };
     let pattern = match constraints.get_item("pattern")? {
@@ -155,6 +170,32 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node> {
         lt: optional_object(&constraints, "lt")?,
         one_of: optional_choices(&constraints)?,
     })
+}
+
+fn required_string(constraints: &Bound<'_, PyDict>, key: &str) -> PyResult<String> {
+    constraints
+        .get_item(key)?
+        .ok_or_else(|| compile_error(format!("union type without {key}")))?
+        .extract()
+}
+
+fn required_variants(constraints: &Bound<'_, PyDict>) -> PyResult<Vec<(String, usize)>> {
+    let values = constraints
+        .get_item("variants")?
+        .ok_or_else(|| compile_error("union type without variants"))?;
+    let mut variants = Vec::new();
+    for value in values.try_iter()? {
+        let variant = value?;
+        let (tag, index): (String, usize) = variant.extract()?;
+        if variants.iter().any(|(known, _)| known == &tag) {
+            return Err(compile_error("union type has duplicate discriminator tags"));
+        }
+        variants.push((tag, index));
+    }
+    if variants.len() < 2 {
+        return Err(compile_error("union type needs at least two variants"));
+    }
+    Ok(variants)
 }
 
 /// Build a validator from `definitions`: a list of
@@ -284,6 +325,7 @@ fn refers_outside(node: &Node, known: usize) -> bool {
     match &node.kind {
         Kind::Schema(index) => *index >= known,
         Kind::List(inner) => refers_outside(inner, known),
+        Kind::TaggedUnion { variants, .. } => variants.iter().any(|(_, index)| *index >= known),
         _ => false,
     }
 }
@@ -340,6 +382,18 @@ impl<'py> Run<'_, 'py> {
             Kind::Datetime => self.moment(data, path)?,
             Kind::List(item) => self.sequence(node, item, data, path, depth)?,
             Kind::Schema(index) => self.schema(*index, data, path, depth)?,
+            Kind::TaggedUnion {
+                discriminator,
+                discriminator_wire_name,
+                variants,
+            } => self.tagged_union(
+                discriminator,
+                discriminator_wire_name,
+                variants,
+                data,
+                path,
+                depth,
+            )?,
         };
         match (&node.one_of, checked) {
             (Some(choices), Some(value)) => self.one_of(choices, value, path),
@@ -566,6 +620,64 @@ impl<'py> Run<'_, 'py> {
             "__hinoki_construct_validated__",
             (values, path),
         )?))
+    }
+
+    fn tagged_union(
+        &mut self,
+        discriminator: &str,
+        wire_name: &str,
+        variants: &[(String, usize)],
+        data: &Bound<'py, PyAny>,
+        path: &str,
+        depth: usize,
+    ) -> Checked<'py> {
+        let Ok(object) = data.cast::<PyDict>() else {
+            return self.fail(path, "type", "expected an object".to_owned());
+        };
+        let field_name = if self.use_aliases {
+            wire_name
+        } else {
+            discriminator
+        };
+        let field_path = join(path, field_name);
+        if self.use_aliases
+            && wire_name != discriminator
+            && object.contains(discriminator)?
+            && object.contains(wire_name)?
+        {
+            self.fail(
+                &field_path,
+                "duplicate_field",
+                "field was supplied by both its Python name and alias".to_owned(),
+            )?;
+            return Ok(None);
+        }
+        let Some(raw_tag) = object.get_item(field_name)? else {
+            self.fail(
+                &field_path,
+                "discriminator_required",
+                "discriminator field is required".to_owned(),
+            )?;
+            return Ok(None);
+        };
+        let Ok(tag) = raw_tag.cast::<PyString>() else {
+            self.fail(
+                &field_path,
+                "discriminator_type",
+                "discriminator must be a string".to_owned(),
+            )?;
+            return Ok(None);
+        };
+        let tag = tag.to_cow()?.into_owned();
+        let Some((_, index)) = variants.iter().find(|(candidate, _)| *candidate == tag) else {
+            self.fail(
+                &field_path,
+                "discriminator_unknown",
+                "unknown discriminator value".to_owned(),
+            )?;
+            return Ok(None);
+        };
+        self.schema(*index, data, path, depth)
     }
 
     fn duplicate_python_names(

@@ -256,7 +256,11 @@ def typed_instance_value(
     path: str,
 ) -> Any:
     """Convert one non-null, non-UNSET typed value for native validation."""
-    if ftype.schema is not None:
+    if ftype.kind == "union":
+        checked = tagged_union_instance_value(
+            ftype, value, use_aliases, active, depth, path
+        )
+    elif ftype.schema is not None:
         checked = nested_instance_value(
             ftype.schema, value, use_aliases, active, depth, path
         )
@@ -275,6 +279,49 @@ def typed_instance_value(
     else:
         checked = value
     return checked
+
+
+def tagged_union_instance_value(
+    ftype: FieldType,
+    value: Any,
+    use_aliases: bool,
+    active: set[int],
+    depth: int,
+    path: str,
+) -> Any:
+    if not isinstance(value, Schema):
+        return _INVALID_INSTANCE_VALUE
+    variant = next(
+        ((tag, schema) for tag, schema in ftype.variants if type(value) is schema),
+        None,
+    )
+    if variant is None:
+        return _INVALID_INSTANCE_VALUE
+    tag, schema = variant
+    discriminator = ftype.discriminator
+    wire_name = ftype.discriminator_wire_name
+    if discriminator is None or wire_name is None:
+        return _INVALID_INSTANCE_VALUE
+    if getattr(value, discriminator, _INSTANCE_MISSING) != tag:
+        field_path = wire_name if use_aliases else discriminator
+        where = f"{path}.{field_path}" if path else field_path
+        raise ValidationError(
+            [
+                ErrorDetail(
+                    where,
+                    "discriminator_mismatch",
+                    "value does not match its Schema variant",
+                )
+            ]
+        )
+    return schema_instance_values(
+        schema,
+        value,
+        use_aliases=use_aliases,
+        active=active,
+        depth=depth,
+        path=path,
+    )
 
 
 def nested_instance_value(
@@ -518,8 +565,11 @@ class Schema:
         specs: dict[str, FieldSpec] = {}
         assigned_info = cls.__dict__.get("__assigned_field_info__", {})
         for item in dataclasses.fields(cast(Any, cls)):
-            ftype = parse_annotation(hints[item.name], f"{cls.__name__}.{item.name}")
             assigned = assigned_info.get(item.name)
+            annotation = hints[item.name]
+            if isinstance(assigned, FieldInfo) and assigned.discriminator is not None:
+                annotation = Annotated[annotation, assigned]
+            ftype = parse_annotation(annotation, f"{cls.__name__}.{item.name}")
             alias = merge_alias(
                 cls.__name__,
                 item.name,
@@ -756,6 +806,7 @@ def nested_schemas(cls: type[Schema]) -> list[type[Schema]]:
         while ftype is not None:
             if ftype.schema is not None:
                 found.append(ftype.schema)
+            found.extend(schema for _, schema in ftype.variants)
             ftype = ftype.item
     return found
 
@@ -926,7 +977,27 @@ def node_of(
             index_of[ftype.schema] = len(index_of)
             queue.append(ftype.schema)
         index = index_of[ftype.schema]
-    return (ftype.kind, ftype.nullable, ftype.info.constraints(), item, index)
+    constraints = ftype.info.constraints()
+    if ftype.kind == "union":
+        constraints = {
+            **constraints,
+            "discriminator": ftype.discriminator,
+            "discriminator_wire_name": ftype.discriminator_wire_name,
+            "variants": [
+                (tag, schema_index(schema, index_of, queue))
+                for tag, schema in ftype.variants
+            ],
+        }
+    return (ftype.kind, ftype.nullable, constraints, item, index)
+
+
+def schema_index(
+    schema: type[Schema], index_of: dict[type[Schema], int], queue: list[type[Schema]]
+) -> int:
+    if schema not in index_of:
+        index_of[schema] = len(index_of)
+        queue.append(schema)
+    return index_of[schema]
 
 
 def compile_native(root: type[Schema]) -> core.CompiledSchema:

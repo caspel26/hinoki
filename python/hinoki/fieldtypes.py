@@ -32,6 +32,11 @@ ALLOWED_CONSTRAINTS: dict[str, frozenset[str]] = {
     "float": frozenset({"ge", "le", "gt", "lt", "one_of"}),
     "list": frozenset({"min_length", "max_length"}),
 }
+MIN_UNION_VARIANTS = 2
+MAX_UNION_VARIANTS = 16
+MAX_DISCRIMINATOR_BYTES = 128
+CONTROL_CHARACTER_LIMIT = 32
+DELETE_CHARACTER = 127
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +49,9 @@ class FieldType:
     info: FieldInfo = field(default_factory=FieldInfo)
     item: FieldType | None = None
     schema: type[Schema] | None = None
+    discriminator: str | None = None
+    discriminator_wire_name: str | None = None
+    variants: tuple[tuple[str, type[Schema]], ...] = ()
 
 
 def is_union(annotation: object) -> bool:
@@ -54,19 +62,23 @@ def split_annotated(annotation: object, where: str = "field") -> tuple[Any, Fiel
     """Strip ``Annotated`` and merge its ``Field`` metadata."""
     merged: dict[str, object] = {}
     alias: str | None = None
+    discriminator: str | None = None
     while get_origin(annotation) is Annotated:
         base, *extras = get_args(annotation)
-        merged, alias = merge_field_metadata(extras, merged, alias, where)
+        merged, alias, discriminator = merge_field_metadata(
+            extras, merged, alias, discriminator, where
+        )
         annotation = base
-    return annotation, field_info_from_constraints(merged, alias)
+    return annotation, field_info_from_constraints(merged, alias, discriminator)
 
 
 def merge_field_metadata(
     extras: list[object],
     merged: dict[str, object],
     alias: str | None,
+    discriminator: str | None,
     where: str,
-) -> tuple[dict[str, object], str | None]:
+) -> tuple[dict[str, object], str | None, str | None]:
     """Combine one Annotated layer, rejecting ambiguous wire names."""
     for extra in extras:
         if not isinstance(extra, FieldInfo):
@@ -74,7 +86,11 @@ def merge_field_metadata(
         merged = {**extra.constraints(), **merged}
         if extra.alias is not None:
             alias = merge_alias(alias, extra.alias, where)
-    return merged, alias
+        if extra.discriminator is not None:
+            if discriminator is not None and discriminator != extra.discriminator:
+                raise RegistrationError(f"{where}: conflicting discriminators")
+            discriminator = extra.discriminator
+    return merged, alias, discriminator
 
 
 def merge_alias(current: str | None, candidate: str, where: str) -> str:
@@ -87,7 +103,9 @@ def merge_alias(current: str | None, candidate: str, where: str) -> str:
 
 
 def field_info_from_constraints(
-    constraints: dict[str, object], alias: str | None
+    constraints: dict[str, object],
+    alias: str | None,
+    discriminator: str | None = None,
 ) -> FieldInfo:
     """Build typed metadata after precedence has been resolved."""
     return FieldInfo(
@@ -100,6 +118,7 @@ def field_info_from_constraints(
         lt=cast(float | None, constraints.get("lt")),
         one_of=cast(tuple[Any, ...] | None, constraints.get("one_of")),
         alias=alias,
+        discriminator=discriminator,
     )
 
 
@@ -159,6 +178,8 @@ def parse_annotation(annotation: object, where: str) -> FieldType:
         nullable = type(None) in members
         allows_unset = Unset in members
         rest = [m for m in members if m is not type(None) and m is not Unset]
+        if len(rest) > 1:
+            return build_tagged_union(rest, info, nullable, allows_unset, where)
         if len(rest) != 1:
             raise RegistrationError(f"{where}: unsupported union {annotation!r}")
         base, inner = split_annotated(rest[0], where)
@@ -174,8 +195,141 @@ def parse_annotation(annotation: object, where: str) -> FieldType:
         info = field_info_from_constraints(
             constraints,
             alias=info.alias if info.alias is not None else inner.alias,
+            discriminator=info.discriminator or inner.discriminator,
+        )
+    elif info.discriminator is not None:
+        raise RegistrationError(
+            f"{where}: discriminator is only valid on a union of Schema variants"
         )
     return build(base, info, nullable, allows_unset, where)
+
+
+def build_tagged_union(
+    members: list[Any],
+    info: FieldInfo,
+    nullable: bool,
+    allows_unset: bool,
+    where: str,
+) -> FieldType:
+    """Validate the shared tag contract for an explicit Schema union."""
+    from hinoki.schema import Schema  # noqa: PLC0415 - Schema imports this module
+
+    discriminator = validate_union_metadata(info, members, where)
+    variants: list[tuple[str, type[Schema]]] = []
+    wire_name: str | None = None
+    for member in members:
+        ensure_variant_type(member, Schema, variants, where)
+        schema_member = cast(type[Schema], member)
+        tag, variant_wire_name = variant_discriminator(
+            schema_member, discriminator, where
+        )
+        if wire_name is None:
+            wire_name = variant_wire_name
+        elif wire_name != variant_wire_name:
+            raise RegistrationError(
+                f"{where}: discriminator aliases must match in every variant"
+            )
+        if any(tag == known_tag for known_tag, _ in variants):
+            raise RegistrationError(f"{where}: duplicate discriminator tag")
+        variants.append((tag, schema_member))
+
+    if wire_name is None:
+        raise RegistrationError(f"{where}: union has no variants")
+    return FieldType(
+        "union",
+        nullable,
+        allows_unset,
+        info,
+        discriminator=discriminator,
+        discriminator_wire_name=wire_name,
+        variants=tuple(variants),
+    )
+
+
+def validate_union_metadata(info: FieldInfo, members: list[Any], where: str) -> str:
+    discriminator = info.discriminator
+    if discriminator is None:
+        raise RegistrationError(f"{where}: union needs Field(discriminator=...)")
+    if info.constraints():
+        raise RegistrationError(
+            f"{where}: union Field(...) accepts only discriminator=..."
+        )
+    if not discriminator.isidentifier():
+        raise RegistrationError(f"{where}: discriminator must be a Python field name")
+    if not MIN_UNION_VARIANTS <= len(members) <= MAX_UNION_VARIANTS:
+        raise RegistrationError(
+            f"{where}: a discriminated union needs 2 to 16 variants"
+        )
+    return discriminator
+
+
+def ensure_variant_type(
+    member: Any,
+    schema_base: type[Schema],
+    variants: list[tuple[str, type[Schema]]],
+    where: str,
+) -> None:
+    if not isinstance(member, type) or not issubclass(member, schema_base):
+        raise RegistrationError(
+            f"{where}: discriminated union members must be Schema classes"
+        )
+    schema_member = member
+    if any(schema_member is known for _, known in variants):
+        raise RegistrationError(f"{where}: duplicate Schema union variant")
+    if any(
+        issubclass(schema_member, known) or issubclass(known, schema_member)
+        for _, known in variants
+    ):
+        raise RegistrationError(
+            f"{where}: Schema union variants cannot inherit from each other"
+        )
+    if schema_member.dump is not schema_base.dump:
+        raise RegistrationError(
+            f"{where}: Schema union variants cannot override dump()"
+        )
+
+
+def variant_discriminator(
+    member: type[Schema],
+    discriminator: str,
+    where: str,
+) -> tuple[str, str]:
+    spec = member.specs().get(discriminator)
+    if spec is None:
+        raise RegistrationError(
+            f"{where}: {member.__name__} needs discriminator field {discriminator!r}"
+        )
+    field_type = spec.ftype
+    choices = field_type.info.one_of
+    if invalid_discriminator_field(spec.required, field_type, choices):
+        raise RegistrationError(
+            f"{where}: {member.__name__}.{discriminator} must be a required string "
+            "constrained by exactly one Field(one_of=(tag,))"
+        )
+    if choices is None:
+        raise RegistrationError(f"{where}: discriminator tag is missing")
+    return cast(str, choices[0]), spec.wire_name
+
+
+def invalid_discriminator_field(
+    required: bool, field_type: FieldType, choices: tuple[Any, ...] | None
+) -> bool:
+    return (
+        field_type.kind != "str"
+        or field_type.nullable
+        or field_type.allows_unset
+        or not required
+        or choices is None
+        or len(choices) != 1
+        or not isinstance(choices[0], str)
+        or not choices[0]
+        or len(choices[0].encode("utf-8")) > MAX_DISCRIMINATOR_BYTES
+        or any(
+            ord(char) < CONTROL_CHARACTER_LIMIT or ord(char) == DELETE_CHARACTER
+            for char in choices[0]
+        )
+        or set(field_type.info.constraints()) != {"one_of"}
+    )
 
 
 def build(
