@@ -167,6 +167,7 @@ fn connector(alpn: &[&[u8]]) -> TlsConnector {
 
 async fn secure(running: &Running, alpn: &[&[u8]]) -> TlsStream<TcpStream> {
     let tcp = TcpStream::connect(running.addr).await.unwrap();
+    tcp.set_nodelay(true).unwrap();
     connector(alpn)
         .connect(ServerName::try_from("localhost").unwrap(), tcp)
         .await
@@ -267,7 +268,7 @@ fn reset_frame(stream: u32) -> Vec<u8> {
 
 type Frame = (u8, u8, u32, Vec<u8>);
 
-async fn next_frame(stream: &mut TlsStream<TcpStream>) -> Option<Frame> {
+async fn next_frame<R: AsyncReadExt + Unpin>(stream: &mut R) -> Option<Frame> {
     let mut head = [0u8; 9];
     stream.read_exact(&mut head).await.ok()?;
     let len = (usize::from(head[0]) << 16) | (usize::from(head[1]) << 8) | usize::from(head[2]);
@@ -621,7 +622,7 @@ async fn paced_resets_of_accepted_streams_get_the_connection_dropped() {
         closed_within(&mut raw, WAIT).await,
         "the reset flood went on"
     );
-    assert!(running.backend.started.load(Ordering::SeqCst) < 400);
+    assert!(running.backend.started.load(Ordering::SeqCst) < 200);
     let (send, _driver) = h2_client(&running).await;
     let (parts, _) = call(&send, request("GET", "/info").body(()).unwrap(), None).await;
     assert_eq!(parts.status, 200);
@@ -669,5 +670,122 @@ async fn more_headers_than_the_limit_are_refused_with_431() {
     assert_eq!(parts.status, 431);
     let (parts, _) = call(&send, request("GET", "/info").body(()).unwrap(), None).await;
     assert_eq!(parts.status, 200);
+    running.stop.send(true).unwrap();
+}
+
+#[tokio::test]
+async fn cookie_crumbs_count_as_one_header() {
+    let running = start(quick(), true).await;
+    let (send, _driver) = h2_client(&running).await;
+    let mut crumbs = request("GET", "/info");
+    for n in 0..20 {
+        crumbs = crumbs.header(format!("x-n{n}"), "v");
+    }
+    for n in 0..90 {
+        crumbs = crumbs.header("cookie", format!("c{n}=v"));
+    }
+    let (parts, _) = call(&send, crumbs.body(()).unwrap(), None).await;
+    assert_eq!(parts.status, 200);
+    running.stop.send(true).unwrap();
+}
+
+fn stall_config() -> ServerConfig {
+    ServerConfig {
+        write_timeout: Duration::from_millis(300),
+        shutdown_timeout: Duration::from_secs(3),
+        ..ServerConfig::default()
+    }
+}
+
+#[tokio::test]
+async fn new_streams_do_not_hide_a_stalled_response() {
+    let running = start(stall_config(), true).await;
+    let mut raw = raw_h2_with(&running, &[0, 4, 0, 0, 0, 0]).await;
+    raw.write_all(&get_frame(1, "/big")).await.unwrap();
+    let (mut reader, mut writer) = tokio::io::split(raw);
+    let flood = async {
+        for n in 1..200u32 {
+            let pair = [get_frame(2 * n + 1, "/big"), reset_frame(2 * n + 1)].concat();
+            if writer.write_all(&pair).await.is_err() {
+                return;
+            }
+            sleep(Duration::from_millis(100)).await;
+        }
+    };
+    let closed = timeout(Duration::from_secs(6), async {
+        tokio::select! {
+            () = async { while next_frame(&mut reader).await.is_some() {} } => {}
+            () = flood => {}
+        }
+    })
+    .await;
+    assert!(
+        closed.is_ok(),
+        "fresh streams kept a stalled response alive"
+    );
+    running.stop.send(true).unwrap();
+}
+
+#[tokio::test]
+async fn a_stalled_response_does_not_cut_a_slow_stream_on_the_connection() {
+    let running = start(stall_config(), true).await;
+    let stream = secure(&running, &[b"h2"]).await;
+    let (send, connection) = client::Builder::new()
+        .initial_window_size(1024)
+        .handshake::<_, Bytes>(stream)
+        .await
+        .unwrap();
+    let _driver = tokio::spawn(connection);
+    // Never read: stuck after the first kibibyte.
+    let mut stalled = send.clone().ready().await.unwrap();
+    let (_unread, _) = stalled
+        .send_request(request("GET", "/big").body(()).unwrap(), true)
+        .unwrap();
+    let mut slow = send.clone().ready().await.unwrap();
+    let (answer, _) = slow
+        .send_request(request("GET", "/slow").body(()).unwrap(), true)
+        .unwrap();
+    // The stall is detected (300 ms) while /slow is still being computed.
+    sleep(Duration::from_millis(900)).await;
+    running.backend.release.notify_one();
+    let (parts, body) = timeout(WAIT, answer).await.unwrap().unwrap().into_parts();
+    assert_eq!(parts.status, 200);
+    assert_eq!(read_all(body).await, b"slow done");
+    running.stop.send(true).unwrap();
+}
+
+#[tokio::test]
+async fn a_slow_but_progressing_download_is_not_cut() {
+    let running = start(stall_config(), true).await;
+    let (send, _driver) = h2_client(&running).await;
+    let ready = send.clone().ready().await.unwrap();
+    let (response, _) = {
+        let mut ready = ready;
+        ready
+            .send_request(request("GET", "/big").body(()).unwrap(), true)
+            .unwrap()
+    };
+    let (parts, mut body) = timeout(WAIT, response).await.unwrap().unwrap().into_parts();
+    assert_eq!(parts.status, 200);
+    let started = std::time::Instant::now();
+    let mut size = 0;
+    let mut since_pause = 0;
+    while let Some(chunk) = body.data().await {
+        let chunk = chunk.unwrap();
+        size += chunk.len();
+        since_pause += chunk.len();
+        body.flow_control().release_capacity(chunk.len()).unwrap();
+        // A reader that takes its time, but never stops for `write_timeout`.
+        if since_pause >= 256 * 1024 {
+            since_pause = 0;
+            sleep(Duration::from_millis(60)).await;
+        }
+    }
+    assert_eq!(size, 5 * MEBIBYTE);
+    assert!(
+        started.elapsed() > Duration::from_millis(900),
+        "too fast to prove anything: {:?}",
+        started.elapsed()
+    );
     running.stop.send(true).unwrap();
 }
