@@ -29,6 +29,7 @@ from hinoki.schema import (
     Schema,
     Unset,
     field_check,
+    field_normalize,
     object_check,
 )
 
@@ -73,6 +74,7 @@ __all__ = [
     "derive",
     "errors",
     "field_check",
+    "field_normalize",
     "http",
     "object_check",
     "set_cookie",

@@ -16,6 +16,8 @@
 
 ::: hinoki.schema.field_check
 
+::: hinoki.schema.field_normalize
+
 ::: hinoki.schema.object_check
 
 ::: hinoki.errors.ValidationError
