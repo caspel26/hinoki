@@ -141,6 +141,12 @@ def run_inline(app: Hinoki, address: tuple[str, int], settings: ServerSettings) 
     return asyncio.run(rustserver.build_worker(app, *address, settings).run())
 
 
+def stop_grace(app: Hinoki) -> float:
+    """How long a worker may take to stop: the server drain, the background
+    tasks, the executor, then each module, every step within ``shutdown_timeout``."""
+    return (3 + len(app.modules)) * app.runtime.shutdown_timeout
+
+
 def run_supervised(
     args: argparse.Namespace,
     app: Hinoki,
@@ -152,7 +158,7 @@ def run_supervised(
 
     workers = 1 if reload else (args.workers or settings.workers)
     listener = open_listener(*address, settings.backlog)
-    grace = app.runtime.shutdown_timeout
+    grace = stop_grace(app)
     return Supervisor(args.target, listener, workers, grace, reload=reload).run()
 
 

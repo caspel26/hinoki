@@ -330,7 +330,11 @@ class RustWorker:
 
     def _on_signal(self) -> None:
         if self.stopping.is_set():
-            os._exit(1)  # a second signal does not wait
+            # A supervised worker also gets the supervisor's forwarded SIGTERM
+            # after a group-wide one; the supervisor owns escalation.
+            if self.parent is None:
+                os._exit(1)  # a second signal does not wait
+            return
         self.stopping.set()
 
     async def run(self) -> int:
