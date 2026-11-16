@@ -27,7 +27,22 @@ class Task(Model, table="tracker_tasks", label="Task", plural="Tasks"):
     completed_at: datetime | None = None
 ```
 
-* `table=` is a class keyword because it is needed when the class is created.
+The explicit `tracker_members` and `tracker_tasks` names above are pinned to
+the example's checked-in migration history. New models can omit `table=`:
+
+```python
+class Invoice(Model):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    reference: str
+```
+
+That declaration derives the table `invoices`, the singular display name
+`Invoice` and the plural `Invoices`. `label=` and `plural=` override the
+display names; set `table=` explicitly for irregular/localized names and to
+keep a physical table stable when a Python class is renamed. The fallback
+pluralizer is deterministic and English-oriented, so use explicit names for
+irregular nouns.
+
 * `@indexed` and `@ordered_by` are decorators that state facts about the model below them ([model options](../model-options.md)). The default order applies to every query that does not call `order_by`.
 * `foreign_key(Member, ...)` is a column holding the owner's id; the relation (`task.owner`) is never fetched by accident.
 
