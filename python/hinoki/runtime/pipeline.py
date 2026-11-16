@@ -160,18 +160,63 @@ class Pipeline:
         raw, still percent-encoded path parameters), so it is not looked up again."""
         scope, trusted = effective_scope(scope, self.trusted_proxies)
         rid = rid or self._request_id(scope, trusted)
+        response = await self._in_request_context(
+            rid, self._respond(scope, source, rid, route)
+        )
+        return self.with_headers(response, scope, rid)
+
+    async def handle_native(
+        self, scope: Scope, binding: Binding, rid: str, accept: str
+    ) -> Response:
+        """Run an eligible handler without routing or request binding."""
+        return await self._in_request_context(
+            rid, self._respond_native(scope, binding, rid, accept)
+        )
+
+    async def _in_request_context(
+        self, rid: str, response: Awaitable[Response]
+    ) -> Response:
         token = request_id.set(rid)
         context.route_headers.set(())
         runner_token = context.sync_runner.set(self.executor.run)
-        # Models use the worker's Database without it being passed around.
         db_token = database_var.set(self.ctx.find(Database))
         try:
-            response = await self._respond(scope, source, rid, route)
+            return await response
         finally:
             database_var.reset(db_token)
             context.sync_runner.reset(runner_token)
             request_id.reset(token)
-        return self.with_headers(response, scope, rid)
+
+    async def _respond_native(
+        self, scope: Scope, binding: Binding, rid: str, accept: str
+    ) -> Response:
+        response: Response
+        try:
+            async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
+                renderer = negotiate(accept, binding.route.renderers)
+                if renderer is None:
+                    wanted = ", ".join(
+                        item.media_type for item in binding.route.renderers
+                    )
+                    raise HTTPError(
+                        HTTPStatus.NOT_ACCEPTABLE,
+                        "not_acceptable",
+                        available=wanted,
+                    )
+                parse_query(scope.get("query_string", b""))
+                response = await self._call_native(binding)
+        except TimeoutError as exc:
+            if limit.expired():
+                response = HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
+            else:
+                response = await error_response(exc, rid, self.app.errors, self.debug)
+        except ExecutorSaturated:
+            response = HTTPError(
+                HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
+            ).response
+        except Exception as exc:
+            response = await error_response(exc, rid, self.app.errors, self.debug)
+        return response
 
     def _request_id(self, scope: Scope, trusted: bool) -> str:
         """The trusted inbound request id when configured and valid, else a new
@@ -392,18 +437,7 @@ class Pipeline:
         kwargs: dict[str, object],
     ) -> Response:
         route = binding.route
-        owner = (route.owner(),) if route.owner is not None else ()
-        args = (*owner, request) if binding.takes_request else owner
-        try:
-            if binding.is_async:
-                handler = cast(Callable[..., Awaitable[object]], route.handler)
-                result = await handler(*args, **kwargs)
-            else:
-                result = await self.executor.run(route.handler, *args, **kwargs)
-        except ExecutorSaturated:
-            raise HTTPError(
-                HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
-            ) from None
+        result = await self._handler_result(binding, request, kwargs)
         if isinstance(result, Reply):
             return Response(result.status, result.body, result.headers)
         if result is not None and route.status not in BODYLESS:
@@ -413,3 +447,41 @@ class Pipeline:
             return Response.rendered(route.status, body, renderer.media_type, many)
         no_content = route.status == HTTPStatus.OK
         return Response(HTTPStatus.NO_CONTENT if no_content else route.status)
+
+    async def _call_native(self, binding: Binding) -> Response:
+        """Run a selected no-Request JSON handler and encode through Rust."""
+        route = binding.route
+        result = await self._handler_result(binding, None, {})
+        if isinstance(result, Reply):
+            return Response(result.status, result.body, result.headers)
+        if result is not None and route.status not in BODYLESS:
+            body = core.encode_json(result, None, False, None)
+            return Response.rendered(route.status, body, "application/json", False)
+        if route.status == HTTPStatus.OK:
+            return Response(HTTPStatus.NO_CONTENT)
+        return Response(route.status)
+
+    async def _handler_result(
+        self,
+        binding: Binding,
+        request: Request | None,
+        kwargs: dict[str, object],
+    ) -> object:
+        """Call an async handler in its task or a sync handler in the executor."""
+        route = binding.route
+        owner = (route.owner(),) if route.owner is not None else ()
+        if binding.takes_request:
+            if request is None:
+                raise RuntimeError("a handler requiring Request has no request")
+            args = (*owner, request)
+        else:
+            args = owner
+        try:
+            if binding.is_async:
+                handler = cast(Callable[..., Awaitable[object]], route.handler)
+                return await handler(*args, **kwargs)
+            return await self.executor.run(route.handler, *args, **kwargs)
+        except ExecutorSaturated:
+            raise HTTPError(
+                HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
+            ) from None

@@ -295,18 +295,34 @@ class RustWorker:
             log.warning("ignored invalid request ID from trusted proxy")
         route = None if request.action is None else (request.action, request.params)
         try:
-            response = await self.pipeline.handle(
-                scope_of(request, self.address, self.scheme),
-                RustBody(request),
-                request.request_id,
-                route,
-            )
+            scope = scope_of(request, self.address, self.scheme)
+            if request.native_handler:
+                headers, _ = core.request_headers(request.headers)
+                action = request.action
+                if action is None:
+                    raise RuntimeError("native handler request has no action")
+                response = await self.pipeline.handle_native(
+                    scope,
+                    self.pipeline.bindings[action],
+                    request.request_id,
+                    headers.get("accept", ""),
+                )
+            else:
+                response = await self.pipeline.handle(
+                    scope,
+                    RustBody(request),
+                    request.request_id,
+                    route,
+                )
         except Exception:
             log.exception("request %s failed", request.request_id)
             self._fail(request)
             return
         body = b"" if request.method == "HEAD" else response.body
-        request.respond(response.status, response.headers, body)
+        if request.native_handler:
+            request.respond_final(response.status, response.headers, response.body)
+        else:
+            request.respond(response.status, response.headers, body)
 
     async def stop(self) -> int:
         """Stop accepting, let running requests finish (up to the shutdown

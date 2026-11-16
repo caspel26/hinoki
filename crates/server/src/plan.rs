@@ -15,8 +15,9 @@ pub struct RoutePlan {
     pub status: u16,
     pub headers: Vec<(String, String)>,
     pub transaction: bool,
-    pub is_async: bool,
     pub takes_request: bool,
+    /// This action can skip Python request binding and response policy work.
+    pub native_handler: bool,
 }
 
 impl RoutePlan {
@@ -32,6 +33,7 @@ pub enum PlanError {
     DuplicateAction(u32),
     NoMediaType(u32),
     BadStatus(u32, u16),
+    InvalidNativeHandler(u32),
 }
 
 #[derive(Debug, Default)]
@@ -52,6 +54,18 @@ impl Plan {
             }
             if !(100..=599).contains(&route.status) {
                 return Err(PlanError::BadStatus(route.action, route.status));
+            }
+            if route.native_handler
+                && (route.method != "GET"
+                    || !route.path_params.is_empty()
+                    || route.has_body
+                    || route.has_access
+                    || route.media_types.as_slice() != ["application/json"]
+                    || !route.headers.is_empty()
+                    || route.transaction
+                    || route.takes_request)
+            {
+                return Err(PlanError::InvalidNativeHandler(route.action));
             }
         }
         routes.sort_by_key(|route| route.action);
@@ -89,8 +103,8 @@ mod tests {
             status: 200,
             headers: vec![],
             transaction: false,
-            is_async: true,
             takes_request: false,
+            native_handler: false,
         }
     }
 
@@ -119,6 +133,13 @@ mod tests {
         assert_eq!(
             Plan::new(vec![bad]).unwrap_err(),
             PlanError::BadStatus(3, 99)
+        );
+        let mut invalid_native = route(4);
+        invalid_native.native_handler = true;
+        invalid_native.has_access = true;
+        assert_eq!(
+            Plan::new(vec![invalid_native]).unwrap_err(),
+            PlanError::InvalidNativeHandler(4)
         );
     }
 
