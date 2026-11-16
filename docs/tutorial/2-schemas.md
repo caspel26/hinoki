@@ -24,6 +24,33 @@ class TaskOut(Schema, model=Task):
 * `TaskOut` takes the columns of `Task`: types and limits come from the model, and `exclude=("owner_id",)` keeps `owner_id` out. Relations are never derived; you name them on purpose.
 * Because the owner is not a field of `TaskIn`, a client cannot choose it. If it were, `Task.acreate(data, owner_id=me)` would still win (server values beat the client's), and a schema can never carry the primary key.
 
+When one property can contain more than one shape, put an explicit tagged union inside a wrapper Schema. Every variant has a required tag with a distinct `one_of` value and the same wire alias:
+
+```python
+from typing import Annotated
+
+from hinoki import Field, Schema
+
+
+class Cat(Schema):
+    kind: Annotated[str, Field(alias="type", one_of=("cat",))]
+    name: str
+
+
+class Dog(Schema):
+    kind: Annotated[str, Field(alias="type", one_of=("dog",))]
+    walks: int
+
+
+Pet = Annotated[Cat | Dog, Field(discriminator="kind")]
+
+
+class PetRequest(Schema):
+    pet: Pet
+```
+
+`PetRequest.validate({"pet": {"type": "cat", "name": "Mugi"}})` builds a `Cat`; the same tag also produces an OpenAPI `oneOf` with a discriminator mapping. See [discriminated unions](../schemas.md#discriminated-unions) for request errors, lists, nullable fields and limits.
+
 More: [Schemas](../schemas.md), [model-derived schemas](../model-schemas.md).
 
 Next: [3. Operations](3-operations.md). Validation patterns continue in [7. Validate input](7-validation.md).

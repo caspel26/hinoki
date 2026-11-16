@@ -14,7 +14,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, get_args, get_origin
 
 from hinoki.errors import APIError, RegistrationError
-from hinoki.fieldtypes import FieldType
+from hinoki.fieldtypes import FieldType, is_union
 from hinoki.handlerhints import hints_of
 from hinoki.pagination import Page, PageNumberPagination
 from hinoki.runtime.binding import Binding, Param
@@ -232,6 +232,10 @@ class OpenAPIBuilder:
         """JSON schema of a handler return annotation."""
         if isinstance(annotation, type) and issubclass(annotation, Schema):
             return self.component(annotation)
+        if is_union(annotation):
+            raise RegistrationError(
+                "bare union return annotations are unsupported; use a wrapper Schema"
+            )
         generic = self.generic(get_origin(annotation), get_args(annotation))
         if generic is not None:
             return generic
@@ -294,6 +298,18 @@ class OpenAPIBuilder:
             base: dict[str, Any] = {"type": "array", "items": self.field(ftype.item)}
         elif ftype.kind == "schema" and ftype.schema is not None:
             base = self.component(ftype.schema)
+        elif ftype.kind == "union":
+            variants = [(tag, schema) for tag, schema in ftype.variants]
+            base = {
+                "oneOf": [self.component(schema) for _, schema in variants],
+                "discriminator": {
+                    "propertyName": ftype.discriminator_wire_name,
+                    "mapping": {
+                        tag: f"#/components/schemas/{schema.__name__}"
+                        for tag, schema in variants
+                    },
+                },
+            }
         else:
             base = dict(KIND_SCHEMAS[ftype.kind])
         for name, value in ftype.info.constraints().items():

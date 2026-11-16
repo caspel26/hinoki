@@ -53,6 +53,42 @@ An assigned declaration such as `display_name: str = Field(alias="displayName")`
 
 `Schema(...)` validates the final Python values immediately and raises `ValidationError` for invalid values. Pass Python objects such as `UUID`, timezone-aware `datetime` and nested `Schema` instances. `Schema.validate(decoded_data)` is the wire-input path: it accepts JSON-compatible values, resolves aliases and returns field errors using wire names. Request body binding uses that path before calling the handler. `from_model()` also validates the constructed Schema; naive datetimes returned by database drivers remain unchanged and are allowed on that model-conversion path. Return annotations describe OpenAPI and serialization; Hinoki does not validate handler return values at runtime.
 
+## Discriminated unions
+
+Use a discriminated union when one field can contain one of several known Schema shapes. Declare the union on a `Schema` field with `Annotated[Cat | Dog, Field(discriminator="kind")]`. Every variant needs the same required string field, the same wire alias for that field, and exactly one `Field(one_of=(...))` tag. Hinoki selects the variant by that tag in Rust; it does not try each schema in order.
+
+```python
+from typing import Annotated
+
+from hinoki import Field, Schema, http
+
+
+class Cat(Schema):
+    kind: Annotated[str, Field(alias="type", one_of=("cat",))]
+    name: str
+
+
+class Dog(Schema):
+    kind: Annotated[str, Field(alias="type", one_of=("dog",))]
+    walks: int
+
+
+Pet = Annotated[Cat | Dog, Field(discriminator="kind")]
+
+
+class PetRequest(Schema):
+    pet: Pet
+
+
+@http.post("/pets")
+async def create_pet(data: PetRequest) -> PetRequest:
+    return data
+```
+
+`PetRequest.validate({"pet": {"type": "cat", "name": "Mugi"}})` returns a `PetRequest` whose `pet` is a `Cat`; manual construction takes an already validated variant instance, such as `PetRequest(pet=Dog(kind="dog", walks=2))`. A dict is not coerced into a variant. `list[Pet]`, nested Schema fields, nullable unions and `Unset` use the same discriminator rules. Unknown tags produce a field error at the tag's wire path without echoing the submitted value. The handler is not called for an invalid body, whether it is synchronous or asynchronous.
+
+Each variant's tag field is required and cannot have a default. Tags must be unique strings, variants must be distinct Schema classes, and variant classes cannot override `dump()` because the override could remove or change the tag on the wire. Plain unions without `Field(discriminator=...)`, `Literal`, non-Schema variants, and unions directly in handler body or return annotations are not supported; wrap the union in a Schema for route input and output. This does not add runtime response validation.
+
 ## Projection options on `dump()`
 
 Use `dump()` when application code needs a JSON-compatible projection of a Schema. `include` and `exclude` accept Python field names and apply to the top-level fields only; exclusion wins if a field appears in both. There are no dotted paths or nested selection maps. Nested Schemas and supported lists are converted recursively, with `by_alias` applied at every Schema level.
