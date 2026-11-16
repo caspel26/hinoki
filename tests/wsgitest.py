@@ -1,5 +1,6 @@
 """The WSGI adapter, in process and under a real WSGI server (Granian)."""
 
+import asyncio
 import io
 import json
 import os
@@ -9,7 +10,7 @@ import sys
 import urllib.error
 import urllib.request
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -17,7 +18,7 @@ import pytest
 
 from hinoki import Hinoki, Module, http
 from hinoki.modules import ModuleContext
-from hinoki.wsgi import WSGIAdapter
+from hinoki.wsgi import WSGIAdapter, WSGIStartupError, _read, _status
 from tests.runtime.harness import free_port, wait_ready
 from tests.runtime.wsgiapp import PROTECTED_UPLOAD_PARSER, create_app
 
@@ -277,3 +278,39 @@ def test_a_bad_content_length_is_a_400_not_a_crash() -> None:
         assert seen["status"].startswith("400")
     finally:
         adapter.close()
+
+
+def test_wsgi_closed_adapter_reports_its_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    adapter = WSGIAdapter(create_app())
+    monkeypatch.setattr(adapter, "start", lambda: None)
+    with pytest.raises(WSGIStartupError, match="adapter is closed"):
+        adapter({}, lambda *_args: None)
+
+
+async def test_shutdown_before_wsgi_start_is_a_noop() -> None:
+    await WSGIAdapter(create_app())._shutdown()
+
+
+def test_wsgi_helper_fallbacks_and_chunked_input() -> None:
+    assert _status(799) == "799 Unknown"
+    env = {
+        "wsgi.input": io.BytesIO(b"abcdef"),
+        "HTTP_TRANSFER_ENCODING": "Chunked",
+    }
+    assert _read(env, 3) == b"abcd"
+    assert _read({"wsgi.input": io.BytesIO(b"ignored")}, 3) == b""
+
+
+async def test_wsgi_receive_waits_for_disconnect_forever() -> None:
+    class ReadsTwice:
+        async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+            await receive()
+            blocked = asyncio.create_task(receive())
+            await asyncio.sleep(0)
+            assert not blocked.done()
+            blocked.cancel()
+            with suppress(asyncio.CancelledError):
+                await blocked
+            await send({"type": "http.response.start", "status": 204, "headers": []})
+
+    await WSGIAdapter(ReadsTwice())._request({}, b"")
