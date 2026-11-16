@@ -140,10 +140,11 @@ def test_abstract_and_table_rules_are_checked_at_declaration() -> None:
         class Both(Model, abstract=True, table="am_both"):
             id: int = field(primary_key=True)
 
-    with pytest.raises(RegistrationError, match="or abstract=True"):
+    class Neither(Keyed):
+        name: str = ""
 
-        class Neither(Keyed):
-            name: str = ""
+    assert Neither.__table__ == "neithers"
+    assert Neither.__table_is_implicit__
 
     with pytest.raises(RegistrationError, match="exactly one primary_key"):
 

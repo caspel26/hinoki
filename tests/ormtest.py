@@ -129,8 +129,10 @@ def test_unknown_fields_and_hostile_names_are_rejected(build: Any) -> None:
 
 
 def test_model_declaration_errors_fail_at_class_creation() -> None:
-    with pytest.raises(RegistrationError, match="table"):
-        type("NoTable", (Model,), {"__annotations__": {}})
+    class NoTable(Model):
+        id: int = field(primary_key=True)
+
+    assert NoTable.__table__ == "no_tables"
     with pytest.raises(RegistrationError, match="primary_key"):
         type("NoKey", (Model,), {"__annotations__": {"x": int}}, table="t")
 

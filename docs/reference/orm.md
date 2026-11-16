@@ -1,5 +1,9 @@
 # Models and queries
 
+Concrete Models may omit `table=` to derive a plural snake-case table name;
+`label=` and `plural=` override humanized display names. Explicit table names
+remain the safe choice for migration-backed histories and stable physical names.
+
 ::: hinoki.orm.Model
     options:
       members: true

@@ -46,6 +46,7 @@ from hinoki.errors import (
 from hinoki.fields import FieldInfo
 from hinoki.fieldtypes import FieldType, parse_annotation, split_annotated
 from hinoki.orm.context import current_database
+from hinoki.orm.naming import resolve_model_names
 from hinoki.orm.queryset import QuerySet, write_statement, written_rows
 from hinoki.orm.relations import OnDelete, Related, Relation
 from hinoki.utils import Clock, utc_now
@@ -460,9 +461,10 @@ MIN_UNIQUE = 2
 
 @dataclass_transform(kw_only_default=True, field_specifiers=(field,))
 class Model:
-    """Base class: ``class Post(Model, table="posts"): ...``."""
+    """Base class: ``class Post(Model): ...`` with an optional ``table=`` override."""
 
     __table__: ClassVar[str] = ""
+    __table_is_implicit__: ClassVar[bool] = False
     __columns__: ClassVar[tuple[str, ...]] = ()
     __json_columns__: ClassVar[tuple[str, ...]] = ()
     __field_types__: ClassVar[dict[str, FieldType]] = {}
@@ -492,16 +494,10 @@ class Model:
         **kwargs: object,
     ) -> None:
         super().__init_subclass__(**kwargs)
-        if abstract and table:
-            raise RegistrationError(
-                f"{cls.__name__}: an abstract model has no table; remove table=... "
-                "or abstract=True"
-            )
-        if not abstract and not table:
-            raise RegistrationError(
-                f"{cls.__name__}: table=... is required (or abstract=True for a "
-                "base class that only carries fields and options)"
-            )
+        table, label, plural, implicit_table = resolve_model_names(
+            cls.__name__, table, label, plural, abstract=abstract
+        )
+        cls.__table_is_implicit__ = implicit_table
         cls.check_field_conflicts()
         cls.adopt_mixin_fields()
         dataclasses.dataclass(kw_only=True)(cls)

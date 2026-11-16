@@ -11,6 +11,7 @@ from pathlib import Path
 
 from hinoki.orm import MARK, FieldMeta, Model
 from hinoki.orm.migrations import models_of
+from hinoki.orm.naming import MIGRATION_LEDGER, table_names_conflict
 from hinoki.scaffold import NAME, RESERVED_NAMES
 
 _MODULE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\Z")
@@ -116,15 +117,33 @@ class ProjectManifest:
         """Load models in manifest order and reject ambiguous table ownership."""
         result: dict[str, list[type[Model]]] = {}
         owners: dict[str, str] = {}
+        registered: list[tuple[type[Model], str]] = []
         for app in self.ordered_apps():
             models = self.models(app)
             for model in models:
-                owner = owners.get(model.__table__)
-                if owner is not None:
+                if model.__table__.casefold() == MIGRATION_LEDGER:
                     raise ProjectError(
-                        f"table {model.__table__!r} is declared by apps "
-                        f"{owner!r} and {app.name!r}"
+                        f"{model.__module__}.{model.__qualname__} claims Hinoki's "
+                        f"migration ledger table {MIGRATION_LEDGER!r}; choose a "
+                        "distinct application table"
                     )
+                collision = next(
+                    (
+                        (previous, owner)
+                        for previous, owner in registered
+                        if table_names_conflict(previous, model)
+                    ),
+                    None,
+                )
+                if collision is not None:
+                    previous, owner = collision
+                    raise ProjectError(
+                        f"table {model.__table__!r} is declared by "
+                        f"{previous.__module__}.{previous.__qualname__} in app "
+                        f"{owner!r} and {model.__module__}.{model.__qualname__} "
+                        f"in app {app.name!r}; choose distinct table= values"
+                    )
+                registered.append((model, app.name))
                 owners[model.__table__] = app.name
             result[app.name] = models
         self._check_model_dependencies(result, owners)
