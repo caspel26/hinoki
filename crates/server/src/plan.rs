@@ -55,16 +55,7 @@ impl Plan {
             if !(100..=599).contains(&route.status) {
                 return Err(PlanError::BadStatus(route.action, route.status));
             }
-            if route.native_handler
-                && (route.method != "GET"
-                    || !route.path_params.is_empty()
-                    || route.has_body
-                    || route.has_access
-                    || route.media_types.as_slice() != ["application/json"]
-                    || !route.headers.is_empty()
-                    || route.transaction
-                    || route.takes_request)
-            {
+            if route.native_handler && !native_handler_is_valid(route) {
                 return Err(PlanError::InvalidNativeHandler(route.action));
             }
         }
@@ -86,6 +77,16 @@ impl Plan {
     pub fn is_empty(&self) -> bool {
         self.routes.is_empty()
     }
+}
+
+fn native_handler_is_valid(route: &RoutePlan) -> bool {
+    let has_no_request_inputs = route.path_params.is_empty()
+        && !route.has_body
+        && !route.has_access
+        && !route.takes_request;
+    let uses_default_json = route.media_types.as_slice() == ["application/json"];
+    let has_no_response_hooks = route.headers.is_empty() && !route.transaction;
+    route.method == "GET" && has_no_request_inputs && uses_default_json && has_no_response_hooks
 }
 
 #[cfg(test)]
