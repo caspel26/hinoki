@@ -295,19 +295,18 @@ class RustWorker:
             log.warning("ignored invalid request ID from trusted proxy")
         route = None if request.action is None else (request.action, request.params)
         try:
-            scope = scope_of(request, self.address, self.scheme)
             if request.native_handler:
-                headers, _ = core.request_headers(request.headers)
                 action = request.action
                 if action is None:
                     raise RuntimeError("native handler request has no action")
                 response = await self.pipeline.handle_native(
-                    scope,
                     self.pipeline.bindings[action],
                     request.request_id,
-                    headers.get("accept", ""),
+                    request.native_args,
+                    request.native_error,
                 )
             else:
+                scope = scope_of(request, self.address, self.scheme)
                 response = await self.pipeline.handle(
                     scope,
                     RustBody(request),

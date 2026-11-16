@@ -88,6 +88,19 @@ impl Router {
         Self::default()
     }
 
+    /// The parameter names encoded in a route template, in path order.
+    pub fn parameter_names(template: &str) -> Result<Vec<String>, RouteError> {
+        let invalid = || RouteError::InvalidTemplate(template.to_owned());
+        let parts = segments(template).ok_or_else(invalid)?;
+        let mut names = Vec::new();
+        for part in parts {
+            if let Some(name) = param_name(part).map_err(|()| invalid())? {
+                names.push(name.to_owned());
+            }
+        }
+        Ok(names)
+    }
+
     pub fn add(&mut self, method: &str, template: &str, action: u32) -> Result<(), RouteError> {
         let invalid = || RouteError::InvalidTemplate(template.to_owned());
         let segs = segments(template).ok_or_else(invalid)?;
@@ -201,6 +214,15 @@ mod tests {
         r.add("GET", "/posts/featured", 5).unwrap();
         r.add("GET", "/", 6).unwrap();
         r
+    }
+
+    #[test]
+    fn extracts_template_parameters_in_path_order() {
+        assert_eq!(
+            Router::parameter_names("/items/{item_id}/owners/{owner_id}").unwrap(),
+            ["item_id", "owner_id"]
+        );
+        assert!(Router::parameter_names("/items/{bad").is_err());
     }
 
     fn found(action: u32, params: &[(&str, &str)]) -> Match {

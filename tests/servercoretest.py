@@ -26,6 +26,26 @@ async def native() -> dict[str, str]:
     return {"native": "yes"}
 
 
+@http.get("/native/items/{item_id}")
+def native_item(item_id: str) -> dict[str, str]:
+    return {"item_id": item_id}
+
+
+@http.get("/native/search")
+def native_search(term: str) -> dict[str, str]:
+    return {"term": term}
+
+
+@http.get("/native/numbers/{item_id}")
+def native_number(item_id: int) -> dict[str, int]:
+    return {"item_id": item_id}
+
+
+@http.get("/native/default")
+def native_default(term: str = "hinoki") -> dict[str, str]:
+    return {"term": term}
+
+
 @http.get("/custom-renderer", renderers=[JSONRenderer(indent=2)])
 async def custom_renderer() -> dict[str, str]:
     return {"native": "no"}
@@ -43,7 +63,17 @@ async def made(request: Request) -> dict[str, bool]:
 
 def make_app(**config: int) -> Hinoki:
     app = Hinoki(runtime=RuntimeConfig(**config))
-    app.include(ping, native, custom_renderer, item, made)
+    app.include(
+        ping,
+        native,
+        native_item,
+        native_search,
+        native_number,
+        native_default,
+        custom_renderer,
+        item,
+        made,
+    )
     return app
 
 
@@ -138,15 +168,46 @@ def test_a_routed_request_is_queued_with_its_facts() -> None:
     assert request.needs_headers is True  # the handler takes a Request
 
 
-def test_only_the_unmodified_simple_get_uses_native_handler_dispatch() -> None:
+def test_native_dispatch_selects_only_supported_get_inputs() -> None:
     server = classifier(make_app())
     server.submit("GET", "/native", b"", [])
+    server.submit("GET", "/native/items/a%2Fb", b"", [])
+    server.submit("GET", "/native/search", b"term=green+tea", [])
+    server.submit("GET", "/native/numbers/4", b"", [])
+    server.submit("GET", "/native/default", b"", [])
     server.submit("GET", "/ping", b"", [])
     server.submit("GET", "/custom-renderer", b"", [])
-    native, request_handler, custom = server.drain(3)
+    native, path, query, number, default, request_handler, custom = server.drain(7)
     assert native.native_handler is True
+    assert path.native_handler is True
+    assert path.native_args == {"item_id": "a/b"}
+    assert query.native_handler is True
+    assert query.native_args == {"term": "green tea"}
+    assert number.native_handler is False
+    assert default.native_handler is False
     assert request_handler.native_handler is False
     assert custom.native_handler is False
+
+
+@pytest.mark.parametrize("inputs", [[], [("path", "other")]])
+def test_native_plan_rejects_inputs_that_do_not_match_the_template(
+    inputs: list[tuple[str, str]],
+) -> None:
+    route: core.RouteSpec = (
+        0,
+        "GET",
+        "/items/{item}",
+        False,
+        False,
+        ["application/json"],
+        200,
+        [],
+        False,
+        False,
+        (True, inputs),
+    )
+    with pytest.raises(ValueError, match="InvalidNativeHandler"):
+        core.ServerCore([route], early_bodies(), ([], []), b"x-request-id", "0" * 16)
 
 
 def test_native_response_finalization_uses_the_https_policy() -> None:
