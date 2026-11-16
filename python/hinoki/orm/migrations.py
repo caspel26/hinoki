@@ -24,6 +24,7 @@ from uuid import UUID
 
 from hinoki.errors import DestructiveMigration, MigrationError
 from hinoki.orm import MARK, FieldMeta, Model
+from hinoki.orm.naming import MIGRATION_LEDGER, table_names_conflict
 from hinoki.orm.relations import ON_DELETE
 from hinoki.target import add_project_to_import_path
 
@@ -194,15 +195,54 @@ def state_of(
     *,
     reference_models: list[type[Model]] | None = None,
 ) -> State:
-    tables = {m.__table__: table_state(m) for m in models}
+    owned = _unique_model_classes(models)
+    references = _unique_model_classes(reference_models or [])
+    _reject_ledger_models([*owned, *references])
+    tables: dict[str, Any] = {}
+    owners: list[type[Model]] = []
+    for model in owned:
+        _check_table_owner(model, owners)
+        owners.append(model)
+        tables[model.__table__] = table_state(model)
     state: State = {"tables": tables}
-    external = {
-        model.__table__: table_state(model)
-        for model in reference_models or []
-        if model.__table__ not in tables
-    }
+    external: dict[str, Any] = {}
+    for model in references:
+        if model in owned:
+            continue
+        _check_table_owner(model, owners)
+        owners.append(model)
+        external[model.__table__] = table_state(model)
     check_references(state, {"tables": external})
     return state
+
+
+def _unique_model_classes(models: list[type[Model]]) -> list[type[Model]]:
+    unique: list[type[Model]] = []
+    seen: set[int] = set()
+    for model in models:
+        if id(model) not in seen:
+            seen.add(id(model))
+            unique.append(model)
+    return unique
+
+
+def _reject_ledger_models(models: list[type[Model]]) -> None:
+    for model in models:
+        if model.__table__.casefold() == MIGRATION_LEDGER:
+            raise MigrationError(
+                f"{model.__name__} claims Hinoki's migration ledger table "
+                f"{MIGRATION_LEDGER!r}; choose a distinct application table"
+            )
+
+
+def _check_table_owner(model: type[Model], owners: list[type[Model]]) -> None:
+    for previous in owners:
+        if table_names_conflict(previous, model):
+            raise MigrationError(
+                f"models {previous.__module__}.{previous.__qualname__} and "
+                f"{model.__module__}.{model.__qualname__} both claim or ambiguously "
+                f"resolve to table {model.__table__!r}; choose distinct table= values"
+            )
 
 
 def creation_order(tables: State) -> list[str]:
