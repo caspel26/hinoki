@@ -5,8 +5,13 @@ from typing import Annotated, ClassVar
 
 import pytest
 
-from hinoki import Field, Hinoki, Invalid, Schema, field_check, http
+from hinoki import Field, Hinoki, Invalid, Schema, Unset, field_check, http
 from hinoki.errors import RegistrationError, ValidationError
+from hinoki.fieldtypes import (
+    ensure_variant_type,
+    parse_annotation,
+    validate_union_metadata,
+)
 from hinoki.testing import ASGIClient
 
 variant_checks: list[str] = []
@@ -55,6 +60,10 @@ class AssignedPet(Schema):
 
 class DefaultPet(Schema):
     pet: PetUnion = Field(default_factory=lambda: Cat(kind="cat", name="Mugi"))
+
+
+class UnrecognizedMetadata(Schema):
+    value: Annotated[str, "ignored metadata"]
 
 
 @http.post("/union/async")
@@ -257,6 +266,85 @@ def declare_custom_dump_variant() -> None:
         item: Annotated[Cat | CustomDumpVariant, Field(discriminator="kind")]
 
 
+def declare_scalar_discriminator() -> None:
+    class BadScalarDiscriminator(Schema):
+        value: Annotated[str, Field(discriminator="kind")]
+
+
+def declare_conflicting_nested_aliases() -> None:
+    class ConflictingAliases(Schema):
+        value: Annotated[
+            Annotated[str, Field(alias="inner")] | None,
+            Field(alias="outer"),
+        ]
+
+
+def declare_conflicting_nested_discriminators() -> None:
+    class First(Schema):
+        kind: Annotated[str, Field(one_of=("first",))]
+
+    class Second(Schema):
+        kind: Annotated[str, Field(one_of=("second",))]
+
+    class ConflictingDiscriminators(Schema):
+        value: Annotated[
+            Annotated[First | Second, Field(discriminator="kind")],
+            Field(discriminator="other"),
+        ]
+
+
+def declare_duplicate_tags() -> None:
+    class First(Schema):
+        kind: Annotated[str, Field(one_of=("same",))]
+
+    class Second(Schema):
+        kind: Annotated[str, Field(one_of=("same",))]
+
+    class DuplicateTags(Schema):
+        value: Annotated[First | Second, Field(discriminator="kind")]
+
+
+def declare_union_with_non_schema_member() -> None:
+    class InvalidVariant(Schema):
+        value: Annotated[Cat | int, Field(discriminator="kind")]
+
+
+def declare_union_with_invalid_discriminator_name() -> None:
+    class First(Schema):
+        kind: Annotated[str, Field(one_of=("first",))]
+
+    class Second(Schema):
+        kind: Annotated[str, Field(one_of=("second",))]
+
+    class InvalidDiscriminator(Schema):
+        value: Annotated[First | Second, Field(discriminator="not-a-field")]
+
+
+def declare_union_with_constraints() -> None:
+    class First(Schema):
+        kind: Annotated[str, Field(one_of=("first",))]
+
+    class Second(Schema):
+        kind: Annotated[str, Field(one_of=("second",))]
+
+    class InvalidUnion(Schema):
+        value: Annotated[
+            First | Second,
+            Field(discriminator="kind", min_length=1),
+        ]
+
+
+def declare_union_with_missing_discriminator_field() -> None:
+    class First(Schema):
+        tag: Annotated[str, Field(one_of=("first",))]
+
+    class Second(Schema):
+        tag: Annotated[str, Field(one_of=("second",))]
+
+    class MissingField(Schema):
+        value: Annotated[First | Second, Field(discriminator="kind")]
+
+
 def test_invalid_discriminator_declarations_fail_at_schema_registration() -> None:
     with pytest.raises(RegistrationError, match=r"Field\(discriminator"):
         declare_missing_union_metadata()
@@ -266,6 +354,42 @@ def test_invalid_discriminator_declarations_fail_at_schema_registration() -> Non
         declare_mismatched_tag_aliases()
     with pytest.raises(RegistrationError, match="cannot override dump"):
         declare_custom_dump_variant()
+    with pytest.raises(RegistrationError, match="only valid on a union"):
+        declare_scalar_discriminator()
+    with pytest.raises(RegistrationError, match="conflicting aliases"):
+        declare_conflicting_nested_aliases()
+    with pytest.raises(RegistrationError, match="conflicting discriminators"):
+        declare_conflicting_nested_discriminators()
+    with pytest.raises(RegistrationError, match="duplicate discriminator tag"):
+        declare_duplicate_tags()
+    with pytest.raises(RegistrationError, match="must be Schema classes"):
+        declare_union_with_non_schema_member()
+    with pytest.raises(RegistrationError, match="Python field name"):
+        declare_union_with_invalid_discriminator_name()
+    with pytest.raises(RegistrationError, match="accepts only discriminator"):
+        declare_union_with_constraints()
+    with pytest.raises(RegistrationError, match="needs discriminator field"):
+        declare_union_with_missing_discriminator_field()
+
+
+def test_union_without_a_member_is_rejected() -> None:
+    with pytest.raises(RegistrationError, match="2 to 16 variants"):
+        validate_union_metadata(Field(discriminator="kind"), [Cat], "empty")
+
+
+def test_schema_fieldtype_helpers_reject_empty_unions_and_repeated_classes() -> None:
+    with pytest.raises(RegistrationError, match="unsupported union"):
+        parse_annotation(type(None) | Unset, "empty")
+    with pytest.raises(RegistrationError, match="duplicate Schema union variant"):
+        ensure_variant_type(Cat, Schema, [("cat", Cat)], "repeated")
+
+
+def test_schema_inheritance_is_not_a_discriminated_union() -> None:
+    class SpecialCat(Cat):
+        detail: str
+
+    with pytest.raises(RegistrationError, match="cannot inherit from each other"):
+        ensure_variant_type(SpecialCat, Schema, [("cat", Cat)], "related")
 
 
 def test_openapi_rejects_bare_union_return_annotations() -> None:
