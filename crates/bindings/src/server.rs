@@ -319,6 +319,9 @@ pub struct Core {
     id_name: Vec<u8>,
     prefix: String,
     counter: AtomicU64,
+    /// Invalid trusted request ids seen on natively answered requests; the
+    /// loop reads and clears it (queued requests log from Python instead).
+    ignored_ids: AtomicU64,
     trust_request_id: bool,
     proxies: Networks,
     defer_policies: bool,
@@ -395,6 +398,7 @@ impl ServerCore {
                 id_name: request_id_name,
                 prefix: request_id_prefix,
                 counter: AtomicU64::new(0),
+                ignored_ids: AtomicU64::new(0),
                 trust_request_id,
                 proxies,
                 defer_policies,
@@ -413,6 +417,12 @@ impl ServerCore {
 
     fn set_ready(&self, ready: bool) {
         self.core.ready.store(ready, Ordering::Release);
+    }
+
+    /// How many invalid trusted request ids native answers ignored since the
+    /// last call; resets the count. Queued requests report it per request.
+    fn take_ignored_ids(&self) -> u64 {
+        self.core.ignored_ids.swap(0, Ordering::Relaxed)
     }
 
     #[getter]
@@ -710,6 +720,9 @@ impl Core {
         extra: Vec<Header>,
     ) -> Result<Outcome, String> {
         let reply = self.early_reply(asked, early, extra)?;
+        if asked.id_ignored {
+            self.ignored_ids.fetch_add(1, Ordering::Relaxed);
+        }
         Ok(Outcome::Early(reply))
     }
 

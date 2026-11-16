@@ -10,7 +10,7 @@
 
 use std::io::{ErrorKind, Read, Write};
 use std::net::SocketAddr;
-use std::os::fd::AsRawFd;
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -109,6 +109,23 @@ fn io_error(err: std::io::Error) -> PyErr {
     PyRuntimeError::new_err(err.to_string())
 }
 
+/// The listening socket: the inherited descriptor, or a fresh bind.
+fn listener_of(host: &str, port: u16, fd: Option<i32>) -> PyResult<std::net::TcpListener> {
+    let Some(fd) = fd else {
+        return std::net::TcpListener::bind((host, port)).map_err(io_error);
+    };
+    if fd < 0 {
+        return Err(PyValueError::new_err("fd must be a descriptor"));
+    }
+    // SAFETY: the caller hands over a descriptor it no longer uses (the Python
+    // side detaches the socket first), so this is its only owner. A descriptor
+    // that is not a listening TCP socket fails at `local_addr` below and is
+    // closed with the listener.
+    let listener = unsafe { std::net::TcpListener::from_raw_fd(fd) };
+    listener.local_addr().map_err(io_error)?;
+    Ok(listener)
+}
+
 fn seconds(name: &str, value: f64) -> PyResult<Duration> {
     Duration::try_from_secs_f64(value)
         .map_err(|_| PyValueError::new_err(format!("{name} must be a non-negative number")))
@@ -125,12 +142,15 @@ pub struct RustServer {
 
 #[pymethods]
 impl RustServer {
-    /// Bind `host:port` (port 0 picks a free one) and start serving. Errors
-    /// from binding are raised here, before anything is accepted.
+    /// Serve on the listening socket `fd`, which the caller created and detached
+    /// (this takes ownership of it), or bind `host:port` (port 0 picks a free
+    /// one) when there is none. Errors are raised here, before anything is
+    /// accepted.
     #[staticmethod]
     #[pyo3(signature = (
         core, host, port, max_connections=10_000, header_read_timeout=10.0,
-        shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0
+        shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
+        fd=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start(
@@ -142,6 +162,7 @@ impl RustServer {
         shutdown_timeout: f64,
         max_header_bytes: usize,
         body_read_timeout: f64,
+        fd: Option<i32>,
     ) -> PyResult<Self> {
         if max_connections == 0 {
             return Err(PyValueError::new_err("max_connections must be >= 1"));
@@ -160,7 +181,7 @@ impl RustServer {
             max_header_bytes,
             ..ServerConfig::default()
         };
-        let listener = std::net::TcpListener::bind((host, port)).map_err(io_error)?;
+        let listener = listener_of(host, port, fd)?;
         listener.set_nonblocking(true).map_err(io_error)?;
         let addr = listener.local_addr().map_err(io_error)?;
         let (reader, writer) = UnixStream::pair().map_err(io_error)?;
