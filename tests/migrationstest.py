@@ -662,6 +662,12 @@ def test_plan_check_reports_destructive_changes_without_writing(
     assert sorted(directory.iterdir()) == paths
     assert [path.read_bytes() for path in paths] == contents
 
+    assert main([*args, "--dry-run"]) == 0
+    preview = capsys.readouterr().out
+    assert "DESTRUCTIVE drop table mig_owners" in preview
+    assert sorted(directory.iterdir()) == paths
+    assert [path.read_bytes() for path in paths] == contents
+
 
 @pytest.mark.parametrize(
     "option", [["--dry-run"], ["--name", "renamed"], ["--allow-destructive"]]
