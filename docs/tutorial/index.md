@@ -10,7 +10,7 @@ Chapters 1–6 follow the Tracker in [`examples/tracker`](https://github.com/cas
 | [4. Endpoints](4-endpoints.md) | the HTTP layer | access, transactions, declared errors |
 | [5. Rules](5-rules.md) | checks that keep the layers apart | `hinoki check`, import boundaries |
 | [6. Run and test it](6-run.md) | settings, serving, tests | `dev`, `serve`, the test client |
-| [7. Validate input](7-validation.md) | built-in/custom Schema checks and Model write validators | field-level, cross-field and database-write errors |
+| [7. Validate input](7-validation.md) | Schema normalization/checks and Model write validators | canonical fields, field-level and cross-field errors |
 | [8. Projects and apps](8-projects.md) | `hinoki new`, modular apps and migration commands | generated project manifest, automatic migration names and local SQLite setup |
 
 The Tracker chapters build and run an existing, versioned example. The validation chapter uses focused examples; the final chapter separately walks through creating a project and app, where Hinoki writes the manifest and discovers migrations automatically.
