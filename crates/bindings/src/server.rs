@@ -67,6 +67,7 @@ pub struct PreparedRequest {
     needs_headers: bool,
     params: Vec<(String, String)>,
     client: Option<(String, u16)>,
+    http_version: &'static str,
     reply: Mutex<Option<oneshot::Sender<Reply>>>,
     permit: Mutex<Option<Permit>>,
     body: Mutex<BodyState>,
@@ -113,6 +114,12 @@ impl PreparedRequest {
     #[getter]
     fn needs_headers(&self) -> bool {
         self.needs_headers
+    }
+
+    /// The HTTP version the request arrived with: `"2"` or `"1.1"`.
+    #[getter]
+    fn http_version(&self) -> &str {
+        self.http_version
     }
 
     /// The socket peer as `(ip, port)`, when the request came over a socket.
@@ -470,6 +477,7 @@ impl ServerCore {
             headers,
             trusted,
             https,
+            http_version: "1.1",
             peer: None,
             refusal: None,
             body: None,
@@ -500,6 +508,8 @@ pub struct Head<'a> {
     pub headers: Vec<Header>,
     pub trusted: bool,
     pub https: bool,
+    /// `"2"` or `"1.1"`, as the transport saw the request.
+    pub http_version: &'static str,
     pub peer: Option<SocketAddr>,
     /// The transport's own verdict on the request, answered right after the
     /// ready and size checks.
@@ -624,6 +634,7 @@ impl Core {
             needs_headers,
             params,
             client: head.peer.map(|peer| (peer.ip().to_string(), peer.port())),
+            http_version: head.http_version,
             reply: Mutex::new(Some(sender)),
             permit: Mutex::new(Some(permit)),
             body: Mutex::new(head.body.map_or(BodyState::Absent, BodyState::Unread)),

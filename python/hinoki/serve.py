@@ -3,7 +3,7 @@ or the Rust server.
 
     hinoki dev   blog.main:create_app                  # reload on change
     hinoki serve blog.main:create_app                  # production-style, no reload
-    hinoki serve blog.main:create_app --server rust    # the Rust HTTP/1.1 server
+    hinoki serve blog.main:create_app --server rust    # the Rust HTTP server
 
 ``TARGET`` is ``module:name`` where ``name`` is an application (``Hinoki``) or
 a function returning one. The host, port, worker count and server come from the
@@ -188,8 +188,9 @@ def run_rust(
 
 def granian_tls(settings: ServerSettings) -> dict[str, Any]:
     """Granian's TLS options, matching the Rust server: the same files, TLS 1.2
-    and up (Granian's own default is 1.3) and HTTP/1.1 only. Nothing changes
-    for an application without TLS files."""
+    and up (Granian's own default is 1.3) and HTTP/1.1 only, or HTTP/1.1 and
+    HTTP/2 negotiated by ALPN when ``http2`` is on. Nothing changes for an
+    application without TLS files."""
     if settings.tls_cert_file is None or settings.tls_key_file is None:
         return {}
     from granian.constants import HTTPModes, SSLProtocols  # noqa: PLC0415
@@ -198,7 +199,7 @@ def granian_tls(settings: ServerSettings) -> dict[str, Any]:
         "ssl_cert": Path(settings.tls_cert_file),
         "ssl_key": Path(settings.tls_key_file),
         "ssl_protocol_min": SSLProtocols.tls12,
-        "http": HTTPModes.http1,
+        "http": HTTPModes.auto if settings.http2 else HTTPModes.http1,
     }
 
 

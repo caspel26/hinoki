@@ -35,6 +35,8 @@ use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::time::{sleep, Sleep};
 
+use crate::stall::WriteStall;
+
 /// How long, and how much, a closing connection reads after the answer when
 /// part of the request was left unread. Closing a socket that still holds
 /// unread input resets it (RST), and the client may then lose the answer it has
@@ -240,8 +242,7 @@ pub struct Guarded<T> {
     shut: bool,
     drained: usize,
     deadline: Option<Pin<Box<Sleep>>>,
-    write_timeout: Duration,
-    write_stall: Option<Pin<Box<Sleep>>>,
+    stall: WriteStall,
 }
 
 impl<T> Guarded<T> {
@@ -255,30 +256,8 @@ impl<T> Guarded<T> {
             shut: false,
             drained: 0,
             deadline: None,
-            write_timeout,
-            write_stall: None,
+            stall: WriteStall::new(write_timeout),
         }
-    }
-
-    /// Apply the stall timer to the outcome of a write or flush: any progress
-    /// clears it, and a write that stays pending past `write_timeout` fails.
-    fn guard_write<R>(
-        &mut self,
-        cx: &mut Context<'_>,
-        polled: Poll<io::Result<R>>,
-    ) -> Poll<io::Result<R>> {
-        if polled.is_ready() {
-            self.write_stall = None;
-            return polled;
-        }
-        let limit = self.write_timeout;
-        let timer = self
-            .write_stall
-            .get_or_insert_with(|| Box::pin(sleep(limit)));
-        if timer.as_mut().poll(cx).is_ready() {
-            return Poll::Ready(Err(io::ErrorKind::TimedOut.into()));
-        }
-        Poll::Pending
     }
 }
 
@@ -328,13 +307,13 @@ impl<T: AsyncRead + AsyncWrite + Unpin> AsyncWrite for Guarded<T> {
     ) -> Poll<io::Result<usize>> {
         let this = self.get_mut();
         let polled = Pin::new(&mut this.inner).poll_write(cx, data);
-        this.guard_write(cx, polled)
+        this.stall.guard(cx, polled)
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let this = self.get_mut();
         let polled = Pin::new(&mut this.inner).poll_flush(cx);
-        this.guard_write(cx, polled)
+        this.stall.guard(cx, polled)
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
@@ -343,7 +322,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> AsyncWrite for Guarded<T> {
             // Over TLS this writes `close_notify`, which a client that stopped
             // reading can stall: the stall timer covers it too.
             let polled = Pin::new(&mut this.inner).poll_shutdown(cx);
-            ready!(this.guard_write(cx, polled))?;
+            ready!(this.stall.guard(cx, polled))?;
             this.shut = true;
         }
         if this.signals.linger.load(Ordering::Acquire) {
@@ -359,7 +338,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> AsyncWrite for Guarded<T> {
     ) -> Poll<io::Result<usize>> {
         let this = self.get_mut();
         let polled = Pin::new(&mut this.inner).poll_write_vectored(cx, bufs);
-        this.guard_write(cx, polled)
+        this.stall.guard(cx, polled)
     }
 
     fn is_write_vectored(&self) -> bool {

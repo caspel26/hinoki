@@ -54,6 +54,7 @@ async fn start(config: ServerConfig) -> Running {
     let tls = acceptor(
         &fixture("localhost-cert.pem"),
         &fixture("localhost-key.pem"),
+        false,
     )
     .unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -182,6 +183,7 @@ async fn shutdown_over_tls_is_bounded_by_the_write_timeout() {
     let tls = acceptor(
         &fixture("localhost-cert.pem"),
         &fixture("localhost-key.pem"),
+        false,
     )
     .unwrap();
     for n in 40..68usize {
