@@ -110,4 +110,6 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
         defer_policies=defer,
         python_paths=python_paths,
         cors=cors_of(pipeline),
+        # Canonical CIDRs from the same objects the Python path matches against.
+        trusted_proxies=[str(network) for network in pipeline.trusted_proxies],
     )

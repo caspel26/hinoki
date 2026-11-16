@@ -8,9 +8,10 @@ connection. The handlers and the pipeline run in Python, on the loop.
 
 A request body stays in the native connection until the pipeline asks for it
 (after authentication and negotiation, as on the ASGI path); it is read by the
-native layer with the same limits and error codes. ``server.trusted_proxies`` is
-refused at startup, because the peer trust and the effective scheme are not
-ported yet.
+native layer with the same limits and error codes. ``server.trusted_proxies``
+applies as on the ASGI path: the native layer matches the TCP peer against it
+(for the request id and the policy headers of its own answers) and the pipeline
+resolves the forwarded scheme and client of queued requests from the same peer.
 
     python -m hinoki.runtime.rustserver module:app --port 8000
 """
@@ -139,10 +140,6 @@ class RustWorker:
     async def start(self) -> int:
         """Run the lifespan startup, then bind. Returns the bound port. Nothing
         is bound when startup fails."""
-        if self.pipeline.trusted_proxies:
-            raise RuntimeError(
-                "the Rust server does not support server.trusted_proxies yet"
-            )
         answer = await self._lifespan("startup")
         if answer["type"] != "lifespan.startup.complete":
             await self._finish_lifespan()
@@ -223,9 +220,15 @@ class RustWorker:
         shutdown, after ``shutdown_timeout``) is dropped unanswered: its
         connection is closed by the native layer without a response, so the
         client sees EOF, not a 503."""
+        if request.id_ignored:
+            log.warning("ignored invalid request ID from trusted proxy")
+        route = None if request.action is None else (request.action, request.params)
         try:
             response = await self.pipeline.handle(
-                scope_of(request, self.address), RustBody(request), request.request_id
+                scope_of(request, self.address),
+                RustBody(request),
+                request.request_id,
+                route,
             )
         except Exception:
             log.exception("request %s failed", request.request_id)
