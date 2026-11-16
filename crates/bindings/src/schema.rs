@@ -935,50 +935,12 @@ fn dump_instance_at<'py>(
     depth: usize,
 ) -> PyResult<Bound<'py, PyDict>> {
     let py = value.py();
-    let Some((names, unset)) = instance_fields(value, options.controlled, options.by_alias)? else {
-        if options.controlled {
-            let class_name = value.get_type().name()?.to_string();
-            return Err(pyo3::exceptions::PyTypeError::new_err(format!(
-                "controlled serialization cannot inspect {class_name} because it overrides dump(); use its dump() or a projection Schema"
-            )));
-        }
-        return Err(pyo3::exceptions::PyTypeError::new_err(
-            "not a schema instance",
-        ));
-    };
-    let supplied = if options.exclude_unset {
-        Some(value.getattr("__hinoki_supplied_fields__").map_err(|_| {
-            pyo3::exceptions::PyTypeError::new_err(format!(
-                "{} has no reliable supplied-field tracking; exclude_unset requires the generated Schema constructor",
-                value
-                    .get_type()
-                    .name()
-                    .map(|name| name.to_string())
-                    .unwrap_or_else(|_| "Schema".to_owned())
-            ))
-        })?)
-    } else {
-        None
-    };
+    let (names, unset) = dump_schema_fields(value, &options)?;
+    let supplied = supplied_fields(value, options.exclude_unset)?;
     let out = PyDict::new(py);
     for (name, wire_name) in names {
-        if options.exclude.contains(&name) {
+        if skip_serialized_field(py, &name, &options, supplied.as_ref())? {
             continue;
-        }
-        if options
-            .include
-            .is_some_and(|selected| !selected.contains(&name))
-        {
-            continue;
-        }
-        if let Some(fields) = &supplied {
-            if !fields.is(PyBool::new(py, true))
-                && !fields
-                    .call_method1("__contains__", (name.as_str(),))?
-                    .is_truthy()?
-            {
-                continue;
-            }
         }
         let item = value.getattr(name.as_str())?;
         if item.is(&unset) {
@@ -997,6 +959,69 @@ fn dump_instance_at<'py>(
         )?;
     }
     Ok(out)
+}
+
+fn dump_schema_fields(
+    value: &Bound<'_, PyAny>,
+    options: &SerializationOptions<'_>,
+) -> PyResult<(SchemaWireNames, Py<PyAny>)> {
+    if let Some(fields) = instance_fields(value, options.controlled, options.by_alias)? {
+        return Ok(fields);
+    }
+    if options.controlled {
+        let class_name = value.get_type().name()?.to_string();
+        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+            "controlled serialization cannot inspect {class_name} because it overrides dump(); use its dump() or a projection Schema"
+        )));
+    }
+    Err(pyo3::exceptions::PyTypeError::new_err(
+        "not a schema instance",
+    ))
+}
+
+fn supplied_fields<'py>(
+    value: &Bound<'py, PyAny>,
+    exclude_unset: bool,
+) -> PyResult<Option<Bound<'py, PyAny>>> {
+    if !exclude_unset {
+        return Ok(None);
+    }
+    let marker = value.getattr("__hinoki_supplied_fields__").map_err(|_| {
+        pyo3::exceptions::PyTypeError::new_err(format!(
+            "{} has no reliable supplied-field tracking; exclude_unset requires the generated Schema constructor",
+            value
+                .get_type()
+                .name()
+                .map(|name| name.to_string())
+                .unwrap_or_else(|_| "Schema".to_owned())
+        ))
+    })?;
+    Ok(Some(marker))
+}
+
+fn skip_serialized_field<'py>(
+    py: Python<'py>,
+    name: &str,
+    options: &SerializationOptions<'_>,
+    supplied: Option<&Bound<'py, PyAny>>,
+) -> PyResult<bool> {
+    if options.exclude.iter().any(|field| field == name) {
+        return Ok(true);
+    }
+    if options
+        .include
+        .is_some_and(|selected| !selected.iter().any(|field| field == name))
+    {
+        return Ok(true);
+    }
+    if let Some(fields) = supplied {
+        if !fields.is(PyBool::new(py, true))
+            && !fields.call_method1("__contains__", (name,))?.is_truthy()?
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// The fields of a schema instance as a dict (UNSET omitted): JSON-compatible
