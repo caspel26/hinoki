@@ -26,7 +26,7 @@ from typing import Any
 from hinoki import core
 from hinoki.app import Hinoki
 from hinoki.routing import ROUTE_ATTR
-from hinoki.runtime.listener import ListenError, open_listener
+from hinoki.runtime.listener import ListenError, check_port, open_listener
 from hinoki.settings import MAX_WORKERS, AppSettings, ServerSettings, SettingsError
 from hinoki.target import load_target as import_target
 
@@ -168,6 +168,7 @@ def run_rust(
     address = (args.host or settings.host, args.port or settings.port)
     workers = 1 if reload else (getattr(args, "workers", None) or settings.workers)
     try:
+        check_port(address[1])  # before any lifespan or worker starts
         if workers == 1 and not reload:
             return run_inline(app, address, settings)
         return run_supervised(args, app, address, settings, reload)

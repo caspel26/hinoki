@@ -11,20 +11,30 @@ from __future__ import annotations
 
 import socket
 
+MAX_PORT = 65535
+
 
 class ListenError(OSError):
     """The listening socket could not be opened (address in use, a bad port or
     host); nothing was served."""
 
 
+def check_port(port: int) -> None:
+    """Refuse a port outside 0 to 65535. The system's resolver does not: glibc
+    wraps a larger number to 16 bits, so ``70000`` would quietly listen on 4464."""
+    if not 0 <= port <= MAX_PORT:
+        raise ListenError(f"invalid port {port}: it must be 0 to {MAX_PORT}")
+
+
 def open_listener(host: str, port: int, backlog: int) -> socket.socket:
     """A bound, listening TCP socket for ``host:port`` (port 0 picks a free one)."""
+    check_port(port)
     failure: OSError | None = None
     try:
         candidates = socket.getaddrinfo(
             host, port, type=socket.SOCK_STREAM, flags=socket.AI_PASSIVE
         )
-    except (OSError, OverflowError, UnicodeError) as error:  # bad port or name
+    except (OSError, OverflowError, ValueError) as error:  # bad port or name
         raise ListenError(f"invalid address: {error}") from error
     for family, kind, protocol, _, address in candidates:
         sock = socket.socket(family, kind, protocol)
@@ -32,6 +42,9 @@ def open_listener(host: str, port: int, backlog: int) -> socket.socket:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.bind(address)
             sock.listen(backlog)
+        except (OverflowError, ValueError, UnicodeError) as error:
+            sock.close()
+            raise ListenError(f"invalid address: {error}") from error
         except OSError as error:
             sock.close()
             failure = error
