@@ -20,7 +20,14 @@ type Row = dict[str, Any]
 def core_version() -> str: ...
 
 class CompiledSchema:
-    def validate(self, data: Any) -> tuple[Any | None, list[tuple[str, str, str]]]: ...
+    def validate(
+        self,
+        data: Any,
+        construct: bool = True,
+        use_aliases: bool = True,
+        allow_naive_datetime: bool = False,
+        skip_fields: list[str] = ...,
+    ) -> tuple[Any | None, list[tuple[str, str, str]]]: ...
 
 def check_pattern(source: str) -> None: ...
 
