@@ -100,11 +100,16 @@ fn incoming_of(parts: &Parts, body: Option<BodyReader>, peer: SocketAddr) -> Inc
 }
 
 /// Build the hyper response. An answer the transport cannot represent (a status
-/// or header hyper rejects) becomes a bare 500 rather than a broken stream.
+/// or header hyper rejects) becomes a bare 500 rather than a broken stream. So
+/// does an informational status: `101` would hand the connection to hyper's
+/// upgrade path, and the server speaks no protocol but HTTP/1.1.
 fn response_of(answer: Answer, head_only: bool) -> Response<Full<Bytes>> {
     let Ok(status) = StatusCode::from_u16(answer.status) else {
         return plain(StatusCode::INTERNAL_SERVER_ERROR);
     };
+    if status.is_informational() {
+        return plain(StatusCode::INTERNAL_SERVER_ERROR);
+    }
     let body = if head_only {
         Bytes::new()
     } else {
@@ -194,6 +199,7 @@ mod tests {
     fn unrepresentable_answers_become_a_bare_500() {
         let bad_status = response_of(answer(99, vec![], b""), false);
         assert_eq!(bad_status.status(), 500);
+        assert_eq!(response_of(answer(101, vec![], b""), false).status(), 500);
         let bad_name = vec![(b"bad name".to_vec(), b"x".to_vec())];
         assert_eq!(response_of(answer(200, bad_name, b""), false).status(), 500);
         let bad_value = vec![(b"x".to_vec(), b"a\nb".to_vec())];

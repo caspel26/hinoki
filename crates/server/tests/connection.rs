@@ -52,6 +52,11 @@ impl Backend for Fake {
                 self.started.notify_one();
                 std::future::pending().await
             }
+            "/switch" => Answer {
+                status: 101,
+                headers: vec![(b"upgrade".to_vec(), b"websocket".to_vec())],
+                body: Vec::new(),
+            },
             "/big" => answer(&"x".repeat(64 * 1024 * 1024)),
             "/echo" => {
                 let headers: Vec<String> = request
@@ -293,6 +298,39 @@ async fn an_idle_kept_alive_connection_is_closed_by_the_same_timeout() {
     let mut stream = connect(&running).await;
     get(&mut stream, "/health").await;
     assert!(is_closed(&mut stream, WAIT).await);
+    finish(running).await;
+}
+
+#[tokio::test]
+async fn an_upgrade_request_is_answered_as_plain_http() {
+    let running = start(ServerConfig::default()).await;
+    let mut stream = connect(&running).await;
+    stream
+        .write_all(
+            b"GET /health HTTP/1.1\r\nhost: t\r\nconnection: upgrade\r\nupgrade: websocket\r\n\r\n",
+        )
+        .await
+        .unwrap();
+    let (head, _) = read_response(&mut stream, true).await;
+    assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+    // Still HTTP afterwards: the connection was never handed over.
+    let (again, _) = get(&mut stream, "/health").await;
+    assert!(again.starts_with("HTTP/1.1 200"), "{again}");
+    finish(running).await;
+}
+
+#[tokio::test]
+async fn a_101_from_the_backend_never_switches_protocols() {
+    let running = start(ServerConfig::default()).await;
+    let mut stream = connect(&running).await;
+    stream
+        .write_all(
+            b"GET /switch HTTP/1.1\r\nhost: t\r\nconnection: upgrade\r\nupgrade: websocket\r\n\r\n",
+        )
+        .await
+        .unwrap();
+    let (head, _) = read_response(&mut stream, true).await;
+    assert!(head.starts_with("HTTP/1.1 500"), "{head}");
     finish(running).await;
 }
 
