@@ -19,10 +19,15 @@ from hinoki.auth import Caller
 from hinoki.errors import Forbidden, RegistrationError
 from hinoki.fields import UNSET
 from hinoki.orm import Model, QuerySet
+from hinoki.orm.context import current_database
 from hinoki.pagination import Page, PageNumberPagination, PageParams
+from hinoki.reply import Reply
 from hinoki.request import Request
 from hinoki.routing import Options, RouteDeclaration
 from hinoki.schema import Schema
+
+if typing.TYPE_CHECKING:
+    from hinoki.runtime.rowplan import RowWireSelection
 
 ITEM = "/{item_id}"
 GENERATED = "hinoki_generated"
@@ -251,20 +256,72 @@ class Resource(_CrudConfig):
 
 
 async def list_rows(
-    self: CrudAPI, request: Request, page: PageParams, principal: Any = None
+    self: CrudAPI,
+    request: Request,
+    page: PageParams,
+    principal: Any = None,
+    _row_plan: RowWireSelection | None = None,
+) -> Any:
+    if _row_plan is not None and _row_plan.valid_for(self):
+        query = await self.invoke_hook("get_queryset", principal)
+        if not _row_plan.valid_query(query):
+            return await python_list_rows(self, query, page)
+        if not query.order:
+            query = query.order_by(self.resource.model.__primary_key__)
+        return await wire_list_rows(self, query, page, _row_plan)
+    query = await self.invoke_hook("get_queryset", principal)
+    return await python_list_rows(self, query, page)
+
+
+async def python_list_rows(
+    self: CrudAPI, query: QuerySet[Any], page: PageParams
 ) -> Any:
     resource = self.resource
-    query = await self.invoke_hook("get_queryset", principal)
     if not query.order:
         query = query.order_by(resource.model.__primary_key__)
     result = await query.apaginate(page)
+    items = await schema_items(self, result.items)
+    return Page(list(items), result.page, result.page_size, result.total)
+
+
+async def wire_list_rows(
+    self: CrudAPI,
+    query: QuerySet[Any],
+    page: PageParams,
+    selection: RowWireSelection,
+) -> Any:
+    window = query.limit(page.page_size).offset(page.offset)
+    expected_order = query.order
+    if not selection.valid_window(
+        window,
+        order=expected_order,
+        limit=page.page_size,
+        offset=page.offset,
+    ):
+        result = await query.apaginate(page)
+        items = await schema_items(self, result.items)
+        return Page(list(items), result.page, result.page_size, result.total)
+    total = await query.acount()
+    database = current_database()
+    sql, params = window.compile(dialect=database.dialect)
+    fetched = await database._fetch_page_wire(
+        sql, params, selection.plan, page.page, page.page_size, total
+    )
+    if isinstance(fetched, bytes):
+        return Reply(200, fetched, content_type="application/json")
+    models = await window._hydrate(fetched)
+    items = await schema_items(self, models)
+    return Page(list(items), page.page, page.page_size, total)
+
+
+async def schema_items(self: CrudAPI, rows: list[Any]) -> list[Any]:
     if inspect.iscoroutinefunction(self.to_schema):
         items = await asyncio.gather(
-            *(self.invoke_hook("to_schema", row) for row in result.items)
+            *(self.invoke_hook("to_schema", row) for row in rows)
         )
     else:
-        items = [await self.invoke_hook("to_schema", row) for row in result.items]
-    return Page(list(items), result.page, result.page_size, result.total)
+        items = [await self.invoke_hook("to_schema", row) for row in rows]
+    return list(items)
 
 
 async def retrieve_row(

@@ -11,6 +11,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString};
 use tokio::sync::Mutex;
 
+use crate::rows::{PageWireResult, PyRowPlan};
+
 pyo3::create_exception!(core, DatabaseError, pyo3::exceptions::PyException);
 pyo3::create_exception!(core, UniqueViolation, DatabaseError);
 pyo3::create_exception!(core, ForeignKeyViolation, DatabaseError);
@@ -224,6 +226,32 @@ impl PyDatabase {
         bridge!(py, fut, |py2, rows| rows_to_py(py2, &rows))
     }
 
+    #[pyo3(signature = (sql, params, plan, page_info))]
+    fn _fetch_page_wire<'py>(
+        &self,
+        py: Python<'py>,
+        sql: String,
+        params: &Bound<'py, PyList>,
+        plan: PyRef<'py, PyRowPlan>,
+        page_info: (u64, u64, u64),
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let (page, page_size, total) = page_info;
+        let (db, values, plan) = (self.inner.clone(), to_values(params)?, plan.inner.clone());
+        let fut = async move {
+            let rows = db.fetch(&sql, &values).await?;
+            Ok::<_, DbError>(
+                match crate::rows::encode_page(&rows, &plan, page, page_size, total) {
+                    Some(bytes) => PageWireResult::Encoded(bytes),
+                    None => PageWireResult::Fallback(rows),
+                },
+            )
+        };
+        bridge!(py, fut, |py2, result| match result {
+            PageWireResult::Encoded(bytes) => Ok(PyBytes::new(py2, &bytes).into_any().unbind()),
+            PageWireResult::Fallback(rows) => rows_to_py(py2, &rows),
+        })
+    }
+
     fn execute<'py>(
         &self,
         py: Python<'py>,
@@ -295,6 +323,36 @@ impl PyTransaction {
             tx.fetch(&sql, &values).await
         };
         bridge!(py, fut, |py2, rows| rows_to_py(py2, &rows))
+    }
+
+    #[pyo3(signature = (sql, params, plan, page_info))]
+    fn _fetch_page_wire<'py>(
+        &self,
+        py: Python<'py>,
+        sql: String,
+        params: &Bound<'py, PyList>,
+        plan: PyRef<'py, PyRowPlan>,
+        page_info: (u64, u64, u64),
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let (page, page_size, total) = page_info;
+        let (inner, values, plan) = (self.inner.clone(), to_values(params)?, plan.inner.clone());
+        let fut = async move {
+            let rows = {
+                let guard = inner.try_lock_owned().map_err(|_| busy_error())?;
+                let tx = guard.as_ref().ok_or_else(busy_error)?;
+                tx.fetch(&sql, &values).await?
+            };
+            Ok::<_, DbError>(
+                match crate::rows::encode_page(&rows, &plan, page, page_size, total) {
+                    Some(bytes) => PageWireResult::Encoded(bytes),
+                    None => PageWireResult::Fallback(rows),
+                },
+            )
+        };
+        bridge!(py, fut, |py2, result| match result {
+            PageWireResult::Encoded(bytes) => Ok(PyBytes::new(py2, &bytes).into_any().unbind()),
+            PageWireResult::Fallback(rows) => rows_to_py(py2, &rows),
+        })
     }
 
     fn execute<'py>(

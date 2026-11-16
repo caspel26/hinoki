@@ -154,6 +154,17 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           components: rustfmt, clippy
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+      - name: Install Python for PyO3 workspace tests
+        run: |
+          uv python install 3.13
+          PYTHON="$(uv python find 3.13)"
+          PYTHON_LIBDIR="$("$PYTHON" -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))')"
+          PYTHON_LIBRARY="$("$PYTHON" -c 'import sysconfig; print(sysconfig.get_config_var("LDLIBRARY"))')"
+          test -f "$PYTHON_LIBDIR/$PYTHON_LIBRARY"
+          echo "PYO3_PYTHON=$PYTHON" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$PYTHON_LIBDIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+          "$PYTHON" -c 'import sys, sysconfig; print(sys.executable); print(sysconfig.get_config_var("LIBDIR")); print(sysconfig.get_config_var("LDLIBRARY"))'
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings

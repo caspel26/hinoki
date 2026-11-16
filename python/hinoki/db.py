@@ -28,7 +28,7 @@ from hinoki.core import (
 from hinoki.modules import Module, ModuleContext
 
 if TYPE_CHECKING:
-    from hinoki.core import Param, Row
+    from hinoki.core import Param, Row, _RowPlan
 
 __all__ = [
     "CheckViolation",
@@ -99,6 +99,22 @@ class Database:
         active = self.active()
         target = active.native if active else self.engine
         return await target.fetch(sql, list(params))
+
+    async def _fetch_page_wire(
+        self,
+        sql: str,
+        params: list[Param],
+        plan: _RowPlan,
+        page: int,
+        page_size: int,
+        total: int,
+    ) -> bytes | list[Row]:
+        """Private generated-list fetch; fallback rows are already fetched."""
+        active = self.active()
+        target = active.native if active else self.engine
+        return await target._fetch_page_wire(
+            sql, params, plan, (page, page_size, total)
+        )
 
     async def fetch_one(self, sql: str, *params: Param) -> Row | None:
         rows = await self.fetch(sql, *params)

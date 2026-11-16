@@ -10,6 +10,8 @@ uv run --locked pre-commit install
 ```
 
 Requires: uv ≥ 0.9, a stable Rust toolchain (rustup) with `rustfmt` and `clippy`.
+The PyO3 extension build backend requires maturin ≥ 1.9.4; uv selects it from
+the isolated build-system requirement.
 
 ## Gates
 
@@ -23,10 +25,23 @@ Requires: uv ≥ 0.9, a stable Rust toolchain (rustup) with `rustfmt` and `clipp
 | Rust cognitive complexity | Install `rust-code-analysis-cli` 0.0.25, then run `rust-code-analysis-cli -m -p crates -O json --pr -o /tmp/hinoki-rust-complexity && python scripts/check_rust_complexity.py /tmp/hinoki-rust-complexity` |
 | Python tests + coverage | `uv run --locked pytest --cov` |
 | Only the real-server tests | `uv run --locked pytest -m runtime` |
-| Rust format / lints / tests | `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnings` · `cargo test --workspace` |
+| Rust format / lints / tests | `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnings` · `cargo test --workspace` (see PyO3 setup below) |
 | All hooks | `uv run --locked pre-commit run --all-files` |
 
 ### Database tests
+
+The binding tests embed Python. Select the interpreter explicitly and add its
+shared-library directory when running the workspace suite locally:
+
+```sh
+PYTHON="$(uv run --locked python -c 'import sys; print(sys.executable)')"
+PYTHON_LIBDIR="$("$PYTHON" -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))')"
+PYO3_PYTHON="$PYTHON" \
+  LD_LIBRARY_PATH="$PYTHON_LIBDIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+  cargo test --workspace
+```
+
+CI sets these variables for the Rust job using its uv-managed Python 3.13.
 
 PostgreSQL-dependent tests in `tests/dbtest.py`, `tests/transactiontest.py` and `crates/orm/tests/postgres.rs` need a **disposable** server and run only when `HINOKI_TEST_DATABASE_URL` is set; otherwise pytest reports them as *skipped* and Cargo prints `SKIPPED`. Migration conformance tests for MySQL and MariaDB use `HINOKI_TEST_MYSQL_URL` and `HINOKI_TEST_MARIADB_URL`; test each supported backend separately and read the skip summary. A run without the PostgreSQL URL does not verify PostgreSQL behavior. Locally:
 
@@ -34,7 +49,12 @@ PostgreSQL-dependent tests in `tests/dbtest.py`, `tests/transactiontest.py` and 
 docker run -d --name hinoki-test-pg -e POSTGRES_PASSWORD=hinoki -e POSTGRES_DB=hinoki \
   -p 127.0.0.1:54399:5432 --tmpfs /var/lib/postgresql/data postgres:17-alpine
 export HINOKI_TEST_DATABASE_URL=postgres://postgres:hinoki@127.0.0.1:54399/hinoki
-uv run --locked pytest && cargo test --workspace
+uv run --locked pytest
+PYTHON="$(uv run --locked python -c 'import sys; print(sys.executable)')"
+PYTHON_LIBDIR="$("$PYTHON" -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))')"
+PYO3_PYTHON="$PYTHON" \
+  LD_LIBRARY_PATH="$PYTHON_LIBDIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+  cargo test --workspace
 docker rm -f hinoki-test-pg
 ```
 
@@ -80,4 +100,4 @@ test gate.
 | Force a rebuild | `uv sync --locked --reinstall-package hinoki` | use if in doubt; syncing Python deps alone does not prove the extension is current |
 | Release-profile editable build | `uv run --locked maturin develop --release` | needs `maturin` on PATH (`uvx maturin` works) |
 | Wheel | `uv build --wheel` | abi3 (`cp312-abi3`) wheel in `dist/`; built and import-tested by the `wheel` CI job |
-| Rust-only loop | `cargo test --workspace` | no Python needed |
+| Rust workspace tests | `cargo test --workspace` with the PyO3 environment above | PyO3 unit tests link to the selected Python interpreter; PostgreSQL tests require `HINOKI_TEST_DATABASE_URL` |
