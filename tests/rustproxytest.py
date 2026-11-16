@@ -227,3 +227,29 @@ async def test_unrouted_requests_are_still_looked_up_by_python() -> None:
     assert wrong.header("allow") == "GET, HEAD"
     assert non_ascii.status == 404
     assert [path for _, path in lookups.calls] == ["/nope", "/info", "/caf%C3%A9"]
+
+
+async def test_a_native_answer_reports_an_ignored_trusted_id(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.WARNING, logger="hinoki.runtime")
+    worker = RustWorker(make_app(TRUSTED, trust_request_id=True), "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        for _ in range(2):
+            missing = await fetch(port, "GET", "/nope", "x-request-id: two,values\r\n")
+            assert missing.status == 404
+        assert "ignored invalid request ID" not in caplog.text  # nothing per request
+        worker.housekeeping()
+        assert (
+            "ignored invalid request ID from trusted proxy (2 natively" in caplog.text
+        )
+        caplog.clear()
+        worker.housekeeping()  # the count was taken: nothing again
+        assert "ignored invalid request ID" not in caplog.text
+        # A queued request logs for itself and is not counted twice.
+        await fetch(port, "GET", "/info", "x-request-id: two,values\r\n")
+        worker.housekeeping()
+        assert caplog.text.count("ignored invalid request ID") == 1
+    finally:
+        await worker.stop()
