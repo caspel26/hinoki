@@ -14,19 +14,23 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use hinoki_server::cors::Cors;
-use hinoki_server::early::BodyError;
+use hinoki_server::early::TemplateError;
 use hinoki_server::headers::{final_headers, Header};
 use hinoki_server::queue::Push;
-use hinoki_server::Answer;
 use hinoki_server::{
     requestid, Early, EarlyBodies, InFlight, Limits, Permit, Plan, Queue, RoutePlan,
 };
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use hinoki_server::{Answer, BodyError, BodyReader};
+use pyo3::exceptions::{PyException, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
 use tokio::sync::oneshot;
 
+use crate::completion;
 use crate::router::{Match, Router};
+
+// `args[0]` is `too_large`, `disconnected` or `timeout`.
+pyo3::create_exception!(core, BodyReadError, PyException);
 
 pub type Reply = Answer;
 
@@ -38,6 +42,15 @@ fn reply_to_py<'py>(py: Python<'py>, reply: &Reply) -> PyResult<Bound<'py, PyAny
     Ok((reply.status, headers, PyBytes::new(py, &reply.body))
         .into_pyobject(py)?
         .into_any())
+}
+
+/// Where a request's body is.
+enum BodyState {
+    /// The request has none.
+    Absent,
+    Unread(BodyReader),
+    /// Handed to `body()`, or dropped by `respond`.
+    Taken,
 }
 
 /// A request accepted for the Python pipeline. `respond` completes it once.
@@ -54,6 +67,7 @@ pub struct PreparedRequest {
     client: Option<(String, u16)>,
     reply: Mutex<Option<oneshot::Sender<Reply>>>,
     permit: Mutex<Option<Permit>>,
+    body: Mutex<BodyState>,
 }
 
 #[pymethods]
@@ -117,13 +131,55 @@ impl PreparedRequest {
         Ok(out)
     }
 
+    /// Read the request body (empty bytes when there is none), refusing more
+    /// than `limit` bytes. The bytes are read on the runtime and the Python
+    /// object is built on the loop thread. Nothing is read, and no `100
+    /// Continue` sent, before this is called. Raises `BodyReadError` (`args[0]`:
+    /// `too_large`, `disconnected` or `timeout`). Calling it twice raises
+    /// `RuntimeError`.
+    fn body<'py>(&self, py: Python<'py>, limit: usize) -> PyResult<Bound<'py, PyAny>> {
+        let reader = {
+            let mut state = self.body.lock().map_err(|_| poisoned())?;
+            match std::mem::replace(&mut *state, BodyState::Taken) {
+                BodyState::Unread(reader) => Some(reader),
+                BodyState::Absent => {
+                    *state = BodyState::Absent;
+                    None
+                }
+                BodyState::Taken => {
+                    return Err(PyRuntimeError::new_err(
+                        "the request body was already taken",
+                    ))
+                }
+            }
+        };
+        let read = async move {
+            match reader {
+                Some(reader) => reader.read_all(limit).await,
+                None => Ok(Vec::new()),
+            }
+        };
+        let fail = |_: Python<'_>, e: BodyError| BodyReadError::new_err(e.to_string());
+        let panicked = |_: Python<'_>| PyRuntimeError::new_err("the native body task failed");
+        completion::submit_with(
+            py,
+            read,
+            |py, bytes: Vec<u8>| Ok(PyBytes::new(py, &bytes).into_any().unbind()),
+            (fail, panicked),
+        )
+    }
+
     /// Complete the request with the final status, headers and body. Returns
     /// `False` when it was already completed or nobody is waiting any more.
     fn respond(&self, status: u16, headers: Vec<(Vec<u8>, Vec<u8>)>, body: &[u8]) -> bool {
         // The slot is free as soon as the answer is given, not when Python lets
-        // go of this object.
+        // go of this object. So is an unread body: hyper cannot finish a
+        // connection while the body is still held.
         if let Ok(mut permit) = self.permit.lock() {
             permit.take();
+        }
+        if let Ok(mut state) = self.body.lock() {
+            *state = BodyState::Taken;
         }
         let sender = self.reply.lock().ok().and_then(|mut slot| slot.take());
         sender.is_some_and(|tx| {
@@ -224,7 +280,6 @@ fn kind_of(name: &str) -> PyResult<Early> {
         "not_found" => Early::NotFound,
         "method_not_allowed" => Early::MethodNotAllowed,
         "bad_host" => Early::BadHost,
-        "not_implemented" => Early::NotImplemented,
         other => {
             return Err(PyValueError::new_err(format!(
                 "unknown early kind {other:?}"
@@ -300,7 +355,7 @@ impl ServerCore {
             .into_iter()
             .map(|(kind, body)| kind_of(&kind).map(|k| (k, body)))
             .collect::<PyResult<Vec<_>>>()?;
-        let bodies = EarlyBodies::new(&rendered).map_err(|BodyError::Sentinel(n)| {
+        let bodies = EarlyBodies::new(&rendered).map_err(|TemplateError::Sentinel(n)| {
             PyValueError::new_err(format!("early body has {n} sentinels, expected 1"))
         })?;
         let (max_query_bytes, max_header_bytes, max_body_bytes, max_in_flight) = limits;
@@ -386,6 +441,7 @@ impl ServerCore {
             https,
             peer: None,
             refusal: None,
+            body: None,
         };
         let outcome = self.core.classify(head).map_err(PyRuntimeError::new_err)?;
         Ok(match outcome {
@@ -417,6 +473,8 @@ pub struct Head<'a> {
     /// The transport's own verdict on the request, answered right after the
     /// ready and size checks.
     pub refusal: Option<Early>,
+    /// The request body, still unread.
+    pub body: Option<BodyReader>,
 }
 
 /// What the classifier decided.
@@ -534,6 +592,7 @@ impl Core {
             client: head.peer.map(|peer| (peer.ip().to_string(), peer.port())),
             reply: Mutex::new(Some(sender)),
             permit: Mutex::new(Some(permit)),
+            body: Mutex::new(head.body.map_or(BodyState::Absent, BodyState::Unread)),
         };
         match self.queue.push(request) {
             Ok(pushed) => Ok(Outcome::Queued {
@@ -710,5 +769,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ServerCore>()?;
     m.add_class::<PreparedRequest>()?;
     m.add_class::<Submission>()?;
+    m.add("BodyReadError", m.py().get_type::<BodyReadError>())?;
     Ok(())
 }

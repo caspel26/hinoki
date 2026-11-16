@@ -9,7 +9,7 @@ use std::collections::HashMap;
 /// Placeholder request id used when the bodies are rendered at startup.
 pub const SENTINEL: &str = "0123456789abcdeffedcba9876543210";
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Early {
     UriTooLong,
     HeadersTooLarge,
@@ -19,8 +19,6 @@ pub enum Early {
     MethodNotAllowed,
     /// A missing or repeated `Host` on HTTP/1.1 (RFC 9112 section 3.2).
     BadHost,
-    /// A request with a body, which this server does not read yet.
-    NotImplemented,
 }
 
 impl Early {
@@ -32,7 +30,6 @@ impl Early {
             Early::NotFound => 404,
             Early::MethodNotAllowed => 405,
             Early::BadHost => 400,
-            Early::NotImplemented => 501,
         }
     }
 
@@ -46,7 +43,7 @@ impl Early {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum BodyError {
+pub enum TemplateError {
     /// The rendered body does not contain the sentinel exactly once.
     Sentinel(usize),
 }
@@ -63,7 +60,7 @@ struct Template {
 }
 
 impl Template {
-    fn split(rendered: &[u8]) -> Result<Self, BodyError> {
+    fn split(rendered: &[u8]) -> Result<Self, TemplateError> {
         let needle = SENTINEL.as_bytes();
         let mut found = Vec::new();
         let mut from = 0;
@@ -76,7 +73,7 @@ impl Template {
                 prefix: rendered[..*at].to_vec(),
                 suffix: rendered[at + needle.len()..].to_vec(),
             }),
-            other => Err(BodyError::Sentinel(other.len())),
+            other => Err(TemplateError::Sentinel(other.len())),
         }
     }
 
@@ -98,26 +95,19 @@ impl Template {
 /// The templates of every early answer, built once at startup.
 #[derive(Debug, Default)]
 pub struct EarlyBodies {
-    fixed: HashMap<u16, Template>,
-    not_ready: Option<Template>,
-    overloaded: Option<Template>,
+    templates: HashMap<Early, Template>,
 }
 
 impl EarlyBodies {
     /// `rendered` maps each kind to the Python-rendered JSON body (with the
     /// sentinel id). A kind without a body, or with a body lacking exactly one
     /// sentinel, is an error: a wrong body must not be served.
-    pub fn new(rendered: &[(Early, Vec<u8>)]) -> Result<Self, BodyError> {
+    pub fn new(rendered: &[(Early, Vec<u8>)]) -> Result<Self, TemplateError> {
         let mut bodies = Self::default();
         for (kind, body) in rendered {
-            let template = Template::split(body)?;
-            match kind {
-                Early::NotReady => bodies.not_ready = Some(template),
-                Early::Overloaded => bodies.overloaded = Some(template),
-                other => {
-                    bodies.fixed.insert(other.status(), template);
-                }
-            }
+            bodies
+                .templates
+                .insert(kind.clone(), Template::split(body)?);
         }
         Ok(bodies)
     }
@@ -125,12 +115,7 @@ impl EarlyBodies {
     /// The body for `kind` with `request_id` spliced in; `None` when no template
     /// was registered for it.
     pub fn render(&self, kind: &Early, request_id: &str) -> Option<Vec<u8>> {
-        let template = match kind {
-            Early::NotReady => self.not_ready.as_ref(),
-            Early::Overloaded => self.overloaded.as_ref(),
-            other => self.fixed.get(&other.status()),
-        };
-        template.map(|t| t.fill(request_id))
+        self.templates.get(kind).map(|t| t.fill(request_id))
     }
 }
 
@@ -177,12 +162,12 @@ mod tests {
     fn refuses_a_body_without_exactly_one_sentinel() {
         assert_eq!(
             EarlyBodies::new(&[(Early::NotFound, b"{}".to_vec())]).unwrap_err(),
-            BodyError::Sentinel(0)
+            TemplateError::Sentinel(0)
         );
         let twice = format!("{SENTINEL}{SENTINEL}").into_bytes();
         assert_eq!(
             EarlyBodies::new(&[(Early::NotFound, twice)]).unwrap_err(),
-            BodyError::Sentinel(2)
+            TemplateError::Sentinel(2)
         );
     }
 
