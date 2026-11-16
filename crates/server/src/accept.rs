@@ -17,7 +17,8 @@ use tokio::sync::{watch, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinSet;
 use tokio::time::{sleep, timeout};
 
-use crate::conn::{respond, Backend};
+use crate::conn::{respond, Backend, Transport};
+use crate::framing::{Framing, Guarded, Signals};
 
 /// Stop signal: `true` (or a dropped sender) means stop.
 pub type Stop = watch::Receiver<bool>;
@@ -37,6 +38,10 @@ pub struct ServerConfig {
     /// Time a client has to send a complete request head, also while idle
     /// between requests on a kept-alive connection.
     pub header_read_timeout: Duration,
+    /// How long a client may stay silent while its body is read. It is below
+    /// the pipeline's request timeout, so a stalled body is answered 408 and not
+    /// 504.
+    pub body_read_timeout: Duration,
     /// Time running connections get to finish after a stop.
     pub shutdown_timeout: Duration,
     /// The header limit the plan enforces; sizes hyper's backstop buffer.
@@ -49,6 +54,7 @@ impl Default for ServerConfig {
         Self {
             max_connections: 10_000,
             header_read_timeout: Duration::from_secs(10),
+            body_read_timeout: Duration::from_secs(10),
             shutdown_timeout: Duration::from_secs(10),
             max_header_bytes: 32_768,
             max_headers: 100,
@@ -88,16 +94,28 @@ async fn run_connection<B: Backend>(
     mut stop: Stop,
 ) {
     let _ = stream.set_nodelay(true);
-    let service = service_fn(move |request| respond(Arc::clone(&backend), peer, request));
+    let signals = Arc::new(Signals::default());
+    let transport = Transport {
+        body_read_timeout: config.body_read_timeout,
+        signals: Arc::clone(&signals),
+    };
+    let service =
+        service_fn(move |request| respond(Arc::clone(&backend), peer, transport.clone(), request));
+    let head_limit = config.max_header_bytes.saturating_add(REQUEST_LINE_MARGIN);
+    let guarded = Guarded::new(
+        stream,
+        Framing::new(head_limit, Arc::clone(&signals)),
+        signals,
+    );
     let connection = http1::Builder::new()
         .timer(TokioTimer::new())
         .header_read_timeout(config.header_read_timeout)
         // A client that shuts down its write side after a request still gets
         // the answer (`nc`, some health checkers).
         .half_close(true)
-        .max_buf_size(config.max_header_bytes.saturating_add(REQUEST_LINE_MARGIN))
+        .max_buf_size(head_limit)
         .max_headers(config.max_headers)
-        .serve_connection(TokioIo::new(stream), service);
+        .serve_connection(TokioIo::new(guarded), service);
     tokio::pin!(connection);
     tokio::select! {
         _ = connection.as_mut() => return,

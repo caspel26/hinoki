@@ -84,6 +84,7 @@ impl Backend for CoreBackend {
             headers,
             peer,
             refusal,
+            body,
         } = request;
         let head = Head {
             method: &method,
@@ -94,6 +95,7 @@ impl Backend for CoreBackend {
             https: false,
             peer: Some(peer),
             refusal,
+            body,
         };
         match self.core.classify(head) {
             Ok(outcome) => self.reply_of(outcome).await,
@@ -127,8 +129,9 @@ impl RustServer {
     #[staticmethod]
     #[pyo3(signature = (
         core, host, port, max_connections=10_000, header_read_timeout=10.0,
-        shutdown_timeout=10.0, max_header_bytes=32_768
+        shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0
     ))]
+    #[allow(clippy::too_many_arguments)]
     fn start(
         core: &ServerCore,
         host: &str,
@@ -137,6 +140,7 @@ impl RustServer {
         header_read_timeout: f64,
         shutdown_timeout: f64,
         max_header_bytes: usize,
+        body_read_timeout: f64,
     ) -> PyResult<Self> {
         if max_connections == 0 {
             return Err(PyValueError::new_err("max_connections must be >= 1"));
@@ -150,6 +154,7 @@ impl RustServer {
         let config = ServerConfig {
             max_connections,
             header_read_timeout: seconds("header_read_timeout", header_read_timeout)?,
+            body_read_timeout: seconds("body_read_timeout", body_read_timeout)?,
             shutdown_timeout: seconds("shutdown_timeout", shutdown_timeout)?,
             max_header_bytes,
             ..ServerConfig::default()

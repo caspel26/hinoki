@@ -2,41 +2,52 @@
 //! [`Backend`] and how the [`Answer`] is written back.
 //!
 //! This layer owns only transport rules: HEAD answers keep their
-//! `content-length` and send no body, the connection closes after a request that
-//! carries a body (this server does not read bodies yet), and a request the
-//! protocol forbids (HTTP/1.1 without exactly one `Host`) is flagged in
-//! [`Incoming::refusal`], so the backend answers it like any other early
-//! answer. Everything that decides an answer belongs to the backend.
+//! `content-length` and send no body, a request body is handed to the backend
+//! unread (as [`Incoming::body`]) and read only when the backend asks, and a
+//! request the protocol forbids (HTTP/1.1 without exactly one `Host`) is flagged
+//! in [`Incoming::refusal`], so the backend answers it like any other early
+//! answer; refused body framing never gets here (see [`crate::framing`]). The
+//! connection closes after
+//! any answer given while a body was not read in full, so the leftover bytes are
+//! never parsed as the next request. Everything that decides an answer belongs
+//! to the backend.
 
 use std::convert::Infallible;
 use std::future::Future;
 use std::net::SocketAddr;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::time::Duration;
 
 use bytes::Bytes;
 use http_body_util::Full;
 use hyper::body::{Body, Incoming as RequestBody};
 use hyper::header::{HeaderName, HeaderValue};
+use hyper::http::request::Parts;
 use hyper::{Method, Request, Response, StatusCode, Version};
 
+use crate::body::BodyReader;
 use crate::early::Early;
+use crate::framing::Signals;
 use crate::headers::Header;
 
 /// The head of a request as the backend sees it. Header names are lowercase,
 /// repeated headers stay separate and in arrival order, and `path` and `query`
 /// are the raw (still percent-encoded) target. An absolute-form target makes its
 /// authority the `host` header.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct Incoming {
     pub method: String,
     pub path: String,
     pub query: Vec<u8>,
     pub headers: Vec<Header>,
     pub peer: SocketAddr,
-    /// Set when the transport rejects the request ([`Early::BadHost`] or
-    /// [`Early::NotImplemented`]): the backend answers with it and does not
-    /// route the request.
+    /// Set when the transport rejects the request ([`Early::BadHost`]): the
+    /// backend answers with it and does not route the request.
     pub refusal: Option<Early>,
+    /// The request body, unread; `None` when the request has none. Nothing is
+    /// polled (and no `100 Continue` sent) until the backend reads it.
+    pub body: Option<BodyReader>,
 }
 
 /// A complete answer: final status, final headers and the whole body.
@@ -58,36 +69,33 @@ fn plain(status: StatusCode) -> Response<Full<Bytes>> {
     response
 }
 
-/// The transport's verdict on a request. A body is refused first; then HTTP/1.1
-/// needs exactly one `Host` (RFC 9112 3.2). An absolute-form target (RFC 9112
-/// 3.2.2) makes its authority the host, replacing the header.
-fn refusal_of(request: &Request<RequestBody>, headers: &mut Vec<Header>) -> Option<Early> {
+/// The transport's verdict on a request: HTTP/1.1 needs exactly one `Host`
+/// (RFC 9112 3.2). An absolute-form target (RFC 9112 3.2.2) makes its authority
+/// the host, replacing the header.
+fn refusal_of(parts: &Parts, headers: &mut Vec<Header>) -> Option<Early> {
     let hosts = headers.iter().filter(|(name, _)| name == b"host").count();
-    if let Some(authority) = request.uri().authority() {
+    if let Some(authority) = parts.uri.authority() {
         headers.retain(|(name, _)| name != b"host");
         headers.push((b"host".to_vec(), authority.as_str().as_bytes().to_vec()));
     }
-    if !request.body().is_end_stream() {
-        return Some(Early::NotImplemented);
-    }
-    (request.version() == Version::HTTP_11 && hosts != 1).then_some(Early::BadHost)
+    (parts.version == Version::HTTP_11 && hosts != 1).then_some(Early::BadHost)
 }
 
-fn incoming_of(request: &Request<RequestBody>, peer: SocketAddr) -> Incoming {
-    let uri = request.uri();
-    let mut headers: Vec<Header> = request
-        .headers()
+fn incoming_of(parts: &Parts, body: Option<BodyReader>, peer: SocketAddr) -> Incoming {
+    let mut headers: Vec<Header> = parts
+        .headers
         .iter()
         .map(|(name, value)| (name.as_str().as_bytes().to_vec(), value.as_bytes().to_vec()))
         .collect();
-    let refusal = refusal_of(request, &mut headers);
+    let refusal = refusal_of(parts, &mut headers);
     Incoming {
-        method: request.method().as_str().to_owned(),
-        path: uri.path().to_owned(),
-        query: uri.query().unwrap_or("").as_bytes().to_vec(),
+        method: parts.method.as_str().to_owned(),
+        path: parts.uri.path().to_owned(),
+        query: parts.uri.query().unwrap_or("").as_bytes().to_vec(),
         headers,
         peer,
         refusal,
+        body,
     }
 }
 
@@ -116,19 +124,35 @@ fn response_of(answer: Answer, head_only: bool) -> Response<Full<Bytes>> {
     response
 }
 
-/// Serve one request: ask the backend, write the answer. A request with a body
-/// closes the connection, since the unread body would otherwise be parsed as the
-/// next request.
+/// What the connection layer shares with every request it serves.
+#[derive(Debug, Clone)]
+pub struct Transport {
+    /// How long a client may stay silent while its body is read.
+    pub body_read_timeout: Duration,
+    /// What the framing guard and this layer tell each other about the connection.
+    pub signals: Arc<Signals>,
+}
+
+/// Serve one request: ask the backend, write the answer. The connection closes
+/// after an answer given while the body was not read in full (unread, refused,
+/// cut short) and when the framing guard asks for it: in each case the bytes that follow must not be parsed as a request.
 pub async fn respond<B: Backend>(
     backend: Arc<B>,
     peer: SocketAddr,
+    transport: Transport,
     request: Request<RequestBody>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
     let head_only = request.method() == Method::HEAD;
-    let incoming = incoming_of(&request, peer);
-    let close = incoming.refusal == Some(Early::NotImplemented);
+    let (parts, body) = request.into_parts();
+    let body = (!body.is_end_stream()).then(|| BodyReader::new(body, transport.body_read_timeout));
+    let finished = body.as_ref().map(BodyReader::finished);
+    let incoming = incoming_of(&parts, body, peer);
     let mut response = response_of(backend.handle(incoming).await, head_only);
-    if close {
+    let unread = finished.is_some_and(|done| !done.load(Ordering::Acquire));
+    if unread {
+        transport.signals.linger.store(true, Ordering::Release);
+    }
+    if unread || transport.signals.close.load(Ordering::Acquire) {
         response
             .headers_mut()
             .insert("connection", HeaderValue::from_static("close"));
