@@ -11,6 +11,7 @@ header policy exist once. The handlers and this pipeline run in Python.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import ipaddress
 import itertools
 import logging
@@ -480,7 +481,10 @@ class Pipeline:
             if binding.is_async:
                 handler = cast(Callable[..., Awaitable[object]], route.handler)
                 return await handler(*args, **kwargs)
-            return await self.executor.run(route.handler, *args, **kwargs)
+            result = await self.executor.run(route.handler, *args, **kwargs)
+            if inspect.isawaitable(result):
+                return await result
+            return result
         except ExecutorSaturated:
             raise HTTPError(
                 HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
