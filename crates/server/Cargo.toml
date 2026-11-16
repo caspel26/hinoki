@@ -1,6 +1,6 @@
 [package]
 name = "hinoki-server"
-description = "Hinoki HTTP server building blocks: plan, limits, early answers, handoff queue (pure Rust, no Python)"
+description = "Hinoki HTTP server: plan, limits, early answers, handoff queue and the hyper HTTP/1.1 connection layer (pure Rust, no Python)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,3 +9,11 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
+bytes = "1"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+tokio = { version = "1", features = ["macros", "net", "rt", "sync", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["io-util", "rt-multi-thread"] }
