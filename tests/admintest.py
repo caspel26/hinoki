@@ -6,7 +6,8 @@ import os
 import re
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any, ClassVar
+from types import SimpleNamespace
+from typing import Any, ClassVar, cast
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -47,6 +48,8 @@ from hinoki.admin.forms import (
     render_field,
     to_datetime,
 )
+from hinoki.admin.lists import apply_state, matching, pagination_for, table_head
+from hinoki.admin.site import ListState
 from hinoki.admin.templates import UI, Raw, TemplateError, Templates, escape
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import RegistrationError
@@ -508,6 +511,52 @@ def test_form_controls_cover_empty_select_checkbox_and_error_states() -> None:
 
     textarea = FormField("body", "Body", "textarea", False, False, False, None, str)
     assert "<textarea" in str(control(textarea, "\nfirst", None))
+
+
+def test_admin_list_helpers_cover_single_search_ordering_and_pagination_gaps() -> None:
+    single = cast(ModelAdmin[Any], SimpleNamespace(search=("title",)))
+    searched = matching(single, Note.all(), "needle")
+    assert searched.filters == (("title", "contains", ["needle"]),)
+
+    ordered_entry = cast(
+        ModelAdmin[Any],
+        SimpleNamespace(
+            tabs=(),
+            search=(),
+            model=Note,
+            shown_columns=lambda: ("title",),
+            ordering=("-title",),
+        ),
+    )
+    ordered = apply_state(
+        ordered_entry,
+        Note.all(),
+        ListState(sort="not-visible", direction="asc"),
+    )
+    assert ordered.order == (("title", True),)
+
+    extra_column = cast(
+        ModelAdmin[Any],
+        SimpleNamespace(model=Note, shown_columns=lambda: ("virtual",)),
+    )
+    headings = str(
+        table_head(cast(Any, SimpleNamespace()), "notes", extra_column, bulk=False)
+    )
+    assert "Virtual" in headings and '<th scope="col">' in headings
+
+    site = cast(
+        Any,
+        SimpleNamespace(
+            state=ListState(),
+            parts=SimpleNamespace(pagination=lambda urls, summary: (urls, summary)),
+            url=lambda *parts, **_query: "/" + "/".join(parts),
+        ),
+    )
+    links, _summary = cast(
+        tuple[list[tuple[str, str, bool]], str],
+        pagination_for(site, "notes", 10, 1, 20),
+    )
+    assert any(label == "…" for _, label, _current in links)
 
 
 def test_unchanged_fields_are_never_rewritten_on_edit() -> None:
