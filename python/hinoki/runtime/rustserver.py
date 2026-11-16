@@ -1,4 +1,4 @@
-"""One worker of the Rust HTTP/1.1 server.
+"""One worker of the Rust HTTP server (HTTP/1.1, and HTTP/2 over TLS).
 
 The listener, the HTTP parsing and the connection limits run on the native
 tokio runtime (``core.RustServer``). Every request the native classifier does
@@ -89,10 +89,11 @@ def scope_of(
     """The ASGI-shaped scope the pipeline reads, from a queued request.
     ``server`` is where the worker listens; ``Request.host`` falls back to it
     for an HTTP/1.0 request without a ``Host`` header. ``scheme`` is ``https``
-    when the worker terminates TLS itself."""
+    when the worker terminates TLS itself; ``http_version`` is ``2`` for a
+    request that arrived over HTTP/2."""
     return {
         "type": "http",
-        "http_version": "1.1",
+        "http_version": request.http_version,
         "method": request.method,
         "scheme": scheme,
         "path": unquote(request.path),
@@ -120,6 +121,7 @@ class RustWorker:
         write_timeout: float = 30.0,
         tls_cert_file: str | None = None,
         tls_key_file: str | None = None,
+        http2: bool = False,
         backlog: int = 1024,
         listener_fd: int | None = None,
         parent: int | None = None,
@@ -134,6 +136,7 @@ class RustWorker:
         self.write_timeout = write_timeout
         self.tls_cert_file = tls_cert_file
         self.tls_key_file = tls_key_file
+        self.http2 = http2
         self.backlog = backlog
         # An inherited listening descriptor (a supervisor owns the socket); the
         # native server takes it over. Without one, the worker binds itself.
@@ -196,6 +199,7 @@ class RustWorker:
                 self.write_timeout,
                 self.tls_cert_file,
                 self.tls_key_file,
+                self.http2,
             )
         except BaseException:
             await self._lifespan("shutdown")
@@ -390,6 +394,7 @@ def build_worker(
         backlog=settings.backlog,
         tls_cert_file=settings.tls_cert_file,
         tls_key_file=settings.tls_key_file,
+        http2=settings.http2,
         listener_fd=listener_fd,
         parent=parent,
         **limits,

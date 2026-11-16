@@ -1,5 +1,5 @@
 //! The socket side of the Rust server: `RustServer` binds a listener on the
-//! shared tokio runtime and serves HTTP/1.1 with `hinoki-server`, handing every
+//! shared tokio runtime and serves HTTP/1.1 (and HTTP/2 over TLS) with `hinoki-server`, handing every
 //! request the classifier does not answer to the asyncio loop.
 //!
 //! Handoff: the connection layer queues a `PreparedRequest` on the core's bounded
@@ -85,6 +85,7 @@ impl Backend for CoreBackend {
             headers,
             peer,
             secure,
+            http_version,
             refusal,
             body,
         } = request;
@@ -98,6 +99,7 @@ impl Backend for CoreBackend {
             headers,
             trusted,
             https,
+            http_version,
             peer: Some(peer),
             refusal,
             body,
@@ -150,7 +152,7 @@ fn seconds(name: &str, value: f64) -> PyResult<Duration> {
         .map_err(|_| PyValueError::new_err(format!("{name} must be a non-negative number")))
 }
 
-/// A listening HTTP/1.1 server on the shared tokio runtime.
+/// A listening HTTP/1.1 (and, over TLS, HTTP/2) server on the shared tokio runtime.
 #[pyclass(name = "RustServer", module = "hinoki.core", frozen)]
 pub struct RustServer {
     addr: SocketAddr,
@@ -170,7 +172,7 @@ impl RustServer {
     #[pyo3(signature = (
         core, host, port, max_connections=10_000, header_read_timeout=10.0,
         shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
-        fd=None, write_timeout=30.0, tls_cert=None, tls_key=None
+        fd=None, write_timeout=30.0, tls_cert=None, tls_key=None, http2=false
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start(
@@ -186,6 +188,7 @@ impl RustServer {
         write_timeout: f64,
         tls_cert: Option<String>,
         tls_key: Option<String>,
+        http2: bool,
     ) -> PyResult<Self> {
         // First, so that every later error closes the descriptor with it.
         let inherited = fd.map(inherited_listener).transpose()?;
@@ -209,10 +212,15 @@ impl RustServer {
         };
         let tls = match (tls_cert, tls_key) {
             (Some(cert), Some(key)) => Some(
-                hinoki_server::tls::acceptor(cert.as_ref(), key.as_ref())
+                hinoki_server::tls::acceptor(cert.as_ref(), key.as_ref(), http2)
                     .map_err(|e| PyValueError::new_err(e.to_string()))?,
             ),
-            (None, None) => None,
+            (None, None) if !http2 => None,
+            (None, None) => {
+                return Err(PyValueError::new_err(
+                    "http2 needs TLS: set tls_cert and tls_key",
+                ))
+            }
             _ => {
                 return Err(PyValueError::new_err(
                     "tls_cert and tls_key must be given together",
