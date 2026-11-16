@@ -778,8 +778,9 @@ class LifecycleSettings(Settings):
     shutdown_timeout: float = 10.0
 
     def validate(self) -> None:
-        if min(self.startup_timeout, self.shutdown_timeout) <= 0:
-            raise ValueError("timeouts must be positive")
+        for value in (self.startup_timeout, self.shutdown_timeout):
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError("timeouts must be positive and finite")
 
 
 class JsonFormatter(logging.Formatter):
