@@ -460,10 +460,14 @@ async def test_a_client_that_leaves_mid_body_does_not_reach_the_handler(
     )
     await writer.drain()
     writer.close()
-    for _ in range(100):
-        if not worker.core.in_flight and not worker.core.pending:
+    # The server may not have taken the request yet: wait for the permit to
+    # appear and go away again before reading the counter.
+    seen = False
+    for _ in range(200):
+        seen = seen or bool(worker.core.in_flight)
+        if seen and not worker.core.in_flight and not worker.core.pending:
             break
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.025)
     assert worker.core.in_flight == 0
     assert PROBE.entered == 0
     assert (await fetch(port, "GET", "/health")).status == 200
