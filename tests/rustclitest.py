@@ -3,6 +3,7 @@ honour, and the listening socket the Rust server is given."""
 
 import argparse
 import os
+import signal
 import socket
 import subprocess
 import sys
@@ -13,6 +14,7 @@ import pytest
 from hinoki import Hinoki, core
 from hinoki.runtime.listener import inherited_address, open_listener
 from hinoki.runtime.rustserver import RustWorker
+from hinoki.runtime.supervisor import Supervisor
 from hinoki.serve import add_arguments, choose_server
 from hinoki.settings import AppSettings, ServerSettings, SettingsError
 
@@ -175,3 +177,75 @@ def test_the_supervisor_process_never_starts_the_native_runtime() -> None:
     )
     assert done.returncode == 0, done.stderr
     assert "runtime not started" in done.stdout
+
+
+def is_open(fd: int) -> bool:
+    try:
+        os.fstat(fd)
+    except OSError:
+        return False
+    return True
+
+
+def native_core() -> core.ServerCore:
+    return RustWorker(Hinoki(), "127.0.0.1", 0).core
+
+
+def detached(kind: int, *, listen: bool) -> int:
+    sock = socket.socket(socket.AF_INET, kind)
+    if kind == socket.SOCK_STREAM:
+        sock.bind(("127.0.0.1", 0))
+        if listen:
+            sock.listen(4)
+    return sock.detach()
+
+
+def test_a_descriptor_that_is_not_an_ip_stream_socket_is_refused_and_closed() -> None:
+    for fd in (
+        detached(socket.SOCK_DGRAM, listen=False),
+        os.open(os.devnull, os.O_RDONLY),  # a file some other code opened
+    ):
+        with pytest.raises((RuntimeError, ValueError)):
+            core.RustServer.start(native_core(), "", 0, fd=fd)
+        assert not is_open(fd)  # taken by the call, so closed with the error
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="SO_ACCEPTCONN is read on Linux")
+def test_a_stream_socket_that_is_not_listening_is_refused_and_closed() -> None:
+    fd = detached(socket.SOCK_STREAM, listen=False)
+    with pytest.raises(ValueError, match="not a listening socket"):
+        core.RustServer.start(native_core(), "", 0, fd=fd)
+    assert not is_open(fd)
+
+
+def test_a_valid_listener_is_closed_when_the_start_is_refused_for_its_limits() -> None:
+    fd = detached(socket.SOCK_STREAM, listen=True)
+    with pytest.raises(ValueError, match="max_connections"):
+        core.RustServer.start(native_core(), "", 0, max_connections=0, fd=fd)
+    assert not is_open(fd)  # one rule: a descriptor passed in is always consumed
+    with pytest.raises(ValueError, match="descriptor"):
+        core.RustServer.start(native_core(), "", 0, fd=-1)
+
+
+def test_the_listener_helper_refuses_a_socket_that_is_not_listening() -> None:
+    if sys.platform != "linux":
+        pytest.skip("macOS cannot tell a listening socket from a bound one")
+    fd = detached(socket.SOCK_STREAM, listen=False)
+    try:
+        with pytest.raises(OSError, match="not a listening TCP socket"):
+            inherited_address(fd)
+    finally:
+        os.close(fd)
+
+
+@pytest.mark.parametrize("reload", [False, True])
+def test_a_signal_before_the_workers_start_stops_cleanly(
+    reload: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    listener = open_listener("127.0.0.1", 0, 4)
+    supervisor = Supervisor("tests.rustserverapp:app", listener, 2, 1.0, reload=reload)
+    monkeypatch.setattr(signal, "signal", lambda *_: None)  # not the test's own
+    supervisor.stop.set()  # the signal came during the first poll
+    assert supervisor.run() == 0
+    assert supervisor.processes == []
+    assert listener.fileno() == -1  # closed

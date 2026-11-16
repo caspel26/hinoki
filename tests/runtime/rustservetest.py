@@ -45,11 +45,12 @@ def children(pid: int) -> list[int]:
 
 
 def is_running(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    return True
+    """Whether the process exists and is not a zombie (an orphan reparented to
+    an init that does not reap stays one)."""
+    command = ["ps", "-o", "stat=", "-p", str(pid)]
+    done = subprocess.run(command, capture_output=True, text=True, check=False)
+    state = done.stdout.strip()
+    return bool(state) and not state.startswith("Z")
 
 
 def wait_until(condition: object, seconds: float = 15.0) -> bool:
@@ -209,8 +210,10 @@ def test_dev_reloads_on_a_change_and_waits_after_an_error(
     assert server.stdout is not None
     wait_ready(port, "/v")
     assert '"one"' in fetch(port, "/v")
-    module.write_text(APP.format(version="two"))
-    assert wait_until(lambda: '"two"' in _try(port))
+    # A different size each time: the same-size edit within one second would
+    # keep the old bytecode (its timestamp and size are unchanged).
+    module.write_text(APP.format(version="second"))
+    assert wait_until(lambda: '"second"' in _try(port))
     module.write_text("def broken(\n")
     read_until(server.stdout, "waiting for changes")
     # The supervisor still owns the socket: a client connects and waits.
@@ -219,8 +222,8 @@ def test_dev_reloads_on_a_change_and_waits_after_an_error(
         waiting.settimeout(1)
         with pytest.raises(TimeoutError):
             waiting.recv(1)
-    module.write_text(APP.format(version="three"))
-    assert wait_until(lambda: '"three"' in _try(port))
+    module.write_text(APP.format(version="the third"))
+    assert wait_until(lambda: '"the third"' in _try(port))
     server.send_signal(signal.SIGINT)
     assert server.wait(timeout=30) == 0
 
@@ -230,3 +233,119 @@ def _try(port: int) -> str:
         return fetch(port, "/v")
     except OSError:
         return ""
+
+
+def spawn_pids(server: subprocess.Popen[str], count: int) -> list[int]:
+    assert wait_until(lambda: len(children(server.pid)) == count)
+    return children(server.pid)
+
+
+def test_workers_stop_when_the_supervisor_dies_while_they_import(
+    served: list[subprocess.Popen[str]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SLOW_IMPORT", "3")
+    port = free_port()
+    server = start(
+        "serve", "tests.runtime.slowimportapp:app", port, "--server", "rust",
+        "--workers", "2",
+    )  # fmt: skip
+    served.append(server)
+    workers = spawn_pids(server, 2)
+    time.sleep(1.5)  # past the parent check in main, inside the 3 s import
+    os.kill(server.pid, signal.SIGKILL)
+    assert wait_until(lambda: not any(is_running(pid) for pid in workers), 30)
+
+
+def test_a_child_of_a_handler_does_not_hold_the_listening_socket(
+    served: list[subprocess.Popen[str]],
+) -> None:
+    port = free_port()
+    server = start(
+        "serve",
+        "tests.runtime.spawnapp:app",
+        port,
+        "--server",
+        "rust",
+        "--workers",
+        "2",
+    )
+    served.append(server)
+    wait_ready(port, "/health")
+    sleeper = int(fetch(port, "/spawn").split(":")[1].strip("}"))
+    try:
+        server.send_signal(signal.SIGTERM)
+        assert server.wait(timeout=20) == 0
+        assert is_running(sleeper)  # the child outlives the server
+        with socket.socket() as probe:  # the port is free again
+            # Reuse only waives TIME_WAIT; a listening socket still blocks it.
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            probe.bind(("127.0.0.1", port))
+    finally:
+        os.kill(sleeper, signal.SIGKILL)
+
+
+def test_a_client_arriving_during_a_graceful_stop_is_refused(
+    served: list[subprocess.Popen[str]],
+) -> None:
+    port = free_port()
+    server = start("serve", TARGET, port, "--server", "rust", "--workers", "2")
+    served.append(server)
+    wait_ready(port, "/health")
+    result: list[str] = []
+    thread = slow_request(port, result)
+    time.sleep(0.1)
+    server.send_signal(signal.SIGTERM)
+    time.sleep(0.15)  # the workers are draining the request still running
+    with pytest.raises(OSError, match="refused"):
+        socket.create_connection(("127.0.0.1", port), timeout=2).close()
+    thread.join(timeout=10)
+    assert result == ['{"slow":"done"}']
+    assert server.wait(timeout=20) == 0
+
+
+def test_sighup_stops_gracefully(served: list[subprocess.Popen[str]]) -> None:
+    port = free_port()
+    server = start("serve", TARGET, port, "--server", "rust", "--workers", "2")
+    served.append(server)
+    wait_ready(port, "/health")
+    result: list[str] = []
+    thread = slow_request(port, result)
+    time.sleep(0.1)
+    server.send_signal(signal.SIGHUP)
+    thread.join(timeout=10)
+    assert result == ['{"slow":"done"}']
+    assert server.wait(timeout=20) == 0
+
+
+@pytest.mark.parametrize("workers", ["1", "2"])
+@pytest.mark.parametrize("fault", ["busy", "port", "host"])
+def test_a_listen_failure_is_one_clean_error_whatever_the_workers(
+    workers: str, fault: str
+) -> None:
+    with socket.socket() as taken:
+        taken.bind(("127.0.0.1", 0))
+        taken.listen()
+        flags = {
+            "busy": ["--port", str(taken.getsockname()[1])],
+            "port": ["--port", "70000"],
+            "host": ["--host", "no-such-host.invalid"],
+        }[fault]
+        done = subprocess.run(
+            [sys.executable, "-m", "hinoki", "serve", TARGET, "--server", "rust",
+             "--workers", workers, *flags],
+            cwd=ROOT, capture_output=True, text=True, timeout=60, check=False,
+        )  # fmt: skip
+    assert done.returncode == 2
+    assert "error: cannot listen on" in done.stderr
+    assert "Traceback" not in done.stderr
+
+
+@pytest.mark.parametrize("workers", ["-1", "257"])
+def test_workers_outside_the_range_are_refused(workers: str) -> None:
+    done = subprocess.run(
+        [sys.executable, "-m", "hinoki", "serve", TARGET, "--server", "rust",
+         "--workers", workers],
+        cwd=ROOT, capture_output=True, text=True, timeout=60, check=False,
+    )  # fmt: skip
+    assert done.returncode == 2
+    assert "--workers must be 1 to 256" in done.stderr

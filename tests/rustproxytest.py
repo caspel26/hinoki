@@ -253,3 +253,30 @@ async def test_a_native_answer_reports_an_ignored_trusted_id(
         assert caplog.text.count("ignored invalid request ID") == 1
     finally:
         await worker.stop()
+
+
+async def test_the_last_second_of_ignored_ids_is_reported_at_stop(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.WARNING, logger="hinoki.runtime")
+    worker = RustWorker(make_app(TRUSTED, trust_request_id=True), "127.0.0.1", 0)
+    port = await worker.start()
+    await fetch(port, "GET", "/nope", "x-request-id: two,values\r\n")
+    await worker.stop()  # no housekeeping pass has run since the request
+    assert "ignored invalid request ID from trusted proxy (1 natively" in caplog.text
+
+
+async def test_a_failing_housekeeping_pass_does_not_end_the_chain(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    worker = RustWorker(make_app(TRUSTED), "127.0.0.1", 0)
+    await worker.start()
+    try:
+        worker.timer.cancel()  # type: ignore[union-attr]
+        monkeypatch.setattr(worker, "housekeeping", lambda: 1 / 0)
+        worker._tick()
+        assert "housekeeping failed" in caplog.text
+        assert worker.timer is not None and not worker.timer.cancelled()
+    finally:
+        monkeypatch.undo()
+        await worker.stop()
