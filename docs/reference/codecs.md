@@ -10,7 +10,7 @@
 
 ::: hinoki.parsers.TextParser
 
-::: hinoki.parsers.UploadedFile
+::: hinoki.UploadedFile
 
 ::: hinoki.renderers.Renderer
 
