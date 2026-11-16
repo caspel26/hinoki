@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import UNSET, Field, Schema, Unset
+from hinoki import UNSET, Field, Schema, SchemaConfig, SchemaExtra, Unset
 from hinoki.errors import ErrorDetail, ValidationError
 from hinoki.fieldtypes import FieldType
 from tests.oracle.validation import INVALID, TooManyErrors, Validator
@@ -41,6 +41,10 @@ class Node(Schema):
     children: list["Node"] = Field(default_factory=list)
 
 
+class ExtensiblePayload(Schema, config=SchemaConfig(extra=SchemaExtra.IGNORE)):
+    count: int
+
+
 def native(cls: type[Schema], data: object) -> Any:
     return cls.validate(data)
 
@@ -65,6 +69,20 @@ def outcome(call: Any, cls: type[Schema], data: object) -> tuple[str, Any]:
         return "ok", call(cls, data)
     except ValidationError as error:
         return "errors", [(d.path, d.code, d.message) for d in error.details]
+
+
+def test_native_and_oracle_agree_on_ignored_extra_policy() -> None:
+    inputs = [
+        {"count": 1, "unknown": {"unvisited": object()}},
+        {"count": "1", "unknown": "discarded"},
+        {"count": 1, 7: "non-string key"},
+        {7: "non-string key"},
+        {"count": 1, "unknown": "discarded", 7: "non-string key"},
+    ]
+    for data in inputs:
+        assert outcome(native, ExtensiblePayload, data) == outcome(
+            oracle, ExtensiblePayload, data
+        )
 
 
 JUNK: list[Any] = [
