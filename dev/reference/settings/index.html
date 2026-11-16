@@ -1566,7 +1566,8 @@ belongs to Granian; <code>max_connections</code>, <code>header_read_timeout</cod
 <code>body_read_timeout</code> and <code>write_timeout</code> belong to the Rust server
 (<code>None</code> keeps its default). <code>hinoki serve</code> refuses a setting the chosen
 server cannot honour. <code>tls_cert_file</code> and <code>tls_key_file</code> (PEM files, set
-together) serve HTTPS on either server.</p>
+together) serve HTTPS on either server; <code>http2</code> adds HTTP/2 to it (ALPN
+<code>h2</code>, TLS only, off by default).</p>
 
 
 
