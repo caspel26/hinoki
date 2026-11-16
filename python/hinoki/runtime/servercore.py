@@ -13,7 +13,7 @@ from http import HTTPStatus
 
 from hinoki import core
 from hinoki.context import request_id
-from hinoki.renderers import JSONRenderer, Renderer
+from hinoki.renderers import is_default_json_renderer
 from hinoki.runtime.binding import EMPTY, PATH_PARAM, Binding
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.responses import RETRY_LATER, HTTPError
@@ -127,18 +127,6 @@ def native_handler_eligible(binding: Binding, defer_policies: bool) -> bool:
         and not route.transaction
         and not binding.takes_request
         and renderer_ok
-    )
-
-
-def is_default_json_renderer(renderer: Renderer) -> bool:
-    """Whether a renderer has no custom behavior or JSON encoding options."""
-    return (
-        type(renderer) is JSONRenderer
-        and renderer.media_type == "application/json"
-        and renderer.indent is None
-        and not renderer.sort_keys
-        and renderer.default is None
-        and set(vars(renderer)) == {"indent", "sort_keys", "default"}
     )
 
 

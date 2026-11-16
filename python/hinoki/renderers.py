@@ -66,6 +66,18 @@ class JSONRenderer(Renderer):
         )
 
 
+def is_default_json_renderer(renderer: Renderer) -> bool:
+    """Whether this exact renderer has no custom behavior or JSON options."""
+    return (
+        type(renderer) is JSONRenderer
+        and renderer.media_type == "application/json"
+        and renderer.indent is None
+        and not renderer.sort_keys
+        and renderer.default is None
+        and set(vars(renderer)) == {"indent", "sort_keys", "default"}
+    )
+
+
 class HTMLRenderer(Renderer):
     """A handler that returns ``str`` answers HTML (UTF-8). The string is sent
     as is: escape untrusted data before putting it in."""
