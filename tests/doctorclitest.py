@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from importlib.metadata import PackageNotFoundError
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -144,3 +146,67 @@ def test_doctor_reports_typed_settings_without_exposing_values(
     assert code == 0
     assert settings["status"] == "ok"
     assert "timezone" not in output
+
+
+def test_doctor_warns_when_granian_is_not_installed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    def missing(_name: str) -> str:
+        raise PackageNotFoundError
+
+    monkeypatch.setattr("hinoki.doctorcli.importlib.metadata.version", missing)
+    code = __main__.main(
+        ["doctor", "tests.projects.inherited:create_app", "--format", "json"]
+    )
+    result = json.loads(capsys.readouterr().out)
+    check = next(
+        item for item in result["checks"] if item["id"] == "environment.server"
+    )
+
+    assert code == 0
+    assert check["status"] == "warning"
+
+
+def test_doctor_reports_openapi_generation_failure_without_details(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    def broken(_self: Hinoki) -> dict[str, object]:
+        raise RuntimeError("secret schema detail")
+
+    monkeypatch.setattr(Hinoki, "openapi", broken)
+    code = __main__.main(
+        ["doctor", "tests.projects.inherited:create_app", "--format", "json"]
+    )
+    output = capsys.readouterr().out
+    result = json.loads(output)
+    check = next(
+        item for item in result["checks"] if item["id"] == "application.openapi"
+    )
+
+    assert code == 1
+    assert check["status"] == "failed"
+    assert "secret schema detail" not in output
+
+
+def test_doctor_warns_for_non_hinoki_settings(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    app = SimpleNamespace(settings=object(), routes=[], openapi=lambda: {})
+    monkeypatch.setattr("hinoki.doctorcli.build_app", lambda _target: app)
+
+    code = __main__.main(["doctor", "example:app", "--format", "json"])
+    result = json.loads(capsys.readouterr().out)
+    check = next(
+        item for item in result["checks"] if item["id"] == "application.settings"
+    )
+
+    assert code == 0
+    assert check["status"] == "warning"
