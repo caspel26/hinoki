@@ -585,6 +585,8 @@ def test_command_line_plans_and_prints(
     assert main([*args, "sql", "9999-nope"]) == 1
     assert main([*args, "apply"]) == 0  # local SQLite default
     assert (tmp_path / ".hinoki" / "local.sqlite3").is_file()
+    assert main([*args, "status"]) == 0
+    assert "applied" in capsys.readouterr().out
 
 
 def test_plan_check_is_read_only_and_keeps_dry_run_preview_semantics(
