@@ -406,6 +406,23 @@
 <li><strong>Into a row.</strong> <code>await Note.acreate(data, author_id=me)</code> and <code>await row.aupdate_from(patch)</code>: keyword values set by the server win over the client's, and a schema can never carry the primary key.</li>
 </ul>
 <p><code>Schema.validate(data)</code> reports structural problems together. Values are not coerced. Declare field constraints with <code>Field(...)</code>; use <code>@field_check</code> and <code>@object_check</code> for synchronous checks that depend on validated schema values.</p>
+<h2 id="wire-aliases">Wire aliases<a class="headerlink" href="#wire-aliases" title="Permanent link">&para;</a></h2>
+<p>Use <code>Field(alias=...)</code> when the public JSON name should differ from the Python attribute. The alias is the only accepted input key; sending both names is an error. <code>dump()</code> writes aliases, including in nested schemas and lists, while <code>to_dict()</code> keeps Python attribute names. Validation errors and OpenAPI properties use the wire names. A custom check's default field path is translated to its alias; an explicit <code>Invalid(path=...)</code> is already a wire path.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Schema</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">PersonOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">first_name</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">"firstName"</span><span class="p">)]</span>
+
+
+<span class="n">person</span> <span class="o">=</span> <span class="n">PersonOut</span><span class="o">.</span><span class="n">validate</span><span class="p">({</span><span class="s2">"firstName"</span><span class="p">:</span> <span class="s2">"Aki"</span><span class="p">})</span>
+<span class="k">assert</span> <span class="n">person</span><span class="o">.</span><span class="n">first_name</span> <span class="o">==</span> <span class="s2">"Aki"</span>
+<span class="k">assert</span> <span class="n">person</span><span class="o">.</span><span class="n">dump</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"firstName"</span><span class="p">:</span> <span class="s2">"Aki"</span><span class="p">}</span>
+<span class="k">assert</span> <span class="n">person</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"first_name"</span><span class="p">:</span> <span class="s2">"Aki"</span><span class="p">}</span>
+</code></pre></div>
+<p>An assigned declaration such as <code>display_name: str = Field(alias="displayName")</code> is also supported, including alongside <code>default_factory</code>. Aliases must be unique within a schema and cannot contain <code>.</code>, <code>[</code> or <code>]</code>, which are reserved by error paths. Model columns do not accept wire aliases; put API naming on the <code>Schema</code>.</p>
 <h2 id="built-in-and-custom-validation">Built-in and custom validation<a class="headerlink" href="#built-in-and-custom-validation" title="Permanent link">&para;</a></h2>
 <p><code>Field(...)</code> provides built-in structural constraints. <code>format=</code> accepts <code>email</code>, <code>url</code>, <code>slug</code> or <code>hex_color</code> and is shorthand for a regular-expression pattern. Numeric bounds apply to numbers; length limits apply to strings and collections; <code>one_of</code> restricts a value to the listed choices.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
@@ -458,15 +475,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
+            <ul><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 17:34:09 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>2 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 00:42:18 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
