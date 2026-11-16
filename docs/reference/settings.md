@@ -38,7 +38,7 @@
 
 ::: hinoki.settings.ServerSettings
     options:
-      members: [host, port, workers, runtime_threads, backlog, access_log, trusted_proxies, request_id_header, trust_request_id]
+      members: [server, host, port, workers, runtime_threads, backlog, access_log, max_connections, header_read_timeout, body_read_timeout, trusted_proxies, request_id_header, trust_request_id]
       show_if_no_docstring: true
 
 ::: hinoki.settings.PaginationSettings
