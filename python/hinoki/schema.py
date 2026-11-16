@@ -10,6 +10,7 @@ import typing
 import unicodedata
 import uuid
 from collections.abc import Callable, Iterable
+from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from datetime import datetime
 from typing import (
@@ -41,6 +42,9 @@ _TRUSTED_CONSTRUCTOR = "__hinoki_construct_validated__"
 _MODEL_CONSTRUCTOR = "__hinoki_construct_from_model__"
 _INSTANCE_MISSING = object()
 _INVALID_INSTANCE_VALUE = object()
+_NORMALIZATION_QUEUE: ContextVar[list[tuple[Schema, bool, str]] | None] = ContextVar(
+    "hinoki_schema_normalization_queue", default=None
+)
 
 __all__ = [
     "UNSET",
@@ -50,6 +54,7 @@ __all__ = [
     "Schema",
     "Unset",
     "field_check",
+    "field_normalize",
     "object_check",
 ]
 
@@ -71,6 +76,8 @@ class Invalid(Exception):
 
 
 CHECK_ATTR = "__hinoki_check__"
+NORMALIZE_ATTR = "__hinoki_normalize__"
+NORMALIZER_PARAMETER_COUNT = 2
 
 
 def field_check[F: Callable[..., Any]](*names: str) -> Callable[[F], F]:
@@ -96,6 +103,22 @@ def object_check[F: Callable[..., Any]](function: F) -> F:
     every field check passed or failed (all problems are reported together)."""
     setattr(function, CHECK_ATTR, ("object", ()))
     return function
+
+
+def field_normalize[F: Callable[..., str]](name: str) -> Callable[[F], F]:
+    """Mark a typed field canonicalizer: ``def trim(self, value: str) -> str``.
+
+    Methods run synchronously after structural validation and return a
+    replacement string; raise ``Invalid`` only from a check hook to reject.
+    """
+    if not isinstance(name, str) or not name:
+        raise RegistrationError("@field_normalize needs one non-empty field name")
+
+    def mark(function: F) -> F:
+        setattr(function, NORMALIZE_ATTR, name)
+        return function
+
+    return mark
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,6 +199,54 @@ def validate_reserved_names(cls: type, annotations: dict[str, Any]) -> None:
         raise RegistrationError(
             f"{cls.__name__}: supplied-field tracking metadata is reserved by Hinoki"
         )
+
+
+def validate_normalizer_method(cls: type, method_name: str) -> None:
+    descriptor = inspect.getattr_static(cls, method_name, None)
+    if isinstance(descriptor, (staticmethod, classmethod)):
+        raise RegistrationError(
+            f"{cls.__name__}.{method_name}: field normalizers must be instance methods"
+        )
+    method = getattr(cls, method_name, None)
+    if (
+        not callable(method)
+        or inspect.iscoroutinefunction(method)
+        or inspect.isasyncgenfunction(method)
+    ):
+        raise RegistrationError(
+            f"{cls.__name__}.{method_name}: field normalizers must be sync methods"
+        )
+    parameters = tuple(inspect.signature(method).parameters.values())
+    if len(parameters) != NORMALIZER_PARAMETER_COUNT or any(
+        parameter.kind
+        not in {
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        }
+        or parameter.default is not inspect.Parameter.empty
+        for parameter in parameters
+    ):
+        raise RegistrationError(
+            f"{cls.__name__}.{method_name}: expected (self, value: str) -> str"
+        )
+    try:
+        hints = typing.get_type_hints(method, include_extras=True)
+    except (NameError, TypeError) as exc:
+        raise RegistrationError(
+            f"{cls.__name__}.{method_name}: normalizer annotations must resolve"
+        ) from exc
+    value_hint = hints.get(parameters[1].name, parameters[1].annotation)
+    return_hint = hints.get("return", inspect.signature(method).return_annotation)
+    if not annotation_is_str(value_hint) or not annotation_is_str(return_hint):
+        raise RegistrationError(
+            f"{cls.__name__}.{method_name}: expected (self, value: str) -> str"
+        )
+
+
+def annotation_is_str(annotation: Any) -> bool:
+    if typing.get_origin(annotation) is Annotated:
+        annotation = typing.get_args(annotation)[0]
+    return annotation is str
 
 
 _MAX_INSTANCE_DEPTH = 128
@@ -379,10 +450,151 @@ def validate_constructed(
         allow_naive_datetime=from_model,
         use_aliases=use_aliases,
     )
+    queue = _NORMALIZATION_QUEUE.get()
+    if queue is not None:
+        queue_normalization(queue, instance, use_aliases, "")
+        return
+    normalize_constructed(instance, use_aliases=use_aliases)
     if graph_has_checks(cls):
         found = run_checks(instance, "", use_aliases=use_aliases)
         if found:
             raise ValidationError(found)
+
+
+def normalize_constructed(
+    instance: Schema, *, use_aliases: bool, path_prefix: str = ""
+) -> None:
+    """Stage and validate canonical strings before committing any field."""
+    proposed = prepare_normalized_values(instance, use_aliases, path_prefix)
+    commit_normalized_values(instance, proposed)
+
+
+def prepare_normalized_values(
+    instance: Schema, use_aliases: bool, path_prefix: str
+) -> dict[str, str]:
+    cls = type(instance)
+    if not cls.__normalizers__:
+        return {}
+    proposed: dict[str, str] = {}
+    for field_name, method_name in cls.__normalizers__:
+        value = getattr(instance, field_name)
+        if value is UNSET or value is None:
+            continue
+        proposed[field_name] = normalized_value(instance, method_name, value)
+    if not proposed:
+        return {}
+    validate_normalized_values(cls, proposed, use_aliases, path_prefix)
+    return proposed
+
+
+def commit_normalized_values(instance: Schema, proposed: dict[str, str]) -> None:
+    for field_name, value in proposed.items():
+        object.__setattr__(instance, field_name, value)
+
+
+def queue_normalization(
+    queue: list[tuple[Schema, bool, str]],
+    instance: Schema,
+    use_aliases: bool,
+    path_prefix: str,
+) -> None:
+    queue.append((instance, use_aliases, path_prefix))
+
+
+def defer_or_normalize(
+    instance: Schema, use_aliases: bool, path_prefix: str = ""
+) -> None:
+    queue = _NORMALIZATION_QUEUE.get()
+    if queue is None:
+        normalize_constructed(
+            instance, use_aliases=use_aliases, path_prefix=path_prefix
+        )
+    else:
+        queue_normalization(queue, instance, use_aliases, path_prefix)
+
+
+def apply_normalization_queue(queue: list[tuple[Schema, bool, str]]) -> None:
+    """Validate every new object's proposals before committing any of them."""
+    prepared = [
+        (
+            instance,
+            prepare_normalized_values(instance, use_aliases, path_prefix),
+        )
+        for instance, use_aliases, path_prefix in queue
+    ]
+    for instance, proposed in prepared:
+        commit_normalized_values(instance, proposed)
+
+
+def begin_normalization_queue(
+    cls: type[Schema],
+) -> tuple[list[tuple[Schema, bool, str]] | None, Token[Any] | None, bool]:
+    """Share one deferred finalization queue across nested Schema construction."""
+    current = _NORMALIZATION_QUEUE.get()
+    if current is not None:
+        return current, None, False
+    if not graph_has_normalizers(cls):
+        return None, None, False
+    queue: list[tuple[Schema, bool, str]] = []
+    return queue, _NORMALIZATION_QUEUE.set(queue), True
+
+
+def normalized_value(instance: Schema, method_name: str, value: str) -> str:
+    try:
+        result = getattr(instance, method_name)(value)
+    except Invalid:
+        raise TypeError(
+            "field normalizers must return a string; use @field_check to reject"
+        ) from None
+    if inspect.isawaitable(result):
+        stop_awaitable(result)
+        raise TypeError("field normalizers must be synchronous")
+    if type(result) is not str:
+        raise TypeError("field normalizers must return a string")
+    return result
+
+
+def stop_awaitable(value: Any) -> None:
+    """Dispose an accidental awaitable without scheduling it."""
+    close = getattr(value, "close", None)
+    cancel = getattr(value, "cancel", None)
+    if callable(close):
+        close()
+    if callable(cancel):
+        cancel()
+
+
+def validate_normalized_values(
+    cls: type[Schema],
+    values: dict[str, str],
+    use_aliases: bool,
+    path_prefix: str,
+) -> None:
+    """Re-run compiled constraints only for staged normalized fields."""
+    skip = sorted(set(cls.specs()) - values.keys())
+    data = {
+        cls.specs()[name].wire_name if use_aliases else name: value
+        for name, value in values.items()
+    }
+    _, problems = cls.native_schema().validate(
+        data,
+        construct=False,
+        use_aliases=use_aliases,
+        skip_fields=skip,
+    )
+    if problems:
+        raise ValidationError(
+            [
+                ErrorDetail(
+                    f"{path_prefix}.{path}"
+                    if path_prefix and path
+                    else path_prefix or path,
+                    code,
+                    message,
+                )
+                for path, code, message in problems
+            ]
+        )
 
 
 def allocate_schema_instance(cls: type[Schema], values: dict[str, Any]) -> Schema:
@@ -414,6 +626,7 @@ def install_generated_init(cls: type[Schema], generated_init: Any) -> None:
                 use_aliases=True,
                 path_prefix=path_prefix,
             )
+        defer_or_normalize(instance, use_aliases=True, path_prefix=path_prefix)
         return instance
 
     def construct_from_model(
@@ -453,6 +666,7 @@ def install_custom_init(cls: type[Schema], original_init: Any) -> None:
         schema_cls._validate_instance(
             instance, use_aliases=True, path_prefix=path_prefix
         )
+        defer_or_normalize(instance, use_aliases=True, path_prefix=path_prefix)
         return instance
 
     def construct_from_model(
@@ -491,6 +705,8 @@ class Schema:
     __native__: ClassVar[core.CompiledSchema | None] = None
     __native_dump__: ClassVar[bool] = True
     __checks__: ClassVar[tuple[tuple[str, tuple[str, ...], str], ...]] = ()
+    __normalizers__: ClassVar[tuple[tuple[str, str], ...]] = ()
+    __graph_normalizers__: ClassVar[bool | None] = None
     __source__: ClassVar[dict[str, Any]] = {}
     __derivation__: ClassVar[tuple[Any, ...] | None] = None
     __derived_model__: ClassVar[type | None] = None
@@ -513,6 +729,7 @@ class Schema:
             cls.__derivation__ = (source, None, (), False)
             derive_from_model(cls, source, None, (), False)
         cls.__checks__ = collect_checks(cls)
+        cls.__normalizers__ = collect_normalizers(cls)
         annotations = inspect.get_annotations(cls)
         validate_reserved_names(cls, annotations)
         for name in annotations:
@@ -582,7 +799,32 @@ class Schema:
             )
             specs[item.name] = FieldSpec(item.name, alias, ftype, required)
         validate_aliases(cls, specs)
+        cls.validate_normalizers(specs)
         return specs
+
+    @classmethod
+    def validate_normalizers(cls, specs: dict[str, FieldSpec]) -> None:
+        """Check that registered normalizers have a precise typed target."""
+        by_field: dict[str, str] = {}
+        for field_name, method_name in cls.__normalizers__:
+            spec = specs.get(field_name)
+            if spec is None:
+                raise RegistrationError(
+                    f"{cls.__name__}.{method_name}: unknown field {field_name!r}"
+                )
+            if spec.ftype.kind != "str":
+                raise RegistrationError(
+                    f"{cls.__name__}.{field_name}: field normalizers require str fields"
+                )
+            if field_name in by_field:
+                raise RegistrationError(
+                    f"{cls.__name__}.{field_name}: only one field normalizer is allowed"
+                )
+            by_field[field_name] = method_name
+            validate_normalizer_method(cls, method_name)
+        cls.__normalizers__ = tuple(
+            (name, by_field[name]) for name in specs if name in by_field
+        )
 
     @classmethod
     def native_schema(cls) -> core.CompiledSchema:
@@ -601,14 +843,24 @@ class Schema:
     def validate(cls, data: object) -> Self:
         """Build an instance from decoded JSON or raise ``ValidationError``
         (validated in Rust)."""
-        instance, problems = cls.native_schema().validate(data)
-        if problems:
-            raise ValidationError([ErrorDetail(*problem) for problem in problems])
-        if graph_has_checks(cls):
-            found = run_checks(instance, "")
-            if found:
-                raise ValidationError(found)
-        return cast(Self, instance)
+        queue, token, owns_queue = begin_normalization_queue(cls)
+        try:
+            instance, problems = cls.native_schema().validate(data)
+            if problems:
+                raise ValidationError([ErrorDetail(*problem) for problem in problems])
+            if owns_queue and queue is not None:
+                if token is not None:
+                    _NORMALIZATION_QUEUE.reset(token)
+                    token = None
+                apply_normalization_queue(queue)
+            if graph_has_checks(cls) and (queue is None or owns_queue):
+                found = run_checks(instance, "")
+                if found:
+                    raise ValidationError(found)
+            return cast(Self, instance)
+        finally:
+            if token is not None:
+                _NORMALIZATION_QUEUE.reset(token)
 
     @classmethod
     def _validate_instance(
@@ -676,14 +928,23 @@ class Schema:
             unknown = set(extra) - set(cls.specs())
             if unknown:
                 raise TypeError(f"{cls.__name__} has no fields {sorted(unknown)}")
-        instance = cast(Self, model_plan(cls).build(row, extra))
-        if uses_generated_init(cls):
-            cls._validate_instance(instance, allow_naive_datetime=True)
-            if graph_has_checks(cls):
-                found = run_checks(instance, "", use_aliases=False)
-                if found:
-                    raise ValidationError(found)
-        return instance
+        queue, token, owns_queue = begin_normalization_queue(cls)
+        try:
+            instance = cast(Self, model_plan(cls).build(row, extra))
+            if owns_queue and queue is not None:
+                set_model_normalization_paths(instance, queue)
+            generated = uses_generated_init(cls)
+            if generated:
+                cls._validate_instance(instance, allow_naive_datetime=True)
+                defer_or_normalize(instance, use_aliases=False)
+            if token is not None:
+                _NORMALIZATION_QUEUE.reset(token)
+                token = None
+            finish_model_projection(cls, instance, queue, owns_queue, generated)
+            return instance
+        finally:
+            if token is not None:
+                _NORMALIZATION_QUEUE.reset(token)
 
     def dump(
         self,
@@ -774,29 +1035,94 @@ def collect_checks(cls: type) -> tuple[tuple[str, tuple[str, ...], str], ...]:
     found: dict[str, tuple[str, tuple[str, ...], str]] = {}
     for klass in reversed(cls.__mro__):
         for name, value in vars(klass).items():
-            mark = getattr(value, CHECK_ATTR, None)
-            if mark is not None:
-                found[name] = (mark[0], mark[1], name)
-            elif name in found:
-                del found[name]  # overridden by something that is not a check
+            marker = check_marker(value)
+            if marker is None:
+                found.pop(name, None)
+                continue
+            function = descriptor_function(value)
+            ensure_sync_check(cls, name, function)
+            found[name] = (marker[0], marker[1], name)
+    return tuple(found.values())
+
+
+def descriptor_function(value: Any) -> Any:
+    return value.__func__ if isinstance(value, (staticmethod, classmethod)) else value
+
+
+def check_marker(value: Any) -> Any:
+    marker = getattr(value, CHECK_ATTR, None)
+    return (
+        marker
+        if marker is not None
+        else getattr(descriptor_function(value), CHECK_ATTR, None)
+    )
+
+
+def ensure_sync_check(cls: type, name: str, function: Any) -> None:
+    if inspect.iscoroutinefunction(function) or inspect.isasyncgenfunction(function):
+        raise RegistrationError(
+            f"{cls.__name__}.{name}: Schema checks must be synchronous"
+        )
+
+
+def collect_normalizers(cls: type) -> tuple[tuple[str, str], ...]:
+    """Collect inherited field normalizers, honoring method overrides."""
+    found: dict[str, tuple[str, str]] = {}
+    for klass in reversed(cls.__mro__):
+        for method_name, value in vars(klass).items():
+            function = (
+                value.__func__
+                if isinstance(value, (staticmethod, classmethod))
+                else value
+            )
+            field_name = getattr(value, NORMALIZE_ATTR, None)
+            if field_name is None:
+                field_name = getattr(function, NORMALIZE_ATTR, None)
+            if field_name is not None:
+                found[method_name] = (field_name, method_name)
+            elif method_name in found:
+                del found[method_name]
     return tuple(found.values())
 
 
 def graph_has_checks(cls: type[Schema], seen: set[type] | None = None) -> bool:
-    """Whether this schema or any schema reachable from it declares a check
-    (cached on the class, so schemas without checks pay nothing)."""
-    cached = cls.__dict__.get("__graph_checks__")
-    if cached is not None:
-        return bool(cached)
-    seen = seen if seen is not None else set()
-    seen.add(cls)
-    answer = bool(cls.__checks__) or any(
-        graph_has_checks(nested, seen)
-        for nested in nested_schemas(cls)
-        if nested not in seen
-    )
-    cls.__graph_checks__ = answer  # type: ignore[attr-defined]
-    return answer
+    """Whether this schema graph declares a check; recursive-safe lookup."""
+    pending = [cls]
+    visited: set[type] = set() if seen is None else set(seen)
+    while pending:
+        current = pending.pop()
+        if current in visited:
+            continue
+        visited.add(current)
+        if current.__dict__.get("__graph_checks__") is True:
+            return True
+        if current.__checks__:
+            cls.__graph_checks__ = True  # type: ignore[attr-defined]
+            return True
+        pending.extend(nested_schemas(current))
+    return False
+
+
+def graph_has_normalizers(cls: type[Schema], seen: set[type] | None = None) -> bool:
+    """Whether a schema graph needs a side-effect-free structural preflight."""
+    # Recursive schema graphs make recursive memoization unsafe: a node first
+    # reached through the active cycle can appear to have no normalizers even
+    # though a later field in that same graph contains one. An iterative walk
+    # visits each class once and caches only positive answers.
+    pending = [cls]
+    visited: set[type] = set() if seen is None else set(seen)
+    while pending:
+        current = pending.pop()
+        if current in visited:
+            continue
+        visited.add(current)
+        if current.__dict__.get("__graph_normalizers__") is True:
+            return True
+        if current.__normalizers__:
+            cls.__graph_normalizers__ = True
+            return True
+        pending.extend(nested_schemas(current))
+    return False
 
 
 def nested_schemas(cls: type[Schema]) -> list[type[Schema]]:
@@ -903,14 +1229,22 @@ def call_check(
     where = f"{path}.{wire_name}" if path and wire_name else (wire_name or path)
     try:
         if target is None:
-            getattr(instance, method)()
+            result = getattr(instance, method)()
         else:
             value = getattr(instance, target)
-            if value is not UNSET:
-                getattr(instance, method)(value)
+            result = getattr(instance, method)(value) if value is not UNSET else None
+        ensure_check_result(result)
     except Invalid as refusal:
         return [ErrorDetail(refusal.path or where, refusal.code, refusal.message)]
     return []
+
+
+def ensure_check_result(result: Any) -> None:
+    if result is None:
+        return
+    if inspect.isawaitable(result):
+        stop_awaitable(result)
+    raise TypeError("Schema check hooks must return None; raise Invalid to reject")
 
 
 SOURCE_SKIP = frozenset(
@@ -1045,6 +1379,77 @@ def uses_generated_init(cls: type) -> bool:
     if isinstance(allocator, staticmethod):
         allocator = allocator.__func__
     return generated and allocator is object.__new__
+
+
+def finish_model_projection(
+    cls: type[Schema],
+    instance: Schema,
+    queue: list[tuple[Schema, bool, str]] | None,
+    owns_queue: bool,
+    generated: bool,
+) -> None:
+    if owns_queue and queue is not None:
+        apply_normalization_queue(queue)
+    if graph_has_checks(cls) and (owns_queue or (generated and queue is None)):
+        found = run_checks(instance, "", use_aliases=False)
+        if found:
+            raise ValidationError(found)
+
+
+def set_model_normalization_paths(
+    instance: Schema, queue: list[tuple[Schema, bool, str]]
+) -> None:
+    """Attach root-relative field paths to deferred model normalizers."""
+    queued = {id(item): index for index, (item, _, _) in enumerate(queue)}
+    walk_model_schema(instance, "", queue, queued, set())
+
+
+def walk_model_schema(
+    schema: Schema,
+    path: str,
+    queue: list[tuple[Schema, bool, str]],
+    queued: dict[int, int],
+    visited: set[int],
+) -> None:
+    identity = id(schema)
+    if identity in visited:
+        return
+    visited.add(identity)
+    index = queued.get(identity)
+    if index is not None:
+        queued_schema, aliases, _ = queue[index]
+        queue[index] = (queued_schema, aliases, path)
+    for name, spec in type(schema).specs().items():
+        value = getattr(schema, name, _INSTANCE_MISSING)
+        if value is _INSTANCE_MISSING:
+            continue
+        child_path = f"{path}.{name}" if path else name
+        walk_model_value(spec.ftype, value, child_path, queue, queued, visited)
+
+
+def walk_model_value(
+    ftype: FieldType,
+    value: Any,
+    path: str,
+    queue: list[tuple[Schema, bool, str]],
+    queued: dict[int, int],
+    visited: set[int],
+) -> None:
+    if value is None or value is UNSET:
+        return
+    nested = ftype.schema
+    if nested is not None and isinstance(value, nested):
+        walk_model_schema(value, path, queue, queued, visited)
+        return
+    for _, variant in ftype.variants:
+        if isinstance(value, variant):
+            walk_model_schema(value, path, queue, queued, visited)
+            return
+    if ftype.item is not None and isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            walk_model_value(
+                ftype.item, item, f"{path}[{index}]", queue, queued, visited
+            )
 
 
 def conversion_of(ftype: FieldType) -> tuple[Any, Any]:

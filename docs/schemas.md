@@ -27,7 +27,7 @@ class NoteOut(Schema):
 * **From rows.** `NoteOut.from_model(row, author_name=row.author.name)` converts one row; `NoteOut.from_models(rows)` eagerly converts a synchronous iterable to a list. Relations must already be loaded (nothing fetches lazily). A derived schema keeps its selected fields. Conversion reads the expected attributes rather than checking the concrete model class; missing attributes raise `AttributeError`. Values passed as `**extra` are shared across rows.
 * **Into a row.** `await Note.acreate(data, author_id=me)` and `await row.aupdate_from(patch)`: keyword values set by the server win over the client's, and a schema can never carry the primary key.
 
-`Schema.validate(data)` reports structural problems together. Values are not coerced. Declare field constraints with `Field(...)`; use `@field_check` and `@object_check` for synchronous checks that depend on validated schema values.
+`Schema.validate(data)` reports structural problems together. Values are not coerced. Declare field constraints with `Field(...)`; use `@field_normalize` for narrow, typed string canonicalization and `@field_check`/`@object_check` for synchronous rejection checks.
 
 ## Wire aliases
 
@@ -126,7 +126,14 @@ With no options, `dump()` preserves its current output and honors custom `dump()
 ```python
 from typing import Annotated
 
-from hinoki import Field, Invalid, Schema, field_check, object_check
+from hinoki import (
+    Field,
+    Invalid,
+    Schema,
+    field_check,
+    field_normalize,
+    object_check,
+)
 
 
 class Registration(Schema):
@@ -134,6 +141,10 @@ class Registration(Schema):
     email: Annotated[str, Field(format="email")]
     password: Annotated[str, Field(min_length=12)]
     confirmation: str
+
+    @field_normalize("email")
+    def lowercase_email(self, value: str) -> str:
+        return value.lower()
 
     @field_check("password")
     def reject_common_password(self, value: str) -> None:
@@ -150,7 +161,9 @@ class Registration(Schema):
             )
 ```
 
-Structural checks run first and reject wrong types, missing required values and unknown keys. If they pass, field checks receive validated values and object checks can compare fields. Raise `Invalid(code, message)` to reject a value; checks do not transform it. All applicable custom-check failures are returned together in `errors.ValidationError.details`. They must be synchronous and side-effect free: do not query the database or call external services. Put checks that depend on current data in an operation.
+Structural validation runs first and rejects wrong types, missing required values, unknown keys and failed constraints. `@field_normalize("email")` then receives a valid string and returns its canonical form; the result is checked against the same `Field(...)` constraints before it is applied. The same hook runs for `Schema.validate(...)`, direct `Schema(...)` construction and `from_model(...)`. It cannot rescue an input that failed the initial validation. Normalizers must be typed synchronous methods returning `str`; they cannot perform I/O or reject input.
+
+After normalization, field checks receive final values and object checks can compare final fields. Raise `Invalid(code, message)` to reject a value; these checks return `None` and do not transform it. Non-`None` returns and async check methods are programming errors. Applicable custom-check failures are returned together in `errors.ValidationError.details`. Checks must be side-effect free; do not query the database or call external services. Put checks that depend on current data in an operation.
 
 These decorators validate a `Schema` instance passed through `Schema.validate`; they are not run on a `Model`. Model fields have separate checks that run before ORM writes, described in [Model field constraints and validators](models.md#model-field-constraints-and-validators).
 

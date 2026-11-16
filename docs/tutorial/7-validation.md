@@ -1,11 +1,19 @@
 # 7. Validate input
 
-`Schema` validation has two stages. `Field(...)` declares built-in type and value constraints. Custom synchronous checks add rules that depend on one field or compare several fields. Both run before a validated schema reaches an operation.
+`Schema` validation combines built-in type and value constraints with optional synchronous normalization and rejection checks. Constraints reject invalid input first; normalizers canonicalize valid strings; checks can then reject values based on one field or compare several fields. All of this happens before a validated schema reaches an operation.
 
 ```python
 from typing import Annotated
 
-from hinoki import Field, Invalid, Schema, errors, field_check, object_check
+from hinoki import (
+    Field,
+    Invalid,
+    Schema,
+    errors,
+    field_check,
+    field_normalize,
+    object_check,
+)
 
 
 class Registration(Schema):
@@ -16,6 +24,10 @@ class Registration(Schema):
     email: Annotated[str, Field(format="email")]
     password: Annotated[str, Field(min_length=12)]
     confirmation: str
+
+    @field_normalize("email")
+    def lowercase_email(self, value: str) -> str:
+        return value.lower()
 
     @field_check("password")
     def reject_common_password(self, value: str) -> None:
@@ -41,6 +53,7 @@ valid = Registration.validate(
     }
 )
 assert valid.username == "mari_23"
+assert valid.email == "mari@example.test"
 try:
     Registration.validate(
         {
@@ -55,9 +68,11 @@ except errors.ValidationError as error:
         print(detail.path, detail.code, detail.message)
 ```
 
-The invalid call reports a `common_password` error on `password` and a `password_mismatch` error on `confirmation`. `min_length`, `max_length` and `pattern` are built-in field constraints. `format="email"` is a ready-made pattern; `url`, `slug` and `hex_color` are also available. Numeric fields can use `gt`, `ge`, `lt` and `le`, and `one_of` restricts a value to a fixed set. An invalid built-in constraint prevents custom checks from running.
+The invalid call reports a `common_password` error on `password` and a `password_mismatch` error on `confirmation`. `min_length`, `max_length` and `pattern` are built-in field constraints. `format="email"` is a ready-made pattern; `url`, `slug` and `hex_color` are also available. Numeric fields can use `gt`, `ge`, `lt` and `le`, and `one_of` restricts a value to a fixed set. An invalid built-in constraint prevents normalizers and custom checks from running.
 
-`@field_check("password")` receives the already validated value. `@object_check` receives the complete schema and can compare fields. Raise `Invalid(code, message)` to report a failure; the method does not transform the value. Checks are synchronous, have no I/O, and all applicable failures are collected. Structural failures such as a missing field or wrong type are reported first. A check that needs current database state, such as whether an email is already registered, belongs in an operation where it can be made race-safe.
+`@field_normalize("email")` receives a structurally valid string and must return a `str`. Its result is checked against the same constraints before it is applied. Normalization also runs when you manually construct a `Schema(...)` or call `from_model(...)`; it does not run twice when an existing nested Schema is passed to a new parent. Inputs that fail the original constraints cannot be rescued by normalization.
+
+`@field_check("password")` receives the final value. `@object_check` receives the complete schema and can compare final fields. Raise `Invalid(code, message)` to report a failure; checks must return `None` and do not transform the value. Normalizers and checks are synchronous, have no I/O, and run the same way before both sync and async handlers. A check that needs current database state, such as whether an email is already registered, belongs in an operation where it can be made race-safe.
 
 ## Validate values at Model write boundaries
 
