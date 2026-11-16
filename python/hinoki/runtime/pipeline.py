@@ -142,12 +142,15 @@ class Pipeline:
             raise RegistrationError(f"{app.openapi_url} is already used by a route")
         return app.openapi()
 
-    async def handle(self, scope: Scope, source: BodySource) -> Response:
+    async def handle(
+        self, scope: Scope, source: BodySource, rid: str | None = None
+    ) -> Response:
         """Answer one request. The returned response carries its final headers
         (policy, route, request id, CORS, content-length) and its full body; a
-        transport only drops the body for HEAD and writes it out."""
+        transport only drops the body for HEAD and writes it out. A transport
+        that already chose the request id passes it as ``rid``."""
         scope, trusted = effective_scope(scope, self.trusted_proxies)
-        rid = self._request_id(scope, trusted)
+        rid = rid or self._request_id(scope, trusted)
         token = request_id.set(rid)
         context.route_headers.set(())
         runner_token = context.sync_runner.set(self.executor.run)
