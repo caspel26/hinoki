@@ -1,5 +1,7 @@
 """The Rust HTTP/1.1 server over real loopback sockets."""
 
+from __future__ import annotations
+
 import asyncio
 import inspect
 import json
@@ -12,6 +14,7 @@ import subprocess
 import sys
 import threading
 from collections.abc import AsyncIterator, Coroutine
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -33,7 +36,7 @@ from hinoki.reply import Reply
 from hinoki.request import Request
 from hinoki.runtime import rustserver
 from hinoki.runtime.rustserver import RustWorker
-from hinoki.settings import AppSettings, FrameOptions, SecuritySettings
+from hinoki.settings import AppSettings, CorsSettings, FrameOptions, SecuritySettings
 from tests.harness import Client
 from tests.providers import TokenAuth
 
@@ -66,6 +69,11 @@ def fresh_probe() -> None:
 @http.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@http.get("/private", access=Access(auth=TokenAuth()))
+async def private() -> dict[str, str]:
+    return {"secret": "value"}
 
 
 @http.get("/context-async")
@@ -245,6 +253,155 @@ async def served() -> AsyncIterator[tuple[RustWorker, int]]:
     await worker.stop()
 
 
+@asynccontextmanager
+async def rust_probe(
+    settings: AppSettings | None = None,
+) -> AsyncIterator[tuple[RustWorker, int]]:
+    worker = RustWorker(
+        Hinoki(startup_url="/health", settings=settings), "127.0.0.1", 0
+    )
+    port = await worker.start()
+    try:
+        yield worker, port
+    finally:
+        await worker.stop()
+
+
+@asynccontextmanager
+async def asgi_probe(settings: AppSettings | None = None) -> AsyncIterator[Client]:
+    client = Client(Hinoki(startup_url="/health", settings=settings).asgi())
+    assert await client.lifespan_event("startup") == "lifespan.startup.complete"
+    try:
+        yield client
+    finally:
+        assert await client.lifespan_event("shutdown") == "lifespan.shutdown.complete"
+
+
+async def compare_probe(
+    port: int,
+    client: Client,
+    method: str,
+    *,
+    query: str = "",
+    headers: dict[str, str] | None = None,
+    scheme: str | None = None,
+) -> Received:
+    target = "/health" + (f"?{query}" if query else "")
+    request_headers = headers or {}
+    host = next(
+        (value for name, value in request_headers.items() if name.lower() == "host"),
+        "t",
+    )
+    extra = "".join(
+        f"{name}: {value}\r\n"
+        for name, value in request_headers.items()
+        if name.lower() != "host"
+    )
+    actual = await fetch(port, method, target, extra=extra, host=host)
+    expected = await client.request(
+        method,
+        "/health",
+        raw_path=b"/health",
+        query=query,
+        headers=request_headers,
+        scheme=scheme,
+    )
+    assert_pipeline_parity(actual, expected)
+    return actual
+
+
+async def test_startup_probe_answers_get_and_head_natively() -> None:
+    async with rust_probe() as (worker, port), asgi_probe() as client:
+        assert worker.core.ready
+        get = await compare_probe(port, client, "GET")
+        assert get.status == 200 and get.json() == {"status": "ok"}
+        head = await compare_probe(port, client, "HEAD")
+        assert head.status == 200 and head.body == b""
+        assert head.header("content-length") == get.header("content-length")
+    assert not worker.core.ready
+
+
+async def test_startup_url_cannot_be_changed_to_shadow_a_protected_route() -> None:
+    app = Hinoki(startup_url="/health")
+    app.include(private)
+    client = Client(app.asgi())
+    startup_option = "startup_url"
+    with pytest.raises(AttributeError):
+        setattr(app, startup_option, "/private")
+    assert await client.lifespan_event("startup") == "lifespan.startup.complete"
+    try:
+        response = await client.request("GET", "/private", raw_path=b"/private")
+        assert response.status == 401
+        assert response.body["error"] == "unauthorized"
+    finally:
+        assert await client.lifespan_event("shutdown") == "lifespan.shutdown.complete"
+
+
+async def test_startup_probe_refuses_invalid_requests_with_pipeline_parity() -> None:
+    async with rust_probe() as (_worker, port), asgi_probe() as client:
+        wrong_method = await compare_probe(port, client, "POST")
+        assert wrong_method.status == 405
+        assert wrong_method.header("allow") == "GET, HEAD"
+        unacceptable = await compare_probe(
+            port,
+            client,
+            "GET",
+            headers={"accept": "text/plain"},
+        )
+        assert unacceptable.status == 406
+        assert unacceptable.json()["available"] == "application/json"
+        malformed = await compare_probe(port, client, "GET", query="x=%FF")
+        assert malformed.status == 400
+        assert malformed.json()["error"] == "invalid_query"
+
+
+async def test_startup_probe_defers_host_policy() -> None:
+    settings = AppSettings(allowed_hosts=("example.com",))
+    async with rust_probe(settings) as (_worker, port), asgi_probe(settings) as client:
+        rejected = await compare_probe(port, client, "GET")
+        assert rejected.status == 400
+        accepted = await compare_probe(
+            port, client, "GET", headers={"host": "example.com"}
+        )
+        assert accepted.status == 200 and accepted.json() == {"status": "ok"}
+
+
+async def test_startup_probe_defers_cors_preflight() -> None:
+    settings = AppSettings(cors=CorsSettings(origins=("https://client.example",)))
+    async with rust_probe(settings) as (_worker, port), asgi_probe(settings) as client:
+        headers = {
+            "origin": "https://client.example",
+            "access-control-request-method": "GET",
+        }
+        preflight = await compare_probe(
+            port,
+            client,
+            "OPTIONS",
+            headers=headers,
+        )
+        assert preflight.status == 204
+        assert (
+            preflight.header("access-control-allow-origin") == "https://client.example"
+        )
+
+
+async def test_startup_probe_defers_https_redirect() -> None:
+    settings = AppSettings(
+        allowed_hosts=("example.com",),
+        security=SecuritySettings(redirect_https=True),
+    )
+    async with rust_probe(settings) as (_worker, port), asgi_probe(settings) as client:
+        redirect = await compare_probe(
+            port,
+            client,
+            "GET",
+            headers={"host": "example.com"},
+            scheme="http",
+        )
+        assert redirect.status == 308
+        assert redirect.header("location") == "https://example.com/health"
+
+
 @dataclass
 class Received:
     status: int
@@ -276,10 +433,12 @@ async def open_connection(
     return await asyncio.open_connection("127.0.0.1", port)
 
 
-async def fetch(port: int, method: str, target: str, extra: str = "") -> Received:
+async def fetch(
+    port: int, method: str, target: str, extra: str = "", host: str = "t"
+) -> Received:
     reader, writer = await open_connection(port)
     head_only = method == "HEAD"
-    writer.write(f"{method} {target} HTTP/1.1\r\nhost: t\r\n{extra}\r\n".encode())
+    writer.write(f"{method} {target} HTTP/1.1\r\nhost: {host}\r\n{extra}\r\n".encode())
     received = await read_response(reader, head_only)
     writer.close()
     return received

@@ -95,6 +95,24 @@ def test_async_sync_and_body_handlers_answer_in_process() -> None:
         adapter.close()
 
 
+def test_startup_probe_is_available_through_wsgi() -> None:
+    adapter = WSGIAdapter(Hinoki(startup_url="/health"))
+    try:
+        assert call(adapter, "GET", "/private")[0] == "404 Not Found"
+        assert call(adapter, "POST", "/private")[0] == "404 Not Found"
+        get = call(adapter, "GET", "/health")
+        assert get[0] == "200 OK"
+        assert get[2] == {"status": "ok"}
+        head = call(adapter, "HEAD", "/health")
+        assert head[0] == "200 OK" and head[2] is None
+        assert head[1]["content-length"] == get[1]["content-length"]
+        wrong_method = call(adapter, "POST", "/health")
+        assert wrong_method[0] == "405 Method Not Allowed"
+        assert wrong_method[1]["allow"] == "GET, HEAD"
+    finally:
+        adapter.close()
+
+
 def test_wsgi_auth_denial_buffers_but_does_not_parse_the_upload() -> None:
     PROTECTED_UPLOAD_PARSER.calls = 0
     adapter = WSGIAdapter(create_app())

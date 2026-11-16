@@ -62,6 +62,51 @@ def test_native_core_is_loaded() -> None:
     assert hinoki.__version__ == "0.0.1"
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "health",
+        "/",
+        "/items/{item_id}",
+        "/health?full=1",
+        "/health#state",
+        "/a%2Fb",
+        "/a//b",
+        "/a/../b",
+        "/café",
+    ],
+)
+def test_startup_url_requires_a_literal_path(path: str) -> None:
+    with pytest.raises(RegistrationError, match="startup_url"):
+        Hinoki(startup_url=path)
+
+
+def test_startup_url_rejects_static_and_dynamic_route_collisions() -> None:
+    @http.get("/items/{item_id}")
+    def item(item_id: str) -> str:
+        return item_id
+
+    for path, route in (("/health", health), ("/items/3", item)):
+        app = Hinoki(startup_url=path)
+        app.include(route)
+        with pytest.raises(RegistrationError, match="already matched"):
+            app.asgi()
+
+
+def test_startup_url_rejects_documentation_collisions_and_is_not_a_route() -> None:
+    app = Hinoki(startup_url="/docs", openapi_url="/openapi.json", docs_url="/docs")
+    with pytest.raises(RegistrationError, match="documentation viewer"):
+        app.asgi()
+
+    openapi = Hinoki(startup_url="/openapi.json", openapi_url="/openapi.json")
+    with pytest.raises(RegistrationError, match="documentation viewer"):
+        openapi.asgi()
+
+    disabled = Hinoki()
+    assert disabled.lookup("GET", "/health") is None
+    assert all(route.path != "/health" for route in disabled.routes)
+
+
 def test_resolves_function_and_class_actions() -> None:
     app = make_app()
     found = app.resolve("GET", "/health")

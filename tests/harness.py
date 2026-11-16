@@ -45,6 +45,7 @@ class Client:
         content_type: str | None = None,
         headers: dict[str, str] | None = None,
         raw_headers: list[tuple[bytes, bytes]] | None = None,
+        scheme: str | None = None,
     ) -> Reply:
         incoming = {"type": "http.request", "body": body, "more_body": False}
         scope: dict[str, Any] = {
@@ -56,6 +57,8 @@ class Client:
         }
         if raw_path is not None:
             scope["raw_path"] = raw_path
+        if scheme is not None:
+            scope["scheme"] = scheme
         sink = Sink()
         await self.adapter(scope, Feed(incoming), sink)
         start, end = sink.sent
