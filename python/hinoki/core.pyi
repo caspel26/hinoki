@@ -250,6 +250,8 @@ class RustServer:
         body_read_timeout: float = 10.0,
         fd: int | None = None,
         write_timeout: float = 30.0,
+        tls_cert: str | None = None,
+        tls_key: str | None = None,
     ) -> RustServer: ...
     @property
     def port(self) -> int: ...

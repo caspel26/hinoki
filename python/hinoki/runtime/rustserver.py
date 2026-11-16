@@ -83,15 +83,18 @@ def body_failure(kind: str) -> Exception:
     return InvalidBody("disconnected", "the client disconnected")
 
 
-def scope_of(request: core.PreparedRequest, server: tuple[str, int]) -> dict[str, Any]:
+def scope_of(
+    request: core.PreparedRequest, server: tuple[str, int], scheme: str = "http"
+) -> dict[str, Any]:
     """The ASGI-shaped scope the pipeline reads, from a queued request.
     ``server`` is where the worker listens; ``Request.host`` falls back to it
-    for an HTTP/1.0 request without a ``Host`` header."""
+    for an HTTP/1.0 request without a ``Host`` header. ``scheme`` is ``https``
+    when the worker terminates TLS itself."""
     return {
         "type": "http",
         "http_version": "1.1",
         "method": request.method,
-        "scheme": "http",
+        "scheme": scheme,
         "path": unquote(request.path),
         # Non-ASCII bytes stay: the pipeline answers 400 bad_path_encoding for them.
         "raw_path": request.path.encode("utf-8"),
@@ -115,6 +118,8 @@ class RustWorker:
         header_read_timeout: float = 10.0,
         body_read_timeout: float = 10.0,
         write_timeout: float = 30.0,
+        tls_cert_file: str | None = None,
+        tls_key_file: str | None = None,
         backlog: int = 1024,
         listener_fd: int | None = None,
         parent: int | None = None,
@@ -127,6 +132,8 @@ class RustWorker:
         self.header_read_timeout = header_read_timeout
         self.body_read_timeout = body_read_timeout
         self.write_timeout = write_timeout
+        self.tls_cert_file = tls_cert_file
+        self.tls_key_file = tls_key_file
         self.backlog = backlog
         # An inherited listening descriptor (a supervisor owns the socket); the
         # native server takes it over. Without one, the worker binds itself.
@@ -139,6 +146,7 @@ class RustWorker:
         self.core = build_server_core(self.pipeline)
         self.server: core.RustServer | None = None
         self.address = (host, port)
+        self.scheme = "https" if tls_cert_file else "http"
         self.tasks: set[asyncio.Task[None]] = set()
         self.stopping = asyncio.Event()
         self._inbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
@@ -186,6 +194,8 @@ class RustWorker:
                 min(self.body_read_timeout, runtime.request_timeout / 2),
                 fd,
                 self.write_timeout,
+                self.tls_cert_file,
+                self.tls_key_file,
             )
         except BaseException:
             await self._lifespan("shutdown")
@@ -264,7 +274,7 @@ class RustWorker:
         try:
             response = self.pipeline.with_headers(
                 HTTPError(500, "internal_error", request_id=rid).response,
-                scope_of(request, self.address),
+                scope_of(request, self.address, self.scheme),
                 rid,
             )
             body = b"" if request.method == "HEAD" else response.body
@@ -282,7 +292,7 @@ class RustWorker:
         route = None if request.action is None else (request.action, request.params)
         try:
             response = await self.pipeline.handle(
-                scope_of(request, self.address),
+                scope_of(request, self.address, self.scheme),
                 RustBody(request),
                 request.request_id,
                 route,
@@ -348,7 +358,7 @@ class RustWorker:
             loop.add_signal_handler(signal.SIGHUP, interrupt)
             if self.parent is None:
                 shown = f"[{self.host}]" if ":" in self.host else self.host
-                print(f"listening on http://{shown}:{port}", flush=True)
+                print(f"listening on {self.scheme}://{shown}:{port}", flush=True)
             await self.stopping.wait()
         finally:
             aborted = await self.stop()
@@ -378,6 +388,8 @@ def build_worker(
         host,
         port,
         backlog=settings.backlog,
+        tls_cert_file=settings.tls_cert_file,
+        tls_key_file=settings.tls_key_file,
         listener_fd=listener_fd,
         parent=parent,
         **limits,

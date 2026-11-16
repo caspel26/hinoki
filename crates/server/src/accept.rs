@@ -12,10 +12,12 @@ use std::time::Duration;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper_util::rt::{TokioIo, TokioTimer};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{watch, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinSet;
 use tokio::time::{sleep, timeout};
+use tokio_rustls::TlsAcceptor;
 
 use crate::conn::{respond, Backend, Transport};
 use crate::framing::{Framing, Guarded, Signals};
@@ -91,16 +93,40 @@ async fn next_client(
     Some((slot, listener.accept().await))
 }
 
+/// Run the TLS handshake, if the listener has TLS, then serve the connection.
+/// The handshake has `header_read_timeout`, like a request head, and a
+/// connection that fails it is closed without an answer.
 async fn run_connection<B: Backend>(
     stream: TcpStream,
     peer: SocketAddr,
     backend: Arc<B>,
     config: ServerConfig,
-    mut stop: Stop,
+    tls: Option<TlsAcceptor>,
+    stop: Stop,
 ) {
     let _ = stream.set_nodelay(true);
+    let Some(acceptor) = tls else {
+        return serve_stream(stream, false, peer, backend, config, stop).await;
+    };
+    if let Ok(Ok(secured)) = timeout(config.header_read_timeout, acceptor.accept(stream)).await {
+        serve_stream(secured, true, peer, backend, config, stop).await;
+    }
+}
+
+async fn serve_stream<S, B>(
+    stream: S,
+    secure: bool,
+    peer: SocketAddr,
+    backend: Arc<B>,
+    config: ServerConfig,
+    mut stop: Stop,
+) where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    B: Backend,
+{
     let signals = Arc::new(Signals::default());
     let transport = Transport {
+        secure,
         body_read_timeout: config.body_read_timeout,
         signals: Arc::clone(&signals),
     };
@@ -148,12 +174,13 @@ async fn drain(mut connections: JoinSet<()>, limit: Duration) -> Closed {
     Closed { aborted }
 }
 
-/// Accept connections on `listener` and serve them with `backend` until `stop`
-/// fires; returns once the connections have finished or been aborted.
+/// Accept connections on `listener` and serve them with `backend` (over TLS
+/// when `tls` is set) until `stop` fires; returns once the connections have finished or been aborted.
 pub async fn serve<B: Backend>(
     listener: TcpListener,
     backend: Arc<B>,
     config: ServerConfig,
+    tls: Option<TlsAcceptor>,
     mut stop: Stop,
 ) -> Closed {
     let slots = Arc::new(Semaphore::new(config.max_connections));
@@ -165,7 +192,7 @@ pub async fn serve<B: Backend>(
             Some((slot, accepted)) = next_client(&listener, &slots) => match accepted {
                 Ok((stream, peer)) => {
                     let task = run_connection(
-                        stream, peer, Arc::clone(&backend), config, stop.clone(),
+                        stream, peer, Arc::clone(&backend), config, tls.clone(), stop.clone(),
                     );
                     connections.spawn(async move {
                         task.await;

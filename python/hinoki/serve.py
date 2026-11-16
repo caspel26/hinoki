@@ -21,6 +21,7 @@ import asyncio
 import importlib.util
 import inspect
 import sys
+from pathlib import Path
 from typing import Any
 
 from hinoki import core
@@ -213,6 +214,8 @@ def run_granian(
         runtime_threads=settings.runtime_threads,
         backlog=settings.backlog,
         log_access=settings.access_log,
+        ssl_cert=Path(settings.tls_cert_file) if settings.tls_cert_file else None,
+        ssl_key=Path(settings.tls_key_file) if settings.tls_key_file else None,
         factory=is_factory,
         reload=reload,
     )
