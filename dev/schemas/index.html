@@ -423,6 +423,30 @@
 <span class="k">assert</span> <span class="n">person</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"first_name"</span><span class="p">:</span> <span class="s2">"Aki"</span><span class="p">}</span>
 </code></pre></div>
 <p>An assigned declaration such as <code>display_name: str = Field(alias="displayName")</code> is also supported, including alongside <code>default_factory</code>. Aliases must be unique within a schema and cannot contain <code>.</code>, <code>[</code> or <code>]</code>, which are reserved by error paths. Model columns do not accept wire aliases; put API naming on the <code>Schema</code>.</p>
+<p><code>Schema(...)</code> validates the final Python values immediately and raises <code>ValidationError</code> for invalid values. Pass Python objects such as <code>UUID</code>, timezone-aware <code>datetime</code> and nested <code>Schema</code> instances. <code>Schema.validate(decoded_data)</code> is the wire-input path: it accepts JSON-compatible values, resolves aliases and returns field errors using wire names. Request body binding uses that path before calling the handler. <code>from_model()</code> also validates the constructed Schema; naive datetimes returned by database drivers remain unchanged and are allowed on that model-conversion path. Return annotations describe OpenAPI and serialization; Hinoki does not validate handler return values at runtime.</p>
+<h2 id="projection-options-on-dump">Projection options on <code>dump()</code><a class="headerlink" href="#projection-options-on-dump" title="Permanent link">&para;</a></h2>
+<p>Use <code>dump()</code> when application code needs a JSON-compatible projection of a Schema. <code>include</code> and <code>exclude</code> accept Python field names and apply to the top-level fields only; exclusion wins if a field appears in both. There are no dotted paths or nested selection maps. Nested Schemas and supported lists are converted recursively, with <code>by_alias</code> applied at every Schema level.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Schema</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">PersonOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">first_name</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">"firstName"</span><span class="p">)]</span>
+    <span class="n">bio</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
+
+
+<span class="n">person</span> <span class="o">=</span> <span class="n">PersonOut</span><span class="o">.</span><span class="n">validate</span><span class="p">({</span><span class="s2">"firstName"</span><span class="p">:</span> <span class="s2">"Aki"</span><span class="p">})</span>
+<span class="k">assert</span> <span class="n">person</span><span class="o">.</span><span class="n">dump</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"firstName"</span><span class="p">:</span> <span class="s2">"Aki"</span><span class="p">,</span> <span class="s2">"bio"</span><span class="p">:</span> <span class="s2">""</span><span class="p">}</span>
+<span class="k">assert</span> <span class="n">person</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">exclude_unset</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"firstName"</span><span class="p">:</span> <span class="s2">"Aki"</span><span class="p">}</span>
+<span class="k">assert</span> <span class="n">person</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">{</span><span class="s2">"first_name"</span><span class="p">},</span> <span class="n">by_alias</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span>
+    <span class="s2">"first_name"</span><span class="p">:</span> <span class="s2">"Aki"</span>
+<span class="p">}</span>
+<span class="k">assert</span> <span class="n">person</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="nb">set</span><span class="p">())</span> <span class="o">==</span> <span class="p">{}</span>
+</code></pre></div>
+<p><code>exclude_unset=True</code> omits values supplied by dataclass defaults or default factories when the caller did not provide that field. It does not compare values with defaults: explicitly passing <code>bio=""</code>, <code>None</code>, <code>0</code>, <code>False</code> or an empty collection keeps that value. <code>UNSET</code> is omitted regardless of this option. <code>from_model()</code> tracks attributes it actually reads and values passed via <code>**extra</code>; missing optional attributes that use Schema defaults remain unset. A custom <code>__post_init__</code> changing a field does not make it supplied. A custom <code>__init__</code> has no reliable input-presence information, so <code>exclude_unset=True</code> raises <code>TypeError</code> for its instances.</p>
+<p>With no options, <code>dump()</code> preserves its current output and honors custom <code>dump()</code> overrides, including nested ones. Root-only <code>include</code> and <code>exclude</code> can select a custom-dumped nested value; recursive controls (<code>exclude_unset=True</code> or <code>by_alias=False</code>) refuse that value because Hinoki cannot safely inspect the override. A zero-argument override continues to work at runtime for automatic HTTP output, but widening the base signature means mypy flags that override; typed overrides that use the new options must accept the same keyword-only signature. Filtering a manually returned dictionary does not change the OpenAPI contract and is not an authorization mechanism; declare a response Schema containing only fields the caller may see. <code>to_dict()</code> remains the Python-value conversion and its existing <code>exclude=</code> behavior is unchanged.</p>
+<p><code>dump</code> is reserved as a <code>Schema</code> method name. Declaring a field with that Python attribute name raises <code>RegistrationError</code> instead of treating the inherited method as a default value; rename the Python field to avoid the collision. A wire alias alone cannot resolve a Python attribute-name conflict.</p>
 <h2 id="built-in-and-custom-validation">Built-in and custom validation<a class="headerlink" href="#built-in-and-custom-validation" title="Permanent link">&para;</a></h2>
 <p><code>Field(...)</code> provides built-in structural constraints. <code>format=</code> accepts <code>email</code>, <code>url</code>, <code>slug</code> or <code>hex_color</code> and is shorthand for a regular-expression pattern. Numeric bounds apply to numbers; length limits apply to strings and collections; <code>one_of</code> restricts a value to the listed choices.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
@@ -475,15 +499,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
+            <ul><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#projection-options-on-dump">Projection options on dump()</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 00:42:18 UTC">November 16, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 02:29:36 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -662,6 +662,37 @@ compiled on first use and cached on the class.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="hinoki.schema.Schema._validate_instance" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">_validate_instance</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.schema.Schema._validate_instance" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">_validate_instance</span><span class="p">(</span>
+    <span class="n">instance</span><span class="p">:</span> <span class="n">Schema</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">allow_naive_datetime</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">skip_fields</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">use_aliases</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">path_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Validate final Python values on a manually constructed instance.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="hinoki.schema.Schema.fields" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">fields</span>
 
@@ -769,13 +800,20 @@ lacks is an error, and an unloaded relation still raises
 
 
 <a href="#hinoki.schema.Schema.dump" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">dump</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">dump</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">include</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">exclude</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">exclude_unset</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">by_alias</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>JSON-compatible form; <code>UNSET</code> fields are omitted. Built in Rust,
-like the JSON answers themselves.</p>
+        <p>Return JSON-compatible data with optional projection controls.</p>
+<p>Selectors use Python field names. <code>exclude_unset</code> omits defaulted
+fields not supplied at construction. HTTP responses use default options.</p>
 
 
     </div>
@@ -1099,7 +1137,7 @@ every field check passed or failed (all problems are reported together).</p>
           
           
             <ul><li><a href="#hinoki.schema.Schema">Schema</a>
-            <ul><li><a href="#hinoki.schema.Schema.__hinoki_schema__">__hinoki_schema__</a></li><li><a href="#hinoki.schema.Schema.__specs__">__specs__</a></li><li><a href="#hinoki.schema.Schema.__assigned_field_info__">__assigned_field_info__</a></li><li><a href="#hinoki.schema.Schema.__native__">__native__</a></li><li><a href="#hinoki.schema.Schema.__native_dump__">__native_dump__</a></li><li><a href="#hinoki.schema.Schema.__checks__">__checks__</a></li><li><a href="#hinoki.schema.Schema.__source__">__source__</a></li><li><a href="#hinoki.schema.Schema.__derivation__">__derivation__</a></li><li><a href="#hinoki.schema.Schema.__derived_model__">__derived_model__</a></li><li><a href="#hinoki.schema.Schema.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.schema.Schema.apply_default">apply_default</a></li><li><a href="#hinoki.schema.Schema.specs">specs</a></li><li><a href="#hinoki.schema.Schema.build_specs">build_specs</a></li><li><a href="#hinoki.schema.Schema.native_schema">native_schema</a></li><li><a href="#hinoki.schema.Schema.validate">validate</a></li><li><a href="#hinoki.schema.Schema.fields">fields</a></li><li><a href="#hinoki.schema.Schema.to_dict">to_dict</a></li><li><a href="#hinoki.schema.Schema.from_models">from_models</a></li><li><a href="#hinoki.schema.Schema.from_model">from_model</a></li><li><a href="#hinoki.schema.Schema.dump">dump</a></li></ul>
+            <ul><li><a href="#hinoki.schema.Schema.__hinoki_schema__">__hinoki_schema__</a></li><li><a href="#hinoki.schema.Schema.__specs__">__specs__</a></li><li><a href="#hinoki.schema.Schema.__assigned_field_info__">__assigned_field_info__</a></li><li><a href="#hinoki.schema.Schema.__native__">__native__</a></li><li><a href="#hinoki.schema.Schema.__native_dump__">__native_dump__</a></li><li><a href="#hinoki.schema.Schema.__checks__">__checks__</a></li><li><a href="#hinoki.schema.Schema.__source__">__source__</a></li><li><a href="#hinoki.schema.Schema.__derivation__">__derivation__</a></li><li><a href="#hinoki.schema.Schema.__derived_model__">__derived_model__</a></li><li><a href="#hinoki.schema.Schema.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.schema.Schema.apply_default">apply_default</a></li><li><a href="#hinoki.schema.Schema.specs">specs</a></li><li><a href="#hinoki.schema.Schema.build_specs">build_specs</a></li><li><a href="#hinoki.schema.Schema.native_schema">native_schema</a></li><li><a href="#hinoki.schema.Schema.validate">validate</a></li><li><a href="#hinoki.schema.Schema._validate_instance">_validate_instance</a></li><li><a href="#hinoki.schema.Schema.fields">fields</a></li><li><a href="#hinoki.schema.Schema.to_dict">to_dict</a></li><li><a href="#hinoki.schema.Schema.from_models">from_models</a></li><li><a href="#hinoki.schema.Schema.from_model">from_model</a></li><li><a href="#hinoki.schema.Schema.dump">dump</a></li></ul>
           </li><li><a href="#hinoki.fields.Field">Field</a></li><li><a href="#hinoki.schema.Invalid">Invalid</a></li><li><a href="#hinoki.schema.Unset">Unset</a></li><li><a href="#hinoki.schema.field_check">field_check</a></li><li><a href="#hinoki.schema.object_check">object_check</a></li><li><a href="#hinoki.errors.ValidationError">ValidationError</a></li><li><a href="#hinoki.fields.UNSET">UNSET</a></li><li><a href="#hinoki.derive.derive">derive</a></li></ul>
           
         </nav>
