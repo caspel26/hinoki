@@ -29,7 +29,7 @@ UNSET = Unset()
 
 @dataclass(frozen=True, slots=True)
 class FieldInfo:
-    """Constraints and default of one schema field."""
+    """Constraints, alias and default of one schema field."""
 
     min_length: int | None = None
     max_length: int | None = None
@@ -39,6 +39,7 @@ class FieldInfo:
     gt: float | None = None
     lt: float | None = None
     one_of: tuple[Any, ...] | None = None
+    alias: str | None = None
     default_factory: Callable[[], Any] | None = None
 
     def constraints(self) -> dict[str, object]:
@@ -57,7 +58,21 @@ class FieldInfo:
 
 
 @overload
-def Field[T](*, default_factory: Callable[[], T]) -> T: ...
+def Field[T](*, default_factory: Callable[[], T], alias: str | None = None) -> T: ...
+@overload
+def Field(
+    *,
+    alias: str,
+    min_length: int | None = None,
+    max_length: int | None = None,
+    pattern: str | None = None,
+    ge: float | None = None,
+    le: float | None = None,
+    gt: float | None = None,
+    lt: float | None = None,
+    one_of: Sequence[Any] | None = None,
+    format: str | None = None,
+) -> Any: ...
 @overload
 def Field(
     *,
@@ -70,6 +85,7 @@ def Field(
     lt: float | None = None,
     one_of: Sequence[Any] | None = None,
     format: str | None = None,
+    alias: str | None = None,
 ) -> FieldInfo: ...
 def Field(**options: Any) -> Any:
     """Declare constraints (inside ``Annotated``) or a default factory.

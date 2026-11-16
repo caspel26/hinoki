@@ -14,12 +14,15 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 use regex::Regex;
 
+pub type SchemaWireNames = Vec<(String, String)>;
+pub type SchemaInstanceFields = Option<(SchemaWireNames, Py<PyAny>)>;
+
 const MAX_ERRORS: usize = 50;
 const MAX_KEY_ECHO: usize = 64;
 const MAX_DEPTH: usize = 128;
 
 type Problem = (String, &'static str, String);
-type FieldTable<'py> = Vec<(String, Bound<'py, PyAny>, bool)>;
+type FieldTable<'py> = Vec<(String, String, Bound<'py, PyAny>, bool)>;
 
 enum Kind {
     Str,
@@ -47,6 +50,7 @@ struct Node {
 
 struct Field {
     name: String,
+    wire_name: String,
     node: Node,
     required: bool,
 }
@@ -153,8 +157,9 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node> {
     })
 }
 
-/// Build a validator from `definitions`: a list of `(class, [(name, node,
-/// required), ...])`; nested schemas refer to a definition by index.
+/// Build a validator from `definitions`: a list of
+/// `(class, [(name, wire_name, node, required), ...])`; nested schemas refer to
+/// a definition by index.
 #[pyfunction]
 pub fn compile_schemas(
     definitions: Vec<(Py<PyAny>, FieldTable<'_>)>,
@@ -166,9 +171,10 @@ pub fn compile_schemas(
     let mut built = Vec::with_capacity(definitions.len());
     for (class, fields) in definitions {
         let mut parsed = Vec::with_capacity(fields.len());
-        for (name, node, required) in fields {
+        for (name, wire_name, node, required) in fields {
             parsed.push(Field {
                 name,
+                wire_name,
                 node: parse_node(&node)?,
                 required,
             });
@@ -205,7 +211,8 @@ pub fn compile_schemas(
 pub fn instance_fields(
     value: &Bound<'_, PyAny>,
     honour_custom_dump: bool,
-) -> PyResult<Option<(Vec<String>, Py<PyAny>)>> {
+    by_alias: bool,
+) -> PyResult<SchemaInstanceFields> {
     let class = value.get_type();
     if !class.hasattr("__hinoki_schema__")? {
         return Ok(None);
@@ -238,7 +245,16 @@ pub fn instance_fields(
     let names = compiled.definitions[compiled.root]
         .fields
         .iter()
-        .map(|field| field.name.clone())
+        .map(|field| {
+            (
+                field.name.clone(),
+                if by_alias {
+                    field.wire_name.clone()
+                } else {
+                    field.name.clone()
+                },
+            )
+        })
         .collect();
     Ok(Some((names, compiled.unset.clone_ref(value.py()))))
 }
@@ -518,15 +534,61 @@ impl<'py> Run<'_, 'py> {
         let compiled = self.compiled;
         let definition = &compiled.definitions[index];
         let before = self.problems.len();
-        let known: HashSet<&str> = definition.fields.iter().map(|f| f.name.as_str()).collect();
+        let known: HashSet<&str> = definition
+            .fields
+            .iter()
+            .map(|field| field.wire_name.as_str())
+            .collect();
+        let duplicate_names = self.duplicate_python_names(definition, object, path)?;
+        self.reject_unknown_fields(object, &known, &duplicate_names, path)?;
+        let values = self.validate_fields(definition, object, &duplicate_names, path, depth)?;
+        if self.problems.len() > before {
+            return Ok(None);
+        }
+        Ok(Some(
+            definition.class.bind(self.py).call((), Some(&values))?,
+        ))
+    }
+
+    fn duplicate_python_names(
+        &mut self,
+        definition: &Definition,
+        object: &Bound<'py, PyDict>,
+        path: &str,
+    ) -> Result<HashSet<String>, Abort> {
+        let mut duplicates = HashSet::new();
+        for field in &definition.fields {
+            if field.name != field.wire_name
+                && object.contains(&field.name)?
+                && object.contains(&field.wire_name)?
+            {
+                duplicates.insert(field.name.clone());
+                self.fail(
+                    &join(path, &field.wire_name),
+                    "duplicate_field",
+                    "field was supplied by both its Python name and alias".to_owned(),
+                )?;
+            }
+        }
+        Ok(duplicates)
+    }
+
+    fn reject_unknown_fields(
+        &mut self,
+        object: &Bound<'py, PyDict>,
+        known: &HashSet<&str>,
+        duplicate_names: &HashSet<String>,
+        path: &str,
+    ) -> Result<(), Abort> {
         for key in object.keys() {
             let name = key.str()?.to_string_lossy().into_owned();
-            let is_field = key
+            let known_wire_name = key
                 .cast::<PyString>()
                 .ok()
                 .and_then(|k| k.to_cow().ok())
                 .is_some_and(|k| known.contains(&*k));
-            if !is_field {
+            let duplicate_python_name = duplicate_names.contains(&name);
+            if !known_wire_name && !duplicate_python_name {
                 let shown: String = name.chars().take(MAX_KEY_ECHO).collect();
                 self.fail(
                     &join(path, &shown),
@@ -535,10 +597,24 @@ impl<'py> Run<'_, 'py> {
                 )?;
             }
         }
+        Ok(())
+    }
+
+    fn validate_fields(
+        &mut self,
+        definition: &Definition,
+        object: &Bound<'py, PyDict>,
+        duplicate_names: &HashSet<String>,
+        path: &str,
+        depth: usize,
+    ) -> Result<Bound<'py, PyDict>, Abort> {
         let values = PyDict::new(self.py);
         for field in &definition.fields {
-            let here = join(path, &field.name);
-            match object.get_item(&field.name)? {
+            if duplicate_names.contains(&field.name) {
+                continue;
+            }
+            let here = join(path, &field.wire_name);
+            match object.get_item(&field.wire_name)? {
                 Some(raw) => {
                     if let Some(value) = self.check(&field.node, &raw, &here, depth + 1)? {
                         values.set_item(&field.name, value)?;
@@ -550,12 +626,7 @@ impl<'py> Run<'_, 'py> {
                 None => {}
             }
         }
-        if self.problems.len() > before {
-            return Ok(None);
-        }
-        Ok(Some(
-            definition.class.bind(self.py).call((), Some(&values))?,
-        ))
+        Ok(values)
     }
 }
 
@@ -696,6 +767,7 @@ const DUMP_DEPTH: usize = 1000;
 fn convert<'py>(
     value: &Bound<'py, PyAny>,
     json_mode: bool,
+    by_alias: bool,
     depth: usize,
 ) -> PyResult<Bound<'py, PyAny>> {
     let py = value.py();
@@ -708,16 +780,16 @@ fn convert<'py>(
         return Ok(value.clone());
     }
     if let Ok(list) = value.cast::<PyList>() {
-        return convert_list(py, list.iter(), json_mode, depth);
+        return convert_list(py, list.iter(), json_mode, by_alias, depth);
     }
     if let Ok(tuple) = value.cast::<pyo3::types::PyTuple>() {
-        return convert_list(py, tuple.iter(), json_mode, depth);
+        return convert_list(py, tuple.iter(), json_mode, by_alias, depth);
     }
     if let Ok(dict) = value.cast::<PyDict>() {
-        return convert_dict(py, dict, json_mode, depth);
+        return convert_dict(py, dict, json_mode, by_alias, depth);
     }
-    if instance_fields(value, false)?.is_some() {
-        return convert_schema(value, json_mode, depth);
+    if instance_fields(value, false, by_alias)?.is_some() {
+        return convert_schema(value, json_mode, by_alias, depth);
     }
     if json_mode {
         return convert_json_object(value);
@@ -729,11 +801,12 @@ fn convert_list<'py>(
     py: Python<'py>,
     items: impl Iterator<Item = Bound<'py, PyAny>>,
     json_mode: bool,
+    by_alias: bool,
     depth: usize,
 ) -> PyResult<Bound<'py, PyAny>> {
     let out = PyList::empty(py);
     for item in items {
-        out.append(convert(&item, json_mode, depth + 1)?)?;
+        out.append(convert(&item, json_mode, by_alias, depth + 1)?)?;
     }
     Ok(out.into_any())
 }
@@ -742,11 +815,12 @@ fn convert_dict<'py>(
     py: Python<'py>,
     items: &Bound<'py, PyDict>,
     json_mode: bool,
+    by_alias: bool,
     depth: usize,
 ) -> PyResult<Bound<'py, PyAny>> {
     let out = PyDict::new(py);
     for (key, item) in items.iter() {
-        out.set_item(key, convert(&item, json_mode, depth + 1)?)?;
+        out.set_item(key, convert(&item, json_mode, by_alias, depth + 1)?)?;
     }
     Ok(out.into_any())
 }
@@ -754,12 +828,13 @@ fn convert_dict<'py>(
 fn convert_schema<'py>(
     value: &Bound<'py, PyAny>,
     json_mode: bool,
+    by_alias: bool,
     depth: usize,
 ) -> PyResult<Bound<'py, PyAny>> {
-    if json_mode && instance_fields(value, true)?.is_none() {
+    if json_mode && instance_fields(value, true, by_alias)?.is_none() {
         return value.call_method0("dump"); // the class decides what it exposes
     }
-    Ok(dump_instance_at(value, json_mode, &[], depth + 1)?.into_any())
+    Ok(dump_instance_at(value, json_mode, &[], by_alias, depth + 1)?.into_any())
 }
 
 fn convert_json_object<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
@@ -782,16 +857,17 @@ fn dump_instance_at<'py>(
     value: &Bound<'py, PyAny>,
     json_mode: bool,
     exclude: &[String],
+    by_alias: bool,
     depth: usize,
 ) -> PyResult<Bound<'py, PyDict>> {
     let py = value.py();
-    let Some((names, unset)) = instance_fields(value, false)? else {
+    let Some((names, unset)) = instance_fields(value, false, by_alias)? else {
         return Err(pyo3::exceptions::PyTypeError::new_err(
             "not a schema instance",
         ));
     };
     let out = PyDict::new(py);
-    for name in names {
+    for (name, wire_name) in names {
         if exclude.contains(&name) {
             continue;
         }
@@ -799,21 +875,23 @@ fn dump_instance_at<'py>(
         if item.is(&unset) {
             continue;
         }
-        out.set_item(&name, convert(&item, json_mode, depth)?)?;
+        out.set_item(&wire_name, convert(&item, json_mode, by_alias, depth)?)?;
     }
     Ok(out)
 }
 
 /// The fields of a schema instance as a dict (UNSET omitted): JSON-compatible
-/// when `json_mode`, Python values otherwise. `exclude` names fields to skip.
+/// when `json_mode`, Python values otherwise. `exclude` names Python fields to
+/// skip; `by_alias` selects their wire names in the resulting mapping.
 #[pyfunction]
-#[pyo3(signature = (value, json_mode, exclude=Vec::new()))]
+#[pyo3(signature = (value, json_mode, exclude=Vec::new(), by_alias=true))]
 pub fn dump_instance<'py>(
     value: &Bound<'py, PyAny>,
     json_mode: bool,
     exclude: Vec<String>,
+    by_alias: bool,
 ) -> PyResult<Bound<'py, PyDict>> {
-    dump_instance_at(value, json_mode, &exclude, 0)
+    dump_instance_at(value, json_mode, &exclude, by_alias, 0)
 }
 
 /// How one model attribute converts for a schema field: a nested model becomes
