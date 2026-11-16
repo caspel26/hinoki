@@ -16,7 +16,7 @@ class Renamed(Schema):
     a: int
     secret: str = "s3cr3t"
 
-    def dump(self) -> dict[str, Any]:
+    def dump(self) -> dict[str, Any]:  # type: ignore[override]
         return {"a": self.a}
 
 
@@ -111,7 +111,11 @@ def test_dump_keeps_its_documented_contract() -> None:
 
     deep = Tree(name="leaf")
     for _ in range(150):
-        deep = Tree(name="n", children=[deep])
+        # This test isolates the dumper's depth cap from constructor validation.
+        parent = object.__new__(Tree)
+        object.__setattr__(parent, "name", "n")
+        object.__setattr__(parent, "children", [deep])
+        deep = parent
     assert (
         deep.dump()["children"][0]["name"] == "n"
     )  # deeper than the JSON decoder's cap
