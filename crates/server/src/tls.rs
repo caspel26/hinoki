@@ -2,8 +2,8 @@
 //!
 //! rustls only (no OpenSSL), the `ring` provider passed explicitly so nothing
 //! depends on a process-wide default, TLS 1.2 and 1.3 with rustls' safe default
-//! cipher suites, no client authentication, ALPN `http/1.1` (the only protocol
-//! the server speaks). The files are read once, when the server starts; the
+//! cipher suites, no client authentication, ALPN `http/1.1`, plus `h2` first when
+//! HTTP/2 is on. The files are read once, when the server starts; the
 //! private key is never logged and errors name the file, never its content.
 
 use std::fmt;
@@ -33,8 +33,9 @@ fn failure(what: &str, path: &Path, reason: impl fmt::Display) -> TlsError {
 }
 
 /// An acceptor for the PEM certificate chain in `cert` and the PEM private key
-/// (PKCS#8, PKCS#1 or SEC1) in `key`.
-pub fn acceptor(cert: &Path, key: &Path) -> Result<TlsAcceptor, TlsError> {
+/// (PKCS#8, PKCS#1 or SEC1) in `key`. With `http2` the ALPN offer is `h2` then
+/// `http/1.1`; without it, `http/1.1` only.
+pub fn acceptor(cert: &Path, key: &Path, http2: bool) -> Result<TlsAcceptor, TlsError> {
     let chain = CertificateDer::pem_file_iter(cert)
         .map_err(|e| failure("cannot read the certificate", cert, e))?
         .collect::<Result<Vec<_>, _>>()
@@ -54,7 +55,11 @@ pub fn acceptor(cert: &Path, key: &Path) -> Result<TlsAcceptor, TlsError> {
                 "certificate and key do not match or are unusable: {e}"
             ))
         })?;
-    config.alpn_protocols = vec![b"http/1.1".to_vec()];
+    config.alpn_protocols = if http2 {
+        vec![b"h2".to_vec(), b"http/1.1".to_vec()]
+    } else {
+        vec![b"http/1.1".to_vec()]
+    };
     Ok(TlsAcceptor::from(Arc::new(config)))
 }
 
@@ -73,13 +78,14 @@ mod tests {
         acceptor(
             &fixture("localhost-cert.pem"),
             &fixture("localhost-key.pem"),
+            false,
         )
         .unwrap();
     }
 
     #[test]
     fn a_missing_file_names_it() {
-        let err = acceptor(&fixture("absent.pem"), &fixture("localhost-key.pem"))
+        let err = acceptor(&fixture("absent.pem"), &fixture("localhost-key.pem"), false)
             .err()
             .unwrap();
         assert!(err.to_string().contains("absent.pem"), "{err}");
@@ -88,13 +94,13 @@ mod tests {
     #[test]
     fn a_key_in_the_certificate_slot_is_refused() {
         let key = fixture("localhost-key.pem");
-        assert!(acceptor(&key, &key).is_err());
+        assert!(acceptor(&key, &key, false).is_err());
     }
 
     #[test]
     fn a_certificate_in_the_key_slot_is_refused() {
         let cert = fixture("localhost-cert.pem");
-        let err = acceptor(&cert, &cert).err().unwrap();
+        let err = acceptor(&cert, &cert, false).err().unwrap();
         assert!(!err.to_string().contains("BEGIN"), "{err}");
     }
 }

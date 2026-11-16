@@ -3,7 +3,7 @@
 //! The parts that need no socket: the per-route [`Plan`], request [`limits`],
 //! the [`early`] answers that never reach Python, the request-id rules and the
 //! bounded handoff [`queue`]. The parts that do: [`accept`] (listener, connection
-//! limit, graceful stop) and [`conn`] (one HTTP/1.1 request, the [`Backend`] a
+//! limit, graceful stop) and [`conn`] (one HTTP/1.1 or HTTP/2 request, the [`Backend`] a
 //! caller implements), with the request [`body`] reader and the [`framing`]
 //! guard. Nothing here calls into Python; the glue lives in
 //! `crates/bindings`.
@@ -21,6 +21,8 @@ pub mod plan;
 pub mod proxy;
 pub mod queue;
 pub mod requestid;
+pub mod stall;
+pub mod streams;
 pub mod tls;
 
 pub use accept::{serve, Closed, ServerConfig, Stop};

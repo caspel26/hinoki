@@ -904,7 +904,8 @@ class ServerSettings(Settings):
     ``body_read_timeout`` and ``write_timeout`` belong to the Rust server
     (``None`` keeps its default). ``hinoki serve`` refuses a setting the chosen
     server cannot honour. ``tls_cert_file`` and ``tls_key_file`` (PEM files, set
-    together) serve HTTPS on either server.
+    together) serve HTTPS on either server; ``http2`` adds HTTP/2 to it (ALPN
+    ``h2``, TLS only, off by default).
     """
 
     host: str = "127.0.0.1"
@@ -923,6 +924,7 @@ class ServerSettings(Settings):
     write_timeout: float | None = None
     tls_cert_file: str | None = None
     tls_key_file: str | None = None
+    http2: bool = False
 
     def validate(self) -> None:
         if not 0 < self.port < MAX_PORT:
@@ -969,6 +971,8 @@ class ServerSettings(Settings):
     def validate_tls(self) -> None:
         if (self.tls_cert_file is None) != (self.tls_key_file is None):
             raise ValueError("tls_cert_file and tls_key_file must be set together")
+        if self.http2 and self.tls_cert_file is None:
+            raise ValueError("http2 needs TLS: set tls_cert_file and tls_key_file")
         for name in ("tls_cert_file", "tls_key_file"):
             path = getattr(self, name)
             if path is not None and not Path(path).is_file():

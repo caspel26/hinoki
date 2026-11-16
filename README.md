@@ -44,7 +44,7 @@ Hinoki is a Python framework for HTTP APIs, built around three ideas.
 
 | Declare | Check | Run |
 | --- | --- | --- |
-| Each endpoint states its types, who may call it, whether it runs in a transaction and which errors it returns. The same declaration drives validation, responses and the OpenAPI document. | You choose rules such as "every write runs in a transaction" or "the models never import the API layer". `hinoki check` reports a broken rule with its file, line and fix, and fails. | The app runs as ASGI under Granian, or on the opt-in Rust HTTP/1.1 server (`--server rust`). The Python adapter calls application handlers; the Rust extension currently handles path matching, selected query/header/cookie parsing, schema validation/serialization, cryptography, and SQL ORM compilation/execution. |
+| Each endpoint states its types, who may call it, whether it runs in a transaction and which errors it returns. The same declaration drives validation, responses and the OpenAPI document. | You choose rules such as "every write runs in a transaction" or "the models never import the API layer". `hinoki check` reports a broken rule with its file, line and fix, and fails. | The app runs as ASGI under Granian, or on the opt-in Rust HTTP server (`--server rust`). The Python adapter calls application handlers; the Rust extension currently handles path matching, selected query/header/cookie parsing, schema validation/serialization, cryptography, and SQL ORM compilation/execution. |
 
 ## What is in the box
 
@@ -330,7 +330,7 @@ The optional admin (`hinoki.admin`) gives staff lists, search, forms, bulk actio
 Hinoki is pre-alpha and has no release. What exists is tested in CI on Python 3.12, 3.13 and 3.14 on Linux. The limits that matter most today:
 
 - SQLite is the local-development default; PostgreSQL, MySQL and MariaDB are also supported. SQL Server and Oracle are not supported yet.
-- The default server path is ASGI on [Granian](https://github.com/emmett-framework/granian); an opt-in Rust HTTP/1.1 server (`hinoki serve --server rust`: no TLS, HTTP/2 or WebSocket upgrades) is also available. A WSGI adapter exists and is verified with Granian only. Streaming responses and WebSockets are not available.
+- The default server path is ASGI on [Granian](https://github.com/emmett-framework/granian); an opt-in Rust HTTP server (`hinoki serve --server rust`: HTTP/1.1, optional TLS, HTTP/2 over TLS with `server.http2`; no h2c or WebSocket upgrades) is also available. A WSGI adapter exists and is verified with Granian only. Streaming responses and WebSockets are not available.
 - CORS is one application-wide policy (the `cors` settings group); there is no cursor pagination.
 - Many-to-many relations use an explicit join model.
 - Type checkers verify model construction, but not every keyword-based ORM call.
