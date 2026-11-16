@@ -9,6 +9,7 @@ import socket
 import ssl
 import subprocess
 import sys
+import threading
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,10 +26,13 @@ from hinoki import (
     UploadedFile,
     http,
 )
+from hinoki.context import request_id
 from hinoki.modules import ModuleContext
+from hinoki.reply import Reply
 from hinoki.request import Request
 from hinoki.runtime import rustserver
 from hinoki.runtime.rustserver import RustWorker
+from hinoki.settings import AppSettings, FrameOptions, SecuritySettings
 from tests.harness import Client
 from tests.providers import TokenAuth
 
@@ -43,6 +47,8 @@ class Probe:
     entered: int = 0
     cancelled: int = 0
     shutdown_ran: bool = False
+    sync_entered: threading.Event = field(default_factory=threading.Event)
+    sync_gate: threading.Event = field(default_factory=threading.Event)
 
 
 PROBE = Probe()
@@ -57,6 +63,55 @@ def fresh_probe() -> None:
 @http.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@http.get("/context-async")
+async def context_async() -> dict[str, str]:
+    return {"request_id": request_id.get() or "missing"}
+
+
+@http.get("/context-sync")
+def context_sync() -> dict[str, str]:
+    return {"request_id": request_id.get() or "missing"}
+
+
+@http.get("/context-overlap")
+async def context_overlap() -> dict[str, str]:
+    await asyncio.sleep(0.01)
+    return {"request_id": request_id.get() or "missing"}
+
+
+@http.get("/native-none")
+async def native_none() -> None:
+    return None
+
+
+@http.get("/native-reply")
+async def native_reply() -> Reply:
+    return Reply(202, b"accepted", [("x-native", "yes")])
+
+
+@http.get("/native-error")
+async def native_error() -> dict[str, str]:
+    raise ValueError("native failure")
+
+
+@http.get("/native-timeout-error")
+async def native_timeout_error() -> dict[str, str]:
+    raise TimeoutError("handler timeout")
+
+
+@http.get("/native-slow")
+async def native_slow() -> dict[str, str]:
+    await asyncio.sleep(5)
+    return {"status": "late"}
+
+
+@http.get("/native-sync-block")
+def native_sync_block() -> dict[str, str]:
+    PROBE.sync_entered.set()
+    PROBE.sync_gate.wait(2)
+    return {"status": "released"}
 
 
 @http.post("/upload", parsers=[MultiPartParser(max_part_bytes=8)])
@@ -120,7 +175,26 @@ async def fail_startup(ctx: ModuleContext) -> None:
 
 def make_app(**config: Any) -> Hinoki:
     return Hinoki(
-        include=[health, upload, big, scheme_of, host_of, made, note, secured, block],
+        include=[
+            health,
+            context_async,
+            context_sync,
+            context_overlap,
+            native_none,
+            native_reply,
+            native_error,
+            native_timeout_error,
+            native_slow,
+            native_sync_block,
+            upload,
+            big,
+            scheme_of,
+            host_of,
+            made,
+            note,
+            secured,
+            block,
+        ],
         runtime=RuntimeConfig(**config),
         on_shutdown=[note_shutdown],
     )
@@ -204,6 +278,139 @@ async def test_get_matches_the_asgi_answer(served: tuple[RustWorker, int]) -> No
         k: v for k, v in in_process.headers.items() if k not in {"x-request-id"}
     }
     assert len(over_socket.header("x-request-id")) == 32
+
+
+@pytest.mark.parametrize("path", ["/context-async", "/context-sync"])
+async def test_native_handler_keeps_the_request_context(
+    served: tuple[RustWorker, int], path: str
+) -> None:
+    _, port = served
+    received = await fetch(port, "GET", path)
+    assert received.status == 200
+    assert received.json()["request_id"] == received.header("x-request-id")
+
+
+async def test_native_handler_context_is_isolated_between_concurrent_requests(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    replies = await asyncio.gather(
+        fetch(port, "GET", "/context-overlap"),
+        fetch(port, "GET", "/context-overlap"),
+    )
+    ids = [reply.header("x-request-id") for reply in replies]
+    assert ids[0] != ids[1]
+    assert [reply.json()["request_id"] for reply in replies] == ids
+
+
+async def test_native_none_and_reply_results_keep_pipeline_semantics(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    empty = await fetch(port, "GET", "/native-none")
+    custom = await fetch(port, "GET", "/native-reply")
+    assert (empty.status, empty.body) == (204, b"")
+    assert not any(name == "content-length" for name, _ in empty.headers)
+    assert (custom.status, custom.body, custom.header("x-native")) == (
+        202,
+        b"accepted",
+        "yes",
+    )
+
+
+async def test_native_handler_errors_keep_the_request_id(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    received = await fetch(port, "GET", "/native-error")
+    assert received.status == 500
+    assert received.json()["error"] == "internal_error"
+    assert received.json()["request_id"] == received.header("x-request-id")
+
+
+async def test_native_handler_timeout_differs_from_handler_timeout_error() -> None:
+    app = Hinoki(
+        include=[native_slow, native_timeout_error],
+        runtime=RuntimeConfig(request_timeout=0.05),
+    )
+    worker = RustWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        expired = await fetch(port, "GET", "/native-slow")
+        raised = await fetch(port, "GET", "/native-timeout-error")
+    finally:
+        await worker.stop()
+    assert (expired.status, expired.json()["error"]) == (504, "timeout")
+    assert expired.json()["request_id"] == expired.header("x-request-id")
+    assert raised.status == 500
+    assert raised.json()["request_id"] == raised.header("x-request-id")
+
+
+async def test_native_sync_handler_saturation_answers_503() -> None:
+    app = Hinoki(
+        include=[native_sync_block],
+        runtime=RuntimeConfig(sync_workers=1, sync_queue=0),
+    )
+    worker = RustWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    first = asyncio.create_task(fetch(port, "GET", "/native-sync-block"))
+    try:
+        entered = await asyncio.to_thread(PROBE.sync_entered.wait, 2)
+        assert entered
+        saturated = await fetch(port, "GET", "/native-sync-block")
+        assert saturated.status == 503
+        assert saturated.json()["error"] == "overloaded"
+    finally:
+        PROBE.sync_gate.set()
+        await first
+        await worker.stop()
+
+
+async def test_native_handler_negotiates_accept_before_calling_handler() -> None:
+    app = Hinoki(include=[context_async])
+    worker = RustWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        received = await fetch(port, "GET", "/context-async", "accept: text/plain\r\n")
+    finally:
+        await worker.stop()
+    assert received.status == 406
+    assert received.json()["error"] == "not_acceptable"
+    assert received.json()["request_id"] == received.header("x-request-id")
+
+
+@pytest.mark.parametrize("query", ["x=%FF", "&".join(["x=1"] * 1001)])
+async def test_native_handler_preserves_query_validation(
+    query: str,
+) -> None:
+    app = Hinoki(include=[health])
+    worker = RustWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        received = await fetch(port, "GET", f"/health?{query}")
+    finally:
+        await worker.stop()
+    assert received.status == 400
+    assert received.json()["error"] == "invalid_query"
+    assert received.json()["request_id"] == received.header("x-request-id")
+
+
+async def test_native_finalizer_keeps_security_headers() -> None:
+    app = Hinoki(
+        include=[health],
+        settings=AppSettings(
+            security=SecuritySettings(
+                hsts_seconds=31_536_000, frame_options=FrameOptions.DENY
+            )
+        ),
+    )
+    worker = RustWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        received = await fetch(port, "GET", "/health")
+    finally:
+        await worker.stop()
+    assert received.header("x-frame-options") == "DENY"
 
 
 async def test_multipart_file_binding_works_over_the_native_server(
