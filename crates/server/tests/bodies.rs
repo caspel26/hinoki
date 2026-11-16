@@ -53,6 +53,7 @@ impl Backend for Probe {
                     Err(BodyError::TooLarge) => answer(413, b"too large"),
                     Err(BodyError::Timeout) => answer(408, b"timeout"),
                     Err(BodyError::Disconnected) => answer(400, b"disconnected"),
+                    Err(BodyError::Malformed) => answer(400, b"malformed"),
                 };
                 self.outcomes.lock().unwrap().push(outcome);
                 reply
@@ -498,4 +499,86 @@ async fn malformed_framing_never_reaches_a_success_answer() {
         assert!(matches!(code, None | Some(400 | 408)), "{name}: {code:?}");
         assert!(ended(&mut stream).await, "{name}");
     }
+}
+
+/// hyper's buffer plus the request line margin: the head bound both layers use.
+const HEAD_LIMIT: usize = 32_768 + 8 * 1024;
+
+/// `prefix`, a run of `a` and `rest`, such that the head (up to and including
+/// the blank line, which ends `rest` or is followed by `tail`) is `total` bytes.
+fn padded(prefix: &str, rest: &str, tail: &str, total: usize) -> Vec<u8> {
+    let fixed = prefix.len() + rest.len() + tail.len();
+    format!("{prefix}{}{rest}{tail}", "a".repeat(total - fixed)).into_bytes()
+}
+
+const BARE_LF: (&str, &str) = (
+    " HTTP/1.1\r\nhost: t\r\nx: a\ncontent-length: 5\r\n\r\n",
+    "hello",
+);
+const CL_TE: (&str, &str) = (
+    " HTTP/1.1\r\nhost: t\r\ncontent-length: 4\r\ntransfer-encoding: chunked\r\n\r\n",
+    "0\r\n\r\nGET /wrapped HTTP/1.1\r\nhost: t\r\n\r\n",
+);
+
+/// Send `request` cut at `splits` (a pause between the pieces); report the
+/// status of the first answer, if any.
+async fn attempt(running: &Running, request: &[u8], splits: &[usize]) -> Option<u16> {
+    let mut stream = connect(running).await;
+    let mut from = 0;
+    for &at in splits.iter().chain([&request.len()]) {
+        if stream.write_all(&request[from..at]).await.is_err() {
+            break;
+        }
+        from = at;
+        tokio::time::sleep(Duration::from_millis(30)).await;
+    }
+    read_response(&mut stream)
+        .await
+        .map(|(head, _)| status(&head))
+}
+
+#[tokio::test]
+async fn an_oversized_head_never_hides_smuggling_from_the_guard() {
+    let running = start().await;
+    for size in [HEAD_LIMIT + 1, 41_000, 45_000, 48_000] {
+        for (rest, tail) in [BARE_LF, CL_TE] {
+            let head = padded("POST /p/", rest, "", size);
+            let request = [head, tail.as_bytes().to_vec()].concat();
+            let code = attempt(&running, &request, &[]).await;
+            assert!(matches!(code, None | Some(400 | 431)), "{size}: {code:?}");
+        }
+    }
+    assert!(running.probe.seen.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn the_same_attack_split_at_the_bound_fails_closed() {
+    let running = start().await;
+    for total in [HEAD_LIMIT - 1, HEAD_LIMIT, HEAD_LIMIT + 1] {
+        for (rest, tail) in [BARE_LF, CL_TE] {
+            let head = padded("POST /p/", rest, "", total);
+            let request = [head, tail.as_bytes().to_vec()].concat();
+            for cut in [HEAD_LIMIT - 1, HEAD_LIMIT, HEAD_LIMIT + 1] {
+                let code = attempt(&running, &request, &[cut]).await;
+                assert!(
+                    matches!(code, None | Some(400 | 431)),
+                    "{total} cut at {cut}: {code:?}"
+                );
+            }
+        }
+    }
+    assert!(running.probe.seen.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn a_head_at_the_bound_is_served_and_one_byte_more_is_not() {
+    let running = start().await;
+    let tail = "\r\n\r\n";
+    let at = padded("GET /", " HTTP/1.1\r\nhost: t", tail, HEAD_LIMIT);
+    assert_eq!(attempt(&running, &at, &[]).await, Some(200));
+    let split = attempt(&running, &at, &[HEAD_LIMIT - 1]).await;
+    assert_eq!(split, Some(200));
+    let over = padded("GET /", " HTTP/1.1\r\nhost: t", tail, HEAD_LIMIT + 1);
+    let code = attempt(&running, &over, &[]).await;
+    assert!(matches!(code, None | Some(400 | 431)), "{code:?}");
 }

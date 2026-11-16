@@ -477,6 +477,14 @@ async def test_a_disconnected_body_is_the_asgi_invalid_body_error() -> None:
     )
 
 
+async def test_malformed_body_framing_keeps_the_disconnected_code() -> None:
+    failure = rustserver.body_failure("malformed")
+    assert (failure.code, failure.message) == (  # type: ignore[attr-defined]
+        "disconnected",
+        "the request body is malformed",
+    )
+
+
 async def test_a_bare_lf_in_a_header_is_refused_before_the_body(
     served: tuple[RustWorker, int],
 ) -> None:
@@ -850,3 +858,50 @@ async def test_run_stops_the_server_when_it_fails_after_start() -> None:
         await worker.run()
     assert worker.server is None
     assert PROBE.shutdown_ran
+
+
+BARE_LF = b" HTTP/1.1\r\nhost: t\r\nx: a\ncontent-length: 5\r\n\r\nhello"
+CL_AND_TE = (
+    b" HTTP/1.1\r\nhost: t\r\ncontent-length: 4\r\ntransfer-encoding: chunked\r\n\r\n"
+    b"0\r\n\r\nGET /health HTTP/1.1\r\nhost: t\r\n\r\n"
+)
+
+
+@pytest.mark.parametrize("size", [41_000, 45_000, 48_000])
+@pytest.mark.parametrize("tail", [BARE_LF, CL_AND_TE], ids=["bare_lf", "cl_te"])
+async def test_an_oversized_head_cannot_hide_smuggling(
+    served: tuple[RustWorker, int], size: int, tail: bytes
+) -> None:
+    _, port = served
+    reader, writer = await open_connection(port)
+    writer.write(b"POST /secured/" + b"a" * size + tail)  # one write
+    answers = []
+    try:
+        while True:
+            answers.append(await read_response(reader))
+    except (asyncio.IncompleteReadError, ConnectionError):
+        pass  # the connection ended
+    writer.close()
+    assert [a.status for a in answers] in ([], [400], [431])
+    assert PROBE.entered == 0
+
+
+async def test_a_head_under_the_limits_still_works(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    ok = await fetch(port, "GET", "/health", f"x: {'a' * 30_000}\r\n")
+    assert ok.status == 200
+    plan = await fetch(port, "GET", "/health", f"x: {'a' * 33_000}\r\n")
+    assert plan.status == 431
+    assert plan.json()["error"] == "headers_too_large"
+
+
+async def test_a_refused_head_is_answered_before_the_client_stops_sending(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    head = b"POST /notes HTTP/1.1\r\nhost: t\r\nx: a\ncontent-length: 262144\r\n\r\n"
+    refused, closed = await send_streaming(port, head, b"x" * 262_144)
+    assert refused.status == 400
+    assert closed
