@@ -64,6 +64,9 @@ pub struct PreparedRequest {
     request_id: String,
     id_ignored: bool,
     action: Option<u32>,
+    native_handler: bool,
+    native_policy: Vec<Header>,
+    request_id_name: Vec<u8>,
     needs_headers: bool,
     params: Vec<(String, String)>,
     client: Option<(String, u16)>,
@@ -107,6 +110,11 @@ impl PreparedRequest {
     #[getter]
     fn action(&self) -> Option<u32> {
         self.action
+    }
+
+    #[getter]
+    fn native_handler(&self) -> bool {
+        self.native_handler
     }
 
     /// Whether the route reads the headers as a mapping (access, negotiation
@@ -207,6 +215,43 @@ impl PreparedRequest {
             .is_ok()
         })
     }
+
+    /// Finalize an automatically eligible handler response with the route's
+    /// native policy and request-id headers. HEAD retains GET's content length.
+    fn respond_final(&self, status: u16, headers: Vec<(Vec<u8>, Vec<u8>)>, body: &[u8]) -> bool {
+        if !self.native_handler {
+            return false;
+        }
+        let own = headers;
+        let mut final_headers = final_headers(
+            &own,
+            &self.native_policy,
+            &[],
+            (&self.request_id_name, self.request_id.as_bytes()),
+            &[],
+            status,
+            body.len(),
+        );
+        let mut final_body = body.to_vec();
+        if self.method == "HEAD" {
+            final_body.clear();
+        }
+        if let Ok(mut permit) = self.permit.lock() {
+            permit.take();
+        }
+        if let Ok(mut state) = self.body.lock() {
+            *state = BodyState::Taken;
+        }
+        let sender = self.reply.lock().ok().and_then(|mut slot| slot.take());
+        sender.is_some_and(|tx| {
+            tx.send(Reply {
+                status,
+                headers: std::mem::take(&mut final_headers),
+                body: final_body,
+            })
+            .is_ok()
+        })
+    }
 }
 
 /// What `ServerCore.submit` returns: an immediate answer, or a queued request.
@@ -280,8 +325,8 @@ type RouteSpec = (
     u16,                   // status
     Vec<(String, String)>, // route headers
     bool,                  // transaction
-    bool,                  // is async
     bool,                  // takes request
+    bool,                  // native handler eligible
 );
 
 /// `(any_origin, origins, credentials, expose)` of the CORS policy.
@@ -546,8 +591,8 @@ fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
         status,
         headers,
         transaction,
-        is_async,
         takes_request,
+        native_handler,
     ) in routes
     {
         router
@@ -563,8 +608,8 @@ fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
             status,
             headers,
             transaction,
-            is_async,
             takes_request,
+            native_handler,
         });
     }
     let plan = Plan::new(planned).map_err(|e| PyValueError::new_err(format!("{e:?}")))?;
@@ -600,15 +645,21 @@ impl Core {
             Resolved::Missing(_, _) if self.defer_policies => (None, Vec::new()),
             Resolved::Missing(early, extra) => return self.answer(&asked, early, extra),
         };
-        let needs_headers = match action {
+        let plan = match action {
             Some(number) => self
                 .plan
                 .get(number)
-                .ok_or_else(|| format!("no plan for action {number}"))?
-                .needs_headers(),
-            None => true,
+                .ok_or_else(|| format!("no plan for action {number}"))?,
+            None => return self.enqueue(head, asked, (action, Vec::new()), true, false),
         };
-        self.enqueue(head, asked, (action, params), needs_headers)
+        let native_handler = plan.native_handler && !self.defer_policies;
+        self.enqueue(
+            head,
+            asked,
+            (action, params),
+            plan.needs_headers(),
+            native_handler,
+        )
     }
 
     /// Take an in-flight slot and queue the request, or answer 503 natively.
@@ -618,11 +669,17 @@ impl Core {
         asked: Asked,
         (action, params): (Option<u32>, Vec<(String, String)>),
         needs_headers: bool,
+        native_handler: bool,
     ) -> Result<Outcome, String> {
         let Some(permit) = self.in_flight.try_acquire() else {
             return self.answer(&asked, Early::Overloaded, Vec::new());
         };
         let (sender, receiver) = oneshot::channel();
+        let native_policy = if native_handler {
+            self.policies[usize::from(asked.https)].clone()
+        } else {
+            Vec::new()
+        };
         let request = PreparedRequest {
             method: head.method.to_owned(),
             path: head.path.to_owned(),
@@ -631,6 +688,9 @@ impl Core {
             request_id: asked.request_id.clone(),
             id_ignored: asked.id_ignored,
             action,
+            native_handler,
+            native_policy,
+            request_id_name: self.id_name.clone(),
             needs_headers,
             params,
             client: head.peer.map(|peer| (peer.ip().to_string(), peer.port())),

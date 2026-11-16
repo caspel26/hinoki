@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 
 from hinoki import Hinoki, RuntimeConfig, core, http
+from hinoki.renderers import JSONRenderer
 from hinoki.request import Request
 from hinoki.runtime.servercore import SENTINEL, build_server_core, early_bodies
 from hinoki.settings import AppSettings, CorsSettings, SecuritySettings, ServerSettings
@@ -18,6 +19,16 @@ HEX32 = re.compile(r"[0-9a-f]{32}")
 @http.get("/ping")
 def ping(request: Request) -> dict[str, str]:
     return {"pong": "yes"}
+
+
+@http.get("/native")
+async def native() -> dict[str, str]:
+    return {"native": "yes"}
+
+
+@http.get("/custom-renderer", renderers=[JSONRenderer(indent=2)])
+async def custom_renderer() -> dict[str, str]:
+    return {"native": "no"}
 
 
 @http.get("/items/{item_id}")
@@ -32,7 +43,7 @@ async def made(request: Request) -> dict[str, bool]:
 
 def make_app(**config: int) -> Hinoki:
     app = Hinoki(runtime=RuntimeConfig(**config))
-    app.include(ping, item, made)
+    app.include(ping, native, custom_renderer, item, made)
     return app
 
 
@@ -125,6 +136,33 @@ def test_a_routed_request_is_queued_with_its_facts() -> None:
     assert HEX32.fullmatch(request.request_id)
     assert request.headers == [(b"host", b"h")]
     assert request.needs_headers is True  # the handler takes a Request
+
+
+def test_only_the_unmodified_simple_get_uses_native_handler_dispatch() -> None:
+    server = classifier(make_app())
+    server.submit("GET", "/native", b"", [])
+    server.submit("GET", "/ping", b"", [])
+    server.submit("GET", "/custom-renderer", b"", [])
+    native, request_handler, custom = server.drain(3)
+    assert native.native_handler is True
+    assert request_handler.native_handler is False
+    assert custom.native_handler is False
+
+
+def test_native_response_finalization_uses_the_https_policy() -> None:
+    app = Hinoki(
+        settings=AppSettings(security=SecuritySettings(hsts_seconds=31_536_000))
+    )
+    app.include(native)
+    server = classifier(app)
+    submission = server.submit("GET", "/native", b"", [], https=True)
+    [request] = server.drain(1)
+    assert request.respond_final(
+        200, [(b"content-type", b"application/json")], b'{"native":"yes"}'
+    )
+    reply = submission.reply()
+    assert reply is not None
+    assert dict(reply[1])[b"strict-transport-security"] == b"max-age=31536000"
 
 
 def test_only_the_first_queued_request_asks_for_a_wake() -> None:
@@ -227,8 +265,30 @@ def cors_app() -> Hinoki:
     app = Hinoki(
         settings=AppSettings(cors=CorsSettings(origins=("https://a.example",)))
     )
-    app.include(ping)
+    app.include(ping, native)
     return app
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        AppSettings(allowed_hosts=("example.com",)),
+        AppSettings(cors=CorsSettings(origins=("https://a.example",))),
+        AppSettings(
+            allowed_hosts=("example.com",),
+            security=SecuritySettings(redirect_https=True),
+        ),
+    ],
+)
+def test_deferred_policies_keep_simple_routes_on_the_pipeline(
+    settings: AppSettings,
+) -> None:
+    app = Hinoki(settings=settings)
+    app.include(native)
+    server = classifier(app)
+    server.submit("GET", "/native", b"", [])
+    [request] = server.drain(1)
+    assert request.native_handler is False
 
 
 @pytest.mark.parametrize("origin", [b"https://a.example", b"https://b.example", b""])
