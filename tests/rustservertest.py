@@ -75,6 +75,16 @@ def context_sync() -> dict[str, str]:
     return {"request_id": request_id.get() or "missing"}
 
 
+async def sync_awaitable_result() -> dict[str, str]:
+    await asyncio.sleep(0)
+    return {"request_id": request_id.get() or "missing"}
+
+
+@http.get("/context-sync-awaitable")
+def context_sync_awaitable() -> object:
+    return sync_awaitable_result()
+
+
 @http.get("/context-overlap")
 async def context_overlap() -> dict[str, str]:
     await asyncio.sleep(0.01)
@@ -179,6 +189,7 @@ def make_app(**config: Any) -> Hinoki:
             health,
             context_async,
             context_sync,
+            context_sync_awaitable,
             context_overlap,
             native_none,
             native_reply,
@@ -280,7 +291,9 @@ async def test_get_matches_the_asgi_answer(served: tuple[RustWorker, int]) -> No
     assert len(over_socket.header("x-request-id")) == 32
 
 
-@pytest.mark.parametrize("path", ["/context-async", "/context-sync"])
+@pytest.mark.parametrize(
+    "path", ["/context-async", "/context-sync", "/context-sync-awaitable"]
+)
 async def test_native_handler_keeps_the_request_context(
     served: tuple[RustWorker, int], path: str
 ) -> None:
