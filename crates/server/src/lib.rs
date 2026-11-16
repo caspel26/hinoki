@@ -21,6 +21,7 @@ pub mod plan;
 pub mod proxy;
 pub mod queue;
 pub mod requestid;
+pub mod tls;
 
 pub use accept::{serve, Closed, ServerConfig, Stop};
 pub use body::{BodyError, BodyReader};
