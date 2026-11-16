@@ -86,13 +86,14 @@ impl Backend for CoreBackend {
             refusal,
             body,
         } = request;
+        let (trusted, https) = self.core.peer_view(peer, &headers);
         let head = Head {
             method: &method,
             path: &path,
             query: &query,
             headers,
-            trusted: false,
-            https: false,
+            trusted,
+            https,
             peer: Some(peer),
             refusal,
             body,

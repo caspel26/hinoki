@@ -18,6 +18,7 @@ pub mod framing;
 pub mod headers;
 pub mod limits;
 pub mod plan;
+pub mod proxy;
 pub mod queue;
 pub mod requestid;
 
@@ -27,4 +28,5 @@ pub use conn::{Answer, Backend, Incoming};
 pub use early::{Early, EarlyBodies};
 pub use limits::Limits;
 pub use plan::{Plan, PlanError, RoutePlan};
+pub use proxy::Networks;
 pub use queue::{InFlight, Permit, Queue};
