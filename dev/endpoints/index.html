@@ -449,7 +449,7 @@
     <span class="n">locale</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"accept-language"</span><span class="p">,</span> <span class="s2">"en"</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">TaskView</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">task_id</span><span class="p">,</span> <span class="n">locale</span><span class="o">=</span><span class="n">locale</span><span class="p">)</span>
 </code></pre></div>
-<p>Request path, query and body values are validated before the handler runs; a Schema body uses <code>Schema.validate()</code> and reports nested field errors with its parameter prefix. Hinoki does not coerce input values into different types. Return annotations describe OpenAPI and output serialization; response values are not validated at runtime.</p>
+<p>Request path, query and body values are validated before the handler runs; a Schema body uses <code>Schema.validate()</code> and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper Schema field (<code>Annotated[Cat | Dog, Field(discriminator="kind")]</code>); bare union body parameters are not supported. Hinoki does not coerce input values into different types. Return annotations describe OpenAPI and output serialization; response values are not validated at runtime. Use a wrapper Schema for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.</p>
 <h2 id="group-related-paths">Group related paths<a class="headerlink" href="#group-related-paths" title="Permanent link">&para;</a></h2>
 <p>For plain functions that share a prefix or defaults, use <code>RouteGroup</code>. The group
 collects its handlers and can be included once as a unit:</p>
@@ -652,7 +652,7 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.10</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 02:29:36 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 03:01:41 UTC">November 16, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>

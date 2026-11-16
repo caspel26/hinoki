@@ -424,6 +424,36 @@
 </code></pre></div>
 <p>An assigned declaration such as <code>display_name: str = Field(alias="displayName")</code> is also supported, including alongside <code>default_factory</code>. Aliases must be unique within a schema and cannot contain <code>.</code>, <code>[</code> or <code>]</code>, which are reserved by error paths. Model columns do not accept wire aliases; put API naming on the <code>Schema</code>.</p>
 <p><code>Schema(...)</code> validates the final Python values immediately and raises <code>ValidationError</code> for invalid values. Pass Python objects such as <code>UUID</code>, timezone-aware <code>datetime</code> and nested <code>Schema</code> instances. <code>Schema.validate(decoded_data)</code> is the wire-input path: it accepts JSON-compatible values, resolves aliases and returns field errors using wire names. Request body binding uses that path before calling the handler. <code>from_model()</code> also validates the constructed Schema; naive datetimes returned by database drivers remain unchanged and are allowed on that model-conversion path. Return annotations describe OpenAPI and serialization; Hinoki does not validate handler return values at runtime.</p>
+<h2 id="discriminated-unions">Discriminated unions<a class="headerlink" href="#discriminated-unions" title="Permanent link">&para;</a></h2>
+<p>Use a discriminated union when one field can contain one of several known Schema shapes. Declare the union on a <code>Schema</code> field with <code>Annotated[Cat | Dog, Field(discriminator="kind")]</code>. Every variant needs the same required string field, the same wire alias for that field, and exactly one <code>Field(one_of=(...))</code> tag. Hinoki selects the variant by that tag in Rust; it does not try each schema in order.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Cat</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">kind</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">"type"</span><span class="p">,</span> <span class="n">one_of</span><span class="o">=</span><span class="p">(</span><span class="s2">"cat"</span><span class="p">,))]</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Dog</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">kind</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">"type"</span><span class="p">,</span> <span class="n">one_of</span><span class="o">=</span><span class="p">(</span><span class="s2">"dog"</span><span class="p">,))]</span>
+    <span class="n">walks</span><span class="p">:</span> <span class="nb">int</span>
+
+
+<span class="n">Pet</span> <span class="o">=</span> <span class="n">Annotated</span><span class="p">[</span><span class="n">Cat</span> <span class="o">|</span> <span class="n">Dog</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">discriminator</span><span class="o">=</span><span class="s2">"kind"</span><span class="p">)]</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">PetRequest</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">pet</span><span class="p">:</span> <span class="n">Pet</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/pets"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_pet</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">PetRequest</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PetRequest</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">data</span>
+</code></pre></div>
+<p><code>PetRequest.validate({"pet": {"type": "cat", "name": "Mugi"}})</code> returns a <code>PetRequest</code> whose <code>pet</code> is a <code>Cat</code>; manual construction takes an already validated variant instance, such as <code>PetRequest(pet=Dog(kind="dog", walks=2))</code>. A dict is not coerced into a variant. <code>list[Pet]</code>, nested Schema fields, nullable unions and <code>Unset</code> use the same discriminator rules. Unknown tags produce a field error at the tag's wire path without echoing the submitted value. The handler is not called for an invalid body, whether it is synchronous or asynchronous.</p>
+<p>Each variant's tag field is required and cannot have a default. Tags must be unique strings, variants must be distinct Schema classes, and variant classes cannot override <code>dump()</code> because the override could remove or change the tag on the wire. Plain unions without <code>Field(discriminator=...)</code>, <code>Literal</code>, non-Schema variants, and unions directly in handler body or return annotations are not supported; wrap the union in a Schema for route input and output. This does not add runtime response validation.</p>
 <h2 id="projection-options-on-dump">Projection options on <code>dump()</code><a class="headerlink" href="#projection-options-on-dump" title="Permanent link">&para;</a></h2>
 <p>Use <code>dump()</code> when application code needs a JSON-compatible projection of a Schema. <code>include</code> and <code>exclude</code> accept Python field names and apply to the top-level fields only; exclusion wins if a field appears in both. There are no dotted paths or nested selection maps. Nested Schemas and supported lists are converted recursively, with <code>by_alias</code> applied at every Schema level.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
@@ -499,15 +529,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#projection-options-on-dump">Projection options on dump()</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
+            <ul><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#discriminated-unions">Discriminated unions</a></li><li><a href="#projection-options-on-dump">Projection options on dump()</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 02:29:36 UTC">November 16, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>5 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 03:01:41 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

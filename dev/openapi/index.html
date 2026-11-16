@@ -419,6 +419,17 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <li><code>access=...</code> adds a security requirement when its authentication provider supplies an OpenAPI scheme. Authentication responses are included in the operation.</li>
 <li>Admin HTML routes marked <code>hide_from_docs</code> are omitted.</li>
 </ul>
+<p>Discriminated unions declared as <code>Schema</code> fields become OpenAPI <code>oneOf</code> schemas with a <code>discriminator</code> and explicit tag-to-component mapping. Variant tag fields appear as required string enums; the runtime uses the same tags to select exactly one branch. List items, nested fields and nullable unions retain that structure. For route input and response documentation, put the union inside a wrapper <code>Schema</code>; bare union return annotations are rejected instead of producing an incomplete schema. As elsewhere, the response annotation does not cause runtime response validation.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">oneOf</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">$ref</span><span class="p">:</span><span class="w"> </span><span class="s">"#/components/schemas/Cat"</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">$ref</span><span class="p">:</span><span class="w"> </span><span class="s">"#/components/schemas/Dog"</span>
+<span class="nt">discriminator</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">propertyName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">type</span>
+<span class="w">  </span><span class="nt">mapping</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">cat</span><span class="p">:</span><span class="w"> </span><span class="s">"#/components/schemas/Cat"</span>
+<span class="w">    </span><span class="nt">dog</span><span class="p">:</span><span class="w"> </span><span class="s">"#/components/schemas/Dog"</span>
+</code></pre></div>
+<p>See <a href="../schemas/#discriminated-unions">Schemas: discriminated unions</a> for the Python declarations and validation behavior.</p>
 <p>Add a useful docstring to each handler because it is the source for operation text:</p>
 <div class="highlight"><pre><span></span><code><span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/tasks/</span><span class="si">{task_id}</span><span class="s2">"</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskOutput</span><span class="p">:</span>
@@ -459,8 +470,8 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.12</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>2 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 03:01:41 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/openapi.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
