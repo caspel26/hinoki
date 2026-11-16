@@ -21,6 +21,7 @@ from hinoki.api import API
 from hinoki.auth import Caller
 from hinoki.errors import RegistrationError
 from hinoki.orm import Model
+from hinoki.orm.naming import table_names_conflict
 from hinoki.parsers import FormParser
 from hinoki.renderers import HTMLRenderer
 from hinoki.routing import Options, RouteDeclaration
@@ -114,6 +115,16 @@ class Admin:
             raise RegistrationError(
                 f"admin: {model.__name__} is abstract; register a model with a table"
             )
+        for existing in self.models.values():
+            if existing.model is not model and table_names_conflict(
+                existing.model, model
+            ):
+                raise RegistrationError(
+                    f"admin: models {existing.model.__module__}."
+                    f"{existing.model.__qualname__} and {model.__module__}."
+                    f"{model.__qualname__} have conflicting table names "
+                    f"{existing.model.__table__!r} and {model.__table__!r}"
+                )
         name = slug or model.__table__.replace("_", "-").lower()
         if not SLUG.fullmatch(name) or name in RESERVED or name in self.models:
             raise RegistrationError(f"admin: invalid or duplicate slug {name!r}")
