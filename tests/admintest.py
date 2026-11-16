@@ -18,6 +18,7 @@ from hinoki import Access, Caller, Hinoki, Mount
 from hinoki.admin import (
     THEMES,
     Admin,
+    Avatar,
     Badge,
     BulkAction,
     Fieldset,
@@ -283,6 +284,53 @@ def test_four_themes_share_the_component_set_and_validate() -> None:
         THEMES["paper"].fixed,
     )
     assert 'data-theme="mine"' in Templates(theme=custom).stylesheet().decode()
+
+
+def test_theme_rejects_incomplete_fixed_tokens_and_invalid_layout_choices() -> None:
+    paper = THEMES["paper"]
+    cases = (
+        (Theme("bad", "Bad", "page", paper.light, paper.dark, {}), "fixed tokens"),
+        (
+            Theme("bad", "Bad", "modal", paper.light, paper.dark, paper.fixed),
+            "bad edit or default_mode",
+        ),
+        (
+            Theme(
+                "bad",
+                "Bad",
+                "page",
+                paper.light,
+                paper.dark,
+                paper.fixed,
+                layout="unknown",
+            ),
+            "bad layout or list_style",
+        ),
+        (
+            Theme(
+                "bad name",
+                "Bad",
+                "page",
+                paper.light,
+                paper.dark,
+                paper.fixed,
+            ),
+            "theme names are letters",
+        ),
+    )
+    for theme, message in cases:
+        with pytest.raises(ValueError, match=message):
+            theme.check()
+
+
+def test_component_fragments_support_hidden_avatar_names_and_typed_cells() -> None:
+    components = Components(Templates())
+    hidden_name = str(components.avatar("Ada Lovelace", show_name=False))
+    assert "Ada Lovelace" not in hidden_name
+    assert "AL" in hidden_name
+    assert "AL" in str(components.cell(Avatar("Ada Lovelace")))
+    raw = Raw("<strong>trusted</strong>")
+    assert components.cell(raw) is raw
 
 
 def test_csrf_tokens_are_signed_for_the_signed_in_subject() -> None:
