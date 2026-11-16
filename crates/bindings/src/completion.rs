@@ -164,6 +164,9 @@ fn resolve(py: Python<'_>, completer: &Completer, completion: Completion) {
     }
 }
 
+/// The error a task that ended without a result (a panic) resolves its future with.
+type Panicked = Arc<dyn Fn(Python<'_>) -> PyErr + Send + Sync>;
+
 /// Pushes an error if the task ends without a result and was not cancelled
 /// (a panic unwinding through the task).
 struct Guard {
@@ -171,6 +174,7 @@ struct Guard {
     id: u64,
     cancelled: Arc<AtomicBool>,
     sent: bool,
+    panicked: Panicked,
 }
 
 impl Drop for Guard {
@@ -178,10 +182,8 @@ impl Drop for Guard {
         if self.sent || self.cancelled.load(Ordering::Acquire) {
             return;
         }
-        let convert: Convert = Box::new(|py| {
-            let err = DbError::new(ErrorKind::Other, "the native database task failed");
-            Err(db_error(py, &err))
-        });
+        let panicked = self.panicked.clone();
+        let convert: Convert = Box::new(move |py| Err(panicked(py)));
         self.shared.push(Completion {
             id: self.id,
             convert,
@@ -260,12 +262,37 @@ where
     T: Send + 'static,
     C: FnOnce(Python<'_>, T) -> PyResult<Py<PyAny>> + Send + 'static,
 {
+    let fail = |py: Python<'_>, e: DbError| db_error(py, &e);
+    let panicked = |py: Python<'_>| {
+        let err = DbError::new(ErrorKind::Other, "the native database task failed");
+        db_error(py, &err)
+    };
+    submit_with(py, fut, convert, (fail, panicked))
+}
+
+/// [`submit`] for any error type: `fail` builds the Python exception of an
+/// error, `panicked` the one of a task that ended without a result. Both run on
+/// the loop thread.
+pub fn submit_with<'py, F, T, E, C, X, P>(
+    py: Python<'py>,
+    fut: F,
+    convert: C,
+    (fail, panicked): (X, P),
+) -> PyResult<Bound<'py, PyAny>>
+where
+    F: Future<Output = Result<T, E>> + Send + 'static,
+    T: Send + 'static,
+    E: Send + 'static,
+    C: FnOnce(Python<'_>, T) -> PyResult<Py<PyAny>> + Send + 'static,
+    X: FnOnce(Python<'_>, E) -> PyErr + Send + 'static,
+    P: Fn(Python<'_>) -> PyErr + Send + Sync + 'static,
+{
     let event_loop = py.import("asyncio")?.call_method0("get_running_loop")?;
     let Some(completer) = entry_for(py, &event_loop)? else {
         return pyo3_async_runtimes::tokio::future_into_py(py, async move {
             match fut.await {
                 Ok(value) => Python::attach(|py| convert(py, value)),
-                Err(e) => Python::attach(|py| Err(db_error(py, &e))),
+                Err(e) => Python::attach(|py| Err(fail(py, e))),
             }
         });
     };
@@ -281,10 +308,11 @@ where
                 id,
                 cancelled,
                 sent: false,
+                panicked: Arc::new(panicked),
             };
             let convert: Convert = match fut.await {
                 Ok(value) => Box::new(move |py| convert(py, value)),
-                Err(e) => Box::new(move |py| Err(db_error(py, &e))),
+                Err(e) => Box::new(move |py| Err(fail(py, e))),
             };
             guard.sent = true;
             shared.push(Completion { id, convert });
