@@ -320,6 +320,22 @@
 <p>The invalid call reports a <code>common_password</code> error on <code>password</code> and a <code>password_mismatch</code> error on <code>confirmation</code>. <code>min_length</code>, <code>max_length</code> and <code>pattern</code> are built-in field constraints. <code>format="email"</code> is a ready-made pattern; <code>url</code>, <code>slug</code> and <code>hex_color</code> are also available. Numeric fields can use <code>gt</code>, <code>ge</code>, <code>lt</code> and <code>le</code>, and <code>one_of</code> restricts a value to a fixed set. An invalid built-in constraint prevents normalizers and custom checks from running.</p>
 <p><code>@field_normalize("email")</code> receives a structurally valid string and must return a <code>str</code>. Its result is checked against the same constraints before it is applied. Normalization also runs when you manually construct a <code>Schema(...)</code> or call <code>from_model(...)</code>; it does not run twice when an existing nested Schema is passed to a new parent. Inputs that fail the original constraints cannot be rescued by normalization.</p>
 <p><code>@field_check("password")</code> receives the final value. <code>@object_check</code> receives the complete schema and can compare final fields. Raise <code>Invalid(code, message)</code> to report a failure; checks must return <code>None</code> and do not transform the value. Normalizers and checks are synchronous, have no I/O, and run the same way before both sync and async handlers. A check that needs current database state, such as whether an email is already registered, belongs in an operation where it can be made race-safe.</p>
+<h2 id="ignore-unknown-fields-from-external-payloads">Ignore unknown fields from external payloads<a class="headerlink" href="#ignore-unknown-fields-from-external-payloads" title="Permanent link">&para;</a></h2>
+<p>Unknown fields are rejected by default. For an external payload that adds unrelated metadata, opt in to discarding unknown string keys on that Schema:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">SchemaConfig</span><span class="p">,</span> <span class="n">SchemaExtra</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Webhook</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">SchemaConfig</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="n">SchemaExtra</span><span class="o">.</span><span class="n">IGNORE</span><span class="p">)):</span>
+    <span class="n">event_id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">revision</span><span class="p">:</span> <span class="nb">int</span>
+
+
+<span class="n">event</span> <span class="o">=</span> <span class="n">Webhook</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">"event_id"</span><span class="p">:</span> <span class="s2">"evt-1"</span><span class="p">,</span> <span class="s2">"revision"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"provider_data"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"trace"</span><span class="p">:</span> <span class="s2">"abc"</span><span class="p">}}</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">event</span><span class="o">.</span><span class="n">dump</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"event_id"</span><span class="p">:</span> <span class="s2">"evt-1"</span><span class="p">,</span> <span class="s2">"revision"</span><span class="p">:</span> <span class="mi">2</span><span class="p">}</span>
+</code></pre></div>
+<p>Known fields still require the declared types and constraints, and required fields remain required. Ignored keys are discarded; they are never attached to the object or returned by <code>dump()</code>. The policy affects <code>Schema.validate(...)</code> and request bodies before sync or async handlers. Constructor keywords and explicit <code>from_model(..., **extra)</code> overrides remain strict. Nested Schemas each use their own policy. Aliases also remain canonical: a Python field name does not substitute for its alias, and supplying both spellings is still an error.</p>
 <h2 id="validate-values-at-model-write-boundaries">Validate values at Model write boundaries<a class="headerlink" href="#validate-values-at-model-write-boundaries" title="Permanent link">&para;</a></h2>
 <p>Use the same built-in constraints on Model fields when data can be written outside an HTTP Schema, such as from a management command or the admin. Custom callbacks are synchronous and raise <code>ValueError</code> to refuse a value:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
@@ -361,14 +377,14 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#validate-values-at-model-write-boundaries">Validate values at Model write boundaries</a></li></ul>
+            <ul><li><a href="#ignore-unknown-fields-from-external-payloads">Ignore unknown fields from external payloads</a></li><li><a href="#validate-values-at-model-write-boundaries">Validate values at Model write boundaries</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.8</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 03:58:32 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 04:39:35 UTC">November 16, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/7-validation.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -399,7 +399,7 @@
     <span class="n">body</span><span class="p">:</span> <span class="nb">str</span>
 </code></pre></div>
 <ul>
-<li><strong>Strict, no coercion.</strong> <code>"1"</code> is not <code>1</code>; unknown keys are refused; every problem is reported with its path (capped at 50). Validation, instance construction and JSON serialisation run in Rust.</li>
+<li><strong>Strict, no coercion.</strong> <code>"1"</code> is not <code>1</code>; unknown keys are refused by default; every problem is reported with its path (capped at 50). Validation, instance construction and JSON serialisation run in Rust.</li>
 <li><strong>Partial updates.</strong> Declare <code>title: str | Unset = UNSET</code>: a field the client did not send stays <code>UNSET</code> and is left out of <code>dump()</code> and <code>to_dict()</code>, so <code>row.aupdate_from(patch)</code> writes only what was sent.</li>
 <li><strong>Get data out.</strong> <code>schema.to_dict()</code> gives Python values (UUID and datetime stay objects), <code>schema.dump()</code> the JSON-compatible form; both skip <code>UNSET</code>.</li>
 <li><strong>From rows.</strong> <code>NoteOut.from_model(row, author_name=row.author.name)</code> converts one row; <code>NoteOut.from_models(rows)</code> eagerly converts a synchronous iterable to a list. Relations must already be loaded (nothing fetches lazily). A derived schema keeps its selected fields. Conversion reads the expected attributes rather than checking the concrete model class; missing attributes raise <code>AttributeError</code>. Values passed as <code>**extra</code> are shared across rows.</li>
@@ -423,6 +423,23 @@
 <span class="k">assert</span> <span class="n">person</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"first_name"</span><span class="p">:</span> <span class="s2">"Aki"</span><span class="p">}</span>
 </code></pre></div>
 <p>An assigned declaration such as <code>display_name: str = Field(alias="displayName")</code> is also supported, including alongside <code>default_factory</code>. Aliases must be unique within a schema and cannot contain <code>.</code>, <code>[</code> or <code>]</code>, which are reserved by error paths. Model columns do not accept wire aliases; put API naming on the <code>Schema</code>.</p>
+<h2 id="class-configuration">Class configuration<a class="headerlink" href="#class-configuration" title="Permanent link">&para;</a></h2>
+<p><code>SchemaConfig</code> is an immutable typed configuration passed in the class declaration. By default, unknown string keys in decoded input are rejected. <code>SchemaExtra.IGNORE</code> discards them while keeping declared fields strict:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">SchemaConfig</span><span class="p">,</span> <span class="n">SchemaExtra</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">VendorEvent</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">SchemaConfig</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="n">SchemaExtra</span><span class="o">.</span><span class="n">IGNORE</span><span class="p">)):</span>
+    <span class="n">event_id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">revision</span><span class="p">:</span> <span class="nb">int</span>
+
+
+<span class="n">event</span> <span class="o">=</span> <span class="n">VendorEvent</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">"event_id"</span><span class="p">:</span> <span class="s2">"evt-1"</span><span class="p">,</span> <span class="s2">"revision"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"vendor_context"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"trace"</span><span class="p">:</span> <span class="s2">"abc"</span><span class="p">}}</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">event</span><span class="o">.</span><span class="n">dump</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"event_id"</span><span class="p">:</span> <span class="s2">"evt-1"</span><span class="p">,</span> <span class="s2">"revision"</span><span class="p">:</span> <span class="mi">2</span><span class="p">}</span>
+</code></pre></div>
+<p>Ignored values are not stored as attributes or emitted by <code>dump()</code>. A wrong type, failed constraint or missing required field among the declared fields still raises <code>ValidationError</code> before either a sync or async handler runs. This option applies to decoded <code>Schema.validate(...)</code> input and request bodies. Generated constructor keywords and explicit <code>from_model(..., **extra)</code> overrides keep their normal strict signatures. Each nested <code>Schema</code> uses its own configuration.</p>
+<p>An alias remains the only accepted wire name. If <code>given_name</code> has alias <code>givenName</code>, sending only <code>given_name</code> is ignored as an extra and the required <code>givenName</code> field remains missing; sending both names is still a duplicate-field error. OpenAPI marks an IGNORE schema with <code>additionalProperties: true</code>, while its response serialization still includes only declared fields.</p>
 <p><code>Schema(...)</code> validates the final Python values immediately and raises <code>ValidationError</code> for invalid values. Pass Python objects such as <code>UUID</code>, timezone-aware <code>datetime</code> and nested <code>Schema</code> instances. <code>Schema.validate(decoded_data)</code> is the wire-input path: it accepts JSON-compatible values, resolves aliases and returns field errors using wire names. Request body binding uses that path before calling the handler. <code>from_model()</code> also validates the constructed Schema; naive datetimes returned by database drivers remain unchanged and are allowed on that model-conversion path. Return annotations describe OpenAPI and serialization; Hinoki does not validate handler return values at runtime.</p>
 <h2 id="discriminated-unions">Discriminated unions<a class="headerlink" href="#discriminated-unions" title="Permanent link">&para;</a></h2>
 <p>Use a discriminated union when one field can contain one of several known Schema shapes. Declare the union on a <code>Schema</code> field with <code>Annotated[Cat | Dog, Field(discriminator="kind")]</code>. Every variant needs the same required string field, the same wire alias for that field, and exactly one <code>Field(one_of=(...))</code> tag. Hinoki selects the variant by that tag in Rust; it does not try each schema in order.</p>
@@ -541,14 +558,14 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#discriminated-unions">Discriminated unions</a></li><li><a href="#projection-options-on-dump">Projection options on dump()</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
+            <ul><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#class-configuration">Class configuration</a></li><li><a href="#discriminated-unions">Discriminated unions</a></li><li><a href="#projection-options-on-dump">Projection options on dump()</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 03:58:32 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 04:39:35 UTC">November 16, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
