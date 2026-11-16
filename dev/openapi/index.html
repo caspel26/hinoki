@@ -415,6 +415,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <li>A unique <code>operationId</code> is derived from the handler's qualified name. If names collide, Hinoki appends a numeric suffix.</li>
 <li>The first line of the handler docstring becomes <code>summary</code>; the remaining lines become <code>description</code>.</li>
 <li>Path, query and pagination parameters come from the bound handler signature. Body fields and successful response fields come from <code>Schema</code> annotations. Parser and renderer media types supply the content types.</li>
+<li>Typed <code>UploadedFile</code> parameters generate a <code>multipart/form-data</code> request body with binary file properties. Repeated files use an array of binary items; optional single-file bindings are not required in the body or property list. Text keys read dynamically through <code>request.POST</code> are not inferred or listed.</li>
 <li>A declared <code>errors=(...)</code> adds response entries for those <code>APIError</code> classes. Request binding and schema validation errors are documented as <code>422</code> where the action has request inputs.</li>
 <li><code>access=...</code> adds a security requirement when its authentication provider supplies an OpenAPI scheme. Authentication responses are included in the operation.</li>
 <li>Admin HTML routes marked <code>hide_from_docs</code> are omitted.</li>
@@ -430,6 +431,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <span class="w">    </span><span class="nt">dog</span><span class="p">:</span><span class="w"> </span><span class="s">"#/components/schemas/Dog"</span>
 </code></pre></div>
 <p>See <a href="../schemas/#discriminated-unions">Schemas: discriminated unions</a> for the Python declarations and validation behavior.</p>
+<p>For file binding syntax, limits and the in-memory boundary, see <a href="../endpoints/#upload-files">upload files</a>.</p>
 <p>Add a useful docstring to each handler because it is the source for operation text:</p>
 <div class="highlight"><pre><span></span><code><span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/tasks/</span><span class="si">{task_id}</span><span class="s2">"</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskOutput</span><span class="p">:</span>
@@ -470,7 +472,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.12</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 03:01:41 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 12:43:37 UTC">November 16, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/openapi.md">Edit on GitHub</a></dd></div>
         </dl>

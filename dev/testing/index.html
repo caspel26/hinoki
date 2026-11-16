@@ -400,6 +400,17 @@
 </code></pre></div>
 <p>Its context manager runs module lifespans and the application's startup and shutdown hooks. If the application has a <code>DatabaseModule</code>, point it to a disposable PostgreSQL database. <code>strict_errors=True</code> catches an HTTP error returned by an action but missing from its <code>errors=</code> declaration.</p>
 <p>Both clients have <code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code>, <code>delete</code>, <code>head</code>, <code>options</code> and <code>query</code> (the HTTP <code>QUERY</code> method; its body goes in <code>json=</code> or <code>body=</code>, while the <code>query=</code> option of every call is the query string), plus <code>request(method, path, ...)</code> for any other method.</p>
+<h2 id="test-file-uploads">Test file uploads<a class="headerlink" href="#test-file-uploads" title="Permanent link">&para;</a></h2>
+<p><code>ASGIClient</code> and <code>SyncClient</code> accept <code>data=</code> and <code>files=</code> and build the multipart boundary and <code>Content-Type</code> header for you. Use a sequence of file tuples to send repeated field names in order:</p>
+<div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">with</span> <span class="n">ASGIClient</span><span class="p">(</span><span class="n">create_app</span><span class="p">())</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+        <span class="s2">"/documents"</span><span class="p">,</span>
+        <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s2">"title"</span><span class="p">:</span> <span class="s2">"Report"</span><span class="p">},</span>
+        <span class="n">files</span><span class="o">=</span><span class="p">[(</span><span class="s2">"document"</span><span class="p">,</span> <span class="s2">"report.txt"</span><span class="p">,</span> <span class="sa">b</span><span class="s2">"contents"</span><span class="p">,</span> <span class="s2">"text/plain"</span><span class="p">)],</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">201</span>
+</code></pre></div>
+<p>Each file tuple is <code>(field_name, filename, content_bytes, content_type)</code>. Form data may be a mapping or an ordered sequence of <code>(name, text)</code> pairs; sequences retain repeated names. Do not pass <code>json=</code> or raw <code>body=</code> together with <code>data=</code>/<code>files=</code>; the helper owns the multipart content type and boundary. The application enforces its configured complete-body and per-part limits. This helper sends complete in-memory bodies and does not model streaming uploads.</p>
 <p><code>headers=</code> accepts a mapping or a sequence of <code>(name, value)</code> pairs. Use pairs to send a repeated header; Hinoki's request header mapping joins repeated values with <code>", "</code>. A client can add a default <code>Host</code> header to each request:</p>
 <div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">with</span> <span class="n">ASGIClient</span><span class="p">(</span><span class="n">create_app</span><span class="p">(),</span> <span class="n">host</span><span class="o">=</span><span class="s2">"api.example.com"</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
     <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
@@ -445,15 +456,15 @@ cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#test-the-application-over-asgi">Test the application over ASGI</a></li><li><a href="#test-the-layers-separately">Test the layers separately</a></li><li><a href="#repository-checks">Repository checks</a></li></ul>
+            <ul><li><a href="#test-the-application-over-asgi">Test the application over ASGI</a></li><li><a href="#test-file-uploads">Test file uploads</a></li><li><a href="#test-the-layers-separately">Test the layers separately</a></li><li><a href="#repository-checks">Repository checks</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.22</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>2 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 12:43:37 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/testing.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
