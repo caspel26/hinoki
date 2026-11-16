@@ -92,7 +92,10 @@ async fn run_connection<B: Backend>(
     let connection = http1::Builder::new()
         .timer(TokioTimer::new())
         .header_read_timeout(config.header_read_timeout)
-        .max_buf_size(config.max_header_bytes + REQUEST_LINE_MARGIN)
+        // A client that shuts down its write side after a request still gets
+        // the answer (`nc`, some health checkers).
+        .half_close(true)
+        .max_buf_size(config.max_header_bytes.saturating_add(REQUEST_LINE_MARGIN))
         .max_headers(config.max_headers)
         .serve_connection(TokioIo::new(stream), service);
     tokio::pin!(connection);

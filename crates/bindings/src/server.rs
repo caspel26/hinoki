@@ -223,6 +223,8 @@ fn kind_of(name: &str) -> PyResult<Early> {
         "overloaded" => Early::Overloaded,
         "not_found" => Early::NotFound,
         "method_not_allowed" => Early::MethodNotAllowed,
+        "bad_host" => Early::BadHost,
+        "not_implemented" => Early::NotImplemented,
         other => {
             return Err(PyValueError::new_err(format!(
                 "unknown early kind {other:?}"
@@ -383,6 +385,7 @@ impl ServerCore {
             trusted,
             https,
             peer: None,
+            refusal: None,
         };
         let outcome = self.core.classify(head).map_err(PyRuntimeError::new_err)?;
         Ok(match outcome {
@@ -411,6 +414,9 @@ pub struct Head<'a> {
     pub trusted: bool,
     pub https: bool,
     pub peer: Option<SocketAddr>,
+    /// The transport's own verdict on the request, answered right after the
+    /// ready and size checks.
+    pub refusal: Option<Early>,
 }
 
 /// What the classifier decided.
@@ -478,6 +484,9 @@ impl Core {
             origin: origin_of(&head.headers),
         };
         if let Some(early) = self.refuse(head.query, &head.headers) {
+            return self.answer(&asked, early, Vec::new());
+        }
+        if let Some(early) = head.refusal.clone() {
             return self.answer(&asked, early, Vec::new());
         }
         let (action, params) = match self.resolve(head.method, head.path) {

@@ -19,7 +19,7 @@ use hinoki_server::{serve, Answer, Backend, Closed, Early, Incoming, ServerConfi
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use tokio::net::TcpListener;
-use tokio::sync::watch;
+use tokio::sync::{watch, Semaphore};
 use tokio::task::JoinHandle;
 
 use crate::server::{Core, Head, Outcome, ServerCore};
@@ -83,6 +83,7 @@ impl Backend for CoreBackend {
             query,
             headers,
             peer,
+            refusal,
         } = request;
         let head = Head {
             method: &method,
@@ -92,6 +93,7 @@ impl Backend for CoreBackend {
             trusted: false,
             https: false,
             peer: Some(peer),
+            refusal,
         };
         match self.core.classify(head) {
             Ok(outcome) => self.reply_of(outcome).await,
@@ -139,6 +141,12 @@ impl RustServer {
         if max_connections == 0 {
             return Err(PyValueError::new_err("max_connections must be >= 1"));
         }
+        if max_connections > Semaphore::MAX_PERMITS {
+            return Err(PyValueError::new_err(format!(
+                "max_connections must be <= {}",
+                Semaphore::MAX_PERMITS
+            )));
+        }
         let config = ServerConfig {
             max_connections,
             header_read_timeout: seconds("header_read_timeout", header_read_timeout)?,
@@ -184,15 +192,17 @@ impl RustServer {
 
     /// Empty the wake socket. Call it before draining the queue, never after:
     /// a wake written between the two steps would otherwise be lost.
-    fn clear_wake(&self) {
+    /// Returns `false` once the socket is at EOF (the server ended and nothing
+    /// will ever write again): the caller must stop watching it.
+    fn clear_wake(&self) -> bool {
         let mut reader = &self.reader;
         let mut sink = [0u8; 256];
         loop {
             match reader.read(&mut sink) {
-                Ok(0) => return,
+                Ok(0) => return false,
                 Ok(_) => continue,
                 Err(e) if e.kind() == ErrorKind::Interrupted => continue,
-                Err(_) => return,
+                Err(_) => return true,
             }
         }
     }

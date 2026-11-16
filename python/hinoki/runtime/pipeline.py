@@ -162,7 +162,7 @@ class Pipeline:
             database_var.reset(db_token)
             context.sync_runner.reset(runner_token)
             request_id.reset(token)
-        return self._with_headers(response, scope, rid)
+        return self.with_headers(response, scope, rid)
 
     def _request_id(self, scope: Scope, trusted: bool) -> str:
         """The trusted inbound request id when configured and valid, else a new
@@ -182,7 +182,7 @@ class Pipeline:
         prefix and a counter), without a system call per request."""
         return f"{self.request_id_prefix}{next(self.request_ids):016x}"
 
-    def _with_headers(self, response: Response, scope: Scope, rid: str) -> Response:
+    def with_headers(self, response: Response, scope: Scope, rid: str) -> Response:
         """Replace the answer's headers with the final ones."""
         headers, has_allow_origin = core.response_headers(
             response.headers,

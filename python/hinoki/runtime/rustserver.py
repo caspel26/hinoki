@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
 
 from hinoki import core
+from hinoki.runtime.responses import HTTPError
 from hinoki.runtime.servercore import build_server_core
 from hinoki.serve import load_target
 from hinoki.settings import AppSettings
@@ -46,8 +47,10 @@ class NoBody:
         return b""
 
 
-def scope_of(request: core.PreparedRequest) -> dict[str, Any]:
-    """The ASGI-shaped scope the pipeline reads, from a queued request."""
+def scope_of(request: core.PreparedRequest, server: tuple[str, int]) -> dict[str, Any]:
+    """The ASGI-shaped scope the pipeline reads, from a queued request.
+    ``server`` is where the worker listens; ``Request.host`` falls back to it
+    for an HTTP/1.0 request without a ``Host`` header."""
     return {
         "type": "http",
         "http_version": "1.1",
@@ -59,6 +62,7 @@ def scope_of(request: core.PreparedRequest) -> dict[str, Any]:
         "query_string": request.query,
         "headers": request.headers,
         "client": request.client,
+        "server": server,
     }
 
 
@@ -83,6 +87,7 @@ class RustWorker:
         # Starts not ready; the lifespan startup flips it.
         self.core = build_server_core(self.pipeline)
         self.server: core.RustServer | None = None
+        self.address = (host, port)
         self.tasks: set[asyncio.Task[None]] = set()
         self.stopping = asyncio.Event()
         self._inbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
@@ -130,6 +135,7 @@ class RustWorker:
             await self._finish_lifespan()
             raise
         self.server = server
+        self.address = (self.host, server.port)
         self.core.set_ready(True)
         asyncio.get_running_loop().add_reader(server.wake_fd, self._wake, server)
         return server.port
@@ -138,31 +144,62 @@ class RustWorker:
         """The loop's reader callback: clear the wake socket first, then drain
         the queue until it is empty (a short batch), as the queue requires. It
         keeps running while the server shuts down, so requests already queued
-        still get their answer."""
-        server.clear_wake()
-        batch = self.core.drain(DRAIN_BATCH)
+        still get their answer. The wake is edge-only, so a failed drain
+        schedules itself again: queued requests are never left without a
+        pending wake. An EOF on the wake socket means the server ended."""
+        loop = asyncio.get_running_loop()
+        if not server.clear_wake():
+            loop.remove_reader(server.wake_fd)
+            return
+        try:
+            self._drain()
+        except Exception:
+            log.exception("draining the request queue failed; retrying")
+            loop.call_soon(self._wake, server)
+
+    def _drain(self) -> None:
         while True:
+            batch = self.core.drain(DRAIN_BATCH)
             for request in batch:
-                self._spawn(request)
+                try:
+                    self._spawn(request)
+                except Exception:
+                    log.exception("request %s could not be started", request.request_id)
+                    self._fail(request)
             if len(batch) < DRAIN_BATCH:
                 return
-            batch = self.core.drain(DRAIN_BATCH)
 
     def _spawn(self, request: core.PreparedRequest) -> None:
         task = asyncio.create_task(self._serve(request))
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
 
+    def _fail(self, request: core.PreparedRequest) -> None:
+        """Answer a request the worker could not serve with the usual 500."""
+        rid = request.request_id
+        try:
+            response = self.pipeline.with_headers(
+                HTTPError(500, "internal_error", request_id=rid).response,
+                scope_of(request, self.address),
+                rid,
+            )
+            body = b"" if request.method == "HEAD" else response.body
+            request.respond(response.status, response.headers, body)
+        except Exception:
+            log.exception("request %s could not be answered", rid)
+
     async def _serve(self, request: core.PreparedRequest) -> None:
-        """Answer one queued request. A request whose task is cancelled is
-        dropped unanswered; the connection then gets a native 503."""
+        """Answer one queued request. A request whose task is cancelled (at
+        shutdown, after ``shutdown_timeout``) is dropped unanswered: its
+        connection is closed by the native layer without a response, so the
+        client sees EOF, not a 503."""
         try:
             response = await self.pipeline.handle(
-                scope_of(request), NoBody(), request.request_id
+                scope_of(request, self.address), NoBody(), request.request_id
             )
         except Exception:
             log.exception("request %s failed", request.request_id)
-            request.respond(500, [(b"content-length", b"0")], b"")
+            self._fail(request)
             return
         body = b"" if request.method == "HEAD" else response.body
         request.respond(response.status, response.headers, body)
@@ -197,12 +234,14 @@ class RustWorker:
     async def run(self) -> int:
         """Serve until SIGINT or SIGTERM, then stop gracefully."""
         port = await self.start()
-        loop = asyncio.get_running_loop()
-        for number in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(number, self._on_signal)
-        print(f"listening on http://{self.host}:{port}", flush=True)
-        await self.stopping.wait()
-        aborted = await self.stop()
+        try:
+            loop = asyncio.get_running_loop()
+            for number in (signal.SIGINT, signal.SIGTERM):
+                loop.add_signal_handler(number, self._on_signal)
+            print(f"listening on http://{self.host}:{port}", flush=True)
+            await self.stopping.wait()
+        finally:
+            aborted = await self.stop()
         if aborted:
             log.warning("aborted %d connections at shutdown", aborted)
         return 0

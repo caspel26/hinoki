@@ -2,9 +2,11 @@
 //! [`Backend`] and how the [`Answer`] is written back.
 //!
 //! This layer owns only transport rules: HEAD answers keep their
-//! `content-length` and send no body, and a request that carries a body is
-//! refused (this server does not read bodies yet). Everything that decides an
-//! answer belongs to the backend.
+//! `content-length` and send no body, the connection closes after a request that
+//! carries a body (this server does not read bodies yet), and a request the
+//! protocol forbids (HTTP/1.1 without exactly one `Host`) is flagged in
+//! [`Incoming::refusal`], so the backend answers it like any other early
+//! answer. Everything that decides an answer belongs to the backend.
 
 use std::convert::Infallible;
 use std::future::Future;
@@ -15,13 +17,15 @@ use bytes::Bytes;
 use http_body_util::Full;
 use hyper::body::{Body, Incoming as RequestBody};
 use hyper::header::{HeaderName, HeaderValue};
-use hyper::{Method, Request, Response, StatusCode};
+use hyper::{Method, Request, Response, StatusCode, Version};
 
+use crate::early::Early;
 use crate::headers::Header;
 
 /// The head of a request as the backend sees it. Header names are lowercase,
 /// repeated headers stay separate and in arrival order, and `path` and `query`
-/// are the raw (still percent-encoded) target.
+/// are the raw (still percent-encoded) target. An absolute-form target makes its
+/// authority the `host` header.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Incoming {
     pub method: String,
@@ -29,6 +33,10 @@ pub struct Incoming {
     pub query: Vec<u8>,
     pub headers: Vec<Header>,
     pub peer: SocketAddr,
+    /// Set when the transport rejects the request ([`Early::BadHost`] or
+    /// [`Early::NotImplemented`]): the backend answers with it and does not
+    /// route the request.
+    pub refusal: Option<Early>,
 }
 
 /// A complete answer: final status, final headers and the whole body.
@@ -44,38 +52,42 @@ pub trait Backend: Send + Sync + 'static {
     fn handle(&self, request: Incoming) -> impl Future<Output = Answer> + Send;
 }
 
-const NO_BODY_SUPPORT: &[u8] = b"{\"error\": \"not_implemented\"}";
-
 fn plain(status: StatusCode) -> Response<Full<Bytes>> {
     let mut response = Response::new(Full::new(Bytes::new()));
     *response.status_mut() = status;
     response
 }
 
-/// Refuse a request with a body and close the connection, since the unread
-/// body would otherwise be parsed as the next request.
-fn refuse_body() -> Response<Full<Bytes>> {
-    let mut response = Response::new(Full::new(Bytes::from_static(NO_BODY_SUPPORT)));
-    *response.status_mut() = StatusCode::NOT_IMPLEMENTED;
-    let headers = response.headers_mut();
-    headers.insert("content-type", HeaderValue::from_static("application/json"));
-    headers.insert("connection", HeaderValue::from_static("close"));
-    headers.insert("content-length", HeaderValue::from(NO_BODY_SUPPORT.len()));
-    response
+/// The transport's verdict on a request. A body is refused first; then HTTP/1.1
+/// needs exactly one `Host` (RFC 9112 3.2). An absolute-form target (RFC 9112
+/// 3.2.2) makes its authority the host, replacing the header.
+fn refusal_of(request: &Request<RequestBody>, headers: &mut Vec<Header>) -> Option<Early> {
+    let hosts = headers.iter().filter(|(name, _)| name == b"host").count();
+    if let Some(authority) = request.uri().authority() {
+        headers.retain(|(name, _)| name != b"host");
+        headers.push((b"host".to_vec(), authority.as_str().as_bytes().to_vec()));
+    }
+    if !request.body().is_end_stream() {
+        return Some(Early::NotImplemented);
+    }
+    (request.version() == Version::HTTP_11 && hosts != 1).then_some(Early::BadHost)
 }
 
 fn incoming_of(request: &Request<RequestBody>, peer: SocketAddr) -> Incoming {
     let uri = request.uri();
+    let mut headers: Vec<Header> = request
+        .headers()
+        .iter()
+        .map(|(name, value)| (name.as_str().as_bytes().to_vec(), value.as_bytes().to_vec()))
+        .collect();
+    let refusal = refusal_of(request, &mut headers);
     Incoming {
         method: request.method().as_str().to_owned(),
         path: uri.path().to_owned(),
         query: uri.query().unwrap_or("").as_bytes().to_vec(),
-        headers: request
-            .headers()
-            .iter()
-            .map(|(name, value)| (name.as_str().as_bytes().to_vec(), value.as_bytes().to_vec()))
-            .collect(),
+        headers,
         peer,
+        refusal,
     }
 }
 
@@ -104,18 +116,24 @@ fn response_of(answer: Answer, head_only: bool) -> Response<Full<Bytes>> {
     response
 }
 
-/// Serve one request: refuse a body, ask the backend, write the answer.
+/// Serve one request: ask the backend, write the answer. A request with a body
+/// closes the connection, since the unread body would otherwise be parsed as the
+/// next request.
 pub async fn respond<B: Backend>(
     backend: Arc<B>,
     peer: SocketAddr,
     request: Request<RequestBody>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
-    if !request.body().is_end_stream() {
-        return Ok(refuse_body());
-    }
     let head_only = request.method() == Method::HEAD;
-    let answer = backend.handle(incoming_of(&request, peer)).await;
-    Ok(response_of(answer, head_only))
+    let incoming = incoming_of(&request, peer);
+    let close = incoming.refusal == Some(Early::NotImplemented);
+    let mut response = response_of(backend.handle(incoming).await, head_only);
+    if close {
+        response
+            .headers_mut()
+            .insert("connection", HeaderValue::from_static("close"));
+    }
+    Ok(response)
 }
 
 #[cfg(test)]
