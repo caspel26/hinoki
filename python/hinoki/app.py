@@ -276,6 +276,10 @@ class Hinoki:
         pending, groups = self._collect_routes(items)
         pending = [self.with_defaults(route) for route in pending]
         bound = [bind(route) for route in pending]  # bad signatures fail here
+        # CRUD row plans must be scoped to this app's resolved renderers and binding.
+        from hinoki.runtime import rowplan  # noqa: PLC0415 - CRUD is optional here
+
+        bound = [rowplan.with_row_wire(binding) for binding in bound]
         staged = self._stage_router(pending)
         bind_app_timezones(items, self._timezone)
         self._router = staged
