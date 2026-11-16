@@ -10,12 +10,13 @@ import sys
 from pathlib import Path
 
 import pytest
+from granian.constants import HTTPModes, SSLProtocols
 
 from hinoki import Hinoki, core
 from hinoki.runtime.listener import ListenError, inherited_address, open_listener
 from hinoki.runtime.rustserver import RustWorker
 from hinoki.runtime.supervisor import Supervisor
-from hinoki.serve import add_arguments, choose_server
+from hinoki.serve import add_arguments, choose_server, granian_tls
 from hinoki.settings import (
     AppSettings,
     LifecycleSettings,
@@ -121,6 +122,49 @@ def test_tls_files_are_validated() -> None:
         ServerSettings(tls_cert_file=str(cert)).validate()
     with pytest.raises(ValueError, match="tls_key_file"):
         ServerSettings(tls_cert_file=str(cert), tls_key_file="/absent").validate()
+
+
+def test_http2_needs_tls() -> None:
+    cert = Path(__file__).parent / "tls" / "localhost-cert.pem"
+    key = cert.with_name("localhost-key.pem")
+    assert ServerSettings().http2 is False
+    ServerSettings(
+        http2=True, tls_cert_file=str(cert), tls_key_file=str(key)
+    ).validate()
+    with pytest.raises(ValueError, match="http2 needs TLS"):
+        ServerSettings(http2=True).validate()
+    secure = ServerSettings(http2=True, tls_cert_file=str(cert), tls_key_file=str(key))
+    assert secure.conflicts("granian") == secure.conflicts("rust") == []
+
+
+def test_the_native_server_refuses_http2_without_tls() -> None:
+    fd = detached(socket.SOCK_STREAM, listen=True)
+    with pytest.raises(ValueError, match="http2 needs TLS"):
+        core.RustServer.start(native_core(), "", 0, fd=fd, http2=True)
+    assert not is_open(fd)
+
+
+def test_granian_negotiates_http2_only_when_asked() -> None:
+    cert = Path(__file__).parent / "tls" / "localhost-cert.pem"
+    key = cert.with_name("localhost-key.pem")
+    pair = (str(cert), str(key))
+    assert (
+        granian_tls(ServerSettings(tls_cert_file=pair[0], tls_key_file=pair[1]))["http"]
+        == HTTPModes.http1
+    )
+    assert (
+        granian_tls(
+            ServerSettings(http2=True, tls_cert_file=pair[0], tls_key_file=pair[1])
+        )["http"]
+        == HTTPModes.auto
+    )
+    assert granian_tls(ServerSettings()) == {}
+    assert (
+        granian_tls(ServerSettings(tls_cert_file=pair[0], tls_key_file=pair[1]))[
+            "ssl_protocol_min"
+        ]
+        == SSLProtocols.tls12
+    )
 
 
 def test_a_supervised_worker_ignores_a_repeated_sigterm() -> None:
