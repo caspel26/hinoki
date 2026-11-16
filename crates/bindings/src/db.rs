@@ -22,7 +22,7 @@ static RUNTIME: Once = Once::new();
 
 /// Create the Tokio runtime on first use (never at import). The thread count
 /// can be set with `configure_runtime` before that point.
-fn ensure_runtime() {
+pub(crate) fn ensure_runtime() {
     RUNTIME.call_once(|| {
         let mut builder = tokio::runtime::Builder::new_multi_thread();
         builder
