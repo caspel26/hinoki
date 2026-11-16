@@ -18,7 +18,7 @@ from hinoki.fieldtypes import FieldType, is_union
 from hinoki.handlerhints import hints_of
 from hinoki.pagination import Page, PageNumberPagination
 from hinoki.runtime.binding import Binding, Param
-from hinoki.schema import Schema
+from hinoki.schema import Schema, SchemaExtra
 
 if TYPE_CHECKING:
     from hinoki.access import Access
@@ -284,11 +284,20 @@ class OpenAPIBuilder:
         result: dict[str, Any] = {
             "type": "object",
             "properties": {s.wire_name: self.field(s.ftype) for s in specs.values()},
-            "additionalProperties": False,
+            "additionalProperties": schema.__schema_config__.extra
+            is SchemaExtra.IGNORE,
         }
         required = [s.wire_name for s in specs.values() if s.required]
         if required:
             result["required"] = required
+        if schema.__schema_config__.extra is SchemaExtra.IGNORE:
+            alias_pairs = [
+                {"not": {"required": [spec.wire_name, spec.name]}}
+                for spec in specs.values()
+                if spec.alias is not None and spec.wire_name != spec.name
+            ]
+            if alias_pairs:
+                result["allOf"] = alias_pairs
         if schema.__doc__:
             result["description"] = inspect.cleandoc(schema.__doc__).split("\n\n")[0]
         return result

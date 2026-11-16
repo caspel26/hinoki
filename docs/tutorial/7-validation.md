@@ -74,6 +74,27 @@ The invalid call reports a `common_password` error on `password` and a `password
 
 `@field_check("password")` receives the final value. `@object_check` receives the complete schema and can compare final fields. Raise `Invalid(code, message)` to report a failure; checks must return `None` and do not transform the value. Normalizers and checks are synchronous, have no I/O, and run the same way before both sync and async handlers. A check that needs current database state, such as whether an email is already registered, belongs in an operation where it can be made race-safe.
 
+## Ignore unknown fields from external payloads
+
+Unknown fields are rejected by default. For an external payload that adds unrelated metadata, opt in to discarding unknown string keys on that Schema:
+
+```python
+from hinoki import Schema, SchemaConfig, SchemaExtra
+
+
+class Webhook(Schema, config=SchemaConfig(extra=SchemaExtra.IGNORE)):
+    event_id: str
+    revision: int
+
+
+event = Webhook.validate(
+    {"event_id": "evt-1", "revision": 2, "provider_data": {"trace": "abc"}}
+)
+assert event.dump() == {"event_id": "evt-1", "revision": 2}
+```
+
+Known fields still require the declared types and constraints, and required fields remain required. Ignored keys are discarded; they are never attached to the object or returned by `dump()`. The policy affects `Schema.validate(...)` and request bodies before sync or async handlers. Constructor keywords and explicit `from_model(..., **extra)` overrides remain strict. Nested Schemas each use their own policy. Aliases also remain canonical: a Python field name does not substitute for its alias, and supplying both spellings is still an error.
+
 ## Validate values at Model write boundaries
 
 Use the same built-in constraints on Model fields when data can be written outside an HTTP Schema, such as from a management command or the admin. Custom callbacks are synchronous and raise `ValueError` to refuse a value:

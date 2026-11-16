@@ -12,6 +12,7 @@ from uuid import UUID
 
 from hinoki.errors import ErrorDetail
 from hinoki.fieldtypes import FieldType
+from hinoki.schemaconfig import SchemaExtra
 
 if TYPE_CHECKING:
     from hinoki.schema import FieldSpec
@@ -164,7 +165,16 @@ class Validator:
         before = len(self.errors)
         specs: dict[str, FieldSpec] = ftype.schema.specs()
         for key in data:
-            if key not in specs:
+            if not isinstance(key, str):
+                self.fail(path, "type", "object keys must be strings")
+        if len(self.errors) > before:
+            return INVALID
+        for key in data:
+            if (
+                isinstance(key, str)
+                and key not in specs
+                and ftype.schema.__schema_config__.extra is SchemaExtra.FORBID
+            ):
                 shown = str(key)[:MAX_KEY_ECHO]
                 self.fail(join(path, shown), "extra_forbidden", "unknown field")
         values = {

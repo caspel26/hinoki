@@ -14,6 +14,8 @@ from hinoki import (
     Hinoki,
     Invalid,
     Schema,
+    SchemaConfig,
+    SchemaExtra,
     derive,
     field_check,
     http,
@@ -61,6 +63,22 @@ class PostPatch(Schema, model=Post):
 @derive(only=("title", "body"))
 class Overridden(Schema, model=Post):
     title: Annotated[str, Field(min_length=3, max_length=10)]
+
+
+@derive(only=("title",))
+class IgnoreConfiguredDerived(
+    Schema, model=Post, config=SchemaConfig(extra=SchemaExtra.IGNORE)
+):
+    pass
+
+
+class IgnoreBase(Schema, config=SchemaConfig(extra=SchemaExtra.IGNORE)):
+    pass
+
+
+@derive(only=("title",))
+class ExplicitForbidDerived(IgnoreBase, model=Post, config=SchemaConfig()):
+    pass
 
 
 def post_row(title: str = "title") -> Post:
@@ -247,6 +265,18 @@ def test_derived_schemas_work_with_the_native_engine_and_the_model() -> None:
     row = Post.from_schema(created, author_id=uuid4())
     assert (row.title, row.slug, row.published) == ("t", "s", False)
     assert PostOut.native_schema() is not None
+
+
+def test_derive_rebuild_preserves_explicit_class_config() -> None:
+    assert IgnoreConfiguredDerived.__schema_config__.extra is SchemaExtra.IGNORE
+    assert IgnoreConfiguredDerived.validate({"title": "t", "vendor": 1}).title == "t"  # type: ignore[attr-defined]
+
+    assert ExplicitForbidDerived.__schema_config__.extra is SchemaExtra.FORBID
+    with pytest.raises(ValidationError) as rejected:
+        ExplicitForbidDerived.validate({"title": "t", "vendor": 1})
+    assert [(item.path, item.code) for item in rejected.value.details] == [
+        ("vendor", "extra_forbidden")
+    ]
 
 
 class Settings2(Schema):
