@@ -52,6 +52,7 @@ impl Backend for Fake {
                 self.started.notify_one();
                 std::future::pending().await
             }
+            "/big" => answer(&"x".repeat(64 * 1024 * 1024)),
             "/echo" => {
                 let headers: Vec<String> = request
                     .headers
@@ -292,6 +293,26 @@ async fn an_idle_kept_alive_connection_is_closed_by_the_same_timeout() {
     let mut stream = connect(&running).await;
     get(&mut stream, "/health").await;
     assert!(is_closed(&mut stream, WAIT).await);
+    finish(running).await;
+}
+
+#[tokio::test]
+async fn a_client_that_stops_reading_is_closed_by_the_write_timeout() {
+    let config = ServerConfig {
+        max_connections: 1,
+        write_timeout: Duration::from_millis(300),
+        ..ServerConfig::default()
+    };
+    let running = start(config).await;
+    let mut stalled = connect(&running).await;
+    stalled
+        .write_all(b"GET /big HTTP/1.1\r\nhost: t\r\n\r\n")
+        .await
+        .unwrap();
+    // Never read: the socket buffers fill, the write stalls, the slot frees.
+    let mut second = connect(&running).await;
+    let (head, _) = timeout(WAIT, get(&mut second, "/health")).await.unwrap();
+    assert!(head.starts_with("HTTP/1.1 200"), "{head}");
     finish(running).await;
 }
 

@@ -167,7 +167,7 @@ impl RustServer {
     #[pyo3(signature = (
         core, host, port, max_connections=10_000, header_read_timeout=10.0,
         shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
-        fd=None
+        fd=None, write_timeout=30.0
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start(
@@ -180,6 +180,7 @@ impl RustServer {
         max_header_bytes: usize,
         body_read_timeout: f64,
         fd: Option<i32>,
+        write_timeout: f64,
     ) -> PyResult<Self> {
         // First, so that every later error closes the descriptor with it.
         let inherited = fd.map(inherited_listener).transpose()?;
@@ -196,6 +197,7 @@ impl RustServer {
             max_connections,
             header_read_timeout: seconds("header_read_timeout", header_read_timeout)?,
             body_read_timeout: seconds("body_read_timeout", body_read_timeout)?,
+            write_timeout: seconds("write_timeout", write_timeout)?,
             shutdown_timeout: seconds("shutdown_timeout", shutdown_timeout)?,
             max_header_bytes,
             ..ServerConfig::default()
