@@ -230,3 +230,33 @@ Measured 2026-11-15 on the same Apple M4 Pro (load average 6 to 12 at the start 
 * ASGI against RSGI differs by about 1.5% with one worker and not measurably with four: the protocol is not where the time goes here.
 * With four workers the minimal applications already serve about 120 000 requests per second and their runs vary by more than 10%; the load generator and the other processes share the machine, so these runs do not separate the server from the client. Use the one-worker row for per-request costs.
 * For a request that reaches the database, Hinoki's 13 µs is a small part of the roughly 90 µs of event-loop CPU of `detail` and of the 260 µs it waits for PostgreSQL.
+
+## Native-await completion (`nativeawaitbench.py`, `comparative/profile_request.py`)
+
+Question: does resolving database awaitables on the event-loop thread (a per-loop completion queue and one wake fd, no GIL on Tokio threads) beat `pyo3_async_runtimes::future_into_py` plus the conversion on a Tokio worker? Compared against `main` `f672172`, both release builds, five alternating runs each, raw data in `results/native-await.json`. Measured 2026-11-16 on one Apple laptop, load average 6 to 7 for the retained runs (a first set under load up to 18 gave the same picture).
+
+`profile_request.py --prod` (in-process ASGI, PostgreSQL 17 container, 64 requests in flight; median of five runs, range in brackets):
+
+| Scenario | req/s before | req/s after | loop CPU per request before → after |
+| --- | ---: | ---: | ---: |
+| `health` (no database, control) | 95 627 | 97 001 (+1.4%) | 10.4 → 10.3 µs |
+| `detail` | 8 946 | 16 658 (+86%) | 84.9 → 58.1 µs |
+| `create` | 5 049 | 8 265 (+64%) | 135.8 → 90.0 µs |
+| `list_20` | 2 633 | 3 705 (+41%) | 285.2 → 266.4 µs |
+| `list_100` | 918 | 992 (+8%) | 858.4 → 997.3 µs (+16%) |
+
+`nativeawaitbench.py` (SQLite file, 64 concurrent fetches): one row 36 500 → 230 000 calls/s, 100 rows 24 200 → 50 500 calls/s.
+
+* The `list_100` event-loop CPU rises because row conversion now runs on the loop thread instead of a Tokio worker; throughput still improved here, but a loop-bound worker with very large pages could see the conversion cost on its own thread.
+Under Granian with real sockets (`comparative/run.py --framework hinoki`, 4 workers, 64 connections, `oha`, PostgreSQL 17, 2 rounds of 3 runs of 10 s per build, alternating; load 2 to 25, so noisy), median req/s before → after, no non-2xx responses:
+
+| Scenario | Before | After |
+| --- | ---: | ---: |
+| `detail` | 20 921 | 27 424 (+31%) |
+| `create` | 11 884 | 14 263 (+20%) |
+| `list` (20 rows), alone, 4 workers | 6 267 | 6 904 (+10%) |
+| `list` (20 rows), alone, 1 worker | 2 626 | 3 020 (+15%) |
+
+* `list` was first measured right after `create` in the same run, on a table the inserts had grown; the faster build inserted more rows, so it paid for a bigger table and looked 14% slower. That was an ordering artifact. The `list` rows above run it alone on a freshly seeded table, three rounds per build with the build order alternated (load 8 to 18, noisy).
+* The in-process gain for `list` is larger than the Granian one; row conversion now runs on the loop thread, which raises event-loop CPU per request on large pages.
+* Not measured: PostgreSQL with `runtime_threads` 2, Linux, a quiet host, the Rust server (not built yet).
