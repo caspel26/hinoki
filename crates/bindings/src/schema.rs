@@ -300,6 +300,10 @@ struct Run<'a, 'py> {
     py: Python<'py>,
     compiled: &'a Compiled,
     problems: Vec<Problem>,
+    construct: bool,
+    use_aliases: bool,
+    allow_naive_datetime: bool,
+    skip_fields: HashSet<String>,
 }
 
 impl<'py> Run<'_, 'py> {
@@ -482,7 +486,7 @@ impl<'py> Run<'_, 'py> {
             }
             Err(err) => return Err(err.into()),
         };
-        if parsed.getattr("tzinfo")?.is_none() {
+        if parsed.getattr("tzinfo")?.is_none() && !self.allow_naive_datetime {
             return self.fail(
                 path,
                 "datetime_tz",
@@ -537,17 +541,31 @@ impl<'py> Run<'_, 'py> {
         let known: HashSet<&str> = definition
             .fields
             .iter()
-            .map(|field| field.wire_name.as_str())
+            .map(|field| {
+                if self.use_aliases {
+                    field.wire_name.as_str()
+                } else {
+                    field.name.as_str()
+                }
+            })
             .collect();
-        let duplicate_names = self.duplicate_python_names(definition, object, path)?;
+        let duplicate_names = if self.use_aliases {
+            self.duplicate_python_names(definition, object, path)?
+        } else {
+            HashSet::new()
+        };
         self.reject_unknown_fields(object, &known, &duplicate_names, path)?;
         let values = self.validate_fields(definition, object, &duplicate_names, path, depth)?;
         if self.problems.len() > before {
             return Ok(None);
         }
-        Ok(Some(
-            definition.class.bind(self.py).call((), Some(&values))?,
-        ))
+        if !self.construct {
+            return Ok(Some(values.into_any()));
+        }
+        Ok(Some(definition.class.bind(self.py).call_method1(
+            "__hinoki_construct_validated__",
+            (values, path),
+        )?))
     }
 
     fn duplicate_python_names(
@@ -610,11 +628,19 @@ impl<'py> Run<'_, 'py> {
     ) -> Result<Bound<'py, PyDict>, Abort> {
         let values = PyDict::new(self.py);
         for field in &definition.fields {
+            if path.is_empty() && self.skip_fields.contains(&field.name) {
+                continue;
+            }
             if duplicate_names.contains(&field.name) {
                 continue;
             }
-            let here = join(path, &field.wire_name);
-            match object.get_item(&field.wire_name)? {
+            let key = if self.use_aliases {
+                &field.wire_name
+            } else {
+                &field.name
+            };
+            let here = join(path, key);
+            match object.get_item(key)? {
                 Some(raw) => {
                     if let Some(value) = self.check(&field.node, &raw, &here, depth + 1)? {
                         values.set_item(&field.name, value)?;
@@ -688,15 +714,24 @@ fn is_rfc3339(text: &str) -> bool {
 impl Compiled {
     /// `(instance, problems)`: exactly one of them is meaningful. Problems are
     /// `(path, code, message)` tuples in the order the checks found them.
+    #[pyo3(signature = (data, construct=true, use_aliases=true, allow_naive_datetime=false, skip_fields=Vec::new()))]
     fn validate<'py>(
         &self,
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
+        construct: bool,
+        use_aliases: bool,
+        allow_naive_datetime: bool,
+        skip_fields: Vec<String>,
     ) -> PyResult<(Option<Bound<'py, PyAny>>, Vec<Problem>)> {
         let mut run = Run {
             py,
             compiled: self,
             problems: Vec::new(),
+            construct,
+            use_aliases,
+            allow_naive_datetime,
+            skip_fields: skip_fields.into_iter().collect(),
         };
         match run.schema(self.root, data, "", 0) {
             Ok(value) => Ok((value, run.problems)),
@@ -1065,7 +1100,7 @@ pub fn serialize_instance<'py>(
             json_mode: true,
             by_alias,
             exclude_unset,
-            controlled: true,
+            controlled: exclude_unset || !by_alias,
             exclude: &exclude,
             include: include.as_deref(),
         },
@@ -1179,7 +1214,7 @@ impl ModelPlan {
                 .set_item("__hinoki_supplied_fields__", true)?;
             return Ok(instance);
         }
-        class.call((), Some(&values))
+        class.call_method1("__hinoki_construct_from_model__", (values,))
     }
 }
 
