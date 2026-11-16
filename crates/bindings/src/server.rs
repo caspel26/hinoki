@@ -341,6 +341,21 @@ fn poisoned() -> PyErr {
     PyRuntimeError::new_err("server state is poisoned")
 }
 
+fn valid_startup_path(path: &str) -> bool {
+    !path.is_empty()
+        && path.starts_with('/')
+        && path != "/"
+        && !path.contains("//")
+        && path.is_ascii()
+        && path
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"/-._~".contains(&byte))
+        && !path
+            .split('/')
+            .skip(1)
+            .any(|part| part == "." || part == "..")
+}
+
 /// A route as Python describes it: the plan fields plus the router entry.
 type RouteSpec = (
     u32,                           // action
@@ -514,6 +529,8 @@ fn kind_of(name: &str) -> PyResult<Early> {
         "overloaded" => Early::Overloaded,
         "not_found" => Early::NotFound,
         "method_not_allowed" => Early::MethodNotAllowed,
+        "invalid_query" => Early::InvalidQuery,
+        "not_acceptable" => Early::NotAcceptable,
         "bad_host" => Early::BadHost,
         other => {
             return Err(PyValueError::new_err(format!(
@@ -552,6 +569,12 @@ pub struct Core {
     proxies: Networks,
     defer_policies: bool,
     python_paths: Vec<String>,
+    startup_probe: Option<StartupProbe>,
+}
+
+struct StartupProbe {
+    path: String,
+    body: Vec<u8>,
 }
 
 /// The Python handle of a [`Core`].
@@ -573,7 +596,7 @@ impl ServerCore {
         routes, early_bodies, policies, request_id_name, request_id_prefix,
         limits=(8192, 32_768, 1_048_576, 288), queue_capacity=4096,
         trust_request_id=false, defer_policies=false, python_paths=Vec::new(),
-        cors=None, trusted_proxies=Vec::new()
+        cors=None, trusted_proxies=Vec::new(), startup_path=None, startup_body=Vec::new()
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -589,7 +612,23 @@ impl ServerCore {
         python_paths: Vec<String>,
         cors: Option<CorsSpec>,
         trusted_proxies: Vec<String>,
+        startup_path: Option<String>,
+        startup_body: Vec<u8>,
     ) -> PyResult<Self> {
+        let startup_probe = match startup_path {
+            Some(path) if valid_startup_path(&path) && !startup_body.is_empty() => {
+                Some(StartupProbe {
+                    path,
+                    body: startup_body,
+                })
+            }
+            None if startup_body.is_empty() => None,
+            _ => {
+                return Err(PyValueError::new_err(
+                    "startup path and non-empty response body must be configured together",
+                ));
+            }
+        };
         let proxies = Networks::parse(&trusted_proxies).map_err(PyValueError::new_err)?;
         let (router, plan) = build_routes(routes)?;
         let rendered = early_bodies
@@ -629,6 +668,7 @@ impl ServerCore {
                 proxies,
                 defer_policies,
                 python_paths,
+                startup_probe,
             }),
         })
     }
@@ -811,6 +851,22 @@ impl Core {
         if let Some(early) = head.refusal.clone() {
             return self.answer(&asked, early, Vec::new());
         }
+        let is_startup_probe = self
+            .startup_probe
+            .as_ref()
+            .is_some_and(|probe| probe.path == head.path);
+        if is_startup_probe {
+            if self.defer_policies {
+                return self.enqueue(
+                    head,
+                    asked,
+                    (None, Vec::new()),
+                    true,
+                    NativeInput::default(),
+                );
+            }
+            return self.startup_response(&asked, head.method, head.query, &head.headers);
+        }
         let (action, params) = match self.resolve(head.method, head.path) {
             // A raw target the server cannot read as a plain path, and the
             // documentation pages, are the Python pipeline's to answer.
@@ -849,6 +905,64 @@ impl Core {
             plan.needs_headers(),
             native_input,
         )
+    }
+
+    fn startup_response(
+        &self,
+        asked: &Asked,
+        method: &str,
+        query: &[u8],
+        headers: &[Header],
+    ) -> Result<Outcome, String> {
+        if !matches!(method, "GET" | "HEAD") {
+            return self.answer(
+                asked,
+                Early::MethodNotAllowed,
+                vec![(b"allow".to_vec(), b"GET, HEAD".to_vec())],
+            );
+        }
+        let joined = request::join_headers(headers);
+        let accept = joined
+            .iter()
+            .find(|(name, _)| name == "accept")
+            .map_or("", |(_, value)| value.as_str());
+        if request::negotiate(accept, &["application/json".to_owned()]).is_none() {
+            return self.answer(asked, Early::NotAcceptable, Vec::new());
+        }
+        if request::parse_query(query, 1000).is_err() {
+            return self.answer(asked, Early::InvalidQuery, Vec::new());
+        }
+        if asked.id_ignored {
+            self.ignored_ids.fetch_add(1, Ordering::Relaxed);
+        }
+        let probe = self
+            .startup_probe
+            .as_ref()
+            .ok_or_else(|| "startup probe is not configured".to_owned())?;
+        let mut body = probe.body.clone();
+        let own = vec![(b"content-type".to_vec(), b"application/json".to_vec())];
+        let cors = self
+            .cors
+            .as_ref()
+            .map(|policy| policy.headers(&asked.origin))
+            .unwrap_or_default();
+        let response_headers = final_headers(
+            &own,
+            &self.policies[usize::from(asked.https)],
+            &[],
+            (&self.id_name, asked.request_id.as_bytes()),
+            &cors,
+            200,
+            body.len(),
+        );
+        if asked.head_only {
+            body.clear();
+        }
+        Ok(Outcome::Early(Reply {
+            status: 200,
+            headers: response_headers,
+            body,
+        }))
     }
 
     /// Take an in-flight slot and queue the request, or answer 503 natively.
