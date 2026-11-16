@@ -240,10 +240,14 @@ pub struct Guarded<T> {
     shut: bool,
     drained: usize,
     deadline: Option<Pin<Box<Sleep>>>,
+    write_timeout: Duration,
+    write_stall: Option<Pin<Box<Sleep>>>,
 }
 
 impl<T> Guarded<T> {
-    pub fn new(inner: T, framing: Framing, signals: Arc<Signals>) -> Self {
+    /// `write_timeout` is how long a write may make no progress (a client that
+    /// stopped reading) before the connection fails with `TimedOut`.
+    pub fn new(inner: T, framing: Framing, signals: Arc<Signals>, write_timeout: Duration) -> Self {
         Self {
             inner,
             framing,
@@ -251,7 +255,30 @@ impl<T> Guarded<T> {
             shut: false,
             drained: 0,
             deadline: None,
+            write_timeout,
+            write_stall: None,
         }
+    }
+
+    /// Apply the stall timer to the outcome of a write or flush: any progress
+    /// clears it, and a write that stays pending past `write_timeout` fails.
+    fn guard_write<R>(
+        &mut self,
+        cx: &mut Context<'_>,
+        polled: Poll<io::Result<R>>,
+    ) -> Poll<io::Result<R>> {
+        if polled.is_ready() {
+            self.write_stall = None;
+            return polled;
+        }
+        let limit = self.write_timeout;
+        let timer = self
+            .write_stall
+            .get_or_insert_with(|| Box::pin(sleep(limit)));
+        if timer.as_mut().poll(cx).is_ready() {
+            return Poll::Ready(Err(io::ErrorKind::TimedOut.into()));
+        }
+        Poll::Pending
     }
 }
 
@@ -299,11 +326,15 @@ impl<T: AsyncRead + AsyncWrite + Unpin> AsyncWrite for Guarded<T> {
         cx: &mut Context<'_>,
         data: &[u8],
     ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.get_mut().inner).poll_write(cx, data)
+        let this = self.get_mut();
+        let polled = Pin::new(&mut this.inner).poll_write(cx, data);
+        this.guard_write(cx, polled)
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.get_mut().inner).poll_flush(cx)
+        let this = self.get_mut();
+        let polled = Pin::new(&mut this.inner).poll_flush(cx);
+        this.guard_write(cx, polled)
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
@@ -323,7 +354,9 @@ impl<T: AsyncRead + AsyncWrite + Unpin> AsyncWrite for Guarded<T> {
         cx: &mut Context<'_>,
         bufs: &[io::IoSlice<'_>],
     ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.get_mut().inner).poll_write_vectored(cx, bufs)
+        let this = self.get_mut();
+        let polled = Pin::new(&mut this.inner).poll_write_vectored(cx, bufs);
+        this.guard_write(cx, polled)
     }
 
     fn is_write_vectored(&self) -> bool {
