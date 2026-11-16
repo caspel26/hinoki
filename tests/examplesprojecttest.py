@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from hinoki.__main__ import main
+from hinoki.scaffold import create
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / "examples"
@@ -44,6 +45,34 @@ def test_manifest_applies_each_app_migration_to_a_database_url(
     assert "tracker: 0001-initial, 0002-indexes" in output
     assert "blog: 0001-initial, 0002-accounts" in output
     assert (tmp_path / "examples.sqlite3").is_file()
+
+
+@pytest.mark.parametrize("source", ["implicit", "environment", "argument"])
+def test_project_sqlite_default_is_root_anchored_but_explicit_relative_urls_are_not(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    source: str,
+) -> None:
+    project_name = f"journal{source}"
+    project = create(project_name, tmp_path)
+    workdir = project / project_name
+    monkeypatch.chdir(workdir)
+    monkeypatch.delenv("HINOKI_DATABASE_URL", raising=False)
+
+    args = ["migrations", "apply"]
+    if source == "environment":
+        monkeypatch.setenv("HINOKI_DATABASE_URL", "sqlite://./selected.sqlite3")
+    elif source == "argument":
+        args.extend(["--database", "sqlite://./selected.sqlite3"])
+
+    assert main(args) == 0
+
+    if source == "implicit":
+        assert (project / ".hinoki" / "local.sqlite3").is_file()
+        assert not (workdir / ".hinoki" / "local.sqlite3").exists()
+    else:
+        assert (workdir / "selected.sqlite3").is_file()
+        assert not (project / ".hinoki" / "local.sqlite3").exists()
 
 
 def test_app_create_adds_a_module_and_migration_package_to_the_project(
