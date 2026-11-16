@@ -35,6 +35,13 @@ fn answer(body: &str) -> Answer {
 
 impl Backend for Fake {
     async fn handle(&self, request: Incoming) -> Answer {
+        if let Some(early) = &request.refusal {
+            return Answer {
+                status: early.status(),
+                headers: vec![(b"content-length".to_vec(), b"0".to_vec())],
+                body: Vec::new(),
+            };
+        }
         match request.path.as_str() {
             "/slow" => {
                 self.started.notify_one();
@@ -212,13 +219,12 @@ async fn a_request_with_a_body_is_refused_and_closed() {
         .write_all(b"POST /health HTTP/1.1\r\nhost: t\r\ncontent-length: 4\r\n\r\nabcd")
         .await
         .unwrap();
-    let (head, body) = read_response(&mut stream, true).await;
+    let (head, _) = read_response(&mut stream, true).await;
     assert!(head.starts_with("HTTP/1.1 501"), "{head}");
     assert!(
         head.to_ascii_lowercase().contains("connection: close"),
         "{head}"
     );
-    assert_eq!(body, b"{\"error\": \"not_implemented\"}");
     assert!(is_closed(&mut stream, WAIT).await);
     finish(running).await;
 }
@@ -396,4 +402,72 @@ async fn a_dropped_stop_sender_stops_the_server() {
         timeout(WAIT, task).await.unwrap().unwrap(),
         Closed { aborted: 0 }
     );
+}
+
+#[tokio::test]
+async fn a_client_that_shuts_down_its_write_side_still_gets_the_answer() {
+    let running = start(ServerConfig::default()).await;
+    let mut stream = connect(&running).await;
+    stream
+        .write_all(b"GET /slow HTTP/1.1\r\nhost: t\r\n\r\n")
+        .await
+        .unwrap();
+    stream.shutdown().await.unwrap();
+    timeout(WAIT, running.backend.started.notified())
+        .await
+        .unwrap();
+    sleep(Duration::from_millis(100)).await; // the server has seen the EOF
+    running.backend.release.notify_one();
+    let (head, body) = read_response(&mut stream, true).await;
+    assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+    assert_eq!(body, b"slow done");
+    finish(running).await;
+}
+
+#[tokio::test]
+async fn http_1_1_needs_exactly_one_host() {
+    let running = start(ServerConfig::default()).await;
+    for (request, expected) in [
+        ("GET /x HTTP/1.1\r\n\r\n", "HTTP/1.1 400"),
+        (
+            "GET /x HTTP/1.1\r\nhost: a\r\nhost: b\r\n\r\n",
+            "HTTP/1.1 400",
+        ),
+        ("GET /x HTTP/1.1\r\nhost: a\r\n\r\n", "HTTP/1.1 200"),
+        ("GET /x HTTP/1.0\r\n\r\n", "HTTP/1.0 200"),
+    ] {
+        let mut stream = connect(&running).await;
+        stream.write_all(request.as_bytes()).await.unwrap();
+        let (head, _) = read_response(&mut stream, true).await;
+        assert!(head.starts_with(expected), "{request:?} -> {head}");
+    }
+    finish(running).await;
+}
+
+#[tokio::test]
+async fn an_absolute_form_target_makes_its_authority_the_host() {
+    let running = start(ServerConfig::default()).await;
+    let mut stream = connect(&running).await;
+    stream
+        .write_all(b"GET http://evil.example/echo HTTP/1.1\r\nhost: other\r\n\r\n")
+        .await
+        .unwrap();
+    let (_, body) = read_response(&mut stream, true).await;
+    let text = String::from_utf8(body).unwrap();
+    assert!(text.starts_with("GET /echo "), "{text}");
+    assert!(text.ends_with("host=evil.example"), "{text}");
+    finish(running).await;
+}
+
+#[tokio::test]
+async fn an_unbounded_header_limit_does_not_overflow() {
+    let config = ServerConfig {
+        max_header_bytes: usize::MAX,
+        ..ServerConfig::default()
+    };
+    let running = start(config).await;
+    let mut stream = connect(&running).await;
+    let (head, _) = get(&mut stream, "/ok").await;
+    assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+    finish(running).await;
 }

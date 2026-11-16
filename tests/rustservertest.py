@@ -49,6 +49,11 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@http.get("/host")
+async def host_of(request: Request) -> dict[str, str]:
+    return {"host": request.host}
+
+
 @http.post("/made", status=201)
 async def made(request: Request) -> dict[str, bool]:
     return {"ok": True}
@@ -75,7 +80,7 @@ async def fail_startup(ctx: ModuleContext) -> None:
 
 def make_app(**config: Any) -> Hinoki:
     return Hinoki(
-        include=[health, made, block],
+        include=[health, host_of, made, block],
         runtime=RuntimeConfig(**config),
         on_shutdown=[note_shutdown],
     )
@@ -230,6 +235,11 @@ async def test_a_request_with_a_body_is_refused_and_closed(
     writer.write(b"POST /made HTTP/1.1\r\nhost: t\r\ncontent-length: 3\r\n\r\nabc")
     refused = await read_response(reader)
     assert refused.status == 501
+    assert refused.json() == {
+        "error": "not_implemented",
+        "request_id": refused.header("x-request-id"),
+    }
+    assert refused.header("connection") == "close"
     assert await eof(reader)
     writer.close()
 
@@ -396,3 +406,165 @@ async def test_sigterm_stops_the_process_after_the_running_request() -> None:
     finally:
         process.kill()
         process.wait()
+
+
+async def raw(port: int, request: bytes) -> Received:
+    reader, writer = await open_connection(port)
+    writer.write(request)
+    received = await read_response(reader)
+    writer.close()
+    return received
+
+
+async def test_a_client_that_closes_its_write_side_still_gets_the_answer(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    reader, writer = await open_connection(port)
+    writer.write(b"GET /block HTTP/1.1\r\nhost: t\r\n\r\n")
+    writer.write_eof()
+    while PROBE.entered < 1:
+        await asyncio.sleep(0.01)
+    await asyncio.sleep(0.1)  # the server has seen the EOF
+    PROBE.gate.set()
+    answer = await read_response(reader)
+    assert (answer.status, answer.json()) == (200, {"released": "yes"})
+    writer.close()
+
+
+@pytest.mark.parametrize(
+    "head", ["", "host: a\r\nhost: b\r\n"], ids=["missing", "repeated"]
+)
+async def test_http_1_1_needs_exactly_one_host(
+    served: tuple[RustWorker, int], head: str
+) -> None:
+    _, port = served
+    refused = await raw(port, f"GET /health HTTP/1.1\r\n{head}\r\n".encode())
+    assert refused.status == 400
+    assert refused.json() == {
+        "error": "bad_host",
+        "request_id": refused.header("x-request-id"),
+    }
+
+
+async def test_an_absolute_form_target_makes_its_authority_the_host(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    answer = await raw(
+        port, b"GET http://evil.example/host HTTP/1.1\r\nhost: other\r\n\r\n"
+    )
+    assert answer.json() == {"host": "evil.example"}
+
+
+async def test_http_1_0_without_host_falls_back_to_the_listening_address(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    answer = await raw(port, b"GET /host HTTP/1.0\r\n\r\n")
+    assert answer.json() == {"host": f"127.0.0.1:{port}"}
+
+
+class FlakyCore:
+    """The worker's core, with ``drain`` failing once."""
+
+    def __init__(self, inner: Any) -> None:
+        self.inner = inner
+        self.failed = False
+
+    def drain(self, limit: int) -> Any:
+        if not self.failed:
+            self.failed = True
+            raise RuntimeError("drain failed")
+        return self.inner.drain(limit)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.inner, name)
+
+
+async def test_a_failing_drain_is_retried_instead_of_stranding_the_queue(
+    served: tuple[RustWorker, int],
+) -> None:
+    worker, port = served
+    worker.core = FlakyCore(worker.core)  # type: ignore[assignment]
+    assert (await fetch(port, "GET", "/health")).status == 200
+
+
+class FailingSpawn:
+    """Stands in for ``RustWorker._spawn``: fails the first request, then
+    restores the real method."""
+
+    def __init__(self, worker: RustWorker, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.worker = worker
+        self.monkeypatch = monkeypatch
+        self.original = worker._spawn
+
+    def __call__(self, request: Any) -> None:
+        self.monkeypatch.setattr(self.worker, "_spawn", self.original)
+        raise RuntimeError("no task")
+
+
+async def test_a_request_that_cannot_be_started_gets_a_500_and_the_rest_flow(
+    served: tuple[RustWorker, int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    worker, port = served
+    monkeypatch.setattr(worker, "_spawn", FailingSpawn(worker, monkeypatch))
+    failed = await fetch(port, "GET", "/health")
+    assert failed.status == 500
+    assert failed.json() == {
+        "error": "internal_error",
+        "request_id": failed.header("x-request-id"),
+    }
+    assert (await fetch(port, "GET", "/health")).status == 200
+
+
+class CountingWake:
+    """A wake callback that counts its calls."""
+
+    def __init__(self, worker: RustWorker) -> None:
+        self.worker = worker
+        self.calls = 0
+
+    def __call__(self, server: Any) -> None:
+        self.calls += 1
+        self.worker._wake(server)
+
+
+async def test_the_wake_reader_is_removed_when_the_server_ends() -> None:
+    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    await worker.start()
+    server = worker.server
+    assert server is not None
+    # Replace the reader with a counting one, then end the server without stop().
+    counting = CountingWake(worker)
+    loop = asyncio.get_running_loop()
+    loop.remove_reader(server.wake_fd)
+    loop.add_reader(server.wake_fd, counting, server)
+    try:
+        await server.shutdown()
+        await asyncio.sleep(0.3)
+        assert counting.calls <= 2
+    finally:
+        await worker.stop()
+
+
+async def test_a_connection_limit_beyond_the_semaphore_is_a_value_error() -> None:
+    worker = RustWorker(make_app(), "127.0.0.1", 0, max_connections=2**62)
+    with pytest.raises(ValueError, match="max_connections"):
+        await worker.start()
+    assert PROBE.shutdown_ran
+
+
+class BrokenStop:
+    async def wait(self) -> None:
+        raise RuntimeError("interrupted")
+
+
+async def test_run_stops_the_server_when_it_fails_after_start() -> None:
+    worker = RustWorker(make_app(), "127.0.0.1", 0)
+
+    worker.stopping = BrokenStop()  # type: ignore[assignment]
+    with pytest.raises(RuntimeError, match="interrupted"):
+        await worker.run()
+    assert worker.server is None
+    assert PROBE.shutdown_ran
