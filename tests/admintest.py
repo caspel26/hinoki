@@ -5,6 +5,7 @@ import datetime
 import os
 import re
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, ClassVar, cast
@@ -50,10 +51,10 @@ from hinoki.admin.forms import (
     to_datetime,
 )
 from hinoki.admin.lists import apply_state, matching, pagination_for, table_head
-from hinoki.admin.site import ListState, Site
+from hinoki.admin.site import ListState, Site, guarded, number, parse_key
 from hinoki.admin.templates import UI, Raw, TemplateError, Templates, escape
-from hinoki.db import Database, DatabaseModule
-from hinoki.errors import RegistrationError
+from hinoki.db import Database, DatabaseError, DatabaseModule
+from hinoki.errors import ErrorDetail, ModelValidationError, RegistrationError
 from hinoki.orm import (
     Model,
     OnDelete,
@@ -607,6 +608,50 @@ def test_modeladmin_display_and_config_fallbacks() -> None:
     row = Note(id=uuid4(), title="", done=False, rank=None)
     assert admin.title_of(row) == f"Note {row.id}"
     assert admin.skipped() == frozenset()
+
+
+def test_admin_site_key_and_number_fallbacks(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert number("invalid", 4, 10) == 4
+    entry = cast(ModelAdmin[Any], SimpleNamespace(model=Note))
+    assert parse_key(entry, "\x00") is None
+    monkeypatch.setattr("hinoki.admin.site.key_type", lambda _model: str)
+    assert parse_key(entry, "slug") == "slug"
+
+
+def test_admin_user_card_includes_an_escaped_logout_link() -> None:
+    admin = SimpleNamespace(
+        logout_url='/logout?next="<home>',
+        templates=Templates(),
+        role=lambda _principal: "Staff",
+    )
+    fake_site = cast(
+        Site,
+        SimpleNamespace(admin=admin, principal=Caller(id="Ada", user="Ada")),
+    )
+    rendered = str(Site.user_card(fake_site))
+    assert 'href="/logout?next=&quot;&lt;home&gt;"' in rendered
+
+
+async def test_admin_guarded_writes_summarize_validation_and_database_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    @asynccontextmanager
+    async def transaction() -> AsyncIterator[None]:
+        yield
+
+    monkeypatch.setattr(
+        "hinoki.admin.site.current_database",
+        lambda: SimpleNamespace(transaction=transaction),
+    )
+
+    async def invalid() -> None:
+        raise ModelValidationError([ErrorDetail("title", "invalid", "is invalid")])
+
+    async def rejected() -> None:
+        raise DatabaseError("database rejected values")
+
+    assert await guarded(invalid()) == "title: is invalid"
+    assert await guarded(rejected()) == "The database rejected these values."
 
 
 def test_modeladmin_rejects_invalid_bulk_action_shapes_and_text() -> None:
