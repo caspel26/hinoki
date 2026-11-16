@@ -398,6 +398,13 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 generated SQL uses the selected backend's types. Existing state files that
 recorded SQLite or MySQL-specific type names are normalized when planning, so
 switching the planner's backend does not appear as a destructive type change.</p>
+<p>New <code>Model</code> classes may omit <code>table=</code>; Hinoki derives a plural snake-case table
+name from the Python class. Keep <code>table=</code> explicit for models with existing
+migration history so later Python class renames do not change physical table
+identity. A changed implicit name appears as a drop/create plan and the
+destructive guard still applies. Hinoki refuses generated names reserved for
+its migration ledger or SQLite internals. See <a href="../models/#define-a-model">Models and queries</a>
+for display-name overrides and the fallback naming rules.</p>
 <h2 id="check-migration-drift">Check migration drift<a class="headerlink" href="#check-migration-drift" title="Permanent link">&para;</a></h2>
 <p>To check that model changes have a committed migration file in CI, run:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--check
@@ -469,7 +476,7 @@ whether an older migration actually created its constraint.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.9</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 05:16:56 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 08:52:38 UTC">November 16, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/migrations.md">Edit on GitHub</a></dd></div>
         </dl>

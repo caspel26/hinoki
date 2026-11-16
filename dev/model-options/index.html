@@ -431,13 +431,13 @@
 <tbody>
 <tr>
 <td>table</td>
-<td><code>table="bookmarks"</code> (class keyword, required)</td>
-<td>the table name</td>
+<td><code>table="bookmarks"</code> (optional class keyword)</td>
+<td>overrides the default plural snake-case table name derived from the class</td>
 </tr>
 <tr>
 <td>labels</td>
-<td><code>label=</code>, <code>plural=</code> (class keywords)</td>
-<td>the singular and plural name the admin shows</td>
+<td><code>label=</code>, <code>plural=</code> (optional class keywords)</td>
+<td>override the humanized singular and plural display names derived from the class</td>
 </tr>
 <tr>
 <td>composite uniqueness</td>
@@ -466,6 +466,7 @@
 <li>Stacked decorators are stored in reading order (top to bottom).</li>
 <li>A model inherits the options of its <a href="../models/#share-fields-abstract-models-and-mixins">abstract bases</a>. A decorator on the subclass replaces everything inherited for that kind of option (<code>@indexed</code> replaces the inherited indexes, and so on) and leaves the other kinds inherited. A model that subclasses a table model does not inherit that parent's options.</li>
 <li>Apply options before the model is used: the migration planner, the query layer and the admin read them from the class.</li>
+<li>The fallback table/display names use a small deterministic English suffix rule, not an inflector. Use explicit values for irregular, already-plural or localized names. Pin <code>table=</code> when a class has an existing migration history; changing an implicit name is a guarded drop/create, not a table rename.</li>
 <li>Index names are <code>ix_&lt;table&gt;_&lt;columns&gt;</code>, shortened deterministically (with a hash) past PostgreSQL's 63 bytes.</li>
 </ul>
 <p>Not yet: partial or expression indexes, per-column index options, and soft delete. For timestamps, see <a href="../utilities/">utilities</a>; fields are declared explicitly and migrations remain visible.</p>
@@ -493,7 +494,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.6</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 17:54:14 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 08:52:38 UTC">November 16, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-options.md">Edit on GitHub</a></dd></div>
         </dl>

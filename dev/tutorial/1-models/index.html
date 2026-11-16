@@ -276,8 +276,19 @@
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
     <span class="n">completed_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
+<p>The explicit <code>tracker_members</code> and <code>tracker_tasks</code> names above are pinned to
+the example's checked-in migration history. New models can omit <code>table=</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Invoice</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">reference</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div>
+<p>That declaration derives the table <code>invoices</code>, the singular display name
+<code>Invoice</code> and the plural <code>Invoices</code>. <code>label=</code> and <code>plural=</code> override the
+display names; set <code>table=</code> explicitly for irregular/localized names and to
+keep a physical table stable when a Python class is renamed. The fallback
+pluralizer is deterministic and English-oriented, so use explicit names for
+irregular nouns.</p>
 <ul>
-<li><code>table=</code> is a class keyword because it is needed when the class is created.</li>
 <li><code>@indexed</code> and <code>@ordered_by</code> are decorators that state facts about the model below them (<a href="../../model-options/">model options</a>). The default order applies to every query that does not call <code>order_by</code>.</li>
 <li><code>foreign_key(Member, ...)</code> is a column holding the owner's id; the relation (<code>task.owner</code>) is never fetched by accident.</li>
 </ul>
@@ -318,7 +329,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.2</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 08:52:38 UTC">November 16, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/1-models.md">Edit on GitHub</a></dd></div>
         </dl>

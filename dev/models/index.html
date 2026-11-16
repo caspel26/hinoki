@@ -397,21 +397,44 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">utc_now</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">Member</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"members"</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Member</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
     <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">254</span><span class="p">)</span>
 
 
 <span class="nd">@indexed</span><span class="p">(</span><span class="s2">"owner_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
 <span class="nd">@ordered_by</span><span class="p">(</span><span class="s2">"-created_at"</span><span class="p">,</span> <span class="s2">"-id"</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">Task</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"tasks"</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"Task"</span><span class="p">,</span> <span class="n">plural</span><span class="o">=</span><span class="s2">"Tasks"</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Task</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
     <span class="n">owner_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span><span class="n">Member</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">RESTRICT</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"tasks"</span><span class="p">)</span>
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
     <span class="n">done</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
 </code></pre></div>
-<p><code>table=</code> is required. A model has exactly one primary key. Fields are keyword-only when constructing a model. Single-column uniqueness is <code>field(unique=True)</code>; use <code>@unique("a", "b")</code> for a composite constraint. There is no nested <code>class Meta</code>.</p>
+<p>For a fresh model, Hinoki derives a plural snake-case table name and human
+display names from the class: <code>Member</code> becomes <code>members</code>, <code>Member</code> and
+<code>Members</code>; <code>UserProfile</code> becomes <code>user_profiles</code>, <code>User profile</code> and
+<code>User profiles</code>. <code>table=</code>, <code>label=</code> and <code>plural=</code> are optional overrides.
+Keep an explicit <code>table=</code> when it pins an existing migration history or when
+the physical table needs another name. This matters when renaming a Python
+class: changing an implicit table name is planned as a table drop/create and
+is protected by the destructive-migration guard, not treated as a data-safe
+rename. Irregular or localized plurals such as <code>Person</code>/<code>People</code> should set
+<code>table=</code> and <code>plural=</code> explicitly. The fallback inflection is deterministic,
+small and English-oriented; it does not guess irregular nouns. It splits
+underscores and CamelCase into words, lowercases them for the table, and applies
+these suffixes to the final word: consonant plus <code>y</code> becomes <code>ies</code>; <code>s</code>, <code>x</code>,
+<code>z</code>, <code>ch</code> and <code>sh</code> take <code>es</code>; other words take <code>s</code>. Display labels retain
+uppercase acronyms (<code>APIKey</code> becomes <code>API key</code> / <code>API keys</code>). Thus <code>Person</code>
+defaults to <code>persons</code>, and <code>Analysis</code> to <code>analysises</code>; provide explicit values
+when those mechanical defaults are not right. Generated identifiers must be
+portable ASCII SQL names of at most 63 characters. Names beginning with
+SQLite's reserved <code>sqlite_</code> prefix and Hinoki's <code>hinoki_migrations</code> ledger name
+are rejected with an override hint. Physical-table conflicts are reported
+when models are aggregated for migrations, projects or one Admin instance.</p>
+<p>A model has exactly one primary key. Fields are keyword-only when constructing a model.
+Single-column uniqueness is <code>field(unique=True)</code>; use <code>@unique("a", "b")</code> for
+a composite constraint. There is no nested <code>class Meta</code>.</p>
 <p>Supported field metadata includes primary key, uniqueness, maximum string length, defaults and foreign-key behavior. Optional built-in constraints and custom synchronous validators can also check values before ORM writes. Database types are inferred from annotations; unsupported types fail during model or migration validation.</p>
 <h3 id="model-field-constraints-and-validators">Model field constraints and validators<a class="headerlink" href="#model-field-constraints-and-validators" title="Permanent link">&para;</a></h3>
 <p><code>field()</code> metadata describes the database column and its migration: <code>max_length</code> becomes a bounded string column and a derived <code>Schema</code> constraint, <code>unique</code> becomes a database constraint, and <code>default</code> / <code>default_factory</code> provide values when constructing an instance. A <code>foreign_key(...)</code> declares the referenced table and its <code>OnDelete</code> behavior. The Python annotation supplies the column type and nullability.</p>
@@ -579,11 +602,11 @@ set <code>deletable = True</code>; protect generated writes with <code>access = 
 </code></pre></div>
 <p><code>Article</code> has the columns <code>created_at</code>, <code>updated_at</code>, <code>id</code> and <code>title</code>, is ordered by <code>-updated_at</code>, has the index and refreshes <code>updated_at</code> on every update. <code>Tracked.all()</code> raises <code>ModelError</code>: query <code>Article</code>.</p>
 <ul>
-<li><code>abstract=True</code> is not inherited. A subclass is a table model (and needs <code>table=</code>) unless it says <code>abstract=True</code> again. An abstract model needs no primary key; a table model needs exactly one, its own or an inherited one.</li>
+<li><code>abstract=True</code> is not inherited. A subclass is a table model unless it says <code>abstract=True</code> again; its table name is derived unless <code>table=</code> overrides it. An abstract model needs no primary key; a table model needs exactly one, its own or an inherited one.</li>
 <li><strong>Options</strong> declared on abstract bases are inherited: every base's <code>@unique</code> constraints and <code>@indexed</code> indexes, and the order and timestamp column of the first base (in the order the bases resolve) that sets one. Applying a decorator on the subclass <em>replaces</em> what was inherited for that kind of option; it does not add to it. To keep an inherited index while adding one, declare both on the subclass. Options you do not touch stay inherited. A replacement made in an abstract base holds for everything below it: a model reads its options from the abstract bases it lists, and each of those already carries what it inherited and replaced.</li>
 <li><strong>Plain mixins</strong> work too: a class that is not a model contributes the fields it annotates, <code>field(...)</code> and <code>foreign_key(...)</code> included, and its methods. An annotation marked <code>ClassVar</code> is not a field. A type checker does not see a plain mixin's fields as constructor arguments, so prefer an abstract model when you construct instances with those fields.</li>
 <li><strong>One name, two types.</strong> If two bases give the same field name different types and the class does not declare that field itself, the class is refused with an error naming both bases. The same type from two bases is accepted, and a class (or an abstract subclass) that redeclares a field decides its type. A type checker still reports a redeclaration with an incompatible type, as it does for any class.</li>
-<li><strong>Subclassing a table model</strong> is allowed: the subclass needs its own <code>table=</code> and gets a copy of the parent's columns in a separate table, which <code>hinoki migrations plan</code> shows. The two tables are unrelated: there is no join between them and a query on the parent does not return the subclass's rows. A table model does not pass its options on; only abstract bases do.</li>
+<li><strong>Subclassing a table model</strong> is allowed: the subclass gets a copy of the parent's columns in a separate table, derived from the subclass name unless <code>table=</code> overrides it. <code>hinoki migrations plan</code> shows the new table. The two tables are unrelated: there is no join between them and a query on the parent does not return the subclass's rows. A table model does not pass its options on; only abstract bases do.</li>
 <li><strong>Column order</strong> follows Python's dataclass rules: the fields of model bases come first, starting from the last base listed, then the fields of plain mixins, then the class's own. Hinoki does not depend on the order; a new table is created with it.</li>
 </ul>
 <p>A foreign key in an abstract model or a mixin needs a reverse name that differs per subclass; see <a href="../relations/#foreign-keys-in-abstract-models-and-mixins">relations</a>.</p>
@@ -626,8 +649,8 @@ set <code>deletable = True</code>; protect generated writes with <code>access = 
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 21:18:38 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>10 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 08:52:38 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>11 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
