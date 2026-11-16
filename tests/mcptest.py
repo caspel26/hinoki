@@ -1,5 +1,6 @@
 """The development MCP server: protocol, tools and isolation."""
 
+import argparse
 import contextlib
 import datetime
 import io
@@ -12,13 +13,25 @@ from typing import Any
 
 import pytest
 
-from hinoki import Hinoki, mcp
+from hinoki import Access, Hinoki, Request, http, mcp
 from hinoki.mcp import DevProject, Server, serve
 from hinoki.modules import Module, ModuleContext
+from hinoki.orm import Model, field
 from hinoki.proposals import ProposalError, propose
 from tests.projects.rulesapp import create_app, rules
+from tests.providers import TokenAuth
 
 TODAY = datetime.date(2026, 11, 13)
+
+
+class DescribedModel(Model, table="mcp_described_models"):
+    id: int = field(primary_key=True)
+    name: str
+
+
+@http.get("/protected", access=Access(auth=TokenAuth(), permissions=["read"]))
+def protected(request: Request) -> dict[str, bool]:
+    return {"ok": True}
 
 
 @pytest.fixture
@@ -99,6 +112,52 @@ def test_inspect_project_describes_actions(server: Server) -> None:
     )
     assert create["location"].startswith("tests/projects/rulesapp.py:")
     assert json.loads(result["content"][0]["text"]) == data
+
+
+def test_describe_access_and_models_are_structured() -> None:
+    app = Hinoki()
+    app.include(protected)
+    action = mcp.describe_action(app.routes[0])
+    assert action["access"] == {"provider": "TokenAuth", "permissions": ["read"]}
+    model = mcp.describe_model(DescribedModel)
+    assert model["table"] == "mcp_described_models"
+    assert model["columns"] == {"id": "<class 'int'>", "name": "<class 'str'>"}
+
+
+def test_propose_model_tool_returns_proposals_and_translates_errors(
+    server: Server,
+) -> None:
+    project = server.project
+    args = {"name": "Article", "fields": [{"name": "title", "type": "str"}]}
+    assert "class Article(Model" in mcp.tool_propose_model(project, args)["source"]
+    with pytest.raises(mcp.ToolFailure, match="plain ASCII identifier"):
+        mcp.tool_propose_model(project, {"name": "bad name", "fields": []})
+
+
+def test_answer_line_contains_unexpected_tool_failures(
+    server: Server, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(_message: Any) -> dict[str, Any]:
+        raise RuntimeError("secret")
+
+    monkeypatch.setattr(server, "handle", broken)
+    assert mcp.answer_line(server, '{"jsonrpc":"2.0","id":3}') == {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "error": {"code": -32603, "message": "internal error"},
+    }
+
+
+def test_run_mcp_reports_invalid_targets_to_stderr(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def invalid_target(_target: str) -> Hinoki:
+        raise ValueError("bad target")
+
+    monkeypatch.setattr("hinoki.mcp.build_app", invalid_target)
+    args = argparse.Namespace(target="missing:app")
+    assert mcp.run_mcp(args) == 2
+    assert "bad target" in capsys.readouterr().err
 
 
 def test_list_rules_reports_waivers_read_only(tmp_path: Path) -> None:
