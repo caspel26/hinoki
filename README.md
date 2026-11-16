@@ -99,7 +99,7 @@ async def create(data: NoteIn) -> NoteOut:
     return NoteOut.from_model(await Note.acreate(data))
 ```
 
-Use `Schema.serialize()` for a manual JSON projection: selectors use Python field names, aliases are preserved by default, and `exclude_unset=True` can omit defaults the caller did not supply. Automatic HTTP responses still use the full declared response `Schema`.
+`Schema(...)` validates Python values immediately; request bodies are validated before handlers run. Use `Schema.dump()` for a manual JSON projection: selectors use Python field names, aliases are preserved by default, and `exclude_unset=True` can omit defaults the caller did not supply. Automatic HTTP responses still use the full declared response `Schema`.
 
 The application, from [`examples/notes/main.py`](examples/notes/main.py):
 

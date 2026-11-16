@@ -83,7 +83,7 @@ async def get_task(request: Request, task_id: UUID) -> TaskView:
     return TaskView(id=task_id, locale=locale)
 ```
 
-Validation errors are returned before the handler runs. Hinoki does not coerce input values into different types.
+Request path, query and body values are validated before the handler runs; a Schema body uses `Schema.validate()` and reports nested field errors with its parameter prefix. Hinoki does not coerce input values into different types. Return annotations describe OpenAPI and output serialization; response values are not validated at runtime.
 
 ## Group related paths
 
