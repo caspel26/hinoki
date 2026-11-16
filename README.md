@@ -99,6 +99,8 @@ async def create(data: NoteIn) -> NoteOut:
     return NoteOut.from_model(await Note.acreate(data))
 ```
 
+For a manual JSON projection, `note.serialize(include={"title"}, exclude_unset=True)` selects Python field names and preserves wire aliases. Automatic HTTP responses still use the full declared response `Schema`.
+
 The application, from [`examples/notes/main.py`](examples/notes/main.py):
 
 ```python
