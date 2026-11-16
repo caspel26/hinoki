@@ -84,6 +84,22 @@ def test_resolves_function_and_class_actions() -> None:
     assert editor.permissions == frozenset({"posts:write"})
 
 
+def test_handler_execution_shape_is_cached_at_declaration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = make_app()
+
+    def unexpected_inspection(_handler: object) -> bool:
+        raise AssertionError("handler shape was inspected after declaration")
+
+    monkeypatch.setattr(
+        "hinoki.runtime.binding.inspect.iscoroutinefunction", unexpected_inspection
+    )
+
+    assert not app.bindings[0].is_async
+    assert app.bindings[1].is_async
+
+
 def test_collection_path_has_no_trailing_slash() -> None:
     assert make_app().resolve("GET", "/posts") is not None
 
