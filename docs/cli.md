@@ -243,7 +243,21 @@ uv run hinoki migrations apply
 uv run hinoki migrations sql --app billing 0001-initial
 ```
 
-`status` and `apply` cover all registered apps in dependency order. `plan` requires one app when multiple are registered, selected with `--app`; `sql` likewise requires an app in a multi-app project. `--name` is optional: Hinoki derives a stable slug from the first planned schema change (for example, `create-table-notes`); pass `--name initial-notes` to override it. Numbering is automatic. `apply` initializes the configured local SQLite database when no database URL is set. In a manifest project the implicit `.hinoki/local.sqlite3` file is rooted beside `hinoki.toml`, even if you run the command from a subdirectory; explicit relative SQLite URLs remain relative to the current working directory. Added apps have separate migration ledger namespaces, so identical numbered filenames do not collide; the scaffolded root app retains its existing unprefixed migration keys. `--app billing` includes its declared prerequisite apps for migration application.
+`status` and `apply` cover all registered apps in dependency order. Writing a
+`plan` in a multi-app project requires `--app`; read-only `plan --check` and
+`plan --dry-run` without `--app` cover every app in dependency order. `sql`
+likewise requires an app in a multi-app project. `--name` is optional for a
+focused plan: Hinoki derives a stable slug from the first planned schema change
+(for example, `create-table-notes`); pass `--name initial-notes` to override
+it. All-app previews cannot use `--name`. Numbering is automatic. `apply`
+initializes the configured local SQLite database when no database URL is set.
+In a manifest project the implicit `.hinoki/local.sqlite3` file is rooted
+beside `hinoki.toml`, even if you run the command from a subdirectory; explicit
+relative SQLite URLs remain relative to the current working directory. Added
+apps have separate migration ledger namespaces, so identical numbered
+filenames do not collide; the scaffolded root app retains its existing
+unprefixed migration keys. `--app billing` includes its declared prerequisite
+apps for migration application.
 
 Use `plan --check` in CI to fail when model changes are missing from committed
 migration files. It exits `1` when operations are pending and `0` when the
@@ -251,19 +265,23 @@ files match the models. It is read-only: it imports registered model modules
 and the selected migration package but does not write migration files or
 connect to a database. Project planning loads every registered app's models
 to validate cross-app foreign keys, even when `--app` selects one migration
-package. Destructive operations are reported as pending too. In a multi-app
-project, run the check once for each app with `--app NAME`; like `plan`, it
-requires `--app` when more than one app is registered. This checks
-model-to-file drift only; `migrations status` checks which migration files
-have been applied to a live database. `plan --dry-run` remains a human preview
-and exits successfully when it prints planned operations.
+package. Without `--app`, it checks every app in dependency order; `--app NAME`
+limits the check to that app and its prerequisites. Destructive operations
+are reported as pending too. This checks model-to-file drift only;
+`migrations status` checks which migration files have been applied to a live
+database. `plan --dry-run` without `--app` previews every app and exits
+successfully when it prints planned operations. The all-app preview is
+hypothetical and writes no files; a dependent plan shown there may need its
+prerequisite migration generated and reviewed first. Ordinary app-local
+destructive changes are previewed without requiring `--allow-destructive`.
 
 Before writing a focused plan, Hinoki verifies that cross-app foreign-key
 targets exist in the prerequisite app's recorded migration state and have a
-compatible primary-key column. It also refuses to generate a parent teardown
-while any recorded state of another app still refers to that target, even with
-`--allow-destructive`. Remove and apply the child foreign key in a separate
-deployment phase before preparing the parent teardown. See
+compatible primary-key column. It also refuses parent teardowns while any
+recorded state of another app still refers to the target, including for
+`--dry-run` and `--check` and even with `--allow-destructive`. An all-app
+preview fails without partial diffs in this case. Remove and apply the child
+foreign key in a separate deployment phase before preparing the parent teardown. See
 [`migrations`](migrations.md#cross-app-migration-safety) for the limits of this
 file-based check.
 
