@@ -5,6 +5,10 @@
       members: true
       show_if_no_docstring: true
 
+::: hinoki.schemaconfig.SchemaConfig
+
+::: hinoki.schemaconfig.SchemaExtra
+
 ::: hinoki.fields.Field
     options:
       members: true

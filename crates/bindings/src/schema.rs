@@ -5,7 +5,8 @@
 //! once and either returns the finished instance or the ordered list of
 //! `(path, code, message)` problems. Semantics, codes and messages follow the
 //! pure-Python engine that is kept in `tests/oracle` and compared against this
-//! one: strict (no coercion), unknown keys refused, at most 50 problems.
+//! one: strict (no coercion), unknown keys refused by default, at most 50
+//! problems.
 
 use std::collections::HashSet;
 
@@ -63,6 +64,7 @@ struct Field {
 struct Definition {
     class: Py<PyAny>,
     fields: Vec<Field>,
+    forbid_extra: bool,
 }
 
 /// A schema (and everything reachable from it) ready to validate.
@@ -199,18 +201,18 @@ fn required_variants(constraints: &Bound<'_, PyDict>) -> PyResult<Vec<(String, u
 }
 
 /// Build a validator from `definitions`: a list of
-/// `(class, [(name, wire_name, node, required), ...])`; nested schemas refer to
-/// a definition by index.
+/// `(class, [(name, wire_name, node, required), ...], forbid_extra)`; nested
+/// schemas refer to a definition by index.
 #[pyfunction]
 pub fn compile_schemas(
-    definitions: Vec<(Py<PyAny>, FieldTable<'_>)>,
+    definitions: Vec<(Py<PyAny>, FieldTable<'_>, bool)>,
     root: usize,
     uuid_class: Py<PyAny>,
     from_iso: Py<PyAny>,
     unset: Py<PyAny>,
 ) -> PyResult<Compiled> {
     let mut built = Vec::with_capacity(definitions.len());
-    for (class, fields) in definitions {
+    for (class, fields, forbid_extra) in definitions {
         let mut parsed = Vec::with_capacity(fields.len());
         for (name, wire_name, node, required) in fields {
             parsed.push(Field {
@@ -223,6 +225,7 @@ pub fn compile_schemas(
         built.push(Definition {
             class,
             fields: parsed,
+            forbid_extra,
         });
     }
     if root >= built.len() {
@@ -603,12 +606,18 @@ impl<'py> Run<'_, 'py> {
                 }
             })
             .collect();
+        self.validate_object_key_types(object, path)?;
+        if self.problems.len() > before {
+            return Ok(None);
+        }
         let duplicate_names = if self.use_aliases {
             self.duplicate_python_names(definition, object, path)?
         } else {
             HashSet::new()
         };
-        self.reject_unknown_fields(object, &known, &duplicate_names, path)?;
+        if definition.forbid_extra {
+            self.reject_unknown_fields(object, &known, &duplicate_names, path)?;
+        }
         let values = self.validate_fields(definition, object, &duplicate_names, path, depth)?;
         if self.problems.len() > before {
             return Ok(None);
@@ -634,6 +643,11 @@ impl<'py> Run<'_, 'py> {
         let Ok(object) = data.cast::<PyDict>() else {
             return self.fail(path, "type", "expected an object".to_owned());
         };
+        let before = self.problems.len();
+        self.validate_object_key_types(object, path)?;
+        if self.problems.len() > before {
+            return Ok(None);
+        }
         let field_name = if self.use_aliases {
             wire_name
         } else {
@@ -711,12 +725,11 @@ impl<'py> Run<'_, 'py> {
         path: &str,
     ) -> Result<(), Abort> {
         for key in object.keys() {
-            let name = key.str()?.to_string_lossy().into_owned();
-            let known_wire_name = key
-                .cast::<PyString>()
-                .ok()
-                .and_then(|k| k.to_cow().ok())
-                .is_some_and(|k| known.contains(&*k));
+            let Ok(key) = key.cast::<PyString>() else {
+                continue;
+            };
+            let name = key.to_cow()?.into_owned();
+            let known_wire_name = known.contains(name.as_str());
             let duplicate_python_name = duplicate_names.contains(&name);
             if !known_wire_name && !duplicate_python_name {
                 let shown: String = name.chars().take(MAX_KEY_ECHO).collect();
@@ -725,6 +738,19 @@ impl<'py> Run<'_, 'py> {
                     "extra_forbidden",
                     "unknown field".to_owned(),
                 )?;
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_object_key_types(
+        &mut self,
+        object: &Bound<'py, PyDict>,
+        path: &str,
+    ) -> Result<(), Abort> {
+        for key in object.keys() {
+            if key.cast::<PyString>().is_err() {
+                self.fail(path, "type", "object keys must be strings".to_owned())?;
             }
         }
         Ok(())

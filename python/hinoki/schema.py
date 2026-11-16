@@ -34,8 +34,16 @@ from hinoki.errors import (
 )
 from hinoki.fields import UNSET, Field, FieldInfo, Unset
 from hinoki.fieldtypes import FieldType, parse_annotation
+from hinoki.schemaconfig import SchemaConfig, SchemaExtra
 
 _NO_MODEL = object()
+
+
+class _ConfigOmitted:
+    """Private marker used to type the omitted class config keyword."""
+
+
+_CONFIG_UNSET = _ConfigOmitted()
 _SUPPLIED_FIELDS = "__hinoki_supplied_fields__"
 _TRACKS_SUPPLIED_FIELDS = "__hinoki_tracks_supplied_fields__"
 _TRUSTED_CONSTRUCTOR = "__hinoki_construct_validated__"
@@ -52,6 +60,8 @@ __all__ = [
     "FieldSpec",
     "Invalid",
     "Schema",
+    "SchemaConfig",
+    "SchemaExtra",
     "Unset",
     "field_check",
     "field_normalize",
@@ -180,14 +190,22 @@ def validate_reserved_names(cls: type, annotations: dict[str, Any]) -> None:
         _TRUSTED_CONSTRUCTOR,
         _MODEL_CONSTRUCTOR,
     }
-    if tracking_names & (set(cls.__dict__) | set(annotations)):
+    declared_internal = tracking_names | {"__schema_config__"}
+    if declared_internal & (set(cls.__dict__) | set(annotations)):
         raise RegistrationError(
             f"{cls.__name__}: supplied-field tracking metadata is reserved by Hinoki"
         )
     inherited_fields: set[str] = set()
     inherited_annotations: set[str] = set()
+    inherited_schema_config = False
     for base in cls.__mro__[1:]:
-        inherited_annotations.update(inspect.get_annotations(base))
+        base_annotations = inspect.get_annotations(base)
+        inherited_annotations.update(base_annotations)
+        if (
+            not getattr(base, "__hinoki_schema__", False)
+            and "__schema_config__" in base_annotations
+        ):
+            inherited_schema_config = True
         if dataclasses.is_dataclass(base):
             inherited_fields.update(item.name for item in dataclasses.fields(base))
     if "dump" in annotations or "dump" in inherited_fields:
@@ -195,10 +213,32 @@ def validate_reserved_names(cls: type, annotations: dict[str, Any]) -> None:
             f"{cls.__name__}.dump: field name conflicts with the "
             "Schema.dump() method; rename the Python field"
         )
-    if tracking_names & (inherited_fields | inherited_annotations):
+    if tracking_names & (inherited_fields | inherited_annotations) or (
+        "__schema_config__" in inherited_fields or inherited_schema_config
+    ):
         raise RegistrationError(
             f"{cls.__name__}: supplied-field tracking metadata is reserved by Hinoki"
         )
+
+
+def resolve_schema_config(
+    cls: type, configured: SchemaConfig | _ConfigOmitted
+) -> SchemaConfig:
+    """Resolve one immutable config, requiring explicit multiple-base choices."""
+    if configured is not _CONFIG_UNSET:
+        if not isinstance(configured, SchemaConfig):
+            raise RegistrationError(f"{cls.__name__}: config must be a SchemaConfig")
+        return configured
+    inherited = {
+        getattr(base, "__schema_config__", SchemaConfig())
+        for base in cls.__bases__
+        if getattr(base, "__hinoki_schema__", False)
+    }
+    if len(inherited) > 1:
+        raise RegistrationError(
+            f"{cls.__name__}: Schema bases have conflicting configs; pass config="
+        )
+    return next(iter(inherited), SchemaConfig())
 
 
 def validate_normalizer_method(cls: type, method_name: str) -> None:
@@ -696,7 +736,8 @@ class Schema:
 
     ``class PostCreate(Schema): title: str`` becomes a frozen, keyword-only
     dataclass. ``PostCreate.validate(data)`` checks decoded JSON strictly:
-    no coercion, no unknown keys, and every problem reported with its path.
+    no coercion, unknown keys refused by default, and every problem reported
+    with its path.
     """
 
     __hinoki_schema__: ClassVar[bool] = True
@@ -710,9 +751,16 @@ class Schema:
     __source__: ClassVar[dict[str, Any]] = {}
     __derivation__: ClassVar[tuple[Any, ...] | None] = None
     __derived_model__: ClassVar[type | None] = None
+    __schema_config__: ClassVar[SchemaConfig] = SchemaConfig()
 
-    def __init_subclass__(cls, model: object = _NO_MODEL, **kwargs: object) -> None:
+    def __init_subclass__(
+        cls,
+        model: object = _NO_MODEL,
+        config: SchemaConfig | _ConfigOmitted = _CONFIG_UNSET,
+        **kwargs: object,
+    ) -> None:
         super().__init_subclass__(**kwargs)
+        resolved_config = resolve_schema_config(cls, config)
         custom_init = "__init__" in cls.__dict__
         cls.__source__ = class_source(cls)
         cls.__assigned_field_info__ = {
@@ -732,6 +780,7 @@ class Schema:
         cls.__normalizers__ = collect_normalizers(cls)
         annotations = inspect.get_annotations(cls)
         validate_reserved_names(cls, annotations)
+        cls.__schema_config__ = resolved_config
         for name in annotations:
             cls.apply_default(name)
         dataclasses.dataclass(frozen=True, kw_only=True)(cls)
@@ -1347,7 +1396,13 @@ def compile_native(root: type[Schema]) -> core.CompiledSchema:
             (name, spec.wire_name, node_of(spec.ftype, index_of, queue), spec.required)
             for name, spec in current.specs().items()
         ]
-        definitions.append((current, fields))
+        definitions.append(
+            (
+                current,
+                fields,
+                current.__schema_config__.extra is SchemaExtra.FORBID,
+            )
+        )
     return core.compile_schemas(
         definitions, 0, uuid.UUID, dt.datetime.fromisoformat, UNSET
     )

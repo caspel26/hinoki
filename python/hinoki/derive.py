@@ -78,7 +78,13 @@ def rebuild(cls: type[Schema], plan: Derivation) -> type[Schema]:
         )
     if class_cells:
         body["__classcell__"] = next(iter(class_cells.values()))
-    rebuilt: type[Schema] = type.__call__(type, cls.__name__, cls.__bases__, body)
+    rebuilt: type[Schema] = type.__call__(
+        type,
+        cls.__name__,
+        cls.__bases__,
+        body,
+        config=cls.__schema_config__,
+    )
     return rebuilt
 
 

@@ -21,7 +21,7 @@ class NoteOut(Schema):
     body: str
 ```
 
-* **Strict, no coercion.** `"1"` is not `1`; unknown keys are refused; every problem is reported with its path (capped at 50). Validation, instance construction and JSON serialisation run in Rust.
+* **Strict, no coercion.** `"1"` is not `1`; unknown keys are refused by default; every problem is reported with its path (capped at 50). Validation, instance construction and JSON serialisation run in Rust.
 * **Partial updates.** Declare `title: str | Unset = UNSET`: a field the client did not send stays `UNSET` and is left out of `dump()` and `to_dict()`, so `row.aupdate_from(patch)` writes only what was sent.
 * **Get data out.** `schema.to_dict()` gives Python values (UUID and datetime stay objects), `schema.dump()` the JSON-compatible form; both skip `UNSET`.
 * **From rows.** `NoteOut.from_model(row, author_name=row.author.name)` converts one row; `NoteOut.from_models(rows)` eagerly converts a synchronous iterable to a list. Relations must already be loaded (nothing fetches lazily). A derived schema keeps its selected fields. Conversion reads the expected attributes rather than checking the concrete model class; missing attributes raise `AttributeError`. Values passed as `**extra` are shared across rows.
@@ -50,6 +50,29 @@ assert person.to_dict() == {"first_name": "Aki"}
 ```
 
 An assigned declaration such as `display_name: str = Field(alias="displayName")` is also supported, including alongside `default_factory`. Aliases must be unique within a schema and cannot contain `.`, `[` or `]`, which are reserved by error paths. Model columns do not accept wire aliases; put API naming on the `Schema`.
+
+## Class configuration
+
+`SchemaConfig` is an immutable typed configuration passed in the class declaration. By default, unknown string keys in decoded input are rejected. `SchemaExtra.IGNORE` discards them while keeping declared fields strict:
+
+```python
+from hinoki import Schema, SchemaConfig, SchemaExtra
+
+
+class VendorEvent(Schema, config=SchemaConfig(extra=SchemaExtra.IGNORE)):
+    event_id: str
+    revision: int
+
+
+event = VendorEvent.validate(
+    {"event_id": "evt-1", "revision": 2, "vendor_context": {"trace": "abc"}}
+)
+assert event.dump() == {"event_id": "evt-1", "revision": 2}
+```
+
+Ignored values are not stored as attributes or emitted by `dump()`. A wrong type, failed constraint or missing required field among the declared fields still raises `ValidationError` before either a sync or async handler runs. This option applies to decoded `Schema.validate(...)` input and request bodies. Generated constructor keywords and explicit `from_model(..., **extra)` overrides keep their normal strict signatures. Each nested `Schema` uses its own configuration.
+
+An alias remains the only accepted wire name. If `given_name` has alias `givenName`, sending only `given_name` is ignored as an extra and the required `givenName` field remains missing; sending both names is still a duplicate-field error. OpenAPI marks an IGNORE schema with `additionalProperties: true`, while its response serialization still includes only declared fields.
 
 `Schema(...)` validates the final Python values immediately and raises `ValidationError` for invalid values. Pass Python objects such as `UUID`, timezone-aware `datetime` and nested `Schema` instances. `Schema.validate(decoded_data)` is the wire-input path: it accepts JSON-compatible values, resolves aliases and returns field errors using wire names. Request body binding uses that path before calling the handler. `from_model()` also validates the constructed Schema; naive datetimes returned by database drivers remain unchanged and are allowed on that model-conversion path. Return annotations describe OpenAPI and serialization; Hinoki does not validate handler return values at runtime.
 
