@@ -17,6 +17,8 @@ pub enum Early {
     Overloaded,
     NotFound,
     MethodNotAllowed,
+    InvalidQuery,
+    NotAcceptable,
     /// A missing or repeated `Host` on HTTP/1.1 (RFC 9112 section 3.2).
     BadHost,
 }
@@ -29,6 +31,8 @@ impl Early {
             Early::NotReady | Early::Overloaded => 503,
             Early::NotFound => 404,
             Early::MethodNotAllowed => 405,
+            Early::InvalidQuery => 400,
+            Early::NotAcceptable => 406,
             Early::BadHost => 400,
         }
     }

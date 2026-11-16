@@ -32,6 +32,29 @@ from hinoki.runtime.lifespan import Hook
 from hinoki.settings import AppSettings, DocsSettings, Settings
 from hinoki.utils import Clock, _read_utc, utc_now
 
+
+def check_startup_url(value: str | None) -> str | None:
+    """Validate an opt-in, literal ASCII path for the startup probe."""
+    if value is None:
+        return None
+    allowed = frozenset(
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/-._~"
+    )
+    if (
+        not isinstance(value, str)
+        or not value.startswith("/")
+        or value == "/"
+        or "//" in value
+        or any(char not in allowed for char in value)
+        or any(part in {".", ".."} for part in value.split("/")[1:])
+    ):
+        raise RegistrationError(
+            "startup_url must be a literal ASCII path without query, fragment, "
+            "parameters, escapes, or dot segments"
+        )
+    return value
+
+
 log = logging.getLogger("hinoki")
 
 
@@ -87,6 +110,10 @@ class Hinoki:
     ``ModuleContext`` (``async def`` or ``def``). Startup hooks run once per
     worker after the modules have started; shutdown hooks run before they are
     closed, and only after a startup that completed.
+
+    ``startup_url`` optionally reserves a public GET/HEAD endpoint that returns
+    ``{"status": "ok"}`` after worker startup. It reports startup completion,
+    not application, database, or event-loop health.
     """
 
     def __init__(
@@ -98,6 +125,7 @@ class Hinoki:
         commands: Sequence[Command | type[Command]] = (),
         on_startup: Sequence[Hook] = (),
         on_shutdown: Sequence[Hook] = (),
+        startup_url: str | None = None,
         runtime: RuntimeConfig | None = None,
         title: str | None = None,
         version: str | None = None,
@@ -111,6 +139,7 @@ class Hinoki:
     ) -> None:
         if isinstance(settings, type) and issubclass(settings, Settings):
             settings = settings.load()  # a class: read its variables now
+        self._startup_url = check_startup_url(startup_url)
         # An explicit argument wins over ``settings``, which wins over the default.
         built_in = settings if isinstance(settings, AppSettings) else None
         self._timezone = ZoneInfo(built_in.timezone) if built_in else UTC
@@ -206,6 +235,11 @@ class Hinoki:
     @property
     def routes(self) -> tuple[Route, ...]:
         return tuple(self._routes)
+
+    @property
+    def startup_url(self) -> str | None:
+        """The fixed startup-probe path, if one was configured."""
+        return self._startup_url
 
     @property
     def bindings(self) -> tuple[Binding, ...]:
