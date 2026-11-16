@@ -454,6 +454,50 @@ no coercion, no unknown keys, and every problem reported with its path.</p>
 
 
 
+<h3 id="hinoki.schema.Schema.__normalizers__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">__normalizers__</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.schema.Schema.__normalizers__" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">__normalizers__</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.schema.Schema.__graph_normalizers__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">__graph_normalizers__</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.schema.Schema.__graph_normalizers__" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">__graph_normalizers__</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="hinoki.schema.Schema.__source__" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">__source__</span>
 
@@ -603,6 +647,30 @@ no coercion, no unknown keys, and every problem reported with its path.</p>
 </code></pre></div>
 
     <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.schema.Schema.validate_normalizers" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">validate_normalizers</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.schema.Schema.validate_normalizers" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">validate_normalizers</span><span class="p">(</span><span class="n">specs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">FieldSpec</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Check that registered normalizers have a precise typed target.</p>
 
 
     </div>
@@ -1009,6 +1077,28 @@ operation, not in a schema.</p>
 <div class="doc doc-object doc-function">
 
 
+<h2 id="hinoki.schema.field_normalize" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.schema.field_normalize</span>
+
+
+<a href="#hinoki.schema.field_normalize" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">field_normalize</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">F</span><span class="p">],</span> <span class="n">F</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Mark a typed field canonicalizer: <code>def trim(self, value: str) -&gt; str</code>.</p>
+<p>Methods run synchronously after structural validation and return a
+replacement string; raise <code>Invalid</code> only from a check hook to reject.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h2 id="hinoki.schema.object_check" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">hinoki.schema.object_check</span>
 
@@ -1139,15 +1229,15 @@ every field check passed or failed (all problems are reported together).</p>
           
           
             <ul><li><a href="#hinoki.schema.Schema">Schema</a>
-            <ul><li><a href="#hinoki.schema.Schema.__hinoki_schema__">__hinoki_schema__</a></li><li><a href="#hinoki.schema.Schema.__specs__">__specs__</a></li><li><a href="#hinoki.schema.Schema.__assigned_field_info__">__assigned_field_info__</a></li><li><a href="#hinoki.schema.Schema.__native__">__native__</a></li><li><a href="#hinoki.schema.Schema.__native_dump__">__native_dump__</a></li><li><a href="#hinoki.schema.Schema.__checks__">__checks__</a></li><li><a href="#hinoki.schema.Schema.__source__">__source__</a></li><li><a href="#hinoki.schema.Schema.__derivation__">__derivation__</a></li><li><a href="#hinoki.schema.Schema.__derived_model__">__derived_model__</a></li><li><a href="#hinoki.schema.Schema.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.schema.Schema.apply_default">apply_default</a></li><li><a href="#hinoki.schema.Schema.specs">specs</a></li><li><a href="#hinoki.schema.Schema.build_specs">build_specs</a></li><li><a href="#hinoki.schema.Schema.native_schema">native_schema</a></li><li><a href="#hinoki.schema.Schema.validate">validate</a></li><li><a href="#hinoki.schema.Schema._validate_instance">_validate_instance</a></li><li><a href="#hinoki.schema.Schema.fields">fields</a></li><li><a href="#hinoki.schema.Schema.to_dict">to_dict</a></li><li><a href="#hinoki.schema.Schema.from_models">from_models</a></li><li><a href="#hinoki.schema.Schema.from_model">from_model</a></li><li><a href="#hinoki.schema.Schema.dump">dump</a></li></ul>
-          </li><li><a href="#hinoki.fields.Field">Field</a></li><li><a href="#hinoki.schema.Invalid">Invalid</a></li><li><a href="#hinoki.schema.Unset">Unset</a></li><li><a href="#hinoki.schema.field_check">field_check</a></li><li><a href="#hinoki.schema.object_check">object_check</a></li><li><a href="#hinoki.errors.ValidationError">ValidationError</a></li><li><a href="#hinoki.fields.UNSET">UNSET</a></li><li><a href="#hinoki.derive.derive">derive</a></li></ul>
+            <ul><li><a href="#hinoki.schema.Schema.__hinoki_schema__">__hinoki_schema__</a></li><li><a href="#hinoki.schema.Schema.__specs__">__specs__</a></li><li><a href="#hinoki.schema.Schema.__assigned_field_info__">__assigned_field_info__</a></li><li><a href="#hinoki.schema.Schema.__native__">__native__</a></li><li><a href="#hinoki.schema.Schema.__native_dump__">__native_dump__</a></li><li><a href="#hinoki.schema.Schema.__checks__">__checks__</a></li><li><a href="#hinoki.schema.Schema.__normalizers__">__normalizers__</a></li><li><a href="#hinoki.schema.Schema.__graph_normalizers__">__graph_normalizers__</a></li><li><a href="#hinoki.schema.Schema.__source__">__source__</a></li><li><a href="#hinoki.schema.Schema.__derivation__">__derivation__</a></li><li><a href="#hinoki.schema.Schema.__derived_model__">__derived_model__</a></li><li><a href="#hinoki.schema.Schema.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.schema.Schema.apply_default">apply_default</a></li><li><a href="#hinoki.schema.Schema.specs">specs</a></li><li><a href="#hinoki.schema.Schema.build_specs">build_specs</a></li><li><a href="#hinoki.schema.Schema.validate_normalizers">validate_normalizers</a></li><li><a href="#hinoki.schema.Schema.native_schema">native_schema</a></li><li><a href="#hinoki.schema.Schema.validate">validate</a></li><li><a href="#hinoki.schema.Schema._validate_instance">_validate_instance</a></li><li><a href="#hinoki.schema.Schema.fields">fields</a></li><li><a href="#hinoki.schema.Schema.to_dict">to_dict</a></li><li><a href="#hinoki.schema.Schema.from_models">from_models</a></li><li><a href="#hinoki.schema.Schema.from_model">from_model</a></li><li><a href="#hinoki.schema.Schema.dump">dump</a></li></ul>
+          </li><li><a href="#hinoki.fields.Field">Field</a></li><li><a href="#hinoki.schema.Invalid">Invalid</a></li><li><a href="#hinoki.schema.Unset">Unset</a></li><li><a href="#hinoki.schema.field_check">field_check</a></li><li><a href="#hinoki.schema.field_normalize">field_normalize</a></li><li><a href="#hinoki.schema.object_check">object_check</a></li><li><a href="#hinoki.errors.ValidationError">ValidationError</a></li><li><a href="#hinoki.fields.UNSET">UNSET</a></li><li><a href="#hinoki.derive.derive">derive</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.4</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 21:15:18 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 03:58:32 UTC">November 16, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/schemas.md">Edit on GitHub</a></dd></div>
         </dl>

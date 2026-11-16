@@ -405,7 +405,7 @@
 <li><strong>From rows.</strong> <code>NoteOut.from_model(row, author_name=row.author.name)</code> converts one row; <code>NoteOut.from_models(rows)</code> eagerly converts a synchronous iterable to a list. Relations must already be loaded (nothing fetches lazily). A derived schema keeps its selected fields. Conversion reads the expected attributes rather than checking the concrete model class; missing attributes raise <code>AttributeError</code>. Values passed as <code>**extra</code> are shared across rows.</li>
 <li><strong>Into a row.</strong> <code>await Note.acreate(data, author_id=me)</code> and <code>await row.aupdate_from(patch)</code>: keyword values set by the server win over the client's, and a schema can never carry the primary key.</li>
 </ul>
-<p><code>Schema.validate(data)</code> reports structural problems together. Values are not coerced. Declare field constraints with <code>Field(...)</code>; use <code>@field_check</code> and <code>@object_check</code> for synchronous checks that depend on validated schema values.</p>
+<p><code>Schema.validate(data)</code> reports structural problems together. Values are not coerced. Declare field constraints with <code>Field(...)</code>; use <code>@field_normalize</code> for narrow, typed string canonicalization and <code>@field_check</code>/<code>@object_check</code> for synchronous rejection checks.</p>
 <h2 id="wire-aliases">Wire aliases<a class="headerlink" href="#wire-aliases" title="Permanent link">&para;</a></h2>
 <p>Use <code>Field(alias=...)</code> when the public JSON name should differ from the Python attribute. The alias is the only accepted input key; sending both names is an error. <code>dump()</code> writes aliases, including in nested schemas and lists, while <code>to_dict()</code> keeps Python attribute names. Validation errors and OpenAPI properties use the wire names. A custom check's default field path is translated to its alias; an explicit <code>Invalid(path=...)</code> is already a wire path.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
@@ -481,7 +481,14 @@
 <p><code>Field(...)</code> provides built-in structural constraints. <code>format=</code> accepts <code>email</code>, <code>url</code>, <code>slug</code> or <code>hex_color</code> and is shorthand for a regular-expression pattern. Numeric bounds apply to numbers; length limits apply to strings and collections; <code>one_of</code> restricts a value to the listed choices.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Invalid</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">field_check</span><span class="p">,</span> <span class="n">object_check</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Field</span><span class="p">,</span>
+    <span class="n">Invalid</span><span class="p">,</span>
+    <span class="n">Schema</span><span class="p">,</span>
+    <span class="n">field_check</span><span class="p">,</span>
+    <span class="n">field_normalize</span><span class="p">,</span>
+    <span class="n">object_check</span><span class="p">,</span>
+<span class="p">)</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Registration</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
@@ -489,6 +496,10 @@
     <span class="n">email</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">"email"</span><span class="p">)]</span>
     <span class="n">password</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">12</span><span class="p">)]</span>
     <span class="n">confirmation</span><span class="p">:</span> <span class="nb">str</span>
+
+    <span class="nd">@field_normalize</span><span class="p">(</span><span class="s2">"email"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">lowercase_email</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">value</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
 
     <span class="nd">@field_check</span><span class="p">(</span><span class="s2">"password"</span><span class="p">)</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">reject_common_password</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -504,7 +515,8 @@
                 <span class="n">path</span><span class="o">=</span><span class="s2">"confirmation"</span><span class="p">,</span>
             <span class="p">)</span>
 </code></pre></div>
-<p>Structural checks run first and reject wrong types, missing required values and unknown keys. If they pass, field checks receive validated values and object checks can compare fields. Raise <code>Invalid(code, message)</code> to reject a value; checks do not transform it. All applicable custom-check failures are returned together in <code>errors.ValidationError.details</code>. They must be synchronous and side-effect free: do not query the database or call external services. Put checks that depend on current data in an operation.</p>
+<p>Structural validation runs first and rejects wrong types, missing required values, unknown keys and failed constraints. <code>@field_normalize("email")</code> then receives a valid string and returns its canonical form; the result is checked against the same <code>Field(...)</code> constraints before it is applied. The same hook runs for <code>Schema.validate(...)</code>, direct <code>Schema(...)</code> construction and <code>from_model(...)</code>. It cannot rescue an input that failed the initial validation. Normalizers must be typed synchronous methods returning <code>str</code>; they cannot perform I/O or reject input.</p>
+<p>After normalization, field checks receive final values and object checks can compare final fields. Raise <code>Invalid(code, message)</code> to reject a value; these checks return <code>None</code> and do not transform it. Non-<code>None</code> returns and async check methods are programming errors. Applicable custom-check failures are returned together in <code>errors.ValidationError.details</code>. Checks must be side-effect free; do not query the database or call external services. Put checks that depend on current data in an operation.</p>
 <p>These decorators validate a <code>Schema</code> instance passed through <code>Schema.validate</code>; they are not run on a <code>Model</code>. Model fields have separate checks that run before ORM writes, described in <a href="../models/#model-field-constraints-and-validators">Model field constraints and validators</a>.</p>
 <p>See also the <a href="../glossary/">glossary</a> for what "schema" does and does not mean in these docs.</p>
         
@@ -536,8 +548,8 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 03:01:41 UTC">November 16, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>6 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 03:58:32 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

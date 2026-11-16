@@ -252,10 +252,18 @@
       <article class="prose" style="--sheet: '2.8'">
         <p class="kicker" data-search-exclude>2.8 · Tutorial</p>
         <h1 id="7-validate-input">7. Validate input<a class="headerlink" href="#7-validate-input" title="Permanent link">&para;</a></h1>
-<p><code>Schema</code> validation has two stages. <code>Field(...)</code> declares built-in type and value constraints. Custom synchronous checks add rules that depend on one field or compare several fields. Both run before a validated schema reaches an operation.</p>
+<p><code>Schema</code> validation combines built-in type and value constraints with optional synchronous normalization and rejection checks. Constraints reject invalid input first; normalizers canonicalize valid strings; checks can then reject values based on one field or compare several fields. All of this happens before a validated schema reaches an operation.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Invalid</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">errors</span><span class="p">,</span> <span class="n">field_check</span><span class="p">,</span> <span class="n">object_check</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Field</span><span class="p">,</span>
+    <span class="n">Invalid</span><span class="p">,</span>
+    <span class="n">Schema</span><span class="p">,</span>
+    <span class="n">errors</span><span class="p">,</span>
+    <span class="n">field_check</span><span class="p">,</span>
+    <span class="n">field_normalize</span><span class="p">,</span>
+    <span class="n">object_check</span><span class="p">,</span>
+<span class="p">)</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Registration</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
@@ -266,6 +274,10 @@
     <span class="n">email</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">"email"</span><span class="p">)]</span>
     <span class="n">password</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">12</span><span class="p">)]</span>
     <span class="n">confirmation</span><span class="p">:</span> <span class="nb">str</span>
+
+    <span class="nd">@field_normalize</span><span class="p">(</span><span class="s2">"email"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">lowercase_email</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">value</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
 
     <span class="nd">@field_check</span><span class="p">(</span><span class="s2">"password"</span><span class="p">)</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">reject_common_password</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -291,6 +303,7 @@
     <span class="p">}</span>
 <span class="p">)</span>
 <span class="k">assert</span> <span class="n">valid</span><span class="o">.</span><span class="n">username</span> <span class="o">==</span> <span class="s2">"mari_23"</span>
+<span class="k">assert</span> <span class="n">valid</span><span class="o">.</span><span class="n">email</span> <span class="o">==</span> <span class="s2">"mari@example.test"</span>
 <span class="k">try</span><span class="p">:</span>
     <span class="n">Registration</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span>
         <span class="p">{</span>
@@ -304,8 +317,9 @@
     <span class="k">for</span> <span class="n">detail</span> <span class="ow">in</span> <span class="n">error</span><span class="o">.</span><span class="n">details</span><span class="p">:</span>
         <span class="nb">print</span><span class="p">(</span><span class="n">detail</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">detail</span><span class="o">.</span><span class="n">code</span><span class="p">,</span> <span class="n">detail</span><span class="o">.</span><span class="n">message</span><span class="p">)</span>
 </code></pre></div>
-<p>The invalid call reports a <code>common_password</code> error on <code>password</code> and a <code>password_mismatch</code> error on <code>confirmation</code>. <code>min_length</code>, <code>max_length</code> and <code>pattern</code> are built-in field constraints. <code>format="email"</code> is a ready-made pattern; <code>url</code>, <code>slug</code> and <code>hex_color</code> are also available. Numeric fields can use <code>gt</code>, <code>ge</code>, <code>lt</code> and <code>le</code>, and <code>one_of</code> restricts a value to a fixed set. An invalid built-in constraint prevents custom checks from running.</p>
-<p><code>@field_check("password")</code> receives the already validated value. <code>@object_check</code> receives the complete schema and can compare fields. Raise <code>Invalid(code, message)</code> to report a failure; the method does not transform the value. Checks are synchronous, have no I/O, and all applicable failures are collected. Structural failures such as a missing field or wrong type are reported first. A check that needs current database state, such as whether an email is already registered, belongs in an operation where it can be made race-safe.</p>
+<p>The invalid call reports a <code>common_password</code> error on <code>password</code> and a <code>password_mismatch</code> error on <code>confirmation</code>. <code>min_length</code>, <code>max_length</code> and <code>pattern</code> are built-in field constraints. <code>format="email"</code> is a ready-made pattern; <code>url</code>, <code>slug</code> and <code>hex_color</code> are also available. Numeric fields can use <code>gt</code>, <code>ge</code>, <code>lt</code> and <code>le</code>, and <code>one_of</code> restricts a value to a fixed set. An invalid built-in constraint prevents normalizers and custom checks from running.</p>
+<p><code>@field_normalize("email")</code> receives a structurally valid string and must return a <code>str</code>. Its result is checked against the same constraints before it is applied. Normalization also runs when you manually construct a <code>Schema(...)</code> or call <code>from_model(...)</code>; it does not run twice when an existing nested Schema is passed to a new parent. Inputs that fail the original constraints cannot be rescued by normalization.</p>
+<p><code>@field_check("password")</code> receives the final value. <code>@object_check</code> receives the complete schema and can compare final fields. Raise <code>Invalid(code, message)</code> to report a failure; checks must return <code>None</code> and do not transform the value. Normalizers and checks are synchronous, have no I/O, and run the same way before both sync and async handlers. A check that needs current database state, such as whether an email is already registered, belongs in an operation where it can be made race-safe.</p>
 <h2 id="validate-values-at-model-write-boundaries">Validate values at Model write boundaries<a class="headerlink" href="#validate-values-at-model-write-boundaries" title="Permanent link">&para;</a></h2>
 <p>Use the same built-in constraints on Model fields when data can be written outside an HTTP Schema, such as from a management command or the admin. Custom callbacks are synchronous and raise <code>ValueError</code> to refuse a value:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
@@ -354,8 +368,8 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.8</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 17:34:09 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>2 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 03:58:32 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/7-validation.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
