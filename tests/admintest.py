@@ -36,6 +36,7 @@ from hinoki.admin.components import (
     plain_text,
     sparkline,
 )
+from hinoki.admin.formpages import check_references, option_lists, render_fields
 from hinoki.admin.forms import (
     FieldProblem,
     FormField,
@@ -49,7 +50,7 @@ from hinoki.admin.forms import (
     to_datetime,
 )
 from hinoki.admin.lists import apply_state, matching, pagination_for, table_head
-from hinoki.admin.site import ListState
+from hinoki.admin.site import ListState, Site
 from hinoki.admin.templates import UI, Raw, TemplateError, Templates, escape
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import RegistrationError
@@ -557,6 +558,47 @@ def test_admin_list_helpers_cover_single_search_ordering_and_pagination_gaps() -
         pagination_for(site, "notes", 10, 1, 20),
     )
     assert any(label == "…" for _, label, _current in links)
+
+
+async def test_admin_form_helpers_cover_large_and_unregistered_relations() -> None:
+    owner_field = FormField(
+        "owner_id", "Owner", "uuid", True, False, False, None, UUID, references=Owner
+    )
+
+    class OversizedQuery:
+        async def limit(self, count: int) -> list[object]:
+            assert count == 201
+            return [object()] * count
+
+    related = SimpleNamespace(
+        model=Owner,
+        can=lambda _principal, _action: True,
+        queryset=lambda _principal: OversizedQuery(),
+    )
+    admin = SimpleNamespace(
+        models={"owners": related}, templates=Templates(), timezone=datetime.UTC
+    )
+    site = cast(Site, SimpleNamespace(admin=admin, principal=object()))
+    fields, options = await option_lists(site, [owner_field])
+    assert fields == [owner_field] and options == {}
+
+    missing_admin = SimpleNamespace(
+        models={}, templates=Templates(), timezone=datetime.UTC
+    )
+    absent_site = cast(Site, SimpleNamespace(admin=missing_admin, principal=object()))
+    assert (
+        await check_references(absent_site, [owner_field], {"owner_id": uuid4()}) == {}
+    )
+
+
+def test_admin_fieldsets_without_renderable_fields_are_skipped() -> None:
+    admin = SimpleNamespace(templates=Templates(), timezone=datetime.UTC)
+    site = cast(Site, SimpleNamespace(admin=admin))
+    entry = cast(
+        ModelAdmin[Any],
+        SimpleNamespace(fieldsets=(Fieldset("Empty", ("not_a_field",)),)),
+    )
+    assert str(render_fields(site, entry, [], {}, {}, {})) == ""
 
 
 def test_unchanged_fields_are_never_rewritten_on_edit() -> None:
