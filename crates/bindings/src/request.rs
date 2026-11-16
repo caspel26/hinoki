@@ -1118,6 +1118,12 @@ mod tests {
     }
 
     #[test]
+    fn path_parameters_decode_without_form_query_rules() {
+        assert_eq!(decode_path_parameter("a%2Fb+c"), Some("a/b+c".into()));
+        assert_eq!(decode_path_parameter("bad%ff"), None);
+    }
+
+    #[test]
     fn query_rejects_non_ascii_and_bad_utf8() {
         assert!(parse_query("é=1".as_bytes(), 9).is_err());
         assert!(parse_query(b"a=%ff", 9).is_err());
