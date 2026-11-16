@@ -601,6 +601,62 @@ def test_admin_fieldsets_without_renderable_fields_are_skipped() -> None:
     assert str(render_fields(site, entry, [], {}, {}, {})) == ""
 
 
+def test_modeladmin_display_and_config_fallbacks() -> None:
+    admin = NoteAdmin()
+    admin.model = Note
+    row = Note(id=uuid4(), title="", done=False, rank=None)
+    assert admin.title_of(row) == f"Note {row.id}"
+    assert admin.skipped() == frozenset()
+
+
+def test_modeladmin_rejects_invalid_bulk_action_shapes_and_text() -> None:
+    class ListActions(ModelAdmin[Note]):
+        bulk_actions: ClassVar[Any] = []
+
+    class WrongItem(ModelAdmin[Note]):
+        bulk_actions = (object(),)  # type: ignore[assignment]
+
+    class BlankLabel(ModelAdmin[Note]):
+        bulk_actions = (BulkAction("publish", " ", "Confirm?", mark_notes_done),)
+
+    class BlankConfirmation(ModelAdmin[Note]):
+        bulk_actions = (BulkAction("publish", "Publish", " ", mark_notes_done),)
+
+    for admin_class, reason in (
+        (ListActions, "bulk_actions must be a tuple"),
+        (WrongItem, "bulk_actions must contain BulkAction values"),
+        (BlankLabel, "label must contain"),
+        (BlankConfirmation, "confirmation must contain"),
+    ):
+        admin = Admin(access=staff, secret=SECRET)
+        with pytest.raises(RegistrationError, match=reason):
+            admin.register(Note, admin_class, slug="notes")
+
+
+def test_modeladmin_rejects_unknown_fieldset_columns() -> None:
+    class WrongFieldset(ModelAdmin[Note]):
+        fieldsets = (Fieldset("Details", ("not_a_column",)),)
+
+    with pytest.raises(RegistrationError, match="fieldset 'Details' names"):
+        Admin(access=staff, secret=SECRET).register(Note, WrongFieldset, slug="notes")
+
+
+@needs_database
+async def test_modeladmin_missing_scoped_rows_raise_not_found(
+    site: tuple[Client, Database],
+) -> None:
+    _, database = site
+    admin = NoteAdmin()
+    admin.model = Note
+    row = Note(id=uuid4(), title="missing")
+    principal = Caller(id="admin", user="admin")
+    with use_database(database):
+        with pytest.raises(Note.NotFound, match="Note not found"):
+            await admin.save({"title": "updated"}, principal, row)
+        with pytest.raises(Note.NotFound, match="Note not found"):
+            await admin.remove(row, principal)
+
+
 def test_unchanged_fields_are_never_rewritten_on_edit() -> None:
     fields = fields_for(Note, creating=False)
     due = datetime.datetime(2026, 11, 13, 9, 30, 15, 123456, tzinfo=datetime.UTC)
