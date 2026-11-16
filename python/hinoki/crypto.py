@@ -178,9 +178,6 @@ def check_key_set(keys: Sequence[JWTKey]) -> None:
     kids = [k.kid for k in keys]
     if len(keys) > 1 and (None in kids or len(set(kids)) != len(kids)):
         raise ValueError("with several keys every key needs a distinct kid")
-    signer = next((k for k in keys if not k.public), None)
-    if len(keys) > 1 and signer is not None and signer.kid is None:
-        raise ValueError("the signing key needs a kid")
 
 
 class JWTAuth[T](BearerAuth[T]):
