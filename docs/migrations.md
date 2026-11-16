@@ -16,7 +16,14 @@ uv run hinoki migrations plan --name add-published
 uv run hinoki migrations plan --app billing --name add-invoice-index
 ```
 
-The manifest must register the selected app. A single-app project defaults to that app; in a multi-app project, `plan` requires `--app`. The planner targets the local SQLite default unless a URL is provided through `HINOKI_DATABASE_URL` or `--database`. It writes a numbered `.sql` file and a matching `.state.json` file into the registered migration package. Numbering and a stable slug derived from the first schema change are automatic; an optional `--name` replaces only that slug. Review both files before applying the change. To inspect a plan without writing files, add `--dry-run`. Cross-app model references require an explicit `requires` dependency in `hinoki.toml`; this lets Hinoki validate references and order migrations without assigning another app's tables to the current app's migration state.
+The manifest must register the selected app. A single-app project defaults to that app; in a multi-app project, writing a plan requires `--app`. Read-only `--dry-run` and `--check` without `--app` cover every registered app in dependency order. The planner targets the local SQLite default unless a URL is provided through `HINOKI_DATABASE_URL` or `--database`. It writes a numbered `.sql` file and a matching `.state.json` file into the registered migration package. Numbering and a stable slug derived from the first schema change are automatic; an optional `--name` replaces only that slug for a focused plan. Review both files before applying the change. Cross-app model references require an explicit `requires` dependency in `hinoki.toml`; this lets Hinoki validate references and order migrations without assigning another app's tables to the current app's migration state.
+
+`--dry-run` previews ordinary destructive changes without `--allow-destructive`
+and writes no files. An all-app preview is hypothetical: it can show a child
+app change against a prerequisite's current candidate models before that
+prerequisite has a recorded migration. Do not treat displayed plans as ready to
+apply in that order. An all-app preview cannot use `--name`; select one app to
+preview a named migration.
 
 ### Cross-app migration safety
 
@@ -27,13 +34,15 @@ logical type must be compatible. If the prerequisite has not been planned yet,
 plan and review it first. The prerequisite migration does not need to have been
 applied to the database before the dependent app can be planned.
 
-Hinoki also refuses to generate a parent table or referenced-column teardown
-while any recorded state snapshot of another app still refers to it. This
-conservative guard also applies with `--allow-destructive`; it prevents a
-generated parent drop from preceding a child foreign-key removal. Perform
-cross-app teardowns as reviewed, separately deployed phases: remove and apply
-the child reference first, then prepare and apply the parent teardown. The
-planner does not infer live database safety from migration files.
+Hinoki also refuses to plan a parent table or referenced-column teardown while
+any recorded state snapshot of another app still refers to it. This guard
+applies to focused/all-app plans, `--dry-run`, and `--check`, and cannot be
+overridden with `--allow-destructive`. An all-app command fails without
+printing partial diffs. This prevents a generated parent drop from preceding a
+child foreign-key removal. Perform cross-app teardowns as reviewed, separately
+deployed phases: remove and apply the child reference first, then prepare and
+apply the parent teardown. The planner does not infer live database safety
+from migration files.
 
 The state file stores logical column types that are stable across backends; the
 generated SQL uses the selected backend's types. Existing state files that
@@ -50,23 +59,22 @@ for display-name overrides and the fallback naming rules.
 
 ## Check migration drift
 
-To check that model changes have a committed migration file in CI, run:
+To check that model changes have a migration file in CI, run:
 
 ```sh
 uv run hinoki migrations plan --check
 ```
 
 It exits `1` when operations are pending, including destructive operations,
-and `0` when the model state matches the latest migration state file. It does
-not write migration files or connect to a database. It imports the selected
-app's migration module and every registered app's model module (cross-app
-foreign keys require the other models for validation), so those imports must
-be safe for a CI check. In a multi-app project, pass `--app NAME` and run the
-check once for each registered app; without a selection, it asks for `--app`
-just like `plan`. This check concerns file state only. Use `migrations status`
-to compare the files with a live database's applied migration ledger.
-`--dry-run` remains a preview that prints operations and exits successfully
-when changes are pending.
+and `0` when every selected app matches its latest migration state file. It
+does not write migration files or connect to a database. It imports registered
+model and migration modules (cross-app foreign keys require every model module),
+so those imports must be safe in CI. In a multi-app project, no `--app` checks
+every app in dependency order; `--app NAME` checks one app and its
+prerequisites. This check concerns file state only. Use `migrations status` to
+compare files with a live database's applied migration ledger. `--dry-run`
+without `--app` previews every registered app and exits successfully when
+changes are pending.
 
 For example, `billing` can depend on `accounts`:
 
