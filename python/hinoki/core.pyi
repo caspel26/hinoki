@@ -51,7 +51,7 @@ def serialize_instance(
     by_alias: bool,
 ) -> dict[str, Any]: ...
 def compile_schemas(
-    definitions: list[tuple[type, list[tuple[str, str, tuple[Any, ...], bool]]]],
+    definitions: list[tuple[type, list[tuple[str, str, tuple[Any, ...], bool]], bool]],
     root: int,
     uuid_class: type,
     from_iso: Any,
