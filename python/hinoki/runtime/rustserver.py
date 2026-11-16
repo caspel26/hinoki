@@ -116,7 +116,7 @@ class RustWorker:
         body_read_timeout: float = 10.0,
         backlog: int = 1024,
         listener_fd: int | None = None,
-        supervised: bool = False,
+        parent: int | None = None,
     ) -> None:
         self.adapter = app.asgi()
         self.pipeline = self.adapter.pipeline
@@ -129,8 +129,9 @@ class RustWorker:
         # An inherited listening descriptor (a supervisor owns the socket); the
         # native server takes it over. Without one, the worker binds itself.
         self.listener_fd = listener_fd
-        self.supervised = supervised
-        self.parent = os.getppid()
+        # The pid of the supervisor that started this worker, if any: the worker
+        # stops when its parent is no longer that process.
+        self.parent = parent
         self.timer: asyncio.TimerHandle | None = None
         # Starts not ready; the lifespan startup flips it.
         self.core = build_server_core(self.pipeline)
@@ -170,6 +171,7 @@ class RustWorker:
                 # leaves nothing listening.
                 listener = open_listener(self.host, self.port, self.backlog)
                 self.listener_fd = listener.detach()
+            fd, self.listener_fd = self.listener_fd, None  # taken, even on failure
             server = core.RustServer.start(
                 self.core,
                 self.host,
@@ -180,7 +182,7 @@ class RustWorker:
                 runtime.max_header_bytes,
                 # Below the request timeout, or a stalled body would be a 504.
                 min(self.body_read_timeout, runtime.request_timeout / 2),
-                self.listener_fd,
+                fd,
             )
         except BaseException:
             await self._lifespan("shutdown")
@@ -188,7 +190,6 @@ class RustWorker:
             raise
         self.server = server
         self.address = (self.host, server.port)
-        self.listener_fd = None  # the native server owns it now
         self.core.set_ready(True)
         loop = asyncio.get_running_loop()
         loop.add_reader(server.wake_fd, self._wake, server)
@@ -196,8 +197,14 @@ class RustWorker:
         return server.port
 
     def _tick(self) -> None:
-        self.housekeeping()
-        self.timer = asyncio.get_running_loop().call_later(HOUSEKEEPING, self._tick)
+        """One pass, then the next: a failing pass must not end the chain (it
+        also detects a dead supervisor)."""
+        try:
+            self.housekeeping()
+        except Exception:
+            log.exception("housekeeping failed")
+        finally:
+            self.timer = asyncio.get_running_loop().call_later(HOUSEKEEPING, self._tick)
 
     def housekeeping(self) -> None:
         """Once a second: report invalid trusted request ids that native
@@ -210,7 +217,7 @@ class RustWorker:
                 "answered requests)",
                 ignored,
             )
-        if self.supervised and os.getppid() != self.parent:
+        if self.parent is not None and os.getppid() != self.parent:
             log.error("the supervisor is gone; stopping")
             self.stopping.set()
 
@@ -295,6 +302,10 @@ class RustWorker:
             self.timer.cancel()
             self.timer = None
         try:
+            self.housekeeping()  # the last second's counts
+        except Exception:
+            log.exception("housekeeping failed")
+        try:
             aborted = await server.shutdown()
         finally:
             asyncio.get_running_loop().remove_reader(server.wake_fd)
@@ -310,9 +321,9 @@ class RustWorker:
         await asyncio.gather(*self.tasks, return_exceptions=True)
 
     def _ignore_signal(self) -> None:
-        """A supervised worker leaves SIGINT to its supervisor: a terminal
-        Ctrl-C reaches the whole process group, and a second signal here
-        would abort the graceful stop."""
+        """A supervised worker leaves SIGINT and SIGHUP to its supervisor: a
+        terminal Ctrl-C or hang-up reaches the whole process group, and a
+        second signal here would abort the graceful stop."""
 
     def _on_signal(self) -> None:
         if self.stopping.is_set():
@@ -325,9 +336,10 @@ class RustWorker:
         try:
             loop = asyncio.get_running_loop()
             loop.add_signal_handler(signal.SIGTERM, self._on_signal)
-            interrupt = self._ignore_signal if self.supervised else self._on_signal
+            interrupt = self._on_signal if self.parent is None else self._ignore_signal
             loop.add_signal_handler(signal.SIGINT, interrupt)
-            if not self.supervised:
+            loop.add_signal_handler(signal.SIGHUP, interrupt)
+            if self.parent is None:
                 shown = f"[{self.host}]" if ":" in self.host else self.host
                 print(f"listening on http://{shown}:{port}", flush=True)
             await self.stopping.wait()
@@ -345,7 +357,7 @@ def build_worker(
     settings: ServerSettings,
     *,
     listener_fd: int | None = None,
-    supervised: bool = False,
+    parent: int | None = None,
 ) -> RustWorker:
     """A worker for ``app`` with the limits of its ``server`` settings group
     (``None`` keeps the native default)."""
@@ -360,7 +372,7 @@ def build_worker(
         port,
         backlog=settings.backlog,
         listener_fd=listener_fd,
-        supervised=supervised,
+        parent=parent,
         **limits,
     )
 
@@ -373,8 +385,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--fd", type=int, help="an inherited listening socket (host and port ignored)"
     )
-    parser.add_argument("--supervised", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--parent", type=int, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.parent is not None and os.getppid() != args.parent:
+        return 1  # the supervisor died before this worker ran
+    if args.fd is not None:
+        os.set_inheritable(args.fd, False)  # nothing a handler starts keeps it
     host, port = (
         inherited_address(args.fd) if args.fd is not None else (args.host, args.port)
     )
@@ -383,7 +399,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     settings = settings_of(app)
     core.configure_runtime(settings.runtime_threads)
     worker = build_worker(
-        app, host, port, settings, listener_fd=args.fd, supervised=args.supervised
+        app, host, port, settings, listener_fd=args.fd, parent=args.parent
     )
     return asyncio.run(worker.run())
 

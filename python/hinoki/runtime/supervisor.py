@@ -19,6 +19,7 @@ starts its runtime after it starts. The supervisor never starts tokio itself.
 
 from __future__ import annotations
 
+import os
 import signal
 import socket
 import subprocess
@@ -31,6 +32,7 @@ from types import FrameType
 from typing import Any
 
 POLL = 0.25
+SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
 # Seconds past ``shutdown_timeout`` before a worker is killed.
 KILL_MARGIN = 5.0
 
@@ -64,7 +66,8 @@ class Supervisor:
             self.target,
             "--fd",
             str(self.listener.fileno()),
-            "--supervised",
+            "--parent",
+            str(os.getpid()),
         ]
 
     def spawn(self) -> subprocess.Popen[bytes]:
@@ -94,7 +97,7 @@ class Supervisor:
                 process.kill()
                 process.wait()
 
-    def shutdown(self) -> None:
+    def stop_workers(self) -> None:
         self.terminate(signal.SIGTERM)
         self.wait_all()
         self.processes = []
@@ -125,8 +128,8 @@ class Supervisor:
         return None
 
     def run(self) -> int:
-        signal.signal(signal.SIGINT, self.on_signal)
-        signal.signal(signal.SIGTERM, self.on_signal)
+        for number in SIGNALS:
+            signal.signal(number, self.on_signal)
         host, port = self.listener.getsockname()[:2]
         shown = f"[{host}]" if ":" in str(host) else host
         mode = "reloading" if self.reload else f"{self.count} workers"
@@ -134,12 +137,24 @@ class Supervisor:
         events = self.changes() if self.reload else self.ticks()
         # Under ``dev`` the watcher exists before the worker does, so an edit
         # made while the worker starts is not missed.
-        next(events)
+        next(events, None)  # ends at once when a signal has already come
+        if self.stop.is_set():
+            self.listener.close()
+            return 0
         self.processes = [self.spawn() for _ in range(self.count)]
+        if not self.reload:
+            # No worker is ever started again: only the workers listen, so a
+            # client that arrives while they stop is refused, not left waiting.
+            self.listener.close()
         try:
             code = self.watch(events) if self.reload else self.supervise(events)
         finally:
-            self.shutdown()
+            self.listener.close()  # (``dev``) no new clients while stopping
+            self.stop_workers()
+            # A further signal while the interpreter winds down would find the
+            # default action and end the process by that signal.
+            for number in SIGNALS:
+                signal.signal(number, signal.SIG_IGN)
         return code
 
     def supervise(self, events: Iterator[set[tuple[Any, str]]]) -> int:
@@ -162,7 +177,7 @@ class Supervisor:
             if changed:
                 names = ", ".join(sorted({Path(name).name for _, name in changed}))
                 print(f"reloading: {names} changed", flush=True)
-                self.shutdown()
+                self.stop_workers()
                 self.processes = [self.spawn()]
                 waiting = False
             elif not waiting and self.failed() is not None:

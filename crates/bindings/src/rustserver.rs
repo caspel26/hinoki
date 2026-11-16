@@ -10,7 +10,7 @@
 
 use std::io::{ErrorKind, Read, Write};
 use std::net::SocketAddr;
-use std::os::fd::{AsRawFd, FromRawFd};
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -18,6 +18,7 @@ use std::time::Duration;
 use hinoki_server::{serve, Answer, Backend, Closed, Early, Incoming, ServerConfig};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
+use socket2::{Socket, Type};
 use tokio::net::TcpListener;
 use tokio::sync::{watch, Semaphore};
 use tokio::task::JoinHandle;
@@ -109,21 +110,36 @@ fn io_error(err: std::io::Error) -> PyErr {
     PyRuntimeError::new_err(err.to_string())
 }
 
-/// The listening socket: the inherited descriptor, or a fresh bind.
-fn listener_of(host: &str, port: u16, fd: Option<i32>) -> PyResult<std::net::TcpListener> {
-    let Some(fd) = fd else {
-        return std::net::TcpListener::bind((host, port)).map_err(io_error);
-    };
+/// The listening socket behind an inherited descriptor, taking ownership of it.
+///
+/// Whatever happens next, the descriptor is closed with the returned error or
+/// with the listener: once `fd` is passed in, the caller must treat it as gone
+/// (a negative number is the one value that is not taken, it names nothing).
+/// A descriptor that is not an IP stream socket is refused, and so is one that
+/// is not listening where the platform lets this crate tell (Linux).
+fn inherited_listener(fd: i32) -> PyResult<std::net::TcpListener> {
     if fd < 0 {
         return Err(PyValueError::new_err("fd must be a descriptor"));
     }
-    // SAFETY: the caller hands over a descriptor it no longer uses (the Python
-    // side detaches the socket first), so this is its only owner. A descriptor
-    // that is not a listening TCP socket fails at `local_addr` below and is
-    // closed with the listener.
-    let listener = unsafe { std::net::TcpListener::from_raw_fd(fd) };
-    listener.local_addr().map_err(io_error)?;
-    Ok(listener)
+    // SAFETY: the caller hands over a descriptor it no longer uses and nobody
+    // else owns (the Python side detaches the socket first), so this is its
+    // only owner. The descriptor is then only used through the owned handle,
+    // which closes it on every path below. Its kind is checked before use.
+    let owned = unsafe { OwnedFd::from_raw_fd(fd) };
+    let socket = Socket::from(owned);
+    if socket.r#type().map_err(io_error)? != Type::STREAM {
+        return Err(PyValueError::new_err("fd is not a stream socket"));
+    }
+    // `SO_ACCEPTCONN` is only exposed here on Linux; the Python helper that
+    // prepares the descriptor checks it on every platform.
+    #[cfg(target_os = "linux")]
+    if !socket.is_listener().map_err(io_error)? {
+        return Err(PyValueError::new_err("fd is not a listening socket"));
+    }
+    if socket.local_addr().map_err(io_error)?.as_socket().is_none() {
+        return Err(PyValueError::new_err("fd is not an IP socket"));
+    }
+    Ok(socket.into())
 }
 
 fn seconds(name: &str, value: f64) -> PyResult<Duration> {
@@ -143,7 +159,8 @@ pub struct RustServer {
 #[pymethods]
 impl RustServer {
     /// Serve on the listening socket `fd`, which the caller created and detached
-    /// (this takes ownership of it), or bind `host:port` (port 0 picks a free
+    /// (this takes ownership of it as soon as it runs: on any error the
+    /// descriptor is closed, so the caller must not use it again), or bind `host:port` (port 0 picks a free
     /// one) when there is none. Errors are raised here, before anything is
     /// accepted.
     #[staticmethod]
@@ -164,6 +181,8 @@ impl RustServer {
         body_read_timeout: f64,
         fd: Option<i32>,
     ) -> PyResult<Self> {
+        // First, so that every later error closes the descriptor with it.
+        let inherited = fd.map(inherited_listener).transpose()?;
         if max_connections == 0 {
             return Err(PyValueError::new_err("max_connections must be >= 1"));
         }
@@ -181,7 +200,10 @@ impl RustServer {
             max_header_bytes,
             ..ServerConfig::default()
         };
-        let listener = listener_of(host, port, fd)?;
+        let listener = match inherited {
+            Some(listener) => listener,
+            None => std::net::TcpListener::bind((host, port)).map_err(io_error)?,
+        };
         listener.set_nonblocking(true).map_err(io_error)?;
         let addr = listener.local_addr().map_err(io_error)?;
         let (reader, writer) = UnixStream::pair().map_err(io_error)?;

@@ -26,7 +26,8 @@ from typing import Any
 from hinoki import core
 from hinoki.app import Hinoki
 from hinoki.routing import ROUTE_ATTR
-from hinoki.settings import AppSettings, ServerSettings, SettingsError
+from hinoki.runtime.listener import ListenError, open_listener
+from hinoki.settings import MAX_WORKERS, AppSettings, ServerSettings, SettingsError
 from hinoki.target import load_target as import_target
 
 
@@ -118,35 +119,60 @@ def choose_server(args: argparse.Namespace, settings: ServerSettings) -> str | i
     return chosen
 
 
+def rust_refusal(args: argparse.Namespace, reload: bool) -> str | None:
+    """Why the Rust server cannot run with these arguments, if it cannot."""
+    asked = getattr(args, "workers", None)
+    if asked is not None and not 0 <= asked <= MAX_WORKERS:
+        return f"--workers must be 1 to {MAX_WORKERS} (0 uses server.workers)"
+    if reload and importlib.util.find_spec("watchfiles") is None:
+        return (
+            "`hinoki dev` reloads with watchfiles, which is not installed; "
+            "install the server extra: pip install 'hinoki[server]' "
+            "(or run `hinoki serve`, which does not reload)"
+        )
+    return None
+
+
+def run_inline(app: Hinoki, address: tuple[str, int], settings: ServerSettings) -> int:
+    # Imported here: rustserver imports this module for ``load_target``.
+    from hinoki.runtime import rustserver  # noqa: PLC0415
+
+    core.configure_runtime(settings.runtime_threads)
+    return asyncio.run(rustserver.build_worker(app, *address, settings).run())
+
+
+def run_supervised(
+    args: argparse.Namespace,
+    app: Hinoki,
+    address: tuple[str, int],
+    settings: ServerSettings,
+    reload: bool,
+) -> int:
+    from hinoki.runtime.supervisor import Supervisor  # noqa: PLC0415
+
+    workers = 1 if reload else (args.workers or settings.workers)
+    listener = open_listener(*address, settings.backlog)
+    grace = app.runtime.shutdown_timeout
+    return Supervisor(args.target, listener, workers, grace, reload=reload).run()
+
+
 def run_rust(
     args: argparse.Namespace, reload: bool, app: Hinoki, settings: ServerSettings
 ) -> int:
     """Run on the Rust server: in this process for one worker, a supervisor
     with a process per worker otherwise (and always for ``dev``, which reloads
     by restarting the worker)."""
-    if reload and importlib.util.find_spec("watchfiles") is None:
-        return refuse(
-            "`hinoki dev` reloads with watchfiles, which is not installed; "
-            "install the server extra: pip install 'hinoki[server]' "
-            "(or run `hinoki serve`, which does not reload)"
-        )
-    # Imported here: rustserver imports this module for ``load_target``.
-    from hinoki.runtime import rustserver  # noqa: PLC0415
-    from hinoki.runtime.listener import open_listener  # noqa: PLC0415
-    from hinoki.runtime.supervisor import Supervisor  # noqa: PLC0415
-
-    host = args.host or settings.host
-    port = args.port or settings.port
+    reason = rust_refusal(args, reload)
+    if reason is not None:
+        return refuse(reason)
+    address = (args.host or settings.host, args.port or settings.port)
     workers = 1 if reload else (getattr(args, "workers", None) or settings.workers)
-    if workers == 1 and not reload:
-        core.configure_runtime(settings.runtime_threads)
-        return asyncio.run(rustserver.build_worker(app, host, port, settings).run())
     try:
-        listener = open_listener(host, port, settings.backlog)
-    except OSError as error:
-        return refuse(f"cannot listen on {host}:{port}: {error}")
-    grace = app.runtime.shutdown_timeout
-    return Supervisor(args.target, listener, workers, grace, reload=reload).run()
+        if workers == 1 and not reload:
+            return run_inline(app, address, settings)
+        return run_supervised(args, app, address, settings, reload)
+    except ListenError as error:  # nothing was served
+        return refuse(f"cannot listen on {address[0]}:{address[1]}: {error}")
 
 
 def run_granian(
@@ -195,6 +221,7 @@ def run(args: argparse.Namespace, reload: bool) -> int:
         return chosen
     if chosen == "rust":
         return run_rust(args, reload, app, settings)
+    del app  # Granian's workers build their own; do not keep this one alive
     return run_granian(args, reload, settings)
 
 

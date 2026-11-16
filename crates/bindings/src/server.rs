@@ -720,9 +720,6 @@ impl Core {
         extra: Vec<Header>,
     ) -> Result<Outcome, String> {
         let reply = self.early_reply(asked, early, extra)?;
-        if asked.id_ignored {
-            self.ignored_ids.fetch_add(1, Ordering::Relaxed);
-        }
         Ok(Outcome::Early(reply))
     }
 
@@ -733,6 +730,10 @@ impl Core {
         early: Early,
         extra: Vec<Header>,
     ) -> Result<Reply, String> {
+        // Counted here, so a queued request dropped at shutdown is counted too.
+        if asked.id_ignored {
+            self.ignored_ids.fetch_add(1, Ordering::Relaxed);
+        }
         let mut body = self
             .bodies
             .render(&early, &asked.request_id)
