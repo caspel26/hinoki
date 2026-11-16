@@ -245,7 +245,9 @@
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>sync<span class="w"> </span>--locked<span class="w">          </span><span class="c1"># creates .venv, builds the Rust extension (maturin), installs dev groups</span>
 uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>pre-commit<span class="w"> </span>install
 </code></pre></div>
-<p>Requires: uv ≥ 0.9, a stable Rust toolchain (rustup) with <code>rustfmt</code> and <code>clippy</code>.</p>
+<p>Requires: uv ≥ 0.9, a stable Rust toolchain (rustup) with <code>rustfmt</code> and <code>clippy</code>.
+The PyO3 extension build backend requires maturin ≥ 1.9.4; uv selects it from
+the isolated build-system requirement.</p>
 <h2 id="gates">Gates<a class="headerlink" href="#gates" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -289,7 +291,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </
 </tr>
 <tr>
 <td>Rust format / lints / tests</td>
-<td><code>cargo fmt --all --check</code> · <code>cargo clippy --workspace --all-targets -- -D warnings</code> · <code>cargo test --workspace</code></td>
+<td><code>cargo fmt --all --check</code> · <code>cargo clippy --workspace --all-targets -- -D warnings</code> · <code>cargo test --workspace</code> (see PyO3 setup below)</td>
 </tr>
 <tr>
 <td>All hooks</td>
@@ -298,11 +300,25 @@ uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </
 </tbody>
 </table>
 <h3 id="database-tests">Database tests<a class="headerlink" href="#database-tests" title="Permanent link">&para;</a></h3>
+<p>The binding tests embed Python. Select the interpreter explicitly and add its
+shared-library directory when running the workspace suite locally:</p>
+<div class="highlight"><pre><span></span><code><span class="nv">PYTHON</span><span class="o">=</span><span class="s2">"</span><span class="k">$(</span>uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">'import sys; print(sys.executable)'</span><span class="k">)</span><span class="s2">"</span>
+<span class="nv">PYTHON_LIBDIR</span><span class="o">=</span><span class="s2">"</span><span class="k">$(</span><span class="s2">"</span><span class="nv">$PYTHON</span><span class="s2">"</span><span class="w"> </span>-c<span class="w"> </span><span class="s1">'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))'</span><span class="k">)</span><span class="s2">"</span>
+<span class="nv">PYO3_PYTHON</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PYTHON</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="nv">LD_LIBRARY_PATH</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PYTHON_LIBDIR</span><span class="si">${</span><span class="nv">LD_LIBRARY_PATH</span><span class="p">:+:</span><span class="nv">$LD_LIBRARY_PATH</span><span class="si">}</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace
+</code></pre></div>
+<p>CI sets these variables for the Rust job using its uv-managed Python 3.13.</p>
 <p>PostgreSQL-dependent tests in <code>tests/dbtest.py</code>, <code>tests/transactiontest.py</code> and <code>crates/orm/tests/postgres.rs</code> need a <strong>disposable</strong> server and run only when <code>HINOKI_TEST_DATABASE_URL</code> is set; otherwise pytest reports them as <em>skipped</em> and Cargo prints <code>SKIPPED</code>. Migration conformance tests for MySQL and MariaDB use <code>HINOKI_TEST_MYSQL_URL</code> and <code>HINOKI_TEST_MARIADB_URL</code>; test each supported backend separately and read the skip summary. A run without the PostgreSQL URL does not verify PostgreSQL behavior. Locally:</p>
 <div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>hinoki-test-pg<span class="w"> </span>-e<span class="w"> </span><span class="nv">POSTGRES_PASSWORD</span><span class="o">=</span>hinoki<span class="w"> </span>-e<span class="w"> </span><span class="nv">POSTGRES_DB</span><span class="o">=</span>hinoki<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-p<span class="w"> </span><span class="m">127</span>.0.0.1:54399:5432<span class="w"> </span>--tmpfs<span class="w"> </span>/var/lib/postgresql/data<span class="w"> </span>postgres:17-alpine
 <span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_TEST_DATABASE_URL</span><span class="o">=</span>postgres://postgres:hinoki@127.0.0.1:54399/hinoki
-uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>pytest<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace
+uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>pytest
+<span class="nv">PYTHON</span><span class="o">=</span><span class="s2">"</span><span class="k">$(</span>uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">'import sys; print(sys.executable)'</span><span class="k">)</span><span class="s2">"</span>
+<span class="nv">PYTHON_LIBDIR</span><span class="o">=</span><span class="s2">"</span><span class="k">$(</span><span class="s2">"</span><span class="nv">$PYTHON</span><span class="s2">"</span><span class="w"> </span>-c<span class="w"> </span><span class="s1">'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))'</span><span class="k">)</span><span class="s2">"</span>
+<span class="nv">PYO3_PYTHON</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PYTHON</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="nv">LD_LIBRARY_PATH</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PYTHON_LIBDIR</span><span class="si">${</span><span class="nv">LD_LIBRARY_PATH</span><span class="p">:+:</span><span class="nv">$LD_LIBRARY_PATH</span><span class="si">}</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace
 docker<span class="w"> </span>rm<span class="w"> </span>-f<span class="w"> </span>hinoki-test-pg
 </code></pre></div>
 <p>CI provides the same database as a service container. Never point the variable at a database with real data: tests create and drop tables.</p>
@@ -372,9 +388,9 @@ test gate.</p>
 <td>abi3 (<code>cp312-abi3</code>) wheel in <code>dist/</code>; built and import-tested by the <code>wheel</code> CI job</td>
 </tr>
 <tr>
-<td>Rust-only loop</td>
-<td><code>cargo test --workspace</code></td>
-<td>no Python needed</td>
+<td>Rust workspace tests</td>
+<td><code>cargo test --workspace</code> with the PyO3 environment above</td>
+<td>PyO3 unit tests link to the selected Python interpreter; PostgreSQL tests require <code>HINOKI_TEST_DATABASE_URL</code></td>
 </tr>
 </tbody>
 </table>
@@ -404,8 +420,8 @@ test gate.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>6.6</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 14:07:51 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>4 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 21:34:38 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/toolchain.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
