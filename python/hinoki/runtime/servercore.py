@@ -68,7 +68,7 @@ def route_spec(action: int, binding: Binding) -> core.RouteSpec:
         int(route.status),
         [(str(k), str(v)) for k, v in getattr(owner, "response_headers", ())],
         route.transaction,
-        route.is_async,
+        binding.is_async,
         binding.takes_request,
     )
 
