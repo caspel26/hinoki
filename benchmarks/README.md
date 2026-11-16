@@ -231,17 +231,17 @@ Measured 2026-11-15 on the same Apple M4 Pro (load average 6 to 12 at the start 
 
 ## Native-await completion (`nativeawaitbench.py`, `comparative/profile_request.py`)
 
-Question: does resolving database awaitables on the event-loop thread (a per-loop completion queue and one wake fd, no GIL on Tokio threads) beat `pyo3_async_runtimes::future_into_py` plus the conversion on a Tokio worker? Compared against `main` `f672172`, both release builds, five alternating runs each, raw data in `results/native-await.json`. Measured 2026-11-16 on one Apple laptop, load average 6 to 18 (noisy; ranges are disjoint except where stated).
+Question: does resolving database awaitables on the event-loop thread (a per-loop completion queue and one wake fd, no GIL on Tokio threads) beat `pyo3_async_runtimes::future_into_py` plus the conversion on a Tokio worker? Compared against `main` `f672172`, both release builds, five alternating runs each, raw data in `results/native-await.json`. Measured 2026-11-16 on one Apple laptop, load average 6 to 7 for the retained runs (a first set under load up to 18 gave the same picture).
 
 `profile_request.py --prod` (in-process ASGI, PostgreSQL 17 container, 64 requests in flight; median of five runs, range in brackets):
 
 | Scenario | req/s before | req/s after | loop CPU per request before → after |
 | --- | ---: | ---: | ---: |
-| `health` (no database, control) | 96 097 | 95 167 (−1.0%) | 10.4 → 10.5 µs |
-| `detail` | 8 851 | 15 586 (+76%) | 84.6 → 59.0 µs |
-| `create` | 5 001 | 8 183 (+64%) | 135.0 → 90.4 µs |
-| `list_20` | 2 603 | 3 695 (+42%) | 286.3 → 267.1 µs |
-| `list_100` | 885 | 973 (+10%) | 877.9 → 1 011.0 µs (+15%) |
+| `health` (no database, control) | 95 627 | 97 001 (+1.4%) | 10.4 → 10.3 µs |
+| `detail` | 8 946 | 16 658 (+86%) | 84.9 → 58.1 µs |
+| `create` | 5 049 | 8 265 (+64%) | 135.8 → 90.0 µs |
+| `list_20` | 2 633 | 3 705 (+41%) | 285.2 → 266.4 µs |
+| `list_100` | 918 | 992 (+8%) | 858.4 → 997.3 µs (+16%) |
 
 `nativeawaitbench.py` (SQLite file, 64 concurrent fetches): one row 36 500 → 230 000 calls/s, 100 rows 24 200 → 50 500 calls/s.
 
