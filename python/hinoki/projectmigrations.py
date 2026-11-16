@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import os
+from pathlib import Path
 
 from hinoki.db import Database
 from hinoki.errors import MigrationError
@@ -15,6 +17,42 @@ from hinoki.project import (
     load_manifest,
 )
 from hinoki.settings import DatabaseSettings
+
+URL_VARIABLE = "HINOKI_DATABASE_URL"
+
+
+def migration_database_url(
+    args: argparse.Namespace, manifest: ProjectManifest | None
+) -> str:
+    """Resolve CLI/environment/default DB input, anchoring implicit project SQLite."""
+    explicit = args.database or os.environ.get(URL_VARIABLE)
+    if explicit:
+        return explicit
+
+    url = DatabaseSettings().url.reveal()
+    if manifest is None or not url.startswith("sqlite://"):
+        return url
+    path = Path(url.removeprefix("sqlite://"))
+    if path.is_absolute():
+        return url
+    return f"sqlite://{(manifest.root / path).resolve()}"
+
+
+def database_dialect(url: str) -> str:
+    """Return the SQL dialect selected by a database URL scheme."""
+    schemes = {
+        "sqlite://": "sqlite",
+        "mysql://": "mysql",
+        "mariadb://": "mariadb",
+        "postgres://": "postgres",
+        "postgresql://": "postgres",
+    }
+    dialect = next(
+        (value for scheme, value in schemes.items() if url.startswith(scheme)), None
+    )
+    if dialect is None:
+        raise MigrationError("database URL must use a supported backend scheme")
+    return dialect
 
 
 def manifest_for(args: argparse.Namespace) -> ProjectManifest | None:
@@ -47,7 +85,7 @@ def plan_project(args: argparse.Namespace, manifest: ProjectManifest) -> Plan:
         args.name,
         allow_destructive=args.allow_destructive or args.check,
         write=not args.dry_run and not args.check,
-        dialect=_dialect(args),
+        dialect=database_dialect(migration_database_url(args, manifest)),
         reference_models=external,
     )
 
@@ -75,21 +113,3 @@ def sql_project(args: argparse.Namespace, manifest: ProjectManifest) -> None:
             print(path.read_text(encoding="utf-8"), end="")
             return
     raise MigrationError(f"app {app.name!r} has no migration named {args.name!r}")
-
-
-def _dialect(args: argparse.Namespace) -> str:
-    """Use the selected connection URL for migration SQL, including SQLite default."""
-    url = args.database or DatabaseSettings().url.reveal()
-    schemes = {
-        "sqlite://": "sqlite",
-        "mysql://": "mysql",
-        "mariadb://": "mariadb",
-        "postgres://": "postgres",
-        "postgresql://": "postgres",
-    }
-    dialect = next(
-        (value for scheme, value in schemes.items() if url.startswith(scheme)), None
-    )
-    if dialect is None:
-        raise MigrationError("database URL must use a supported backend scheme")
-    return dialect
