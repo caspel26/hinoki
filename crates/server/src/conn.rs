@@ -1,4 +1,4 @@
-//! One HTTP/1.1 request on one connection: what the transport hands to the
+//! One HTTP/1.1 or HTTP/2 request on one connection: what the transport hands to the
 //! [`Backend`] and how the [`Answer`] is written back.
 //!
 //! This layer owns only transport rules: HEAD answers keep their
@@ -34,7 +34,8 @@ use crate::headers::Header;
 /// The head of a request as the backend sees it. Header names are lowercase,
 /// repeated headers stay separate and in arrival order, and `path` and `query`
 /// are the raw (still percent-encoded) target. An absolute-form target makes its
-/// authority the `host` header.
+/// authority the `host` header, and so does the `:authority` of an HTTP/2
+/// request, which wins over a `host` header that differs (RFC 9113 8.3.1).
 #[derive(Debug)]
 pub struct Incoming {
     pub method: String,
@@ -44,6 +45,8 @@ pub struct Incoming {
     pub peer: SocketAddr,
     /// The connection is TLS: the request arrived over https.
     pub secure: bool,
+    /// `"2"` for a request that arrived over HTTP/2, `"1.1"` otherwise.
+    pub http_version: &'static str,
     /// Set when the transport rejects the request ([`Early::BadHost`]): the
     /// backend answers with it and does not route the request.
     pub refusal: Option<Early>,
@@ -73,35 +76,57 @@ fn plain(status: StatusCode) -> Response<Full<Bytes>> {
 
 /// The transport's verdict on a request: HTTP/1.1 needs exactly one `Host`
 /// (RFC 9112 3.2). An absolute-form target (RFC 9112 3.2.2) makes its authority
-/// the host, replacing the header.
+/// the host, replacing the header. HTTP/2 has no Host rule, but without
+/// `:authority` more than one `host` header is as ambiguous as on HTTP/1.1 and
+/// is refused the same way.
 fn refusal_of(parts: &Parts, headers: &mut Vec<Header>) -> Option<Early> {
     let hosts = headers.iter().filter(|(name, _)| name == b"host").count();
     if let Some(authority) = parts.uri.authority() {
         headers.retain(|(name, _)| name != b"host");
         headers.push((b"host".to_vec(), authority.as_str().as_bytes().to_vec()));
     }
-    (parts.version == Version::HTTP_11 && hosts != 1).then_some(Early::BadHost)
+    let ambiguous = match parts.version {
+        Version::HTTP_11 => hosts != 1,
+        Version::HTTP_2 => parts.uri.authority().is_none() && hosts > 1,
+        _ => false,
+    };
+    ambiguous.then_some(Early::BadHost)
 }
 
 fn incoming_of(
     parts: &Parts,
     body: Option<BodyReader>,
     peer: SocketAddr,
-    secure: bool,
+    transport: &Transport,
 ) -> Incoming {
     let mut headers: Vec<Header> = parts
         .headers
         .iter()
         .map(|(name, value)| (name.as_str().as_bytes().to_vec(), value.as_bytes().to_vec()))
         .collect();
-    let refusal = refusal_of(parts, &mut headers);
+    // hyper enforces `max_headers` on HTTP/1 while parsing; h2 only bounds the
+    // list by size, so the count is checked here.
+    // h2 sends one `cookie` field per crumb (RFC 9113 8.2.3); they are one line
+    // on HTTP/1, so they count once.
+    let crumbs = headers.iter().filter(|(name, _)| name == b"cookie").count();
+    let fields = headers.len() - crumbs.saturating_sub(1);
+    let refusal = if fields > transport.max_headers {
+        Some(Early::HeadersTooLarge)
+    } else {
+        refusal_of(parts, &mut headers)
+    };
     Incoming {
         method: parts.method.as_str().to_owned(),
         path: parts.uri.path().to_owned(),
         query: parts.uri.query().unwrap_or("").as_bytes().to_vec(),
         headers,
         peer,
-        secure,
+        secure: transport.secure,
+        http_version: if parts.version == Version::HTTP_2 {
+            "2"
+        } else {
+            "1.1"
+        },
         refusal,
         body,
     }
@@ -110,7 +135,8 @@ fn incoming_of(
 /// Build the hyper response. An answer the transport cannot represent (a status
 /// or header hyper rejects) becomes a bare 500 rather than a broken stream. So
 /// does an informational status: `101` would hand the connection to hyper's
-/// upgrade path, and the server speaks no protocol but HTTP/1.1.
+/// upgrade path (and h2 has no 101), and the server serves no protocol that
+/// switches.
 fn response_of(answer: Answer, head_only: bool) -> Response<Full<Bytes>> {
     let Ok(status) = StatusCode::from_u16(answer.status) else {
         return plain(StatusCode::INTERNAL_SERVER_ERROR);
@@ -144,6 +170,8 @@ pub struct Transport {
     pub body_read_timeout: Duration,
     /// Whether the connection is TLS.
     pub secure: bool,
+    /// Most headers a request may carry; more is answered 431.
+    pub max_headers: usize,
     /// What the framing guard and this layer tell each other about the connection.
     pub signals: Arc<Signals>,
 }
@@ -158,16 +186,19 @@ pub async fn respond<B: Backend>(
     request: Request<RequestBody>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
     let head_only = request.method() == Method::HEAD;
+    let version = request.version();
     let (parts, body) = request.into_parts();
     let body = (!body.is_end_stream()).then(|| BodyReader::new(body, transport.body_read_timeout));
     let finished = body.as_ref().map(BodyReader::finished);
-    let incoming = incoming_of(&parts, body, peer, transport.secure);
+    let incoming = incoming_of(&parts, body, peer, &transport);
     let mut response = response_of(backend.handle(incoming).await, head_only);
     let unread = finished.is_some_and(|done| !done.load(Ordering::Acquire));
     if unread {
         transport.signals.linger.store(true, Ordering::Release);
     }
-    if unread || transport.signals.close.load(Ordering::Acquire) {
+    // `connection` is a forbidden header on HTTP/2, which has no such notion.
+    let closing = unread || transport.signals.close.load(Ordering::Acquire);
+    if closing && version != Version::HTTP_2 {
         response
             .headers_mut()
             .insert("connection", HeaderValue::from_static("close"));

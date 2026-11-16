@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import shutil
 import signal
 import socket
 import ssl
@@ -507,6 +508,69 @@ async def test_the_worker_serves_https_with_its_own_certificate() -> None:
     finally:
         await worker.stop()
     assert (secure.status, secure.json()) == (200, {"scheme": "https"})
+
+
+REAL_SCOPE_OF = rustserver.scope_of
+SCOPES: list[dict[str, Any]] = []
+
+
+def recording_scope_of(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    scope = REAL_SCOPE_OF(*args, **kwargs)
+    SCOPES.append(scope)
+    return scope
+
+
+async def curl_status(port: int, protocol: str) -> str:
+    process = await asyncio.create_subprocess_exec(
+        "curl",
+        "-sk",
+        protocol,
+        "-o",
+        "/dev/null",
+        "-w",
+        "%{http_version} %{http_code}",
+        f"https://127.0.0.1:{port}/health",
+        stdout=asyncio.subprocess.PIPE,
+    )
+    out, _ = await asyncio.wait_for(process.communicate(), 20)
+    return out.decode()
+
+
+def curl_speaks_http2() -> bool:
+    curl = shutil.which("curl")
+    if curl is None:
+        return False
+    version = subprocess.run(
+        [curl, "--version"], capture_output=True, text=True, check=False
+    )
+    return "HTTP2" in version.stdout
+
+
+@pytest.mark.skipif(not curl_speaks_http2(), reason="curl without HTTP/2")
+async def test_http2_reaches_the_pipeline_with_http_version_2(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    SCOPES.clear()
+    monkeypatch.setattr(rustserver, "scope_of", recording_scope_of)
+    worker = RustWorker(
+        make_app(),
+        "127.0.0.1",
+        0,
+        tls_cert_file=str(TLS_DIR / "localhost-cert.pem"),
+        tls_key_file=str(TLS_DIR / "localhost-key.pem"),
+        http2=True,
+    )
+    port = await worker.start()
+    try:
+        over_h2 = await curl_status(port, "--http2")
+        over_h1 = await curl_status(port, "--http1.1")
+    finally:
+        await worker.stop()
+    assert (over_h2, over_h1) == ("2 200", "1.1 200")
+    assert [(s["http_version"], s["scheme"]) for s in SCOPES] == [
+        ("2", "https"),
+        ("1.1", "https"),
+    ]
 
 
 async def test_a_client_that_stops_reading_frees_its_connection_slot() -> None:
