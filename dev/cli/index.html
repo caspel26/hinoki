@@ -644,6 +644,14 @@ requires <code>--app</code> when more than one app is registered. This checks
 model-to-file drift only; <code>migrations status</code> checks which migration files
 have been applied to a live database. <code>plan --dry-run</code> remains a human preview
 and exits successfully when it prints planned operations.</p>
+<p>Before writing a focused plan, Hinoki verifies that cross-app foreign-key
+targets exist in the prerequisite app's recorded migration state and have a
+compatible primary-key column. It also refuses to generate a parent teardown
+while any recorded state of another app still refers to that target, even with
+<code>--allow-destructive</code>. Remove and apply the child foreign key in a separate
+deployment phase before preparing the parent teardown. See
+<a href="../migrations/#cross-app-migration-safety"><code>migrations</code></a> for the limits of this
+file-based check.</p>
 <p>Without a <code>hinoki.toml</code>, the explicit legacy form remains:</p>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>myapp/migrations<span class="w"> </span>plan<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--models<span class="w"> </span>myapp.models<span class="w"> </span>--name<span class="w"> </span>add-index<span class="w"> </span>--dry-run
@@ -695,7 +703,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class=
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 05:16:56 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 09:34:53 UTC">November 16, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>12 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>

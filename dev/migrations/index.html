@@ -394,6 +394,20 @@
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>billing<span class="w"> </span>--name<span class="w"> </span>add-invoice-index
 </code></pre></div>
 <p>The manifest must register the selected app. A single-app project defaults to that app; in a multi-app project, <code>plan</code> requires <code>--app</code>. The planner targets the local SQLite default unless a URL is provided through <code>HINOKI_DATABASE_URL</code> or <code>--database</code>. It writes a numbered <code>.sql</code> file and a matching <code>.state.json</code> file into the registered migration package. Numbering and a stable slug derived from the first schema change are automatic; an optional <code>--name</code> replaces only that slug. Review both files before applying the change. To inspect a plan without writing files, add <code>--dry-run</code>. Cross-app model references require an explicit <code>requires</code> dependency in <code>hinoki.toml</code>; this lets Hinoki validate references and order migrations without assigning another app's tables to the current app's migration state.</p>
+<h3 id="cross-app-migration-safety">Cross-app migration safety<a class="headerlink" href="#cross-app-migration-safety" title="Permanent link">&para;</a></h3>
+<p>Before writing a focused app plan, Hinoki checks cross-app foreign keys against
+the prerequisite app's recorded migration state. The referenced table and
+column must already be recorded, the column must be a primary key, and its
+logical type must be compatible. If the prerequisite has not been planned yet,
+plan and review it first. The prerequisite migration does not need to have been
+applied to the database before the dependent app can be planned.</p>
+<p>Hinoki also refuses to generate a parent table or referenced-column teardown
+while any recorded state snapshot of another app still refers to it. This
+conservative guard also applies with <code>--allow-destructive</code>; it prevents a
+generated parent drop from preceding a child foreign-key removal. Perform
+cross-app teardowns as reviewed, separately deployed phases: remove and apply
+the child reference first, then prepare and apply the parent teardown. The
+planner does not infer live database safety from migration files.</p>
 <p>The state file stores logical column types that are stable across backends; the
 generated SQL uses the selected backend's types. Existing state files that
 recorded SQLite or MySQL-specific type names are normalized when planning, so
@@ -469,15 +483,17 @@ whether an older migration actually created its constraint.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#create-a-migration">Create a migration</a></li><li><a href="#check-migration-drift">Check migration drift</a></li><li><a href="#apply-and-inspect">Apply and inspect</a></li><li><a href="#destructive-changes">Destructive changes</a></li></ul>
+            <ul><li><a href="#create-a-migration">Create a migration</a>
+            <ul><li><a href="#cross-app-migration-safety">Cross-app migration safety</a></li></ul>
+          </li><li><a href="#check-migration-drift">Check migration drift</a></li><li><a href="#apply-and-inspect">Apply and inspect</a></li><li><a href="#destructive-changes">Destructive changes</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.9</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 08:52:38 UTC">November 16, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>4 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 09:34:53 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/migrations.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
