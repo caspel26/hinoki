@@ -44,6 +44,12 @@ MAX_PORT = 65536
 MAX_WORKERS = 256
 MAX_CONNECTIONS = 1_000_000
 MAX_READ_TIMEOUT = 3600
+RUST_ONLY = (
+    "max_connections",
+    "header_read_timeout",
+    "body_read_timeout",
+    "write_timeout",
+)
 QUOTED = 2  # shortest quoted value: the two quotes
 MAX_CORS_AGE = 86400
 HSTS_MAX_SECONDS = 63_072_000
@@ -893,9 +899,10 @@ class ServerSettings(Settings):
     these; they do nothing when another runner starts the app.
 
     ``server`` picks Granian (the default) or the Rust server. ``access_log``
-    belongs to Granian; ``max_connections``, ``header_read_timeout`` and
-    ``body_read_timeout`` belong to the Rust server (``None`` keeps its
-    default). ``hinoki serve`` refuses a setting the chosen server cannot honour.
+    belongs to Granian; ``max_connections``, ``header_read_timeout``,
+    ``body_read_timeout`` and ``write_timeout`` belong to the Rust server
+    (``None`` keeps its default). ``hinoki serve`` refuses a setting the chosen
+    server cannot honour.
     """
 
     host: str = "127.0.0.1"
@@ -911,6 +918,7 @@ class ServerSettings(Settings):
     max_connections: int | None = None
     header_read_timeout: float | None = None
     body_read_timeout: float | None = None
+    write_timeout: float | None = None
 
     def validate(self) -> None:
         if not 0 < self.port < MAX_PORT:
@@ -946,7 +954,7 @@ class ServerSettings(Settings):
             0 < self.max_connections <= MAX_CONNECTIONS
         ):
             raise ValueError(f"max_connections must be 1 to {MAX_CONNECTIONS}")
-        for name in ("header_read_timeout", "body_read_timeout"):
+        for name in ("header_read_timeout", "body_read_timeout", "write_timeout"):
             value = getattr(self, name)
             if value is not None and not 0 < value <= MAX_READ_TIMEOUT:
                 raise ValueError(
@@ -957,8 +965,7 @@ class ServerSettings(Settings):
         """The settings that ``server`` (default: this group's) cannot honour."""
         if (server or self.server) == "rust":
             return ["access_log"] if self.access_log else []
-        rust_only = ("max_connections", "header_read_timeout", "body_read_timeout")
-        return [name for name in rust_only if getattr(self, name) is not None]
+        return [name for name in RUST_ONLY if getattr(self, name) is not None]
 
 
 class FrameOptions(StrEnum):

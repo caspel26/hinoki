@@ -40,7 +40,7 @@ from hinoki.runtime.listener import inherited_address, open_listener
 from hinoki.runtime.responses import HTTPError
 from hinoki.runtime.servercore import build_server_core
 from hinoki.serve import load_target, settings_of
-from hinoki.settings import ServerSettings
+from hinoki.settings import RUST_ONLY, ServerSettings
 
 if TYPE_CHECKING:
     from hinoki.app import Hinoki
@@ -114,6 +114,7 @@ class RustWorker:
         max_connections: int = 10_000,
         header_read_timeout: float = 10.0,
         body_read_timeout: float = 10.0,
+        write_timeout: float = 30.0,
         backlog: int = 1024,
         listener_fd: int | None = None,
         parent: int | None = None,
@@ -125,6 +126,7 @@ class RustWorker:
         self.max_connections = max_connections
         self.header_read_timeout = header_read_timeout
         self.body_read_timeout = body_read_timeout
+        self.write_timeout = write_timeout
         self.backlog = backlog
         # An inherited listening descriptor (a supervisor owns the socket); the
         # native server takes it over. Without one, the worker binds itself.
@@ -183,6 +185,7 @@ class RustWorker:
                 # Below the request timeout, or a stalled body would be a 504.
                 min(self.body_read_timeout, runtime.request_timeout / 2),
                 fd,
+                self.write_timeout,
             )
         except BaseException:
             await self._lifespan("shutdown")
@@ -363,7 +366,7 @@ def build_worker(
     (``None`` keeps the native default)."""
     limits: dict[str, Any] = {
         name: getattr(settings, name)
-        for name in ("max_connections", "header_read_timeout", "body_read_timeout")
+        for name in RUST_ONLY
         if getattr(settings, name) is not None
     }
     return RustWorker(

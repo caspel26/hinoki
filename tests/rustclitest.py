@@ -51,7 +51,12 @@ def test_the_rust_server_refuses_a_granian_only_setting(
 
 @pytest.mark.parametrize(
     "limit",
-    [{"max_connections": 5}, {"header_read_timeout": 1.5}, {"body_read_timeout": 2.0}],
+    [
+        {"max_connections": 5},
+        {"header_read_timeout": 1.5},
+        {"body_read_timeout": 2.0},
+        {"write_timeout": 5.0},
+    ],
 )
 def test_granian_refuses_a_rust_only_setting(
     limit: dict[str, float], capsys: pytest.CaptureFixture[str]
@@ -89,6 +94,7 @@ def test_a_trusted_proxy_with_an_ipv6_zone_id_is_refused(entry: str) -> None:
         {"header_read_timeout": 0.0},
         {"body_read_timeout": -1.0},
         {"body_read_timeout": 10**6},
+        {"write_timeout": 0.0},
     ],
 )
 def test_rust_limits_are_validated(limit: dict[str, float]) -> None:

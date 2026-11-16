@@ -69,6 +69,7 @@ Everything else still runs in Python on the asyncio loop: the lifespan, the requ
 * HTTP/1.1 only: no TLS (terminate it at a reverse proxy), no HTTP/2 and no WebSocket or other protocol upgrades.
 * A request line plus headers larger than `execution.max_header_bytes`, or a query longer than `execution.max_query_bytes`, is refused (`431`, `414`). A body larger than `execution.max_body_bytes` is refused with `413`, by `Content-Length` before any byte is read or, for chunked bodies, as soon as the total passes the limit. A client that sends nothing for `body_read_timeout` seconds (10 by default, never more than half of `execution.request_timeout`) gets `408`.
 * A client that does not finish its request headers within `header_read_timeout` seconds (10 by default) is disconnected; the same timer closes idle keep-alive connections.
+* A client that stops reading a response for `write_timeout` seconds (30 by default) is disconnected; any progress restarts the timer.
 * `max_connections` (10000 by default) bounds open connections. Requests waiting for the application are bounded by an in-flight limit and a queue; beyond them the answer is `503`.
 * Requests with ambiguous framing (for example `Content-Length` together with `Transfer-Encoding`, repeated lengths, or a bare line feed in the head) are refused with `400` and the connection is closed.
 * There is no access log: `server.access_log=true` is refused with `--server rust`.
@@ -82,7 +83,7 @@ Everything else still runs in Python on the asyncio loop: the lifespan, the requ
 | --- | --- | --- |
 | `host`, `port`, `workers`, `runtime_threads`, `backlog`, `trusted_proxies`, `request_id_header`, `trust_request_id` | applied | applied |
 | `access_log` | refused when `true` | applied |
-| `max_connections`, `header_read_timeout`, `body_read_timeout` | applied when set | refused when set |
+| `max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout` | applied when set | refused when set |
 
 If the native extension of a build has no Rust server, `--server rust` fails with an error that says so.
 
