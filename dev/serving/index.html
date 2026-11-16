@@ -474,7 +474,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <p>Everything else still runs in Python on the asyncio loop: the lifespan, the request pipeline (binding, access policies, validation, the handler, error translation and response assembly), synchronous handlers on the bounded executor, the documentation and OpenAPI pages, and the completion of database calls. The request body is read natively, but only when the pipeline asks for it, after authentication, so an unauthenticated client cannot make the server buffer a body. This is a faster front end, not an application written in Rust; no performance figure is claimed here.</p>
 <h3 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h3>
 <ul>
-<li>HTTP/1.1 only: no TLS (terminate it at a reverse proxy), no HTTP/2 and no WebSocket or other protocol upgrades.</li>
+<li>HTTP/1.1 only: no TLS (terminate it at a reverse proxy), no HTTP/2 and no WebSocket or other protocol upgrades: an <code>Upgrade</code> header is ignored and the request is answered as plain HTTP, and the server never answers <code>101</code>.</li>
 <li>A request line plus headers larger than <code>execution.max_header_bytes</code>, or a query longer than <code>execution.max_query_bytes</code>, is refused (<code>431</code>, <code>414</code>). A body larger than <code>execution.max_body_bytes</code> is refused with <code>413</code>, by <code>Content-Length</code> before any byte is read or, for chunked bodies, as soon as the total passes the limit. A client that sends nothing for <code>body_read_timeout</code> seconds (10 by default, never more than half of <code>execution.request_timeout</code>) gets <code>408</code>.</li>
 <li>A client that does not finish its request headers within <code>header_read_timeout</code> seconds (10 by default) is disconnected; the same timer closes idle keep-alive connections.</li>
 <li>A client that stops reading a response for <code>write_timeout</code> seconds (30 by default) is disconnected; any progress restarts the timer.</li>
@@ -592,7 +592,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 08:33:48 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 09:03:05 UTC">November 16, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>10 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
