@@ -121,8 +121,24 @@ class OpenAPIBuilder:
         ]
         if parameters:
             operation["parameters"] = parameters
+        file_params = [p for p in binding.params if p.source == "file"]
         body = next((p for p in binding.params if p.source == "body"), None)
-        if body is not None and body.schema is not None:
+        if file_params:
+            properties = {
+                param.name: self.file_schema(param.file_mode == "many")
+                for param in file_params
+            }
+            required_files = [
+                param.name for param in file_params if param.file_mode != "optional"
+            ]
+            schema: dict[str, Any] = {"type": "object", "properties": properties}
+            if required_files:
+                schema["required"] = required_files
+            operation["requestBody"] = {
+                "required": bool(required_files),
+                "content": {"multipart/form-data": {"schema": schema}},
+            }
+        elif body is not None and body.schema is not None:
             operation["requestBody"] = {
                 "required": True,
                 "content": {
@@ -135,6 +151,12 @@ class OpenAPIBuilder:
             self.secure(operation, route.access)
         self.declare_errors(operation["responses"], route.errors)
         return operation
+
+    @staticmethod
+    def file_schema(many: bool) -> dict[str, Any]:
+        """OpenAPI's binary file shape, optionally repeated as an array."""
+        binary: dict[str, Any] = {"type": "string", "format": "binary"}
+        return {"type": "array", "items": binary} if many else binary
 
     def declare_errors(
         self, responses: dict[str, Any], errors: tuple[type[APIError], ...]

@@ -13,6 +13,7 @@ from hinoki.auth import Caller, Credentials
 from hinoki.blocking import call_hook
 from hinoki.context import request_id
 from hinoki.errors import Forbidden, InvalidBody, Unauthorized
+from hinoki.parsers import Parsed, UploadedFile
 from hinoki.request import Headers, Request
 from hinoki.runtime.binding import (
     MISSING,
@@ -108,5 +109,21 @@ def build_request(
         request_id=request_id.get() or "",
         parsers=binding.route.parsers,
     )
-    body: object = request.data if binding.needs_body else MISSING
-    return request, RequestData(path, query, body, principal)
+    body: object = MISSING
+    files: dict[str, list[UploadedFile]] = {}
+    if binding.has_files:
+        content_type = request.content_type
+        if not raw_body and not content_type:
+            # A bodyless optional upload is a useful empty input. Cache it so
+            # Request.data/POST/FILES observe the same parsed result.
+            request.cached = Parsed({})
+        else:
+            if content_type != "multipart/form-data":
+                raise InvalidBody(
+                    "unsupported_media_type", "expected multipart/form-data"
+                )
+            body = request.data
+        files = {name: request.FILES.getlist(name) for name in request.FILES}
+    elif binding.needs_body:
+        body = request.data
+    return request, RequestData(path, query, body, principal, files)
