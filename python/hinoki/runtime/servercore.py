@@ -13,6 +13,7 @@ from http import HTTPStatus
 
 from hinoki import core
 from hinoki.context import request_id
+from hinoki.renderers import JSONRenderer, Renderer
 from hinoki.runtime.binding import PATH_PARAM, Binding
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.responses import RETRY_LATER, HTTPError
@@ -54,7 +55,7 @@ def early_bodies() -> list[tuple[str, bytes]]:
         request_id.reset(token)
 
 
-def route_spec(action: int, binding: Binding) -> core.RouteSpec:
+def route_spec(action: int, binding: Binding, defer_policies: bool) -> core.RouteSpec:
     route = binding.route
     owner = route.owner
     return (
@@ -68,8 +69,39 @@ def route_spec(action: int, binding: Binding) -> core.RouteSpec:
         int(route.status),
         [(str(k), str(v)) for k, v in getattr(owner, "response_headers", ())],
         route.transaction,
-        binding.is_async,
         binding.takes_request,
+        native_handler_eligible(binding, defer_policies),
+    )
+
+
+def native_handler_eligible(binding: Binding, defer_policies: bool) -> bool:
+    """Select the automatic native response path for the built-in simple GET."""
+    route = binding.route
+    if defer_policies or route.method != "GET" or route.owner is not None:
+        return False
+    renderer_ok = len(route.renderers) == 1 and is_default_json_renderer(
+        route.renderers[0]
+    )
+    return bool(
+        not PATH_PARAM.search(route.path)
+        and not binding.params
+        and not binding.needs_body
+        and route.access is None
+        and not route.transaction
+        and not binding.takes_request
+        and renderer_ok
+    )
+
+
+def is_default_json_renderer(renderer: Renderer) -> bool:
+    """Whether a renderer has no custom behavior or JSON encoding options."""
+    return (
+        type(renderer) is JSONRenderer
+        and renderer.media_type == "application/json"
+        and renderer.indent is None
+        and not renderer.sort_keys
+        and renderer.default is None
+        and set(vars(renderer)) == {"indent", "sort_keys", "default"}
     )
 
 
@@ -95,7 +127,7 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
     if pipeline.document is not None and app.openapi_url is not None:
         python_paths.append(app.openapi_url)
     return core.ServerCore(
-        [route_spec(i, b) for i, b in enumerate(pipeline.bindings)],
+        [route_spec(i, b, defer) for i, b in enumerate(pipeline.bindings)],
         early_bodies(),
         (pipeline.policy[False], pipeline.policy[True]),
         pipeline.request_id_name,
