@@ -34,7 +34,7 @@ from hinoki.management import Command
 from hinoki.modules import Module, ModuleContext
 from hinoki.openapicli import write_document
 from hinoki.orm.naming import _resolve_display_names, _words, resolve_model_names
-from hinoki.parsers import Parser
+from hinoki.parsers import DEFAULT_PARSERS, Parser
 from hinoki.renderers import Renderer, TextRenderer
 from hinoki.request import Headers
 from hinoki.routescli import access_of
@@ -42,9 +42,10 @@ from hinoki.routing import Route
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.runtime.listener import is_listening
 from hinoki.runtime.management import modules_for_command
-from hinoki.runtime.requests import decode_params, header_map, read_body
+from hinoki.runtime.requests import build_request, decode_params, header_map, read_body
 from hinoki.runtime.responses import HTTPError
 from hinoki.runtime.tasks import ManagedTasks
+from hinoki.scaffold import REPOSITORY, framework_source, git_source
 from hinoki.waivers import WaiverError, parse_waiver
 
 
@@ -221,6 +222,65 @@ def test_request_helpers_reject_disconnected_or_malformed_input() -> None:
         decode_params({"value": "%FF"})
     assert decode_params({"value": "%"}) == {"value": "%"}
     assert header_map({}) == {}
+
+
+def test_request_body_limit_and_binding_without_an_explicit_query() -> None:
+    async def oversized() -> dict[str, object]:
+        return {"type": "http.request", "body": b"12", "more_body": False}
+
+    async def read() -> None:
+        with pytest.raises(HTTPError, match="payload_too_large"):
+            await read_body(oversized, limit=1)
+
+    asyncio.run(read())
+    binding = SimpleNamespace(
+        has_files=False,
+        needs_body=False,
+        route=SimpleNamespace(parsers=DEFAULT_PARSERS),
+    )
+    request, data = build_request(
+        {
+            "method": "GET",
+            "path": "/health",
+            "server": ("localhost", 8000),
+            "query_string": b"page=2",
+        },
+        cast(Any, binding),
+        {},
+        {},
+        b"",
+        None,
+    )
+    assert request.host == "localhost:8000"
+    assert request.GET["page"] == "2"
+    assert data.body is not None
+
+
+def test_optional_upload_binding_caches_an_empty_request_body() -> None:
+    binding = SimpleNamespace(
+        has_files=True,
+        needs_body=False,
+        route=SimpleNamespace(parsers=DEFAULT_PARSERS),
+    )
+    request, data = build_request(
+        {"method": "POST", "path": "/upload"},
+        cast(Any, binding),
+        {},
+        {},
+        b"",
+        None,
+        query={},
+    )
+    assert request.cached is not None and request.cached.data == {}
+    assert data.body is not None and data.files == {}
+
+
+def test_scaffold_uses_repository_source_when_not_running_from_checkout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake_package = tmp_path / "installed" / "lib" / "python" / "hinoki" / "__init__.py"
+    monkeypatch.setattr("hinoki.__file__", str(fake_package))
+    assert framework_source() == git_source(REPOSITORY)
 
 
 def test_request_headers_preserve_mapping_iteration_contract() -> None:
