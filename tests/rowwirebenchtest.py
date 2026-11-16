@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import socket
+import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from benchmarks import rowwirebench
 from benchmarks.rowwireapp import make_app
 from benchmarks.rowwirebench import (
     build_report,
+    collect_sample,
     database_identity,
     ensure_clean_for_timing,
     ensure_empty_output,
@@ -18,6 +24,120 @@ from benchmarks.rowwirebench import (
     metrics,
     requested_cpus,
 )
+
+
+class SampleHarnessDoubles:
+    def __init__(self, loads: list[list[float] | None]) -> None:
+        self.events: list[str] = []
+        self.loads = iter(loads)
+        self.pid = 12345
+        self.quiet_error: RuntimeError | None = None
+
+    async def seed_database(self, _row_count: int) -> None:
+        self.events.append("seed")
+
+    def start_server(
+        self, _variant: str, _args: argparse.Namespace, _path: Path
+    ) -> Any:
+        self.events.append("start")
+        return self
+
+    def wait_ready(self, _port: int) -> None:
+        self.events.append("ready")
+
+    def warmup(self, _url: str, _args: argparse.Namespace) -> None:
+        self.events.append("warmup")
+
+    def wait_for_quiet_host(self) -> dict[str, Any]:
+        self.events.append("quiet")
+        if self.quiet_error is not None:
+            raise self.quiet_error
+        return {
+            "load_average": [0.9, 0.9, 0.9],
+            "wait_seconds": 10.0,
+            "polls": 6,
+            "max_load_while_waiting": 1.4,
+            "active_processes": [],
+        }
+
+    def load_average(self) -> list[float] | None:
+        self.events.append("load")
+        return next(self.loads)
+
+    def run(self, *_args: Any, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        self.events.append("oha")
+        return subprocess.CompletedProcess(
+            args=["oha"],
+            returncode=0,
+            stdout=json.dumps(
+                {
+                    "summary": {"requestsPerSec": 1000},
+                    "latencyPercentiles": {"p50": 0.01, "p99": 0.02},
+                }
+            ),
+            stderr="",
+        )
+
+    def stop_server(self, _process: object) -> None:
+        self.events.append("stop")
+
+    def sleep(self, _seconds: float) -> None:
+        self.events.append("sleep")
+
+    def oha_command(self, _url: str, _args: argparse.Namespace) -> list[str]:
+        return ["oha"]
+
+    def pin(self, _cpus: str) -> list[str]:
+        return ["taskset"]
+
+    def command_output(self, _command: list[str]) -> str:
+        return "pid 12345's current affinity list: 0-3"
+
+
+class QuietWindowClock:
+    def __init__(self, loads: list[list[float] | None]) -> None:
+        self.loads = iter(loads)
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.now += seconds
+
+    def load_average(self) -> list[float] | None:
+        return next(self.loads)
+
+    def command_output(self, _command: list[str]) -> str:
+        return ""
+
+
+def install_sample_doubles(
+    monkeypatch: pytest.MonkeyPatch, doubles: SampleHarnessDoubles
+) -> None:
+    monkeypatch.setattr(rowwirebench, "seed_database", doubles.seed_database)
+    monkeypatch.setattr(rowwirebench, "start_server", doubles.start_server)
+    monkeypatch.setattr(rowwirebench, "wait_ready", doubles.wait_ready)
+    monkeypatch.setattr(rowwirebench, "warmup", doubles.warmup)
+    monkeypatch.setattr(
+        rowwirebench, "wait_for_quiet_host", doubles.wait_for_quiet_host
+    )
+    monkeypatch.setattr(rowwirebench, "load_average", doubles.load_average)
+    monkeypatch.setattr(subprocess, "run", doubles.run)
+    monkeypatch.setattr(rowwirebench, "stop_server", doubles.stop_server)
+    monkeypatch.setattr(time, "sleep", doubles.sleep)
+    monkeypatch.setattr(rowwirebench, "oha_command", doubles.oha_command)
+    monkeypatch.setattr(rowwirebench, "pin", doubles.pin)
+    monkeypatch.setattr(rowwirebench, "command_output", doubles.command_output)
+
+
+def install_quiet_window_clock(
+    monkeypatch: pytest.MonkeyPatch, clock: QuietWindowClock
+) -> None:
+    monkeypatch.setattr(time, "monotonic", clock.monotonic)
+    monkeypatch.setattr(time, "sleep", clock.sleep)
+    monkeypatch.setattr(rowwirebench, "load_average", clock.load_average)
+    monkeypatch.setattr(rowwirebench, "command_output", clock.command_output)
 
 
 def test_variants_share_the_same_generated_route_and_change_only_row_wire() -> None:
@@ -165,6 +285,131 @@ def test_timed_run_requires_clean_committed_source_but_preflight_does_not() -> N
 
     ensure_clean_for_timing(" M python/hinoki/crud.py", verify_only=True)
     ensure_clean_for_timing("", verify_only=False)
+
+
+def test_sample_waits_for_quiet_after_warmup_and_records_final_load(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    doubles = SampleHarnessDoubles([[0.8, 0.9, 0.9], [1.4, 1.2, 1.0]])
+    install_sample_doubles(monkeypatch, doubles)
+    args = argparse.Namespace(
+        seed_rows=100,
+        port=8891,
+        warmup=10,
+        duration=20,
+        connections=64,
+        workers=1,
+        pool_size=10,
+        server_cpus="0-3",
+        load_cpus="6-7",
+    )
+
+    sample = collect_sample("wire", 20, 1, ("wire", "python"), args, tmp_path)
+
+    assert doubles.events == [
+        "seed",
+        "start",
+        "ready",
+        "warmup",
+        "quiet",
+        "load",
+        "oha",
+        "load",
+        "stop",
+        "sleep",
+    ]
+    assert sample["load_before"] == [0.8, 0.9, 0.9]
+    assert sample["requests_per_second"] == 1000.0
+
+
+@pytest.mark.parametrize("load", [[1.01, 1.0, 1.0], None])
+def test_sample_refuses_measurement_when_final_load_is_over_limit_or_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    load: list[float] | None,
+) -> None:
+    doubles = SampleHarnessDoubles([load])
+    install_sample_doubles(monkeypatch, doubles)
+    args = argparse.Namespace(
+        seed_rows=100,
+        port=8891,
+        warmup=10,
+        duration=20,
+        connections=64,
+        workers=1,
+        pool_size=10,
+        server_cpus="0-3",
+        load_cpus="6-7",
+    )
+
+    with pytest.raises(RuntimeError, match="immediately before timing"):
+        collect_sample("wire", 20, 1, ("wire", "python"), args, tmp_path)
+
+    assert "oha" not in doubles.events
+    assert doubles.events[-2:] == ["stop", "sleep"]
+
+
+def test_sample_timeout_after_warmup_stops_server_without_measuring(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    doubles = SampleHarnessDoubles([])
+    doubles.quiet_error = RuntimeError("quiet window timed out")
+    install_sample_doubles(monkeypatch, doubles)
+    args = argparse.Namespace(
+        seed_rows=100,
+        port=8891,
+        warmup=10,
+        duration=20,
+        connections=64,
+        workers=1,
+        pool_size=10,
+        server_cpus="0-3",
+        load_cpus="6-7",
+    )
+
+    with pytest.raises(RuntimeError, match="quiet window timed out"):
+        collect_sample("wire", 20, 1, ("wire", "python"), args, tmp_path)
+
+    assert "oha" not in doubles.events
+    assert doubles.events[-2:] == ["stop", "sleep"]
+
+
+def test_quiet_window_starts_after_load_drops_and_stays_below_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = QuietWindowClock(
+        [
+            [1.5, 1.2, 1.2],
+            [1.2, 1.2, 1.2],
+            [0.9, 1.0, 1.1],
+            [0.8, 1.0, 1.1],
+            [0.8, 1.0, 1.1],
+            [0.7, 1.0, 1.1],
+            [0.7, 1.0, 1.1],
+            [0.7, 1.0, 1.1],
+        ]
+    )
+    install_quiet_window_clock(monkeypatch, clock)
+
+    result = rowwirebench.wait_for_quiet_host()
+
+    assert result["wait_seconds"] == 14.0
+    assert result["polls"] == 8
+    assert result["load_average"] == [0.7, 1.0, 1.1]
+    assert result["max_load_while_waiting"] == 1.5
+
+
+def test_quiet_window_times_out_if_load_average_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = QuietWindowClock([None, None, None, None])
+    install_quiet_window_clock(monkeypatch, clock)
+    monkeypatch.setattr(rowwirebench, "QUIET_TIMEOUT_SECONDS", 4.0)
+
+    with pytest.raises(RuntimeError, match="host did not stay quiet"):
+        rowwirebench.wait_for_quiet_host()
+
+    assert clock.now == 4.0
 
 
 def test_port_check_rejects_an_active_listener() -> None:
