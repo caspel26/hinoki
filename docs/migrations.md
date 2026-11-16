@@ -18,6 +18,23 @@ uv run hinoki migrations plan --app billing --name add-invoice-index
 
 The manifest must register the selected app. A single-app project defaults to that app; in a multi-app project, `plan` requires `--app`. The planner targets the local SQLite default unless a URL is provided through `HINOKI_DATABASE_URL` or `--database`. It writes a numbered `.sql` file and a matching `.state.json` file into the registered migration package. Numbering and a stable slug derived from the first schema change are automatic; an optional `--name` replaces only that slug. Review both files before applying the change. To inspect a plan without writing files, add `--dry-run`. Cross-app model references require an explicit `requires` dependency in `hinoki.toml`; this lets Hinoki validate references and order migrations without assigning another app's tables to the current app's migration state.
 
+### Cross-app migration safety
+
+Before writing a focused app plan, Hinoki checks cross-app foreign keys against
+the prerequisite app's recorded migration state. The referenced table and
+column must already be recorded, the column must be a primary key, and its
+logical type must be compatible. If the prerequisite has not been planned yet,
+plan and review it first. The prerequisite migration does not need to have been
+applied to the database before the dependent app can be planned.
+
+Hinoki also refuses to generate a parent table or referenced-column teardown
+while any recorded state snapshot of another app still refers to it. This
+conservative guard also applies with `--allow-destructive`; it prevents a
+generated parent drop from preceding a child foreign-key removal. Perform
+cross-app teardowns as reviewed, separately deployed phases: remove and apply
+the child reference first, then prepare and apply the parent teardown. The
+planner does not infer live database safety from migration files.
+
 The state file stores logical column types that are stable across backends; the
 generated SQL uses the selected backend's types. Existing state files that
 recorded SQLite or MySQL-specific type names are normalized when planning, so
