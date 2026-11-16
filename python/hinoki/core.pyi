@@ -36,6 +36,13 @@ def dump_instance(
     exclude: list[str] = ...,
     by_alias: bool = True,
 ) -> dict[str, Any]: ...
+def serialize_instance(
+    value: Any,
+    include: list[str] | None,
+    exclude: list[str],
+    exclude_unset: bool,
+    by_alias: bool,
+) -> dict[str, Any]: ...
 def compile_schemas(
     definitions: list[tuple[type, list[tuple[str, str, tuple[Any, ...], bool]]]],
     root: int,

@@ -760,6 +760,15 @@ mod tests {
 
 const DUMP_DEPTH: usize = 1000;
 
+struct SerializationOptions<'a> {
+    json_mode: bool,
+    by_alias: bool,
+    exclude_unset: bool,
+    controlled: bool,
+    exclude: &'a [String],
+    include: Option<&'a [String]>,
+}
+
 /// A value as `Schema.dump()` (JSON-compatible) or `Schema.to_dict()` (Python
 /// values) shows it: nested schemas become dicts, lists and tuples lists, dicts
 /// are copied; in JSON mode exact `UUID`/`datetime` values become text and any
@@ -768,6 +777,8 @@ fn convert<'py>(
     value: &Bound<'py, PyAny>,
     json_mode: bool,
     by_alias: bool,
+    exclude_unset: bool,
+    controlled: bool,
     depth: usize,
 ) -> PyResult<Bound<'py, PyAny>> {
     let py = value.py();
@@ -780,16 +791,40 @@ fn convert<'py>(
         return Ok(value.clone());
     }
     if let Ok(list) = value.cast::<PyList>() {
-        return convert_list(py, list.iter(), json_mode, by_alias, depth);
+        return convert_list(
+            py,
+            list.iter(),
+            json_mode,
+            by_alias,
+            exclude_unset,
+            controlled,
+            depth,
+        );
     }
     if let Ok(tuple) = value.cast::<pyo3::types::PyTuple>() {
-        return convert_list(py, tuple.iter(), json_mode, by_alias, depth);
+        return convert_list(
+            py,
+            tuple.iter(),
+            json_mode,
+            by_alias,
+            exclude_unset,
+            controlled,
+            depth,
+        );
     }
     if let Ok(dict) = value.cast::<PyDict>() {
-        return convert_dict(py, dict, json_mode, by_alias, depth);
+        return convert_dict(
+            py,
+            dict,
+            json_mode,
+            by_alias,
+            exclude_unset,
+            controlled,
+            depth,
+        );
     }
     if instance_fields(value, false, by_alias)?.is_some() {
-        return convert_schema(value, json_mode, by_alias, depth);
+        return convert_schema(value, json_mode, by_alias, exclude_unset, controlled, depth);
     }
     if json_mode {
         return convert_json_object(value);
@@ -802,11 +837,20 @@ fn convert_list<'py>(
     items: impl Iterator<Item = Bound<'py, PyAny>>,
     json_mode: bool,
     by_alias: bool,
+    exclude_unset: bool,
+    controlled: bool,
     depth: usize,
 ) -> PyResult<Bound<'py, PyAny>> {
     let out = PyList::empty(py);
     for item in items {
-        out.append(convert(&item, json_mode, by_alias, depth + 1)?)?;
+        out.append(convert(
+            &item,
+            json_mode,
+            by_alias,
+            exclude_unset,
+            controlled,
+            depth + 1,
+        )?)?;
     }
     Ok(out.into_any())
 }
@@ -816,11 +860,23 @@ fn convert_dict<'py>(
     items: &Bound<'py, PyDict>,
     json_mode: bool,
     by_alias: bool,
+    exclude_unset: bool,
+    controlled: bool,
     depth: usize,
 ) -> PyResult<Bound<'py, PyAny>> {
     let out = PyDict::new(py);
     for (key, item) in items.iter() {
-        out.set_item(key, convert(&item, json_mode, by_alias, depth + 1)?)?;
+        out.set_item(
+            key,
+            convert(
+                &item,
+                json_mode,
+                by_alias,
+                exclude_unset,
+                controlled,
+                depth + 1,
+            )?,
+        )?;
     }
     Ok(out.into_any())
 }
@@ -829,12 +885,32 @@ fn convert_schema<'py>(
     value: &Bound<'py, PyAny>,
     json_mode: bool,
     by_alias: bool,
+    exclude_unset: bool,
+    controlled: bool,
     depth: usize,
 ) -> PyResult<Bound<'py, PyAny>> {
     if json_mode && instance_fields(value, true, by_alias)?.is_none() {
+        if controlled {
+            let class_name = value.get_type().name()?.to_string();
+            return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                "controlled serialization cannot inspect {class_name} because it overrides dump(); use its dump() or a projection Schema"
+            )));
+        }
         return value.call_method0("dump"); // the class decides what it exposes
     }
-    Ok(dump_instance_at(value, json_mode, &[], by_alias, depth + 1)?.into_any())
+    Ok(dump_instance_at(
+        value,
+        SerializationOptions {
+            json_mode,
+            by_alias,
+            exclude_unset,
+            controlled,
+            exclude: &[],
+            include: None,
+        },
+        depth + 1,
+    )?
+    .into_any())
 }
 
 fn convert_json_object<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
@@ -855,27 +931,70 @@ fn convert_json_object<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, Py
 
 fn dump_instance_at<'py>(
     value: &Bound<'py, PyAny>,
-    json_mode: bool,
-    exclude: &[String],
-    by_alias: bool,
+    options: SerializationOptions<'_>,
     depth: usize,
 ) -> PyResult<Bound<'py, PyDict>> {
     let py = value.py();
-    let Some((names, unset)) = instance_fields(value, false, by_alias)? else {
+    let Some((names, unset)) = instance_fields(value, options.controlled, options.by_alias)? else {
+        if options.controlled {
+            let class_name = value.get_type().name()?.to_string();
+            return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                "controlled serialization cannot inspect {class_name} because it overrides dump(); use its dump() or a projection Schema"
+            )));
+        }
         return Err(pyo3::exceptions::PyTypeError::new_err(
             "not a schema instance",
         ));
     };
+    let supplied = if options.exclude_unset {
+        Some(value.getattr("__hinoki_supplied_fields__").map_err(|_| {
+            pyo3::exceptions::PyTypeError::new_err(format!(
+                "{} has no reliable supplied-field tracking; exclude_unset requires the generated Schema constructor",
+                value
+                    .get_type()
+                    .name()
+                    .map(|name| name.to_string())
+                    .unwrap_or_else(|_| "Schema".to_owned())
+            ))
+        })?)
+    } else {
+        None
+    };
     let out = PyDict::new(py);
     for (name, wire_name) in names {
-        if exclude.contains(&name) {
+        if options.exclude.contains(&name) {
             continue;
+        }
+        if options
+            .include
+            .is_some_and(|selected| !selected.contains(&name))
+        {
+            continue;
+        }
+        if let Some(fields) = &supplied {
+            if !fields.is(PyBool::new(py, true))
+                && !fields
+                    .call_method1("__contains__", (name.as_str(),))?
+                    .is_truthy()?
+            {
+                continue;
+            }
         }
         let item = value.getattr(name.as_str())?;
         if item.is(&unset) {
             continue;
         }
-        out.set_item(&wire_name, convert(&item, json_mode, by_alias, depth)?)?;
+        out.set_item(
+            &wire_name,
+            convert(
+                &item,
+                options.json_mode,
+                options.by_alias,
+                options.exclude_unset,
+                options.controlled,
+                depth,
+            )?,
+        )?;
     }
     Ok(out)
 }
@@ -891,7 +1010,42 @@ pub fn dump_instance<'py>(
     exclude: Vec<String>,
     by_alias: bool,
 ) -> PyResult<Bound<'py, PyDict>> {
-    dump_instance_at(value, json_mode, &exclude, by_alias, 0)
+    dump_instance_at(
+        value,
+        SerializationOptions {
+            json_mode,
+            by_alias,
+            exclude_unset: false,
+            controlled: false,
+            exclude: &exclude,
+            include: None,
+        },
+        0,
+    )
+}
+
+/// JSON-compatible, explicitly selected Schema projection.
+#[pyfunction]
+#[pyo3(signature = (value, include=None, exclude=Vec::new(), exclude_unset=false, by_alias=true))]
+pub fn serialize_instance<'py>(
+    value: &Bound<'py, PyAny>,
+    include: Option<Vec<String>>,
+    exclude: Vec<String>,
+    exclude_unset: bool,
+    by_alias: bool,
+) -> PyResult<Bound<'py, PyDict>> {
+    dump_instance_at(
+        value,
+        SerializationOptions {
+            json_mode: true,
+            by_alias,
+            exclude_unset,
+            controlled: true,
+            exclude: &exclude,
+            include: include.as_deref(),
+        },
+        0,
+    )
 }
 
 /// How one model attribute converts for a schema field: a nested model becomes
@@ -994,6 +1148,10 @@ impl ModelPlan {
                 .getattr("__dict__")?
                 .cast::<PyDict>()?
                 .update(values.as_mapping())?;
+            instance
+                .getattr("__dict__")?
+                .cast::<PyDict>()?
+                .set_item("__hinoki_supplied_fields__", true)?;
             return Ok(instance);
         }
         class.call((), Some(&values))
