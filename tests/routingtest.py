@@ -7,7 +7,7 @@ import pytest
 import hinoki
 from hinoki import API, Access, Hinoki, RouteGroup, http
 from hinoki.crud import Crud
-from hinoki.errors import Conflict, Forbidden, NotFound, RegistrationError
+from hinoki.errors import APIError, Conflict, Forbidden, NotFound, RegistrationError
 from hinoki.handlerhints import hints_of, module_scope_hints, signature_of
 from hinoki.request import Request
 from tests.providers import TokenAuth
@@ -215,6 +215,32 @@ def test_errors_option_validates_what_it_is_given() -> None:
         @http.get("/b", errors=(ValueError,))  # type: ignore[arg-type]
         def b() -> None: ...
 
+    class BadStatus(APIError):
+        status = 399
+        code = "bad_status"
+
+    with pytest.raises(ValueError, match="status must be 400 to 599"):
+        http.get("/bad", errors=(BadStatus,))(lambda: None)
+
+
+@pytest.mark.parametrize(
+    ("declaration", "method"),
+    [
+        (http.put, "PUT"),
+        (http.patch, "PATCH"),
+        (http.delete, "DELETE"),
+        (http.query, "QUERY"),
+    ],
+)
+def test_remaining_http_declaration_methods(
+    declaration: Callable[..., object], method: str
+) -> None:
+    decorator = cast(
+        Callable[[Callable[[], None]], Callable[[], None]], declaration("/method")
+    )
+    handler = decorator(lambda: None)
+    assert Hinoki(include=[handler]).routes[0].method == method
+
 
 def test_route_group_is_includable_with_shared_options_once() -> None:
     guard = Access(auth=TokenAuth(), permissions=["w"])
@@ -249,6 +275,34 @@ def test_route_group_is_includable_with_shared_options_once() -> None:
     with pytest.raises(TypeError, match="unknown action options"):
         group.get("/x", nope=1)
     assert str(Crud.LIST) == "list" and Crud.DELETE.value == "delete"
+
+
+def test_route_group_patch_declaration_and_path_validation() -> None:
+    group = RouteGroup("/items", atomic=True)
+    declaration = group.patch("/{item_id}")
+
+    @declaration
+    def update(item_id: int) -> None: ...
+
+    @group.delete("/{item_id}")
+    def remove(item_id: int) -> None: ...
+
+    @group.query("/search")
+    def search() -> None: ...
+
+    routes = Hinoki(include=[group]).routes
+    route = routes[0]
+    assert (route.method, route.path, route.transaction) == (
+        "PATCH",
+        "/items/{item_id}",
+        True,
+    )
+    assert [(item.method, item.path) for item in routes[1:]] == [
+        ("DELETE", "/items/{item_id}"),
+        ("QUERY", "/items/search"),
+    ]
+    with pytest.raises(ValueError, match="path must start"):
+        group.declare("GET", "items", {})
 
 
 def test_route_group_cannot_be_included_twice_or_changed_after_inclusion() -> None:
