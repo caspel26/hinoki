@@ -12,6 +12,7 @@ import pytest
 from hinoki import __main__ as cli
 from hinoki import mcp
 from hinoki.errors import MigrationError
+from hinoki.orm.migrations import Plan
 
 
 def test_legacy_migration_plan_wrapper_and_missing_models(tmp_path: Path) -> None:
@@ -31,6 +32,19 @@ def test_legacy_migration_plan_wrapper_and_missing_models(tmp_path: Path) -> Non
     missing = cli.parser().parse_args(["migrations", "plan"])
     with pytest.raises(MigrationError, match="pass --models"):
         cli.migration_plans(missing)
+
+
+def test_all_app_migration_summary_reports_an_empty_plan(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert (
+        cli.print_all_app_plans(Namespace(check=False), [("accounts", Plan((), {}))])
+        == 0
+    )
+    assert (
+        capsys.readouterr().out
+        == "accounts:\n  no changes\nno changes across registered apps\n"
+    )
 
 
 def test_project_sql_dispatch_uses_the_project_preview(
