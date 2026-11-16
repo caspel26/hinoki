@@ -1,4 +1,4 @@
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -160,6 +160,8 @@ class PreparedRequest:
     @property
     def params(self) -> dict[str, str]: ...
     @property
+    def client(self) -> tuple[str, int] | None: ...
+    @property
     def headers(self) -> list[tuple[bytes, bytes]]: ...
     def respond(
         self, status: int, headers: list[tuple[bytes, bytes]], body: bytes
@@ -212,3 +214,21 @@ class ServerCore:
         trusted: bool = False,
         https: bool = False,
     ) -> Submission: ...
+
+class RustServer:
+    @staticmethod
+    def start(
+        core: ServerCore,
+        host: str,
+        port: int,
+        max_connections: int = 10000,
+        header_read_timeout: float = 10.0,
+        shutdown_timeout: float = 10.0,
+        max_header_bytes: int = 32768,
+    ) -> RustServer: ...
+    @property
+    def port(self) -> int: ...
+    @property
+    def wake_fd(self) -> int: ...
+    def clear_wake(self) -> bool: ...
+    def shutdown(self) -> Awaitable[int]: ...
