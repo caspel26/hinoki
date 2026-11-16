@@ -1,6 +1,8 @@
 """Native awaitables resolve on the loop thread, whatever the loop does."""
 
 import asyncio
+import subprocess
+import sys
 import threading
 from pathlib import Path
 
@@ -129,3 +131,70 @@ def test_loop_without_add_reader_uses_the_fallback(tmp_path: Path) -> None:
         assert loop.run_until_complete(run()) == 250
     finally:
         loop.close()
+
+
+SLOW = (
+    "with recursive c(n) as (select 1 union all select n + 1 from c where n < 3000000) "
+    "select count(*) as n from c"
+)
+
+
+def test_suspended_loop_keeps_its_pending_call(tmp_path: Path) -> None:
+    first, second = asyncio.new_event_loop(), asyncio.new_event_loop()
+    try:
+        db = first.run_until_complete(open_db(tmp_path, "suspended.sqlite3"))
+        slow = first.create_task(db.fetch(SLOW))
+        first.run_until_complete(asyncio.sleep(0))
+        assert second.run_until_complete(db.fetch("select 1 as x"))[0]["x"] == 1
+        done = first.run_until_complete(asyncio.wait_for(slow, 20))
+        assert done[0]["n"] == 3000000
+        db.close()
+    finally:
+        first.close()
+        second.close()
+
+
+def test_cancel_on_one_loop_leaves_the_other_loop_alone(tmp_path: Path) -> None:
+    first, second = asyncio.new_event_loop(), asyncio.new_event_loop()
+    try:
+        db = first.run_until_complete(open_db(tmp_path, "cancel.sqlite3"))
+        old = first.create_task(db.fetch(SLOW))
+        first.run_until_complete(asyncio.sleep(0))
+        other = second.create_task(db.fetch(SLOW))
+        second.run_until_complete(asyncio.sleep(0))
+        old.cancel()
+        first.run_until_complete(asyncio.gather(old, return_exceptions=True))
+        rows = second.run_until_complete(asyncio.wait_for(other, 20))
+        assert rows[0]["n"] == 3000000
+        db.close()
+    finally:
+        first.close()
+        second.close()
+
+
+def test_late_result_after_the_loop_is_gone_does_not_kill_the_process(
+    tmp_path: Path,
+) -> None:
+    script = f"""
+import asyncio, signal, threading
+from hinoki.db import Database
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+async def work():
+    db = await Database.connect("sqlite://{tmp_path / "sigpipe.sqlite3"}", max_size=2)
+    asyncio.ensure_future(db.fetch({SLOW!r}))
+    await asyncio.sleep(0)
+thread = threading.Thread(target=asyncio.run, args=(work(),))
+thread.start()
+thread.join()
+import time; time.sleep(1)
+print("alive")
+"""
+    done = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr
+    assert "alive" in done.stdout
