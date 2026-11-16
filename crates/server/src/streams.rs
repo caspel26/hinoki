@@ -15,10 +15,10 @@
 //! * [`Close::Graceful`], when one response made no progress for `stall` (the
 //!   peer keeps that stream's window at zero while answering pings, or stopped
 //!   reading). Bodies are handed to hyper in [`CHUNK`]-sized frames (the last
-//!   byte alone, see `poll_frame`), and hyper
-//!   asks for the next one only when the previous was accepted by the stream
-//!   window, so the time since a stream's last poll measures its own progress; a
-//!   new stream never resets it. hyper offers no way to reset one stream from
+//!   byte alone, see `poll_frame`), and hyper keeps the body (and so the
+//!   entry) until every byte it sent fits the stream window, so the time since
+//!   a stream's last poll measures its own progress; a new stream never resets
+//!   it. hyper offers no way to reset one stream from
 //!   outside (the stalled one is not polled), so the whole connection gets a
 //!   GOAWAY and its other streams get the shutdown timeout to finish, after which
 //!   the stalled one is cut with the connection.
@@ -195,10 +195,10 @@ impl Body for Chunked {
             this.entry.done = true;
             return Poll::Ready(None);
         }
-        // The last byte is a frame of its own. hyper waits for window capacity
-        // before it polls the next frame, and h2 counts buffered data against
-        // that capacity, so polling the final byte means every byte before it
-        // fits the window. Without the split the last chunk is handed over with
+        // The last byte is a frame of its own. hyper sends the final byte only
+        // once every byte before it has window (h2 counts buffered data against
+        // the stream's capacity) and drops the body, and so the entry, after
+        // that send. Without the split the last chunk is handed over with
         // end-of-stream as soon as one byte of window exists, the entry goes
         // away, and up to `CHUNK` bytes stay buffered on a stalled stream where
         // nothing watches them.
