@@ -51,6 +51,36 @@ assert person.to_dict() == {"first_name": "Aki"}
 
 An assigned declaration such as `display_name: str = Field(alias="displayName")` is also supported, including alongside `default_factory`. Aliases must be unique within a schema and cannot contain `.`, `[` or `]`, which are reserved by error paths. Model columns do not accept wire aliases; put API naming on the `Schema`.
 
+## Controlled serialization
+
+Use `serialize()` when application code needs a JSON-compatible projection of a Schema. `include` and `exclude` accept Python field names and apply to the top-level fields only; exclusion wins if a field appears in both. There are no dotted paths or nested selection maps. Nested Schemas and supported lists are converted recursively, with `by_alias` applied at every Schema level.
+
+```python
+from typing import Annotated
+
+from hinoki import Field, Schema
+
+
+class PersonOut(Schema):
+    first_name: Annotated[str, Field(alias="firstName")]
+    bio: str = ""
+
+
+person = PersonOut.validate({"firstName": "Aki"})
+assert person.serialize() == {"firstName": "Aki", "bio": ""}
+assert person.serialize(exclude_unset=True) == {"firstName": "Aki"}
+assert person.serialize(include={"first_name"}, by_alias=False) == {
+    "first_name": "Aki"
+}
+assert person.serialize(include=set()) == {}
+```
+
+`exclude_unset=True` omits values supplied by dataclass defaults or default factories when the caller did not provide that field. It does not compare values with defaults: explicitly passing `bio=""`, `None`, `0`, `False` or an empty collection keeps that value. `UNSET` is omitted regardless of this option. `from_model()` tracks attributes it actually reads and values passed via `**extra`; missing optional attributes that use Schema defaults remain unset. A custom `__post_init__` changing a field does not make it supplied. A custom `__init__` has no reliable input-presence information, so `exclude_unset=True` raises `TypeError` for its instances.
+
+The default `serialize()` output matches `dump()` for Schemas using the built-in dumper. If a Schema overrides `dump()`, controlled serialization refuses it, including when such a Schema appears in a selected nested field. This preserves custom projection/privacy behavior instead of bypassing it. Use the custom `dump()` directly or define a public projection Schema. `dump()` and automatic HTTP responses keep their existing behavior. Filtering a manually returned dictionary does not change the OpenAPI contract and is not an authorization mechanism; declare a response Schema containing only fields the caller may see. `to_dict()` remains the Python-value conversion and its existing `exclude=` behavior is unchanged.
+
+`serialize` is reserved as a `Schema` method name. Declaring a field with that Python attribute name raises `RegistrationError` instead of treating the inherited method as a default value; rename the Python field to avoid the collision. A wire alias alone cannot resolve a Python attribute-name conflict.
+
 ## Built-in and custom validation
 
 `Field(...)` provides built-in structural constraints. `format=` accepts `email`, `url`, `slug` or `hex_color` and is shorthand for a regular-expression pattern. Numeric bounds apply to numbers; length limits apply to strings and collections; `one_of` restricts a value to the listed choices.
