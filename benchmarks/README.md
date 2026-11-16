@@ -246,4 +246,13 @@ Question: does resolving database awaitables on the event-loop thread (a per-loo
 `nativeawaitbench.py` (SQLite file, 64 concurrent fetches): one row 36 500 → 230 000 calls/s, 100 rows 24 200 → 50 500 calls/s.
 
 * The `list_100` event-loop CPU rises because row conversion now runs on the loop thread instead of a Tokio worker; throughput still improved here, but a loop-bound worker with very large pages could see the conversion cost on its own thread.
-* Not measured: Granian with real sockets (`oha`), PostgreSQL with `runtime_threads` 2, Linux, a quiet host. The in-process runs call the same ASGI adapter Granian drives.
+Under Granian with real sockets (`comparative/run.py --framework hinoki`, 4 workers, 64 connections, `oha`, PostgreSQL 17, 2 rounds of 3 runs of 10 s per build, alternating; load 2 to 25, so noisy), median req/s before → after, no non-2xx responses:
+
+| Scenario | Before | After |
+| --- | ---: | ---: |
+| `detail` | 20 921 | 27 424 (+31%) |
+| `create` | 11 884 | 14 263 (+20%) |
+| `list` (20 rows) | 1 738 | 1 501 (−14%, ranges disjoint in both rounds) |
+
+* The in-process gains do not carry over unchanged: `list` is slower under Granian, and the cause is not established (row conversion on the loop thread is a hypothesis, not a measurement).
+* Not measured: PostgreSQL with `runtime_threads` 2, Linux, a quiet host, the Rust server (not built yet).
