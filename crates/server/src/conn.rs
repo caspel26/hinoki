@@ -1,4 +1,4 @@
-//! One HTTP/1.1 request on one connection: what the transport hands to the
+//! One HTTP/1.1 or HTTP/2 request on one connection: what the transport hands to the
 //! [`Backend`] and how the [`Answer`] is written back.
 //!
 //! This layer owns only transport rules: HEAD answers keep their
@@ -34,7 +34,8 @@ use crate::headers::Header;
 /// The head of a request as the backend sees it. Header names are lowercase,
 /// repeated headers stay separate and in arrival order, and `path` and `query`
 /// are the raw (still percent-encoded) target. An absolute-form target makes its
-/// authority the `host` header.
+/// authority the `host` header, and so does the `:authority` of an HTTP/2
+/// request, which wins over a `host` header that differs (RFC 9113 8.3.1).
 #[derive(Debug)]
 pub struct Incoming {
     pub method: String,
@@ -44,6 +45,8 @@ pub struct Incoming {
     pub peer: SocketAddr,
     /// The connection is TLS: the request arrived over https.
     pub secure: bool,
+    /// `"2"` for a request that arrived over HTTP/2, `"1.1"` otherwise.
+    pub http_version: &'static str,
     /// Set when the transport rejects the request ([`Early::BadHost`]): the
     /// backend answers with it and does not route the request.
     pub refusal: Option<Early>,
@@ -102,6 +105,11 @@ fn incoming_of(
         headers,
         peer,
         secure,
+        http_version: if parts.version == Version::HTTP_2 {
+            "2"
+        } else {
+            "1.1"
+        },
         refusal,
         body,
     }
@@ -158,6 +166,7 @@ pub async fn respond<B: Backend>(
     request: Request<RequestBody>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
     let head_only = request.method() == Method::HEAD;
+    let version = request.version();
     let (parts, body) = request.into_parts();
     let body = (!body.is_end_stream()).then(|| BodyReader::new(body, transport.body_read_timeout));
     let finished = body.as_ref().map(BodyReader::finished);
@@ -167,7 +176,9 @@ pub async fn respond<B: Backend>(
     if unread {
         transport.signals.linger.store(true, Ordering::Release);
     }
-    if unread || transport.signals.close.load(Ordering::Acquire) {
+    // `connection` is a forbidden header on HTTP/2, which has no such notion.
+    let closing = unread || transport.signals.close.load(Ordering::Acquire);
+    if closing && version != Version::HTTP_2 {
         response
             .headers_mut()
             .insert("connection", HeaderValue::from_static("close"));
