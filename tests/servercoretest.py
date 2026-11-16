@@ -226,6 +226,60 @@ def test_native_response_finalization_uses_the_https_policy() -> None:
     assert dict(reply[1])[b"strict-transport-security"] == b"max-age=31536000"
 
 
+def test_startup_probe_answers_get_head_and_refuses_bad_requests_natively() -> None:
+    server = classifier(Hinoki(startup_url="/health"))
+
+    get = server.submit("GET", "/health", b"", []).early
+    assert get is not None
+    assert get[0] == 200
+    assert json.loads(get[2]) == {"status": "ok"}
+    assert (b"content-type", b"application/json") in get[1]
+    assert (b"content-length", str(len(get[2])).encode()) in get[1]
+
+    head = server.submit("HEAD", "/health", b"", []).early
+    assert head is not None
+    assert head[0] == 200
+    assert head[2] == b""
+    assert dict(head[1])[b"content-length"] == str(len(get[2])).encode()
+
+    wrong_method = server.submit("POST", "/health", b"", []).early
+    assert wrong_method is not None and wrong_method[0] == 405
+    assert dict(wrong_method[1])[b"allow"] == b"GET, HEAD"
+
+    unacceptable = server.submit(
+        "GET", "/health", b"", [(b"accept", b"text/plain")]
+    ).early
+    assert unacceptable is not None and unacceptable[0] == 406
+    assert json.loads(unacceptable[2])["available"] == "application/json"
+
+    malformed = server.submit("GET", "/health", b"x=%FF", []).early
+    assert malformed is not None and malformed[0] == 400
+    assert json.loads(malformed[2])["error"] == "invalid_query"
+    assert server.pending == 0
+
+
+def test_startup_probe_obeys_readiness_before_success() -> None:
+    server = classifier(Hinoki(startup_url="/health"), ready=False)
+    not_ready = server.submit("GET", "/health", b"", []).early
+    assert not_ready is not None and not_ready[0] == 503
+    assert json.loads(not_ready[2])["error"] == "not_ready"
+    server.set_ready(True)
+    ready = server.submit("GET", "/health", b"", []).early
+    assert ready is not None and ready[0] == 200
+
+
+def test_startup_probe_uses_python_when_policies_are_deferred() -> None:
+    app = Hinoki(
+        startup_url="/health",
+        settings=AppSettings(allowed_hosts=("example.com",)),
+    )
+    server = classifier(app)
+    submission = server.submit("GET", "/health", b"", [(b"host", b"example.com")])
+    assert submission.early is None
+    [request] = server.drain(1)
+    assert request.action is None
+
+
 def test_only_the_first_queued_request_asks_for_a_wake() -> None:
     server = classifier(make_app())
     wakes = [server.submit("GET", "/ping", b"", []).wake for _ in range(3)]
