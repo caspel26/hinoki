@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 MAX_REQUEST_INPUT_BYTES = 1 << 20
@@ -27,5 +28,6 @@ class RuntimeConfig:
             raise ValueError("max_query_bytes must be 1 to 1048576")
         if not 1 <= self.max_header_bytes <= MAX_REQUEST_INPUT_BYTES:
             raise ValueError("max_header_bytes must be 1 to 1048576")
-        if min(self.request_timeout, self.startup_timeout, self.shutdown_timeout) <= 0:
-            raise ValueError("timeouts must be positive")
+        timeouts = (self.request_timeout, self.startup_timeout, self.shutdown_timeout)
+        if not all(math.isfinite(value) and value > 0 for value in timeouts):
+            raise ValueError("timeouts must be positive and finite")

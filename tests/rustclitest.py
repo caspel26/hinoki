@@ -16,7 +16,12 @@ from hinoki.runtime.listener import ListenError, inherited_address, open_listene
 from hinoki.runtime.rustserver import RustWorker
 from hinoki.runtime.supervisor import Supervisor
 from hinoki.serve import add_arguments, choose_server
-from hinoki.settings import AppSettings, ServerSettings, SettingsError
+from hinoki.settings import (
+    AppSettings,
+    LifecycleSettings,
+    ServerSettings,
+    SettingsError,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -100,6 +105,25 @@ def test_a_trusted_proxy_with_an_ipv6_zone_id_is_refused(entry: str) -> None:
 def test_rust_limits_are_validated(limit: dict[str, float]) -> None:
     with pytest.raises(ValueError, match=next(iter(limit))):
         ServerSettings(**limit).validate()  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), 0.0])
+def test_lifecycle_timeouts_must_be_finite_and_positive(value: float) -> None:
+    with pytest.raises(ValueError, match="finite"):
+        LifecycleSettings(shutdown_timeout=value).validate()
+
+
+def test_a_supervised_worker_ignores_a_repeated_sigterm() -> None:
+    worker = RustWorker(Hinoki(), "127.0.0.1", 0, parent=os.getpid())
+    worker._on_signal()
+    worker._on_signal()  # would os._exit(1) for an unsupervised worker
+    assert worker.stopping.is_set()
+
+
+def test_the_supervisor_grace_covers_every_stop_step() -> None:
+    from hinoki.serve import stop_grace  # noqa: PLC0415
+
+    assert stop_grace(Hinoki()) == 3 * Hinoki().runtime.shutdown_timeout
 
 
 def test_the_server_group_loads_the_new_fields_from_the_environment() -> None:
@@ -289,3 +313,11 @@ def test_resolver_and_bind_errors_that_are_not_oserrors_become_listen_errors(
     monkeypatch.setattr(socket.socket, "bind", bind)
     with pytest.raises(ListenError, match="invalid address"):
         open_listener("127.0.0.1", 8000, 4)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf")])
+def test_runtime_timeouts_must_be_finite(value: float) -> None:
+    from hinoki import RuntimeConfig  # noqa: PLC0415
+
+    with pytest.raises(ValueError, match="finite"):
+        RuntimeConfig(shutdown_timeout=value)
