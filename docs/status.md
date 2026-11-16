@@ -6,7 +6,7 @@ The [documentation site](documentation-versions.md) separates current developmen
 
 ## Implemented and exercised
 
-The repository includes typed function and class APIs, optional model-backed CRUD route generation, request binding and strict schemas, built-in and custom Schema validation, opt-in Model write constraints and validators, access policies and declared errors, optional architecture rules, settings and worker modules, SQLite, PostgreSQL, MySQL and MariaDB ORM backends with relations, querysets and file-based migrations, sync and async handlers, OpenAPI, parsers, renderers, development and application MCP, and an optional admin with four styles.
+The repository includes typed function and class APIs, optional model-backed CRUD route generation, request binding and strict schemas, built-in and custom Schema validation, bounded typed multipart uploads, opt-in Model write constraints and validators, access policies and declared errors, optional architecture rules, settings and worker modules, SQLite, PostgreSQL, MySQL and MariaDB ORM backends with relations, querysets and file-based migrations, sync and async handlers, OpenAPI, parsers, renderers, development and application MCP, and an optional admin with four styles.
 
 The examples are the best way to see the pieces together: [Notes](https://github.com/caspel26/hinoki/tree/main/examples/notes) for a small declared app, [Tracker](https://github.com/caspel26/hinoki/tree/main/examples/tracker) for layers, ownership and rules, and [Blog](https://github.com/caspel26/hinoki/tree/main/examples/blog) for relations, auth and admin.
 

@@ -10,12 +10,18 @@ A **parser** turns a request body into Python data; a **renderer** turns a handl
 | --- | --- | --- |
 | `JSONParser` | Strict JSON decoding (no NaN, no lone surrogates, depth limit) | `prepare(data)` hook and `media_type` |
 | `FormParser` | `application/x-www-form-urlencoded` parsing with a field cap | Builds the Python mappings; `max_fields` |
-| `MultiPartParser` | `multipart/form-data` parsing and byte/part limits | Builds `UploadedFile` and form objects; `max_parts`, `max_part_bytes` |
+| `MultiPartParser` | `multipart/form-data` parsing and byte/part limits | Builds `UploadedFile` and form objects; `max_parts`, `max_part_bytes` (each part, including text fields) |
 | `TextParser` | — | Decodes UTF-8 in Python; `media_type` |
 | `JSONRenderer` | Encodes `dict`, `list`, `Schema`, UUID, datetime and `dump()` objects | `prepare(value, request)` and `default` callbacks run in Python; `indent`, `sort_keys`, `media_type` |
 | `HTMLRenderer`, `TextRenderer` | — | Type-check and UTF-8 encode strings in Python; `media_type` |
 
 Content negotiation (`Accept`, quality values, wildcards) also runs in Rust; with nothing acceptable the answer is 406 before the handler runs.
+
+## Upload files
+
+`MultiPartParser` is opt-in. It parses bounded multipart bytes in Rust, then Python creates `UploadedFile` objects. For typed handler binding, annotate a parameter as `UploadedFile`, `UploadedFile | None = None`, or `list[UploadedFile]`; the parameter name selects the multipart field. A single value rejects duplicates, while a list preserves repeated values. The same objects are visible through `request.FILES`; text fields are available in `request.POST`. See [endpoint upload declarations](endpoints.md#upload-files) for a complete example and status-code behavior.
+
+The complete request body and every part are buffered in memory. The default body cap is 1 MiB; increasing it also increases potential memory use across concurrent requests. This parser does not stream or spool files. Keep both the runtime body cap and `max_part_bytes` bounded, and treat filenames and media types as untrusted client input.
 
 ## Choose them
 
