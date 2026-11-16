@@ -183,7 +183,7 @@ def wait_for_quiet_host() -> dict[str, Any]:
         if latest:
             maximum_load = max(maximum_load, latest[0])
         now = time.monotonic()
-        if not latest or latest[0] <= MAX_LOAD_AVERAGE:
+        if latest is not None and latest[0] <= MAX_LOAD_AVERAGE:
             if quiet_since is None:
                 quiet_since = now
             if now - quiet_since >= QUIET_STABLE_SECONDS:
@@ -713,15 +713,19 @@ def collect_sample(
     args: argparse.Namespace,
     output: Path,
 ) -> dict[str, Any]:
-    quiet_host = wait_for_quiet_host()
-    host_load = quiet_host["load_average"]
     asyncio.run(seed_database(args.seed_rows))
     process = start_server(variant, args, output / f"{variant}-{page_size}-{run}.log")
     try:
         wait_ready(args.port)
         url = f"http://{HOST}:{args.port}/records?page=1&page_size={page_size}"
         warmup(url, args)
+        quiet_host = wait_for_quiet_host()
         before = load_average()
+        if before is None or before[0] > MAX_LOAD_AVERAGE:
+            raise RuntimeError(
+                "host load exceeded the benchmark limit immediately before timing; "
+                f"load={before}"
+            )
         started = time.strftime("%Y-%m-%dT%H:%M:%S%z")
         result = subprocess.run(  # noqa: S603 - OHA command uses validated options
             oha_command(url, args),
@@ -739,7 +743,6 @@ def collect_sample(
             "run": run,
             "order": list(order),
             "started_at": started,
-            "host_load_before_start": host_load,
             "quiet_host": quiet_host,
             "load_before": before,
             "load_after": after,
