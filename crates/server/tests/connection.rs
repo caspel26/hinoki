@@ -96,7 +96,13 @@ async fn start(config: ServerConfig) -> Running {
     let addr = listener.local_addr().unwrap();
     let backend = Arc::new(Fake::default());
     let (stop, receiver) = watch::channel(false);
-    let task = tokio::spawn(serve(listener, Arc::clone(&backend), config, receiver));
+    let task = tokio::spawn(serve(
+        listener,
+        Arc::clone(&backend),
+        config,
+        None,
+        receiver,
+    ));
     Running {
         addr,
         backend,

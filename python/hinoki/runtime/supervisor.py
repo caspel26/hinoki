@@ -48,12 +48,14 @@ class Supervisor:
         grace: float,
         *,
         reload: bool = False,
+        scheme: str = "http",
     ) -> None:
         self.target = target
         self.listener = listener
         self.count = workers
         self.grace = grace + KILL_MARGIN
         self.reload = reload
+        self.scheme = scheme
         self.processes: list[subprocess.Popen[bytes]] = []
         self.stop = threading.Event()
         self.signals = 0
@@ -133,7 +135,7 @@ class Supervisor:
         host, port = self.listener.getsockname()[:2]
         shown = f"[{host}]" if ":" in str(host) else host
         mode = "reloading" if self.reload else f"{self.count} workers"
-        print(f"listening on http://{shown}:{port} ({mode})", flush=True)
+        print(f"listening on {self.scheme}://{shown}:{port} ({mode})", flush=True)
         events = self.changes() if self.reload else self.ticks()
         # Under ``dev`` the watcher exists before the worker does, so an edit
         # made while the worker starts is not missed.

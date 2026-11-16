@@ -903,7 +903,8 @@ class ServerSettings(Settings):
     belongs to Granian; ``max_connections``, ``header_read_timeout``,
     ``body_read_timeout`` and ``write_timeout`` belong to the Rust server
     (``None`` keeps its default). ``hinoki serve`` refuses a setting the chosen
-    server cannot honour.
+    server cannot honour. ``tls_cert_file`` and ``tls_key_file`` (PEM files, set
+    together) serve HTTPS on either server.
     """
 
     host: str = "127.0.0.1"
@@ -920,6 +921,8 @@ class ServerSettings(Settings):
     header_read_timeout: float | None = None
     body_read_timeout: float | None = None
     write_timeout: float | None = None
+    tls_cert_file: str | None = None
+    tls_key_file: str | None = None
 
     def validate(self) -> None:
         if not 0 < self.port < MAX_PORT:
@@ -941,6 +944,7 @@ class ServerSettings(Settings):
                     "trusted_proxies entries must be IP addresses or CIDRs"
                 ) from exc
         self.validate_rust_limits()
+        self.validate_tls()
         if TOKEN.fullmatch(self.request_id_header) is None:
             raise ValueError("request_id_header must be an HTTP token")
         request_id_header = self.request_id_header.lower()
@@ -961,6 +965,14 @@ class ServerSettings(Settings):
                 raise ValueError(
                     f"{name} must be above 0 and at most {MAX_READ_TIMEOUT}"
                 )
+
+    def validate_tls(self) -> None:
+        if (self.tls_cert_file is None) != (self.tls_key_file is None):
+            raise ValueError("tls_cert_file and tls_key_file must be set together")
+        for name in ("tls_cert_file", "tls_key_file"):
+            path = getattr(self, name)
+            if path is not None and not Path(path).is_file():
+                raise ValueError(f"{name} is not a file: {path}")
 
     def conflicts(self, server: str | None = None) -> list[str]:
         """The settings that ``server`` (default: this group's) cannot honour."""

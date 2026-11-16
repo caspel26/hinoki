@@ -82,7 +82,7 @@ async fn start() -> Running {
     let addr = listener.local_addr().unwrap();
     let probe = Arc::new(Probe::default());
     let (stop, receiver) = watch::channel(false);
-    tokio::spawn(serve(listener, Arc::clone(&probe), config, receiver));
+    tokio::spawn(serve(listener, Arc::clone(&probe), config, None, receiver));
     Running { addr, probe, stop }
 }
 

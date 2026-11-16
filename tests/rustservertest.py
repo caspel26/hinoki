@@ -5,6 +5,7 @@ import json
 import os
 import signal
 import socket
+import ssl
 import subprocess
 import sys
 from collections.abc import AsyncIterator
@@ -54,6 +55,11 @@ async def big() -> dict[str, str]:
     return {"data": "x" * (64 * 1024 * 1024)}
 
 
+@http.get("/scheme")
+async def scheme_of(request: Request) -> dict[str, str]:
+    return {"scheme": request.scheme}
+
+
 @http.get("/host")
 async def host_of(request: Request) -> dict[str, str]:
     return {"host": request.host}
@@ -100,7 +106,7 @@ async def fail_startup(ctx: ModuleContext) -> None:
 
 def make_app(**config: Any) -> Hinoki:
     return Hinoki(
-        include=[health, big, host_of, made, note, secured, block],
+        include=[health, big, scheme_of, host_of, made, note, secured, block],
         runtime=RuntimeConfig(**config),
         on_shutdown=[note_shutdown],
     )
@@ -435,6 +441,36 @@ async def test_a_stalled_body_is_a_408_before_the_request_timeout() -> None:
         await worker.stop()
     assert (stalled.status, stalled.json()["error"]) == (408, "request_timeout")
     assert stalled.header("connection") == "close"
+
+
+TLS_DIR = Path(__file__).parent / "tls"
+
+
+async def test_the_worker_serves_https_with_its_own_certificate() -> None:
+    worker = RustWorker(
+        make_app(),
+        "127.0.0.1",
+        0,
+        tls_cert_file=str(TLS_DIR / "localhost-cert.pem"),
+        tls_key_file=str(TLS_DIR / "localhost-key.pem"),
+    )
+    port = await worker.start()
+    try:
+        context = ssl.create_default_context(cafile=str(TLS_DIR / "localhost-cert.pem"))
+        reader, writer = await asyncio.open_connection(
+            "127.0.0.1", port, ssl=context, server_hostname="localhost"
+        )
+        writer.write(b"GET /scheme HTTP/1.1\r\nhost: localhost\r\n\r\n")
+        secure = await read_response(reader)
+        writer.close()
+        plain_reader, plain_writer = await open_connection(port)
+        plain_writer.write(b"GET /scheme HTTP/1.1\r\nhost: localhost\r\n\r\n")
+        refused = await asyncio.wait_for(plain_reader.read(100), 5)
+        assert not refused.startswith(b"HTTP/")  # a TLS alert, never an answer
+        plain_writer.close()
+    finally:
+        await worker.stop()
+    assert (secure.status, secure.json()) == (200, {"scheme": "https"})
 
 
 async def test_a_client_that_stops_reading_frees_its_connection_slot() -> None:
