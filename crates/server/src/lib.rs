@@ -4,14 +4,17 @@
 //! the [`early`] answers that never reach Python, the request-id rules and the
 //! bounded handoff [`queue`]. The parts that do: [`accept`] (listener, connection
 //! limit, graceful stop) and [`conn`] (one HTTP/1.1 request, the [`Backend`] a
-//! caller implements). Nothing here calls into Python; the glue lives in
+//! caller implements), with the request [`body`] reader and the [`framing`]
+//! guard. Nothing here calls into Python; the glue lives in
 //! `crates/bindings`.
 #![forbid(unsafe_code)]
 
 pub mod accept;
+pub mod body;
 pub mod conn;
 pub mod cors;
 pub mod early;
+pub mod framing;
 pub mod headers;
 pub mod limits;
 pub mod plan;
@@ -19,6 +22,7 @@ pub mod queue;
 pub mod requestid;
 
 pub use accept::{serve, Closed, ServerConfig, Stop};
+pub use body::{BodyError, BodyReader};
 pub use conn::{Answer, Backend, Incoming};
 pub use early::{Early, EarlyBodies};
 pub use limits::Limits;

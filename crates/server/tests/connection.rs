@@ -212,7 +212,7 @@ async fn the_backend_sees_the_raw_target_and_lowercase_headers() {
 }
 
 #[tokio::test]
-async fn a_request_with_a_body_is_refused_and_closed() {
+async fn a_request_whose_body_was_not_read_closes_the_connection() {
     let running = start(ServerConfig::default()).await;
     let mut stream = connect(&running).await;
     stream
@@ -220,7 +220,7 @@ async fn a_request_with_a_body_is_refused_and_closed() {
         .await
         .unwrap();
     let (head, _) = read_response(&mut stream, true).await;
-    assert!(head.starts_with("HTTP/1.1 501"), "{head}");
+    assert!(head.starts_with("HTTP/1.1 200"), "{head}");
     assert!(
         head.to_ascii_lowercase().contains("connection: close"),
         "{head}"
