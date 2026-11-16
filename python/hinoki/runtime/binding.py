@@ -199,6 +199,13 @@ class Binding:
     params: tuple[Param, ...]
     takes_request: bool = True  # False: the action did not declare `Request`
     needs_body: bool = False  # a parameter binds the body; decided once in `bind`
+    is_async: bool = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        """Freeze handler execution shape with the request binding plan."""
+        object.__setattr__(
+            self, "is_async", inspect.iscoroutinefunction(self.route.handler)
+        )
 
     @property
     def has_files(self) -> bool:
