@@ -174,6 +174,10 @@ class MultiPartParser(Parser):
             pairs, found = core.parse_multipart_body(
                 raw, boundary_of(content_type), self.max_parts, self.max_part_bytes
             )
+        except core.MultipartLimitError:
+            raise InvalidBody(
+                "payload_too_large", "a multipart part exceeds its configured limit"
+            ) from None
         except ValueError as exc:
             raise InvalidBody("invalid_multipart", str(exc)) from None
         files: dict[str, list[UploadedFile]] = {}

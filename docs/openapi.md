@@ -50,6 +50,7 @@ Tools that only read the standard method fields do not see these operations: Swa
 * A unique `operationId` is derived from the handler's qualified name. If names collide, Hinoki appends a numeric suffix.
 * The first line of the handler docstring becomes `summary`; the remaining lines become `description`.
 * Path, query and pagination parameters come from the bound handler signature. Body fields and successful response fields come from `Schema` annotations. Parser and renderer media types supply the content types.
+* Typed `UploadedFile` parameters generate a `multipart/form-data` request body with binary file properties. Repeated files use an array of binary items; optional single-file bindings are not required in the body or property list. Text keys read dynamically through `request.POST` are not inferred or listed.
 * A declared `errors=(...)` adds response entries for those `APIError` classes. Request binding and schema validation errors are documented as `422` where the action has request inputs.
 * `access=...` adds a security requirement when its authentication provider supplies an OpenAPI scheme. Authentication responses are included in the operation.
 * Admin HTML routes marked `hide_from_docs` are omitted.
@@ -68,6 +69,8 @@ discriminator:
 ```
 
 See [Schemas: discriminated unions](schemas.md#discriminated-unions) for the Python declarations and validation behavior.
+
+For file binding syntax, limits and the in-memory boundary, see [upload files](endpoints.md#upload-files).
 
 Add a useful docstring to each handler because it is the source for operation text:
 

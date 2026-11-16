@@ -71,6 +71,9 @@ def response_headers(
     request_id: bytes,
     allow_origin: bytes,
 ) -> tuple[list[tuple[bytes, bytes]], bool]: ...
+
+class MultipartLimitError(ValueError): ...
+
 def parse_multipart_body(
     raw: bytes, boundary: str, max_parts: int, max_part_bytes: int
 ) -> tuple[list[tuple[str, str]], list[tuple[str, str, str, bytes]]]: ...

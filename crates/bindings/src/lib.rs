@@ -91,6 +91,10 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(request::request_headers, m)?)?;
     m.add_function(wrap_pyfunction!(request::response_headers, m)?)?;
     m.add_function(wrap_pyfunction!(request::parse_multipart_body, m)?)?;
+    m.add(
+        "MultipartLimitError",
+        m.py().get_type::<request::MultipartLimitError>(),
+    )?;
     m.add_function(wrap_pyfunction!(request::negotiate_media, m)?)?;
     m.add_function(wrap_pyfunction!(request::decode_json, m)?)?;
     m.add_class::<schema::Compiled>()?;

@@ -14,6 +14,8 @@ use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyT
 
 const MAX_DEPTH: usize = 200;
 
+pyo3::create_exception!(core, MultipartLimitError, PyValueError);
+
 fn hex(byte: u8) -> Option<u8> {
     match byte {
         b'0'..=b'9' => Some(byte - b'0'),
@@ -184,6 +186,7 @@ fn header_params(value: &str) -> Vec<(String, String)> {
 fn part_headers(block: &[u8]) -> Result<(String, Option<String>, String), &'static str> {
     let text = std::str::from_utf8(block).map_err(|_| "part headers are not UTF-8")?;
     let (mut name, mut filename, mut content_type) = (None, None, String::from("text/plain"));
+    let mut content_type_seen = false;
     for line in text.split("\r\n") {
         check_header_line(line)?;
         let Some((key, value)) = line.split_once(':') else {
@@ -191,7 +194,13 @@ fn part_headers(block: &[u8]) -> Result<(String, Option<String>, String), &'stat
         };
         match key.trim().to_lowercase().as_str() {
             "content-disposition" => parse_content_disposition(value, &mut name, &mut filename)?,
-            "content-type" => content_type = value.trim().to_owned(),
+            "content-type" => {
+                if content_type_seen {
+                    return Err("duplicate Content-Type part header");
+                }
+                content_type_seen = true;
+                content_type = value.trim().to_owned();
+            }
             _ => {}
         }
     }
@@ -238,14 +247,16 @@ pub fn parse_multipart(
     boundary: &str,
     max_parts: usize,
     max_part_bytes: usize,
-) -> Result<Vec<Part>, &'static str> {
+) -> Result<Vec<Part>, MultipartError> {
     if boundary.is_empty() || boundary.len() > MAX_BOUNDARY || boundary.bytes().any(|b| b < 0x20) {
-        return Err("invalid multipart boundary");
+        return Err(MultipartError::Invalid("invalid multipart boundary"));
     }
     let opening = [b"--".as_slice(), boundary.as_bytes()].concat();
     let delimiter = [b"\r\n".as_slice(), &opening].concat();
     if !body.starts_with(&opening) {
-        return Err("multipart body does not start with the boundary");
+        return Err(MultipartError::Invalid(
+            "multipart body does not start with the boundary",
+        ));
     }
     let mut at = opening.len();
     let mut parts = Vec::new();
@@ -254,21 +265,24 @@ pub fn parse_multipart(
             return Ok(parts);
         }
         if !body[at..].starts_with(b"\r\n") {
-            return Err("malformed multipart delimiter");
+            return Err(MultipartError::Invalid("malformed multipart delimiter"));
         }
         at += 2;
         if parts.len() >= max_parts {
-            return Err("too many multipart parts");
+            return Err(MultipartError::Invalid("too many multipart parts"));
         }
-        let end = find(body, b"\r\n\r\n", at).ok_or("unterminated part headers")?;
+        let end = find(body, b"\r\n\r\n", at)
+            .ok_or(MultipartError::Invalid("unterminated part headers"))?;
         if end - at > MAX_HEADER_BLOCK {
-            return Err("part headers are too large");
+            return Err(MultipartError::Invalid("part headers are too large"));
         }
-        let (name, filename, content_type) = part_headers(&body[at..end])?;
+        let (name, filename, content_type) =
+            part_headers(&body[at..end]).map_err(MultipartError::Invalid)?;
         at = end + 4;
-        let stop = find(body, &delimiter, at).ok_or("multipart body is not terminated")?;
+        let stop = find(body, &delimiter, at)
+            .ok_or(MultipartError::Invalid("multipart body is not terminated"))?;
         if stop - at > max_part_bytes {
-            return Err("multipart part is too large");
+            return Err(MultipartError::LimitExceeded);
         }
         parts.push(Part {
             name,
@@ -278,6 +292,12 @@ pub fn parse_multipart(
         });
         at = stop + delimiter.len();
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum MultipartError {
+    Invalid(&'static str),
+    LimitExceeded,
 }
 
 /// Split a multipart body. Returns `(fields, files)`: fields are
@@ -296,7 +316,12 @@ pub fn parse_multipart_body<'py>(
     Vec<(String, String, String, Bound<'py, PyBytes>)>,
 )> {
     let parts =
-        parse_multipart(raw, boundary, max_parts, max_part_bytes).map_err(PyValueError::new_err)?;
+        parse_multipart(raw, boundary, max_parts, max_part_bytes).map_err(|error| match error {
+            MultipartError::Invalid(message) => PyValueError::new_err(message),
+            MultipartError::LimitExceeded => {
+                MultipartLimitError::new_err("multipart part is too large")
+            }
+        })?;
     let (mut fields, mut files) = (Vec::new(), Vec::new());
     for part in parts {
         match part.filename {
@@ -1134,7 +1159,10 @@ mod tests {
     fn multipart_rejects_malformed_and_oversized_bodies() {
         let ok = b"--B\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\nxyz\r\n--B--";
         assert!(parse_multipart(ok, "B", 1, 3).is_ok());
-        assert!(parse_multipart(ok, "B", 1, 2).is_err());
+        assert_eq!(
+            parse_multipart(ok, "B", 1, 2),
+            Err(MultipartError::LimitExceeded)
+        );
         assert!(parse_multipart(ok, "B", 0, 3).is_err());
         assert!(parse_multipart(b"junk", "B", 1, 3).is_err());
         assert!(parse_multipart(
@@ -1216,5 +1244,23 @@ mod tests {
         assert!(parse("Content-Disposition: form-data; name=\"a\"; name=\"b\"").is_err());
         assert!(parse("Content-Disposition: form-data; name=\"a\"; filename=\"x\ny\"").is_err());
         assert!(parse("Content-Disposition: form-data; name=\"a\"\nX: y").is_err());
+    }
+
+    #[test]
+    fn multipart_rejects_repeated_part_content_type_headers() {
+        for headers in [
+            "Content-Type: text/plain\r\nContent-Type: text/plain",
+            "Content-Type: text/plain\r\ncontent-type: application/octet-stream",
+        ] {
+            let body = format!(
+                "--B\r\nContent-Disposition: form-data; name=\"f\"; filename=\"x\"\r\n{headers}\r\n\r\nx\r\n--B--"
+            );
+            assert_eq!(
+                parse_multipart(body.as_bytes(), "B", 1, 1),
+                Err(MultipartError::Invalid(
+                    "duplicate Content-Type part header"
+                ))
+            );
+        }
     }
 }
