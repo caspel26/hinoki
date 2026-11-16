@@ -16,7 +16,15 @@ from typing import Any
 
 import pytest
 
-from hinoki import Access, Hinoki, RuntimeConfig, Schema, http
+from hinoki import (
+    Access,
+    Hinoki,
+    MultiPartParser,
+    RuntimeConfig,
+    Schema,
+    UploadedFile,
+    http,
+)
 from hinoki.modules import ModuleContext
 from hinoki.request import Request
 from hinoki.runtime import rustserver
@@ -49,6 +57,11 @@ def fresh_probe() -> None:
 @http.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@http.post("/upload", parsers=[MultiPartParser(max_part_bytes=8)])
+async def upload(file: UploadedFile) -> dict[str, object]:
+    return {"filename": file.filename, "content": file.content.decode()}
 
 
 @http.get("/big")
@@ -107,7 +120,7 @@ async def fail_startup(ctx: ModuleContext) -> None:
 
 def make_app(**config: Any) -> Hinoki:
     return Hinoki(
-        include=[health, big, scheme_of, host_of, made, note, secured, block],
+        include=[health, upload, big, scheme_of, host_of, made, note, secured, block],
         runtime=RuntimeConfig(**config),
         on_shutdown=[note_shutdown],
     )
@@ -191,6 +204,29 @@ async def test_get_matches_the_asgi_answer(served: tuple[RustWorker, int]) -> No
         k: v for k, v in in_process.headers.items() if k not in {"x-request-id"}
     }
     assert len(over_socket.header("x-request-id")) == 32
+
+
+async def test_multipart_file_binding_works_over_the_native_server(
+    served: tuple[RustWorker, int],
+) -> None:
+    _, port = served
+    boundary = "rust-upload-test"
+    body = (
+        f"--{boundary}\r\n"
+        'Content-Disposition: form-data; name="file"; filename="note.txt"\r\n'
+        "Content-Type: text/plain\r\n\r\nnative\r\n"
+        f"--{boundary}--\r\n"
+    ).encode()
+    request = (
+        f"POST /upload HTTP/1.1\r\nhost: t\r\n"
+        f"content-type: multipart/form-data; boundary={boundary}\r\n"
+        f"content-length: {len(body)}\r\n\r\n"
+    ).encode() + body
+    received = await raw(port, request)
+    assert (received.status, received.json()) == (
+        200,
+        {"filename": "note.txt", "content": "native"},
+    )
 
 
 async def test_the_native_404_and_405_carry_the_request_id(

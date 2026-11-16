@@ -26,6 +26,22 @@ Its context manager runs module lifespans and the application's startup and shut
 
 Both clients have `get`, `post`, `put`, `patch`, `delete`, `head`, `options` and `query` (the HTTP `QUERY` method; its body goes in `json=` or `body=`, while the `query=` option of every call is the query string), plus `request(method, path, ...)` for any other method.
 
+## Test file uploads
+
+`ASGIClient` and `SyncClient` accept `data=` and `files=` and build the multipart boundary and `Content-Type` header for you. Use a sequence of file tuples to send repeated field names in order:
+
+```python
+async with ASGIClient(create_app()) as client:
+    response = await client.post(
+        "/documents",
+        data={"title": "Report"},
+        files=[("document", "report.txt", b"contents", "text/plain")],
+    )
+    assert response.status == 201
+```
+
+Each file tuple is `(field_name, filename, content_bytes, content_type)`. Form data may be a mapping or an ordered sequence of `(name, text)` pairs; sequences retain repeated names. Do not pass `json=` or raw `body=` together with `data=`/`files=`; the helper owns the multipart content type and boundary. The application enforces its configured complete-body and per-part limits. This helper sends complete in-memory bodies and does not model streaming uploads.
+
 `headers=` accepts a mapping or a sequence of `(name, value)` pairs. Use pairs to send a repeated header; Hinoki's request header mapping joins repeated values with `", "`. A client can add a default `Host` header to each request:
 
 ```python

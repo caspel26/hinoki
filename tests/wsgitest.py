@@ -19,13 +19,18 @@ from hinoki import Hinoki, Module, http
 from hinoki.modules import ModuleContext
 from hinoki.wsgi import WSGIAdapter
 from tests.runtime.harness import free_port, wait_ready
-from tests.runtime.wsgiapp import create_app
+from tests.runtime.wsgiapp import PROTECTED_UPLOAD_PARSER, create_app
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def call(
-    adapter: WSGIAdapter, method: str, path: str, body: bytes = b"", query: str = ""
+    adapter: WSGIAdapter,
+    method: str,
+    path: str,
+    body: bytes = b"",
+    query: str = "",
+    content_type: str = "application/json",
 ) -> tuple[str, dict[str, str], Any]:
     seen: dict[str, Any] = {}
 
@@ -42,7 +47,7 @@ def call(
         "wsgi.url_scheme": "http",
         "wsgi.input": io.BytesIO(body),
         "CONTENT_LENGTH": str(len(body)),
-        "CONTENT_TYPE": "application/json",
+        "CONTENT_TYPE": content_type,
     }
     payload = b"".join(adapter(environ, start_response))
     return seen["status"], seen["headers"], json.loads(payload) if payload else None
@@ -64,10 +69,46 @@ def test_async_sync_and_body_handlers_answer_in_process() -> None:
         status, headers, body = call(adapter, "POST", "/echo", b'{"text":"hi"}')
         assert (status, body) == ("201 Created", {"text": "hi"})
         assert "x-request-id" in headers
+        boundary = "wsgi-upload-test"
+        multipart = (
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="file"; filename="note.txt"\r\n'
+            "Content-Type: text/plain\r\n\r\nhello\r\n"
+            f"--{boundary}--\r\n"
+        ).encode()
+        status, _, body = call(
+            adapter,
+            "POST",
+            "/upload",
+            multipart,
+            content_type=f"multipart/form-data; boundary={boundary}",
+        )
+        assert (status, body) == (
+            "200 OK",
+            {"filename": "note.txt", "content": "hello"},
+        )
         assert call(adapter, "GET", "/nope")[0] == "404 Not Found"
         assert call(adapter, "POST", "/echo", b"x" * (1024 * 1024 + 5))[0].startswith(
             "413"
         )
+    finally:
+        adapter.close()
+
+
+def test_wsgi_auth_denial_buffers_but_does_not_parse_the_upload() -> None:
+    PROTECTED_UPLOAD_PARSER.calls = 0
+    adapter = WSGIAdapter(create_app())
+    try:
+        status, _, body = call(
+            adapter,
+            "POST",
+            "/protected-upload",
+            b"malformed private upload",
+            content_type="multipart/form-data; boundary=private",
+        )
+        assert status == "401 Unauthorized"
+        assert body["error"] == "unauthorized"
+        assert PROTECTED_UPLOAD_PARSER.calls == 0
     finally:
         adapter.close()
 

@@ -19,6 +19,7 @@ import re
 import typing
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from types import NoneType, UnionType
 from uuid import UUID
 
 from hinoki import core
@@ -31,6 +32,7 @@ from hinoki.errors import (
 )
 from hinoki.handlerhints import hints_of, signature_of
 from hinoki.pagination import PageNumberPagination, PageParams
+from hinoki.parsers import MultiPartParser, UploadedFile
 from hinoki.request import Request
 from hinoki.routing import Route
 from hinoki.schema import Schema
@@ -46,6 +48,7 @@ BODY_METHODS = {"POST", "PUT", "PATCH", "QUERY"}
 EMPTY = inspect.Parameter.empty
 MAX_FIELDS = 1000
 MISSING = object()
+OPTIONAL_UNION_ARITY = 2
 
 
 def to_bool(raw: str) -> bool:
@@ -109,6 +112,7 @@ class RequestData:
     query: dict[str, list[str]] = field(default_factory=dict)
     body: object = MISSING
     principal: object = MISSING
+    files: dict[str, list[UploadedFile]] = field(default_factory=dict)
 
 
 def problem(path: str, code: str, message: str) -> ValidationError:
@@ -126,6 +130,7 @@ class Param:
     default: object = EMPTY
     kind: str = "str"
     strategy: PageNumberPagination | None = None
+    file_mode: str = ""
 
     def extract(self, request: RequestData) -> object:
         """Value for this parameter, from the part of the request it belongs to."""
@@ -172,6 +177,21 @@ class Param:
             ]
             raise ValidationError(prefixed) from None
 
+    def from_file(self, request: RequestData) -> object:
+        """Return the uploaded file value or a field-specific validation error."""
+        files = request.files.get(self.name, [])
+        if self.file_mode == "many":
+            if not files:
+                raise problem(self.name, "required", "at least one file is required")
+            return files
+        if not files and self.file_mode == "optional":
+            return None
+        if not files:
+            raise problem(self.name, "required", "file is required")
+        if len(files) > 1:
+            raise problem(self.name, "duplicate", "given more than once")
+        return files[0]
+
 
 @dataclass(frozen=True, slots=True)
 class Binding:
@@ -179,6 +199,17 @@ class Binding:
     params: tuple[Param, ...]
     takes_request: bool = True  # False: the action did not declare `Request`
     needs_body: bool = False  # a parameter binds the body; decided once in `bind`
+
+    @property
+    def has_files(self) -> bool:
+        return any(param.source == "file" for param in self.params)
+
+    @property
+    def requires_files(self) -> bool:
+        return any(
+            param.source == "file" and param.file_mode != "optional"
+            for param in self.params
+        )
 
     def collect(self, request: RequestData) -> dict[str, object]:
         """Keyword arguments for the handler; raises ``ValidationError`` with
@@ -263,10 +294,77 @@ def special_param(
     return None
 
 
+def file_parameter(
+    route: Route, parameter: inspect.Parameter, annotation: object
+) -> Param | None:
+    """Recognize the closed set of required, optional and repeated upload types."""
+    mode = file_mode(route, parameter, annotation)
+    if not mode:
+        return None
+    check_file_parameter(route, parameter, mode)
+    return Param(parameter.name, "file", default=parameter.default, file_mode=mode)
+
+
+def file_mode(route: Route, parameter: inspect.Parameter, annotation: object) -> str:
+    """The supported upload annotation shape, or empty for other parameters."""
+    origin = typing.get_origin(annotation)
+    args = typing.get_args(annotation)
+    if annotation is UploadedFile:
+        return "required"
+    if origin is list and args == (UploadedFile,):
+        return "many"
+    is_optional = (
+        origin in {typing.Union, UnionType}
+        and len(args) == OPTIONAL_UNION_ARITY
+        and UploadedFile in args
+        and NoneType in args
+    )
+    if is_optional:
+        if parameter.default is not None:
+            raise RegistrationError(
+                f"{route.name}: optional file parameter {parameter.name!r} "
+                "must default to None"
+            )
+        return "optional"
+    return ""
+
+
+def check_file_parameter(route: Route, parameter: inspect.Parameter, mode: str) -> None:
+    """Validate route, field name, default and parser for an upload parameter."""
+    if route.method not in BODY_METHODS:
+        raise RegistrationError(
+            f"{route.name}: file parameter {parameter.name!r} requires a "
+            "POST/PUT/PATCH/QUERY action"
+        )
+    if parameter.name in PATH_PARAM.findall(route.path):
+        raise RegistrationError(
+            f"{route.name}: file parameter {parameter.name!r} cannot also be "
+            "a path parameter"
+        )
+    if mode == "required" and parameter.default is not EMPTY:
+        raise RegistrationError(
+            f"{route.name}: required file parameter {parameter.name!r} cannot "
+            "have a default"
+        )
+    if mode == "many" and parameter.default is not EMPTY:
+        raise RegistrationError(
+            f"{route.name}: repeated file parameter {parameter.name!r} cannot "
+            "have a default"
+        )
+    if not any(isinstance(parser, MultiPartParser) for parser in route.parsers):
+        raise RegistrationError(
+            f"{route.name}: file parameters require MultiPartParser in the "
+            "action or application parser defaults"
+        )
+
+
 def make_param(route: Route, parameter: inspect.Parameter, annotation: object) -> Param:
     special = special_param(route, parameter, annotation)
     if special is not None:
         return special
+    upload = file_parameter(route, parameter, annotation)
+    if upload is not None:
+        return upload
     name = parameter.name
     convert = CONVERTERS.get(annotation)
     if convert is None:
@@ -337,5 +435,11 @@ def bind(route: Route) -> Binding:
         )
     if sum(p.source == "body" for p in params) > 1:
         raise RegistrationError(f"{route.name}: at most one body parameter")
-    needs_body = any(p.source == "body" for p in params)
+    if any(p.source == "body" for p in params) and any(
+        p.source == "file" for p in params
+    ):
+        raise RegistrationError(
+            f"{route.name}: a Schema body cannot be combined with file parameters"
+        )
+    needs_body = any(p.source in {"body", "file"} for p in params)
     return Binding(route, params, takes_request, needs_body)

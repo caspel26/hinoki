@@ -111,7 +111,7 @@ CATALOG: dict[str, tuple[str, str]] = {
         "Ask for a media type from the action's `renderers=`, or send no Accept.",
     ),
     "payload_too_large": (
-        "The body is over the 1 MiB limit (HTTP 413).",
+        "The request body or a multipart part exceeds its configured size limit (HTTP 413).",
         "Send a smaller body.",
     ),
     "disallowed_host": (

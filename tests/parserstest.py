@@ -157,7 +157,6 @@ async def test_multipart_fields_and_files(pool: Pool) -> None:
         multipart(
             ("a", None, "1"), ("b", None, "2"), ("c", None, "3"), ("d", None, "4")
         ),
-        multipart(("doc", "big.txt", "x" * 21)),
         multipart(("title", None, "ok"))[:-12],
     ],
 )
@@ -167,6 +166,13 @@ async def test_malformed_or_oversized_multipart_is_a_400(
     client = await started(pool)
     reply = await client.request("POST", "/upload", body, content_type=MULTIPART)
     assert (reply.status, reply.body["error"]) == (400, "invalid_multipart")
+
+
+async def test_a_part_over_its_limit_is_a_413(pool: Pool) -> None:
+    client = await started(pool)
+    body = multipart(("doc", "big.txt", "x" * 21))
+    reply = await client.request("POST", "/upload", body, content_type=MULTIPART)
+    assert (reply.status, reply.body["error"]) == (413, "payload_too_large")
 
 
 async def test_a_missing_boundary_is_a_400(pool: Pool) -> None:
