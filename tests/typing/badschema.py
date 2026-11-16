@@ -8,6 +8,10 @@ class PostCreate(Schema):
     body: str
 
 
+class BadSchemaConfig(Schema, config={"extra": "ignore"}):  # type: ignore[arg-type]
+    value: str
+
+
 def misuse() -> None:
     PostCreate(title="x")  # type: ignore[call-arg]
     PostCreate(title=3, body="x")  # type: ignore[arg-type]
