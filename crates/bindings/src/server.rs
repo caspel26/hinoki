@@ -1,18 +1,23 @@
-//! Glue between `hinoki-server` and Python: the in-process request classifier
-//! (`ServerCore`), the request handed to the pipeline (`PreparedRequest`) and the
-//! handle a test or connection holds to see the answer (`Submission`).
+//! Glue between `hinoki-server` and Python: the request classifier (`Core`, held
+//! by the Python `ServerCore`), the request handed to the pipeline
+//! (`PreparedRequest`) and the handle a test holds to see the answer
+//! (`Submission`).
 //!
 //! Python objects exist only on the calling thread: `PreparedRequest` holds Rust
 //! data and a oneshot sender, so it can be dropped on any thread without the GIL.
-//! No socket is involved; a connection layer calls `submit` the way the tests do.
+//! `Core` is shared with the tokio side behind an `Arc` and holds no Python
+//! object; `rustserver.rs` drives `Core::classify` from the connection layer, and
+//! the tests call `submit` the same way without a socket.
 
+use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use hinoki_server::cors::Cors;
 use hinoki_server::early::BodyError;
 use hinoki_server::headers::{final_headers, Header};
 use hinoki_server::queue::Push;
+use hinoki_server::Answer;
 use hinoki_server::{
     requestid, Early, EarlyBodies, InFlight, Limits, Permit, Plan, Queue, RoutePlan,
 };
@@ -23,12 +28,7 @@ use tokio::sync::oneshot;
 
 use crate::router::{Match, Router};
 
-#[derive(Clone)]
-struct Reply {
-    status: u16,
-    headers: Vec<Header>,
-    body: Vec<u8>,
-}
+pub type Reply = Answer;
 
 fn reply_to_py<'py>(py: Python<'py>, reply: &Reply) -> PyResult<Bound<'py, PyAny>> {
     let headers = PyList::empty(py);
@@ -51,6 +51,7 @@ pub struct PreparedRequest {
     action: Option<u32>,
     needs_headers: bool,
     params: Vec<(String, String)>,
+    client: Option<(String, u16)>,
     reply: Mutex<Option<oneshot::Sender<Reply>>>,
     permit: Mutex<Option<Permit>>,
 }
@@ -89,6 +90,12 @@ impl PreparedRequest {
     #[getter]
     fn needs_headers(&self) -> bool {
         self.needs_headers
+    }
+
+    /// The socket peer as `(ip, port)`, when the request came over a socket.
+    #[getter]
+    fn client(&self) -> Option<(String, u16)> {
+        self.client.clone()
     }
 
     /// Path parameters as matched, still percent-encoded.
@@ -216,6 +223,8 @@ fn kind_of(name: &str) -> PyResult<Early> {
         "overloaded" => Early::Overloaded,
         "not_found" => Early::NotFound,
         "method_not_allowed" => Early::MethodNotAllowed,
+        "bad_host" => Early::BadHost,
+        "not_implemented" => Early::NotImplemented,
         other => {
             return Err(PyValueError::new_err(format!(
                 "unknown early kind {other:?}"
@@ -231,9 +240,9 @@ enum Resolved {
 }
 
 /// The classifier a connection layer drives: ready check, limits, request id,
-/// routing, early answers, then the bounded queue towards the pipeline.
-#[pyclass(name = "ServerCore", module = "hinoki.core", frozen)]
-pub struct ServerCore {
+/// routing, early answers, then the bounded queue towards the pipeline. It holds
+/// no Python object, so the tokio side shares it behind an `Arc`.
+pub struct Core {
     router: Router,
     plan: Plan,
     limits: Limits,
@@ -249,6 +258,18 @@ pub struct ServerCore {
     trust_request_id: bool,
     defer_policies: bool,
     python_paths: Vec<String>,
+}
+
+/// The Python handle of a [`Core`].
+#[pyclass(name = "ServerCore", module = "hinoki.core", frozen)]
+pub struct ServerCore {
+    core: Arc<Core>,
+}
+
+impl ServerCore {
+    pub fn shared(&self) -> Arc<Core> {
+        Arc::clone(&self.core)
+    }
 }
 
 #[pymethods]
@@ -284,57 +305,59 @@ impl ServerCore {
         })?;
         let (max_query_bytes, max_header_bytes, max_body_bytes, max_in_flight) = limits;
         Ok(Self {
-            router,
-            plan,
-            limits: Limits {
-                max_query_bytes,
-                max_header_bytes,
-                max_body_bytes,
-                max_in_flight,
-            },
-            bodies,
-            queue: Queue::new(queue_capacity),
-            in_flight: InFlight::new(max_in_flight),
-            ready: AtomicBool::new(false),
-            policies: [policies.0, policies.1],
-            cors: cors.map(|(any_origin, origins, credentials, expose)| Cors {
-                any_origin,
-                origins,
-                credentials,
-                expose,
+            core: Arc::new(Core {
+                router,
+                plan,
+                limits: Limits {
+                    max_query_bytes,
+                    max_header_bytes,
+                    max_body_bytes,
+                    max_in_flight,
+                },
+                bodies,
+                queue: Queue::new(queue_capacity),
+                in_flight: InFlight::new(max_in_flight),
+                ready: AtomicBool::new(false),
+                policies: [policies.0, policies.1],
+                cors: cors.map(|(any_origin, origins, credentials, expose)| Cors {
+                    any_origin,
+                    origins,
+                    credentials,
+                    expose,
+                }),
+                id_name: request_id_name,
+                prefix: request_id_prefix,
+                counter: AtomicU64::new(0),
+                trust_request_id,
+                defer_policies,
+                python_paths,
             }),
-            id_name: request_id_name,
-            prefix: request_id_prefix,
-            counter: AtomicU64::new(0),
-            trust_request_id,
-            defer_policies,
-            python_paths,
         })
     }
 
     fn set_ready(&self, ready: bool) {
-        self.ready.store(ready, Ordering::Release);
+        self.core.ready.store(ready, Ordering::Release);
     }
 
     #[getter]
     fn ready(&self) -> bool {
-        self.ready.load(Ordering::Acquire)
+        self.core.ready.load(Ordering::Acquire)
     }
 
     #[getter]
     fn pending(&self) -> usize {
-        self.queue.len()
+        self.core.queue.len()
     }
 
     #[getter]
     fn in_flight(&self) -> usize {
-        self.in_flight.current()
+        self.core.in_flight.current()
     }
 
     /// Take up to `max` queued requests in arrival order.
     fn drain<'py>(&self, py: Python<'py>, max: usize) -> PyResult<Bound<'py, PyList>> {
         let out = PyList::empty(py);
-        for request in self.queue.drain(max) {
+        for request in self.core.queue.drain(max) {
             out.append(Py::new(py, request)?)?;
         }
         Ok(out)
@@ -354,57 +377,60 @@ impl ServerCore {
         trusted: bool,
         https: bool,
     ) -> PyResult<Submission> {
-        let asked = Asked {
+        let head = Head {
             method,
-            request_id: self.request_id(&headers, trusted),
-            https,
-            origin: origin_of(&headers),
-        };
-        if let Some(early) = self.refuse(query, &headers) {
-            return self.answer(&asked, early, Vec::new());
-        }
-        let (action, params) = match self.resolve(method, path) {
-            // A raw target the server cannot read as a plain path, and the
-            // documentation pages, are the Python pipeline's to answer.
-            _ if !path.is_ascii() || self.is_python_path(method, path) => (None, Vec::new()),
-            Resolved::Route(action, params) => (Some(action), params),
-            Resolved::Missing(_, _) if self.defer_policies => (None, Vec::new()),
-            Resolved::Missing(early, extra) => return self.answer(&asked, early, extra),
-        };
-        let needs_headers = match action {
-            Some(number) => self
-                .plan
-                .get(number)
-                .ok_or_else(|| PyRuntimeError::new_err(format!("no plan for action {number}")))?
-                .needs_headers(),
-            None => true,
-        };
-        let Some(permit) = self.in_flight.try_acquire() else {
-            return self.answer(&asked, Early::Overloaded, Vec::new());
-        };
-        let (sender, receiver) = oneshot::channel();
-        let request = PreparedRequest {
-            method: method.to_owned(),
-            path: path.to_owned(),
-            query: query.to_vec(),
+            path,
+            query,
             headers,
-            request_id: asked.request_id.clone(),
-            action,
-            needs_headers,
-            params,
-            reply: Mutex::new(Some(sender)),
-            permit: Mutex::new(Some(permit)),
+            trusted,
+            https,
+            peer: None,
+            refusal: None,
         };
-        match self.queue.push(request) {
-            Ok(pushed) => Ok(Submission {
+        let outcome = self.core.classify(head).map_err(PyRuntimeError::new_err)?;
+        Ok(match outcome {
+            Outcome::Early(reply) => Submission {
+                early: Some(reply),
+                wake: false,
+                receiver: Mutex::new(None),
+                delivered: Mutex::new(None),
+            },
+            Outcome::Queued { wake, receiver, .. } => Submission {
                 early: None,
-                wake: pushed == Push::Wake,
+                wake,
                 receiver: Mutex::new(Some(receiver)),
                 delivered: Mutex::new(None),
-            }),
-            Err(_full) => self.answer(&asked, Early::Overloaded, Vec::new()),
-        }
+            },
+        })
     }
+}
+
+/// A request head as the classifier takes it.
+pub struct Head<'a> {
+    pub method: &'a str,
+    pub path: &'a str,
+    pub query: &'a [u8],
+    pub headers: Vec<Header>,
+    pub trusted: bool,
+    pub https: bool,
+    pub peer: Option<SocketAddr>,
+    /// The transport's own verdict on the request, answered right after the
+    /// ready and size checks.
+    pub refusal: Option<Early>,
+}
+
+/// What the classifier decided.
+pub enum Outcome {
+    /// Answered without Python.
+    Early(Reply),
+    /// Queued for the pipeline. `wake` says the queue went from empty to
+    /// non-empty, so the consumer must be woken; `asked` lets the caller still
+    /// answer natively if the request is dropped without a reply.
+    Queued {
+        wake: bool,
+        receiver: oneshot::Receiver<Reply>,
+        asked: Asked,
+    },
 }
 
 fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
@@ -446,7 +472,79 @@ fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
     Ok((router, plan))
 }
 
-impl ServerCore {
+impl Core {
+    /// Classify one request: refuse it, answer it natively, or queue it for the
+    /// Python pipeline. The `Err` is an internal inconsistency (a missing plan or
+    /// early body), never a client mistake.
+    pub fn classify(&self, head: Head<'_>) -> Result<Outcome, String> {
+        let asked = Asked {
+            head_only: head.method == "HEAD",
+            request_id: self.request_id(&head.headers, head.trusted),
+            https: head.https,
+            origin: origin_of(&head.headers),
+        };
+        if let Some(early) = self.refuse(head.query, &head.headers) {
+            return self.answer(&asked, early, Vec::new());
+        }
+        if let Some(early) = head.refusal.clone() {
+            return self.answer(&asked, early, Vec::new());
+        }
+        let (action, params) = match self.resolve(head.method, head.path) {
+            // A raw target the server cannot read as a plain path, and the
+            // documentation pages, are the Python pipeline's to answer.
+            _ if !head.path.is_ascii() || self.is_python_path(head.method, head.path) => {
+                (None, Vec::new())
+            }
+            Resolved::Route(action, params) => (Some(action), params),
+            Resolved::Missing(_, _) if self.defer_policies => (None, Vec::new()),
+            Resolved::Missing(early, extra) => return self.answer(&asked, early, extra),
+        };
+        let needs_headers = match action {
+            Some(number) => self
+                .plan
+                .get(number)
+                .ok_or_else(|| format!("no plan for action {number}"))?
+                .needs_headers(),
+            None => true,
+        };
+        self.enqueue(head, asked, (action, params), needs_headers)
+    }
+
+    /// Take an in-flight slot and queue the request, or answer 503 natively.
+    fn enqueue(
+        &self,
+        head: Head<'_>,
+        asked: Asked,
+        (action, params): (Option<u32>, Vec<(String, String)>),
+        needs_headers: bool,
+    ) -> Result<Outcome, String> {
+        let Some(permit) = self.in_flight.try_acquire() else {
+            return self.answer(&asked, Early::Overloaded, Vec::new());
+        };
+        let (sender, receiver) = oneshot::channel();
+        let request = PreparedRequest {
+            method: head.method.to_owned(),
+            path: head.path.to_owned(),
+            query: head.query.to_vec(),
+            headers: head.headers,
+            request_id: asked.request_id.clone(),
+            action,
+            needs_headers,
+            params,
+            client: head.peer.map(|peer| (peer.ip().to_string(), peer.port())),
+            reply: Mutex::new(Some(sender)),
+            permit: Mutex::new(Some(permit)),
+        };
+        match self.queue.push(request) {
+            Ok(pushed) => Ok(Outcome::Queued {
+                wake: pushed == Push::Wake,
+                receiver,
+                asked,
+            }),
+            Err(_full) => self.answer(&asked, Early::Overloaded, Vec::new()),
+        }
+    }
+
     /// The inbound id only from a trusted peer (the caller knows the peer) and
     /// only when the application trusts inbound ids.
     fn request_id(&self, headers: &[Header], trusted: bool) -> String {
@@ -511,13 +609,27 @@ impl ServerCore {
     /// An answer without Python: final headers (policy for the effective
     /// scheme, request id, CORS), body with the request id, and no body for HEAD
     /// (the length stays).
-    fn answer(&self, asked: &Asked, early: Early, extra: Vec<Header>) -> PyResult<Submission> {
+    pub fn answer(
+        &self,
+        asked: &Asked,
+        early: Early,
+        extra: Vec<Header>,
+    ) -> Result<Outcome, String> {
+        let reply = self.early_reply(asked, early, extra)?;
+        Ok(Outcome::Early(reply))
+    }
+
+    /// The same answer as a bare reply.
+    pub fn early_reply(
+        &self,
+        asked: &Asked,
+        early: Early,
+        extra: Vec<Header>,
+    ) -> Result<Reply, String> {
         let mut body = self
             .bodies
             .render(&early, &asked.request_id)
-            .ok_or_else(|| {
-                PyRuntimeError::new_err(format!("no early body registered for {early:?}"))
-            })?;
+            .ok_or_else(|| format!("no early body registered for {early:?}"))?;
         let mut own: Vec<Header> = vec![(b"content-type".to_vec(), b"application/json".to_vec())];
         own.extend(
             early
@@ -540,25 +652,20 @@ impl ServerCore {
             early.status(),
             body.len(),
         );
-        if asked.method == "HEAD" {
+        if asked.head_only {
             body.clear();
         }
-        Ok(Submission {
-            early: Some(Reply {
-                status: early.status(),
-                headers,
-                body,
-            }),
-            wake: false,
-            receiver: Mutex::new(None),
-            delivered: Mutex::new(None),
+        Ok(Reply {
+            status: early.status(),
+            headers,
+            body,
         })
     }
 }
 
 /// What `answer` needs to know about the request it refuses.
-struct Asked<'a> {
-    method: &'a str,
+pub struct Asked {
+    head_only: bool,
     request_id: String,
     https: bool,
     origin: Vec<u8>,
