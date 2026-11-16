@@ -66,7 +66,7 @@ Everything else still runs in Python on the asyncio loop: the lifespan, the requ
 
 ### Limits
 
-* HTTP/1.1 only: no TLS (terminate it at a reverse proxy), no HTTP/2 and no WebSocket or other protocol upgrades.
+* HTTP/1.1 only: no TLS (terminate it at a reverse proxy), no HTTP/2 and no WebSocket or other protocol upgrades: an `Upgrade` header is ignored and the request is answered as plain HTTP, and the server never answers `101`.
 * A request line plus headers larger than `execution.max_header_bytes`, or a query longer than `execution.max_query_bytes`, is refused (`431`, `414`). A body larger than `execution.max_body_bytes` is refused with `413`, by `Content-Length` before any byte is read or, for chunked bodies, as soon as the total passes the limit. A client that sends nothing for `body_read_timeout` seconds (10 by default, never more than half of `execution.request_timeout`) gets `408`.
 * A client that does not finish its request headers within `header_read_timeout` seconds (10 by default) is disconnected; the same timer closes idle keep-alive connections.
 * A client that stops reading a response for `write_timeout` seconds (30 by default) is disconnected; any progress restarts the timer.
