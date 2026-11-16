@@ -459,18 +459,7 @@ pub fn headers_and_size(
     Ok((result.unbind(), size))
 }
 
-/// Header names the framework's security policy owns (lowercase). Mirrors
-/// `hinoki.runtime.security.POLICY_HEADERS`; a Python test pins the two together.
-const POLICY_NAMES: [&[u8]; 4] = [
-    b"x-frame-options",
-    b"referrer-policy",
-    b"x-content-type-options",
-    b"strict-transport-security",
-];
-
-fn is_policy(lower: &[u8]) -> bool {
-    POLICY_NAMES.contains(&lower)
-}
+use hinoki_server::headers::is_policy;
 
 /// A `(name, value)` pair of bytes; ASGI servers may send lists or tuples.
 fn byte_pair<'py>(

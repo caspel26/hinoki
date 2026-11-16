@@ -1,0 +1,11 @@
+[package]
+name = "hinoki-server"
+description = "Hinoki HTTP server building blocks: plan, limits, early answers, handoff queue (pure Rust, no Python)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
