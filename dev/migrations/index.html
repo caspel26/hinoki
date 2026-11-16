@@ -393,7 +393,13 @@
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--name<span class="w"> </span>add-published
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>billing<span class="w"> </span>--name<span class="w"> </span>add-invoice-index
 </code></pre></div>
-<p>The manifest must register the selected app. A single-app project defaults to that app; in a multi-app project, <code>plan</code> requires <code>--app</code>. The planner targets the local SQLite default unless a URL is provided through <code>HINOKI_DATABASE_URL</code> or <code>--database</code>. It writes a numbered <code>.sql</code> file and a matching <code>.state.json</code> file into the registered migration package. Numbering and a stable slug derived from the first schema change are automatic; an optional <code>--name</code> replaces only that slug. Review both files before applying the change. To inspect a plan without writing files, add <code>--dry-run</code>. Cross-app model references require an explicit <code>requires</code> dependency in <code>hinoki.toml</code>; this lets Hinoki validate references and order migrations without assigning another app's tables to the current app's migration state.</p>
+<p>The manifest must register the selected app. A single-app project defaults to that app; in a multi-app project, writing a plan requires <code>--app</code>. Read-only <code>--dry-run</code> and <code>--check</code> without <code>--app</code> cover every registered app in dependency order. The planner targets the local SQLite default unless a URL is provided through <code>HINOKI_DATABASE_URL</code> or <code>--database</code>. It writes a numbered <code>.sql</code> file and a matching <code>.state.json</code> file into the registered migration package. Numbering and a stable slug derived from the first schema change are automatic; an optional <code>--name</code> replaces only that slug for a focused plan. Review both files before applying the change. Cross-app model references require an explicit <code>requires</code> dependency in <code>hinoki.toml</code>; this lets Hinoki validate references and order migrations without assigning another app's tables to the current app's migration state.</p>
+<p><code>--dry-run</code> previews ordinary destructive changes without <code>--allow-destructive</code>
+and writes no files. An all-app preview is hypothetical: it can show a child
+app change against a prerequisite's current candidate models before that
+prerequisite has a recorded migration. Do not treat displayed plans as ready to
+apply in that order. An all-app preview cannot use <code>--name</code>; select one app to
+preview a named migration.</p>
 <h3 id="cross-app-migration-safety">Cross-app migration safety<a class="headerlink" href="#cross-app-migration-safety" title="Permanent link">&para;</a></h3>
 <p>Before writing a focused app plan, Hinoki checks cross-app foreign keys against
 the prerequisite app's recorded migration state. The referenced table and
@@ -401,13 +407,15 @@ column must already be recorded, the column must be a primary key, and its
 logical type must be compatible. If the prerequisite has not been planned yet,
 plan and review it first. The prerequisite migration does not need to have been
 applied to the database before the dependent app can be planned.</p>
-<p>Hinoki also refuses to generate a parent table or referenced-column teardown
-while any recorded state snapshot of another app still refers to it. This
-conservative guard also applies with <code>--allow-destructive</code>; it prevents a
-generated parent drop from preceding a child foreign-key removal. Perform
-cross-app teardowns as reviewed, separately deployed phases: remove and apply
-the child reference first, then prepare and apply the parent teardown. The
-planner does not infer live database safety from migration files.</p>
+<p>Hinoki also refuses to plan a parent table or referenced-column teardown while
+any recorded state snapshot of another app still refers to it. This guard
+applies to focused/all-app plans, <code>--dry-run</code>, and <code>--check</code>, and cannot be
+overridden with <code>--allow-destructive</code>. An all-app command fails without
+printing partial diffs. This prevents a generated parent drop from preceding a
+child foreign-key removal. Perform cross-app teardowns as reviewed, separately
+deployed phases: remove and apply the child reference first, then prepare and
+apply the parent teardown. The planner does not infer live database safety
+from migration files.</p>
 <p>The state file stores logical column types that are stable across backends; the
 generated SQL uses the selected backend's types. Existing state files that
 recorded SQLite or MySQL-specific type names are normalized when planning, so
@@ -420,20 +428,19 @@ destructive guard still applies. Hinoki refuses generated names reserved for
 its migration ledger or SQLite internals. See <a href="../models/#define-a-model">Models and queries</a>
 for display-name overrides and the fallback naming rules.</p>
 <h2 id="check-migration-drift">Check migration drift<a class="headerlink" href="#check-migration-drift" title="Permanent link">&para;</a></h2>
-<p>To check that model changes have a committed migration file in CI, run:</p>
+<p>To check that model changes have a migration file in CI, run:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--check
 </code></pre></div>
 <p>It exits <code>1</code> when operations are pending, including destructive operations,
-and <code>0</code> when the model state matches the latest migration state file. It does
-not write migration files or connect to a database. It imports the selected
-app's migration module and every registered app's model module (cross-app
-foreign keys require the other models for validation), so those imports must
-be safe for a CI check. In a multi-app project, pass <code>--app NAME</code> and run the
-check once for each registered app; without a selection, it asks for <code>--app</code>
-just like <code>plan</code>. This check concerns file state only. Use <code>migrations status</code>
-to compare the files with a live database's applied migration ledger.
-<code>--dry-run</code> remains a preview that prints operations and exits successfully
-when changes are pending.</p>
+and <code>0</code> when every selected app matches its latest migration state file. It
+does not write migration files or connect to a database. It imports registered
+model and migration modules (cross-app foreign keys require every model module),
+so those imports must be safe in CI. In a multi-app project, no <code>--app</code> checks
+every app in dependency order; <code>--app NAME</code> checks one app and its
+prerequisites. This check concerns file state only. Use <code>migrations status</code> to
+compare files with a live database's applied migration ledger. <code>--dry-run</code>
+without <code>--app</code> previews every registered app and exits successfully when
+changes are pending.</p>
 <p>For example, <code>billing</code> can depend on <code>accounts</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="k">[[apps]]</span>
 <span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"billing"</span>
@@ -492,7 +499,7 @@ whether an older migration actually created its constraint.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.9</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 09:34:53 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 10:18:10 UTC">November 16, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/migrations.md">Edit on GitHub</a></dd></div>
         </dl>
