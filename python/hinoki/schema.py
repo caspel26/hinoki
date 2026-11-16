@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import functools
 import inspect
 import typing
 import unicodedata
@@ -34,6 +35,8 @@ from hinoki.fields import UNSET, Field, FieldInfo, Unset
 from hinoki.fieldtypes import FieldType, parse_annotation
 
 _NO_MODEL = object()
+_SUPPLIED_FIELDS = "__hinoki_supplied_fields__"
+_TRACKS_SUPPLIED_FIELDS = "__hinoki_tracks_supplied_fields__"
 
 __all__ = [
     "UNSET",
@@ -142,6 +145,30 @@ def validate_aliases(cls: type[Schema], specs: dict[str, FieldSpec]) -> None:
         owners[wire_name] = spec.name
 
 
+def validate_reserved_names(cls: type, annotations: dict[str, Any]) -> None:
+    """Keep tracking internals and the controlled-export method out of fields."""
+    tracking_names = {_SUPPLIED_FIELDS, _TRACKS_SUPPLIED_FIELDS}
+    if tracking_names & (set(cls.__dict__) | set(annotations)):
+        raise RegistrationError(
+            f"{cls.__name__}: supplied-field tracking metadata is reserved by Hinoki"
+        )
+    inherited_fields: set[str] = set()
+    inherited_annotations: set[str] = set()
+    for base in cls.__mro__[1:]:
+        inherited_annotations.update(inspect.get_annotations(base))
+        if dataclasses.is_dataclass(base):
+            inherited_fields.update(item.name for item in dataclasses.fields(base))
+    if "serialize" in annotations or "serialize" in inherited_fields:
+        raise RegistrationError(
+            f"{cls.__name__}.serialize: field name conflicts with the "
+            "Schema.serialize() method; rename the Python field"
+        )
+    if tracking_names & (inherited_fields | inherited_annotations):
+        raise RegistrationError(
+            f"{cls.__name__}: supplied-field tracking metadata is reserved by Hinoki"
+        )
+
+
 @dataclass_transform(
     kw_only_default=True, frozen_default=True, field_specifiers=(Field,)
 )
@@ -165,6 +192,7 @@ class Schema:
 
     def __init_subclass__(cls, model: object = _NO_MODEL, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
+        custom_init = "__init__" in cls.__dict__
         cls.__source__ = class_source(cls)
         cls.__assigned_field_info__ = {
             name: value
@@ -180,9 +208,24 @@ class Schema:
             cls.__derivation__ = (source, None, (), False)
             derive_from_model(cls, source, None, (), False)
         cls.__checks__ = collect_checks(cls)
-        for name in inspect.get_annotations(cls):
+        annotations = inspect.get_annotations(cls)
+        validate_reserved_names(cls, annotations)
+        for name in annotations:
             cls.apply_default(name)
         dataclasses.dataclass(frozen=True, kw_only=True)(cls)
+        if not custom_init:
+            generated_init = cls.__init__
+
+            @functools.wraps(generated_init)
+            def tracked_init(self: Schema, **values: Any) -> None:
+                if type(self) is cls and type(self).__dict__.get(
+                    _TRACKS_SUPPLIED_FIELDS, False
+                ):
+                    object.__setattr__(self, _SUPPLIED_FIELDS, frozenset(values))
+                generated_init(self, **values)
+
+            cls.__init__ = cast(Any, tracked_init)  # type: ignore[method-assign]
+        setattr(cls, _TRACKS_SUPPLIED_FIELDS, not custom_init)
         try:
             cls.__specs__ = cls.build_specs()
         except ForwardReference:
@@ -304,6 +347,54 @@ class Schema:
         """JSON-compatible form; ``UNSET`` fields are omitted. Built in Rust,
         like the JSON answers themselves."""
         return dump_instance(self, True, by_alias=True)
+
+    def serialize(
+        self,
+        *,
+        include: Iterable[str] | None = None,
+        exclude: Iterable[str] = (),
+        exclude_unset: bool = False,
+        by_alias: bool = True,
+    ) -> dict[str, Any]:
+        """Return a manually selected JSON-compatible projection.
+
+        Selectors use Python field names. Unlike ``dump()``, this method can
+        omit defaulted fields that were not supplied when the instance was
+        created. Automatic HTTP responses continue to use ``dump()``.
+        """
+        if type(exclude_unset) is not bool or type(by_alias) is not bool:
+            raise TypeError("exclude_unset and by_alias must be bool")
+        selected_include = normalize_selector(include, "include", self.specs())
+        selected_exclude = normalize_selector(exclude, "exclude", self.specs()) or []
+        return core.serialize_instance(
+            self,
+            selected_include,
+            selected_exclude,
+            exclude_unset,
+            by_alias,
+        )
+
+
+def normalize_selector(
+    values: Iterable[str] | None, label: str, specs: dict[str, FieldSpec]
+) -> list[str] | None:
+    """Validate one shallow Python-name field selector."""
+    if values is None:
+        if label == "include":
+            return None
+        raise TypeError(f"{label} must be an iterable of field names")
+    if isinstance(values, str):
+        raise TypeError(f"{label} must be an iterable of field names, not str")
+    try:
+        names = list(values)
+    except TypeError as exc:
+        raise TypeError(f"{label} must be an iterable of field names") from exc
+    if any(not isinstance(name, str) for name in names):
+        raise TypeError(f"{label} members must be strings")
+    unknown = sorted(set(names) - specs.keys())
+    if unknown:
+        raise ValueError(f"unknown {label} fields: {unknown}")
+    return names
 
 
 def chosen_columns(
@@ -431,6 +522,7 @@ SOURCE_SKIP = frozenset(
         "__dict__", "__weakref__", "__annotations__", "__annotate__",
         "__annotate_func__", "__annotations_cache__", "__source__",
         "__derivation__", "__derived_model__",
+        _SUPPLIED_FIELDS, _TRACKS_SUPPLIED_FIELDS,
     }
 )  # fmt: skip
 
@@ -529,6 +621,7 @@ def uses_generated_init(cls: type) -> bool:
     init = vars(cls).get("__init__") or next(
         (vars(k)["__init__"] for k in cls.__mro__ if "__init__" in vars(k)), None
     )
+    init = inspect.unwrap(init) if init is not None else None
     return getattr(
         getattr(init, "__code__", None), "co_filename", ""
     ) == "<string>" and not hasattr(cls, "__post_init__")
