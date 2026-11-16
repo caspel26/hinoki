@@ -1,5 +1,5 @@
 [build-system]
-requires = ["maturin>=1.9,<2"]
+requires = ["maturin>=1.9.4,<2"]
 build-backend = "maturin"
 
 [project]
@@ -59,7 +59,6 @@ test = [
 python-source = "python"
 module-name = "hinoki.core"
 manifest-path = "crates/bindings/Cargo.toml"
-features = ["pyo3/extension-module"]
 
 [tool.uv]
 # Rebuild the extension when Rust sources change.
