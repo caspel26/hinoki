@@ -48,7 +48,7 @@ pub fn configure_runtime(worker_threads: usize) -> PyResult<()> {
     Ok(())
 }
 
-fn db_error(py: Python<'_>, err: &DbError) -> PyErr {
+pub(crate) fn db_error(py: Python<'_>, err: &DbError) -> PyErr {
     let kind = py.get_type::<DatabaseError>();
     let class = match err.kind {
         ErrorKind::Unique => py.get_type::<UniqueViolation>(),
@@ -169,15 +169,11 @@ fn rows_to_py(py: Python<'_>, rows: &[Vec<(String, Value)>]) -> PyResult<Py<PyAn
     Ok(out.into_any().unbind())
 }
 
-/// Wait for a database future and convert its outcome to Python.
+/// Run a database future off the loop and convert its outcome on the loop
+/// thread (see `completion`).
 macro_rules! bridge {
     ($py:expr, $fut:expr, |$py2:ident, $ok:ident| $convert:expr) => {
-        pyo3_async_runtimes::tokio::future_into_py($py, async move {
-            match $fut.await {
-                Ok($ok) => Python::attach(|$py2| $convert),
-                Err(e) => Python::attach(|py| Err(db_error(py, &e))),
-            }
-        })
+        crate::completion::submit($py, $fut, |$py2, $ok| $convert)
     };
 }
 

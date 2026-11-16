@@ -3,6 +3,7 @@
 //! Scope: the path router, the database bridge, the SQL compiler and request
 //! decoding / JSON (see `request.rs`).
 
+mod completion;
 mod crypto;
 mod db;
 mod jwt;
