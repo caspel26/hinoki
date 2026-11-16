@@ -37,6 +37,9 @@ from hinoki.request import Request
 from hinoki.routing import Route
 from hinoki.schema import Schema
 
+if typing.TYPE_CHECKING:
+    from hinoki.runtime.rowplan import RowWireSelection
+
 PATH_PARAM = re.compile(r"\{([^{}]+)\}")
 INTEGER = re.compile(r"-?[0-9]+")
 DECIMAL = re.compile(r"-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?")
@@ -199,6 +202,7 @@ class Binding:
     params: tuple[Param, ...]
     takes_request: bool = True  # False: the action did not declare `Request`
     needs_body: bool = False  # a parameter binds the body; decided once in `bind`
+    row_wire: RowWireSelection | None = field(default=None, repr=False, compare=False)
     is_async: bool = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:

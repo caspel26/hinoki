@@ -28,7 +28,12 @@ from hinoki.docsui import pages as docs_pages
 from hinoki.errors import ErrorDetail, InvalidBody, RegistrationError, ValidationError
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
-from hinoki.renderers import JSONRenderer, Renderer, negotiate
+from hinoki.renderers import (
+    JSONRenderer,
+    Renderer,
+    is_default_json_renderer,
+    negotiate,
+)
 from hinoki.reply import Reply
 from hinoki.request import Request
 from hinoki.routing import MethodNotAllowed
@@ -519,7 +524,12 @@ class Pipeline:
         kwargs: dict[str, object],
     ) -> Response:
         route = binding.route
-        result = await self._handler_result(binding, request, kwargs)
+        row_wire = (
+            binding.row_wire
+            if binding.row_wire is not None and is_default_json_renderer(renderer)
+            else None
+        )
+        result = await self._handler_result(binding, request, kwargs, row_wire)
         if isinstance(result, Reply):
             return Response(result.status, result.body, result.headers)
         if result is not None and route.status not in BODYLESS:
@@ -548,9 +558,12 @@ class Pipeline:
         binding: Binding,
         request: Request | None,
         kwargs: dict[str, object],
+        row_wire: object | None = None,
     ) -> object:
         """Call an async handler in its task or a sync handler in the executor."""
         route = binding.route
+        if row_wire is not None:
+            kwargs = {**kwargs, "_row_plan": row_wire}
         owner = (route.owner(),) if route.owner is not None else ()
         if binding.takes_request:
             if request is None:

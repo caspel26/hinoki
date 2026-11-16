@@ -260,6 +260,10 @@ class QuerySet[M: Model]:
         database = current_database()
         sql, params = self.compile(dialect=database.dialect)
         rows = await database.fetch(sql, *params)
+        return await self._hydrate(rows)
+
+    async def _hydrate(self, rows: list[Row]) -> list[M]:
+        """Build and load rows already fetched by this query or a safe fallback."""
         instances = [self.build(row) for row in rows]
         await self.load(instances)
         return instances
@@ -411,6 +415,23 @@ class QuerySet[M: Model]:
         total = await self.acount()
         window = ordered.limit(params.page_size).offset(params.offset)
         return Page(await window, params.page, params.page_size, total)
+
+
+# Row-wire selection must compare against the ORM's original methods, not
+# whichever implementations happen to be installed when an app is included.
+ROW_WIRE_METHODS = (
+    "derive",
+    "order_by",
+    "limit",
+    "offset",
+    "apaginate",
+    "__await__",
+    "fetch",
+    "_hydrate",
+    "build",
+    "load",
+)
+ROW_WIRE_METHODS_ORIGINAL = tuple(getattr(QuerySet, name) for name in ROW_WIRE_METHODS)
 
 
 def condition(model: type[Model], key: str, value: Any) -> tuple[str, str, list[Any]]:

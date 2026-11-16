@@ -260,3 +260,48 @@ Under Granian with real sockets (`comparative/run.py --framework hinoki`, 4 work
 * `list` was first measured right after `create` in the same run, on a table the inserts had grown; the faster build inserted more rows, so it paid for a bigger table and looked 14% slower. That was an ordering artifact. The `list` rows above run it alone on a freshly seeded table, three rounds per build with the build order alternated (load 8 to 18, noisy).
 * The in-process gain for `list` is larger than the Granian one; row conversion now runs on the loop thread, which raises event-loop CPU per request on large pages.
 * Not measured: PostgreSQL with `runtime_threads` 2, Linux, a quiet host, the Rust server (not built yet).
+
+## Generated CRUD rows-to-JSON gate (`rowwirebench.py`)
+
+This local A/B gate compares a real generated `CrudAPI.list` route with the same
+binding's private Rust RowPlan enabled or disabled. Granian, the model, schema,
+seed, database, pool, workers and SQL remain the same. It is a regression check
+for this implementation slice; it is not the Rust-server comparison, the
+cross-framework benchmark or a public performance claim. Output belongs in the
+ignored `.cache/` directory.
+
+Use a disposable PostgreSQL database. The runner verifies GET/HEAD response
+parity and the count/page SQL sequence before timing. Its in-process trace also
+checks that the Rust path avoids row/model/schema materialization and the
+Python path performs it. It pins Granian to CPUs 0–3 and Oha to CPUs 6–7 on
+Linux when those CPUs are available. For every sample it seeds the database,
+starts and warms the server, then waits with the idle server and database in
+place for a stable 10-second window with one-minute load at or below 1.0, up to
+five minutes. Oha remains stopped during this gate. It records the wait, load
+values and active processes, reads load once more immediately before timing, and
+refuses to start Oha if that reading is missing or above 1.0. It records load
+again after the sample. If the host does not become quiet, the campaign stops
+with a partial report and keeps that attempt's raw files isolated. Use a fresh
+empty output directory for each attempt and keep the machine otherwise idle.
+Timed runs also require a clean committed worktree; `--verify-only` can run
+against local edits.
+
+```sh
+docker run -d --name hinoki-rowwire-ab \
+  -e POSTGRES_PASSWORD=rowwire-only -e POSTGRES_DB=rowwire \
+  -p 127.0.0.1:55517:5432 postgres:17-alpine
+export ROWWIRE_DATABASE_URL=postgres://postgres:rowwire-only@127.0.0.1:55517/rowwire
+uv sync --locked
+uvx maturin develop --release --uv
+uv run --locked --no-sync python benchmarks/rowwirebench.py \
+  --verify-only --seed-rows 10000 --out .cache/rowwire-ab-verify
+uv run --locked --no-sync python benchmarks/rowwirebench.py \
+  --runs 5 --duration 20 --warmup 10 --workers 1 --pool-size 10 \
+  --connections 64 --page-sizes 20 100 --seed-rows 10000 --port 8891 \
+  --server-cpus 0-3 --load-cpus 6-7 --out .cache/rowwire-ab
+docker rm -f hinoki-rowwire-ab
+```
+
+Raw Oha JSON, load averages, server logs, environment metadata and paired
+summaries are retained in the selected output directory. Interpret only the
+measured local run; do not copy these results into the comparative report.
