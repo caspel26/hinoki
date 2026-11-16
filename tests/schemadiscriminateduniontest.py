@@ -5,7 +5,7 @@ from typing import Annotated, ClassVar
 
 import pytest
 
-from hinoki import Field, Hinoki, Invalid, Schema, Unset, field_check, http
+from hinoki import Field, Hinoki, Invalid, Schema, Unset, field_check, fieldtypes, http
 from hinoki.errors import RegistrationError, ValidationError
 from hinoki.fieldtypes import (
     ensure_variant_type,
@@ -390,6 +390,25 @@ def test_schema_inheritance_is_not_a_discriminated_union() -> None:
 
     with pytest.raises(RegistrationError, match="cannot inherit from each other"):
         ensure_variant_type(SpecialCat, Schema, [("cat", Cat)], "related")
+
+
+def test_union_helpers_keep_defensive_empty_and_missing_tag_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        fieldtypes, "validate_union_metadata", lambda _info, _members, _where: "kind"
+    )
+    with pytest.raises(RegistrationError, match="union has no variants"):
+        fieldtypes.build_tagged_union(
+            [], Field(discriminator="kind"), False, False, "empty"
+        )
+
+    class Untagged(Schema):
+        kind: str
+
+    monkeypatch.setattr(fieldtypes, "invalid_discriminator_field", lambda *_args: False)
+    with pytest.raises(RegistrationError, match="discriminator tag is missing"):
+        fieldtypes.variant_discriminator(Untagged, "kind", "untagged")
 
 
 def test_openapi_rejects_bare_union_return_annotations() -> None:
