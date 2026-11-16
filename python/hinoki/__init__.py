@@ -15,7 +15,7 @@ from hinoki.core import core_version
 from hinoki.crud import Crud, CrudAPI
 from hinoki.derive import derive
 from hinoki.modules import Module, ModuleContext
-from hinoki.parsers import FormParser, JSONParser, MultiPartParser, Parser
+from hinoki.parsers import FormParser, JSONParser, MultiPartParser, Parser, UploadedFile
 from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer
 from hinoki.reply import Reply, set_cookie
 from hinoki.request import Request
@@ -74,6 +74,7 @@ __all__ = [
     "Schemas",
     "Transactions",
     "Unset",
+    "UploadedFile",
     "__version__",
     "derive",
     "errors",

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
 import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -26,6 +27,8 @@ from hinoki.app import Hinoki
 from hinoki.utils import _read_utc
 
 HeaderInput = Mapping[str, str] | Sequence[tuple[str, str]]
+FormInput = Mapping[str, str] | Sequence[tuple[str, str]]
+FileInput = Sequence[tuple[str, str, bytes, str]]
 
 ERROR_STATUS = 400
 # What the framework itself answers, whatever an action declares.
@@ -128,27 +131,25 @@ class ASGIClient:
             await self.outbox.get()
             await self.lifespan
 
-    async def request(
+    async def request(  # noqa: PLR0913 - request inputs are named public options
         self,
         method: str,
         path: str,
         *,
         json: Any = None,
         body: bytes = b"",
+        data: FormInput | None = None,
+        files: FileInput | None = None,
         query: str = "",
         headers: HeaderInput | None = None,
         token: str | None = None,
     ) -> Response:
-        """One request. ``token`` sends ``Authorization: Bearer <token>``;
-        ``json`` sends a JSON body with its content type."""
+        """One request, including JSON or multipart test payloads."""
         sent = _header_items(headers)
         if token is not None:
             sent = [(name, value) for name, value in sent if name != "authorization"]
             sent.append(("authorization", f"Bearer {token}"))
-        if json is not None:
-            body = _dumps(json)
-            if not any(name == "content-type" for name, _ in sent):
-                sent.append(("content-type", "application/json"))
+        body, sent = _request_body(json, body, data, files, sent)
         if self.host is not None and not any(name == "host" for name, _ in sent):
             sent.append(("host", self.host))
         scope = {
@@ -226,6 +227,86 @@ def _dumps(value: Any) -> bytes:
 
 def _loads(raw: bytes) -> Any:
     return json.loads(raw)
+
+
+def _request_body(
+    json_value: Any,
+    body: bytes,
+    data: FormInput | None,
+    files: FileInput | None,
+    headers: list[tuple[str, str]],
+) -> tuple[bytes, list[tuple[str, str]]]:
+    """Choose one body encoding and its content type for a test request."""
+    if data is not None or files is not None:
+        if json_value is not None or body:
+            raise ValueError("multipart data cannot be combined with json= or body=")
+        if any(name == "content-type" for name, _ in headers):
+            raise ValueError("content-type is set by the multipart test helper")
+        body, content_type = _multipart_body(data, files or ())
+        headers.append(("content-type", content_type))
+    elif json_value is not None:
+        if body:
+            raise ValueError("json= cannot be combined with body=")
+        body = _dumps(json_value)
+        if not any(name == "content-type" for name, _ in headers):
+            headers.append(("content-type", "application/json"))
+    return body, headers
+
+
+def _multipart_body(data: FormInput | None, files: FileInput) -> tuple[bytes, str]:
+    """Encode ordered form values and files as one test-only multipart body."""
+    boundary = f"hinoki-test-{secrets.token_hex(16)}"
+    chunks: list[bytes] = []
+    for name, value in _form_items(data):
+        _check_disposition_value(name)
+        chunks.extend(
+            (
+                f"--{boundary}\r\nContent-Disposition: form-data; "
+                f'name="{_quote_disposition(name)}"\r\n\r\n'.encode(),
+                value.encode(),
+                b"\r\n",
+            )
+        )
+    for name, filename, content, content_type in files:
+        _check_disposition_value(name)
+        _check_disposition_value(filename)
+        if "\r" in content_type or "\n" in content_type:
+            raise ValueError("multipart content types cannot contain line breaks")
+        chunks.extend(
+            (
+                f"--{boundary}\r\nContent-Disposition: form-data; "
+                f'name="{_quote_disposition(name)}"; '
+                f'filename="{_quote_disposition(filename)}"\r\n'
+                f"Content-Type: {content_type}\r\n\r\n".encode(),
+                content,
+                b"\r\n",
+            )
+        )
+    chunks.append(f"--{boundary}--\r\n".encode())
+    return b"".join(chunks), f"multipart/form-data; boundary={boundary}"
+
+
+def _form_items(data: FormInput | None) -> Sequence[tuple[str, str]]:
+    """Return form fields in caller order, retaining repeated names."""
+    if data is None:
+        return ()
+    return list(data.items()) if isinstance(data, Mapping) else data
+
+
+ASCII_SPACE = 0x20
+ASCII_DELETE = 0x7F
+
+
+def _check_disposition_value(value: str) -> None:
+    if any(
+        ord(character) < ASCII_SPACE or ord(character) == ASCII_DELETE
+        for character in value
+    ):
+        raise ValueError("multipart names and filenames cannot contain controls")
+
+
+def _quote_disposition(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def _header_items(headers: HeaderInput | None) -> list[tuple[str, str]]:

@@ -17,7 +17,10 @@ log = logging.getLogger("hinoki.runtime")
 Headers = list[tuple[bytes, bytes]]
 RETRY_LATER: Headers = [(b"retry-after", b"1")]
 BODYLESS = {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}
-INVALID_BODY_STATUS = {"unsupported_media_type": HTTPStatus.UNSUPPORTED_MEDIA_TYPE}
+INVALID_BODY_STATUS = {
+    "payload_too_large": HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+    "unsupported_media_type": HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
+}
 
 
 @dataclass(slots=True)
