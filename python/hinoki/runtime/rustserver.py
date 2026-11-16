@@ -54,7 +54,8 @@ def scope_of(request: core.PreparedRequest) -> dict[str, Any]:
         "method": request.method,
         "scheme": "http",
         "path": unquote(request.path),
-        "raw_path": request.path.encode("ascii"),
+        # Non-ASCII bytes stay: the pipeline answers 400 bad_path_encoding for them.
+        "raw_path": request.path.encode("utf-8"),
         "query_string": request.query,
         "headers": request.headers,
         "client": request.client,
