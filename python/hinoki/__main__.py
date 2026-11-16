@@ -23,28 +23,21 @@ from hinoki.orm import migrator
 from hinoki.orm.migrations import Plan, migration_files, models_of, plan
 from hinoki.project import ProjectError
 from hinoki.projectmigrations import (
+    URL_VARIABLE,
     manifest_for,
+    migration_database_url,
     plan_project,
     run_database_project,
     sql_project,
 )
-from hinoki.settings import DatabaseSettings
-
-URL_VARIABLE = "HINOKI_DATABASE_URL"
+from hinoki.projectmigrations import (
+    database_dialect as _database_dialect,
+)
 
 
 def database_dialect(url: str) -> str:
-    """Return the migration dialect selected by a database URL scheme."""
-    for scheme, dialect in (
-        ("sqlite://", "sqlite"),
-        ("mysql://", "mysql"),
-        ("mariadb://", "mariadb"),
-        ("postgres://", "postgres"),
-        ("postgresql://", "postgres"),
-    ):
-        if url.startswith(scheme):
-            return dialect
-    raise MigrationError("database URL must use a supported backend scheme")
+    """Return the SQL dialect selected by a database URL scheme."""
+    return _database_dialect(url)
 
 
 def parser() -> argparse.ArgumentParser:
@@ -126,7 +119,7 @@ def migration_plan(args: argparse.Namespace) -> Plan:
         return plan_project(args, manifest)
     if not args.models:
         raise MigrationError("pass --models without a project hinoki.toml")
-    database_url = args.database or DatabaseSettings().url.reveal()
+    database_url = migration_database_url(args, manifest)
     return plan(
         models_of(args.models),
         Path(args.dir or "migrations"),
@@ -141,7 +134,7 @@ async def run_database(args: argparse.Namespace) -> None:
     manifest = manifest_for(args)
     if manifest is not None:
         manifest.ordered_apps(args.app)
-    database_url = args.database or DatabaseSettings().url.reveal()
+    database_url = migration_database_url(args, manifest)
     database = await Database.connect(database_url, max_size=1)
     try:
         if manifest is not None:

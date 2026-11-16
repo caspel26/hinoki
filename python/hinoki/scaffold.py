@@ -152,6 +152,9 @@ uv run hinoki manage                 # list project management commands
 Hinoki is pre-alpha and not published on PyPI: `pyproject.toml` names where `uv`
 finds it under `[tool.uv.sources]`. Change that entry to pin a revision or to use
 another checkout. `AGENTS.md` describes the conventions for people and agents.
+In a project with `hinoki.toml`, the implicit SQLite file is rooted beside that
+manifest, even when a migration command runs from a subdirectory. Explicit
+relative SQLite URLs still use the current working directory.
 """
 
 CLAUDE = "Read and follow `AGENTS.md` before changing anything in this repository.\n"
