@@ -27,12 +27,6 @@ allow-wildcard-paths = true  # the workspace crates depend on each other by path
 
 [advisories]
 version = 2
-ignore = [
-    # chrono is reported unmaintained (no vulnerability). It is also pulled in
-    # through tokio-postgres (postgres-types) and mysql_async, so removing it
-    # needs a driver-feature and timestamp-type migration tracked separately.
-    { id = "RUSTSEC-2026-0543", reason = "unmaintained, no known vulnerability; migration tracked separately" },
-]
 
 [sources]
 unknown-registry = "deny"
