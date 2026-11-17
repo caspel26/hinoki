@@ -434,17 +434,27 @@ impl<'py> Run<'_, 'py> {
         )
     }
 
-    fn length(&mut self, node: &Node, size: usize, path: &str) -> Result<bool, Abort> {
+    fn length(&mut self, node: &Node, size: usize, path: &str, unit: &str) -> Result<bool, Abort> {
         let size = i64::try_from(size).unwrap_or(i64::MAX);
         if let Some(least) = node.min_length {
             if size < least {
-                self.fail(path, "min_length", format!("at least {least} long"))?;
+                let unit = if least == 1 {
+                    unit.to_owned()
+                } else {
+                    format!("{unit}s")
+                };
+                self.fail(path, "min_length", format!("at least {least} {unit}"))?;
                 return Ok(false);
             }
         }
         if let Some(most) = node.max_length {
             if size > most {
-                self.fail(path, "max_length", format!("at most {most} long"))?;
+                let unit = if most == 1 {
+                    unit.to_owned()
+                } else {
+                    format!("{unit}s")
+                };
+                self.fail(path, "max_length", format!("at most {most} {unit}"))?;
                 return Ok(false);
             }
         }
@@ -455,7 +465,7 @@ impl<'py> Run<'_, 'py> {
         let Ok(text) = data.cast::<PyString>() else {
             return self.fail(path, "type", "expected a string".to_owned());
         };
-        if !self.length(node, text.len()?, path)? {
+        if !self.length(node, text.len()?, path, "character")? {
             return Ok(None);
         }
         if let Some((source, regex)) = &node.pattern {
@@ -564,7 +574,7 @@ impl<'py> Run<'_, 'py> {
         let Ok(list) = data.cast::<PyList>() else {
             return self.fail(path, "type", "expected an array".to_owned());
         };
-        if !self.length(node, list.len(), path)? {
+        if !self.length(node, list.len(), path, "item")? {
             return Ok(None);
         }
         let before = self.problems.len();
