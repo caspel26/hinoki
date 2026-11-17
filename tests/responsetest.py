@@ -2,13 +2,15 @@
 
 import pytest
 
-from hinoki import Hinoki, HTMLRenderer, Reply, Request, http, set_cookie
+import hinoki
+from hinoki import Hinoki, HTMLRenderer, Request, Response, http, set_cookie
+from hinoki.http.response import Response as ModuleResponse
 from tests.harness import Client, Pool
 
 
 @http.get("/go")
-def go(request: Request) -> Reply:
-    return Reply(
+def go(request: Request) -> Response:
+    return Response(
         303,
         headers=[("Location", "/there"), set_cookie("sid", "abc", max_age=60)],
     )
@@ -25,13 +27,13 @@ def bad_page(request: Request) -> dict[str, str]:
 
 
 @http.get("/text")
-def text(request: Request) -> Reply:
-    return Reply(201, "ünï", content_type="text/plain; charset=utf-8")
+def text(request: Request) -> Response:
+    return Response(201, "ünï", content_type="text/plain; charset=utf-8")
 
 
 @http.post("/boom")
-def boom(request: Request) -> Reply:
-    return Reply(200, headers={"x-a": "line\r\nSet-Cookie: x=1"})
+def boom(request: Request) -> Response:
+    return Response(200, headers={"x-a": "line\r\nSet-Cookie: x=1"})
 
 
 async def serve(pool: Pool) -> Client:
@@ -94,7 +96,13 @@ async def test_a_bad_header_fails_in_the_handler_not_on_the_wire(pool: Pool) -> 
 )
 def test_invalid_replies_are_refused_when_built(arguments: dict[str, object]) -> None:
     with pytest.raises(ValueError):  # noqa: PT011
-        Reply(**arguments)  # type: ignore[arg-type]
+        Response(**arguments)  # type: ignore[arg-type]
+
+
+def test_response_is_public_from_package_and_http_module() -> None:
+    assert ModuleResponse is Response
+    assert "Reply" not in hinoki.__all__
+    assert not hasattr(hinoki, "Reply")
 
 
 @pytest.mark.parametrize(

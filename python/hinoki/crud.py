@@ -18,11 +18,11 @@ from hinoki.api import API
 from hinoki.auth import Caller
 from hinoki.errors import Forbidden, RegistrationError
 from hinoki.fields import UNSET
+from hinoki.http.request import Request
+from hinoki.http.response import Response
 from hinoki.orm import Model, QuerySet
 from hinoki.orm.context import current_database
 from hinoki.pagination import Page, PageNumberPagination, PageParams
-from hinoki.reply import Reply
-from hinoki.request import Request
 from hinoki.routing import Options, RouteDeclaration
 from hinoki.schema import Schema
 
@@ -308,7 +308,7 @@ async def wire_list_rows(
         sql, params, selection.plan, page.page, page.page_size, total
     )
     if isinstance(fetched, bytes):
-        return Reply(200, fetched, content_type="application/json")
+        return Response(200, fetched, content_type="application/json")
     models = await window._hydrate(fetched)
     items = await schema_items(self, models)
     return Page(list(items), page.page, page.page_size, total)

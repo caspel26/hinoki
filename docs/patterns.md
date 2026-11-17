@@ -29,7 +29,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 | Input validation | The `Schema` (types, constraints, patterns) | Strict, no coercion, validated in Rust before your code runs |
 | Business rules | Operations | Testable without HTTP |
 | Transactions | `transaction=True` on the action (writes) | Commit after the response is encoded, rollback before the error becomes HTTP. **Rule:** `Transactions.require_atomic` |
-| Errors | Raise `APIError` subclasses and **declare them on the action**: `@http.post(..., errors=(PostAlreadyPublished, errors.Forbidden))`. Translate database errors once with `app.errors.handle(...)` | Failures are exceptions. The declaration (status and code come from the class) feeds OpenAPI, the MCP tool description and, in tests, `ASGIClient(app, strict_errors=True)`, which fails on an error answer the action did not declare. **A returned `Reply` commits the transaction** |
+| Errors | Raise `APIError` subclasses and **declare them on the action**: `@http.post(..., errors=(PostAlreadyPublished, errors.Forbidden))`. Translate database errors once with `app.errors.handle(...)` | Failures are exceptions. The declaration (status and code come from the class) feeds OpenAPI, the MCP tool description and, in tests, `ASGIClient(app, strict_errors=True)`, which fails on an error answer the action did not declare. **A returned `Response` commits the transaction** |
 | Secrets | Settings/environment, passed to `JWTKey`, `Admin(secret=…)`, never defaults | Nothing to leak from the repository |
 
 ## 3. `Schema` classes and models
@@ -77,7 +77,7 @@ HTTPS terminates somewhere you control (set `Admin(secure_cookies=True)` behind 
 * Returning a `Model` or a dict built from one.
 * For a distinct 403 response on a write that can race, make the conditional write and fallback explicit.
 * A business rule inside an action that another entry point also needs.
-* `Reply(4xx)` inside a `transaction=True` action (it commits).
+* `Response(4xx)` inside a `transaction=True` action (it commits).
 * Client-supplied column names reaching `filter`/`order_by`.
 * Applying migrations at startup; creating a pool at import time.
 * A broad waiver (`*`) or editing waivers to silence a rule.
