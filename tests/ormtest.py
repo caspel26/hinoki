@@ -165,6 +165,14 @@ def test_model_rows_decode_declared_json_fields_without_changing_text() -> None:
     assert document.text_value == '{"kept":"as text"}'
 
 
+def test_model_rows_keep_json_defaults_when_a_column_is_omitted() -> None:
+    document = JsonDocument.from_row(
+        {"id": UUID(int=2), "object_value": {"ready": True}}
+    )
+    assert document.object_value == {"ready": True}
+    assert document.optional_list is None
+
+
 def test_model_rows_refuse_invalid_declared_json() -> None:
     with pytest.raises(FieldError, match=r"JsonDocument.object_value.*valid JSON"):
         JsonDocument.from_row(
