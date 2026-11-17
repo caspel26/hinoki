@@ -139,11 +139,38 @@ def static_state(owner: type, names: tuple[str, ...]) -> tuple[object, ...]:
     return tuple(inspect.getattr_static(owner, name, None) for name in names)
 
 
+# Attributes of ``type`` itself that win over a class's own namespace in
+# ``inspect.getattr_static`` (data descriptors such as ``__doc__``).
+TYPE_DATA_DESCRIPTORS = frozenset(
+    name
+    for name, value in vars(type).items()
+    if hasattr(type(value), "__get__")
+    and (hasattr(type(value), "__set__") or hasattr(type(value), "__delete__"))
+)
+
+
+def class_static(owner: type, name: str) -> object | None:
+    """``inspect.getattr_static(owner, name, None)`` for a class, fast.
+
+    With ``type`` as the exact metaclass, every class in the MRO has a real
+    namespace and only ``type``'s data descriptors take precedence over it,
+    so a plain MRO walk returns the same object. Anything else uses
+    ``getattr_static`` itself.
+    """
+    if type(owner) is not type or name in TYPE_DATA_DESCRIPTORS:
+        return cast(object | None, inspect.getattr_static(owner, name, None))
+    for klass in owner.__mro__:
+        namespace = klass.__dict__
+        if name in namespace:
+            return cast(object, namespace[name])
+    return cast(object | None, vars(type).get(name))
+
+
 def static_state_matches(
     owner: type, names: tuple[str, ...], expected: tuple[object, ...]
 ) -> bool:
     return all(
-        inspect.getattr_static(owner, name, None) is value
+        class_static(owner, name) is value
         for name, value in zip(names, expected, strict=True)
     )
 
@@ -339,7 +366,7 @@ def model_unchanged(selection: RowWireSelection) -> bool:
         and tuple(model.__field_types__.items()) == selection.model_field_items
         and static_state_matches(model, MODEL_GUARD_NAMES, selection.model_state)
         and all(
-            inspect.getattr_static(model, name, None) is expected
+            class_static(model, name) is expected
             for name, expected in selection.column_descriptors
         )
     )
@@ -365,7 +392,7 @@ def schema_unchanged(selection: RowWireSelection) -> bool:
         and schema.__dict__.get("__native__") is selection.schema_native
         and schema.__schema_config__ is selection.schema_config
         and all(
-            inspect.getattr_static(schema, name, None) is expected
+            class_static(schema, name) is expected
             for name, expected in selection.schema_field_descriptors
         )
     )
