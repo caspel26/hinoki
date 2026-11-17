@@ -82,8 +82,9 @@ def _resolve_display_names(
 ) -> tuple[str, str]:
     if not words and (not label or not plural):
         raise RegistrationError(
-            f"{class_name}: cannot derive names from this class name; pass table=, "
-            "label= and plural= explicitly"
+            f"{class_name}: cannot derive names from this class name; pass "
+            "label= and plural= explicitly, and name the table with "
+            "@db.table(...) or table="
         )
     singular = label or _human_singular(words)
     plural_name = plural or _human_plural(singular)
@@ -99,26 +100,34 @@ def _resolve_display_names(
     return singular, plural_name
 
 
-def _derived_table(class_name: str, words: list[str]) -> str:
+def _derived_table(class_name: str, words: list[str]) -> tuple[str, str]:
+    """The table name derived from the class name and, when that name cannot
+    be used, the reason. The reason is reported only if no ``@db.table`` or
+    ``table=`` replaces the name (see ``Model.check_table``)."""
+    if not words:
+        return "", (
+            f"{class_name}: cannot derive a table name from this class name; "
+            "name the table with @db.table(...) or table="
+        )
     table_words = [word.lower() for word in words]
     table_words[-1] = _plural_word(table_words[-1])
     table = "_".join(table_words)
+    return table, _derived_table_problem(class_name, table)
+
+
+def _derived_table_problem(class_name: str, table: str) -> str:
     if not _IDENTIFIER.fullmatch(table):
-        raise RegistrationError(
-            f"{class_name}: derived table {table!r} is not a portable SQL "
-            "identifier; pass an explicit table= override"
-        )
-    if table.casefold() == MIGRATION_LEDGER:
-        raise RegistrationError(
-            f"{class_name}: derived table {table!r} is owned by Hinoki "
-            "migrations; pass a distinct table= override"
-        )
-    if table.casefold().startswith("sqlite_"):
-        raise RegistrationError(
-            f"{class_name}: derived table {table!r} uses SQLite's reserved "
-            "sqlite_ prefix; pass a portable table= override"
-        )
-    return table
+        reason = "is not a portable SQL identifier"
+    elif table.casefold() == MIGRATION_LEDGER:
+        reason = "is owned by Hinoki migrations"
+    elif table.casefold().startswith("sqlite_"):
+        reason = "uses SQLite's reserved sqlite_ prefix"
+    else:
+        return ""
+    return (
+        f"{class_name}: derived table {table!r} {reason}; name the table "
+        "with @db.table(...) or table="
+    )
 
 
 def resolve_model_names(
@@ -128,8 +137,9 @@ def resolve_model_names(
     plural: str,
     *,
     abstract: bool,
-) -> tuple[str, str, str, bool]:
-    """Return resolved names and whether the table came from the class name."""
+) -> tuple[str, str, str, bool, str]:
+    """Return resolved names, whether the table came from the class name and,
+    for a derived table name that cannot be used, the deferred error."""
     _validate_options(class_name, table, label, plural)
     if abstract and table:
         raise RegistrationError(
@@ -138,16 +148,12 @@ def resolve_model_names(
         )
     words = _words(class_name)
     singular, plural_name = _resolve_display_names(class_name, words, label, plural)
-    implicit = not table and not abstract
-    if implicit and not words:
-        raise RegistrationError(
-            f"{class_name}: cannot derive names from this class name; pass table=, "
-            "label= and plural= explicitly"
-        )
     if abstract:
-        return "", singular, plural_name, False
-    resolved_table = _derived_table(class_name, words) if implicit else table
-    return resolved_table, singular, plural_name, implicit
+        return "", singular, plural_name, False, ""
+    if table:
+        return table, singular, plural_name, False, ""
+    derived, problem = _derived_table(class_name, words)
+    return derived, singular, plural_name, True, problem
 
 
 def table_names_conflict(left: type[_TableOwner], right: type[_TableOwner]) -> bool:
