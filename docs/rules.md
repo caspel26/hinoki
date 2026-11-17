@@ -10,7 +10,7 @@ related:
 
 Rules are optional, typed promises about your application that a tool checks and that fail with a stable ID, a location and an explanation. They are not a linter for style and not an AI prompt: each rule is a Python object with deterministic behaviour. Nothing runs unless you enable rules.
 
-The built-in set is intentionally small: access declarations, atomic writes, response types, model responses, pagination, schema exposure and import direction. Add a custom `Rule` only when a project has a concrete invariant that these checks cannot express.
+The built-in set is intentionally small: access declarations, atomic writes, response types, model responses, pagination, permissions, request text limits, table names, foreign-key indexes, schema exposure and import direction. Add a custom `Rule` only when a project has a concrete invariant that these checks cannot express.
 
 ## Enable them (the blog does)
 
@@ -30,14 +30,20 @@ app = Hinoki(..., rules=blog_rules)   # startup rules fail the app if a promise 
 | ID | Rule | Phase | Checks |
 | --- | --- | --- | --- |
 | `HNK-ACC-001` | `Actions.require_access(match, except_)` | startup | every matching action names an `Access` policy (public by default is the common hole) |
+| `HNK-ACC-002` | `Actions.require_permissions(match, except_)` | startup | an action that names an `Access` policy names at least one permission, so "any authenticated caller" is never implicit |
 | `HNK-TXN-001` | `Transactions.require_atomic(methods)` | startup | state-changing actions use `transaction=True` |
 | `HNK-API-001` | `Actions.forbid_model_responses(match, except_)` | startup | no action returns a `Model` (or a list/page of them): responses are `Schema` classes |
 | `HNK-API-002` | `Actions.require_return_type(match, except_)` | startup | every matching action annotates a concrete return type (not missing, `Any` or `object`; `None` is fine for a 204) |
 | `HNK-API-003` | `Actions.require_pagination(match, except_)` | startup | a `GET` action never returns a plain `list[...]` (alone or in a union): it returns a `Page` |
 | `HNK-SCH-001` | `Schemas.forbid_exposure(*fields)` | startup | named fields never appear in a response `Schema`, nested or in a subclass |
+| `HNK-SCH-002` | `Schemas.require_string_limits()` | startup | every text field of a request `Schema` (nested ones included) has `max_length` or `one_of` |
+| `HNK-DB-001` | `Models.require_explicit_table(match)` | startup | models whose module matches `match` pin their table with `@db.table(...)` or `table=`; a rename of the class then cannot change the physical table |
+| `HNK-DB-002` | `Models.require_foreign_key_index(match)` | startup | every foreign-key column of a matching model leads an index, a primary key or a unique constraint |
 | `HNK-IMP-001` | `Imports.forbid(source, target)` | static | modules under `source` never import `target` (read from the source files; dynamic imports are reported, not ignored) |
 
-`match` and `except_` patterns use `fnmatch` on the action's full qualified name (`pkg.api.Posts.create`, named after the class it is mounted on). A bare name such as `health` matches nothing: write `*.health`.
+The model rules take `match` as an `fnmatch` pattern on the model's module (`blog.*`); a pattern that matches no model is reported as unverifiable.
+
+`match` and `except_` patterns on action rules use `fnmatch` on the action's full qualified name (`pkg.api.Posts.create`, named after the class it is mounted on). A bare name such as `health` matches nothing: write `*.health`.
 
 ## Run them
 
