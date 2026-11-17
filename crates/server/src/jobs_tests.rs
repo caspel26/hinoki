@@ -51,10 +51,9 @@ async fn execute_stub(
 }
 
 fn cold_path(queue: &Queue<StubCommand>, command: StubCommand, queued: StubResult) -> StubResult {
-    if queue.push(command).is_ok() {
-        queued
-    } else {
-        StubResult::Overloaded(Early::Overloaded)
+    match queue.push_cold_path(command) {
+        Ok(_) => queued,
+        Err(early) => StubResult::Overloaded(early),
     }
 }
 
