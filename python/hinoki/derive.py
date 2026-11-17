@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import warnings
+import weakref
 from collections.abc import Callable
 from functools import cached_property
 from types import CellType, FunctionType
@@ -15,14 +16,17 @@ Derivation = tuple[
     type, tuple[str, ...] | None, tuple[str, ...], bool | tuple[str, ...]
 ]
 
+# Classes produced by ``@derive``: a second ``@derive`` on one is refused.
+DERIVED: weakref.WeakSet[type] = weakref.WeakSet()
 
-def derive(
+
+def derive[S: Schema](
     model: type[Model] | None = None,
     *,
     only: tuple[str, ...] | None = None,
     exclude: tuple[str, ...] | None = None,
     partial: bool | tuple[str, ...] = False,
-) -> Callable[[type[Schema]], type[Schema]]:
+) -> Callable[[type[S]], type[S]]:
     """Derive selected fields from ``model`` into a Schema subclass.
 
     The keyword-only form is retained for one compatibility cycle and is
@@ -30,7 +34,8 @@ def derive(
     """
     _validate_options(only, exclude, partial)
 
-    def apply(cls: type[Schema]) -> type[Schema]:
+    def apply(cls: type[S]) -> type[S]:
+        ensure_derivable(cls)
         source = model if model is not None else cls.__dict__.get("__derived_model__")
         if source is None:
             raise RegistrationError(
@@ -53,6 +58,17 @@ def derive(
         )
 
     return apply
+
+
+def ensure_derivable(cls: object) -> None:
+    """Refuse a non-Schema target and a class that ``@derive`` already built."""
+    name = getattr(cls, "__name__", repr(cls))
+    if not (isinstance(cls, type) and issubclass(cls, Schema)):
+        raise RegistrationError(f"{name}: @derive needs a Schema subclass")
+    if cls in DERIVED:
+        raise RegistrationError(
+            f"{name}: already derived; use a single @derive(Model, ...)"
+        )
 
 
 def _validate_options(
@@ -82,7 +98,7 @@ def _validate_options(
         raise RegistrationError("derive: field names must be strings")
 
 
-def rebuild(cls: type[Schema], plan: Derivation) -> type[Schema]:
+def rebuild[S: Schema](cls: type[S], plan: Derivation) -> type[S]:
     """Recreate a schema from its source class, keeping compiler-created cells."""
     body = {**cls.__source__, "__derivation__": plan}
     class_cells = {
@@ -96,13 +112,14 @@ def rebuild(cls: type[Schema], plan: Derivation) -> type[Schema]:
         )
     if class_cells:
         body["__classcell__"] = next(iter(class_cells.values()))
-    rebuilt: type[Schema] = type.__call__(
+    rebuilt: type[S] = type.__call__(
         type,
         cls.__name__,
         cls.__bases__,
         body,
         config=cls.__schema_config__,
     )
+    DERIVED.add(rebuilt)
     return rebuilt
 
 
