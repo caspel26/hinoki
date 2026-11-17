@@ -28,6 +28,8 @@ pub mod streams;
 pub mod tls;
 
 #[cfg(test)]
+mod plan_slot_tests;
+#[cfg(test)]
 mod policy_tests;
 
 pub use accept::{serve, Closed, ServerConfig, Stop};

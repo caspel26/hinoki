@@ -621,3 +621,7 @@ fn returning_columns(columns: &[String], dialect: Dialect) -> Vec<String> {
 fn query_error(error: hinoki_orm::query::QueryError) -> PyErr {
     PyValueError::new_err(error.to_string())
 }
+
+#[cfg(test)]
+#[path = "crudplan_tests.rs"]
+mod tests;
