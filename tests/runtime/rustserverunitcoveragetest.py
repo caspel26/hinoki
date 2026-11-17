@@ -34,13 +34,27 @@ class _Request:
             "native_handler": False,
             "native_args": (),
             "native_error": None,
+            "_native_failure": None,
+            "_native_rows": None,
         }
         defaults.update(values)
         vars(self).update(defaults)
+        self._native_failure: Any = defaults["_native_failure"]
+        self._native_rows: Any = defaults["_native_rows"]
         self.responses: list[tuple[Any, ...]] = []
 
     async def body(self, _limit: int) -> bytes:
         return b"payload"
+
+    def _take_native_failure(self) -> Any:
+        failure = self._native_failure
+        self._native_failure = None
+        return failure
+
+    def _take_native_rows(self) -> Any:
+        rows = self._native_rows
+        self._native_rows = None
+        return rows
 
     def respond(self, *values: Any) -> None:
         self.responses.append(values)
@@ -332,6 +346,18 @@ async def test_serve_handles_pipeline_errors_head_and_native_final_responses(
 
 
 @pytest.mark.asyncio
+async def test_native_cold_paths_reject_requests_without_actions() -> None:
+    worker: Any = _worker()
+    request = _Request(action=None)
+    with pytest.raises(RuntimeError, match="no action or failure"):
+        await worker._serve_native_failure(
+            cast(Any, request), ("database", "failed", None, None, None)
+        )
+    with pytest.raises(RuntimeError, match="no action or rows"):
+        await worker._serve_native_rows(cast(Any, request), ([], None))
+
+
+@pytest.mark.asyncio
 async def test_stop_without_server_and_with_shutdown_callbacks(
     caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -586,7 +612,9 @@ def test_signal_handling_is_graceful_until_unmanaged_second_signal(
 
 @pytest.mark.asyncio
 async def test_run_registers_signals_waits_and_logs_aborted_connections(
-    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    caplog: pytest.LogCaptureFixture,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     worker: Any = _worker()
     worker.host = "::1"
@@ -602,6 +630,7 @@ async def test_run_registers_signals_waits_and_logs_aborted_connections(
     monkeypatch.setattr(worker, "start", lambda: asyncio.sleep(0, result=9555))
     monkeypatch.setattr(worker, "stop", lambda: asyncio.sleep(0, result=2))
     assert await worker.run() == 0
+    assert "listening on https://[::1]:9555" in capsys.readouterr().out
     assert len(events) == 3
     assert "aborted 2 connections" in caplog.text
 
