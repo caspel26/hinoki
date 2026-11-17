@@ -20,6 +20,7 @@ use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use pyo3::basic::CompareOp;
 use pyo3::prelude::*;
@@ -148,7 +149,7 @@ pub struct Compiled {
     uuid: Py<PyAny>,
     from_iso: Py<PyAny>,
     unset: Py<PyAny>,
-    native: Option<NativeSchema>,
+    native: Option<Arc<NativeSchema>>,
 }
 
 /// The GIL-free copy of a [`Compiled`] schema.
@@ -368,13 +369,13 @@ fn lower_schemas(
     py: Python<'_>,
     definitions: &[Definition<PyRules>],
     root: usize,
-) -> Option<NativeSchema> {
+) -> Option<Arc<NativeSchema>> {
     let definitions = definitions
         .iter()
         .map(|definition| lower_definition(py, definition))
         .collect::<Result<Vec<_>, Unlowerable>>()
         .ok()?;
-    Some(NativeSchema { definitions, root })
+    Some(Arc::new(NativeSchema { definitions, root }))
 }
 
 fn lower_definition(
@@ -1815,7 +1816,11 @@ impl Compiled {
     /// The GIL-free copy of this schema; `None` when a constraint has no
     /// exact plain-Rust equivalent.
     pub(crate) fn native(&self) -> Option<&NativeSchema> {
-        self.native.as_ref()
+        self.native.as_deref()
+    }
+
+    pub(crate) fn native_shared(&self) -> Option<Arc<NativeSchema>> {
+        self.native.as_ref().map(Arc::clone)
     }
 }
 
