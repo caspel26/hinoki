@@ -1,3 +1,7 @@
+---
+status: implemented
+---
+
 # 7. Validate input
 
 `Schema` validation combines built-in type and value constraints with optional synchronous normalization and rejection checks. Constraints reject invalid input first; normalizers canonicalize valid strings; checks can then reject values based on one field or compare several fields. All of this happens before a validated schema reaches an operation.

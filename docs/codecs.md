@@ -49,6 +49,9 @@ JSONRenderer(default=str)                              # Decimal, Path, ... beco
 ## Inherit and override
 
 ```python
+from hinoki import JSONParser, JSONRenderer
+
+
 class Envelope(JSONRenderer):
     media_type = "application/vnd.myapp+json"
 

@@ -9,6 +9,11 @@ Hinoki stores relations as ordinary foreign-key columns and loads related rows o
 ## Declare a foreign key
 
 ```python
+from uuid import UUID, uuid4
+
+from hinoki.orm import Model, OnDelete, field, foreign_key
+
+
 class Author(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     name: str

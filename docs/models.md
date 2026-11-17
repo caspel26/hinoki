@@ -116,6 +116,13 @@ Filters accept validated field names and supported comparison/membership operato
 A reusable query is a typed class method that returns a `QuerySet`. Hinoki has no hidden default manager: `Model.all()` always means every row.
 
 ```python
+from datetime import datetime
+from typing import Self
+from uuid import UUID, uuid4
+
+from hinoki.orm import Model, QuerySet, field
+
+
 class Task(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     title: str = field(max_length=200)

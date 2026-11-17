@@ -32,7 +32,7 @@ Module lifespan hooks are async. Keep startup bounded, fail fast when a required
 
 ## Startup and shutdown hooks
 
-For an action at the edge of a worker's life that owns no resource, such as warming a cache, logging the build or flushing a counter, list functions on the application instead of writing a module:
+For an action at the edge of a worker's life that owns no resource, such as warming a cache, logging the build or flushing a counter, list functions on the application instead of writing a module (`ProjectSettings`, `health` and `Tasks` are those of the previous example):
 
 ```python
 import logging

@@ -296,8 +296,15 @@ postgresql://app:password@db.example/app?sslmode=require&sslrootcert=/run/secret
 ```
 
 ```python
+from hinoki import Hinoki, settings
+from hinoki.db import DatabaseModule
+
+from blog.api import Posts, health  # your application's routes
+
+
 class BlogSettings(settings.AppSettings, prefix="BLOG_"):
     database: settings.DatabaseSettings
+
 
 app = Hinoki(settings=BlogSettings, include=[health, Posts], modules=[DatabaseModule])
 ```

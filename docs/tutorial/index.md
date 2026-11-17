@@ -1,3 +1,7 @@
+---
+status: implemented
+---
+
 # Tutorial: a task tracker, layer by layer
 
 Chapters 1–6 follow the Tracker in [`examples/tracker`](https://github.com/caspel26/hinoki/tree/main/examples/tracker): members keep their own tasks, complete them, and a few rules stop it from rotting. Chapter 7 uses standalone validation examples. Chapter 8 starts a fresh project with the scaffold and app commands.
