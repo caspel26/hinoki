@@ -99,8 +99,16 @@ def test_pre_314_hint_resolution_preserves_original_resolution_error(
 def test_python_314_annotationlib_is_imported_for_the_compatibility_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    missing = object()
+    previous = handlerhints.__dict__.get("annotationlib", missing)
     annotationlib = SimpleNamespace(Format=SimpleNamespace(STRING="source"))
     monkeypatch.setitem(sys.modules, "annotationlib", annotationlib)
     monkeypatch.setattr(sys, "version_info", (3, 14))
-    importlib.reload(handlerhints)
-    assert cast(Any, handlerhints).annotationlib is annotationlib
+    try:
+        importlib.reload(handlerhints)
+        assert cast(Any, handlerhints).annotationlib is annotationlib
+    finally:
+        if previous is missing:
+            handlerhints.__dict__.pop("annotationlib", None)
+        else:
+            cast(Any, handlerhints).annotationlib = previous
