@@ -59,8 +59,10 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("hinoki.runtime")
 
-# A route the transport matched: the action number and the raw path parameters.
-MatchedRoute = tuple[int, dict[str, str]]
+# A route the transport matched: the action number and decoded path parameters.
+# `None` is the private marker for a path decoding error, deferred until after
+# the pipeline's early host/CORS/redirect/docs policies.
+MatchedRoute = tuple[int, dict[str, str] | None]
 
 
 class BodySource(Protocol):
@@ -414,7 +416,9 @@ class Pipeline:
         if route is None:
             binding, path_params = self._route(scope)
         else:
-            binding, path_params = self.bindings[route[0]], decode_params(route[1])
+            if route[1] is None:
+                raise HTTPError(HTTPStatus.BAD_REQUEST, "bad_path_encoding")
+            binding, path_params = self.bindings[route[0]], route[1]
         owner = binding.route.owner
         context.route_headers.set(getattr(owner, "response_headers", ()))
         return binding, path_params

@@ -293,7 +293,6 @@ class RustWorker:
         client sees EOF, not a 503."""
         if request.id_ignored:
             log.warning("ignored invalid request ID from trusted proxy")
-        route = None if request.action is None else (request.action, request.params)
         try:
             if request.native_handler:
                 action = request.action
@@ -306,6 +305,11 @@ class RustWorker:
                     request.native_error,
                 )
             else:
+                route = (
+                    None
+                    if request.action is None
+                    else (request.action, request.prepared_path_params)
+                )
                 scope = scope_of(request, self.address, self.scheme)
                 response = await self.pipeline.handle(
                     scope,
