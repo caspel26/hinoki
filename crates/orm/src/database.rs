@@ -203,6 +203,27 @@ async fn execute_with_recovery(conn: &Object, sql: &str, values: &[Value]) -> Re
     }
 }
 
+/// Reject a URL whose scheme names no supported backend before it reaches the
+/// PostgreSQL parser. A key/value connection string has no scheme and passes.
+/// The URL itself is never echoed: it may carry credentials.
+fn check_postgres_scheme(url: &str) -> Result<(), DbError> {
+    let Some((scheme, _)) = url.split_once("://") else {
+        return Ok(());
+    };
+    let is_scheme = !scheme.is_empty()
+        && scheme
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'));
+    if !is_scheme || scheme == "postgres" || scheme == "postgresql" {
+        return Ok(());
+    }
+    Err(DbError::new(
+        ErrorKind::Connect,
+        "unsupported database URL scheme; use sqlite://, postgres://, postgresql://, \
+         mysql:// or mariadb://",
+    ))
+}
+
 impl Database {
     /// Create a pool. No connection is opened until first use, so call
     /// [`Database::check`] to fail fast at startup.
@@ -226,6 +247,7 @@ impl Database {
                 },
             });
         }
+        check_postgres_scheme(url)?;
         let (url, tls_options) = extract_options(url)
             .map_err(|_| DbError::new(ErrorKind::Connect, "invalid database TLS configuration"))?;
         let mut config = Config::new();
@@ -705,6 +727,34 @@ impl Drop for Transaction {
                 }
             }
             TransactionBackend::Finished => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::check_postgres_scheme;
+
+    #[test]
+    fn unsupported_url_schemes_are_named_without_the_url() {
+        for url in ["oracle://user:secret@db/app", "mssql://db/app", "http://db"] {
+            let error = check_postgres_scheme(url).unwrap_err();
+            assert!(error
+                .to_string()
+                .contains("unsupported database URL scheme"));
+            assert!(!error.to_string().contains("secret"));
+        }
+    }
+
+    #[test]
+    fn postgres_urls_and_key_value_strings_pass_the_scheme_check() {
+        for url in [
+            "postgres://user@db/app",
+            "postgresql://user@db/app?sslmode=require",
+            "host=db user=app password=a://b",
+            "://missing-scheme",
+        ] {
+            assert!(check_postgres_scheme(url).is_ok(), "{url}");
         }
     }
 }
