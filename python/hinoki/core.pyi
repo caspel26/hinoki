@@ -100,6 +100,13 @@ def jwt_decode(
     keys: list[tuple[str | None, str, bytes, bool]],
     rules: tuple[int, int, str | None, str | None, bool],
 ) -> bytes: ...
+
+class _JWTVerifier:
+    def __init__(self, keys: list[tuple[str | None, str, bytes, bool]]) -> None: ...
+    def verify(
+        self, token: str, rules: tuple[int, int, str | None, str | None, bool]
+    ) -> bytes: ...
+
 def decode_json(raw: bytes) -> Any: ...
 def encode_json(
     value: Any,
