@@ -16,19 +16,21 @@ related:
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from hinoki.orm import Model, OnDelete, field, foreign_key, indexed, ordered_by, unique
+from hinoki import db
+from hinoki.orm import Model, OnDelete, field, foreign_key, pk, unique
 from hinoki.utils import utc_now
 
 
 class Member(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
+    id: UUID = pk(default_factory=uuid4)
     email: str = field(unique=True, max_length=254)
 
 
-@indexed("owner_id", "created_at")
-@ordered_by("-created_at", "-id")
+@db.indexed("owner_id", "created_at")
+@db.ordered_by("-created_at", "-id")
+@db.table("tasks")
 class Task(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
+    id: UUID = pk(default_factory=uuid4)
     owner_id: UUID = foreign_key(Member, on_delete=OnDelete.RESTRICT, related_name="tasks")
     title: str = field(max_length=120)
     done: bool = False
@@ -38,13 +40,14 @@ class Task(Model):
 For a fresh model, Hinoki derives a plural snake-case table name and human
 display names from the class: `Member` becomes `members`, `Member` and
 `Members`; `UserProfile` becomes `user_profiles`, `User profile` and
-`User profiles`. `table=`, `label=` and `plural=` are optional overrides.
-Keep an explicit `table=` when it pins an existing migration history or when
+`User profiles`. `@db.table(...)` or the compatible `table=` class keyword,
+along with `label=` and `plural=`, provide optional overrides. Keep an explicit
+table name when it pins an existing migration history or when
 the physical table needs another name. This matters when renaming a Python
 class: changing an implicit table name is planned as a table drop/create and
 is protected by the destructive-migration guard, not treated as a data-safe
 rename. Irregular or localized plurals such as `Person`/`People` should set
-`table=` and `plural=` explicitly. The fallback inflection is deterministic,
+the table name and `plural=` explicitly. The fallback inflection is deterministic,
 small and English-oriented; it does not guess irregular nouns. It splits
 underscores and CamelCase into words, lowercases them for the table, and applies
 these suffixes to the final word: consonant plus `y` becomes `ies`; `s`, `x`,
@@ -57,11 +60,17 @@ SQLite's reserved `sqlite_` prefix and Hinoki's `hinoki_migrations` ledger name
 are rejected with an override hint. Physical-table conflicts are reported
 when models are aggregated for migrations, projects or one Admin instance.
 
-A model has exactly one primary key. Fields are keyword-only when constructing a model.
-Single-column uniqueness is `field(unique=True)`; use `@unique("a", "b")` for
-a composite constraint. There is no nested `class Meta`.
+A model has exactly one primary key. `pk()` is the field-specifier shorthand for
+`field(primary_key=True, ...)`; pass `default` or `default_factory` explicitly
+when the key is optional in the constructor. Fields are keyword-only when
+constructing a model. Single-column uniqueness is `field(unique=True)`; use
+`@unique("a", "b")` for a composite constraint. There is no nested `class Meta`.
 
-Supported field metadata includes primary key, uniqueness, maximum string length, defaults and foreign-key behavior. Optional built-in constraints and custom synchronous validators can also check values before ORM writes. Database types are inferred from annotations; unsupported types fail during model or migration validation.
+Supported field metadata includes primary key, uniqueness, a single-column
+index (`field(index=True)`), maximum string length, defaults and foreign-key behavior.
+Optional built-in constraints and custom synchronous validators can also check
+values before ORM writes. Database types are inferred from annotations;
+unsupported types fail during model or migration validation.
 
 ### Model field constraints and validators
 

@@ -2,12 +2,12 @@
 
 from uuid import UUID, uuid4
 
-from hinoki.orm import Model, field, indexed, ordered_by
+from hinoki import db
+from hinoki.orm import Model, field, pk
 
 
-@indexed("title")
-@ordered_by("title")
+@db.ordered_by("title")
 class Note(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-    title: str = field(max_length=80)
+    id: UUID = pk(default_factory=uuid4)
+    title: str = field(max_length=80, index=True)
     body: str = ""

@@ -1,10 +1,15 @@
 """Authentication: an opaque bearer token resolved through the database."""
 
-from hinoki import Access, BearerAuth, Caller
+from hinoki import Access, BearerAuth, Caller, Permission
 
 from .models import User
 
-WRITE = "posts:write"
+
+class BlogPermission(Permission):
+    WRITE = "posts:write"
+
+
+WRITE = BlogPermission.WRITE
 
 
 class TokenAuth(BearerAuth[User]):
@@ -14,10 +19,10 @@ class TokenAuth(BearerAuth[User]):
         user = await User.aget_or_none(token=token)
         if user is None:
             return None
-        scopes = frozenset({WRITE}) if user.is_editor else frozenset()
+        scopes = frozenset({BlogPermission.WRITE}) if user.is_editor else frozenset()
         return Caller(id=str(user.id), user=user, permissions=scopes)
 
 
 auth = TokenAuth()
-editor = Access(auth=auth, permissions=[WRITE])
+editor = Access(auth=auth, permissions=[BlogPermission.WRITE])
 reader = Access(auth=auth)

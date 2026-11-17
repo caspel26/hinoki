@@ -9,12 +9,27 @@ related:
 
 Hinoki keeps credential parsing in an authentication provider and permission checks in an `Access` policy. Endpoints are public unless a policy is attached; protect each private action deliberately.
 
+Define closed permission names with `Permission`, an empty string-enum base. Existing
+string permission values remain accepted during the compatibility cycle.
+
+```python
+from hinoki import Permission
+
+
+class BlogPermission(Permission):
+    WRITE = "posts:write"
+```
+
+Use `BlogPermission.WRITE` in `Access` policies and `Caller.permissions` so editors
+and protected routes refer to the same typed constant.
+
 ## Define a provider
 
 Subclass `BearerAuth[User]`, `APIKeyAuth[User]` or `HeaderAuth[User]`. The provider returns a `Caller` with a stable id, your user object and its permissions. `authenticate`/`resolve_token` may be async or synchronous; synchronous hooks run on the bounded sync executor. This example reuses the complete Blog example's user model.
 
 ```python
 from blog.models import User
+from blog.security import BlogPermission
 from hinoki import BearerAuth, Caller
 
 
@@ -23,7 +38,9 @@ class TokenAuth(BearerAuth[User]):
         user = await User.aget_or_none(token=token)
         if user is None:
             return None
-        permissions = frozenset({"posts:write"}) if user.is_editor else frozenset()
+        permissions = (
+            frozenset({BlogPermission.WRITE}) if user.is_editor else frozenset()
+        )
         return Caller(
             id=str(user.id),
             user=user,
