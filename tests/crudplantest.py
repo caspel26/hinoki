@@ -305,6 +305,30 @@ def test_native_crud_activation_fails_closed_for_missing_and_failed_database(
             assert len(disarmed) == len(pipeline.crud_plan_selections)
 
 
+async def test_deferred_request_reuses_buffered_body_once_with_the_same_limit() -> None:
+    server = build_server_core(plan_pipeline())
+    server.set_ready(True)
+    _submission = server.submit("POST", "/plan-items", b"", [])
+    [request] = server.drain(1)
+    with pytest.raises(RuntimeError, match="completed native body read"):
+        request._buffer_body(b"payload")
+    assert await request._native_body(7) == b""
+    request._buffer_body(b"payload")
+    with pytest.raises(RuntimeError, match="completed native body read"):
+        request._buffer_body(b"replacement")
+
+    with pytest.raises(core.BodyReadError, match="too_large"):
+        await request.body(3)
+
+    _submission = server.submit("POST", "/plan-items", b"", [])
+    [request] = server.drain(1)
+    assert await request._native_body(7) == b""
+    request._buffer_body(b"payload")
+    assert await request.body(7) == b"payload"
+    with pytest.raises(RuntimeError, match="already taken"):
+        await request.body(7)
+
+
 async def test_worker_attaches_and_releases_the_shared_database_clone(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
