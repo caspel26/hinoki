@@ -25,3 +25,17 @@ def test_https_redirect_refuses_non_header_safe_host_values(host: str) -> None:
         "query_string": b"page=2",
     }
     assert https_redirect(scope, {"host": host}, settings) is None
+
+
+@pytest.mark.parametrize("raw_path", [b"*", None])
+def test_https_redirect_skips_a_target_that_is_not_a_path(
+    raw_path: bytes | None,
+) -> None:
+    settings = AppSettings(
+        allowed_hosts=("api.example.test",),
+        security=SecuritySettings(redirect_https=True),
+    )
+    scope: dict[str, Any] = {"scheme": "http", "method": "OPTIONS", "path": "*"}
+    if raw_path is not None:
+        scope["raw_path"] = raw_path
+    assert https_redirect(scope, {"host": "api.example.test"}, settings) is None

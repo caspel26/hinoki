@@ -382,6 +382,8 @@ def test_values_load_from_the_environment() -> None:
         "1:2",
         "..:",
         "::1,[::1]",
+        "bücher.example",
+        "fe80::1%ü",
     ],
 )
 def test_a_host_entry_is_a_name_not_a_url(hosts: str) -> None:

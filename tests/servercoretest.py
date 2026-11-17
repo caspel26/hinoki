@@ -471,16 +471,67 @@ def cors_app() -> Hinoki:
         ),
     ],
 )
-def test_native_policies_keep_simple_routes_eligible_for_native_handlers(
-    settings: AppSettings,
+async def test_native_policies_keep_simple_routes_eligible_for_native_handlers(
+    pool: Pool, settings: AppSettings
 ) -> None:
     app = Hinoki(settings=settings)
     app.include(native)
+    await pool.start(app)
     server = classifier(app)
-    headers = [(b"host", b"example.com")]
-    server.submit("GET", "/native", b"", headers, https=True)
+    headers = [(b"host", b"example.com"), (b"origin", b"https://a.example")]
+    submission = server.submit("GET", "/native", b"", headers, https=True)
+    answer = await native_final(app, server, submission)
+    assert answer[0] == 200
+    assert answer[2] == b'{"native":"yes"}'
+    response = await app.asgi().pipeline.handle(
+        scope_of("GET", "/native", "", headers, "https"), EmptyBody(), SENTINEL
+    )
+    assert final_view(*answer) == final_view(
+        response.status, response.headers, response.body
+    )
+
+
+def scope_of(
+    method: str, path: str, query: str, headers: list[tuple[bytes, bytes]], scheme: str
+) -> dict[str, Any]:
+    return {
+        "type": "http",
+        "method": method,
+        "path": path,
+        "raw_path": path.encode(),
+        "query_string": query.encode(),
+        "headers": headers,
+        "scheme": scheme,
+    }
+
+
+async def native_final(
+    app: Hinoki, server: core.ServerCore, submission: core.Submission
+) -> tuple[int, list[tuple[bytes, bytes]], bytes]:
+    """Serve the queued native-handler request as the Rust worker does."""
     [request] = server.drain(1)
     assert request.native_handler is True
+    assert request.action is not None
+    pipeline = app.asgi().pipeline
+    response = await pipeline.handle_native(
+        pipeline.bindings[request.action],
+        request.request_id,
+        request.native_args,
+        request.native_error,
+    )
+    assert request.respond_final(response.status, response.headers, response.body)
+    reply = submission.reply()
+    assert reply is not None
+    return reply
+
+
+def final_view(
+    status: int, headers: list[tuple[bytes, bytes]], body: bytes
+) -> tuple[int, list[tuple[bytes, bytes]], bytes]:
+    """The final answer in order, with its request id masked everywhere."""
+    rid = dict(headers)[b"x-request-id"]
+    masked = [(k, b"<id>" if k == b"x-request-id" else v) for k, v in headers]
+    return status, masked, body.replace(rid, b"<id>")
 
 
 @pytest.mark.parametrize("origin", [b"https://a.example", b"https://b.example", b""])
@@ -509,80 +560,55 @@ async def test_host_cors_and_redirect_policies_match_pipeline_precedence(
     )
     app.include(native)
     await pool.start(app)
+    allowed = (b"host", b"example.com")
+    listed = (b"origin", b"https://a.example")
+    preflight = (b"access-control-request-method", b"GET")
     cases = [
-        (
-            "GET",
-            "/native",
-            "",
-            [(b"host", b"wrong.example"), (b"origin", b"https://a.example")],
-            400,
-        ),
-        (
-            "GET",
-            "/native",
-            "",
-            [(b"host", b"\xa0example.com\xa0")],
-            200,
-        ),
+        ("GET", "", [(b"host", b"wrong.example"), listed], 400, "http"),
+        ("GET", "", [(b"host", b"\xa0example.com\xa0")], 200, "http"),
         (
             "OPTIONS",
-            "/native",
             "",
-            [
-                (b"host", b"example.com"),
-                (b"origin", b"https://evil.example"),
-                (b"access-control-request-method", b"GET"),
-            ],
+            [allowed, (b"origin", b"https://evil.example"), preflight],
             403,
+            "http",
         ),
-        (
-            "OPTIONS",
-            "/native",
-            "",
-            [
-                (b"host", b"example.com"),
-                (b"origin", b"https://a.example"),
-                (b"access-control-request-method", b"GET"),
-            ],
-            204,
-        ),
-        (
-            "GET",
-            "/native",
-            "q=hello world",
-            [(b"host", b"example.com"), (b"origin", b"https://a.example")],
-            308,
-        ),
+        ("OPTIONS", "", [allowed, listed, preflight], 204, "http"),
+        ("GET", "q=hello world", [allowed, listed], 308, "http"),
+        ("GET", "", [allowed, listed], 200, "https"),
+        ("GET", "", [allowed, (b"origin", b"https://evil.example")], 200, "https"),
+        ("HEAD", "", [allowed, listed], 200, "https"),
+        ("GET", "", [allowed, listed, listed], 200, "https"),
     ]
-    for method, path, query, headers, status in cases:
-        scope = {
-            "type": "http",
-            "method": method,
-            "path": path,
-            "raw_path": path.encode(),
-            "query_string": query.encode(),
-            "headers": headers,
-            "scheme": "http",
-        }
-        response = await app.asgi().pipeline.handle(scope, EmptyBody(), SENTINEL)
-        submission = classifier(app).submit(
-            method, path, query.encode(), headers, https=False
+    for method, query, headers, status, scheme in cases:
+        response = await app.asgi().pipeline.handle(
+            scope_of(method, "/native", query, headers, scheme), EmptyBody(), SENTINEL
         )
-        if status == 200:
-            assert response.status == status
-            assert submission.early is None
-            continue
-        expected_reply = (
-            response.status,
-            [
-                (name.decode(), "<id>" if name == b"x-request-id" else value.decode())
-                for name, value in response.headers
-            ],
-            body_of(response.body, SENTINEL) if response.body else None,
+        server = classifier(app)
+        submission = server.submit(
+            method, "/native", query.encode(), headers, https=scheme == "https"
         )
-        assert submission.early is not None
+        answer = submission.early or await native_final(app, server, submission)
+        body = b"" if method == "HEAD" else response.body
         assert response.status == status
-        assert normalized(*submission.early) == expected_reply
+        assert final_view(*answer) == final_view(
+            response.status, response.headers, body
+        )
+
+
+def test_an_asterisk_target_is_not_redirected() -> None:
+    app = Hinoki(
+        settings=AppSettings(
+            allowed_hosts=("example.com",),
+            security=SecuritySettings(redirect_https=True),
+        )
+    )
+    app.include(native)
+    server = classifier(app)
+    submission = server.submit("OPTIONS", "*", b"", [(b"host", b"example.com")])
+    assert submission.early is None  # the Python pipeline answers it
+    [request] = server.drain(1)
+    assert request.action is None
 
 
 def test_https_selects_the_https_policy_headers() -> None:
