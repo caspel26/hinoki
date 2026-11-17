@@ -60,7 +60,7 @@ Hinoki is a Python framework for HTTP APIs, built around three ideas.
 
 ## A small API
 
-The [Notes example](examples/notes) is a complete application in two short files. The model, the schemas and two of its endpoints, from [`examples/notes/app.py`](examples/notes/app.py):
+The [Notes example](examples/notes) is a complete application: a model in [`models.py`](examples/notes/models.py), schemas and endpoints in [`app.py`](examples/notes/app.py), and typed settings. The model, the schemas and two of its endpoints:
 
 ```python
 from typing import Annotated
@@ -72,7 +72,7 @@ from hinoki.orm import Model, field, indexed, ordered_by
 
 @indexed("title")
 @ordered_by("title")
-class Note(Model, table="notes"):
+class Note(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     title: str = field(max_length=80)
     body: str = ""
@@ -108,17 +108,22 @@ For a new model, `class Invoice(Model)` derives `invoices`, `Invoice` and
 
 `Schema(...)` validates Python values immediately; request bodies are validated before handlers run. Use `Schema.dump()` for a manual JSON projection: selectors use Python field names, aliases are preserved by default, and `exclude_unset=True` can omit defaults the caller did not supply. Automatic HTTP responses still use the full declared response `Schema`.
 
-The application, from [`examples/notes/main.py`](examples/notes/main.py):
+The typed settings, from [`examples/notes/settings.py`](examples/notes/settings.py), and the application, from [`examples/notes/main.py`](examples/notes/main.py):
 
 ```python
-from notes.app import create, listing, one, remove
-from hinoki import Hinoki, settings
-from hinoki.db import DatabaseModule
+from hinoki import settings
 
 
 class NotesSettings(settings.AppSettings, prefix="NOTES_"):
     database: settings.DatabaseSettings
+```
 
+```python
+from hinoki import Hinoki
+from hinoki.db import DatabaseModule
+
+from .app import create, listing, one, remove
+from .settings import NotesSettings
 
 app = Hinoki(
     settings=NotesSettings,

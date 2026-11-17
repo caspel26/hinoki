@@ -3,7 +3,7 @@
     @unique("owner_id", "url")
     @indexed("created_at")
     @ordered_by("-created_at")
-    class Bookmark(Model, table="bookmarks", label="Bookmark", plural="Bookmarks"):
+    class Bookmark(Model, table="saved_links", label="Saved link"):
         ...
 
 ``table`` (and the optional ``label``/``plural``) are class keywords because
