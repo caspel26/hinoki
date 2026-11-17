@@ -9,10 +9,19 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from hinoki import db
 from hinoki.admin import Admin
 from hinoki.db import Database
 from hinoki.errors import DestructiveMigration, MigrationError, RegistrationError
-from hinoki.orm import Model, field, migrator, use_database
+from hinoki.orm import (
+    Model,
+    OnDelete,
+    field,
+    foreign_key,
+    migrator,
+    pk,
+    use_database,
+)
 from hinoki.orm.migrations import plan, state_of
 from hinoki.project import ProjectApp, ProjectError, ProjectManifest
 
@@ -129,14 +138,34 @@ def test_non_word_class_name_accepts_complete_explicit_names() -> None:
 
 
 @pytest.mark.parametrize("model_name", ["SqliteCache", "HinokiMigration"])
-def test_unsafe_implicit_table_names_fail_at_declaration(model_name: str) -> None:
-    with pytest.raises(RegistrationError, match="derived table"):
-        declare_model(model_name)
+def test_unsafe_implicit_table_names_fail_when_the_model_is_used(
+    model_name: str,
+) -> None:
+    Unsafe = declare_model(model_name)
+
+    with pytest.raises(RegistrationError, match=r"derived table.*@db\.table"):
+        Unsafe.all()
+    with pytest.raises(MigrationError, match="derived table"):
+        state_of([Unsafe])
+    with pytest.raises(MigrationError, match="derived table"):
+        state_of([], reference_models=[Unsafe])
+
+
+def test_table_decorator_rescues_a_class_whose_derived_name_is_rejected() -> None:
+    @db.table("ledger")
+    class HinokiMigration(Model):
+        id: int = pk()
+
+    Cafe = db.table("cafes")(declare_model("Café"))
+
+    assert (HinokiMigration.__table__, Cafe.__table__) == ("ledger", "cafes")
+    assert HinokiMigration.all().compile("select")[0] == 'SELECT "id" FROM "ledger"'
+    assert set(state_of([HinokiMigration, Cafe])["tables"]) == {"ledger", "cafes"}
 
 
 def test_non_ascii_implicit_table_needs_an_override_and_label_is_retained() -> None:
     with pytest.raises(RegistrationError, match="portable SQL identifier"):
-        declare_model("Città")
+        declare_model("Città").all()
 
     Utente = declare_model("Città", table="utenti")
 
@@ -145,9 +174,19 @@ def test_non_ascii_implicit_table_needs_an_override_and_label_is_retained() -> N
 
 def test_name_length_and_control_characters_are_rejected() -> None:
     with pytest.raises(RegistrationError, match="portable SQL identifier"):
-        declare_model("A" * 64)
+        declare_model("A" * 64).all()
     with pytest.raises(RegistrationError, match="control characters"):
         declare_model("CleanName", table="clean_names", label="bad\nlabel")
+
+
+def test_unusable_derived_table_is_refused_as_a_foreign_key_target() -> None:
+    Unsafe = declare_model("SqliteCache")
+
+    with pytest.raises(RegistrationError, match="derived table 'sqlite_caches'"):
+
+        class CacheEntry(Model):
+            id: int = pk()
+            cache_id: int = foreign_key(Unsafe, on_delete=OnDelete.CASCADE)
 
 
 def test_abstract_model_rejects_a_table_override() -> None:
@@ -299,6 +338,11 @@ def test_project_rejects_shared_model_ownership_and_ledger(
     with pytest.raises(ProjectError, match="migration ledger"):
         manifest.all_models()
 
+    Derived = declare_model("HinokiMigration")
+    monkeypatch.setattr(ProjectManifest, "models", lambda _self, _app: [Derived])
+    with pytest.raises(ProjectError, match="derived table 'hinoki_migrations'"):
+        manifest.all_models()
+
 
 def test_admin_table_ownership_is_separate_from_slug_and_same_model_aliases_work() -> (
     None
@@ -318,6 +362,8 @@ def test_admin_table_ownership_is_separate_from_slug_and_same_model_aliases_work
     aliases.register(Invoice, slug="invoice")
     aliases.register(Invoice, slug="invoice-alias")
     assert set(aliases.models) == {"invoice", "invoice-alias"}
+    with pytest.raises(RegistrationError, match="derived table"):
+        aliases.register(declare_model("SqliteCache"), slug="cache")
 
 
 @pytest.mark.asyncio

@@ -13,10 +13,13 @@ from hinoki.db import Database
 from hinoki.errors import RegistrationError
 from hinoki.orm import (
     Model,
+    OnDelete,
     field,
+    foreign_key,
     indexed,
     ordered_by,
     pk,
+    table,
     timestamps,
     unique,
     use_database,
@@ -165,6 +168,58 @@ def test_table_decorator_rejects_empty_names_and_abstract_models() -> None:
             id: int = field(primary_key=True)
 
 
+def test_table_decorator_names_compiled_sql_and_foreign_key_targets() -> None:
+    @db.table("mo_writers")
+    class Writer(Model):
+        id: int = pk()
+
+    class Essay(Model, table="mo_essays"):
+        id: int = pk()
+        writer_id: int = foreign_key(Writer, on_delete=OnDelete.CASCADE)
+
+    assert Writer.all().compile("select")[0] == 'SELECT "id" FROM "mo_writers"'
+    joined, _ = Essay.all().select_related("writer").compile()
+    assert 'JOIN "mo_writers"' in joined
+    columns = state_of([Writer, Essay])["tables"]["mo_essays"]["columns"]
+    assert columns["writer_id"]["references"]["table"] == "mo_writers"
+
+
+def test_stacked_table_decorators_report_the_decorator_conflict() -> None:
+    with pytest.raises(
+        RegistrationError,
+        match=r"@table\('mo_one'\) conflicts with @table\('mo_two'\)",
+    ):
+
+        @db.table("mo_one")
+        @db.table("mo_two")
+        class TwiceNamed(Model):
+            id: int = pk()
+
+    @db.table("mo_same")
+    @db.table("mo_same")
+    class SameName(Model):
+        id: int = pk()
+
+    assert SameName.__table__ == "mo_same"
+
+
+def test_model_decorators_are_reexported_from_db() -> None:
+    assert db.table is table
+    assert db.indexed is indexed
+    assert db.ordered_by is ordered_by
+    with pytest.raises(AttributeError, match="no attribute 'tabel'"):
+        _ = db.tabel  # type: ignore[attr-defined]
+
+
+def test_index_field_rejects_non_bool_values() -> None:
+    with pytest.raises(
+        RegistrationError, match=r"index=\.\.\.\) must be True or False"
+    ):
+        field(index="yes")  # type: ignore[arg-type]
+    with pytest.raises(RegistrationError, match="must be True or False"):
+        field(index=1)  # type: ignore[arg-type]
+
+
 def test_index_field_rejects_primary_and_unique_indexes() -> None:
     with pytest.raises(RegistrationError, match="already has an index"):
         field(primary_key=True, index=True)
@@ -184,6 +239,55 @@ def test_matching_decorator_still_replaces_inherited_indexes() -> None:
         pass
 
     assert IndexedChild.__indexes__ == (("title",),)
+
+
+def test_field_index_is_inherited_through_an_undecorated_abstract_base() -> None:
+    class IndexedTitle(Model, abstract=True):
+        id: int = pk()
+        title: str = field(default="", index=True)
+
+    class Middle(IndexedTitle, abstract=True):
+        body: str = ""
+
+    class Leaf(Middle, table="mo_leaf"):
+        pass
+
+    @indexed("body")
+    class DecoratedLeaf(Middle, table="mo_decorated_leaf"):
+        pass
+
+    assert Middle.__indexes__ == Leaf.__indexes__ == (("title",),)
+    assert DecoratedLeaf.__indexes__ == (("body",), ("title",))
+    assert state_of([Leaf])["tables"]["mo_leaf"]["indexes"] == [["title"]]
+
+
+def test_redeclared_column_without_index_drops_the_field_index() -> None:
+    class TitledBase(Model, abstract=True):
+        id: int = pk()
+        title: str = field(default="", index=True)
+        body: str = ""
+
+    class Plain(TitledBase, table="mo_plain"):
+        title: str = ""
+
+    @indexed("body")
+    class Decorated(TitledBase, table="mo_decorated"):
+        title: str = ""
+
+    assert Plain.__indexes__ == ()
+    assert Decorated.__indexes__ == (("body",),)
+
+
+def test_redeclared_column_keeps_a_decorator_index_of_the_base() -> None:
+    @indexed("title")
+    class DecoratedTitleBase(Model, abstract=True):
+        id: int = pk()
+        title: str = field(default="", index=True)
+
+    class Redeclared(DecoratedTitleBase, table="mo_redeclared"):
+        title: str = ""
+
+    assert Redeclared.__indexes__ == (("title",),)
 
 
 def test_duplicate_decorator_for_field_index_is_rejected() -> None:
