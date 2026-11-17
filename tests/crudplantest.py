@@ -6,7 +6,7 @@ import math
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -262,7 +262,7 @@ def test_native_crud_activation_fails_closed_for_missing_and_failed_database(
 ) -> None:
     monkeypatch.setattr(CrudPlanSelection, "snapshot_valid", lambda _self: True)
     database = object.__new__(Database)
-    database.engine = object()
+    database.engine = cast(core.Database, object())
 
     for mode, expected in (
         ("missing", "database_missing_after_startup"),
@@ -271,7 +271,7 @@ def test_native_crud_activation_fails_closed_for_missing_and_failed_database(
     ):
         pipeline = plan_pipeline()
         build_server_core(pipeline)
-        pipeline.ctx = SimpleNamespace(
+        cast(Any, pipeline).ctx = SimpleNamespace(
             find=lambda _type, mode=mode: None if mode == "missing" else database
         )
         disarmed: list[int] = []
@@ -295,7 +295,7 @@ def test_native_crud_activation_fails_closed_for_missing_and_failed_database(
 
         worker = object.__new__(RustWorker)
         worker.pipeline = pipeline
-        worker.core = CoreStub()
+        worker.core = cast(Any, CoreStub())
         worker._disarmed_crud_actions = set()
         worker._activate_crud_plans()
         worker._disarm_crud_plans("repeated_disarm")
