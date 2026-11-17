@@ -227,6 +227,11 @@ async def upload(file: UploadedFile) -> dict[str, object]:
     return {"filename": file.filename, "content": file.content.decode()}
 
 
+@http.post("/upload-auto")
+def upload_auto(file: UploadedFile) -> dict[str, object]:
+    return {"filename": file.filename, "content": file.content.decode()}
+
+
 @http.get("/big")
 async def big() -> dict[str, str]:
     return {"data": "x" * (64 * 1024 * 1024)}
@@ -306,6 +311,7 @@ def make_app(**config: Any) -> Hinoki:
             native_slow,
             native_sync_block,
             upload,
+            upload_auto,
             big,
             scheme_of,
             host_of,
@@ -964,8 +970,9 @@ async def test_native_finalizer_keeps_security_headers() -> None:
     assert received.header("x-frame-options") == "DENY"
 
 
+@pytest.mark.parametrize("path", ["/upload", "/upload-auto"])
 async def test_multipart_file_binding_works_over_the_native_server(
-    served: tuple[RustWorker, int],
+    served: tuple[RustWorker, int], path: str
 ) -> None:
     _, port = served
     boundary = "rust-upload-test"
@@ -976,7 +983,7 @@ async def test_multipart_file_binding_works_over_the_native_server(
         f"--{boundary}--\r\n"
     ).encode()
     request = (
-        f"POST /upload HTTP/1.1\r\nhost: t\r\n"
+        f"POST {path} HTTP/1.1\r\nhost: t\r\n"
         f"content-type: multipart/form-data; boundary={boundary}\r\n"
         f"content-length: {len(body)}\r\n\r\n"
     ).encode() + body
