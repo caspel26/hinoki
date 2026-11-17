@@ -35,9 +35,10 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
 
 from hinoki import core
+from hinoki.db import Database
 from hinoki.errors import InvalidBody
 from hinoki.runtime.listener import inherited_address, open_listener
-from hinoki.runtime.responses import HTTPError
+from hinoki.runtime.responses import HTTPError, Response
 from hinoki.runtime.servercore import build_server_core
 from hinoki.serve import load_target, settings_of
 from hinoki.settings import RUST_ONLY, ServerSettings
@@ -81,6 +82,20 @@ def body_failure(kind: str) -> Exception:
     if kind == "malformed":
         return InvalidBody("disconnected", "the request body is malformed")
     return InvalidBody("disconnected", "the client disconnected")
+
+
+async def _drain_native_uninterruptibly(
+    server_core: core.ServerCore, timeout_ms: int
+) -> tuple[int, bool]:
+    """Finish the tracked Rust drain before allowing pool detachment."""
+    drain_task = asyncio.ensure_future(server_core._drain_native(timeout_ms))
+    interrupted = False
+    while not drain_task.done():
+        try:
+            await asyncio.shield(drain_task)
+        except asyncio.CancelledError:
+            interrupted = True
+    return drain_task.result(), interrupted
 
 
 def scope_of(
@@ -155,6 +170,7 @@ class RustWorker:
         self._inbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self._outbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self._lifespan_task: asyncio.Task[None] | None = None
+        self._disarmed_crud_actions: set[int] = set()
 
     async def _lifespan(self, event: str) -> dict[str, Any]:
         """Send one lifespan event through the ASGI adapter and wait for its answer."""
@@ -179,6 +195,7 @@ class RustWorker:
             raise RuntimeError(f"startup failed: {answer.get('message', '')}")
         runtime = self.pipeline.app.runtime
         try:
+            self._activate_crud_plans()
             if self.listener_fd is None:
                 # Bound only now, after the startup succeeded: a failed startup
                 # leaves nothing listening.
@@ -202,6 +219,11 @@ class RustWorker:
                 self.http2,
             )
         except BaseException:
+            self.core._disarm_crud_plans()
+            await _drain_native_uninterruptibly(
+                self.core, int(runtime.shutdown_timeout * 1000)
+            )
+            self.core._detach_database()
             await self._lifespan("shutdown")
             await self._finish_lifespan()
             raise
@@ -212,6 +234,63 @@ class RustWorker:
         self.timer = loop.call_later(HOUSEKEEPING, self._tick)
         self.core.set_ready(True)
         return server.port
+
+    def _activate_crud_plans(self) -> None:
+        """Attach the worker-owned pool clone and arm still-valid plans."""
+        selections = self.pipeline.crud_plan_selections
+        if not any(selection is not None for selection in selections):
+            return
+        self._check_crud_snapshots()
+        if not any(
+            selection is not None and action not in self._disarmed_crud_actions
+            for action, selection in enumerate(selections)
+        ):
+            return
+        database = self.pipeline.ctx.find(Database)
+        if type(database) is not Database:
+            self._disarm_crud_plans("database_missing_after_startup")
+            return
+        if not self.core._database_attached():
+            try:
+                self.core._attach_database(database.engine)
+            except Exception:
+                log.exception("could not attach the native CRUD database")
+                self._disarm_crud_plans("database_attach_failed")
+                return
+        for action, selection in enumerate(selections):
+            if (
+                selection is not None
+                and action not in self._disarmed_crud_actions
+                and not self.core._arm_crud(action)
+            ):
+                self.core._disarm_crud(action)
+                self._disarmed_crud_actions.add(action)
+                self.pipeline.crud_plan_reasons[action] = "native_plan_arm_failed"
+                log.warning("native CRUD plan %s could not be armed", action)
+
+    def _disarm_crud_plans(self, reason: str) -> None:
+        for action, selection in enumerate(self.pipeline.crud_plan_selections):
+            if selection is None or action in self._disarmed_crud_actions:
+                continue
+            self.core._disarm_crud(action)
+            self._disarmed_crud_actions.add(action)
+            self.pipeline.crud_plan_reasons[action] = reason
+            log.warning("native CRUD plan %s disarmed: %s", action, reason)
+
+    def _check_crud_snapshots(self) -> None:
+        for action, selection in enumerate(self.pipeline.crud_plan_selections):
+            if selection is None or action in self._disarmed_crud_actions:
+                continue
+            try:
+                valid = selection.snapshot_valid()
+            except Exception:
+                valid = False
+            if valid:
+                continue
+            self.core._disarm_crud(action)
+            self._disarmed_crud_actions.add(action)
+            self.pipeline.crud_plan_reasons[action] = "native_plan_stale"
+            log.warning("native CRUD plan %s disarmed after staleness check", action)
 
     def _tick(self) -> None:
         """One pass, then the next: a failing pass must not end the chain (it
@@ -234,6 +313,7 @@ class RustWorker:
                 "answered requests)",
                 ignored,
             )
+        self._check_crud_snapshots()
         if self.parent is not None and os.getppid() != self.parent:
             log.error("the supervisor is gone; stopping")
             self.stopping.set()
@@ -286,6 +366,57 @@ class RustWorker:
         except Exception:
             log.exception("request %s could not be answered", rid)
 
+    async def _serve_native_failure(
+        self, request: core.PreparedRequest, failure: core.NativeFailure
+    ) -> Response:
+        action = request.action
+        if action is None:
+            raise RuntimeError("native failure request has no action or failure")
+        return await self.pipeline.handle_native_failure(
+            action, request.request_id, failure
+        )
+
+    async def _serve_native_rows(
+        self, request: core.PreparedRequest, fallback: core.NativeRows
+    ) -> Response:
+        action = request.action
+        if action is None:
+            raise RuntimeError("native rows request has no action or rows")
+        return await self.pipeline.handle_native_rows(
+            action, request.request_id, fallback
+        )
+
+    async def _pipeline_response(
+        self, request: core.PreparedRequest
+    ) -> tuple[Response, bool]:
+        if request.native_handler:
+            action = request.action
+            if action is None:
+                raise RuntimeError("native handler request has no action")
+            return await self.pipeline.handle_native(
+                self.pipeline.bindings[action],
+                request.request_id,
+                request.native_args,
+                request.native_error,
+            ), True
+        failure = request._take_native_failure()
+        if failure is not None:
+            return await self._serve_native_failure(request, failure), True
+        fallback = request._take_native_rows()
+        if fallback is not None:
+            return await self._serve_native_rows(request, fallback), True
+        route = (
+            None
+            if request.action is None
+            else (request.action, request.prepared_path_params)
+        )
+        return await self.pipeline.handle(
+            scope_of(request, self.address, self.scheme),
+            RustBody(request),
+            request.request_id,
+            route,
+        ), False
+
     async def _serve(self, request: core.PreparedRequest) -> None:
         """Answer one queued request. A request whose task is cancelled (at
         shutdown, after ``shutdown_timeout``) is dropped unanswered: its
@@ -294,35 +425,13 @@ class RustWorker:
         if request.id_ignored:
             log.warning("ignored invalid request ID from trusted proxy")
         try:
-            if request.native_handler:
-                action = request.action
-                if action is None:
-                    raise RuntimeError("native handler request has no action")
-                response = await self.pipeline.handle_native(
-                    self.pipeline.bindings[action],
-                    request.request_id,
-                    request.native_args,
-                    request.native_error,
-                )
-            else:
-                route = (
-                    None
-                    if request.action is None
-                    else (request.action, request.prepared_path_params)
-                )
-                scope = scope_of(request, self.address, self.scheme)
-                response = await self.pipeline.handle(
-                    scope,
-                    RustBody(request),
-                    request.request_id,
-                    route,
-                )
+            response, native_final = await self._pipeline_response(request)
         except Exception:
             log.exception("request %s failed", request.request_id)
             self._fail(request)
             return
         body = b"" if request.method == "HEAD" else response.body
-        if request.native_handler:
+        if native_final:
             request.respond_final(response.status, response.headers, response.body)
         else:
             request.respond(response.status, response.headers, body)
@@ -342,13 +451,28 @@ class RustWorker:
             self.housekeeping()  # the last second's counts
         except Exception:
             log.exception("housekeeping failed")
+        drain_interrupted = False
         try:
             aborted = await server.shutdown()
         finally:
             asyncio.get_running_loop().remove_reader(server.wake_fd)
+            try:
+                native_aborted, drain_interrupted = await _drain_native_uninterruptibly(
+                    self.core,
+                    int(self.pipeline.app.runtime.shutdown_timeout * 1000),
+                )
+                if native_aborted:
+                    log.warning(
+                        "aborted %d native CRUD jobs during shutdown", native_aborted
+                    )
+            finally:
+                self.core._disarm_crud_plans()
+                self.core._detach_database()
             await self._cancel_requests()
             await self._lifespan("shutdown")
             await self._finish_lifespan()
+        if drain_interrupted:
+            raise asyncio.CancelledError
         return aborted
 
     async def _cancel_requests(self) -> None:
@@ -371,7 +495,6 @@ class RustWorker:
         self.stopping.set()
 
     async def run(self) -> int:
-        """Serve until SIGINT or SIGTERM, then stop gracefully."""
         port = await self.start()
         try:
             loop = asyncio.get_running_loop()

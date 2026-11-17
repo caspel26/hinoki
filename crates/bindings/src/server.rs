@@ -14,15 +14,17 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
+use hinoki_orm::{Database, Value};
 use hinoki_server::cors::{Cors, PreflightError};
 use hinoki_server::early::TemplateError;
 use hinoki_server::headers::{final_headers, Header};
 use hinoki_server::hosts::Hosts;
 use hinoki_server::queue::Push;
 use hinoki_server::{
-    proxy, requestid, Early, EarlyBodies, InFlight, Limits, Networks, Permit, Plan, Queue,
-    RoutePlan,
+    proxy, requestid, Early, EarlyBodies, InFlight, Limits, NativeJobs, Networks, Permit, Plan,
+    Queue, RoutePlan,
 };
 use hinoki_server::{Answer, BodyError, BodyReader};
 use pyo3::exceptions::{PyException, PyRuntimeError, PyValueError};
@@ -32,6 +34,7 @@ use tokio::sync::oneshot;
 
 use crate::completion;
 use crate::crudplan::{CrudPlan, PyCrudPlan};
+use crate::db::PyDatabase;
 use crate::request;
 use crate::router::{Match, Router};
 use hinoki_server::redirect;
@@ -68,8 +71,56 @@ enum BodyState {
     /// The request has none.
     Absent,
     Unread(BodyReader),
+    /// Read by a native attempt and retained for a deferred Python request.
+    Buffered(Vec<u8>),
     /// Handed to `body()`, or dropped by `respond`.
     Taken,
+}
+
+pub(crate) struct NativeBody {
+    reader: Option<BodyReader>,
+    consumed: Arc<AtomicBool>,
+}
+
+pub(crate) enum NativeBodyError {
+    Poisoned,
+    AlreadyTaken,
+}
+
+#[derive(Clone)]
+struct NativeFailure {
+    kind: String,
+    message: String,
+    constraint: Option<String>,
+    table: Option<String>,
+    sqlstate: Option<String>,
+}
+
+type NativeFailureTuple = (
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
+type NativeRowsObject = (Py<PyAny>, Option<(u64, u64, u64)>);
+
+struct NativeRows {
+    rows: Vec<Vec<(String, Value)>>,
+    page_info: Option<(u64, u64, u64)>,
+}
+
+impl NativeBody {
+    pub(crate) async fn read(self, limit: usize) -> Result<Vec<u8>, BodyError> {
+        let result = match self.reader {
+            Some(reader) => reader.read_all(limit).await,
+            None => Ok(Vec::new()),
+        };
+        if result.is_ok() {
+            self.consumed.store(true, Ordering::Release);
+        }
+        result
+    }
 }
 
 /// A request accepted for the Python pipeline. `respond` completes it once.
@@ -89,6 +140,8 @@ pub struct PreparedRequest {
     /// The CORS headers for the request's `Origin`, added to a native handler's
     /// answer unless it sets its own `access-control-allow-origin`.
     native_cors: Vec<Header>,
+    route_headers: Vec<(String, String)>,
+    native_crud: bool,
     request_id_name: Vec<u8>,
     needs_headers: bool,
     params: Vec<(String, String)>,
@@ -98,6 +151,71 @@ pub struct PreparedRequest {
     reply: Mutex<Option<oneshot::Sender<Reply>>>,
     permit: Mutex<Option<Permit>>,
     body: Mutex<BodyState>,
+    native_body_consumed: Arc<AtomicBool>,
+    native_failure: Mutex<Option<NativeFailure>>,
+    native_rows: Mutex<Option<NativeRows>>,
+}
+
+impl PreparedRequest {
+    pub(crate) fn take_native_body(&self) -> Result<NativeBody, NativeBodyError> {
+        let reader = {
+            let mut state = self.body.lock().map_err(|_| NativeBodyError::Poisoned)?;
+            match std::mem::replace(&mut *state, BodyState::Taken) {
+                BodyState::Unread(reader) => Some(reader),
+                BodyState::Absent => None,
+                BodyState::Buffered(_) | BodyState::Taken => {
+                    return Err(NativeBodyError::AlreadyTaken);
+                }
+            }
+        };
+        Ok(NativeBody {
+            reader,
+            consumed: Arc::clone(&self.native_body_consumed),
+        })
+    }
+
+    fn set_native_failure(&self, failure: NativeFailure) -> PyResult<()> {
+        if !self.native_crud {
+            return Err(PyRuntimeError::new_err(
+                "native failures require an armed CRUD request",
+            ));
+        }
+        let mut slot = self.native_failure.lock().map_err(|_| poisoned())?;
+        if slot.is_some() {
+            return Err(PyRuntimeError::new_err(
+                "a native failure is already set for this request",
+            ));
+        }
+        if self.native_rows.lock().map_err(|_| poisoned())?.is_some() {
+            return Err(PyRuntimeError::new_err(
+                "native failure and rows fallback cannot both be set",
+            ));
+        }
+        *slot = Some(failure);
+        Ok(())
+    }
+
+    fn set_native_rows(&self, rows: NativeRows) -> PyResult<()> {
+        if !self.native_crud {
+            return Err(PyRuntimeError::new_err(
+                "native rows require an armed CRUD request",
+            ));
+        }
+        let failure = self.native_failure.lock().map_err(|_| poisoned())?;
+        if failure.is_some() {
+            return Err(PyRuntimeError::new_err(
+                "native failure and rows fallback cannot both be set",
+            ));
+        }
+        let mut slot = self.native_rows.lock().map_err(|_| poisoned())?;
+        if slot.is_some() {
+            return Err(PyRuntimeError::new_err(
+                "native rows fallback is already set for this request",
+            ));
+        }
+        *slot = Some(rows);
+        Ok(())
+    }
 }
 
 #[pymethods]
@@ -227,13 +345,14 @@ impl PreparedRequest {
     /// `too_large`, `disconnected` or `timeout`). Calling it twice raises
     /// `RuntimeError`.
     fn body<'py>(&self, py: Python<'py>, limit: usize) -> PyResult<Bound<'py, PyAny>> {
-        let reader = {
+        let (reader, buffered) = {
             let mut state = self.body.lock().map_err(|_| poisoned())?;
             match std::mem::replace(&mut *state, BodyState::Taken) {
-                BodyState::Unread(reader) => Some(reader),
+                BodyState::Unread(reader) => (Some(reader), None),
+                BodyState::Buffered(bytes) => (None, Some(bytes)),
                 BodyState::Absent => {
                     *state = BodyState::Absent;
-                    None
+                    (None, None)
                 }
                 BodyState::Taken => {
                     return Err(PyRuntimeError::new_err(
@@ -243,11 +362,112 @@ impl PreparedRequest {
             }
         };
         let read = async move {
-            match reader {
-                Some(reader) => reader.read_all(limit).await,
-                None => Ok(Vec::new()),
+            match buffered {
+                Some(bytes) if bytes.len() > limit => Err(BodyError::TooLarge),
+                Some(bytes) => Ok(bytes),
+                None => match reader {
+                    Some(reader) => reader.read_all(limit).await,
+                    None => Ok(Vec::new()),
+                },
             }
         };
+        let fail = |_: Python<'_>, e: BodyError| BodyReadError::new_err(e.to_string());
+        let panicked = |_: Python<'_>| PyRuntimeError::new_err("the native body task failed");
+        completion::submit_with(
+            py,
+            read,
+            |py, bytes: Vec<u8>| Ok(PyBytes::new(py, &bytes).into_any().unbind()),
+            (fail, panicked),
+        )
+    }
+
+    /// Retain bytes consumed by a native attempt for the Python fallback.
+    fn _buffer_body(&self, bytes: &[u8]) -> PyResult<()> {
+        if !self.native_body_consumed.swap(false, Ordering::AcqRel) {
+            return Err(PyRuntimeError::new_err(
+                "only a completed native body read can be buffered",
+            ));
+        }
+        let mut state = self.body.lock().map_err(|_| poisoned())?;
+        if matches!(&*state, BodyState::Taken) {
+            *state = BodyState::Buffered(bytes.to_vec());
+            Ok(())
+        } else {
+            Err(PyRuntimeError::new_err(
+                "the request body cannot be buffered in its current state",
+            ))
+        }
+    }
+
+    fn _take_native_failure(&self) -> PyResult<Option<NativeFailureTuple>> {
+        let mut slot = self.native_failure.lock().map_err(|_| poisoned())?;
+        Ok(slot.take().map(|failure| {
+            (
+                failure.kind.clone(),
+                failure.message.clone(),
+                failure.constraint.clone(),
+                failure.table.clone(),
+                failure.sqlstate.clone(),
+            )
+        }))
+    }
+
+    #[pyo3(signature = (kind, message, constraint=None, table=None, sqlstate=None))]
+    fn _set_native_failure(
+        &self,
+        kind: String,
+        message: String,
+        constraint: Option<String>,
+        table: Option<String>,
+        sqlstate: Option<String>,
+    ) -> PyResult<()> {
+        self.set_native_failure(NativeFailure {
+            kind,
+            message,
+            constraint,
+            table,
+            sqlstate,
+        })
+    }
+
+    fn _take_native_rows(&self, py: Python<'_>) -> PyResult<Option<NativeRowsObject>> {
+        let mut slot = self.native_rows.lock().map_err(|_| poisoned())?;
+        slot.take()
+            .map(|rows| Ok((crate::db::rows_to_py(py, &rows.rows)?, rows.page_info)))
+            .transpose()
+    }
+
+    #[pyo3(signature = (rows, page_info=None))]
+    fn _set_native_rows(
+        &self,
+        rows: &Bound<'_, PyList>,
+        page_info: Option<(u64, u64, u64)>,
+    ) -> PyResult<()> {
+        let mut values = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let dictionary = row.cast::<PyDict>()?;
+            let mut fields = Vec::with_capacity(dictionary.len());
+            for (name, value) in dictionary.iter() {
+                fields.push((name.extract()?, crate::db::to_value(&value)?));
+            }
+            values.push(fields);
+        }
+        self.set_native_rows(NativeRows {
+            rows: values,
+            page_info,
+        })
+    }
+
+    /// Read a body for a native attempt and mark it reusable only after the
+    /// read has completed successfully.
+    fn _native_body<'py>(&self, py: Python<'py>, limit: usize) -> PyResult<Bound<'py, PyAny>> {
+        let body = self.take_native_body().map_err(|error| match error {
+            NativeBodyError::Poisoned => poisoned(),
+            NativeBodyError::AlreadyTaken => {
+                PyRuntimeError::new_err("the request body was already taken")
+            }
+        })?;
+        let read = body.read(limit);
         let fail = |_: Python<'_>, e: BodyError| BodyReadError::new_err(e.to_string());
         let panicked = |_: Python<'_>| PyRuntimeError::new_err("the native body task failed");
         completion::submit_with(
@@ -285,7 +505,7 @@ impl PreparedRequest {
     /// native policy, request-id and CORS headers, as `Pipeline.with_headers`
     /// does. HEAD retains GET's content length.
     fn respond_final(&self, status: u16, headers: Vec<(Vec<u8>, Vec<u8>)>, body: &[u8]) -> bool {
-        if !self.native_handler {
+        if !self.native_handler && !self.native_crud {
             return false;
         }
         let own = headers;
@@ -293,12 +513,16 @@ impl PreparedRequest {
         let sets_origin = own
             .iter()
             .chain(&self.native_policy)
-            .any(|(name, _)| name.eq_ignore_ascii_case(ALLOW_ORIGIN));
+            .any(|(name, _)| name.eq_ignore_ascii_case(ALLOW_ORIGIN))
+            || self
+                .route_headers
+                .iter()
+                .any(|(name, _)| name.eq_ignore_ascii_case("access-control-allow-origin"));
         let cors: &[Header] = if sets_origin { &[] } else { &self.native_cors };
         let mut final_headers = final_headers(
             &own,
             &self.native_policy,
-            &[],
+            &self.route_headers,
             (&self.request_id_name, self.request_id.as_bytes()),
             cors,
             status,
@@ -612,6 +836,8 @@ pub struct Core {
         reason = "consumed by native CRUD execution in the next phase"
     )]
     crud_plans: HashMap<u32, Arc<CrudPlan>>,
+    database: Mutex<Option<Database>>,
+    native_jobs: Arc<NativeJobs>,
     limits: Limits,
     bodies: EarlyBodies,
     queue: Queue<PreparedRequest>,
@@ -713,6 +939,8 @@ impl ServerCore {
                 router,
                 plan,
                 crud_plans,
+                database: Mutex::new(None),
+                native_jobs: Arc::new(NativeJobs::new(max_in_flight)),
                 limits: Limits {
                     max_query_bytes,
                     max_header_bytes,
@@ -757,6 +985,84 @@ impl ServerCore {
 
     fn set_ready(&self, ready: bool) {
         self.core.ready.store(ready, Ordering::Release);
+    }
+
+    fn _attach_database(&self, database: PyRef<'_, PyDatabase>) -> PyResult<()> {
+        let mut attached = self.core.database.lock().map_err(|_| poisoned())?;
+        if attached.is_some() {
+            return Err(PyValueError::new_err("a database is already attached"));
+        }
+        *attached = Some(database.clone_inner());
+        Ok(())
+    }
+
+    fn _detach_database(&self) -> PyResult<bool> {
+        let mut attached = self.core.database.lock().map_err(|_| poisoned())?;
+        Ok(attached.take().is_some())
+    }
+
+    fn _arm_crud(&self, action: u32) -> bool {
+        if !self
+            .core
+            .database
+            .lock()
+            .is_ok_and(|database| database.is_some())
+        {
+            return false;
+        }
+        let Some(route) = self.core.plan.get(action) else {
+            return false;
+        };
+        let Some(slot) = &route.crud_plan else {
+            return false;
+        };
+        slot.arm();
+        true
+    }
+
+    fn _database_attached(&self) -> bool {
+        self.core
+            .database
+            .lock()
+            .is_ok_and(|database| database.is_some())
+    }
+
+    fn _disarm_crud_plans(&self) {
+        for action in self.core.crud_plans.keys() {
+            self._disarm_crud(*action);
+        }
+    }
+
+    #[getter]
+    fn _native_in_flight(&self) -> usize {
+        self.core.native_jobs.in_flight()
+    }
+
+    fn _disarm_crud(&self, action: u32) -> bool {
+        let Some(route) = self.core.plan.get(action) else {
+            return false;
+        };
+        let Some(slot) = &route.crud_plan else {
+            return false;
+        };
+        slot.disarm();
+        true
+    }
+
+    fn _crud_armed(&self, action: u32) -> bool {
+        self.core
+            .plan
+            .get(action)
+            .and_then(|route| route.crud_plan.as_ref())
+            .is_some_and(|slot| slot.is_armed())
+    }
+
+    fn _drain_native<'py>(&self, py: Python<'py>, timeout_ms: u64) -> PyResult<Bound<'py, PyAny>> {
+        let jobs = self.core.native_jobs.clone();
+        crate::db::ensure_runtime();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            Ok::<usize, PyErr>(jobs.drain(Duration::from_millis(timeout_ms)).await)
+        })
     }
 
     /// How many invalid trusted request ids native answers ignored since the
@@ -1133,15 +1439,27 @@ impl Core {
             return self.answer(&asked, Early::Overloaded, Vec::new());
         };
         let (sender, receiver) = oneshot::channel();
-        let (native_policy, native_cors) = if native_input.enabled {
-            let cors = self
-                .cors
-                .as_ref()
-                .map(|policy| policy.headers(&asked.origin))
-                .unwrap_or_default();
-            (self.policies[usize::from(asked.https)].clone(), cors)
+        let route_plan = action.and_then(|number| self.plan.get(number));
+        let native_crud = route_plan
+            .and_then(|route| route.crud_plan.as_ref())
+            .is_some_and(|slot| slot.is_armed());
+        let native_response = native_input.enabled || native_crud;
+        let native_policy = if native_response {
+            self.policies[usize::from(asked.https)].clone()
         } else {
-            (Vec::new(), Vec::new())
+            Vec::new()
+        };
+        let native_cors = if native_response {
+            self.cors
+                .as_ref()
+                .map_or_else(Vec::new, |cors| cors.headers(&asked.origin))
+        } else {
+            Vec::new()
+        };
+        let route_headers = if native_crud {
+            route_plan.map_or_else(Vec::new, |route| route.headers.clone())
+        } else {
+            Vec::new()
         };
         let request = PreparedRequest {
             method: head.method.to_owned(),
@@ -1156,6 +1474,8 @@ impl Core {
             native_error: native_input.error,
             native_policy,
             native_cors,
+            route_headers,
+            native_crud,
             request_id_name: self.id_name.clone(),
             needs_headers,
             params,
@@ -1165,14 +1485,17 @@ impl Core {
             reply: Mutex::new(Some(sender)),
             permit: Mutex::new(Some(permit)),
             body: Mutex::new(head.body.map_or(BodyState::Absent, BodyState::Unread)),
+            native_body_consumed: Arc::new(AtomicBool::new(false)),
+            native_failure: Mutex::new(None),
+            native_rows: Mutex::new(None),
         };
-        match self.queue.push(request) {
+        match self.queue.push_cold_path(request) {
             Ok(pushed) => Ok(Outcome::Queued {
                 wake: pushed == Push::Wake,
                 receiver,
                 asked,
             }),
-            Err(_full) => self.answer(&asked, Early::Overloaded, Vec::new()),
+            Err(early) => self.answer(&asked, early, Vec::new()),
         }
     }
 

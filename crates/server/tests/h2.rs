@@ -12,7 +12,7 @@ use std::time::Duration;
 use bytes::Bytes;
 use h2::client::{self, SendRequest};
 use hinoki_server::tls::acceptor;
-use hinoki_server::{serve, Answer, Backend, Closed, Incoming, ServerConfig};
+use hinoki_server::{serve, Answer, Backend, Closed, Incoming, NativeJobs, ServerConfig};
 use http::Request;
 use rustls::crypto::ring::default_provider;
 use rustls::pki_types::pem::PemObject;
@@ -30,11 +30,27 @@ const WAIT: Duration = Duration::from_secs(10);
 const MEBIBYTE: usize = 1024 * 1024;
 const PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
-#[derive(Default)]
 struct Fake {
     /// Requests that reached the backend, by path prefix of the handler.
     started: AtomicUsize,
     release: Notify,
+    native_jobs: Arc<NativeJobs>,
+    native_started: Arc<Notify>,
+    native_release: Arc<Notify>,
+    native_handler_cancelled: Arc<Notify>,
+}
+
+impl Default for Fake {
+    fn default() -> Self {
+        Self {
+            started: AtomicUsize::new(0),
+            release: Notify::new(),
+            native_jobs: Arc::new(NativeJobs::new(1)),
+            native_started: Arc::new(Notify::new()),
+            native_release: Arc::new(Notify::new()),
+            native_handler_cancelled: Arc::new(Notify::new()),
+        }
+    }
 }
 
 fn answer(body: &[u8]) -> Answer {
@@ -98,6 +114,38 @@ impl Backend for Fake {
             "/slow" => {
                 self.release.notified().await;
                 answer(b"slow done")
+            }
+            "/native-stub" => {
+                let (mut sender, receiver) = tokio::sync::oneshot::channel();
+                let started = Arc::clone(&self.native_started);
+                let release = Arc::clone(&self.native_release);
+                let handler_cancelled = Arc::clone(&self.native_handler_cancelled);
+                if !self
+                    .native_jobs
+                    .spawn(async move {
+                        started.notify_one();
+                        let mut cancelled = false;
+                        tokio::select! {
+                            _ = release.notified() => {}
+                            _ = sender.closed() => {
+                                handler_cancelled.notify_one();
+                                cancelled = true;
+                            }
+                        }
+                        if cancelled {
+                            release.notified().await;
+                        }
+                        let _ = sender.send(());
+                    })
+                    .await
+                {
+                    return Answer {
+                        status: 503,
+                        ..answer(b"overloaded")
+                    };
+                }
+                let _ = receiver.await;
+                answer(b"native stub done")
             }
             "/hold" => std::future::pending().await,
             _ => answer(b"hello"),
@@ -552,6 +600,41 @@ async fn a_stop_sends_goaway_finishes_the_stream_in_flight_and_refuses_new_conne
     let closed = timeout(WAIT, running.task).await.unwrap().unwrap();
     assert_eq!(closed, Closed { aborted: 0 });
     let _ = timeout(WAIT, driver).await.unwrap();
+}
+
+#[tokio::test]
+async fn an_in_flight_http2_stub_job_survives_client_reset_until_shutdown_drains_it() {
+    let running = start(quick(), true).await;
+    let (send, driver) = h2_client(&running).await;
+    let mut ready = send.clone().ready().await.unwrap();
+    let (response, stream) = ready
+        .send_request(request("GET", "/native-stub").body(()).unwrap(), true)
+        .unwrap();
+    timeout(WAIT, running.backend.native_started.notified())
+        .await
+        .expect("stub job did not start");
+    assert_eq!(running.backend.native_jobs.in_flight(), 1);
+
+    drop(response);
+    drop(stream);
+    timeout(WAIT, running.backend.native_handler_cancelled.notified())
+        .await
+        .expect("server handler did not observe the client reset");
+    running.stop.send(true).unwrap();
+    timeout(WAIT, running.task)
+        .await
+        .expect("HTTP/2 server did not stop")
+        .unwrap();
+    assert_eq!(
+        running
+            .backend
+            .native_jobs
+            .drain(Duration::from_millis(1))
+            .await,
+        1
+    );
+    assert_eq!(running.backend.native_jobs.in_flight(), 0);
+    drop(driver);
 }
 
 #[tokio::test]
