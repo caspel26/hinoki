@@ -10,6 +10,7 @@ from hinoki.auth import (
     BearerAuth,
     Caller,
     HeaderAuth,
+    Permission,
 )
 from hinoki.core import core_version
 from hinoki.crud import Crud, CrudAPI
@@ -62,6 +63,7 @@ __all__ = [
     "Mount",
     "MultiPartParser",
     "Parser",
+    "Permission",
     "Renderer",
     "Reply",
     "Request",

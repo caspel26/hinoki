@@ -2,11 +2,16 @@
 
 from uuid import UUID
 
-from hinoki import API, Access, Hinoki, http
+from hinoki import API, Access, Hinoki, Permission, http
 from hinoki.request import Request
 from tests.providers import TokenAuth
 
-editor = Access(auth=TokenAuth(), permissions={"posts:write"})
+
+class PostPermission(Permission):
+    WRITE = "posts:write"
+
+
+editor = Access(auth=TokenAuth(), permissions={PostPermission.WRITE})
 
 
 @http.get("/health")

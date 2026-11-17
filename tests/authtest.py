@@ -2,7 +2,17 @@
 
 import pytest
 
-from hinoki import Access, APIKeyAuth, BearerAuth, Caller, Hinoki, Schema, core, http
+from hinoki import (
+    Access,
+    APIKeyAuth,
+    BearerAuth,
+    Caller,
+    Hinoki,
+    Permission,
+    Schema,
+    core,
+    http,
+)
 from hinoki.errors import RegistrationError
 from hinoki.request import Request
 from tests.harness import Client, Pool
@@ -11,6 +21,10 @@ from tests.providers import TokenAuth
 auth = TokenAuth()
 editor = Access(auth=auth, permissions=["posts:write"])
 any_user = Access(auth=auth)
+
+
+class PostPermission(Permission):
+    WRITE = "posts:write"
 
 
 class Draft(Schema):
@@ -256,3 +270,9 @@ def test_permissions_must_be_a_collection_not_one_string() -> None:
         Access(auth=TokenAuth(), permissions="posts:write")
     with pytest.raises(TypeError, match="not one string"):
         Caller("u", None, "admin")
+
+
+def test_permission_is_a_typed_string_enum_base() -> None:
+    assert PostPermission.WRITE.value == "posts:write"
+    assert str(PostPermission.WRITE) == "posts:write"
+    assert {PostPermission.WRITE} == {"posts:write"}

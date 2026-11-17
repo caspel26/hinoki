@@ -11,9 +11,22 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Iterable
 from dataclasses import dataclass
+from enum import StrEnum
 
 from hinoki.blocking import call_hook
 from hinoki.errors import Unauthorized
+
+
+class Permission(StrEnum):
+    """Base for an application's typed permission names.
+
+    Subclass it with the permissions your application uses::
+
+        class BlogPermission(Permission):
+            WRITE = "posts:write"
+
+    Members compare and serialize as their string values.
+    """
 
 
 @dataclass(frozen=True, slots=True, init=False)
