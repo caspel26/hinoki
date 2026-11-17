@@ -432,7 +432,7 @@
 </table>
 <p>Content negotiation (<code>Accept</code>, quality values, wildcards) also runs in Rust; with nothing acceptable the answer is 406 before the handler runs.</p>
 <h2 id="upload-files">Upload files<a class="headerlink" href="#upload-files" title="Permanent link">&para;</a></h2>
-<p><code>MultiPartParser</code> is opt-in. It parses bounded multipart bytes in Rust, then Python creates <code>UploadedFile</code> objects. For typed handler binding, annotate a parameter as <code>UploadedFile</code>, <code>UploadedFile | None = None</code>, or <code>list[UploadedFile]</code>; the parameter name selects the multipart field. A single value rejects duplicates, while a list preserves repeated values. The same objects are visible through <code>request.FILES</code>; text fields are available in <code>request.POST</code>. See <a href="../endpoints/#upload-files">endpoint upload declarations</a> for a complete example and status-code behavior.</p>
+<p>An action that binds an <code>UploadedFile</code> and has no parsers of its own gets <code>MultiPartParser()</code> with its default limits (100 parts, 1 MiB per part), unless the application's <code>parsers=</code> already include a <code>MultiPartParser</code>, which is then used. Other actions accept multipart only when it is listed. The parser handles bounded multipart bytes in Rust, then Python creates <code>UploadedFile</code> objects. For typed handler binding, annotate a parameter as <code>UploadedFile</code>, <code>UploadedFile | None = None</code>, or <code>list[UploadedFile]</code>; the parameter name selects the multipart field. A single value rejects duplicates, while a list preserves repeated values. The same objects are visible through <code>request.FILES</code>; text fields are available in <code>request.POST</code>. See <a href="../endpoints/#upload-files">endpoint upload declarations</a> for a complete example and status-code behavior.</p>
 <p>The complete request body and every part are buffered in memory. The default body cap is 1 MiB; increasing it also increases potential memory use across concurrent requests. This parser does not stream or spool files. Keep both the runtime body cap and <code>max_part_bytes</code> bounded, and treat filenames and media types as untrusted client input.</p>
 <h2 id="choose-them">Choose them<a class="headerlink" href="#choose-them" title="Permanent link">&para;</a></h2>
 <p>Per action, or for the whole application (an action's own choice wins):</p>
@@ -485,7 +485,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.15</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 12:43:37 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:09:57 UTC">November 17, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/codecs.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -462,6 +462,9 @@ each field as text.</p>
 
         <p><code>multipart/form-data</code> with at most <code>max_parts</code> parts of at most
 <code>max_part_bytes</code> bytes each (the whole body is capped separately).</p>
+<p>Selected automatically, with the default limits, for an action that binds an
+<code>UploadedFile</code> without choosing its parsers; pass it explicitly to change
+the limits.</p>
 
 
 
