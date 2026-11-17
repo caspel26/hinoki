@@ -127,6 +127,8 @@ class Pipeline:
     def __init__(self, app: Hinoki) -> None:
         self.app = app
         self.bindings = app.bindings
+        self.crud_plan_selections: list[Any] = []
+        self.crud_plan_reasons: list[str] = []
         self.startup_url = app.startup_url
         self.document = self._document(app)
         self.docs = docs_pages(app.openapi_url, app.docs_url, app.redoc_url)
