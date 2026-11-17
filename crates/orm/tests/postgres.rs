@@ -45,7 +45,7 @@ async fn values_round_trip_through_typed_columns() {
         return;
     };
     let id = Uuid::new_v4();
-    let now = chrono::Utc::now();
+    let now = time::OffsetDateTime::now_utc();
     let sql = "INSERT INTO rt_values (id, slug, n, at, data, flag, blob, ratio) \
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
     let args = [
@@ -72,7 +72,7 @@ async fn values_round_trip_through_typed_columns() {
     let Value::Timestamp(back) = &row["at"] else {
         panic!("timestamp expected")
     };
-    assert!((*back - now).num_microseconds().unwrap().abs() < 2);
+    assert!((*back - now).whole_microseconds().abs() < 2);
 }
 
 #[tokio::test]
@@ -297,4 +297,23 @@ async fn a_statement_abandoned_inside_a_transaction_does_not_block_rollback() {
     )
     .await;
     assert_eq!(rows.unwrap().unwrap()[0][0].1, Value::Int(1));
+}
+
+#[tokio::test]
+async fn infinite_timestamps_are_refused_instead_of_shifted() {
+    let Some(db) = database("rt_infinity", 1).await else {
+        return;
+    };
+    for literal in ["'infinity'", "'-infinity'"] {
+        let sql = format!("SELECT {literal}::timestamptz AS at");
+        assert!(db.fetch(&sql, &[]).await.is_err(), "{literal}");
+    }
+    let finite = db
+        .fetch("SELECT '2026-11-16 10:11:12.5+00'::timestamptz AS at", &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        finite[0][0].1,
+        Value::Timestamp(time::macros::datetime!(2026-11-16 10:11:12.5 UTC))
+    );
 }

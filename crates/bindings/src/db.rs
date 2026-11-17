@@ -111,9 +111,9 @@ fn to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
             ));
         }
         let text: String = obj.call_method0("isoformat")?.extract()?;
-        return chrono::DateTime::parse_from_rfc3339(&text)
-            .map(|t| Value::Timestamp(t.with_timezone(&chrono::Utc)))
-            .map_err(|e| PyValueError::new_err(e.to_string()));
+        return hinoki_orm::parse_timestamp(&text)
+            .map(Value::Timestamp)
+            .ok_or_else(|| PyValueError::new_err("invalid datetime parameter"));
     }
     if obj.is_instance_of::<PyDict>() || obj.is_instance_of::<PyList>() {
         let text: String = py
@@ -146,7 +146,7 @@ fn from_value(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
         Value::Timestamp(t) => py
             .import("datetime")?
             .getattr("datetime")?
-            .call_method1("fromisoformat", (t.to_rfc3339(),))
+            .call_method1("fromisoformat", (hinoki_orm::timestamp_iso(t),))
             .map_err(|_| {
                 let message = "timestamp cannot be represented as a Python datetime";
                 db_error(py, &DbError::new(ErrorKind::Type, message))

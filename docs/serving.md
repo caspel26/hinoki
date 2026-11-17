@@ -15,7 +15,7 @@ uv run --project .. hinoki serve blog.main:create_app     # production-style: no
 
 `TARGET` is `module:name`, where `name` is an application (`Hinoki`) or a function that returns one (a factory: the usual choice, because it builds the app inside each worker). The factory builds declarations only; databases and pools open in the worker's lifespan.
 
-With a declared app, settings load when the target module creates the `Hinoki` object. A configured `DatabaseModule` opens that worker's pool during lifespan startup and closes it during shutdown. The pool is per worker; no database connection is opened by importing model or route modules. See [settings and database ownership](settings.md#8-database-connection-ownership).
+With a declared app, settings load when the target module creates the `Hinoki` object. The database declared by the settings (or a configured `DatabaseModule`) opens that worker's pool during lifespan startup and closes it during shutdown. The pool is per worker; no database connection is opened by importing model or route modules. See [settings and database ownership](settings.md#8-database-connection-ownership).
 
 Both commands run the app under Granian unless you choose the [Rust server](#the-rust-server) with `--server rust` or `server.server`. In the Hinoki checkout,
 `uv sync --locked` installs the development environment, including Granian's

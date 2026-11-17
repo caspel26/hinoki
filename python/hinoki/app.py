@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 
 from hinoki.api import API
 from hinoki.core import Router
+from hinoki.db import DatabaseModule
 from hinoki.docsui import pages as docs_pages
 from hinoki.errors import ErrorRegistry, RegistrationError
 from hinoki.fields import UNSET, Unset
@@ -35,7 +36,7 @@ from hinoki.runtime.asgi import ASGIAdapter
 from hinoki.runtime.binding import Binding, bind, declares_upload
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.runtime.lifespan import Hook
-from hinoki.settings import AppSettings, DocsSettings, Settings
+from hinoki.settings import AppSettings, DatabaseSettings, DocsSettings, Settings
 from hinoki.utils import Clock, _read_utc, utc_now
 
 
@@ -156,8 +157,11 @@ class Hinoki:
         self._configure_policy(built_in, rules, enforce_rules, parsers, renderers)
         self._initialize_registries(commands, on_startup, on_shutdown)
         # The declared form: ``Hinoki(include=[...], modules=[...])``.
-        if modules:
-            self.install(*(self.module_of(m) for m in modules))
+        declared = [self.module_of(m) for m in modules]
+        automatic = self.settings_database(declared)
+        if automatic is not None or declared:
+            self.install(*([automatic] if automatic else []), *declared)
+        self._automatic_database: DatabaseModule | None = automatic
         if include:
             self.include(*include)
 
@@ -221,6 +225,7 @@ class Hinoki:
         self._routes: list[Route] = []
         self._bindings: list[Binding] = []
         self._modules: list[Module] = []
+        self._automatic_database = None
         self._commands = _normalize_commands(commands)
         self._on_startup = check_hooks("on_startup", on_startup)
         self._on_shutdown = check_hooks("on_shutdown", on_shutdown)
@@ -231,6 +236,19 @@ class Hinoki:
     def now(self, clock: Clock = utc_now) -> datetime:
         """Return an aware datetime in this application's configured timezone."""
         return _read_utc(clock).astimezone(self._timezone)
+
+    def settings_database(self, declared: list[Module]) -> DatabaseModule | None:
+        """The database module implied by a ``database: DatabaseSettings`` field
+        in the settings, unless the application declares its own."""
+        group = getattr(self.settings, "database", None)
+        if not isinstance(group, DatabaseSettings):
+            return None
+        if any(
+            isinstance(module, DatabaseModule) or module.name == DatabaseModule.name
+            for module in declared
+        ):
+            return None
+        return DatabaseModule.from_settings(self.settings)
 
     def module_of(self, module: Module | type[Module]) -> Module:
         """An instance as given, or a class built from this app's settings."""
@@ -403,9 +421,20 @@ class Hinoki:
         broken graph fails in the factory, not in a worker. Nothing opens.
         """
         self._check_mutable()
-        order_modules([*self._modules, *modules])
+        installed = self._modules
+        automatic = self._automatic_database
+        replacing_automatic = automatic is not None and any(
+            isinstance(module, DatabaseModule) for module in modules
+        )
+        if replacing_automatic:
+            # Validate and include first; a failed installation must preserve the
+            # settings-provided module and allow a later replacement attempt.
+            installed = [module for module in installed if module is not automatic]
+        order_modules([*installed, *modules])
         self.include(*(api for module in modules for api in module.apis))
-        self._modules.extend(modules)
+        self._modules[:] = [*installed, *modules]
+        if replacing_automatic:
+            self._automatic_database = None
 
     def lookup(self, method: str, path: str) -> Found | MethodNotAllowed | None:
         """Distinguish a match, a wrong method and an unknown path.
