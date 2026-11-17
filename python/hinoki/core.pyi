@@ -44,6 +44,41 @@ class _RowPlan:
         fields: list[tuple[str, str, str, bool]],
     ) -> None: ...
 
+class _CrudPlan:
+    def __init__(
+        self,
+        action: str,
+        table: str,
+        columns: list[str],
+        primary_key: str,
+        ordering: list[tuple[str, bool]],
+        page_size: int,
+        max_page_size: int,
+        model_fields: list[tuple[str, str, bool]],
+        model_defaults: list[tuple[str, str, str]],
+        create_defaults: list[tuple[str, str, str]],
+        create_columns: list[str],
+        update_columns: list[str],
+        read_schema: CompiledSchema,
+        create_schema: CompiledSchema | None = ...,
+        update_schema: CompiledSchema | None = ...,
+        validation_error: bytes = ...,
+    ) -> None: ...
+    @property
+    def action(self) -> str: ...
+    @property
+    def table(self) -> str: ...
+    @property
+    def dialects(self) -> list[str]: ...
+    @property
+    def validation_error_template(self) -> bytes: ...
+    @property
+    def update_columns(self) -> list[str]: ...
+    def model_defaults(self) -> list[tuple[str, str, str | None]]: ...
+    @property
+    def create_defaults(self) -> list[tuple[str, str, str | None]]: ...
+    def templates(self) -> list[tuple[str, str, str]]: ...
+
 def dump_instance(
     value: Any,
     json_mode: bool,
@@ -244,6 +279,7 @@ RouteSpec = tuple[
     bool,
     bool,
     tuple[bool, list[tuple[str, str, bool]]],
+    _CrudPlan | None,
 ]
 
 class ServerCore:

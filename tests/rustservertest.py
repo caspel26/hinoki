@@ -970,6 +970,112 @@ async def test_native_finalizer_keeps_security_headers() -> None:
     assert received.header("x-frame-options") == "DENY"
 
 
+@http.get("/native-own-origin")
+async def native_own_origin() -> Response:
+    return Response(
+        200, b"own", [("access-control-allow-origin", "https://own.example")]
+    )
+
+
+class NoBody:
+    async def read(self, limit: int) -> bytes:
+        return b""
+
+
+def final_answer(
+    status: int, headers: list[tuple[str, str]], body: bytes
+) -> tuple[int, list[tuple[str, str]], object]:
+    """Status, the final headers in order (request id masked, no date) and the
+    body with its request id masked."""
+    rid = next(value for name, value in headers if name == "x-request-id")
+    pairs = [
+        (name, "<id>" if name == "x-request-id" else value)
+        for name, value in headers
+        if name != "date"
+    ]
+    decoded: object = json.loads(body) if body.startswith(b"{") else body
+    if isinstance(decoded, dict) and "request_id" in decoded:
+        assert decoded.pop("request_id") == rid
+    return status, pairs, decoded
+
+
+async def pipeline_answer(
+    worker: RustWorker, method: str, target: str, headers: list[tuple[bytes, bytes]]
+) -> tuple[int, list[tuple[str, str]], object]:
+    """The same request served by the Python pipeline, as the ASGI adapter
+    (Granian) serves it."""
+    path, _, query = target.partition("?")
+    scope = {
+        "type": "http",
+        "method": method,
+        "path": path,
+        "raw_path": path.encode("ascii"),
+        "query_string": query.encode("ascii"),
+        "headers": headers,
+        "scheme": "http",
+    }
+    response = await worker.pipeline.handle(scope, NoBody())
+    body = b"" if method == "HEAD" else response.body
+    pairs = [(k.decode("latin-1"), v.decode("latin-1")) for k, v in response.headers]
+    return final_answer(response.status, pairs, body)
+
+
+def served_natively(
+    worker: RustWorker, method: str, target: str, headers: list[tuple[bytes, bytes]]
+) -> bool:
+    """Whether the Rust server takes the native handler path for the request."""
+    path, _, query = target.partition("?")
+    classifier = build_server_core(worker.pipeline)
+    classifier.set_ready(True)
+    classifier.submit(method, path, query.encode("ascii"), headers)
+    [prepared] = classifier.drain(1)
+    return prepared.native_handler
+
+
+@pytest.mark.parametrize(
+    "cors",
+    [
+        CorsSettings(
+            origins=("https://client.example",),
+            credentials=True,
+            expose_headers=("x-total",),
+        ),
+        CorsSettings(origins=("*",)),
+    ],
+)
+@pytest.mark.parametrize(
+    "origin", ["https://client.example", "https://evil.example", ""]
+)
+@pytest.mark.parametrize("method", ["GET", "HEAD"])
+async def test_native_handler_answers_carry_the_pipeline_cors_headers(
+    cors: CorsSettings, origin: str, method: str
+) -> None:
+    app = Hinoki(
+        include=[native_echo, native_own_origin, native_slow],
+        settings=AppSettings(cors=cors),
+        runtime=RuntimeConfig(request_timeout=0.05),
+    )
+    worker = RustWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    headers = [(b"host", b"t")] + ([(b"origin", origin.encode())] if origin else [])
+    extra = f"origin: {origin}\r\n" if origin else ""
+    targets = {
+        "/native/echo/a?term=b": 200,
+        "/native/echo/a": 422,
+        "/native-own-origin": 200,
+        "/native-slow": 504,
+    }
+    try:
+        for target, status in targets.items():
+            assert served_natively(worker, method, target, headers)
+            received = await fetch(port, method, target, extra=extra)
+            native = final_answer(received.status, received.headers, received.body)
+            assert native[0] == status
+            assert native == await pipeline_answer(worker, method, target, headers)
+    finally:
+        await worker.stop()
+
+
 @pytest.mark.parametrize("path", ["/upload", "/upload-auto"])
 async def test_multipart_file_binding_works_over_the_native_server(
     served: tuple[RustWorker, int], path: str
