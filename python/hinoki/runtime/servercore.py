@@ -39,6 +39,8 @@ EARLY_ERRORS: dict[str, tuple[int, str, list[tuple[bytes, bytes]] | None]] = {
     ),
     # HTTP/1.1 without exactly one Host header (RFC 9112 3.2).
     "bad_host": (HTTPStatus.BAD_REQUEST, "bad_host", None),
+    "disallowed_host": (HTTPStatus.BAD_REQUEST, "disallowed_host", None),
+    "cors_origin_denied": (HTTPStatus.FORBIDDEN, "cors_origin_denied", None),
 }
 
 
@@ -76,10 +78,10 @@ def early_bodies() -> list[tuple[str, bytes]]:
         request_id.reset(token)
 
 
-def route_spec(action: int, binding: Binding, defer_policies: bool) -> core.RouteSpec:
+def route_spec(action: int, binding: Binding) -> core.RouteSpec:
     route = binding.route
     owner = route.owner
-    native_handler = native_handler_eligible(binding, defer_policies)
+    native_handler = native_handler_eligible(binding)
     native_inputs = (
         [
             (param.source, param.name, param.default is not EMPTY)
@@ -103,10 +105,10 @@ def route_spec(action: int, binding: Binding, defer_policies: bool) -> core.Rout
     )
 
 
-def native_handler_eligible(binding: Binding, defer_policies: bool) -> bool:
+def native_handler_eligible(binding: Binding) -> bool:
     """Select the automatic native response path for the built-in simple GET."""
     route = binding.route
-    if defer_policies or route.method != "GET" or route.owner is not None:
+    if route.method != "GET" or route.owner is not None:
         return False
     renderer_ok = len(route.renderers) == 1 and is_default_json_renderer(
         route.renderers[0]
@@ -139,29 +141,43 @@ def native_handler_eligible(binding: Binding, defer_policies: bool) -> bool:
     )
 
 
-def cors_of(pipeline: Pipeline) -> tuple[bool, list[bytes], bool, bytes] | None:
+def cors_of(
+    pipeline: Pipeline,
+) -> tuple[bool, list[bytes], bool, bytes, list[tuple[bytes, bytes]]] | None:
     """The CORS policy as the classifier needs it to decorate its own answers."""
     policy = pipeline.cors
     if policy is None:
         return None
     origins = sorted(origin.encode("ascii") for origin in policy.origins)
-    return policy.any_origin, origins, policy.credentials, policy.expose
+    return (
+        policy.any_origin,
+        origins,
+        policy.credentials,
+        policy.expose,
+        list(policy.preflight),
+    )
+
+
+def hosts_of(pipeline: Pipeline) -> tuple[list[bytes], list[bytes]] | None:
+    """The normalized host policy as immutable ASCII byte snapshots."""
+    policy = pipeline.hosts
+    if policy is None:
+        return None
+    return (
+        sorted(host.encode("ascii") for host in policy.exact),
+        [host.encode("ascii") for host in policy.suffixes],
+    )
 
 
 def build_server_core(pipeline: Pipeline) -> core.ServerCore:
     """The classifier for one worker. It starts not ready; the lifespan flips it."""
     app = pipeline.app
     runtime = app.runtime
-    defer = (
-        pipeline.hosts is not None
-        or pipeline.cors is not None
-        or pipeline.security.redirect_https
-    )
     python_paths = [*pipeline.docs]
     if pipeline.document is not None and app.openapi_url is not None:
         python_paths.append(app.openapi_url)
     return core.ServerCore(
-        [route_spec(i, b, defer) for i, b in enumerate(pipeline.bindings)],
+        [route_spec(i, b) for i, b in enumerate(pipeline.bindings)],
         early_bodies(),
         (pipeline.policy[False], pipeline.policy[True]),
         pipeline.request_id_name,
@@ -173,7 +189,6 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
             4 * (runtime.sync_workers + runtime.sync_queue),
         ),
         trust_request_id=pipeline.trust_request_id,
-        defer_policies=defer,
         python_paths=python_paths,
         cors=cors_of(pipeline),
         # Canonical CIDRs from the same objects the Python path matches against.
@@ -184,4 +199,6 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
             if pipeline.startup_response is not None
             else b""
         ),
+        hosts=hosts_of(pipeline),
+        redirect_https=pipeline.security.redirect_https,
     )
