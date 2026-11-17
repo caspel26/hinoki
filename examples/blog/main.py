@@ -10,7 +10,7 @@ The factory builds declarations only; the pool opens in the worker's lifespan.
 """
 
 from hinoki import Hinoki, errors
-from hinoki.db import DatabaseModule, UniqueViolation
+from hinoki.db import UniqueViolation
 
 from .accounts import build_accounts
 from .adminsite import build_admin
@@ -58,11 +58,5 @@ def create_app(
     if app_settings.jwt_secret:
         actions, _hasher = build_accounts(app_settings.jwt_secret.reveal())
         app.include(*actions)
-    app.install(
-        DatabaseModule(
-            app_settings.database.url.reveal(),
-            max_size=app_settings.database.max_size,
-        )
-    )
     app.errors.handle(UniqueViolation)(unique_to_conflict)
     return app
