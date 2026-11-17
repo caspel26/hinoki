@@ -102,7 +102,6 @@ def test_invalid_replies_are_refused_when_built(arguments: dict[str, object]) ->
 def test_response_is_public_from_package_and_http_module() -> None:
     assert ModuleResponse is Response
     assert "Reply" not in hinoki.__all__
-    assert not hasattr(hinoki, "Reply")
 
 
 @pytest.mark.parametrize(

@@ -1328,9 +1328,10 @@ def derive_from_model(
     if not (isinstance(model, type) and issubclass(model, Model)):
         raise RegistrationError(f"{cls.__name__}: source must be a Model class")
     chosen, some, everything = chosen_columns(cls, model, fields, exclude, optional)
+    own = dict(inspect.get_annotations(cls))
+    reject_unselected_inheritance(cls, model, set(chosen) | set(own), fields)
     hints = typing.get_type_hints(model, include_extras=True)
     by_name = {f.name: f for f in dataclasses.fields(cast(Any, model))}
-    own = dict(inspect.get_annotations(cls))
     derived: dict[str, Any] = {}
     defaults: dict[str, Any] = {}
     for name in (n for n in chosen if n not in own):  # declared by hand: left alone
@@ -1348,6 +1349,26 @@ def derive_from_model(
     cls.__annotations__ = {**derived, **own}
     for name, value in defaults.items():
         setattr(cls, name, value)
+
+
+def reject_unselected_inheritance(
+    cls: type, model: Any, kept: set[str], fields: Iterable[str] | None
+) -> None:
+    """Fail when a base class would keep a model column the selection leaves out.
+
+    Fields are inherited as usual, so ``only``/``exclude`` cannot remove a column
+    that a base Schema already declares; redeclare it in the class body to keep
+    it on purpose, or derive from a narrower base."""
+    columns = model.__columns__
+    for base in cls.__mro__[1:]:
+        for name in inspect.get_annotations(base):
+            if name in columns and name not in kept:
+                where = "outside only=" if fields is not None else "in exclude="
+                raise RegistrationError(
+                    f"{cls.__name__}: inherited field {name!r} from "
+                    f"{base.__name__} is {where}; inherited fields cannot be "
+                    "removed, so derive from a narrower base or redeclare it"
+                )
 
 
 def node_of(

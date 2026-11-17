@@ -1,5 +1,6 @@
 """Schemas derived from models with ``@derive(Model, ...)``."""
 
+import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from functools import cached_property
@@ -27,6 +28,7 @@ from hinoki.derive import _class_cell as find_class_cell
 from hinoki.derive import rebuild
 from hinoki.errors import RegistrationError, ValidationError
 from hinoki.orm import Model, OnDelete, field, foreign_key
+from hinoki.pagination import Page
 from hinoki.runtime.pipeline import Pipeline, project_response
 from hinoki.schema import graph_has_checks
 from hinoki.testing import ASGIClient
@@ -650,3 +652,215 @@ async def test_handler_projection_keeps_schema_reply_and_bodyless_responses() ->
     assert existing_response.body == {"title": "existing"}
     assert (reply_response.status, reply_response.body) == (202, "accepted")
     assert empty_response.status == 204 and empty_response.body is None
+
+
+class Account(Model, table="ds_accounts"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    name: str = field(max_length=20)
+    password_hash: str
+
+
+@derive(Account)
+class AccountAll(Schema):
+    pass
+
+
+def test_narrower_selection_rejects_columns_inherited_from_a_derived_base() -> None:
+    with pytest.raises(
+        RegistrationError,
+        match=r"OnlyName: inherited field 'id' from AccountAll is outside only=",
+    ):
+
+        @derive(Account, only=("name",))
+        class OnlyName(AccountAll):
+            pass
+
+    with pytest.raises(
+        RegistrationError,
+        match=r"NoSecret: inherited field 'password_hash' from AccountAll is in "
+        r"exclude=",
+    ):
+
+        @derive(Account, exclude=("password_hash",))
+        class NoSecret(AccountAll):
+            pass
+
+
+def test_narrower_selection_rejects_model_columns_from_a_hand_written_base() -> None:
+    class Identified(Schema):
+        id: UUID
+
+    with pytest.raises(RegistrationError, match="inherited field 'id' from Identified"):
+
+        @derive(Account, only=("name",))
+        class Named(Identified):
+            pass
+
+
+def test_a_selection_may_keep_or_widen_the_inherited_columns() -> None:
+    @derive(Account, only=("name",))
+    class NameOnly(Schema):
+        pass
+
+    @derive(Account, only=("id", "name"))
+    class Wider(NameOnly):
+        note: str = ""
+
+    @derive(Account, exclude=("password_hash",))
+    class Public(NameOnly):
+        pass
+
+    assert set(Wider.specs()) == {"id", "name", "note"}
+    assert set(Public.specs()) == {"id", "name"}
+
+
+def test_derive_rejects_a_non_schema_class_and_a_second_derivation() -> None:
+    with pytest.raises(RegistrationError, match="int: @derive needs a Schema"):
+        derive(Account)(int)  # type: ignore[type-var]
+
+    with pytest.raises(RegistrationError, match="Twice: already derived"):
+
+        @derive(Account, only=("name",))
+        @derive(Account)
+        class Twice(Schema):
+            pass
+
+
+def test_projection_checks_the_source_model_of_an_inherited_derivation() -> None:
+    class Extended(AutomaticPostOut):
+        label: str = ""
+
+    with pytest.raises(TypeError, match="derived from Post, not Author"):
+        project_response(Extended, Author(id=uuid4(), name="author"))
+
+
+def logged_causes(caplog: pytest.LogCaptureFixture) -> list[BaseException]:
+    return [
+        record.exc_info[1]
+        for record in caplog.records
+        if record.exc_info and record.exc_info[1] is not None
+    ]
+
+
+async def test_unrelated_model_failure_is_logged_with_its_cause(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    @http.get("/wrong")
+    def wrong() -> AutomaticPostOut:
+        return Author(id=uuid4(), name="author")  # type: ignore[return-value]
+
+    app = Hinoki()
+    app.include(wrong)
+    with caplog.at_level("ERROR", logger="hinoki.runtime"):
+        async with ASGIClient(app) as client:
+            response = await client.get("/wrong")
+
+    assert response.status == 500
+    assert response.body["error"] == "internal_error"
+    assert any(
+        isinstance(cause, TypeError) and "derived from Post, not Author" in str(cause)
+        for cause in logged_causes(caplog)
+    )
+
+
+def assert_internal_error(status: int, body: dict[str, object]) -> None:
+    assert status == 500
+    assert body["error"] == "internal_error"
+    assert set(body) == {"error", "request_id"}
+
+
+@derive(Post, only=("title",))
+class LimitedPostOut(Schema):
+    pass
+
+
+async def test_an_invalid_stored_row_is_a_server_error_on_both_paths(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    @http.get("/invalid")
+    async def invalid() -> LimitedPostOut:
+        return post_row("x" * 100)  # type: ignore[return-value]
+
+    app = Hinoki()
+    app.include(invalid)
+    with caplog.at_level("ERROR", logger="hinoki.runtime"):
+        async with ASGIClient(app) as client:
+            response = await client.get("/invalid")
+        built = Pipeline(app)
+        native = await built.handle_native(built.bindings[0], "r" * 32, {}, None)
+
+    assert_internal_error(response.status, response.body)
+    native_body = json.loads(native.body)
+    assert_internal_error(native.status, native_body)
+    assert native_body["request_id"] == "r" * 32
+    assert b"max_length" not in native.body
+    causes = logged_causes(caplog)
+    assert len(causes) == 2
+    assert all(isinstance(cause.__cause__, ValidationError) for cause in causes)
+
+
+class LeakyPostOut(AutomaticPostOut):
+    internal: str
+
+
+async def test_a_schema_subclass_is_sent_as_the_declared_schema() -> None:
+    value = LeakyPostOut(title="kept", internal="hidden")
+
+    @http.get("/sub")
+    async def sub() -> AutomaticPostOut:
+        return value
+
+    app = Hinoki()
+    app.include(sub)
+    async with ASGIClient(app) as client:
+        response = await client.get("/sub")
+    built = Pipeline(app)
+    native = await built._call_native(built.bindings[0], {})
+
+    assert response.body == {"title": "kept"}
+    assert native.body == b'{"title":"kept"}'
+
+
+async def test_a_returned_dict_is_sent_unchanged_and_unvalidated() -> None:
+    @http.get("/raw")
+    def raw() -> AutomaticPostOut:
+        return {"title": "t", "extra": 1}  # type: ignore[return-value]
+
+    app = Hinoki()
+    app.include(raw)
+    async with ASGIClient(app) as client:
+        response = await client.get("/raw")
+
+    assert response.body == {"title": "t", "extra": 1}
+
+
+async def test_lists_and_pages_of_models_fail_closed_without_a_body_leak() -> None:
+    @http.get("/many")
+    def many() -> list[AutomaticPostOut]:
+        return [post_row("leak")]  # type: ignore[list-item]
+
+    @http.get("/paged")
+    def paged() -> Page[AutomaticPostOut]:
+        return Page(items=[post_row("leak")], page=1, page_size=20, total=1)  # type: ignore[list-item]
+
+    app = Hinoki()
+    app.include(many, paged)
+    async with ASGIClient(app) as client:
+        responses = [await client.get("/many"), await client.get("/paged")]
+
+    for response in responses:
+        assert_internal_error(response.status, response.body)
+        assert "leak" not in json.dumps(response.body)
+
+
+async def test_an_annotated_response_schema_still_projects_a_model() -> None:
+    @http.get("/annotated")
+    def annotated() -> Annotated[AutomaticPostOut, "summary"]:
+        return post_row("annotated")  # type: ignore[return-value]
+
+    app = Hinoki()
+    app.include(annotated)
+    async with ASGIClient(app) as client:
+        response = await client.get("/annotated")
+
+    assert (response.status, response.body) == (200, {"title": "annotated"})

@@ -15,7 +15,12 @@ class TypingPost(Model):
 
 @derive(TypingPost, only=("title",))
 class TypingPostOut(Schema):
-    pass
+    title: str  # declared so static checkers see the derived field
+
+
+def derived_out(title: str) -> TypingPostOut:
+    out: TypingPostOut = TypingPostOut(title=title)
+    return out
 
 
 class PostCreate(Schema):
