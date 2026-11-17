@@ -16,6 +16,8 @@ uv run hinoki migrations plan --name add-published
 uv run hinoki migrations plan --app billing --name add-invoice-index
 ```
 
+The app can be named as an argument or with `--app`: `hinoki migrations plan billing` and `hinoki migrations plan --app billing` are the same. Naming it twice with different values is an error.
+
 The manifest must register the selected app. A single-app project defaults to that app; in a multi-app project, writing a plan requires `--app`. Read-only `--dry-run` and `--check` without `--app` cover every registered app in dependency order. The planner targets the local SQLite default unless a URL is provided through `HINOKI_DATABASE_URL` or `--database`. It writes a numbered `.sql` file and a matching `.state.json` file into the registered migration package. Numbering and a stable slug derived from the first schema change are automatic; an optional `--name` replaces only that slug for a focused plan. Review both files before applying the change. Cross-app model references require an explicit `requires` dependency in `hinoki.toml`; this lets Hinoki validate references and order migrations without assigning another app's tables to the current app's migration state.
 
 `--dry-run` previews ordinary destructive changes without `--allow-destructive`
@@ -87,6 +89,8 @@ requires = ["accounts"]
 ```
 
 ## Apply and inspect
+
+`apply` and `status` take the app the same way: `hinoki migrations apply billing` applies `billing` and its prerequisites. Planning and applying stay two separate commands, so a migration is never written and applied in one step.
 
 ```sh
 export HINOKI_DATABASE_URL="$BLOG_DATABASE__URL"

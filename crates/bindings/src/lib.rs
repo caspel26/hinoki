@@ -108,7 +108,6 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(schema::serialize_instance, m)?)?;
     m.add_class::<schema::ModelPlan>()?;
     m.add_class::<rows::PyRowPlan>()?;
-    m.add_class::<crudplan::PyCrudPlan>()?;
     m.add_function(wrap_pyfunction!(jwt::jwt_encode, m)?)?;
     m.add_function(wrap_pyfunction!(jwt::jwt_decode, m)?)?;
     m.add_class::<jwt::PyJWTVerifier>()?;

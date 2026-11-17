@@ -66,7 +66,8 @@ def parser() -> argparse.ArgumentParser:
     actions = group.add_subparsers(dest="action")
     planner = actions.add_parser("plan", help="write a migration from the models")
     planner.add_argument("--models", help="legacy module that defines models")
-    planner.add_argument("--app", help="project app to plan")
+    planner.add_argument("app_name", nargs="?", help="project app to plan")
+    planner.add_argument("--app", help="project app to plan (same as the argument)")
     planner.add_argument(
         "--name",
         help="optional migration slug (default: derived from the planned change)",
@@ -92,8 +93,11 @@ def parser() -> argparse.ArgumentParser:
             "out of the process list",
         )
         sub.add_argument(
-            "--app", help="project app (default: all apps in dependency order)"
+            "app_name",
+            nargs="?",
+            help="project app and its prerequisites (default: all apps in order)",
         )
+        sub.add_argument("--app", help="project app (same as the argument)")
     show = actions.add_parser("sql", help="print one migration's SQL")
     show.add_argument("name")
     show.add_argument("--app", help="project app containing the migration")
@@ -277,6 +281,14 @@ def run_migrations(args: argparse.Namespace) -> int:
     if args.action is None:
         print(args.group_help, end="")
         return 0
+    named = getattr(args, "app_name", None)
+    if named is not None and args.app not in (None, named):
+        print(
+            f"error: app {named!r} conflicts with --app {args.app!r}", file=sys.stderr
+        )
+        return 2
+    if named is not None:
+        args.app = named
     if args.action == "plan" and args.check:
         options = plan_check_option_error(args)
         if options is not None:
