@@ -81,7 +81,7 @@ def normalized(value: str) -> None:
         raise ValueError("surrounding whitespace is not allowed")
 
 
-class Product(Model, table="products"):
+class Product(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     sku: str = field(
         max_length=32,
@@ -116,7 +116,7 @@ Filters accept validated field names and supported comparison/membership operato
 A reusable query is a typed class method that returns a `QuerySet`. Hinoki has no hidden default manager: `Model.all()` always means every row.
 
 ```python
-class Task(Model, table="tasks"):
+class Task(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     title: str = field(max_length=200)
     done: bool = False
@@ -224,7 +224,7 @@ class Tracked(Model, abstract=True):
     updated_at: datetime = field(default_factory=utc_now)
 
 
-class Article(Keyed, Tracked, table="articles"):
+class Article(Keyed, Tracked):
     title: str = field(max_length=120)
 ```
 

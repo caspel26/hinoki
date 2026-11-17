@@ -30,7 +30,7 @@ from uuid import UUID, uuid4
 from hinoki.orm import Model, field
 
 
-class Invoice(Model, table="invoices"):
+class Invoice(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     reference: str = field(max_length=40, unique=True)
 ```

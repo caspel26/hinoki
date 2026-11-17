@@ -21,7 +21,7 @@ from hinoki.orm import Model, field
 from hinoki.utils import utc_now
 
 
-class Event(Model, table="events"):
+class Event(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     created_at: datetime = field(default_factory=utc_now)
 ```
@@ -76,7 +76,7 @@ from hinoki.utils import utc_now
 
 
 @timestamps()
-class Note(Model, table="notes"):
+class Note(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     title: str
     created_at: datetime = field(default_factory=utc_now)

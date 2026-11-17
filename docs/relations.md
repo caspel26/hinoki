@@ -9,12 +9,12 @@ Hinoki stores relations as ordinary foreign-key columns and loads related rows o
 ## Declare a foreign key
 
 ```python
-class Author(Model, table="authors"):
+class Author(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     name: str
 
 
-class Post(Model, table="posts"):
+class Post(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     author_id: UUID = foreign_key(
         Author,
@@ -36,7 +36,7 @@ The `author_id` field is stored on `posts`. The forward relation is `post.author
 Only enum members are accepted. Text such as `on_delete="cascade"`, which earlier revisions took, is reported by a type checker and refused with a `RegistrationError` when the module is imported. `OnDelete.SET_NULL` on a field without `| None` is refused the same way, before any migration is planned:
 
 ```python
-class Note(Model, table="notes"):
+class Note(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     post_id: UUID | None = foreign_key(Post, on_delete=OnDelete.SET_NULL, default=None)
 ```
@@ -52,11 +52,11 @@ class Owned(Model, abstract=True):
     team_id: UUID = foreign_key(Team, on_delete=OnDelete.CASCADE, related_name="{model}_set")
 
 
-class Article(Owned, table="articles"):
+class Article(Owned):
     id: UUID = field(primary_key=True, default_factory=uuid4)
 
 
-class Page(Owned, table="pages"):
+class Page(Owned):
     id: UUID = field(primary_key=True, default_factory=uuid4)
 ```
 
@@ -91,12 +91,12 @@ from hinoki.orm import Model, OnDelete, field, foreign_key
 from hinoki.orm.relations import Related
 
 
-class User(Model, table="users"):
+class User(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     profile: ClassVar[Related[Profile | None]]
 
 
-class Profile(Model, table="profiles"):
+class Profile(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     user_id: UUID = foreign_key(
         User,
@@ -142,20 +142,20 @@ from hinoki.orm import Model, OnDelete, field, foreign_key, unique
 from hinoki.orm.relations import Related
 
 
-class Post(Model, table="posts"):
+class Post(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     title: str
     tag_links: ClassVar["Related[list[PostTag]]"]
 
 
-class Tag(Model, table="tags"):
+class Tag(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     name: str
     post_links: ClassVar["Related[list[PostTag]]"]
 
 
 @unique("post_id", "tag_id")
-class PostTag(Model, table="post_tags"):
+class PostTag(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     post_id: UUID = foreign_key(Post, on_delete=OnDelete.CASCADE, related_name="tag_links")
     tag_id: UUID = foreign_key(Tag, on_delete=OnDelete.CASCADE, related_name="post_links")

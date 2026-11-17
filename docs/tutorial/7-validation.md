@@ -111,7 +111,7 @@ def normalized(value: str) -> None:
         raise ValueError("surrounding whitespace is not allowed")
 
 
-class Product(Model, table="products"):
+class Product(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     sku: str = field(
         max_length=32,
