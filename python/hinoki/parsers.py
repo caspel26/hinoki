@@ -1,7 +1,9 @@
 """Request body parsers, chosen by ``Content-Type``.
 
 ``@http.post("/x", parsers=[JSONParser(), FormParser(), MultiPartParser()])`` lists
-what an action accepts; the default is JSON only. The built-in parsers decode in
+what an action accepts; the default is JSON only, except that an action binding an
+``UploadedFile`` gets ``MultiPartParser()`` when neither it nor the application
+chose a multipart parser. The built-in parsers decode in
 Rust. A custom parser is a ``Parser`` subclass with a ``media_type`` and a
 ``parse`` method (Python, so the slow path): it returns ``Parsed`` and may raise
 ``InvalidBody``. Limits are explicit and a violation is an error, never a
@@ -156,7 +158,11 @@ def boundary_of(content_type: str) -> str:
 
 class MultiPartParser(Parser):
     """``multipart/form-data`` with at most ``max_parts`` parts of at most
-    ``max_part_bytes`` bytes each (the whole body is capped separately)."""
+    ``max_part_bytes`` bytes each (the whole body is capped separately).
+
+    Selected automatically, with the default limits, for an action that binds an
+    ``UploadedFile`` without choosing its parsers; pass it explicitly to change
+    the limits."""
 
     media_type = "multipart/form-data"
     forms = True
@@ -191,6 +197,8 @@ class MultiPartParser(Parser):
 
 
 DEFAULT_PARSERS: tuple[Parser, ...] = (JSONParser(),)
+# Selected for an action that binds an uploaded file and whose parsers nobody chose.
+UPLOAD_PARSERS: tuple[Parser, ...] = (MultiPartParser(),)
 
 
 def check_parsers(parsers: Sequence[Parser]) -> tuple[Parser, ...]:
