@@ -32,7 +32,7 @@ from hinoki.mcp import (
     reply,
 )
 from hinoki.openapi import operation_key
-from hinoki.reply import Reply
+from hinoki.reply import Response
 from hinoki.request import Request
 from hinoki.routing import Route
 from hinoki.rules import qualified
@@ -252,21 +252,21 @@ async def dispatch(
     return result
 
 
-def refuse(request: Request, origins: frozenset[str]) -> Reply | None:
+def refuse(request: Request, origins: frozenset[str]) -> Response | None:
     """A refusal for requests a browser page could send, or an oversized body."""
     if len(request.body) > MAX_MESSAGE:
-        return Reply(413)
+        return Response(413)
     if request.content_type != "application/json":
-        return Reply(415)
+        return Response(415)
     origin = request.headers.get("origin")
     cross_site = request.headers.get("sec-fetch-site") == "cross-site"
     if cross_site or (origin is not None and origin not in origins):
-        return Reply(403)
+        return Response(403)
     return None
 
 
-def json_reply(payload: dict[str, Any]) -> Reply:
-    return Reply(200, json.dumps(payload), content_type="application/json")
+def json_reply(payload: dict[str, Any]) -> Response:
+    return Response(200, json.dumps(payload), content_type="application/json")
 
 
 def initialize(params: dict[str, Any], app: Hinoki) -> dict[str, Any]:
@@ -370,13 +370,13 @@ def expose_as_mcp(
         return {t.name: t for t in cache}
 
     @http.post(path, access=access)
-    async def mcp_endpoint(request: Request) -> Reply:
+    async def mcp_endpoint(request: Request) -> Response:
         """Model Context Protocol endpoint (JSON-RPC over POST)."""
         refused = refuse(request, origins)
         if refused is not None:
             return refused
         answer = await respond(request, tool_table, app)
-        return Reply(202) if answer is None else json_reply(answer)
+        return Response(202) if answer is None else json_reply(answer)
 
     setattr(mcp_endpoint, MARKER, True)
     return [mcp_endpoint]
