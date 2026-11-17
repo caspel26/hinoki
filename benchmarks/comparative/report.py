@@ -150,6 +150,10 @@ def single_process_stacks(
 STABLE_CV = 15
 
 
+def slug(directory: Path) -> str:
+    return "-".join(directory.parts[-2:]).lower().replace("_", "-")
+
+
 def unstable(summaries: list[tuple[str, dict]]) -> bool:
     return any(row["cv_pct"] and row["cv_pct"] > STABLE_CV for _, row in summaries)
 
@@ -162,6 +166,37 @@ def result_row(scenario: str, label: str, row: dict) -> str:
         f'<td>{row["median"]:,.0f}<span class="range">{row["low"]:,.0f}&ndash;{row["high"]:,.0f}</span></td>'
         f"<td>{fmt_ms(latency['p50']['median'])}</td><td>{fmt_ms(latency['p99']['median'])}</td>"
         f"<td>{cv}</td><td>{row['wrong']}</td><td>{row['runs']}</td></tr>"
+    )
+
+
+def throughput_panel(scenario: str, rows: list[tuple[str, dict]]) -> str:
+    peak = max(row["high"] for _, row in rows)
+    bars = "".join(
+        f'<div class="bench-row"><span class="bench-name">{html.escape(label)}</span>'
+        '<span class="bench-track">'
+        f'<span class="bench-bar" style="width:{row["median"] / peak * 100:.2f}%"></span>'
+        f'<span class="bench-whisker" style="left:{row["low"] / peak * 100:.2f}%;'
+        f'width:{(row["high"] - row["low"]) / peak * 100:.2f}%"></span></span>'
+        f'<span class="bench-value">{row["median"]:,.0f}</span></div>'
+        for label, row in rows
+    )
+    return f'<div class="bench-panel"><div class="bench-title">{scenario.title()}</div>{bars}</div>'
+
+
+def throughput_chart(reported: dict[str, list[tuple[str, dict]]], chart_id: str) -> str:
+    panels = "".join(throughput_panel(name, rows) for name, rows in reported.items())
+    description = "; ".join(
+        f"{name}: " + ", ".join(f"{label} {row['median']:,.0f}" for label, row in rows)
+        for name, rows in reported.items()
+    )
+    return (
+        '<figure class="bench-figure">'
+        f'<p id="{chart_id}-desc" class="bench-sr">Median requests per second by stack, '
+        f"one panel per scenario, each with its own scale, higher is better. {html.escape(description)}.</p>"
+        f'<div class="bench-chart" role="img" aria-describedby="{chart_id}-desc">{panels}</div>'
+        "<figcaption>Median requests per second (higher is better). Each panel has its own scale from 0; "
+        "the line spans the lowest to highest run. The table below has the full numbers.</figcaption>"
+        "</figure>"
     )
 
 
@@ -219,6 +254,8 @@ def render_mode(directory: Path) -> str:
             withheld.append(scenario)
         else:
             reported[scenario] = summaries
+    if mode == "documented":
+        lines.extend([throughput_chart(reported, f"bench-{slug(directory)}"), ""])
     lines.extend([results_table(reported), ""])
     if withheld:
         lines.extend(
