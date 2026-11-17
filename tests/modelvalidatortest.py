@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 from collections.abc import AsyncIterator
+from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -12,8 +13,16 @@ import pytest
 
 from hinoki import Field
 from hinoki.db import Database
-from hinoki.errors import ModelValidationError, RegistrationError
+from hinoki.errors import FieldError, ModelValidationError, RegistrationError
 from hinoki.orm import Model, field, use_database
+from hinoki.orm.model import (
+    _constraint_passes,
+    _matches_model_annotation,
+    _matches_model_scalar,
+    _stop_custom_awaitable,
+    own_annotations,
+    same_type,
+)
 from hinoki.runtime.responses import builtin_error
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -221,3 +230,77 @@ async def test_instance_save_rejects_then_accepts_corrected_value(db: Database) 
     record.label = "Corrected"
     await record.asave()
     assert (await ValidatedRecord.aget(id=record.id)).label == "Corrected"
+
+
+def test_model_annotation_helpers_handle_forward_and_mixed_types(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Lazy:
+        value: int
+
+    fake = SimpleNamespace(
+        Format=SimpleNamespace(FORWARDREF="forward"),
+        get_annotations=lambda cls, *, format: {"seen": (cls.__name__, format)},
+    )
+    monkeypatch.setattr("hinoki.orm.model.annotationlib", fake, raising=False)
+    monkeypatch.setattr("hinoki.orm.model.sys.version_info", (3, 14))
+    assert own_annotations(Lazy) == {"seen": ("Lazy", "forward")}
+    assert same_type("Unresolved", int)
+    assert _matches_model_annotation("anything", "Unresolved")
+    assert _matches_model_scalar(2, Any) and _matches_model_scalar(2, object)
+    assert _matches_model_scalar(2, float) and not _matches_model_scalar(True, float)
+    assert _constraint_passes("lt", 1, 2)
+
+
+def test_custom_awaitable_cleanup_calls_its_public_methods() -> None:
+    events: list[str] = []
+
+    class Awaitable:
+        def __await__(self) -> Any:
+            yield
+
+        def cancel(self) -> None:
+            events.append("cancel")
+
+        def close(self) -> None:
+            events.append("close")
+
+    _stop_custom_awaitable(Awaitable())
+    assert events == ["cancel", "close"]
+
+
+def test_model_field_rejects_invalid_constraints_and_validators() -> None:
+    invalid_constraints: Any = object()
+    with pytest.raises(RegistrationError, match=r"Field\(\.\.\.\)"):
+        field(constraints=invalid_constraints)
+    with pytest.raises(RegistrationError, match="supported on Schemas"):
+        field(constraints=Field(alias="name"))
+    with pytest.raises(RegistrationError, match="conflicts"):
+        field(max_length=5, constraints=Field(max_length=6))
+
+    invalid_validator: Any = 42
+    with pytest.raises(
+        RegistrationError, match="each Model validator must be callable"
+    ):
+
+        class InvalidValidator(Model, table="invalid_validator_callable"):
+            id: UUID = field(primary_key=True, default_factory=uuid4)
+            name: str = field(validators=(invalid_validator,))
+
+
+async def test_bulk_update_guards_and_sync_update_from_wrapper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(FieldError, match="needs id"):
+        await UnconstrainedRecord.aupdate(title="x")
+    with pytest.raises(FieldError, match="conditions and values"):
+        await UnconstrainedRecord.aupdate_where({}, {"title": "x"})
+
+    record = UnconstrainedRecord(id=UUID(int=1), title="before")
+
+    def complete(awaitable: Any) -> UnconstrainedRecord:
+        awaitable.close()
+        return record
+
+    monkeypatch.setattr("hinoki.orm.model.run_sync", complete)
+    assert record.update_from() is record
