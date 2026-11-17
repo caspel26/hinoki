@@ -9,6 +9,7 @@
 //! object; `rustserver.rs` drives `Core::classify` from the connection layer, and
 //! the tests call `submit` the same way without a socket.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -457,12 +458,8 @@ fn prepare_native_inputs(
         Ok(path) => path,
         Err(error) => return NativeInput::failed(error),
     };
-    let joined = request::join_headers(headers);
-    let accept = joined
-        .iter()
-        .find(|(name, _)| name == "accept")
-        .map_or("", |(_, value)| value.as_str());
-    if request::negotiate(accept, &plan.media_types).is_none() {
+    let accept = joined_value(headers, b"accept").map_or_else(String::new, |v| latin1(&v));
+    if request::negotiate(&accept, &plan.media_types).is_none() {
         let mut error = native_error("not_acceptable", "not acceptable");
         error.available = Some(plan.media_types.join(", "));
         return NativeInput::failed(error);
@@ -982,57 +979,63 @@ impl Core {
     }
 
     fn policy_response(&self, head: &Head<'_>, asked: &Asked) -> Result<Option<Outcome>, String> {
-        let joined = request::join_headers(&head.headers);
-        let origin = header_value(&joined, "origin");
-        let host = header_value(&joined, "host");
-        let host_bytes = host.as_deref().unwrap_or_default().as_bytes();
+        if !self.has_policies() {
+            return Ok(None);
+        }
+        // `Hosts` reads the header as the Latin-1 text `join_headers` makes.
+        let host = joined_value(&head.headers, b"host").map(latin1_bytes);
+        let host_bytes = host.as_deref().unwrap_or_default();
         if self
             .hosts
             .as_ref()
             .is_some_and(|policy| !policy.allows(host_bytes))
         {
-            return Ok(Some(self.answer(
-                asked,
-                Early::DisallowedHost,
-                Vec::new(),
-            )?));
+            return self
+                .answer(asked, Early::DisallowedHost, Vec::new())
+                .map(Some);
         }
-        if let Some(cors) = self.cors.as_ref() {
-            match cors.preflight(
-                head.method,
-                origin.as_deref().map(str::as_bytes),
-                has_header(&joined, "access-control-request-method"),
-            ) {
-                Ok(Some(own)) => {
-                    return Ok(Some(Outcome::Early(self.policy_reply(
-                        asked,
-                        204,
-                        own,
-                        Vec::new(),
-                    )?)))
-                }
-                Err(PreflightError::OriginDenied) => {
-                    return Ok(Some(self.answer(
-                        asked,
-                        Early::CorsOriginDenied,
-                        Vec::new(),
-                    )?));
-                }
-                Ok(None) => {}
-            }
+        if let Some(outcome) = self.preflight_response(head, asked)? {
+            return Ok(Some(outcome));
         }
-        if self.redirect_https && !asked.https {
-            if let Some(location) = redirect::location(host_bytes, head.path.as_bytes(), head.query)
-            {
-                return Ok(Some(Outcome::Early(self.policy_reply(
-                    asked,
-                    308,
-                    vec![(b"location".to_vec(), location)],
-                    Vec::new(),
-                )?)));
-            }
+        if !self.redirect_https || asked.https {
+            return Ok(None);
         }
-        Ok(None)
+        let Some(location) = redirect::location(host_bytes, head.path.as_bytes(), head.query)
+        else {
+            return Ok(None);
+        };
+        self.policy_reply(
+            asked,
+            308,
+            vec![(b"location".to_vec(), location)],
+            Vec::new(),
+        )
+        .map(|reply| Some(Outcome::Early(reply)))
+    }
+
+    /// The answer to a CORS preflight, or its refusal; `None` for any other request.
+    fn preflight_response(
+        &self,
+        head: &Head<'_>,
+        asked: &Asked,
+    ) -> Result<Option<Outcome>, String> {
+        let Some(cors) = self.cors.as_ref() else {
+            return Ok(None);
+        };
+        let origin = joined_value(&head.headers, b"origin");
+        let requests_method = head
+            .headers
+            .iter()
+            .any(|(name, _)| name.eq_ignore_ascii_case(b"access-control-request-method"));
+        match cors.preflight(head.method, origin.as_deref(), requests_method) {
+            Ok(Some(own)) => self
+                .policy_reply(asked, 204, own, Vec::new())
+                .map(|reply| Some(Outcome::Early(reply))),
+            Ok(None) => Ok(None),
+            Err(PreflightError::OriginDenied) => self
+                .answer(asked, Early::CorsOriginDenied, Vec::new())
+                .map(Some),
+        }
     }
 
     fn has_policies(&self) -> bool {
@@ -1320,15 +1323,39 @@ fn origin_of(headers: &[Header]) -> Vec<u8> {
     found.join(&b", "[..])
 }
 
-fn header_value(headers: &[(String, String)], name: &str) -> Option<String> {
-    headers
-        .iter()
-        .find(|(header, _)| header == name)
-        .map(|(_, value)| value.clone())
+/// One request header as `request::join_headers` reads it: the name compared
+/// without case, repeated fields joined with ", ". Borrowed unless it repeats.
+fn joined_value<'a>(headers: &'a [Header], name: &[u8]) -> Option<Cow<'a, [u8]>> {
+    let mut found: Option<Cow<'a, [u8]>> = None;
+    for (header, value) in headers {
+        if !header.eq_ignore_ascii_case(name) {
+            continue;
+        }
+        found = Some(match found {
+            None => Cow::Borrowed(value.as_slice()),
+            Some(seen) => {
+                let mut joined = seen.into_owned();
+                joined.extend_from_slice(b", ");
+                joined.extend_from_slice(value);
+                Cow::Owned(joined)
+            }
+        });
+    }
+    found
 }
 
-fn has_header(headers: &[(String, String)], name: &str) -> bool {
-    headers.iter().any(|(header, _)| header == name)
+/// Latin-1 header bytes as text, as in ASGI.
+fn latin1(bytes: &[u8]) -> String {
+    bytes.iter().map(|&byte| char::from(byte)).collect()
+}
+
+/// The UTF-8 bytes of that text; plain ASCII is returned as it came.
+fn latin1_bytes(bytes: Cow<'_, [u8]>) -> Cow<'_, [u8]> {
+    if bytes.is_ascii() {
+        bytes
+    } else {
+        Cow::Owned(latin1(&bytes).into_bytes())
+    }
 }
 
 fn percent_decode(path: &str) -> Vec<u8> {
