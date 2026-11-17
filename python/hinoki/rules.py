@@ -446,6 +446,79 @@ class ForbidModelResponses(Rule):
                 )
 
 
+class RequireReturnType(Rule):
+    id = "HNK-API-002"
+    fix = "annotate the action's return type (a Schema, or None for status 204)"
+    explanation = (
+        "The return annotation is the response contract that OpenAPI and rules "
+        "read. An action without one (or typed Any/object) has no checkable response."
+    )
+
+    def __init__(self, match: str = "*", except_: Iterable[str] = ()) -> None:
+        self.match = match
+        self.exceptions = tuple(except_)
+
+    def summary(self) -> str:
+        return (
+            f"Actions.require_return_type(match={self.match!r}, "
+            f"except_={list(self.exceptions)})"
+        )
+
+    def check(self, project: Project) -> Iterator[Diagnostic]:
+        for route in project.app.routes:
+            if not matches(route, [self.match]) or matches(route, self.exceptions):
+                continue
+            hints = hints_of(route.handler)
+            if "return" in hints and not is_open(hints["return"]):
+                continue
+            yield self.diagnostic(
+                f"{route.method} {route.path} ({route.handler.__qualname__}) "
+                "does not declare a concrete return type",
+                where(route.handler),
+                subject=qualified(route),
+            )
+
+
+def returns_plain_list(annotation: object) -> bool:
+    """The annotation is, or is a union with, a ``list[...]``."""
+    if typing.get_origin(annotation) is list or annotation is list:
+        return True
+    return any(returns_plain_list(argument) for argument in typing.get_args(annotation))
+
+
+class RequirePagination(Rule):
+    id = "HNK-API-003"
+    fix = "return Page[Item] and paginate the action instead of returning a list"
+    explanation = (
+        "A GET that returns a plain list grows with the table. A Page bounds the "
+        "response and tells the client the total."
+    )
+
+    def __init__(self, match: str = "*", except_: Iterable[str] = ()) -> None:
+        self.match = match
+        self.exceptions = tuple(except_)
+
+    def summary(self) -> str:
+        return (
+            f"Actions.require_pagination(match={self.match!r}, "
+            f"except_={list(self.exceptions)})"
+        )
+
+    def check(self, project: Project) -> Iterator[Diagnostic]:
+        for route in project.app.routes:
+            if route.method != "GET" or not matches(route, [self.match]):
+                continue
+            if matches(route, self.exceptions):
+                continue
+            if returns_plain_list(hints_of(route.handler).get("return")):
+                yield self.diagnostic(
+                    f"GET {route.path} ({route.handler.__qualname__}) returns a "
+                    "plain list, not a Page",
+                    where(route.handler),
+                    subject=qualified(route),
+                )
+
+
 class ForbidImports(Rule):
     id = "HNK-IMP-001"
     fix = (
@@ -518,6 +591,8 @@ class Actions:
 
     require_access: ClassVar[Callable[..., Rule]] = RequireAccess
     forbid_model_responses: ClassVar[Callable[..., Rule]] = ForbidModelResponses
+    require_return_type: ClassVar[Callable[..., Rule]] = RequireReturnType
+    require_pagination: ClassVar[Callable[..., Rule]] = RequirePagination
 
 
 class Transactions:
