@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from hinoki import API, Access, Hinoki, Permission, http
-from hinoki.request import Request
+from hinoki.http.request import Request
 from tests.providers import TokenAuth
 
 

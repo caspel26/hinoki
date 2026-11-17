@@ -23,9 +23,9 @@ from hinoki import (
 from hinoki.crud import Resource
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import Forbidden, RegistrationError
+from hinoki.http.request import Request
 from hinoki.orm import Model, QuerySet, field, use_database
 from hinoki.pagination import Page, PageNumberPagination, PageParams
-from hinoki.request import Request
 from tests.harness import Client, Pool
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")

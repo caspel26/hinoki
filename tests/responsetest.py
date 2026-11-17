@@ -2,7 +2,9 @@
 
 import pytest
 
-from hinoki import Hinoki, HTMLRenderer, Reply, Request, Response, http, set_cookie
+import hinoki
+from hinoki import Hinoki, HTMLRenderer, Request, Response, http, set_cookie
+from hinoki.http.response import Response as ModuleResponse
 from tests.harness import Client, Pool
 
 
@@ -97,8 +99,10 @@ def test_invalid_replies_are_refused_when_built(arguments: dict[str, object]) ->
         Response(**arguments)  # type: ignore[arg-type]
 
 
-def test_reply_is_a_compatibility_alias_for_response() -> None:
-    assert Reply is Response
+def test_response_is_public_from_package_and_http_module() -> None:
+    assert ModuleResponse is Response
+    assert "Reply" not in hinoki.__all__
+    assert not hasattr(hinoki, "Reply")
 
 
 @pytest.mark.parametrize(

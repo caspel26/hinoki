@@ -11,7 +11,7 @@ import pytest
 
 from hinoki import API, Hinoki, RuntimeConfig, context, http
 from hinoki.errors import RegistrationError
-from hinoki.request import Request
+from hinoki.http.request import Request
 from tests.harness import Client, Pool
 
 release = threading.Event()

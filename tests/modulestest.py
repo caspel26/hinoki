@@ -2,8 +2,8 @@ import pytest
 
 from hinoki import API, Hinoki, Module, http
 from hinoki.errors import ModuleGraphError, RegistrationError
+from hinoki.http.request import Request
 from hinoki.modules import order_modules
-from hinoki.request import Request
 
 
 class A(Module):

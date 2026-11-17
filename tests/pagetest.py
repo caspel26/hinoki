@@ -5,8 +5,8 @@ from openapi_spec_validator import validate
 
 from hinoki import Hinoki, Schema, http
 from hinoki.errors import RegistrationError
+from hinoki.http.request import Request
 from hinoki.pagination import Page, PageNumberPagination, PageParams
-from hinoki.request import Request
 from tests.harness import Pool
 
 strategy = PageNumberPagination(page_size=2, max_page_size=5)
