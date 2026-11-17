@@ -1,6 +1,5 @@
 //! Rust-only row projection and JSON encoding for eligible generated CRUD pages.
 
-use chrono::Datelike;
 use hinoki_orm::Value;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -163,8 +162,8 @@ fn validate_columns(row: &[(String, Value)], columns: &[String]) -> Option<()> {
     Some(())
 }
 
-fn python_datetime_representable(value: &chrono::DateTime<chrono::Utc>) -> bool {
-    (1..=9999).contains(&value.year()) && value.timestamp_subsec_nanos() < 1_000_000_000
+fn python_datetime_representable(value: &time::OffsetDateTime) -> bool {
+    (1..=9999).contains(&value.year())
 }
 
 fn write_value(output: &mut Vec<u8>, value: &Value, field: &Field) -> Option<()> {
@@ -188,20 +187,10 @@ fn write_value(output: &mut Vec<u8>, value: &Value, field: &Field) -> Option<()>
             if !(1..=9999).contains(&value.year()) {
                 return None;
             }
-            write_json(output, &timestamp_text(value))
+            write_json(output, &hinoki_orm::timestamp_iso(value))
         }
         _ => None,
     }
-}
-
-fn timestamp_text(value: &chrono::DateTime<chrono::Utc>) -> String {
-    let mut text = value.format("%Y-%m-%dT%H:%M:%S").to_string();
-    let micros = value.timestamp_subsec_micros();
-    if micros != 0 {
-        text.push_str(&format!(".{micros:06}"));
-    }
-    text.push_str("+00:00");
-    text
 }
 
 fn write_key(output: &mut Vec<u8>, value: &str) -> Option<()> {

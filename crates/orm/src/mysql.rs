@@ -258,15 +258,15 @@ fn params(values: &[Value]) -> Result<Params, DbError> {
             Value::Bytes(value) => Ok(mysql_async::Value::Bytes(value.clone())),
             Value::Uuid(value) => Ok(mysql_async::Value::Bytes(value.as_bytes().to_vec())),
             Value::Timestamp(value) => {
-                let value = value.naive_utc();
+                let value = value.to_offset(time::UtcOffset::UTC);
                 Ok(mysql_async::Value::Date(
                     value.year() as u16,
-                    value.month() as u8,
-                    value.day() as u8,
-                    value.hour() as u8,
-                    value.minute() as u8,
-                    value.second() as u8,
-                    value.and_utc().timestamp_subsec_micros(),
+                    u8::from(value.month()),
+                    value.day(),
+                    value.hour(),
+                    value.minute(),
+                    value.second(),
+                    value.microsecond(),
                 ))
             }
             Value::Json(value) => serde_json::to_vec(value)
@@ -339,21 +339,13 @@ fn decode_cell(
             Value::Text(text)
         }
         M::Date(year, month, day, hour, minute, second, micros) => {
-            let date = chrono::NaiveDate::from_ymd_opt(
-                i32::from(*year),
-                u32::from(*month),
-                u32::from(*day),
-            )
-            .and_then(|date| {
-                date.and_hms_micro_opt(
-                    u32::from(*hour),
-                    u32::from(*minute),
-                    u32::from(*second),
-                    *micros,
-                )
-            })
-            .ok_or_else(|| DbError::new(ErrorKind::Type, "could not decode a timestamp column"))?;
-            Value::Timestamp(date.and_utc())
+            let invalid = || DbError::new(ErrorKind::Type, "could not decode a timestamp column");
+            let month = time::Month::try_from(*month).map_err(|_| invalid())?;
+            let date = time::Date::from_calendar_date(i32::from(*year), month, *day)
+                .map_err(|_| invalid())?;
+            let clock = time::Time::from_hms_micro(*hour, *minute, *second, *micros)
+                .map_err(|_| invalid())?;
+            Value::Timestamp(time::PrimitiveDateTime::new(date, clock).assume_utc())
         }
         M::Time(..) => {
             return Err(DbError::new(
@@ -379,6 +371,3 @@ fn error(error: &mysql_async::Error, fallback: ErrorKind) -> DbError {
     }
     DbError::new(fallback, "database request failed")
 }
-
-use chrono::Datelike;
-use chrono::Timelike;
