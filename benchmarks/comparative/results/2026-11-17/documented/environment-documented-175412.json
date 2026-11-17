@@ -1,0 +1,39 @@
+{
+  "date": "2026-11-17 17:54:12 +0100",
+  "machine": "Linux-7.2.11-arch1-1-x86_64-with-glibc2.44",
+  "cpu": "Intel(R) Core(TM) i5-10300H CPU @ 2.50GHz",
+  "host": {
+    "pinning": "taskset"
+  },
+  "cores": 8,
+  "loadavg_at_start": [
+    0.81005859375,
+    7.17041015625,
+    9.41455078125
+  ],
+  "python": "3.13.18 (main, Nov 11 2026, 00:17:48) [Clang 23.1.3 ]",
+  "packages": "[{\"name\":\"annotated-doc\",\"version\":\"0.0.6\"},{\"name\":\"annotated-types\",\"version\":\"0.8.0\"},{\"name\":\"anyio\",\"version\":\"4.16.0\"},{\"name\":\"asgiref\",\"version\":\"3.13.0\"},{\"name\":\"ast-serialize\",\"version\":\"0.13.1\"},{\"name\":\"asyncpg\",\"version\":\"0.32.0\"},{\"name\":\"attrs\",\"version\":\"26.1.0\"},{\"name\":\"certifi\",\"version\":\"2026.10.23\"},{\"name\":\"cfgv\",\"version\":\"3.5.0\"},{\"name\":\"click\",\"version\":\"8.5.1\"},{\"name\":\"complexipy\",\"version\":\"9.0.0\"},{\"name\":\"coverage\",\"version\":\"7.17.3\"},{\"name\":\"distlib\",\"version\":\"0.4.4\"},{\"name\":\"django\",\"version\":\"6.1.3\"},{\"name\":\"django-bolt\",\"version\":\"0.13.0\"},{\"name\":\"django-ninja\",\"version\":\"1.8.0\"},{\"name\":\"fastapi\",\"version\":\"0.162.7\"},{\"name\":\"filelock\",\"version\":\"4.2.11\"},{\"name\":\"granian\",\"version\":\"2.8.8\"},{\"name\":\"greenlet\",\"version\":\"3.5.6\"},{\"name\":\"h11\",\"version\":\"0.16.0\"},{\"name\":\"hinoki\",\"version\":\"0.0.1\",\"editable_project_location\":\"/tmp/hinoki-final-bench\"},{\"name\":\"httpcore\",\"version\":\"1.0.9\"},{\"name\":\"httpx\",\"version\":\"0.28.1\"},{\"name\":\"identify\",\"version\":\"2.6.20\"},{\"name\":\"idna\",\"version\":\"3.20\"},{\"name\":\"iniconfig\",\"version\":\"2.3.1\"},{\"name\":\"jsonschema\",\"version\":\"4.26.0\"},{\"name\":\"jsonschema-path\",\"version\":\"0.5.0\"},{\"name\":\"jsonschema-specifications\",\"version\":\"2025.9.1\"},{\"name\":\"lazy-object-proxy\",\"version\":\"1.13.0\"},{\"name\":\"librt\",\"version\":\"0.16.0\"},{\"name\":\"msgspec\",\"version\":\"0.22.0\"},{\"name\":\"mypy\",\"version\":\"2.4.1\"},{\"name\":\"mypy-extensions\",\"version\":\"1.2.0\"},{\"name\":\"nodeenv\",\"version\":\"1.12.0\"},{\"name\":\"openapi-schema-validator\",\"version\":\"0.9.0\"},{\"name\":\"openapi-spec-validator\",\"version\":\"0.9.0\"},{\"name\":\"opentelemetry-api\",\"version\":\"1.45.2\"},{\"name\":\"packaging\",\"version\":\"26.3\"},{\"name\":\"pathable\",\"version\":\"0.6.0\"},{\"name\":\"pathspec\",\"version\":\"1.1.1\"},{\"name\":\"platformdirs\",\"version\":\"4.14.5\"},{\"name\":\"pluggy\",\"version\":\"1.7.0\"},{\"name\":\"pre-commit\",\"version\":\"4.7.0\"},{\"name\":\"psycopg\",\"version\":\"3.3.9\"},{\"name\":\"psycopg-binary\",\"version\":\"3.3.9\"},{\"name\":\"psycopg-pool\",\"version\":\"3.3.3\"},{\"name\":\"pydantic\",\"version\":\"2.14.3\"},{\"name\":\"pydantic-core\",\"version\":\"2.50.4\"},{\"name\":\"pydantic-settings\",\"version\":\"2.16.3\"},{\"name\":\"pygments\",\"version\":\"2.21.0\"},{\"name\":\"pyjwt\",\"version\":\"2.15.1\"},{\"name\":\"pytest\",\"version\":\"9.2.0\"},{\"name\":\"pytest-asyncio\",\"version\":\"1.5.0\"},{\"name\":\"pytest-cov\",\"version\":\"7.1.0\"},{\"name\":\"python-discovery\",\"version\":\"1.9.5\"},{\"name\":\"python-dotenv\",\"version\":\"1.2.4\"},{\"name\":\"pyyaml\",\"version\":\"6.0.3\"},{\"name\":\"referencing\",\"version\":\"0.37.0\"},{\"name\":\"rfc3339-validator\",\"version\":\"0.1.4\"},{\"name\":\"rpds-py\",\"version\":\"2026.9.1\"},{\"name\":\"ruff\",\"version\":\"0.15.12\"},{\"name\":\"six\",\"version\":\"1.17.0\"},{\"name\":\"sqlalchemy\",\"version\":\"2.1.8\"},{\"name\":\"sqlparse\",\"version\":\"0.6.1\"},{\"name\":\"starlette\",\"version\":\"1.10.0\"},{\"name\":\"typing-extensions\",\"version\":\"4.16.0\"},{\"name\":\"typing-inspection\",\"version\":\"0.4.5\"},{\"name\":\"uvicorn\",\"version\":\"0.54.0\"},{\"name\":\"uvloop\",\"version\":\"0.23.0\"},{\"name\":\"virtualenv\",\"version\":\"21.15.8\"},{\"name\":\"watchfiles\",\"version\":\"1.3.0\"}]\n",
+  "postgres": "postgres (PostgreSQL) 17.12 (Debian 17.12-1.pgdg13+1)",
+  "oha": "oha 1.17.0",
+  "settings": {
+    "server_mode": "documented",
+    "stacks": [
+      "hinoki",
+      "fastapi",
+      "ninja",
+      "bolt"
+    ],
+    "workers": 4,
+    "pool_per_worker": 10,
+    "concurrency": 64,
+    "warmup_s": 10,
+    "duration_s": 20,
+    "runs": 5,
+    "run_offset": 5,
+    "scenarios": [
+      "create"
+    ],
+    "server_cpus": "0-3",
+    "load_cpus": "6-7"
+  }
+}

@@ -87,14 +87,20 @@ Two independent result sets are retained, and they are never combined:
   5% for every stack, so no extra create block was captured. Django Bolt is
   not charted from this run: its worker file shows one busy process out of the
   four it was started with, so it is not a four-process result.
-* `results/2026-11-15/`: Linux, i5-10300H, CPU pinning. Create had ten samples
-  per stack across the documented and same-Granian slices; the extra blocks
-  have separate environment records. Its CV remains above 15% for every stack,
-  so treat create throughput there as noisy and inconclusive for close
-  comparisons.
+* `results/2026-11-17/`: Linux 7.2.11, i5-10300H, CPU pinning, built from the
+  `main` of that day (generated lists and the other Rust request-path work
+  merged since the earlier Linux run). Health, list and detail had five samples
+  per stack; create had ten per stack (a second block of five with a separate
+  environment record). Create CV stayed above 20% for every stack, so create
+  results there are inconclusive for close comparisons. The one-minute load
+  average was 0.90 when each slice started; the second slice followed the first
+  immediately, so its five- and fifteen-minute averages were still high.
+* `results/2026-11-15/`: the earlier Linux run, made before those changes and
+  retained as raw data only. It is not part of the public chart page and is not
+  comparable with the 2026-11-17 run.
 
-The public chart page is generated from the raw JSON files of both with
-`report.py`; pass the macOS directories first.
+The public chart page is generated from the raw JSON files of the macOS and
+2026-11-17 Linux results with `report.py`; pass the macOS directories first.
 
 ## Limits
 

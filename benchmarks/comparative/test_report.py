@@ -177,3 +177,10 @@ def test_stack_with_one_busy_process_is_flagged_but_balanced_stacks_are_not() ->
         )
 
     assert flagged == ["bolt"]
+
+
+def test_cpu_time_accepts_macos_and_linux_ps_formats() -> None:
+    assert report.cpu_seconds("1:02.50") == 62.5
+    assert report.cpu_seconds("00:05:59") == 359
+    assert report.cpu_seconds("01:02:03") == 3723
+    assert report.cpu_seconds("2-00:00:01") == 172801
