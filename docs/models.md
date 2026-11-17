@@ -17,7 +17,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from hinoki import db
-from hinoki.orm import Model, OnDelete, field, foreign_key, pk, unique
+from hinoki.orm import Model, OnDelete, field, foreign_key, pk
 from hinoki.utils import utc_now
 
 
@@ -57,7 +57,11 @@ defaults to `persons`, and `Analysis` to `analysises`; provide explicit values
 when those mechanical defaults are not right. Generated identifiers must be
 portable ASCII SQL names of at most 63 characters. Names beginning with
 SQLite's reserved `sqlite_` prefix and Hinoki's `hinoki_migrations` ledger name
-are rejected with an override hint. Physical-table conflicts are reported
+are rejected with a hint to name the table. A class whose derived name is
+rejected is still defined, so `@db.table(...)` can name its table (`@db.table("cafes")`
+on `class Café(Model)` works); without an explicit name the error is raised when
+the model is used: a query or write, a migration plan, a project or Admin
+registration, or a foreign key to it. Physical-table conflicts are reported
 when models are aggregated for migrations, projects or one Admin instance.
 
 A model has exactly one primary key. `pk()` is the field-specifier shorthand for
@@ -247,7 +251,7 @@ class Article(Keyed, Tracked):
 `Article` has the columns `created_at`, `updated_at`, `id` and `title`, is ordered by `-updated_at`, has the index and refreshes `updated_at` on every update. `Tracked.all()` raises `ModelError`: query `Article`.
 
 * `abstract=True` is not inherited. A subclass is a table model unless it says `abstract=True` again; its table name is derived unless `table=` overrides it. An abstract model needs no primary key; a table model needs exactly one, its own or an inherited one.
-* **Options** declared on abstract bases are inherited: every base's `@unique` constraints and `@indexed` indexes, and the order and timestamp column of the first base (in the order the bases resolve) that sets one. Applying a decorator on the subclass *replaces* what was inherited for that kind of option; it does not add to it. To keep an inherited index while adding one, declare both on the subclass. Options you do not touch stay inherited. A replacement made in an abstract base holds for everything below it: a model reads its options from the abstract bases it lists, and each of those already carries what it inherited and replaced.
+* **Options** declared on abstract bases are inherited: every base's `@unique` constraints and `@indexed` indexes, and the order and timestamp column of the first base (in the order the bases resolve) that sets one. Applying a decorator on the subclass *replaces* what was inherited for that kind of option; it does not add to it. A `field(index=True)` index belongs to its column instead: it is inherited with the column, and a subclass that redeclares the column without `index=True` drops it, with or without decorators. To keep an inherited index while adding one, declare both on the subclass. Options you do not touch stay inherited. A replacement made in an abstract base holds for everything below it: a model reads its options from the abstract bases it lists, and each of those already carries what it inherited and replaced.
 * **Plain mixins** work too: a class that is not a model contributes the fields it annotates, `field(...)` and `foreign_key(...)` included, and its methods. An annotation marked `ClassVar` is not a field. A type checker does not see a plain mixin's fields as constructor arguments, so prefer an abstract model when you construct instances with those fields.
 * **One name, two types.** If two bases give the same field name different types and the class does not declare that field itself, the class is refused with an error naming both bases. The same type from two bases is accepted, and a class (or an abstract subclass) that redeclares a field decides its type. A type checker still reports a redeclaration with an incompatible type, as it does for any class.
 * **Subclassing a table model** is allowed: the subclass gets a copy of the parent's columns in a separate table, derived from the subclass name unless `table=` overrides it. `hinoki migrations plan` shows the new table. The two tables are unrelated: there is no join between them and a query on the parent does not return the subclass's rows. A table model does not pass its options on; only abstract bases do.

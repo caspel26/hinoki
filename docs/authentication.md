@@ -9,8 +9,12 @@ related:
 
 Hinoki keeps credential parsing in an authentication provider and permission checks in an `Access` policy. Endpoints are public unless a policy is attached; protect each private action deliberately.
 
-Define closed permission names with `Permission`, an empty string-enum base. Existing
-string permission values remain accepted during the compatibility cycle.
+Define closed permission names with `Permission`, an empty string-enum base. Plain
+string permission values remain accepted: `Access` and `Caller` store every permission
+as its string value, so a `Permission` member and the equal string match each other in
+checks, reprs and logs. The compatibility cycle for string permissions (a deprecation
+warning) and a typing that accepts only `Permission` members are deferred; neither is
+in effect yet.
 
 ```python
 from hinoki import Permission
