@@ -3,20 +3,23 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from hinoki.orm import Model, OnDelete, field, foreign_key, indexed, ordered_by
+from hinoki import db
+from hinoki.orm import Model, OnDelete, field, foreign_key, pk
 from hinoki.utils import utc_now
 
 
-class Member(Model, table="tracker_members"):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
+@db.table("tracker_members")
+class Member(Model):
+    id: UUID = pk(default_factory=uuid4)
     name: str = field(max_length=80)
     token: str = field(unique=True)
 
 
-@indexed("owner_id", "created_at")
-@ordered_by("-created_at", "-id")
-class Task(Model, table="tracker_tasks", label="Task", plural="Tasks"):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
+@db.indexed("owner_id", "created_at")
+@db.ordered_by("-created_at", "-id")
+@db.table("tracker_tasks")
+class Task(Model, label="Task", plural="Tasks"):
+    id: UUID = pk(default_factory=uuid4)
     owner_id: UUID = foreign_key(
         Member, on_delete=OnDelete.RESTRICT, related_name="tasks"
     )
