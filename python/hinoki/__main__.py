@@ -98,7 +98,68 @@ def parser() -> argparse.ArgumentParser:
     show.add_argument("name")
     show.add_argument("--app", help="project app containing the migration")
     group.set_defaults(group_help=group.format_help())
+    add_migration_shortcuts(commands)
     return root
+
+
+def add_migration_shortcuts(
+    commands: "argparse._SubParsersAction[argparse.ArgumentParser]",
+) -> None:
+    """``makemigrations`` and ``migrate``: short forms of ``migrations plan/apply``."""
+    make = commands.add_parser(
+        "makemigrations",
+        help="write a migration from the models (same as `migrations plan`)",
+    )
+    make.add_argument("app", nargs="?", help="project app (same as --app)")
+    make.add_argument("--name", help="optional migration slug")
+    make.add_argument("--allow-destructive", action="store_true")
+    make.add_argument("--dry-run", action="store_true", help="print, write nothing")
+    make.add_argument(
+        "--check",
+        action="store_true",
+        help="fail if model changes are missing from migration files",
+    )
+    make.add_argument(
+        "--database",
+        default=os.environ.get(URL_VARIABLE),
+        help=f"target database URL; defaults to local SQLite or {URL_VARIABLE}",
+    )
+    migrate = commands.add_parser(
+        "migrate", help="apply pending migrations (same as `migrations apply`)"
+    )
+    migrate.add_argument(
+        "app", nargs="?", help="project app and its prerequisites (default: all)"
+    )
+    migrate.add_argument(
+        "--database",
+        default=os.environ.get(URL_VARIABLE),
+        help=f"connection URL; prefer {URL_VARIABLE}, which keeps a password "
+        "out of the process list",
+    )
+
+
+def run_makemigrations(args: argparse.Namespace) -> int:
+    return run_migrations(
+        argparse.Namespace(
+            action="plan",
+            dir=None,
+            models=None,
+            app=args.app,
+            name=args.name,
+            allow_destructive=args.allow_destructive,
+            dry_run=args.dry_run,
+            check=args.check,
+            database=args.database,
+        )
+    )
+
+
+def run_migrate(args: argparse.Namespace) -> int:
+    return run_migrations(
+        argparse.Namespace(
+            action="apply", dir=None, app=args.app, database=args.database
+        )
+    )
 
 
 def run_plan(args: argparse.Namespace) -> int:
@@ -323,6 +384,8 @@ def main(argv: list[str] | None = None) -> int:
         "doctor": doctorcli.run_doctor,
         "mcp": run_mcp_command,
         "migrations": run_migrations,
+        "makemigrations": run_makemigrations,
+        "migrate": run_migrate,
         "openapi": openapicli.run_openapi,
         "routes": routescli.run_routes,
         "settings": settingscli.run_settings,
