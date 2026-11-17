@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import Access, Caller, Hinoki, Mount
+from hinoki import Access, Caller, Hinoki, Mount, Reply
 from hinoki.admin import (
     THEMES,
     Admin,
@@ -29,6 +29,7 @@ from hinoki.admin import (
     Theme,
     csrf,
 )
+from hinoki.admin import views as admin_views
 from hinoki.admin.components import (
     Components,
     icon_name,
@@ -51,8 +52,17 @@ from hinoki.admin.forms import (
     to_datetime,
 )
 from hinoki.admin.lists import apply_state, matching, pagination_for, table_head
+from hinoki.admin.modeladmin import OutOfScope
+from hinoki.admin.parts import Event
 from hinoki.admin.site import ListState, Site, guarded, number, parse_key
 from hinoki.admin.templates import UI, Raw, TemplateError, Templates, escape
+from hinoki.admin.views import (
+    authorize_bulk_rows,
+    authorized_bulk_action,
+    bulk_keys,
+    bulk_rows,
+    index,
+)
 from hinoki.db import Database, DatabaseError, DatabaseModule
 from hinoki.errors import ErrorDetail, ModelValidationError, RegistrationError
 from hinoki.orm import (
@@ -652,6 +662,153 @@ async def test_admin_guarded_writes_summarize_validation_and_database_errors(
 
     assert await guarded(invalid()) == "title: is invalid"
     assert await guarded(rejected()) == "The database rejected these values."
+
+
+async def test_admin_bulk_resolution_rejects_bad_or_inaccessible_selections() -> None:
+    principal = Caller(id="admin", user="admin")
+    admin = NoteAdmin()
+    admin.model = Note
+    key = uuid4()
+    row = SimpleNamespace(id=key)
+    assert bulk_keys(admin, ["not-a-uuid"], None) == []
+    assert bulk_keys(admin, ["not-a-uuid"], "publish") is None
+    assert bulk_keys(admin, [str(key), str(key)], None) is None
+    assert bulk_keys(admin, [], "publish") == []
+    assert authorize_bulk_rows(admin, principal, [key, uuid4()], [row], None) == [row]
+    assert authorized_bulk_action(admin, principal, "not-a-real-action") is None
+    fake_site = cast(Site, SimpleNamespace(principal=principal))
+    assert await bulk_rows(fake_site, admin, ["invalid"], "publish") is None
+    assert await bulk_rows(fake_site, admin, [], "publish") == []
+
+
+async def test_admin_dashboard_skips_hidden_entry_and_renders_activity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def activity(_principal: Caller[Any]) -> list[Event]:
+        return [Event("Changed a note", "now", icon="<bad>", tone="unknown")]
+
+    admin = Admin(
+        access=staff,
+        secret=SECRET,
+        dashboard=("hidden",),
+        activity=activity,
+    )
+
+    class FakeSite:
+        def __init__(self, *_args: object) -> None:
+            self.admin = admin
+            self.content = ""
+
+        def entry(self, _slug: str) -> None:
+            return None
+
+        def header(self, *_args: object) -> str:
+            return "header"
+
+        def done_notice(self) -> str:
+            return ""
+
+        async def page(self, _title: str, content: Raw, **_kwargs: object) -> Reply:
+            self.content = str(content)
+            return Reply(200, self.content)
+
+    monkeypatch.setattr(admin_views, "Site", FakeSite)
+    caller = Caller(id="staff", user="staff")
+    fake_self = SimpleNamespace(admin=admin)
+    response = await index(cast(Any, fake_self), cast(Any, None), caller)
+    assert response.status == 200
+    assert "Recent activity" in response.body.decode()
+    assert "Changed a note" in response.body.decode()
+
+
+def test_admin_bulk_row_authorization_fails_closed_for_custom_actions() -> None:
+    principal = Caller(id="admin", user="admin")
+    key = uuid4()
+    row = SimpleNamespace(id=key)
+    denied_view = cast(
+        ModelAdmin[Any],
+        SimpleNamespace(model=Note, can=lambda _p, _a, _r=None: False),
+    )
+    assert authorize_bulk_rows(denied_view, principal, [key], [row], None) == []
+    assert authorize_bulk_rows(denied_view, principal, [key], [row], "publish") is None
+    assert (
+        authorize_bulk_rows(denied_view, principal, [uuid4()], [row], "publish") is None
+    )
+
+
+@needs_database
+async def test_admin_write_views_handle_missing_models_rows_and_csrf(
+    site: tuple[Client, Database],
+) -> None:
+    client, database = site
+    assert (
+        await client.request("GET", "/admin/missing/add", headers=STAFF)
+    ).status == 404
+    assert (
+        await submit(client, "/admin/missing/add", {"csrf": "x"}, STAFF)
+    ).status == 404
+    missing = uuid4()
+    assert (
+        await submit(client, f"/admin/notes/{missing}", {"csrf": "x"}, STAFF)
+    ).status == 404
+    existing = await note_id(database, "csrf")
+    assert (await submit(client, f"/admin/notes/{existing}", {}, STAFF)).status == 403
+
+
+@needs_database
+async def test_admin_bulk_views_report_bad_targets_empty_sets_and_failures(
+    site: tuple[Client, Database], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, database = site
+    assert (await submit(client, "/admin/missing/bulk", {}, STAFF)).status == 404
+    assert (
+        await submit(
+            client, "/admin/notes/bulk", {"action": "missing", "csrf": "x"}, STAFF
+        )
+    ).status == 404
+    token, headers = await session(client, "/admin/notes")
+    empty = await submit(client, "/admin/notes/bulk", {"csrf": token}, headers)
+    assert empty.status == 303
+
+    key = await note_id(database, "bulk-failure")
+
+    async def failed_action(*_args: Any) -> str:
+        return "action refused"
+
+    monkeypatch.setattr("hinoki.admin.views.run_bulk_action", failed_action)
+    failed = await submit(
+        client,
+        "/admin/notes/bulk",
+        {
+            "csrf": token,
+            "action": "mark-done",
+            "confirmed": "1",
+            "ids": str(key),
+        },
+        headers,
+    )
+    assert failed.status == 409 and "action refused" in failed.body
+
+
+@needs_database
+async def test_admin_delete_guard_failure_is_reported_as_conflict(
+    site: tuple[Client, Database], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, database = site
+    key = await note_id(database, "delete-conflict")
+
+    async def refuse_remove(
+        _self: NoteAdmin, _row: Note, _principal: Caller[Any]
+    ) -> None:
+        raise OutOfScope
+
+    monkeypatch.setattr("tests.admintest.NoteAdmin.remove", refuse_remove)
+    token, headers = await session(client, f"/admin/notes/{key}")
+    response = await submit(
+        client, f"/admin/notes/{key}/delete", {"csrf": token}, headers
+    )
+    assert response.status == 409
+    assert "move the row out" in response.body
 
 
 def test_modeladmin_rejects_invalid_bulk_action_shapes_and_text() -> None:
