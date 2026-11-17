@@ -6,7 +6,7 @@ import sys
 from collections.abc import AsyncIterator
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 import pytest
@@ -15,7 +15,17 @@ from hinoki.__main__ import database_dialect, main
 from hinoki.db import Database, ForeignKeyViolation
 from hinoki.errors import DestructiveMigration, MigrationError
 from hinoki.orm import Model, OnDelete, field, foreign_key, migrator, use_database
-from hinoki.orm.migrations import foreign_key_name, models_of, plan, statements
+from hinoki.orm.migrations import (
+    _sqlite_rebuild_warnings,
+    alter_column,
+    check_references,
+    creation_order,
+    foreign_key_name,
+    foreign_key_sql,
+    models_of,
+    plan,
+    statements,
+)
 from hinoki.project import load_manifest
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -317,6 +327,85 @@ def test_migration_plan_uses_database_url_backend(url: str, dialect: str) -> Non
 def test_migration_plan_rejects_unknown_database_url_scheme() -> None:
     with pytest.raises(MigrationError, match="supported backend scheme"):
         database_dialect("oracle://db/app")
+
+
+def test_migration_planner_rejects_type_mismatch_and_foreign_key_cycles() -> None:
+    state = {
+        "tables": {
+            "child": {
+                "columns": {
+                    "owner_id": {
+                        "type": "text",
+                        "references": {"table": "owner", "column": "id"},
+                    }
+                }
+            }
+        }
+    }
+    external = {"tables": {"owner": {"columns": {"id": {"type": "bigint"}}}}}
+    with pytest.raises(MigrationError, match="is text but"):
+        check_references(state, external)
+    cycle = {
+        "a": {"columns": {"b_id": {"references": {"table": "b"}}}},
+        "b": {"columns": {"a_id": {"references": {"table": "a"}}}},
+    }
+    with pytest.raises(MigrationError, match="form a cycle"):
+        creation_order(cycle)
+
+
+def test_mysql_foreign_key_sql_refuses_non_foreign_key_columns() -> None:
+    with pytest.raises(MigrationError, match="is not a foreign key"):
+        foreign_key_sql("items", "name", {"references": None}, "mysql")
+
+
+def test_column_changes_cover_mysql_and_not_null_plans() -> None:
+    previous = {
+        "type": "text",
+        "nullable": True,
+        "primary_key": False,
+        "unique": False,
+        "references": None,
+    }
+    current = {**previous, "nullable": False}
+    mysql = alter_column("items", "name", previous, current, "mysql")
+    postgres = alter_column("items", "name", previous, current, "postgres")
+    assert "MODIFY COLUMN" in mysql[0].sql
+    assert "SET NOT NULL" in postgres[0].sql
+
+
+def test_sqlite_rebuild_warnings_cover_added_required_and_changed_columns() -> None:
+    previous = {
+        "columns": {
+            "name": {
+                "type": "text",
+                "nullable": True,
+                "primary_key": False,
+                "unique": False,
+                "references": None,
+            }
+        },
+        "unique": [],
+    }
+    current = {
+        "columns": {
+            "name": {
+                **cast(dict[str, Any], previous["columns"])["name"],
+                "nullable": False,
+            },
+            "required": {
+                "type": "text",
+                "nullable": False,
+                "primary_key": False,
+                "unique": False,
+                "references": None,
+            },
+        },
+        "unique": [["name"]],
+    }
+    warnings = _sqlite_rebuild_warnings(previous, current)
+    assert any("requires values" in item for item in warnings)
+    assert any("unique constraints" in item for item in warnings)
+    assert any("existing rows contain NULL" in item for item in warnings)
 
 
 @pytest.mark.asyncio
