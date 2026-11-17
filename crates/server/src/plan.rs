@@ -2,6 +2,45 @@
 //! indexed by action number, so a request needs no Python to be classified.
 
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
+/// A route's startup-frozen CRUD plan slot. Plans remain disarmed until the
+/// worker lifecycle attaches the database and verifies its snapshot.
+#[derive(Debug)]
+pub struct CrudPlanSlot {
+    pub action: u32,
+    armed: AtomicBool,
+}
+
+impl CrudPlanSlot {
+    pub fn new(action: u32) -> Self {
+        Self {
+            action,
+            armed: AtomicBool::new(false),
+        }
+    }
+
+    pub fn is_armed(&self) -> bool {
+        self.armed.load(Ordering::Acquire)
+    }
+
+    pub fn arm(&self) {
+        self.armed.store(true, Ordering::Release);
+    }
+
+    pub fn disarm(&self) {
+        self.armed.store(false, Ordering::Release);
+    }
+}
+
+impl PartialEq for CrudPlanSlot {
+    fn eq(&self, other: &Self) -> bool {
+        self.action == other.action && self.is_armed() == other.is_armed()
+    }
+}
+
+impl Eq for CrudPlanSlot {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RoutePlan {
@@ -21,6 +60,8 @@ pub struct RoutePlan {
     pub takes_request: bool,
     /// This action can skip Python request binding and response policy work.
     pub native_handler: bool,
+    /// The CRUD plan exists but is not executed before the lifecycle phase.
+    pub crud_plan: Option<Arc<CrudPlanSlot>>,
 }
 
 impl RoutePlan {
@@ -127,6 +168,7 @@ mod tests {
             transaction: false,
             takes_request: false,
             native_handler: false,
+            crud_plan: None,
         }
     }
 
