@@ -253,8 +253,13 @@ def stack_names(directory: Path, settings: dict) -> list[str]:
 
 
 def cpu_seconds(text: str) -> float:
-    minutes, seconds = text.split(":")
-    return int(minutes) * 60 + float(seconds)
+    """Parse `ps` CPU time: `mm:ss.ss` (macOS) or `[dd-]hh:mm:ss` (Linux)."""
+    days, _, clock = text.rpartition("-")
+    *larger, seconds = clock.split(":")
+    total = float(seconds)
+    for unit, part in zip((60, 3600), reversed(larger)):
+        total += int(part) * unit
+    return total + (int(days) * 86400 if days else 0)
 
 
 def busy_share(directory: Path, stack: str, workers: int) -> float | None:
