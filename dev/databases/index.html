@@ -473,6 +473,9 @@ provided <code>Database</code> instance.</p>
 <p>SQL Server and Oracle are not supported by this release. MySQL and MariaDB are
 separate URL/backend identities and each has its own real-server conformance
 job; MySQL's URL scheme does not imply MariaDB compatibility.</p>
+<p>Any other URL scheme, such as <code>oracle://</code> or <code>mssql://</code>, fails when the pool is
+created with <code>DatabaseError: unsupported database URL scheme</code>; the error does not
+repeat the URL, so credentials in it are not logged.</p>
 <h2 id="create-and-apply-migrations">Create and apply migrations<a class="headerlink" href="#create-and-apply-migrations" title="Permanent link">&para;</a></h2>
 <p>Migrations use the same selected URL. With no explicit URL, the CLI uses the
 local SQLite database. For another backend, export the URL without passing it
@@ -547,8 +550,8 @@ types, raw SQL placeholders and backend limits.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.2</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 23:12:11 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>4 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:44:19 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/databases.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
