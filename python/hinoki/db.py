@@ -5,13 +5,18 @@ lifespan), never at import. Inside ``async with db.transaction():`` every
 ``db.fetch``/``db.execute`` of that task uses the transaction's connection;
 nested scopes become savepoints; leaving the scope commits, or rolls back on
 any exception (including cancellation and timeouts).
+
+The namespace also carries the model declaration decorators, so a models
+module reads ``from hinoki import db`` and then ``@db.table("posts")``,
+``@db.indexed("created_at")`` and ``@db.ordered_by("-created_at")``. They are
+the decorators of ``hinoki.orm.options``.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from contextvars import ContextVar, Token
 from types import TracebackType
@@ -29,6 +34,7 @@ from hinoki.modules import Module, ModuleContext
 
 if TYPE_CHECKING:
     from hinoki.core import Param, Row, _RowPlan
+    from hinoki.orm.model import Model
 
 __all__ = [
     "CheckViolation",
@@ -37,9 +43,39 @@ __all__ = [
     "ForeignKeyViolation",
     "NotNullViolation",
     "UniqueViolation",
+    "indexed",
+    "ordered_by",
+    "table",
 ]
 
 log = logging.getLogger("hinoki.db")
+
+
+# The model decorators import inside the call: hinoki.orm imports this module
+# (hinoki.orm.context), so a module-level import here would be circular.
+
+
+def table[M: type[Model]](name: str) -> Callable[[M], M]:
+    """Name a model's table (``hinoki.orm.options.table``); optional, the name
+    is derived from the class name otherwise."""
+    from hinoki.orm import options  # noqa: PLC0415 - circular, see above
+
+    return options.table(name)
+
+
+def indexed[M: type[Model]](*columns: str) -> Callable[[M], M]:
+    """An index over one or more columns (``hinoki.orm.options.indexed``)."""
+    from hinoki.orm import options  # noqa: PLC0415 - circular, see above
+
+    return options.indexed(*columns)
+
+
+def ordered_by[M: type[Model]](*names: str) -> Callable[[M], M]:
+    """The default query order, ``"-col"`` descending
+    (``hinoki.orm.options.ordered_by``)."""
+    from hinoki.orm import options  # noqa: PLC0415 - circular, see above
+
+    return options.ordered_by(*names)
 
 
 class ActiveTransaction:

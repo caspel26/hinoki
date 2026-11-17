@@ -1,4 +1,4 @@
-"""``Model``, ``field`` and ``foreign_key``: single-table Active Record models.
+"""``Model``, ``field``, ``pk`` and ``foreign_key``: single-table Active Record models.
 
 Typing note: construction (``Post(title=...)``) is checked statically;
 keyword-style helpers such as ``Post.acreate(**values)`` are not (see
@@ -372,12 +372,14 @@ class FieldMeta:
     related_name: str = ""
     validation: FieldInfo = dataclasses.field(default_factory=FieldInfo)
     validators: tuple[Callable[..., None], ...] = ()
+    index: bool = False
 
 
-def field(
+def field(  # noqa: PLR0913 - each keyword is an independent public field option
     *,
     primary_key: bool = False,
     unique: bool = False,
+    index: bool = False,
     max_length: int | None = None,
     constraints: FieldInfo | None = None,
     validators: Sequence[Callable[..., None]] = (),
@@ -390,9 +392,17 @@ def field(
 
     ``name: str = field(constraints=Field(min_length=1), validators=(check_name,))``
 
+    ``created_at: datetime = field(index=True, default_factory=utc_now)`` adds a
+    single-column index, the same index as ``@db.indexed("created_at")``.
+
     Constraints run before ORM writes. Custom validators are synchronous and
     raise ``ValueError`` to refuse a value; they must not perform I/O.
     """
+    if index and (primary_key or unique):
+        raise RegistrationError(
+            "field(index=True) is redundant: a primary key or unique column "
+            "already has an index"
+        )
     if constraints is not None and not isinstance(constraints, FieldInfo):
         raise RegistrationError("field constraints must be a Field(...) value")
     declared = constraints or FieldInfo()
@@ -410,9 +420,35 @@ def field(
         declared.max_length,
         validation=declared,
         validators=tuple(validators),
+        index=index,
     )
     return dataclasses.field(
         default=default, default_factory=default_factory, metadata={MARK: meta}
+    )
+
+
+def pk(
+    *,
+    max_length: int | None = None,
+    constraints: FieldInfo | None = None,
+    validators: Sequence[Callable[..., None]] = (),
+    default: Any = dataclasses.MISSING,
+    default_factory: Callable[[], Any] | Any = dataclasses.MISSING,
+) -> Any:
+    """Declare the primary key: shorthand for ``field(primary_key=True, ...)``.
+
+    ``id: UUID = pk(default_factory=uuid4)``
+
+    It takes the options of ``field`` that make sense for a key; ``unique``
+    and ``index`` are implied by the primary key.
+    """
+    return field(
+        primary_key=True,
+        max_length=max_length,
+        constraints=constraints,
+        validators=validators,
+        default=default,
+        default_factory=default_factory,
     )
 
 
@@ -459,7 +495,7 @@ def foreign_key(
 MIN_UNIQUE = 2
 
 
-@dataclass_transform(kw_only_default=True, field_specifiers=(field,))
+@dataclass_transform(kw_only_default=True, field_specifiers=(field, pk, foreign_key))
 class Model:
     """Base class: ``class Post(Model): ...`` with an optional ``table=`` override."""
 
@@ -475,6 +511,8 @@ class Model:
     __relations__: ClassVar[dict[str, Relation]] = {}
     __unique__: ClassVar[tuple[tuple[str, ...], ...]] = ()
     __indexes__: ClassVar[tuple[tuple[str, ...], ...]] = ()
+    __field_indexes__: ClassVar[tuple[tuple[str, ...], ...]] = ()
+    __decorated_indexes__: ClassVar[tuple[tuple[str, ...], ...]] = ()
     __ordering__: ClassVar[tuple[str, ...]] = ()
     __label__: ClassVar[str] = ""
     __plural__: ClassVar[str] = ""
@@ -529,6 +567,12 @@ class Model:
         )
         cls.__primary_key__ = keys[0] if keys else ""
         cls.check_names(cls.__columns__)
+        cls.__field_indexes__ = tuple(
+            (item.name,)
+            for item in fields
+            if item.metadata.get(MARK, FieldMeta()).index
+        )
+        cls.__decorated_indexes__ = ()
         cls.inherit_options(unique)
         cls.__label__ = label
         cls.__plural__ = plural
@@ -655,17 +699,19 @@ class Model:
         """Options come from the abstract bases the class lists: every such
         base's constraints and indexes, and the first one that sets an order or
         a timestamp column. A decorator applied to this class later replaces what
-        was inherited for its kind (see ``hinoki.orm.options``)."""
+        was inherited for its kind (see ``hinoki.orm.options``). Indexes declared
+        with ``field(index=True)`` belong to their column and always stay."""
         bases = cls.option_bases()
         cls.__unique__ = without_repeats([g for b in bases for g in b.__unique__])
-        cls.__indexes__ = without_repeats([g for b in bases for g in b.__indexes__])
+        inherited_indexes = without_repeats([g for b in bases for g in b.__indexes__])
+        cls.__indexes__ = without_repeats([*inherited_indexes, *cls.__field_indexes__])
         cls.__ordering__ = next((b.__ordering__ for b in bases if b.__ordering__), ())
         timed = next((b for b in bases if b.__updated_at__ is not None), None)
         cls.__updated_at__ = timed.__updated_at__ if timed else None
         cls.__clock__ = timed.__clock__ if timed else utc_now
         inherited = {
             "unique": bool(cls.__unique__),
-            "indexes": bool(cls.__indexes__),
+            "indexes": bool(inherited_indexes),
             "ordering": bool(cls.__ordering__),
             "timestamps": timed is not None,
         }
