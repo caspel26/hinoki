@@ -358,17 +358,17 @@ fn valid_startup_path(path: &str) -> bool {
 
 /// A route as Python describes it: the plan fields plus the router entry.
 type RouteSpec = (
-    u32,                           // action
-    String,                        // method
-    String,                        // template
-    bool,                          // has body
-    bool,                          // has access
-    Vec<String>,                   // media types
-    u16,                           // status
-    Vec<(String, String)>,         // route headers
-    bool,                          // transaction
-    bool,                          // takes request
-    (bool, Vec<(String, String)>), // native handler flag and input source/name
+    u32,                                 // action
+    String,                              // method
+    String,                              // template
+    bool,                                // has body
+    bool,                                // has access
+    Vec<String>,                         // media types
+    u16,                                 // status
+    Vec<(String, String)>,               // route headers
+    bool,                                // transaction
+    bool,                                // takes request
+    (bool, Vec<(String, String, bool)>), // native handler and source/name/default
 );
 
 #[derive(Clone)]
@@ -455,7 +455,7 @@ fn decode_native_path(
         .map(|(name, value)| (name.clone(), value.clone()))
         .collect();
     let mut decoded = HashMap::new();
-    for (source, name) in &plan.input_params {
+    for (source, name, _) in &plan.input_params {
         if source != "path" {
             continue;
         }
@@ -488,7 +488,7 @@ fn collect_native_args(
 ) -> (NativeArgs, NativeDetails) {
     let mut args = Vec::new();
     let mut errors = Vec::new();
-    for (source, name) in &plan.input_params {
+    for (source, name, defaulted) in &plan.input_params {
         let value = if source == "path" {
             path.get(name)
         } else {
@@ -507,7 +507,8 @@ fn collect_native_args(
         };
         if let Some(value) = value {
             args.push((name.clone(), value.clone()));
-        } else if source == "query" && !errors.iter().any(|(path, _, _)| path == name) {
+        } else if source == "query" && !defaulted && !errors.iter().any(|(path, _, _)| path == name)
+        {
             errors.push((
                 name.clone(),
                 "required".into(),

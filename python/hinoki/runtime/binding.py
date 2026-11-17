@@ -204,12 +204,38 @@ class Binding:
     needs_body: bool = False  # a parameter binds the body; decided once in `bind`
     row_wire: RowWireSelection | None = field(default=None, repr=False, compare=False)
     is_async: bool = field(init=False, repr=False, compare=False)
+    native_input_names: tuple[str, ...] = field(init=False, repr=False, compare=False)
+    native_defaults: tuple[tuple[str, object], ...] = field(
+        init=False, repr=False, compare=False
+    )
 
     def __post_init__(self) -> None:
         """Freeze handler execution shape with the request binding plan."""
         object.__setattr__(
             self, "is_async", inspect.iscoroutinefunction(self.route.handler)
         )
+        object.__setattr__(
+            self, "native_input_names", tuple(p.name for p in self.params)
+        )
+        object.__setattr__(
+            self,
+            "native_defaults",
+            tuple(
+                (p.name, p.default)
+                for p in self.params
+                if p.source == "query" and p.convert is str and type(p.default) is str
+            ),
+        )
+
+    def complete_native_args(self, supplied: dict[str, object]) -> dict[str, object]:
+        """Restore omitted exact-string query defaults in declaration order."""
+        if not self.native_defaults:
+            return supplied
+        defaults = dict(self.native_defaults)
+        return {
+            name: supplied[name] if name in supplied else defaults[name]
+            for name in self.native_input_names
+        }
 
     @property
     def has_files(self) -> bool:
@@ -384,7 +410,7 @@ def make_param(route: Route, parameter: inspect.Parameter, annotation: object) -
         )
     kind = KINDS[annotation]
     if name in PATH_PARAM.findall(route.path):
-        return Param(name, "path", convert, kind=kind)
+        return Param(name, "path", convert, default=parameter.default, kind=kind)
     return Param(name, "query", convert, default=parameter.default, kind=kind)
 
 
