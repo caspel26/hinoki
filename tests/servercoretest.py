@@ -75,6 +75,11 @@ async def item(request: Request, item_id: int) -> dict[str, int]:
     return {"id": item_id}
 
 
+@http.get("/strings/{item_id}")
+async def string_item(request: Request, item_id: str) -> dict[str, str]:
+    return {"id": item_id}
+
+
 @http.post("/made", status=201)
 async def made(request: Request) -> dict[str, bool]:
     return {"ok": True}
@@ -94,6 +99,7 @@ def make_app(**config: int) -> Hinoki:
         native_default_subclass,
         custom_renderer,
         item,
+        string_item,
         made,
     )
     return app
@@ -188,6 +194,20 @@ def test_a_routed_request_is_queued_with_its_facts() -> None:
     assert HEX32.fullmatch(request.request_id)
     assert request.headers == [(b"host", b"h")]
     assert request.needs_headers is True  # the handler takes a Request
+
+
+def test_python_routes_receive_prepared_path_values_or_a_deferred_error() -> None:
+    server = classifier(make_app())
+    server.submit("GET", "/items/%34", b"", [])
+    server.submit("GET", "/strings/a%2Fb", b"", [])
+    server.submit("GET", "/strings/%FF", b"", [])
+    number, encoded, invalid = server.drain(3)
+
+    assert number.params == {"item_id": "%34"}
+    assert number.prepared_path_params == {"item_id": "4"}
+    assert encoded.params == {"item_id": "a%2Fb"}
+    assert encoded.prepared_path_params == {"item_id": "a/b"}
+    assert invalid.prepared_path_params is None
 
 
 def test_native_dispatch_selects_only_supported_get_inputs() -> None:
