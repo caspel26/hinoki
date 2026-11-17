@@ -291,7 +291,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 <tr>
 <td>Errors</td>
 <td>Raise <code>APIError</code> subclasses and <strong>declare them on the action</strong>: <code>@http.post(..., errors=(PostAlreadyPublished, errors.Forbidden))</code>. Translate database errors once with <code>app.errors.handle(...)</code></td>
-<td>Failures are exceptions. The declaration (status and code come from the class) feeds OpenAPI, the MCP tool description and, in tests, <code>ASGIClient(app, strict_errors=True)</code>, which fails on an error answer the action did not declare. <strong>A returned <code>Reply</code> commits the transaction</strong></td>
+<td>Failures are exceptions. The declaration (status and code come from the class) feeds OpenAPI, the MCP tool description and, in tests, <code>ASGIClient(app, strict_errors=True)</code>, which fails on an error answer the action did not declare. <strong>A returned <code>Response</code> commits the transaction</strong></td>
 </tr>
 <tr>
 <td>Secrets</td>
@@ -335,7 +335,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 <li>Returning a <code>Model</code> or a dict built from one.</li>
 <li>For a distinct 403 response on a write that can race, make the conditional write and fallback explicit.</li>
 <li>A business rule inside an action that another entry point also needs.</li>
-<li><code>Reply(4xx)</code> inside a <code>transaction=True</code> action (it commits).</li>
+<li><code>Response(4xx)</code> inside a <code>transaction=True</code> action (it commits).</li>
 <li>Client-supplied column names reaching <code>filter</code>/<code>order_by</code>.</li>
 <li>Applying migrations at startup; creating a pool at import time.</li>
 <li>A broad waiver (<code>*</code>) or editing waivers to silence a rule.</li>
@@ -375,7 +375,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.3</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:30:43 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 20:05:13 UTC">November 17, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/patterns.md">Edit on GitHub</a></dd></div>
         </dl>

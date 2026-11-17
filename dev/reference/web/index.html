@@ -2388,17 +2388,18 @@ MCP tool description then show.</p>
     </div>
 
 </div><h2 id="request-response-and-errors">Request, response and errors<a class="headerlink" href="#request-response-and-errors" title="Permanent link">&para;</a></h2>
+<p>The types are available from <code>hinoki.http</code>, from <code>hinoki</code>, or from their modules <code>hinoki.http.request</code> and <code>hinoki.http.response</code>.</p>
 
 
 <div class="doc doc-object doc-class">
 
 
 
-<h2 id="hinoki.request.Request" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">hinoki.request.Request</span>
+<h2 id="hinoki.http.request.Request" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.http.request.Request</span>
 
 
-<a href="#hinoki.request.Request" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#hinoki.http.request.Request" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents first">
@@ -2429,7 +2430,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.__slots__" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.__slots__" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">__slots__</span>
 
 
@@ -2438,7 +2439,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.request.Request.__slots__" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.__slots__" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span>
     <span class="s2">"COOKIES"</span><span class="p">,</span>
     <span class="s2">"GET"</span><span class="p">,</span>
@@ -2467,7 +2468,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.method" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.method" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">method</span>
 
 
@@ -2475,7 +2476,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.request.Request.method" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.method" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">method</span> <span class="o">=</span> <span class="n">method</span>
 </code></pre></div>
 
@@ -2489,7 +2490,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.path" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.path" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">path</span>
 
 
@@ -2497,7 +2498,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.request.Request.path" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.path" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">path</span> <span class="o">=</span> <span class="n">path</span>
 </code></pre></div>
 
@@ -2511,7 +2512,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.scheme" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.scheme" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">scheme</span>
 
 
@@ -2519,7 +2520,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.request.Request.scheme" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.scheme" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">scheme</span> <span class="o">=</span> <span class="n">scheme</span>
 </code></pre></div>
 
@@ -2533,7 +2534,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.host" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.host" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">host</span>
 
 
@@ -2541,7 +2542,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.request.Request.host" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.host" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">host</span> <span class="o">=</span> <span class="n">host</span>
 </code></pre></div>
 
@@ -2555,7 +2556,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.client" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.client" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">client</span>
 
 
@@ -2563,7 +2564,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.request.Request.client" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.client" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">client</span> <span class="o">=</span> <span class="n">client</span>
 </code></pre></div>
 
@@ -2577,7 +2578,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.headers" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.headers" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">headers</span>
 
 
@@ -2585,7 +2586,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.request.Request.headers" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.headers" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">headers</span> <span class="o">=</span> <span class="p">(</span>
     <span class="n">headers</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">headers</span><span class="p">,</span> <span class="n">Headers</span><span class="p">)</span>
@@ -2603,7 +2604,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.GET" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.GET" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">GET</span>
 
 
@@ -2611,7 +2612,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.request.Request.GET" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.GET" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">GET</span> <span class="o">=</span> <span class="n">QueryDict</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
 </code></pre></div>
 
@@ -2625,7 +2626,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.COOKIES" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.COOKIES" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">COOKIES</span>
 
 
@@ -2633,7 +2634,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.request.Request.COOKIES" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.COOKIES" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">COOKIES</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">parse_cookie_header</span><span class="p">(</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"cookie"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
 <span class="p">)</span>
@@ -2649,7 +2650,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.body" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.body" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">body</span>
 
 
@@ -2657,7 +2658,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.request.Request.body" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.body" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">body</span> <span class="o">=</span> <span class="n">body</span>
 </code></pre></div>
 
@@ -2671,7 +2672,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.path_params" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.path_params" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">path_params</span>
 
 
@@ -2679,7 +2680,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.request.Request.path_params" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.path_params" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">path_params</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">path_params</span><span class="p">)</span>
 </code></pre></div>
 
@@ -2693,7 +2694,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.user" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.user" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">user</span>
 
 
@@ -2701,7 +2702,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.request.Request.user" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.user" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">user</span> <span class="o">=</span> <span class="n">user</span>
 </code></pre></div>
 
@@ -2715,7 +2716,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.request_id" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.request_id" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">request_id</span>
 
 
@@ -2723,7 +2724,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.request.Request.request_id" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.request_id" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">request_id</span> <span class="o">=</span> <span class="n">request_id</span>
 </code></pre></div>
 
@@ -2737,7 +2738,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.parsers" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.parsers" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">parsers</span>
 
 
@@ -2745,7 +2746,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.request.Request.parsers" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.parsers" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">parsers</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">parsers</span><span class="p">)</span>
 </code></pre></div>
 
@@ -2759,7 +2760,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.cached" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.cached" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">cached</span>
 
 
@@ -2767,7 +2768,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.request.Request.cached" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.cached" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">cached</span><span class="p">:</span> <span class="n">Parsed</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
 
@@ -2781,7 +2782,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.content_type" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.content_type" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">content_type</span>
 
 
@@ -2789,7 +2790,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-property"><code>property</code></small>
   </span>
 
-<a href="#hinoki.request.Request.content_type" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.content_type" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">content_type</span><span class="p">:</span> <span class="nb">str</span>
 </code></pre></div>
 
@@ -2805,7 +2806,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.data" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.data" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">data</span>
 
 
@@ -2813,7 +2814,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-property"><code>property</code></small>
   </span>
 
-<a href="#hinoki.request.Request.data" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.data" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">data</span><span class="p">:</span> <span class="nb">object</span>
 </code></pre></div>
 
@@ -2829,7 +2830,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.POST" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.POST" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">POST</span>
 
 
@@ -2837,7 +2838,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-property"><code>property</code></small>
   </span>
 
-<a href="#hinoki.request.Request.POST" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.POST" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">POST</span><span class="p">:</span> <span class="n">QueryDict</span>
 </code></pre></div>
 
@@ -2853,7 +2854,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.request.Request.FILES" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.FILES" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">FILES</span>
 
 
@@ -2861,7 +2862,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-property"><code>property</code></small>
   </span>
 
-<a href="#hinoki.request.Request.FILES" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.FILES" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">FILES</span><span class="p">:</span> <span class="n">MultiDict</span><span class="p">[</span><span class="n">UploadedFile</span><span class="p">]</span>
 </code></pre></div>
 
@@ -2879,11 +2880,11 @@ MCP tool description then show.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.request.Request.__init__" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.__init__" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">__init__</span>
 
 
-<a href="#hinoki.request.Request.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -2911,11 +2912,11 @@ MCP tool description then show.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.request.Request.parsed" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.parsed" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">parsed</span>
 
 
-<a href="#hinoki.request.Request.parsed" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.parsed" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">parsed</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Parsed</span>
 </code></pre></div>
 
@@ -2932,11 +2933,11 @@ MCP tool description then show.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.request.Request.accepts_form" class="doc doc-heading">
+<h3 id="hinoki.http.request.Request.accepts_form" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">accepts_form</span>
 
 
-<a href="#hinoki.request.Request.accepts_form" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.request.Request.accepts_form" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">accepts_form</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
 </code></pre></div>
 
@@ -2959,11 +2960,11 @@ MCP tool description then show.</p>
 
 
 
-<h2 id="hinoki.reply.Reply" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">hinoki.reply.Reply</span>
+<h2 id="hinoki.http.response.Response" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.http.response.Response</span>
 
 
-<a href="#hinoki.reply.Reply" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#hinoki.http.response.Response" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents first">
@@ -2994,7 +2995,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.reply.Reply.__slots__" class="doc doc-heading">
+<h3 id="hinoki.http.response.Response.__slots__" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">__slots__</span>
 
 
@@ -3003,7 +3004,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.reply.Reply.__slots__" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.response.Response.__slots__" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'body'</span><span class="p">,</span> <span class="s1">'headers'</span><span class="p">,</span> <span class="s1">'status'</span><span class="p">)</span>
 </code></pre></div>
 
@@ -3017,7 +3018,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.reply.Reply.status" class="doc doc-heading">
+<h3 id="hinoki.http.response.Response.status" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">status</span>
 
 
@@ -3025,7 +3026,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.reply.Reply.status" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.response.Response.status" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">status</span> <span class="o">=</span> <span class="n">status</span>
 </code></pre></div>
 
@@ -3039,7 +3040,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.reply.Reply.body" class="doc doc-heading">
+<h3 id="hinoki.http.response.Response.body" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">body</span>
 
 
@@ -3047,7 +3048,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.reply.Reply.body" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.response.Response.body" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">body</span> <span class="o">=</span> <span class="n">raw</span>
 </code></pre></div>
 
@@ -3061,7 +3062,7 @@ MCP tool description then show.</p>
 
 
 
-<h3 id="hinoki.reply.Reply.headers" class="doc doc-heading">
+<h3 id="hinoki.http.response.Response.headers" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">headers</span>
 
 
@@ -3069,7 +3070,7 @@ MCP tool description then show.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.reply.Reply.headers" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.response.Response.headers" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">headers</span> <span class="o">=</span> <span class="p">[</span>
     <span class="n">encode_header</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">items</span>
 <span class="p">]</span>
@@ -3087,11 +3088,11 @@ MCP tool description then show.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.reply.Reply.__init__" class="doc doc-heading">
+<h3 id="hinoki.http.response.Response.__init__" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">__init__</span>
 
 
-<a href="#hinoki.reply.Reply.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.http.response.Response.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span>
     <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
     <span class="n">body</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">""</span><span class="p">,</span>
@@ -3118,11 +3119,11 @@ MCP tool description then show.</p>
 <div class="doc doc-object doc-function">
 
 
-<h2 id="hinoki.reply.set_cookie" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">hinoki.reply.set_cookie</span>
+<h2 id="hinoki.http.response.set_cookie" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.http.response.set_cookie</span>
 
 
-<a href="#hinoki.reply.set_cookie" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#hinoki.http.response.set_cookie" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">set_cookie</span><span class="p">(</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -3137,7 +3138,7 @@ MCP tool description then show.</p>
 
     <div class="doc doc-contents first">
 
-        <p>A <code>("set-cookie", ...)</code> header for <code>Reply(headers=[...])</code>. The name
+        <p>A <code>("set-cookie", ...)</code> header for <code>Response(headers=[...])</code>. The name
 must be a token and the value cookie-safe (no space, quote, comma,
 semicolon or backslash); encode richer data yourself.</p>
 
@@ -3572,11 +3573,11 @@ override them. <code>details</code> is public data, never internal state.</p>
             <ul><li><a href="#hinoki.routing.Mount.prefix">prefix</a></li><li><a href="#hinoki.routing.Mount.items">items</a></li><li><a href="#hinoki.routing.Mount.__init__">__init__</a></li></ul>
           </li><li><a href="#hinoki.routing.Route">Route</a>
             <ul><li><a href="#hinoki.routing.Route.method">method</a></li><li><a href="#hinoki.routing.Route.path">path</a></li><li><a href="#hinoki.routing.Route.handler">handler</a></li><li><a href="#hinoki.routing.Route.status">status</a></li><li><a href="#hinoki.routing.Route.access">access</a></li><li><a href="#hinoki.routing.Route.transaction">transaction</a></li><li><a href="#hinoki.routing.Route.owner">owner</a></li><li><a href="#hinoki.routing.Route.pagination">pagination</a></li><li><a href="#hinoki.routing.Route.replaces">replaces</a></li><li><a href="#hinoki.routing.Route.parsers">parsers</a></li><li><a href="#hinoki.routing.Route.renderers">renderers</a></li><li><a href="#hinoki.routing.Route.errors">errors</a></li><li><a href="#hinoki.routing.Route.is_async">is_async</a></li><li><a href="#hinoki.routing.Route.name">name</a></li><li><a href="#hinoki.routing.Route.__init__">__init__</a></li></ul>
-          </li><li><a href="#http-method-decorators">HTTP method decorators</a></li><li><a href="#hinoki.http.get">get</a></li><li><a href="#hinoki.http.post">post</a></li><li><a href="#hinoki.http.put">put</a></li><li><a href="#hinoki.http.patch">patch</a></li><li><a href="#hinoki.http.delete">delete</a></li><li><a href="#hinoki.http.query">query</a></li><li><a href="#request-response-and-errors">Request, response and errors</a></li><li><a href="#hinoki.request.Request">Request</a>
-            <ul><li><a href="#hinoki.request.Request.__slots__">__slots__</a></li><li><a href="#hinoki.request.Request.method">method</a></li><li><a href="#hinoki.request.Request.path">path</a></li><li><a href="#hinoki.request.Request.scheme">scheme</a></li><li><a href="#hinoki.request.Request.host">host</a></li><li><a href="#hinoki.request.Request.client">client</a></li><li><a href="#hinoki.request.Request.headers">headers</a></li><li><a href="#hinoki.request.Request.GET">GET</a></li><li><a href="#hinoki.request.Request.COOKIES">COOKIES</a></li><li><a href="#hinoki.request.Request.body">body</a></li><li><a href="#hinoki.request.Request.path_params">path_params</a></li><li><a href="#hinoki.request.Request.user">user</a></li><li><a href="#hinoki.request.Request.request_id">request_id</a></li><li><a href="#hinoki.request.Request.parsers">parsers</a></li><li><a href="#hinoki.request.Request.cached">cached</a></li><li><a href="#hinoki.request.Request.content_type">content_type</a></li><li><a href="#hinoki.request.Request.data">data</a></li><li><a href="#hinoki.request.Request.POST">POST</a></li><li><a href="#hinoki.request.Request.FILES">FILES</a></li><li><a href="#hinoki.request.Request.__init__">__init__</a></li><li><a href="#hinoki.request.Request.parsed">parsed</a></li><li><a href="#hinoki.request.Request.accepts_form">accepts_form</a></li></ul>
-          </li><li><a href="#hinoki.reply.Reply">Reply</a>
-            <ul><li><a href="#hinoki.reply.Reply.__slots__">__slots__</a></li><li><a href="#hinoki.reply.Reply.status">status</a></li><li><a href="#hinoki.reply.Reply.body">body</a></li><li><a href="#hinoki.reply.Reply.headers">headers</a></li><li><a href="#hinoki.reply.Reply.__init__">__init__</a></li></ul>
-          </li><li><a href="#hinoki.reply.set_cookie">set_cookie</a></li><li><a href="#hinoki.access.Access">Access</a>
+          </li><li><a href="#http-method-decorators">HTTP method decorators</a></li><li><a href="#hinoki.http.get">get</a></li><li><a href="#hinoki.http.post">post</a></li><li><a href="#hinoki.http.put">put</a></li><li><a href="#hinoki.http.patch">patch</a></li><li><a href="#hinoki.http.delete">delete</a></li><li><a href="#hinoki.http.query">query</a></li><li><a href="#request-response-and-errors">Request, response and errors</a></li><li><a href="#hinoki.http.request.Request">Request</a>
+            <ul><li><a href="#hinoki.http.request.Request.__slots__">__slots__</a></li><li><a href="#hinoki.http.request.Request.method">method</a></li><li><a href="#hinoki.http.request.Request.path">path</a></li><li><a href="#hinoki.http.request.Request.scheme">scheme</a></li><li><a href="#hinoki.http.request.Request.host">host</a></li><li><a href="#hinoki.http.request.Request.client">client</a></li><li><a href="#hinoki.http.request.Request.headers">headers</a></li><li><a href="#hinoki.http.request.Request.GET">GET</a></li><li><a href="#hinoki.http.request.Request.COOKIES">COOKIES</a></li><li><a href="#hinoki.http.request.Request.body">body</a></li><li><a href="#hinoki.http.request.Request.path_params">path_params</a></li><li><a href="#hinoki.http.request.Request.user">user</a></li><li><a href="#hinoki.http.request.Request.request_id">request_id</a></li><li><a href="#hinoki.http.request.Request.parsers">parsers</a></li><li><a href="#hinoki.http.request.Request.cached">cached</a></li><li><a href="#hinoki.http.request.Request.content_type">content_type</a></li><li><a href="#hinoki.http.request.Request.data">data</a></li><li><a href="#hinoki.http.request.Request.POST">POST</a></li><li><a href="#hinoki.http.request.Request.FILES">FILES</a></li><li><a href="#hinoki.http.request.Request.__init__">__init__</a></li><li><a href="#hinoki.http.request.Request.parsed">parsed</a></li><li><a href="#hinoki.http.request.Request.accepts_form">accepts_form</a></li></ul>
+          </li><li><a href="#hinoki.http.response.Response">Response</a>
+            <ul><li><a href="#hinoki.http.response.Response.__slots__">__slots__</a></li><li><a href="#hinoki.http.response.Response.status">status</a></li><li><a href="#hinoki.http.response.Response.body">body</a></li><li><a href="#hinoki.http.response.Response.headers">headers</a></li><li><a href="#hinoki.http.response.Response.__init__">__init__</a></li></ul>
+          </li><li><a href="#hinoki.http.response.set_cookie">set_cookie</a></li><li><a href="#hinoki.access.Access">Access</a>
             <ul><li><a href="#hinoki.access.Access.auth">auth</a></li><li><a href="#hinoki.access.Access.permissions">permissions</a></li><li><a href="#hinoki.access.Access.__init__">__init__</a></li></ul>
           </li><li><a href="#hinoki.errors.APIError">APIError</a></li><li><a href="#hinoki.errors.BadRequest">BadRequest</a></li><li><a href="#hinoki.errors.Unauthorized">Unauthorized</a></li><li><a href="#hinoki.errors.Forbidden">Forbidden</a></li><li><a href="#hinoki.errors.NotFound">NotFound</a></li><li><a href="#hinoki.errors.Conflict">Conflict</a></li></ul>
           
@@ -3585,7 +3586,7 @@ override them. <code>details</code> is public data, never internal state.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.2</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:01:56 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 20:20:28 UTC">November 17, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/web.md">Edit on GitHub</a></dd></div>
         </dl>
