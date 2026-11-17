@@ -29,6 +29,7 @@ from collections.abc import Callable, Mapping
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Self, dataclass_transform
+from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from hinoki.context import request_id
@@ -882,17 +883,150 @@ class DocsSettings(Settings):
     redoc_url: str | None = None
 
 
-class DatabaseSettings(Settings):
-    """Local SQLite by default; set ``url`` explicitly for a server database."""
+class DatabaseEngine(StrEnum):
+    """The backend that ``DatabaseSettings.engine`` selects."""
 
-    url: Secret = dataclasses.field(
-        default_factory=lambda: Secret("sqlite://./.hinoki/local.sqlite3")
-    )
+    SQLITE = "sqlite"
+    POSTGRESQL = "postgresql"
+    MYSQL = "mysql"
+    MARIADB = "mariadb"
+
+
+LOCAL_DATABASE_URL = "sqlite://./.hinoki/local.sqlite3"
+DATABASE_FIELDS = ("name", "user", "password", "host", "port", "options")
+MAX_DATABASE_PORT = 65535
+DATABASE_SENSITIVE_OPTION_PARTS = (
+    "password",
+    "passwd",
+    "pwd",
+    "secret",
+    "token",
+    "credential",
+)
+DATABASE_IDENTITY_OPTIONS = frozenset(
+    {"user", "username", "host", "hostaddr", "port", "dbname", "database", "socket"}
+)
+
+
+class DatabaseSettings(Settings):
+    """Set either ``url`` or ``engine`` with its connection fields; with
+    neither, the database is local SQLite at ``.hinoki/local.sqlite3``.
+
+    ``name`` is the database name, or the file path for SQLite. ``options`` are
+    ``key=value`` pairs passed in the URL query, such as ``sslmode=verify-full``.
+    With ``engine``, ``url`` holds the URL built from the fields.
+    """
+
+    url: Secret = dataclasses.field(default_factory=lambda: Secret(LOCAL_DATABASE_URL))
+    engine: DatabaseEngine | None = None
+    name: str = ""
+    user: str = ""
+    password: Secret | None = None
+    host: str = ""
+    port: int | None = None
+    options: tuple[str, ...] = ()
     max_size: int = 10
 
     def validate(self) -> None:
         if self.max_size < 1:
             raise ValueError("max_size must be >= 1")
+        if isinstance(self.password, str):  # built directly in code
+            object.__setattr__(self, "password", Secret(self.password))
+        fields = [name for name in DATABASE_FIELDS if self.field_is_set(name)]
+        if self.engine is None:
+            if fields:
+                raise ValueError(f"{', '.join(fields)} need engine")
+            return
+        self.check_engine()
+        if self.engine is DatabaseEngine.SQLITE:
+            self.check_sqlite_fields(fields)
+        else:
+            self.check_server_fields()
+        object.__setattr__(self, "url", BuiltDatabaseURL(self.built_url(self.engine)))
+
+    def check_engine(self) -> None:
+        if not isinstance(self.engine, DatabaseEngine):
+            raise TypeError("engine must be a settings.DatabaseEngine member")
+        explicit = not isinstance(self.url, BuiltDatabaseURL)
+        if explicit and self.url.reveal() != LOCAL_DATABASE_URL:
+            raise ValueError("set either url or engine with its fields, not both")
+        if not self.name:
+            raise ValueError("engine needs name (the database, or the SQLite file)")
+
+    def check_sqlite_fields(self, fields: list[str]) -> None:
+        server_only = [name for name in fields if name != "name"]
+        if server_only:
+            raise ValueError(f"sqlite takes only name; remove {', '.join(server_only)}")
+        if self.name == ":memory:" or "?" in self.name or "#" in self.name:
+            raise ValueError("sqlite name must be a file path")
+
+    def check_server_fields(self) -> None:
+        if self.port is not None and not 1 <= self.port <= MAX_DATABASE_PORT:
+            raise ValueError("port must be between 1 and 65535")
+        socket = self.host.startswith("/") and self.engine is DatabaseEngine.POSTGRESQL
+        if not socket and any(char in self.host for char in "/?#@ \t"):
+            raise ValueError("host must be a host name or address")
+        self.check_options()
+
+    def check_options(self) -> None:
+        for option in self.options:
+            key, separator, _ = option.partition("=")
+            normalized = key.strip().lower().replace("-", "_")
+            sensitive = any(
+                part in normalized for part in DATABASE_SENSITIVE_OPTION_PARTS
+            )
+            if (
+                not separator
+                or not key
+                or key != key.strip()
+                or sensitive
+                or normalized in DATABASE_IDENTITY_OPTIONS
+            ):
+                raise ValueError(
+                    "options must be key=value pairs and cannot contain credentials "
+                    "or override connection fields"
+                )
+
+    def field_is_set(self, name: str) -> bool:
+        value = getattr(self, name)
+        if isinstance(value, Secret):
+            return value.reveal() != ""
+        return value is not None and value not in ("", ())
+
+    def built_url(self, engine: DatabaseEngine) -> str:
+        if engine is DatabaseEngine.SQLITE:
+            return f"sqlite://{self.name}"
+        userinfo = quote(self.user, safe="")
+        if self.field_is_set("password"):
+            userinfo += ":" + quote(
+                typing.cast(Secret, self.password).reveal(), safe=""
+            )
+        return (
+            f"{engine.value}://{userinfo + '@' if userinfo else ''}{self.url_host()}"
+            f"{f':{self.port}' if self.port is not None else ''}"
+            f"/{quote(self.name, safe='')}{self.url_query()}"
+        )
+
+    def url_host(self) -> str:
+        host = self.host or "localhost"
+        if host.startswith("/"):  # a PostgreSQL Unix-socket directory
+            return quote(host, safe="")
+        if ":" in host and not host.startswith("["):
+            return f"[{host}]"
+        return host
+
+    def url_query(self) -> str:
+        query = "&".join(
+            "{}={}".format(*(quote(part, safe="/") for part in item.split("=", 1)))
+            for item in self.options
+        )
+        return f"?{query}" if query else ""
+
+
+class BuiltDatabaseURL(Secret):
+    """The URL ``DatabaseSettings`` built from its fields; rebuilt on revalidation."""
+
+    __slots__ = ()
 
 
 class ServerSettings(Settings):
