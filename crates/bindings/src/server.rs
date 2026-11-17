@@ -1489,13 +1489,13 @@ impl Core {
             native_failure: Mutex::new(None),
             native_rows: Mutex::new(None),
         };
-        match self.queue.push(request) {
+        match self.queue.push_cold_path(request) {
             Ok(pushed) => Ok(Outcome::Queued {
                 wake: pushed == Push::Wake,
                 receiver,
                 asked,
             }),
-            Err(_full) => self.answer(&asked, Early::Overloaded, Vec::new()),
+            Err(early) => self.answer(&asked, early, Vec::new()),
         }
     }
 
