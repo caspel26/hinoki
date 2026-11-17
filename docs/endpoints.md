@@ -87,7 +87,7 @@ Request path, query and body values are validated before the handler runs; a Sch
 
 ## Upload files
 
-Enable `MultiPartParser` for the action and bind a file by the multipart field name. `UploadedFile` contains the client filename, claimed content type and in-memory `bytes`; it does not save files or validate their content.
+Bind a file by the multipart field name. An action that declares a file parameter and no `parsers=` gets `MultiPartParser()` automatically, with its default limits, unless the application's `parsers=` include one; pass `parsers=[MultiPartParser(...)]` to change them. `UploadedFile` contains the client filename, claimed content type and in-memory `bytes`; it does not save files or validate their content.
 
 ```python
 from hinoki import Hinoki, MultiPartParser, Request, UploadedFile, http
@@ -106,7 +106,7 @@ async def create_document(
     return {"title": title, "filename": document.filename, "size": document.size}
 
 
-@http.post("/batch", parsers=[MultiPartParser(max_parts=8)])
+@http.post("/batch")  # MultiPartParser() selected automatically
 def create_batch(documents: list[UploadedFile]) -> dict[str, int]:
     return {"count": len(documents)}
 
@@ -114,7 +114,7 @@ def create_batch(documents: list[UploadedFile]) -> dict[str, int]:
 app = Hinoki(include=[create_document, create_batch])
 ```
 
-`UploadedFile` requires exactly one part with that name. `list[UploadedFile]` requires at least one and keeps repeated parts in order. To make a single file optional, write `file: UploadedFile | None = None`. These declarations cannot be combined with a `Schema` body parameter. Use `request.POST` for adjacent text fields or `request.FILES` when names/repetitions are dynamic. An application-wide `Hinoki(parsers=[...])` can supply the parser default; an action's explicit `parsers=` takes precedence.
+`UploadedFile` requires exactly one part with that name. `list[UploadedFile]` requires at least one and keeps repeated parts in order. To make a single file optional, write `file: UploadedFile | None = None`. These declarations cannot be combined with a `Schema` body parameter. Use `request.POST` for adjacent text fields or `request.FILES` when names/repetitions are dynamic. Parser precedence for a file action: its own `parsers=` (which must then include `MultiPartParser`, or registration fails), then an application-wide `Hinoki(parsers=[...])` that includes a `MultiPartParser`, then the automatic `MultiPartParser()`. An application parser list without multipart does not apply to file actions, and actions without file parameters keep their parsers.
 
 All declared files require `multipart/form-data`. A missing file is a `422` validation error; a wrong media type is `415`; malformed multipart is `400`; a part or complete body over its configured limit is `413 payload_too_large`. A zero-byte body with no `Content-Type` is treated as absent input for optional files; an explicitly multipart empty body is malformed, while a valid closing-boundary-only body has no parts. The default complete-body limit is 1 MiB, and the parser buffers bytes in memory. This API is for bounded small uploads, not streaming. Concurrent requests can multiply memory use. Keep limits conservative, never use the supplied filename as a filesystem path, and verify content instead of trusting the declared media type. See [parsers and renderers](codecs.md#upload-files) and [testing uploads](testing.md#test-file-uploads).
 
