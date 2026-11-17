@@ -9,6 +9,7 @@ path uses, so the two cannot describe different applications.
 
 from __future__ import annotations
 
+import logging
 from http import HTTPStatus
 
 from hinoki import core
@@ -18,6 +19,8 @@ from hinoki.runtime.binding import EMPTY, PATH_PARAM, Binding
 from hinoki.runtime.crudplan import CrudPlanSelection, select_crud_plan
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.responses import RETRY_LATER, HTTPError
+
+log = logging.getLogger("hinoki.server")
 
 # Rendered request id used as a splice point; mirrors `hinoki_server::early::SENTINEL`.
 SENTINEL = "0123456789abcdeffedcba9876543210"
@@ -187,6 +190,12 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
         try:
             selection, reason = select_crud_plan(binding, pipeline)
         except Exception:
+            log.warning(
+                "native CRUD plan selection failed for %s %s; using the Python path",
+                binding.route.method,
+                binding.route.path,
+                exc_info=True,
+            )
             selection, reason = None, "native_plan_build_failed"
         selections.append(selection)
         reasons.append(reason)
