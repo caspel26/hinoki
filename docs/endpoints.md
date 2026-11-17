@@ -83,7 +83,7 @@ async def get_task(request: Request, task_id: UUID) -> TaskView:
     return TaskView(id=task_id, locale=locale)
 ```
 
-Request path, query and body values are validated before the handler runs; a Schema body uses `Schema.validate()` and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper Schema field (`Annotated[Cat | Dog, Field(discriminator="kind")]`); bare union body parameters are not supported. Hinoki does not coerce input values into different types. Return annotations describe OpenAPI and output serialization; response values are not validated at runtime. Use a wrapper Schema for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.
+Request path, query and body values are validated before the handler runs; a Schema body uses `Schema.validate()` and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper Schema field (`Annotated[Cat | Dog, Field(discriminator="kind")]`); bare union body parameters are not supported. Hinoki does not coerce input values into different types. Return annotations describe OpenAPI and output serialization. When the annotation is one concrete Schema, a directly returned Model is projected through that Schema; other response values are not validated at runtime. Use a wrapper Schema for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.
 
 ## Upload files
 
@@ -307,7 +307,9 @@ Use `--path` or `--method` to narrow it, and `--format json` for scripts. The li
 
 ## Responses, errors and pagination
 
-Return a value matching the declared response type, or return `Reply` when the handler needs to set an explicit status, headers or body. Declare expected `APIError` subclasses in `errors=(...)`; their status, stable code and message feed the OpenAPI document and strict test client.
+Return a value matching the declared response type, or return `Response` when the handler needs to set an explicit status, headers or body. Declare expected `APIError` subclasses in `errors=(...)`; their status, stable code and message feed the OpenAPI document and strict test client.
+
+`Reply` remains an import-compatible alias for `Response`; new code should use `Response` from `hinoki`.
 
 Paginated actions declare a pagination policy. See [pagination](pagination.md) for the query parameters and response envelope.
 

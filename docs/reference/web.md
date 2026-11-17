@@ -52,7 +52,7 @@ Import the namespace and decorate actions: `from hinoki import http`, then `@htt
       members: true
       show_if_no_docstring: true
 
-::: hinoki.reply.Reply
+::: hinoki.reply.Response
     options:
       members: true
       show_if_no_docstring: true
