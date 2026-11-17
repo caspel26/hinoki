@@ -3,11 +3,11 @@
 from typing import assert_type
 from uuid import UUID, uuid4
 
-from hinoki.orm import Model, OnDelete, field, foreign_key
+from hinoki.orm import Model, OnDelete, field, foreign_key, pk
 
 
 class Item(Model, table="items"):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
+    id: UUID = pk(default_factory=uuid4)
     title: str = field(max_length=40)
     count: int = 0
 
@@ -23,6 +23,10 @@ async def checked() -> None:
     Item()  # type: ignore[call-arg]
     Item(title="x", nope=1)  # type: ignore[call-arg]
     print(saved.titel)  # type: ignore[attr-defined]
+
+
+def keyed_default() -> Item:
+    return Item(title="Generated key")
 
 
 class Keyed(Model, abstract=True):
@@ -49,6 +53,10 @@ class Line(Model, table="lines"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     item_id: UUID = foreign_key(Item, on_delete=OnDelete.CASCADE)
     spare_id: UUID | None = foreign_key(Item, on_delete=OnDelete.SET_NULL, default=None)
+
+
+def foreign_key_defaults(item_id: UUID) -> Line:
+    return Line(item_id=item_id)
 
 
 def deletion_rules(rule: OnDelete, text: str) -> None:
