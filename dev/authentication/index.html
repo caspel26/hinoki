@@ -389,8 +389,12 @@
         <p class="kicker" data-search-exclude>3.16 · Guides</p>
         <h1 id="authentication-and-access-policies">Authentication and access policies<a class="headerlink" href="#authentication-and-access-policies" title="Permanent link">&para;</a></h1>
 <p>Hinoki keeps credential parsing in an authentication provider and permission checks in an <code>Access</code> policy. Endpoints are public unless a policy is attached; protect each private action deliberately.</p>
-<p>Define closed permission names with <code>Permission</code>, an empty string-enum base. Existing
-string permission values remain accepted during the compatibility cycle.</p>
+<p>Define closed permission names with <code>Permission</code>, an empty string-enum base. Plain
+string permission values remain accepted: <code>Access</code> and <code>Caller</code> store every permission
+as its string value, so a <code>Permission</code> member and the equal string match each other in
+checks, reprs and logs. The compatibility cycle for string permissions (a deprecation
+warning) and a typing that accepts only <code>Permission</code> members are deferred; neither is
+in effect yet.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Permission</span>
 
 
@@ -469,7 +473,7 @@ and protected routes refer to the same typed constant.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.16</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 19:11:19 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 20:38:10 UTC">November 17, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/authentication.md">Edit on GitHub</a></dd></div>
         </dl>

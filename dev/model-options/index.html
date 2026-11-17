@@ -456,10 +456,11 @@
 </table>
 <ul>
 <li><code>pk(default_factory=...)</code> is a shorthand for a primary key field; it requires an explicit default or factory for static constructor typing. Existing <code>field(primary_key=True, ...)</code> remains valid.</li>
-<li>A primary key or unique field already has an index; <code>field(index=True)</code> cannot be combined with either. Declaring the same one-column index through <code>field(index=True)</code> and <code>@db.indexed("column")</code> produces one index.</li>
+<li><code>db.table</code>, <code>db.indexed</code> and <code>db.ordered_by</code> are the same decorators as <code>hinoki.orm.table</code>, <code>indexed</code> and <code>ordered_by</code>; import them from either place. Naming the table twice with different names (two <code>@db.table</code> decorators, or one and <code>table=</code>) is an error that names both.</li>
+<li><code>field(index=...)</code> takes <code>True</code> or <code>False</code>; other values are refused. A primary key or unique field already has an index; <code>field(index=True)</code> cannot be combined with either. Declaring the same one-column index through <code>field(index=True)</code> and <code>@db.indexed("column")</code> produces one index.</li>
 <li>Column names are checked when the decorator is applied; a typo fails at import with the model and the unknown names.</li>
 <li>Stacked decorators are stored in reading order (top to bottom).</li>
-<li>A model inherits the options of its <a href="../models/#share-fields-abstract-models-and-mixins">abstract bases</a>. A decorator on the subclass replaces everything inherited for that kind of option (<code>@db.indexed</code> replaces the inherited indexes, and so on) and leaves the other kinds inherited. A model that subclasses a table model does not inherit that parent's options.</li>
+<li>A model inherits the options of its <a href="../models/#share-fields-abstract-models-and-mixins">abstract bases</a>. A decorator on the subclass replaces everything inherited for that kind of option (<code>@db.indexed</code> replaces the inherited indexes, and so on) and leaves the other kinds inherited. A <code>field(index=True)</code> index stays with its column: it is inherited while the column keeps <code>index=True</code>, and dropped when the subclass redeclares the column without it. A model that subclasses a table model does not inherit that parent's options.</li>
 <li>Apply options before the model is used: the migration planner, the query layer and the admin read them from the class.</li>
 <li>The fallback table/display names use a small deterministic English suffix rule, not an inflector. Use explicit values for irregular, already-plural or localized names. Pin the table name with <code>@db.table(...)</code> or <code>table=</code> when a class has an existing migration history; changing an implicit name is a guarded drop/create, not a table rename.</li>
 <li>Index names are <code>ix_&lt;table&gt;_&lt;columns&gt;</code>, shortened deterministically (with a hash) past PostgreSQL's 63 bytes.</li>
@@ -489,8 +490,8 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.6</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 19:11:19 UTC">November 17, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>2 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 20:38:10 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-options.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
