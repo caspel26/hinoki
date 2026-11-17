@@ -18,6 +18,7 @@ from hinoki import (
 )
 from hinoki.errors import RegistrationError
 from hinoki.orm import Model, field
+from hinoki.pagination import Page
 from hinoki.rules import (
     Diagnostic,
     Phase,
@@ -29,6 +30,7 @@ from hinoki.rules import (
     failing,
     is_open,
     reachable,
+    returns_plain_list,
     where,
 )
 from tests.providers import TokenAuth
@@ -262,3 +264,75 @@ def test_forbid_model_responses_finds_models_through_containers() -> None:
     assert "returns the model Row" in found[0].message
     exempt = RuleSet(Actions.forbid_model_responses(except_=["*.leaky*"]))
     assert exempt.run(project(leaky, leaky_page, tidy)) == []
+
+
+@http.get("/typed/untyped")
+def untyped(request: Request):  # type: ignore[no-untyped-def]
+    return {}
+
+
+@http.get("/typed/any")
+def any_return(request: Request) -> Any:
+    return {}
+
+
+@http.delete("/typed/gone", status=204)
+def gone(request: Request) -> None:
+    return None
+
+
+def test_require_return_type_flags_missing_and_open_annotations() -> None:
+    rules = RuleSet(Actions.require_return_type())
+    found = rules.run(project(untyped, any_return, gone, health))
+    assert [d.rule_id for d in found] == ["HNK-API-002", "HNK-API-002"]
+    assert {d.message.split(" (")[0] for d in found} == {
+        "GET /typed/untyped",
+        "GET /typed/any",
+    }
+    assert all("concrete return type" in d.message for d in found)
+    assert all(d.status is Status.VIOLATED for d in found)
+    exempt = RuleSet(Actions.require_return_type(except_=["*.untyped", "*.any_return"]))
+    assert exempt.run(project(untyped, any_return, gone)) == []
+    scoped = RuleSet(Actions.require_return_type(match="*.any_return"))
+    assert len(scoped.run(project(untyped, any_return))) == 1
+
+
+@http.get("/lists/all")
+def everything(request: Request) -> list[UserOut]:
+    return []
+
+
+@http.get("/lists/maybe")
+def maybe_list(request: Request) -> list[UserOut] | None:
+    return None
+
+
+@http.get("/lists/paged")
+def paged(request: Request) -> Page[UserOut]:
+    raise NotImplementedError
+
+
+@http.post("/lists/make")
+def make_many(request: Request) -> list[UserOut]:
+    return []
+
+
+def test_require_pagination_flags_get_actions_returning_plain_lists() -> None:
+    rules = RuleSet(Actions.require_pagination())
+    found = rules.run(project(everything, maybe_list, paged, make_many, health))
+    assert [d.rule_id for d in found] == ["HNK-API-003", "HNK-API-003"]
+    assert {d.message.split(" (")[0] for d in found} == {
+        "GET /lists/all",
+        "GET /lists/maybe",
+    }
+    exempt = RuleSet(
+        Actions.require_pagination(except_=["*.everything", "*.maybe_list"])
+    )
+    assert exempt.run(project(everything, maybe_list, paged)) == []
+    scoped = RuleSet(Actions.require_pagination(match="*.paged"))
+    assert scoped.run(project(everything, paged)) == []
+    assert (
+        RuleSet(Actions.require_pagination()).run(project(Posts))[0].rule_id
+        == "HNK-API-003"
+    )
+    assert returns_plain_list(list) and not returns_plain_list(None)
