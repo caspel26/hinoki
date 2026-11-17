@@ -571,18 +571,264 @@ pub fn response_headers<'py>(
 
 const MAX_PARSE_DEPTH: usize = 128;
 
-/// Recursive-descent JSON parser that builds Python objects directly. Strict
-/// RFC 8259: no comments, no trailing commas, no `NaN`/`Infinity`, no BOM,
-/// valid UTF-8 and paired surrogates only. Integers of any size are exact.
-struct Parser<'a, 'py> {
+/// What the JSON parser builds a document into: Python objects for
+/// `decode_json`, or the GIL-free [`Json`] tree. The parser decides the
+/// grammar, the order of the calls and every error message; a builder only
+/// stores values.
+trait Builder {
+    type Value;
+    type Object;
+    type Array;
+
+    fn null(&mut self) -> Self::Value;
+    fn boolean(&mut self, value: bool) -> Self::Value;
+    fn string(&mut self, text: String) -> Self::Value;
+    fn integer(&mut self, value: i64) -> Self::Value;
+    /// An integer outside `i64`, as its decimal JSON text.
+    fn big_integer(&mut self, text: &str) -> Parsed<Self::Value>;
+    fn float(&mut self, value: f64) -> Self::Value;
+    fn object(&mut self) -> Self::Object;
+    /// Store `key`; a repeated key keeps its first position and takes the
+    /// last value (Python `dict` semantics).
+    fn insert(&mut self, object: &mut Self::Object, key: String, value: Self::Value) -> Parsed<()>;
+    fn close_object(&mut self, object: Self::Object) -> Self::Value;
+    fn array(&mut self) -> Self::Array;
+    fn push(&mut self, array: &mut Self::Array, value: Self::Value) -> Parsed<()>;
+    fn close_array(&mut self, array: Self::Array) -> Self::Value;
+}
+
+/// Builds Python objects (`decode_json`).
+struct PyBuilder<'py> {
     py: Python<'py>,
+}
+
+impl<'py> Builder for PyBuilder<'py> {
+    type Value = Bound<'py, PyAny>;
+    type Object = Bound<'py, PyDict>;
+    type Array = Bound<'py, PyList>;
+
+    fn null(&mut self) -> Self::Value {
+        self.py.None().into_bound(self.py)
+    }
+
+    fn boolean(&mut self, value: bool) -> Self::Value {
+        PyBool::new(self.py, value).to_owned().into_any()
+    }
+
+    fn string(&mut self, text: String) -> Self::Value {
+        PyString::new(self.py, &text).into_any()
+    }
+
+    fn integer(&mut self, value: i64) -> Self::Value {
+        PyInt::new(self.py, value).into_any()
+    }
+
+    fn big_integer(&mut self, text: &str) -> Parsed<Self::Value> {
+        self.py
+            .get_type::<PyInt>()
+            .call1((text,))
+            .map_err(|e| e.to_string())
+    }
+
+    fn float(&mut self, value: f64) -> Self::Value {
+        PyFloat::new(self.py, value).into_any()
+    }
+
+    fn object(&mut self) -> Self::Object {
+        PyDict::new(self.py)
+    }
+
+    fn insert(&mut self, object: &mut Self::Object, key: String, value: Self::Value) -> Parsed<()> {
+        object.set_item(key, value).map_err(|e| e.to_string())
+    }
+
+    fn close_object(&mut self, object: Self::Object) -> Self::Value {
+        object.into_any()
+    }
+
+    fn array(&mut self) -> Self::Array {
+        PyList::empty(self.py)
+    }
+
+    fn push(&mut self, array: &mut Self::Array, value: Self::Value) -> Parsed<()> {
+        array.append(value).map_err(|e| e.to_string())
+    }
+
+    fn close_array(&mut self, array: Self::Array) -> Self::Value {
+        array.into_any()
+    }
+}
+
+/// A decoded JSON value that holds no Python object, so it can be built and
+/// validated without the GIL. It keeps what `decode_json` would produce:
+/// integers in `i64` as [`Json::Int`], larger ones as their text, floats
+/// as `f64`, object keys in first-seen order with the last value of a
+/// repeated key.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Json {
+    Null,
+    Bool(bool),
+    Int(i64),
+    /// An integer outside `i64`, as its decimal JSON text.
+    BigInt(String),
+    Float(f64),
+    Str(String),
+    List(Vec<Json>),
+    Object(JsonObject),
+}
+
+/// The members of a JSON object in first-seen key order.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(crate) struct JsonObject {
+    entries: Vec<(String, Json)>,
+    index: HashMap<String, usize>,
+}
+
+impl JsonObject {
+    /// Python `dict` assignment: a new key is appended, a known key keeps its
+    /// position and takes the new value.
+    pub(crate) fn insert(&mut self, key: String, value: Json) {
+        if let Some(&at) = self.index.get(&key) {
+            self.entries[at].1 = value;
+            return;
+        }
+        self.index.insert(key.clone(), self.entries.len());
+        self.entries.push((key, value));
+    }
+
+    pub(crate) fn get(&self, key: &str) -> Option<&Json> {
+        self.index.get(key).map(|&at| &self.entries[at].1)
+    }
+
+    pub(crate) fn contains(&self, key: &str) -> bool {
+        self.index.contains_key(key)
+    }
+
+    pub(crate) fn keys(&self) -> impl Iterator<Item = &str> {
+        self.entries.iter().map(|(key, _)| key.as_str())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&str, &Json)> {
+        self.entries
+            .iter()
+            .map(|(key, value)| (key.as_str(), value))
+    }
+}
+
+/// The Python object `decode_json` builds for the same document.
+#[cfg(test)]
+pub(crate) fn json_to_python<'py>(py: Python<'py>, value: &Json) -> PyResult<Bound<'py, PyAny>> {
+    let mut builder = PyBuilder { py };
+    Ok(match value {
+        Json::Null => builder.null(),
+        Json::Bool(flag) => builder.boolean(*flag),
+        Json::Int(int) => builder.integer(*int),
+        Json::BigInt(text) => builder.big_integer(text).map_err(PyValueError::new_err)?,
+        Json::Float(float) => builder.float(*float),
+        Json::Str(text) => builder.string(text.clone()),
+        Json::List(items) => {
+            let list = builder.array();
+            for item in items {
+                list.append(json_to_python(py, item)?)?;
+            }
+            builder.close_array(list)
+        }
+        Json::Object(object) => {
+            let dict = builder.object();
+            for (key, item) in object.iter() {
+                dict.set_item(key, json_to_python(py, item)?)?;
+            }
+            builder.close_object(dict)
+        }
+    })
+}
+
+/// A whole decoded body. `big_integers` says that some integer did not fit
+/// `i64`: Python decodes such text with `int()`, which has its own digit
+/// limit, so a caller that must match `decode_json` exactly treats such a
+/// document as uncertain.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct JsonDocument {
+    pub(crate) root: Json,
+    pub(crate) big_integers: bool,
+}
+
+/// Builds the GIL-free [`Json`] tree.
+#[derive(Default)]
+struct DomBuilder {
+    big_integers: bool,
+}
+
+impl Builder for DomBuilder {
+    type Value = Json;
+    type Object = JsonObject;
+    type Array = Vec<Json>;
+
+    fn null(&mut self) -> Json {
+        Json::Null
+    }
+
+    fn boolean(&mut self, value: bool) -> Json {
+        Json::Bool(value)
+    }
+
+    fn string(&mut self, text: String) -> Json {
+        Json::Str(text)
+    }
+
+    fn integer(&mut self, value: i64) -> Json {
+        Json::Int(value)
+    }
+
+    fn big_integer(&mut self, text: &str) -> Parsed<Json> {
+        self.big_integers = true;
+        Ok(Json::BigInt(text.to_owned()))
+    }
+
+    fn float(&mut self, value: f64) -> Json {
+        Json::Float(value)
+    }
+
+    fn object(&mut self) -> JsonObject {
+        JsonObject::default()
+    }
+
+    fn insert(&mut self, object: &mut JsonObject, key: String, value: Json) -> Parsed<()> {
+        object.insert(key, value);
+        Ok(())
+    }
+
+    fn close_object(&mut self, object: JsonObject) -> Json {
+        Json::Object(object)
+    }
+
+    fn array(&mut self) -> Vec<Json> {
+        Vec::new()
+    }
+
+    fn push(&mut self, array: &mut Vec<Json>, value: Json) -> Parsed<()> {
+        array.push(value);
+        Ok(())
+    }
+
+    fn close_array(&mut self, array: Vec<Json>) -> Json {
+        Json::List(array)
+    }
+}
+
+/// Recursive-descent JSON parser over a [`Builder`]. Strict RFC 8259: no
+/// comments, no trailing commas, no `NaN`/`Infinity`, no BOM, valid UTF-8
+/// and paired surrogates only. Integers of any size are exact.
+struct Parser<'a, B> {
+    builder: B,
     input: &'a [u8],
     at: usize,
 }
 
 type Parsed<T> = Result<T, String>;
 
-impl<'a, 'py> Parser<'a, 'py> {
+impl<'a, B: Builder> Parser<'a, B> {
     fn fail<T>(&self, what: &str) -> Parsed<T> {
         Err(format!("{what} at byte {}", self.at))
     }
@@ -606,7 +852,7 @@ impl<'a, 'py> Parser<'a, 'py> {
         }
     }
 
-    fn value(&mut self, depth: usize) -> Parsed<Bound<'py, PyAny>> {
+    fn value(&mut self, depth: usize) -> Parsed<B::Value> {
         if depth > MAX_PARSE_DEPTH {
             return self.fail("nesting too deep");
         }
@@ -614,28 +860,25 @@ impl<'a, 'py> Parser<'a, 'py> {
         match self.peek() {
             Some(b'{') => self.object(depth),
             Some(b'[') => self.array(depth),
-            Some(b'"') => Ok(PyString::new(self.py, &self.string()?).into_any()),
-            Some(b't') => self
-                .expect(b"true")
-                .map(|()| PyBool::new(self.py, true).to_owned().into_any()),
-            Some(b'f') => self
-                .expect(b"false")
-                .map(|()| PyBool::new(self.py, false).to_owned().into_any()),
-            Some(b'n') => self
-                .expect(b"null")
-                .map(|()| self.py.None().into_bound(self.py)),
+            Some(b'"') => {
+                let text = self.string()?;
+                Ok(self.builder.string(text))
+            }
+            Some(b't') => self.expect(b"true").map(|()| self.builder.boolean(true)),
+            Some(b'f') => self.expect(b"false").map(|()| self.builder.boolean(false)),
+            Some(b'n') => self.expect(b"null").map(|()| self.builder.null()),
             Some(b'-' | b'0'..=b'9') => self.number(),
             _ => self.fail("unexpected character"),
         }
     }
 
-    fn object(&mut self, depth: usize) -> Parsed<Bound<'py, PyAny>> {
+    fn object(&mut self, depth: usize) -> Parsed<B::Value> {
         self.at += 1;
-        let dict = PyDict::new(self.py);
+        let mut object = self.builder.object();
         self.skip_space();
         if self.peek() == Some(b'}') {
             self.at += 1;
-            return Ok(dict.into_any());
+            return Ok(self.builder.close_object(object));
         }
         loop {
             self.skip_space();
@@ -649,36 +892,36 @@ impl<'a, 'py> Parser<'a, 'py> {
             }
             self.at += 1;
             let item = self.value(depth + 1)?;
-            dict.set_item(key, item).map_err(|e| e.to_string())?;
+            self.builder.insert(&mut object, key, item)?;
             self.skip_space();
             match self.peek() {
                 Some(b',') => self.at += 1,
                 Some(b'}') => {
                     self.at += 1;
-                    return Ok(dict.into_any());
+                    return Ok(self.builder.close_object(object));
                 }
                 _ => return self.fail("expected ',' or '}'"),
             }
         }
     }
 
-    fn array(&mut self, depth: usize) -> Parsed<Bound<'py, PyAny>> {
+    fn array(&mut self, depth: usize) -> Parsed<B::Value> {
         self.at += 1;
-        let list = PyList::empty(self.py);
+        let mut array = self.builder.array();
         self.skip_space();
         if self.peek() == Some(b']') {
             self.at += 1;
-            return Ok(list.into_any());
+            return Ok(self.builder.close_array(array));
         }
         loop {
             let item = self.value(depth + 1)?;
-            list.append(item).map_err(|e| e.to_string())?;
+            self.builder.push(&mut array, item)?;
             self.skip_space();
             match self.peek() {
                 Some(b',') => self.at += 1,
                 Some(b']') => {
                     self.at += 1;
-                    return Ok(list.into_any());
+                    return Ok(self.builder.close_array(array));
                 }
                 _ => return self.fail("expected ',' or ']'"),
             }
@@ -774,7 +1017,7 @@ impl<'a, 'py> Parser<'a, 'py> {
         Ok(())
     }
 
-    fn number(&mut self) -> Parsed<Bound<'py, PyAny>> {
+    fn number(&mut self) -> Parsed<B::Value> {
         let start = self.at;
         if self.peek() == Some(b'-') {
             self.at += 1;
@@ -805,16 +1048,44 @@ impl<'a, 'py> Parser<'a, 'py> {
             if !float.is_finite() {
                 return self.fail("number out of range");
             }
-            return Ok(PyFloat::new(self.py, float).into_any());
+            return Ok(self.builder.float(float));
         }
         if let Ok(int) = text.parse::<i64>() {
-            return Ok(PyInt::new(self.py, int).into_any());
+            return Ok(self.builder.integer(int));
         }
-        self.py
-            .get_type::<PyInt>()
-            .call1((text,))
-            .map_err(|e| e.to_string())
+        self.builder.big_integer(text)
     }
+}
+
+/// Parse one whole document (trailing whitespace only) with `builder`.
+fn parse_document<B: Builder>(builder: B, raw: &[u8]) -> Parsed<(B::Value, B)> {
+    let mut parser = Parser {
+        builder,
+        input: raw,
+        at: 0,
+    };
+    let value = parser.value(0)?;
+    parser.skip_space();
+    if parser.at != raw.len() {
+        return Err(format!("trailing data at byte {}", parser.at));
+    }
+    Ok((value, parser.builder))
+}
+
+// The GIL-free entry points have no caller in the extension yet: the native
+// CRUD executor uses them. Allowing them keeps everything they reach checked.
+/// Parse a JSON document into the GIL-free [`Json`] tree. Accepts and
+/// refuses exactly what `decode_json` does, with the same error messages.
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "consumed by the native CRUD executor")
+)]
+pub(crate) fn decode_json_document(raw: &[u8]) -> Result<JsonDocument, String> {
+    let (root, builder) = parse_document(DomBuilder::default(), raw)?;
+    Ok(JsonDocument {
+        root,
+        big_integers: builder.big_integers,
+    })
 }
 
 /// Parse a JSON document into Python objects. Raises `ValueError` for syntax
@@ -822,20 +1093,9 @@ impl<'a, 'py> Parser<'a, 'py> {
 /// deeper than 128 levels.
 #[pyfunction]
 pub fn decode_json<'py>(py: Python<'py>, raw: &[u8]) -> PyResult<Bound<'py, PyAny>> {
-    let mut parser = Parser {
-        py,
-        input: raw,
-        at: 0,
-    };
-    let value = parser.value(0).map_err(PyValueError::new_err)?;
-    parser.skip_space();
-    if parser.at != raw.len() {
-        return Err(PyValueError::new_err(format!(
-            "trailing data at byte {}",
-            parser.at
-        )));
-    }
-    Ok(value)
+    parse_document(PyBuilder { py }, raw)
+        .map(|(value, _)| value)
+        .map_err(PyValueError::new_err)
 }
 
 fn write_string(out: &mut Vec<u8>, text: &str) -> PyResult<()> {
@@ -1274,5 +1534,130 @@ mod tests {
                 ))
             );
         }
+    }
+
+    /// Both builders over the same text: the same error message, or values
+    /// with the same Python `repr()` (which tells `1`, `1.0` and `True`
+    /// apart and shows key order). `true` when the text was accepted.
+    fn same_decoding(py: Python<'_>, text: &[u8]) -> bool {
+        let python = decode_json(py, text);
+        let native = decode_json_document(text);
+        let shown = String::from_utf8_lossy(text);
+        match (python, native) {
+            (Ok(python), Ok(native)) => {
+                let rebuilt = json_to_python(py, &native.root).unwrap();
+                let repr = |value: &Bound<'_, PyAny>| value.repr().unwrap().to_string();
+                assert_eq!(repr(&rebuilt), repr(&python), "{shown}");
+                assert!(rebuilt.eq(&python).unwrap(), "{shown}");
+                true
+            }
+            (Err(python), Err(native)) => {
+                assert_eq!(python.value(py).to_string(), native, "{shown}");
+                false
+            }
+            (python, native) => panic!("{shown}: {python:?} vs {native:?}"),
+        }
+    }
+
+    const ACCEPTED: [&str; 24] = [
+        "null",
+        " true ",
+        "false",
+        "0",
+        "-0",
+        "-0.0",
+        "1.5e3",
+        "1E-2",
+        "9223372036854775807",
+        "-9223372036854775808",
+        "9223372036854775808",
+        "-123456789012345678901234567890",
+        "1e308",
+        "\"\"",
+        r#""a\"b\\c\/d\b\f\n\r\t""#,
+        r#""\u00e9\ud83d\ude00\u0000""#,
+        "\"日本語 é\"",
+        "[]",
+        "[1, [2, [3]], {}]",
+        r#"{"a": 1, "b": [true, null], "c": {"d": "e"}}"#,
+        r#"{"k": 1, "j": 2, "k": 3}"#,
+        r#"{"k": {"x": 1}, "k": [2]}"#,
+        "\t\n\r [ ] \n",
+        r#"{"é": "\u00e9", "": ""}"#,
+    ];
+
+    const REFUSED: [&str; 32] = [
+        "",
+        " ",
+        "nul",
+        "tru",
+        "[1,]",
+        "{\"a\":1,}",
+        "{'a': 1}",
+        "{\"a\" 1}",
+        "{1: 2}",
+        "[1 2]",
+        "01",
+        "1.",
+        ".5",
+        "-",
+        "1e",
+        "1e+",
+        "NaN",
+        "Infinity",
+        "1e400",
+        "-1e400",
+        "\"\\ud800\"",
+        "\"\\ud800\\u0041\"",
+        "\"\\udc00\"",
+        "\"\\x41\"",
+        "\"\\u12\"",
+        "\"\\u12g4\"",
+        "\"abc",
+        "\"a\u{1}b\"",
+        "\u{feff}{}",
+        "{} {}",
+        "[1] x",
+        "/* c */ 1",
+    ];
+
+    #[test]
+    fn the_json_tree_decodes_exactly_like_decode_json() {
+        Python::initialize();
+        Python::attach(|py| {
+            for text in ACCEPTED {
+                assert!(same_decoding(py, text.as_bytes()), "{text} should decode");
+            }
+            for text in REFUSED {
+                assert!(!same_decoding(py, text.as_bytes()), "{text} is refused");
+            }
+            let deep = "[".repeat(129) + &"]".repeat(129);
+            assert!(same_decoding(py, deep.as_bytes()));
+            let deeper = "[".repeat(130) + &"]".repeat(130);
+            assert!(!same_decoding(py, deeper.as_bytes()));
+            assert!(!same_decoding(py, b"\"\xff\""));
+            assert!(!same_decoding(py, b"{\"\xc3\x28\": 1}"));
+        });
+    }
+
+    #[test]
+    fn the_json_tree_keeps_python_dict_semantics_and_flags_big_integers() {
+        let document = decode_json_document(br#"{"b": 1, "a": 2, "b": 3}"#).unwrap();
+        let Json::Object(object) = &document.root else {
+            panic!("an object");
+        };
+        assert_eq!(object.keys().collect::<Vec<_>>(), vec!["b", "a"]);
+        assert_eq!(object.get("b"), Some(&Json::Int(3)));
+        assert!(object.contains("a") && !object.contains("c"));
+        assert!(!document.big_integers);
+        let big = decode_json_document(b"[1, 99999999999999999999]").unwrap();
+        assert!(big.big_integers);
+        assert_eq!(
+            big.root,
+            Json::List(vec![
+                Json::Int(1),
+                Json::BigInt("99999999999999999999".into())
+            ])
+        );
     }
 }
