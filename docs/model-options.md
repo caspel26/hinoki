@@ -23,7 +23,7 @@ from hinoki.orm import (
 from hinoki.utils import utc_now
 
 
-class Member(Model, table="members"):
+class Member(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
 
 
@@ -31,7 +31,7 @@ class Member(Model, table="members"):
 @indexed("owner_id", "created_at")
 @ordered_by("-created_at", "-id")
 @timestamps()
-class Bookmark(Model, table="bookmarks", label="Bookmark", plural="Bookmarks"):
+class Bookmark(Model, table="saved_links", label="Saved link", plural="Saved links"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     owner_id: UUID = foreign_key(Member, on_delete=OnDelete.RESTRICT, related_name="bookmarks")
     url: str = field(max_length=500)
@@ -41,7 +41,7 @@ class Bookmark(Model, table="bookmarks", label="Bookmark", plural="Bookmarks"):
 
 | Option | Form | Effect |
 | --- | --- | --- |
-| table | `table="bookmarks"` (optional class keyword) | overrides the default plural snake-case table name derived from the class |
+| table | `table="saved_links"` (optional class keyword) | overrides the default plural snake-case table name derived from the class |
 | labels | `label=`, `plural=` (optional class keywords) | override the humanized singular and plural display names derived from the class |
 | composite uniqueness | `@unique("a", "b")` | a `UNIQUE (a, b)` constraint; a single column uses `field(unique=True)` |
 | index | `@indexed("a", "b")` | a `CREATE INDEX` planned by the migration tool; adding or removing one is a non-destructive migration |

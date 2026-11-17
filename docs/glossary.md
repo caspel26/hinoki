@@ -8,7 +8,7 @@
 | table state, migration state | What the migration planner records about the database tables (`migrations/NNNN-name.state.json`). Never "the database schema". |
 | OpenAPI document | The generated `/openapi.json` description of the API. Its `components.schemas` entries are "OpenAPI schema objects". |
 | JSON Schema | The standard of that name, which the OpenAPI document uses to describe bodies. Always with its proper name. |
-| `Model` | A class that maps to a table (`class Note(Model, table="notes")`). Not a `Schema`: a column reaches a client only when a `Schema` names it. |
+| `Model` | A class that maps to a table (`class Note(Model)` maps to `notes`). Not a `Schema`: a column reaches a client only when a `Schema` names it. |
 | `Access`, `Caller` | The access policy of an action, and who is making the request. |
 | action | One declared endpoint (`@http.get`, `@http.post`, ...), plain function or API-class method. |
 

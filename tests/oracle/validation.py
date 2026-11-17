@@ -92,10 +92,15 @@ class Validator:
 
     def length(self, ftype: FieldType, data: Any, path: str) -> object:
         info, size = ftype.info, len(data)
+        unit = "character" if isinstance(data, str) else "item"
         if info.min_length is not None and size < info.min_length:
-            return self.fail(path, "min_length", f"at least {info.min_length} long")
+            bound = info.min_length
+            plural = "" if bound == 1 else "s"
+            return self.fail(path, "min_length", f"at least {bound} {unit}{plural}")
         if info.max_length is not None and size > info.max_length:
-            return self.fail(path, "max_length", f"at most {info.max_length} long")
+            bound = info.max_length
+            plural = "" if bound == 1 else "s"
+            return self.fail(path, "max_length", f"at most {bound} {unit}{plural}")
         return data
 
     def bounds(self, ftype: FieldType, data: Any, path: str) -> object:

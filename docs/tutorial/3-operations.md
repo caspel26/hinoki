@@ -1,3 +1,7 @@
+---
+status: implemented
+---
+
 # 3. Operations
 
 The rules of the application live in plain async functions that take the acting member's id and plain values. No `Request`, no HTTP types: an action, a CLI, a test or an admin hook can all call them. This excerpt follows `examples/tracker/operations.py`.

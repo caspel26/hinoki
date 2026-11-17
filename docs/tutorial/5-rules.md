@@ -1,3 +1,7 @@
+---
+status: implemented
+---
+
 # 5. Rules
 
 Rules turn promises into failures with a stable id and a location.
