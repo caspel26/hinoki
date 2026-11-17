@@ -10,4 +10,4 @@ mod value;
 
 pub use database::{Database, Row, Transaction};
 pub use error::{DbError, ErrorKind};
-pub use value::Value;
+pub use value::{parse_timestamp, timestamp_iso, timestamp_storage_text, Value};

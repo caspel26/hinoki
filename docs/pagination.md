@@ -7,7 +7,7 @@ status: implemented
 An action opts into page-number pagination with `pagination=PageNumberPagination()`. A size you leave out comes from the application's `pagination` settings group; without settings the defaults are `page_size=20` and `max_page_size=100`. The framework parses and validates `page` and `page_size`, injects a `PageParams` value, and documents both query parameters in OpenAPI.
 
 This is the Tracker's authenticated list pattern: it limits each page to the
-caller’s own tasks. Include the route in an app that installs `DatabaseModule`,
+caller’s own tasks. Include the route in an app whose settings declare a database,
 as the [Tracker app factory](tutorial/6-run.md) does.
 
 ```python

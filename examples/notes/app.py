@@ -10,7 +10,6 @@ from typing import Annotated
 from uuid import UUID
 
 from hinoki import Field, Hinoki, Schema, http
-from hinoki.db import DatabaseModule
 
 from .models import Note
 from .settings import NotesSettings
@@ -58,5 +57,4 @@ def create_app(database_url: str | None = None) -> Hinoki:
         docs_url="/docs",
     )
     app.include(listing, one, create, remove)
-    app.install(DatabaseModule(app_settings.database.url.reveal()))
     return app

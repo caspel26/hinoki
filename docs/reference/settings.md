@@ -62,5 +62,7 @@
 
 ::: hinoki.settings.DatabaseSettings
     options:
-      members: [url, max_size]
+      members: [url, engine, name, user, password, host, port, options, max_size]
       show_if_no_docstring: true
+
+::: hinoki.settings.DatabaseEngine

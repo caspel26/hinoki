@@ -6,7 +6,6 @@ The settings class reads the environment when the command loads this module.
 """
 
 from hinoki import Hinoki
-from hinoki.db import DatabaseModule
 
 from .app import create, listing, one, remove
 from .settings import NotesSettings
@@ -17,5 +16,4 @@ app = Hinoki(
     openapi_url="/openapi.json",
     docs_url="/docs",
     include=[listing, one, create, remove],
-    modules=[DatabaseModule],
 )
