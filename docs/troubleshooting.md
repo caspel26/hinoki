@@ -10,7 +10,7 @@ Check the settings class's `prefix=` and nested field names. Nested groups use `
 
 ## Database connection fails at startup
 
-The `DatabaseModule` opens a pool in each worker's startup. Confirm the selected
+The database module opens a pool in each worker's startup. Confirm the selected
 backend URL, network reachability and database availability from the same
 environment as the worker. Check the backend-specific URL, TLS and migration
 limits in [Configure a database](databases.md). Use one worker and a small pool
