@@ -22,7 +22,7 @@ from hinoki.db import (
 )
 from hinoki.errors import ModelValidationError
 from hinoki.orm import current_database
-from hinoki.reply import Reply
+from hinoki.reply import Response
 from hinoki.request import Request
 from hinoki.runtime.binding import to_int
 
@@ -209,7 +209,7 @@ class Site:
         active: str = "",
         status: int = 200,
         query: str = "",
-    ) -> Reply:
+    ) -> Response:
         admin = self.admin
         t = admin.templates
         crumb_list = crumbs or [(admin.workspace, self.url()), (title, "")]
@@ -251,9 +251,9 @@ class Site:
                     self.request, self.token, admin.base, secure=admin.secure_cookies
                 )
             )
-        return Reply(status, html, headers, "text/html; charset=utf-8")
+        return Response(status, html, headers, "text/html; charset=utf-8")
 
-    async def problem(self, status: int, text: str) -> Reply:
+    async def problem(self, status: int, text: str) -> Response:
         return await self.page(
             str(status), Raw(""), status=status, notice=self.parts.notice("error", text)
         )

@@ -41,7 +41,7 @@ from hinoki.admin.templates import Raw, escape
 from hinoki.api import API
 from hinoki.auth import Caller
 from hinoki.orm.context import current_database
-from hinoki.reply import Reply
+from hinoki.reply import Response
 from hinoki.request import Request
 
 if typing.TYPE_CHECKING:
@@ -49,9 +49,9 @@ if typing.TYPE_CHECKING:
     from hinoki.admin.modeladmin import ModelAdmin
 
 
-async def stylesheet(self: API, request: Request) -> Reply:  # noqa: ARG001
+async def stylesheet(self: API, request: Request) -> Response:  # noqa: ARG001
     admin: Admin = self.admin  # type: ignore[attr-defined]
-    return Reply(
+    return Response(
         200,
         admin.templates.stylesheet(),
         [
@@ -62,9 +62,9 @@ async def stylesheet(self: API, request: Request) -> Reply:  # noqa: ARG001
     )
 
 
-async def script(self: API, request: Request) -> Reply:  # noqa: ARG001
+async def script(self: API, request: Request) -> Response:  # noqa: ARG001
     admin: Admin = self.admin  # type: ignore[attr-defined]
-    return Reply(
+    return Response(
         200,
         admin.templates.script(),
         [
@@ -75,7 +75,7 @@ async def script(self: API, request: Request) -> Reply:  # noqa: ARG001
     )
 
 
-async def index(self: API, request: Request, principal: Caller[Any]) -> Reply:
+async def index(self: API, request: Request, principal: Caller[Any]) -> Response:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     admin = site.admin
     stats: list[Stat] = []
@@ -138,7 +138,7 @@ async def index(self: API, request: Request, principal: Caller[Any]) -> Reply:
     )
 
 
-async def search(self: API, request: Request, principal: Caller[Any]) -> Reply:
+async def search(self: API, request: Request, principal: Caller[Any]) -> Response:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     text = request.GET.get("q", "").replace("\x00", "")[:MAX_QUERY].strip()
     groups = []
@@ -176,7 +176,7 @@ async def search(self: API, request: Request, principal: Caller[Any]) -> Reply:
 
 async def listing(
     self: API, request: Request, principal: Caller[Any], model: str
-) -> Reply:
+) -> Response:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry = site.entry(model)
     if entry is None:
@@ -186,7 +186,7 @@ async def listing(
 
 async def add_form(
     self: API, request: Request, principal: Caller[Any], model: str
-) -> Reply:
+) -> Response:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry = site.entry(model)
     if entry is None or not entry.can(principal, "add"):
@@ -197,7 +197,7 @@ async def add_form(
 
 async def add_submit(
     self: API, request: Request, principal: Caller[Any], model: str
-) -> Reply:
+) -> Response:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry = site.entry(model)
     if entry is None or not entry.can(principal, "add"):
@@ -216,7 +216,7 @@ async def add_submit(
             model, entry, None, fields, dict(request.POST), errors, message, 422
         )
         return await form_response(site, view)
-    return Reply(
+    return Response(
         303, headers=[("location", site.url(model, **site.state.query(done="created")))]
     )
 
@@ -237,7 +237,7 @@ async def open_row(
 
 async def edit_form(
     self: API, request: Request, principal: Caller[Any], model: str, key: str
-) -> Reply:
+) -> Response:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry, row = await open_row(site, model, key, "change")
     if entry is None:
@@ -249,7 +249,7 @@ async def edit_form(
 
 async def edit_submit(
     self: API, request: Request, principal: Caller[Any], model: str, key: str
-) -> Reply:
+) -> Response:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry, row = await open_row(site, model, key, "change")
     if entry is None:
@@ -269,14 +269,14 @@ async def edit_submit(
             model, entry, row, fields, dict(request.POST), errors, message, 422
         )
         return await form_response(site, view)
-    return Reply(
+    return Response(
         303, headers=[("location", site.url(model, **site.state.query(done="saved")))]
     )
 
 
 async def delete_form(
     self: API, request: Request, principal: Caller[Any], model: str, key: str
-) -> Reply:
+) -> Response:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry, row = await open_row(site, model, key, "delete")
     if entry is None:
@@ -305,7 +305,7 @@ async def delete_form(
 
 async def delete_submit(
     self: API, request: Request, principal: Caller[Any], model: str, key: str
-) -> Reply:
+) -> Response:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry, row = await open_row(site, model, key, "delete")
     if entry is None:
@@ -317,7 +317,7 @@ async def delete_submit(
     message = await guarded(entry.remove(row, principal))
     if message:
         return await site.problem(409, message)
-    return Reply(
+    return Response(
         303, headers=[("location", site.url(model, **site.state.query(done="deleted")))]
     )
 
@@ -420,7 +420,7 @@ async def bulk_confirmation(
     rows: list[Any],
     selected_action: str,
     action: BulkAction[Any] | None,
-) -> Reply:
+) -> Response:
     hidden = Raw(
         '<input type="hidden" name="confirmed" value="1">'
         f'<input type="hidden" name="action" value="{escape(selected_action)}">'
@@ -463,7 +463,7 @@ async def run_bulk_action(
 
 async def bulk(
     self: API, request: Request, principal: Caller[Any], model: str
-) -> Reply:
+) -> Response:
     site = Site(self.admin, request, principal)  # type: ignore[attr-defined]
     entry = site.entry(model)
     if entry is None:
@@ -484,7 +484,7 @@ async def bulk(
     if rows is None:
         return await site.problem(404, "One or more selected rows are unavailable.")
     if not rows:
-        return Reply(303, headers=[("location", site.url(model))])
+        return Response(303, headers=[("location", site.url(model))])
     if request.POST.get("confirmed") != "1":
         return await bulk_confirmation(
             site, model, entry, rows, selected_action, action
@@ -493,7 +493,7 @@ async def bulk(
     if failed:
         return await site.problem(409, failed)
     done = "deleted" if action is None else f"action:{model}:{action.name}"
-    return Reply(303, headers=[("location", site.url(model, done=done))])
+    return Response(303, headers=[("location", site.url(model, done=done))])
 
 
 VIEWS: dict[str, Callable[..., Any]] = {

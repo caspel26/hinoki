@@ -770,6 +770,7 @@ class Schema:
         }
         plan = cls.__dict__.get("__derivation__")
         if plan is not None:
+            cls.__derived_model__ = cast(type, plan[0])
             derive_from_model(cls, *plan)
         elif model is not _NO_MODEL:
             source = cast(type, model)
@@ -1325,7 +1326,7 @@ def derive_from_model(
     from hinoki.orm.model import MARK, FieldMeta, Model  # noqa: PLC0415 - orm uses us
 
     if not (isinstance(model, type) and issubclass(model, Model)):
-        raise RegistrationError(f"{cls.__name__}: model= must be a Model class")
+        raise RegistrationError(f"{cls.__name__}: source must be a Model class")
     chosen, some, everything = chosen_columns(cls, model, fields, exclude, optional)
     hints = typing.get_type_hints(model, include_extras=True)
     by_name = {f.name: f for f in dataclasses.fields(cast(Any, model))}

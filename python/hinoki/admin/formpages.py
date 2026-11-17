@@ -17,7 +17,7 @@ from hinoki.admin.modeladmin import ModelAdmin
 from hinoki.admin.parts import Badge
 from hinoki.admin.site import OPTION_LIMIT, Site
 from hinoki.admin.templates import Raw, escape
-from hinoki.reply import Reply
+from hinoki.reply import Response
 
 
 async def option_lists(
@@ -110,7 +110,7 @@ def status_badge(entry: ModelAdmin[Any], row: Any) -> Badge | None:
     return None
 
 
-async def form_response(site: Site, view: FormView) -> Reply:
+async def form_response(site: Site, view: FormView) -> Response:
     entry, slug, row = view.entry, view.slug, view.row
     fields, options = await option_lists(site, view.fields)
     t = site.admin.templates

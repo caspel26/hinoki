@@ -18,7 +18,7 @@ from hinoki.derive import derive
 from hinoki.modules import Module, ModuleContext
 from hinoki.parsers import FormParser, JSONParser, MultiPartParser, Parser, UploadedFile
 from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer
-from hinoki.reply import Reply, set_cookie
+from hinoki.reply import Reply, Response, set_cookie
 from hinoki.request import Request
 from hinoki.routing import Mount, Route, RouteGroup
 from hinoki.rules import Actions, Imports, Schemas, Transactions
@@ -67,6 +67,7 @@ __all__ = [
     "Renderer",
     "Reply",
     "Request",
+    "Response",
     "Route",
     "RouteGroup",
     "RuntimeConfig",
