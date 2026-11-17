@@ -308,6 +308,29 @@ def test_native_response_finalization_uses_the_https_policy() -> None:
     assert dict(reply[1])[b"strict-transport-security"] == b"max-age=31536000"
 
 
+def test_native_response_finalization_keeps_cors_headers() -> None:
+    app = Hinoki(
+        settings=AppSettings(cors=CorsSettings(origins=("https://client.example",)))
+    )
+    app.include(native)
+    server = classifier(app)
+    submission = server.submit(
+        "GET",
+        "/native",
+        b"",
+        [(b"origin", b"https://client.example")],
+    )
+    [request] = server.drain(1)
+
+    assert request.respond_final(
+        200, [(b"content-type", b"application/json")], b'{"native":"yes"}'
+    )
+    reply = submission.reply()
+    assert reply is not None
+    assert dict(reply[1])[b"access-control-allow-origin"] == b"https://client.example"
+    assert dict(reply[1])[b"vary"] == b"origin"
+
+
 def test_startup_probe_answers_get_head_and_refuses_bad_requests_natively() -> None:
     server = classifier(Hinoki(startup_url="/health"))
 
