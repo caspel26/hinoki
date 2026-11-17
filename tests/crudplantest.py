@@ -298,6 +298,7 @@ def test_native_crud_activation_fails_closed_for_missing_and_failed_database(
         worker.core = CoreStub()
         worker._disarmed_crud_actions = set()
         worker._activate_crud_plans()
+        worker._disarm_crud_plans("repeated_disarm")
 
         assert set(filter(None, pipeline.crud_plan_reasons)) == {expected}
         if expected == "native_plan_arm_failed":
