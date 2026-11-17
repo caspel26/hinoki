@@ -25,6 +25,7 @@ any_user = Access(auth=auth)
 
 class PostPermission(Permission):
     WRITE = "posts:write"
+    READ = "posts:read"
 
 
 class Draft(Schema):
@@ -276,3 +277,70 @@ def test_permission_is_a_typed_string_enum_base() -> None:
     assert PostPermission.WRITE.value == "posts:write"
     assert str(PostPermission.WRITE) == "posts:write"
     assert {PostPermission.WRITE} == {"posts:write"}
+
+
+MIXED_TOKENS = {
+    "typed-token": Caller(
+        id="u-typed", user="typed", permissions=[PostPermission.WRITE]
+    ),
+    "both-token": Caller(
+        id="u-both", user="both", permissions=[PostPermission.WRITE, "posts:read"]
+    ),
+    "plain-token": Caller(id="u-plain", user="plain", permissions=["posts:read"]),
+}
+
+
+class MixedTokens(BearerAuth[str]):
+    """Callers whose permissions mix ``Permission`` members and strings."""
+
+    async def resolve_token(self, token: str) -> Caller[str] | None:
+        return MIXED_TOKENS.get(token)
+
+
+mixed = MixedTokens()
+typed_writer = Access(auth=mixed, permissions=[PostPermission.WRITE])
+mixed_editor = Access(auth=mixed, permissions=["posts:write", PostPermission.READ])
+
+
+@http.get("/typed-write", access=typed_writer)
+async def typed_write(request: Request, caller: Caller[str]) -> dict[str, object]:
+    return {"id": caller.id, "permissions": sorted(caller.permissions)}
+
+
+@http.get("/mixed-edit", access=mixed_editor)
+async def mixed_edit(request: Request, caller: Caller[str]) -> dict[str, str]:
+    return {"id": caller.id}
+
+
+def bearer(token: str) -> dict[str, str]:
+    return {"authorization": f"Bearer {token}"}
+
+
+def test_caller_and_access_store_permission_members_as_their_strings() -> None:
+    caller = MIXED_TOKENS["both-token"]
+    assert caller.permissions == {"posts:write", "posts:read"}
+    assert all(type(p) is str for p in caller.permissions)
+    assert all(type(p) is str for p in mixed_editor.permissions)
+    assert "PostPermission" not in repr(caller) + repr(mixed_editor)
+
+
+async def test_permission_members_and_strings_share_the_401_and_403_paths(
+    pool: Pool,
+) -> None:
+    app = Hinoki()
+    app.include(typed_write, mixed_edit)
+    client = await pool.start(app)
+    assert (await client.request("GET", "/typed-write")).status == 401
+    unknown = await client.request("GET", "/typed-write", headers=bearer("nope"))
+    assert unknown.status == 401
+    typed = await client.request("GET", "/typed-write", headers=bearer("typed-token"))
+    assert (typed.status, typed.body) == (
+        200,
+        {"id": "u-typed", "permissions": ["posts:write"]},
+    )
+    plain = await client.request("GET", "/typed-write", headers=bearer("plain-token"))
+    assert (plain.status, plain.body["error"]) == (403, "forbidden")
+    both = await client.request("GET", "/mixed-edit", headers=bearer("both-token"))
+    assert (both.status, both.body) == (200, {"id": "u-both"})
+    partial = await client.request("GET", "/mixed-edit", headers=bearer("typed-token"))
+    assert (partial.status, partial.body["error"]) == (403, "forbidden")

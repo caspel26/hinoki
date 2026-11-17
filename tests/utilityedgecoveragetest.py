@@ -326,8 +326,12 @@ def test_openapi_writer_returns_error_for_an_unwritable_path(
 def test_model_name_derivation_rejects_unusable_class_names() -> None:
     with pytest.raises(RegistrationError, match="cannot derive names"):
         _resolve_display_names("", [], "", "")
-    with pytest.raises(RegistrationError, match="cannot derive names"):
-        resolve_model_names("", "", "Explicit", "Explicit items", abstract=False)
+    *_names, implicit, problem = resolve_model_names(
+        "", "", "Explicit", "Explicit items", abstract=False
+    )
+    assert implicit is True
+    assert problem.startswith(": cannot derive a table name")
+    assert "@db.table" in problem
     assert _words("some_model") == ["some", "model"]
 
 
