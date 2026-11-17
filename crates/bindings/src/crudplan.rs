@@ -10,6 +10,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
+use crate::rows::RowPlan;
 use crate::schema::{Compiled, NativeSchema};
 
 const REQUEST_ID_SENTINEL: &str = "0123456789abcdeffedcba9876543210";
@@ -57,6 +58,7 @@ pub(crate) struct ModelDefault {
 )]
 pub(crate) struct CrudPlan {
     pub(crate) action: String,
+    pub(crate) model_name: String,
     pub(crate) table: String,
     pub(crate) columns: Vec<String>,
     pub(crate) primary_key: String,
@@ -68,6 +70,7 @@ pub(crate) struct CrudPlan {
     pub(crate) create_defaults: Vec<ModelDefault>,
     pub(crate) create_columns: Vec<String>,
     pub(crate) update_columns: Vec<String>,
+    pub(crate) read_rows: Arc<RowPlan>,
     templates: Vec<DialectTemplates>,
     validation_error: Vec<u8>,
     _schemas: Vec<Arc<NativeSchema>>,
@@ -82,15 +85,16 @@ pub(crate) struct PyCrudPlan {
 impl PyCrudPlan {
     #[new]
     #[pyo3(signature = (
-        action, table, columns, primary_key, ordering, page_size, max_page_size,
+        action, model_name, table, columns, primary_key, ordering, page_size, max_page_size,
         model_fields, model_defaults, create_defaults, create_columns, update_columns,
-        read_schema,
+        read_schema, read_fields,
         create_schema=None, update_schema=None, validation_error=Vec::new()
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
         action: String,
+        model_name: String,
         table: String,
         columns: Vec<String>,
         primary_key: String,
@@ -103,6 +107,7 @@ impl PyCrudPlan {
         create_columns: Vec<String>,
         update_columns: Vec<String>,
         read_schema: Py<Compiled>,
+        read_fields: Vec<(String, String, String, bool)>,
         create_schema: Option<Py<Compiled>>,
         update_schema: Option<Py<Compiled>>,
         validation_error: Vec<u8>,
@@ -110,6 +115,7 @@ impl PyCrudPlan {
         let schemas = compiled_schemas(py, read_schema, create_schema, update_schema)?;
         let inner = CrudPlan::new(
             action,
+            model_name,
             table,
             columns,
             primary_key,
@@ -121,6 +127,7 @@ impl PyCrudPlan {
             create_defaults,
             create_columns,
             update_columns,
+            read_fields,
             validation_error,
             schemas,
         )?;
@@ -231,8 +238,61 @@ fn defaults_to_py(values: &[ModelDefault]) -> Vec<(String, String, Option<String
 
 #[allow(clippy::too_many_arguments)]
 impl CrudPlan {
-    fn new(
+    pub(crate) fn count_sql(&self, dialect: &str) -> Option<&str> {
+        self.template(dialect)
+            .map(|template| template.count.as_str())
+    }
+
+    pub(crate) fn retrieve_sql(&self, dialect: &str) -> Option<&str> {
+        self.template(dialect)
+            .map(|template| template.retrieve.as_str())
+    }
+
+    pub(crate) fn list_sql(
+        &self,
+        dialect_name: &str,
+        page_size: u64,
+        offset: u64,
+    ) -> PyResult<String> {
+        let dialect = DIALECTS
+            .iter()
+            .find_map(|(name, dialect)| (*name == dialect_name).then_some(*dialect))
+            .ok_or_else(|| PyValueError::new_err("unsupported CRUD database dialect"))?;
+        let order = if self.ordering.is_empty() {
+            vec![(self.primary_key.clone(), false)]
+        } else {
+            self.ordering.clone()
+        };
+        compile_select_with(
+            &Select::<usize> {
+                table: self.table.clone(),
+                columns: self.columns.clone(),
+                joins: Vec::new(),
+                filters: Vec::new(),
+                order,
+                limit: Some(page_size),
+                offset: Some(offset),
+                count: false,
+            },
+            dialect,
+        )
+        .map(|(sql, _)| sql)
+        .map_err(query_error)
+    }
+
+    pub(crate) fn read_rows(&self) -> &RowPlan {
+        &self.read_rows
+    }
+
+    fn template(&self, dialect: &str) -> Option<&DialectTemplates> {
+        self.templates
+            .iter()
+            .find(|template| template.dialect == dialect)
+    }
+
+    pub(crate) fn new(
         action: String,
+        model_name: String,
         table: String,
         columns: Vec<String>,
         primary_key: String,
@@ -244,6 +304,7 @@ impl CrudPlan {
         create_defaults: Vec<(String, String, String)>,
         create_columns: Vec<String>,
         update_columns: Vec<String>,
+        read_fields: Vec<(String, String, String, bool)>,
         validation_error: Vec<u8>,
         schemas: Vec<Arc<NativeSchema>>,
     ) -> PyResult<Self> {
@@ -260,6 +321,10 @@ impl CrudPlan {
             &update_columns,
         )?;
         validate_error_template(&validation_error)?;
+        let read_rows = Arc::new(
+            RowPlan::new(columns.clone(), read_fields)
+                .map_err(|error| PyValueError::new_err(error.to_string()))?,
+        );
         let list_order = if ordering.is_empty() {
             vec![(primary_key.clone(), false)]
         } else {
@@ -284,6 +349,7 @@ impl CrudPlan {
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
             action,
+            model_name,
             table,
             columns,
             primary_key,
@@ -295,6 +361,7 @@ impl CrudPlan {
             create_defaults: parse_model_defaults(create_defaults)?,
             create_columns,
             update_columns,
+            read_rows,
             templates,
             validation_error,
             _schemas: schemas,

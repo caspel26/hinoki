@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 
 from hinoki import context, core
 from hinoki import crud as crud_module
+from hinoki import pagination as pagination_module
 from hinoki.crud import (
     ACTIONS,
     GENERATED,
@@ -29,7 +30,7 @@ from hinoki.fields import UNSET
 from hinoki.orm import Model, QuerySet
 from hinoki.orm import queryset as queryset_module
 from hinoki.orm.queryset import condition, write_statement, written_rows
-from hinoki.pagination import PageNumberPagination
+from hinoki.pagination import PageNumberPagination, PageParams
 from hinoki.parsers import DEFAULT_PARSERS, JSONParser
 from hinoki.renderers import is_default_json_renderer
 from hinoki.runtime.binding import Binding
@@ -40,6 +41,7 @@ from hinoki.runtime.rowplan import (
     is_plain_model,
     plain_column,
     plain_schema_setattr,
+    schema_fields,
     static_state,
     static_state_matches,
 )
@@ -170,6 +172,15 @@ class CrudPlanSelection:
             and static_state_matches(
                 JSONParser, JSON_PARSER_METHODS, JSON_PARSER_METHODS_ORIGINAL
             )
+            and static_state_matches(
+                PageNumberPagination,
+                PAGINATION_METHODS,
+                PAGINATION_METHODS_ORIGINAL,
+            )
+            and static_state_matches(
+                PageParams, PAGE_PARAMS_METHODS, PAGE_PARAMS_METHODS_ORIGINAL
+            )
+            and pagination_defaults() == PAGINATION_DEFAULTS
             and (
                 queryset_module.condition,
                 queryset_module.written_rows,
@@ -224,11 +235,34 @@ CRUD_HANDLER_NAMES = (
 CRUD_HANDLER_ORIGINALS = tuple(
     getattr(crud_module, name) for name in CRUD_HANDLER_NAMES
 )
+CRUD_RUNTIME_NAMES = (
+    "asyncio",
+    "inspect",
+    "python_list_rows",
+    "wire_list_rows",
+    "schema_items",
+    "current_database",
+    "Page",
+    "Response",
+)
+CRUD_RUNTIME_ORIGINALS = tuple(
+    crud_module.list_rows.__globals__[name] for name in CRUD_RUNTIME_NAMES
+)
 QUERYSET_FUNCTIONS_ORIGINAL = (condition, written_rows, write_statement)
 DATABASE_MODULE_METHODS = ("lifespan", "from_settings")
 DATABASE_MODULE_METHODS_ORIGINAL = static_state(DatabaseModule, DATABASE_MODULE_METHODS)
 JSON_PARSER_METHODS = ("__init__", "parse")
 JSON_PARSER_METHODS_ORIGINAL = static_state(JSONParser, JSON_PARSER_METHODS)
+PAGINATION_METHODS = ("__post_init__", "check", "sizes", "resolved", "parse", "number")
+PAGINATION_METHODS_ORIGINAL = static_state(PageNumberPagination, PAGINATION_METHODS)
+PAGE_PARAMS_METHODS = ("offset",)
+PAGE_PARAMS_METHODS_ORIGINAL = static_state(PageParams, PAGE_PARAMS_METHODS)
+PAGINATION_DEFAULTS = (
+    pagination_module.DEFAULT_PAGE_SIZE,
+    pagination_module.DEFAULT_MAX_PAGE_SIZE,
+    pagination_module.MAX_NUMBER,
+    pagination_module.MAX_DIGITS,
+)
 
 
 def select_crud_plan(
@@ -330,9 +364,16 @@ def route_matches_action(route: Any, action: str, owner: type[CrudAPI]) -> bool:
     path = owner.prefix + ("" if suffix == "/" else suffix)
     if not path:
         path = "/"
+    if owner.prefix:
+        path_matches = route.path == path or route.path.endswith(path)
+    elif suffix == "/":
+        path_matches = route.path.startswith("/") and "{" not in route.path
+    else:
+        path_matches = route.path.endswith(suffix)
     return (
         inspect.isfunction(route.handler)
-        and (route.method, route.path) == (method, path)
+        and route.method == method
+        and path_matches
         and route.handler.__code__ is template.__code__
         and route.handler.__globals__ is template.__globals__
         and crud_handler_is_original(action)
@@ -341,8 +382,22 @@ def route_matches_action(route: Any, action: str, owner: type[CrudAPI]) -> bool:
 
 def crud_handler_is_original(action: str) -> bool:
     index = ACTIONS.index(action)
+    return getattr(crud_module, CRUD_HANDLER_NAMES[index]) is CRUD_HANDLER_ORIGINALS[
+        index
+    ] and all(
+        crud_module.list_rows.__globals__.get(name) is original
+        for name, original in zip(
+            CRUD_RUNTIME_NAMES, CRUD_RUNTIME_ORIGINALS, strict=True
+        )
+    )
+
+
+def pagination_defaults() -> tuple[int, int, int, int]:
     return (
-        getattr(crud_module, CRUD_HANDLER_NAMES[index]) is CRUD_HANDLER_ORIGINALS[index]
+        pagination_module.DEFAULT_PAGE_SIZE,
+        pagination_module.DEFAULT_MAX_PAGE_SIZE,
+        pagination_module.MAX_NUMBER,
+        pagination_module.MAX_DIGITS,
     )
 
 
@@ -569,7 +624,7 @@ def schemas_are_plain(
 
 
 def plain_crud_schema(schema: type[Schema], model: type[Model], role: str) -> bool:
-    if not (
+    compatible = (
         type(schema) is type
         and uses_generated_init(schema)
         and all(
@@ -594,7 +649,9 @@ def plain_crud_schema(schema: type[Schema], model: type[Model], role: str) -> bo
         and not schema.__checks__
         and not schema.__normalizers__
         and getattr(schema, "__post_init__", None) is None
-    ):
+        and (role != "read" or schema_fields(model, schema) is not None)
+    )
+    if not compatible:
         return False
     fields = {item.name: item for item in dataclasses.fields(cast(Any, schema))}
     for name, spec in schema.specs().items():
@@ -608,10 +665,7 @@ def plain_crud_schema(schema: type[Schema], model: type[Model], role: str) -> bo
             and not spec.ftype.variants
             and (role == "update") == spec.ftype.allows_unset
         )
-        if not valid:
-            return False
-        field = fields[name]
-        if not schema_default_is_plain(field, role):
+        if not valid or not schema_default_is_plain(fields[name], role):
             return False
     return (
         static_state_matches(Schema, SCHEMA_METHODS, SCHEMA_METHODS_ORIGINAL)
@@ -664,7 +718,14 @@ def route_snapshot(binding: Binding) -> tuple[object, ...]:
         route.errors,
         route.owner,
         tuple(
-            (item.name, item.source, item.kind, item.default, item.convert)
+            (
+                item.name,
+                item.source,
+                item.kind,
+                item.default,
+                item.convert,
+                item.strategy,
+            )
             for item in binding.params
         ),
         binding.needs_body,
@@ -733,11 +794,13 @@ def compile_selection(
         return None
     schema_args = schema_plan_args(resource)
     create_defaults = schema_default_specs(resource.create)
-    if schema_args is None or create_defaults is None:
+    read_fields = schema_fields(model, resource.read)
+    if schema_args is None or create_defaults is None or read_fields is None:
         return None
     try:
         plan = core._CrudPlan(
             action,
+            model.__name__,
             model.__table__,
             list(model.__columns__),
             model.__primary_key__,
@@ -750,6 +813,7 @@ def compile_selection(
             list(model.__columns__) if resource.create is not None else [],
             list(write_columns(model, resource, "update")),
             schema_args[0],
+            read_fields,
             create_schema=schema_args[1],
             update_schema=schema_args[2],
             validation_error=validation_error_template(),
