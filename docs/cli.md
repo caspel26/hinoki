@@ -27,6 +27,8 @@ them with `uv run --project ..` to use the locked environment at the parent.
 | `hinoki version` | Show the Hinoki version; `--verbose` includes Python, platform, native core and optional Granian details. `--format json` is machine readable. |
 | `hinoki settings TARGET` | Show effective settings and their source, with secrets redacted. `--dotenv` and `--toml` select optional files. |
 | `hinoki migrations ...` | Plan, inspect and apply project app migrations in dependency order. Legacy explicit targets remain available without a manifest. |
+| `hinoki makemigrations [APP]` | Short form of `hinoki migrations plan` for a project with `hinoki.toml`: writes the migration for the models. Accepts `--name`, `--dry-run`, `--check`, `--allow-destructive` and `--database`. |
+| `hinoki migrate [APP]` | Short form of `hinoki migrations apply`: applies pending migrations for every app, or for `APP` and its prerequisites. Accepts `--database`. |
 | `hinoki manage [TARGET] [COMMAND]` | Run an app-defined command with its declared module resources; a project manifest supplies the default target. |
 | `hinoki shell [TARGET]` | Open an interactive Python shell with the app's modules and registered models. |
 | `hinoki mcp TARGET` | Serve project context to an MCP client over stdio. Scenario tools are off by default. |
