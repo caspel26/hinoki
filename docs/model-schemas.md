@@ -7,16 +7,13 @@ related:
 
 # Schemas derived from models
 
-```python
-from blog.models import Post
-from hinoki import Schema, derive
-```
-
-The validation example below is independent and includes its own imports.
+Each example below includes its own imports. `Post` is the blog example's
+model (`examples/blog/models.py`).
 
 A `Schema` can take its fields and constraints from a `Model`. Pass the source model to the single `@derive(Model, ...)` decorator when selecting or making fields optional. A class without a decorator can still use `model=Model` to derive every column during the compatibility cycle.
 
 ```python
+from blog.models import Post
 from hinoki import Schema, derive
 
 
@@ -24,7 +21,7 @@ from hinoki import Schema, derive
 class PostCreate(Schema): ...
 
 
-@derive(Post, exclude=("author_id", "internal_note"))
+@derive(Post, exclude=("author_id",))
 class PostOut(Schema):
     author_name: str
 
@@ -47,7 +44,31 @@ class PostAll(Schema): ...
 
 `only` and `exclude` cannot be combined. An empty `only=()` is invalid; `exclude=()` is equivalent to selecting all columns. Model field types, maximum lengths, defaults and nullability are used. Annotations in the class body add fields or override a derived field, and methods and checks in the body are kept. Methods can use zero-argument `super()` as usual.
 
-Unknown columns, a non-model, an empty `only`, or optional names outside the selection fail when the class is declared. Relations are not derived as nested values; declare the API shape explicitly. Model derivation includes all columns by default, so use `only` or `exclude` when the API must omit private fields. During the compatibility cycle, `@derive(options...)` with `model=Model` remains valid and emits `DeprecationWarning`; use `@derive(Model, options...)` for new code.
+Unknown columns, a non-model, an empty `only`, optional names outside the selection, a class that is not a `Schema`, or a second `@derive` on the same class fail when the class is declared. Relations are not derived as nested values; declare the API shape explicitly. Model derivation includes all columns by default, so use `only` or `exclude` when the API must omit private fields. During the compatibility cycle, `@derive(options...)` with `model=Model` remains valid and emits `DeprecationWarning`; use `@derive(Model, options...)` for new code.
+
+### Inheriting from a Schema
+
+A derived class inherits its base's fields as usual, and `only` or `exclude`
+cannot remove an inherited field. To fail closed, a derivation whose selection
+leaves out a model column that a base Schema already declares raises
+`RegistrationError` when the class is declared, naming the field and the base:
+
+```python
+from blog.models import Post
+from hinoki import Schema, derive
+
+
+@derive(Post)
+class PostAll(Schema): ...
+
+
+@derive(Post, only=("title",))  # RegistrationError: inherited field 'id' from PostAll
+class TitleOnly(PostAll): ...
+```
+
+Derive the narrower Schema from `Schema` (or from a base that declares only the
+columns it keeps). A selection that keeps or widens the inherited columns is
+allowed, and a field redeclared in the class body is kept on purpose.
 
 ## Return a Model from a Schema-annotated handler
 
@@ -67,19 +88,39 @@ class PostSummary(Schema): ...
 
 @http.get("/posts/{post_id}")
 async def one(post_id: UUID) -> PostSummary:
-    return await Post.aget(id=post_id)
+    return await Post.aget(id=post_id)  # type: ignore[return-value]
 ```
 
-An existing `PostOut` return value still works. The conversion applies to one
-Model result only; lists, pages, unions and `Response` values keep their existing
-explicit handling. No relation is loaded implicitly, and the Schema return
-annotation does not validate handler output. For a computed field such as
+The declared Schema decides what is sent for these results:
+
+| Handler result | Response body |
+| --- | --- |
+| an instance of the declared Schema | sent as is |
+| an instance of a subclass of the declared Schema | only the declared Schema's fields; the subclass's extra fields are dropped |
+| one `Model` row | `from_model()` projection of that row |
+| a `Model` row that fails the Schema's constraints | `500 internal_error` with the request id; the `ValidationError` is logged as the cause and not sent to the client |
+| a `Model` of another class than the Schema's source model | `500 internal_error` |
+| a list or `Page` of `Model` rows | `500 internal_error`; convert explicitly with `from_models()` |
+| a `dict` or other plain value | sent unchanged |
+
+!!! warning "Plain values are not validated"
+    A returned `dict` (or any other non-Schema, non-Model value) is serialized
+    as it is, even with extra keys. The annotation describes the OpenAPI document
+    only; return a Schema instance or a Model when the declared shape must be
+    enforced.
+
+A row that fails the Schema's constraints is the server's fault (for example a
+stored value longer than the Schema allows), so it is never reported as a
+client `422`. No relation is loaded implicitly. For a computed field such as
 `author_name`, keep using `PostOut.from_model(post, author_name=...)`.
 
-Static type checkers still see a Model return as incompatible with a Schema
-annotation; mark that intentional return with `# type: ignore[return-value]`.
-Derived fields are also not synthesized for static type checkers, so declare
-fields in the Schema body when they need static checking.
+Static type checkers do not know about this runtime conversion: they see a
+`Post` returned from a function annotated `-> PostSummary` as a type error.
+This is a limitation of static typing, not of the handler, so the intentional
+Model return needs `# type: ignore[return-value]` (or an explicit
+`PostSummary.from_model(...)` call, which type-checks without one). Derived
+fields are also not synthesized for static type checkers, so declare fields in
+the Schema body when they need static checking.
 
 ## Add validation checks
 
