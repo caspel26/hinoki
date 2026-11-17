@@ -596,14 +596,36 @@ class Pipeline:
             ) from None
 
 
+class ResponseProjectionError(RuntimeError):
+    """The handler's own return value does not satisfy its response Schema.
+
+    It is a server fault, answered as ``500 internal_error`` and logged with the
+    original ``ValidationError`` as its cause; no constraint detail reaches the
+    client."""
+
+
 def project_response(schema: type[Schema] | None, value: object) -> object:
-    """Project a direct Model result when the handler declares a Schema."""
-    if schema is None or isinstance(value, schema) or not isinstance(value, Model):
+    """Shape a handler result by its single declared response Schema.
+
+    A Model is projected with ``from_model()``; an instance of a Schema subclass
+    is sent with the declared Schema's fields only. Other values pass through.
+    """
+    if schema is None:
         return value
-    source = schema.__dict__.get("__derived_model__")
+    if isinstance(value, schema):
+        return value if type(value) is schema else value.dump(include=schema.specs())
+    if not isinstance(value, Model):
+        return value
+    source = schema.__derived_model__
     if source is not None and not isinstance(value, source):
         raise TypeError(
             f"{schema.__name__} is derived from {source.__name__}, "
             f"not {type(value).__name__}"
         )
-    return schema.from_model(value)
+    try:
+        return schema.from_model(value)
+    except ValidationError as exc:
+        raise ResponseProjectionError(
+            f"the {type(value).__name__} returned by the handler does not "
+            f"satisfy {schema.__name__}"
+        ) from exc

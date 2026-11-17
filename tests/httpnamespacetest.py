@@ -1,6 +1,8 @@
 """The HTTP decorators live in ``hinoki.http``; the old top-level names are gone."""
 
 import ast
+import importlib
+import sys
 from pathlib import Path
 
 import pytest
@@ -27,6 +29,25 @@ def test_the_old_top_level_names_do_not_exist(name: str) -> None:
     assert name not in hinoki.__all__
     with pytest.raises(ImportError):
         exec(f"from hinoki import {name}")  # noqa: S102 - the point of the test
+
+
+def test_the_former_reply_name_is_a_deprecated_alias_of_response() -> None:
+    with pytest.warns(DeprecationWarning, match=r"hinoki\.http\.response\.Response"):
+        from hinoki import Reply  # noqa: PLC0415 - the import is the point
+
+    assert Reply is hinoki.Response
+    assert "Reply" not in hinoki.__all__
+    with pytest.raises(AttributeError, match="no attribute 'Missing'"):
+        _ = hinoki.Missing  # type: ignore[attr-defined]
+
+
+def test_the_former_reply_module_is_a_deprecated_shim() -> None:
+    sys.modules.pop("hinoki.reply", None)
+    with pytest.warns(DeprecationWarning, match=r"hinoki\.http\.response"):
+        reply = importlib.import_module("hinoki.reply")
+
+    assert reply.Reply is reply.Response is hinoki.Response
+    assert reply.set_cookie is hinoki.set_cookie
 
 
 def test_no_first_party_file_imports_the_old_names() -> None:
