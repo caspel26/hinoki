@@ -333,7 +333,7 @@ async def test_serve_handles_pipeline_errors_head_and_native_final_responses(
 
 @pytest.mark.asyncio
 async def test_stop_without_server_and_with_shutdown_callbacks(
-    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     worker: Any = _worker()
     assert await worker.stop() == 0
@@ -355,10 +355,11 @@ async def test_stop_without_server_and_with_shutdown_callbacks(
     worker.pipeline = SimpleNamespace(
         app=SimpleNamespace(runtime=SimpleNamespace(shutdown_timeout=1.0))
     )
+    drain_results = [(2, False), (0, True)]
     monkeypatch.setattr(
         rustserver,
         "_drain_native_uninterruptibly",
-        lambda *_args: asyncio.sleep(0, result=(0, False)),
+        lambda *_args: asyncio.sleep(0, result=drain_results.pop(0)),
     )
 
     def fail_housekeeping() -> None:
@@ -374,6 +375,11 @@ async def test_stop_without_server_and_with_shutdown_callbacks(
     )
     assert await worker.stop() == 2
     assert events == ["ready:False", "timer", "reader:9"]
+    assert "aborted 2 native CRUD jobs" in caplog.text
+
+    worker.server = cast(Any, Server())
+    with pytest.raises(asyncio.CancelledError):
+        await worker.stop()
 
 
 @pytest.mark.asyncio
