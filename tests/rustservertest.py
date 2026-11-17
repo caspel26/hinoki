@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import pytest
 
@@ -103,6 +104,34 @@ def context_sync_awaitable() -> object:
 async def native_echo(item_id: str, term: str) -> dict[str, str]:
     PROBE.native_input_calls += 1
     return {"item_id": item_id, "term": term}
+
+
+@http.get("/pipeline/echo/{item_id}")
+async def pipeline_echo(request: Request, item_id: str) -> dict[str, str]:
+    PROBE.entered += 1
+    return {"item_id": item_id}
+
+
+@http.get("/pipeline/integer/{item_id}")
+async def pipeline_integer(request: Request, item_id: int) -> dict[str, int]:
+    return {"item_id": item_id}
+
+
+@http.get("/pipeline/uuid/{item_id}")
+async def pipeline_uuid(request: Request, item_id: UUID) -> dict[str, str]:
+    return {"item_id": str(item_id)}
+
+
+@http.get("/pipeline/sync/{item_id}")
+def pipeline_sync(request: Request, item_id: str) -> dict[str, str]:
+    PROBE.entered += 1
+    return {"item_id": item_id}
+
+
+@http.get("/pipeline/private/{item_id}", access=Access(auth=TokenAuth()))
+async def pipeline_private(item_id: str) -> dict[str, str]:
+    PROBE.entered += 1
+    return {"item_id": item_id}
 
 
 @http.get("/native/sync-echo/{item_id}")
@@ -260,6 +289,11 @@ def make_app(**config: Any) -> Hinoki:
             context_sync,
             context_sync_awaitable,
             native_echo,
+            pipeline_echo,
+            pipeline_integer,
+            pipeline_uuid,
+            pipeline_sync,
+            pipeline_private,
             native_sync_echo,
             native_default_query,
             native_default_query_sync,
@@ -647,6 +681,118 @@ async def test_native_defaulted_string_queries_match_pipeline() -> None:
         assert head.status == defaulted.status == 200
         assert head.body == b""
         assert head.header("content-length") == defaulted.header("content-length")
+    finally:
+        await worker.stop()
+
+
+async def test_python_pipeline_routes_use_prepared_path_values_once() -> None:
+    app = make_app()
+    client = Client(app.asgi())
+    worker = RustWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        for target, expected in (
+            ("/pipeline/echo/plain", {"item_id": "plain"}),
+            ("/pipeline/echo/a%2Fb", {"item_id": "a/b"}),
+            ("/pipeline/echo/a%252Fb", {"item_id": "a%2Fb"}),
+            ("/pipeline/echo/a+b", {"item_id": "a+b"}),
+            ("/pipeline/echo/caf%C3%A9", {"item_id": "café"}),
+            ("/pipeline/echo/%G1", {"item_id": "%G1"}),
+            ("/pipeline/echo/%4", {"item_id": "%4"}),
+            ("/pipeline/integer/%34", {"item_id": 4}),
+            (
+                "/pipeline/uuid/12345678-1234-5678-1234-567812345678",
+                {"item_id": "12345678-1234-5678-1234-567812345678"},
+            ),
+            ("/pipeline/sync/a%2Fb", {"item_id": "a/b"}),
+        ):
+            path = target.partition("?")[0]
+            expected_asgi = await client.request(
+                "GET", path, raw_path=path.encode("ascii")
+            )
+            received = await fetch(port, "GET", path)
+            assert_pipeline_parity(received, expected_asgi)
+            assert received.json() == expected
+
+        invalid = "/pipeline/echo/%FF"
+        expected_asgi = await client.request(
+            "GET", invalid, raw_path=invalid.encode("ascii")
+        )
+        received = await fetch(port, "GET", invalid)
+        assert_pipeline_parity(received, expected_asgi)
+        assert received.status == 400
+        assert received.json()["error"] == "bad_path_encoding"
+
+        invalid_accept = await fetch(
+            port, "GET", invalid, extra="accept: text/plain\r\n"
+        )
+        assert invalid_accept.status == 400
+        assert invalid_accept.json()["error"] == "bad_path_encoding"
+
+        protected = await fetch(port, "GET", "/pipeline/private/%FF")
+        assert protected.status == 400
+        assert protected.json()["error"] == "bad_path_encoding"
+        assert PROBE.entered == 16
+    finally:
+        await worker.stop()
+
+
+async def test_invalid_prepared_path_keeps_early_policy_precedence() -> None:
+    settings = AppSettings(
+        allowed_hosts=("allowed.example",),
+        cors=CorsSettings(origins=("https://client.example",)),
+        security=SecuritySettings(redirect_https=True),
+    )
+    app = Hinoki(include=[pipeline_echo], settings=settings)
+    client = Client(app.asgi())
+    worker = RustWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    invalid = "/pipeline/echo/%FF"
+    try:
+        wrong_host = await fetch(port, "GET", invalid, host="wrong.example")
+        expected_wrong_host = await client.request(
+            "GET",
+            invalid,
+            raw_path=invalid.encode("ascii"),
+            headers={"host": "wrong.example"},
+        )
+        assert_pipeline_parity(wrong_host, expected_wrong_host)
+        assert wrong_host.status == 400
+        assert wrong_host.json()["error"] == "disallowed_host"
+
+        redirected = await fetch(port, "GET", invalid, host="allowed.example")
+        expected_redirected = await client.request(
+            "GET",
+            invalid,
+            raw_path=invalid.encode("ascii"),
+            headers={"host": "allowed.example"},
+            scheme="http",
+        )
+        assert_pipeline_parity(redirected, expected_redirected)
+        assert redirected.status == 308
+        assert redirected.header("location") == "https://allowed.example" + invalid
+
+        extra = (
+            "origin: https://client.example\r\naccess-control-request-method: GET\r\n"
+        )
+        preflight = await fetch(
+            port, "OPTIONS", invalid, extra=extra, host="allowed.example"
+        )
+        expected_preflight = await client.request(
+            "OPTIONS",
+            invalid,
+            raw_path=invalid.encode("ascii"),
+            headers={
+                "host": "allowed.example",
+                "origin": "https://client.example",
+                "access-control-request-method": "GET",
+            },
+        )
+        assert_pipeline_parity(preflight, expected_preflight)
+        assert preflight.status == 204
+        assert (
+            preflight.header("access-control-allow-origin") == "https://client.example"
+        )
     finally:
         await worker.stop()
 
