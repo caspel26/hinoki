@@ -850,3 +850,45 @@ async def test_a_failing_migration_rolls_back_and_is_not_recorded(
         {"t": None}
     ]
     assert await migrator.status(db, tmp_path) == [("0001-broken", "pending")]
+
+
+def test_migrations_take_the_app_as_an_argument_or_as_an_option(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    package = tmp_path / "argumentapp"
+    (package / "migrations").mkdir(parents=True)
+    (package / "__init__.py").write_text("")
+    (package / "migrations" / "__init__.py").write_text("")
+    (package / "models.py").write_text(
+        "from hinoki.orm import Model, field\n\n\n"
+        "class Note(Model, table='argument_notes'):\n"
+        "    id: int = field(primary_key=True, default=0)\n"
+        "    title: str = ''\n"
+    )
+    (tmp_path / "hinoki.toml").write_text(
+        '[project]\napplication = "argumentapp.main:app"\n\n'
+        '[[apps]]\nname = "argumentapp"\nmodels = "argumentapp.models"\n'
+        'migrations = "argumentapp.migrations"\nrequires = []\n'
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    written = package / "migrations"
+
+    assert main(["migrations", "plan", "argumentapp", "--check"]) == 1
+    assert main(["migrations", "plan", "--app", "argumentapp", "--check"]) == 1
+    assert main(["migrations", "plan", "argumentapp", "--name", "initial"]) == 0
+    assert [path.name for path in written.glob("*.sql")] == ["0001-initial.sql"]
+    assert main(["migrations", "plan", "argumentapp", "--check"]) == 0
+    capsys.readouterr()
+
+    assert main(["migrations", "apply", "argumentapp"]) == 0
+    assert "0001-initial" in capsys.readouterr().out
+    assert main(["migrations", "apply", "--app", "argumentapp"]) == 0
+    assert main(["migrations", "status", "argumentapp"]) == 0
+    assert "applied" in capsys.readouterr().out
+    assert main(["migrations", "plan", "missing"]) == 1
+    assert main(["migrations", "apply", "argumentapp", "--app", "argumentapp"]) == 0
+    assert main(["migrations", "apply", "argumentapp", "--app", "other"]) == 2
+    assert "conflicts with --app" in capsys.readouterr().err
