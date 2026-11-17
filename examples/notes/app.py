@@ -33,12 +33,12 @@ async def listing() -> list[NoteOut]:
 
 @http.get("/notes/{note_id}")
 async def one(note_id: UUID) -> NoteOut:
-    return NoteOut.from_model(await Note.aget(id=note_id))
+    return await Note.aget(id=note_id)  # type: ignore[return-value]
 
 
 @http.post("/notes", status=201, transaction=True)
 async def create(data: NoteIn) -> NoteOut:
-    return NoteOut.from_model(await Note.acreate(data))
+    return await Note.acreate(data)  # type: ignore[return-value]
 
 
 @http.delete("/notes/{note_id}", status=204, transaction=True)

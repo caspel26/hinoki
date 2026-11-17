@@ -13,7 +13,7 @@ from collections.abc import Callable, Sequence
 from typing import Any, ClassVar
 
 from hinoki import core
-from hinoki.request import Request
+from hinoki.http.request import Request
 
 MAX_INDENT = 16
 

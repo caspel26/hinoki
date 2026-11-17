@@ -3,7 +3,7 @@
 import asyncio
 
 from hinoki import Hinoki, http
-from hinoki.request import Request
+from hinoki.http.request import Request
 
 
 @http.get("/health")

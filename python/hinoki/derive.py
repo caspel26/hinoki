@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from functools import cached_property
 from types import CellType, FunctionType
 
 from hinoki.errors import RegistrationError
+from hinoki.orm import Model
 from hinoki.schema import Schema
 
 Derivation = tuple[
@@ -15,19 +17,35 @@ Derivation = tuple[
 
 
 def derive(
+    model: type[Model] | None = None,
     *,
     only: tuple[str, ...] | None = None,
     exclude: tuple[str, ...] | None = None,
     partial: bool | tuple[str, ...] = False,
 ) -> Callable[[type[Schema]], type[Schema]]:
-    """Select and mark optional the model fields on a Schema with ``model=``."""
+    """Derive selected fields from ``model`` into a Schema subclass.
+
+    The keyword-only form is retained for one compatibility cycle and is
+    deprecated; it requires the legacy ``model=`` Schema class keyword.
+    """
     _validate_options(only, exclude, partial)
 
     def apply(cls: type[Schema]) -> type[Schema]:
-        source = cls.__dict__.get("__derived_model__")
+        source = model if model is not None else cls.__dict__.get("__derived_model__")
         if source is None:
             raise RegistrationError(
-                f"{cls.__name__}: @derive requires model=Model on the Schema class"
+                f"{cls.__name__}: @derive requires a Model argument"
+            )
+        if model is None:
+            warnings.warn(
+                "@derive(...), with model= on the Schema class, is deprecated; "
+                "pass the Model to @derive(Model, ...)",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        elif cls.__dict__.get("__derived_model__") is not None:
+            raise RegistrationError(
+                f"{cls.__name__}: pass the Model to @derive or to Schema, not both"
             )
         return rebuild(
             cls,

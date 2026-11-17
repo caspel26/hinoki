@@ -11,8 +11,8 @@ from hinoki.admin.forms import (
 from hinoki.admin.modeladmin import ModelAdmin
 from hinoki.admin.site import MAX_PAGE, ListState, Site  # noqa: F401
 from hinoki.admin.templates import Raw, escape
+from hinoki.http.response import Response
 from hinoki.orm import QuerySet
-from hinoki.reply import Reply
 
 NO_HTML = Raw("")
 
@@ -262,7 +262,7 @@ async def list_page(
     open_key: str = "",
     status: int = 200,
     notice: Raw | None = None,
-) -> Reply:
+) -> Response:
     panel = await list_panel(site, slug, entry, open_key)
     body = site.parts.panel(f"hn-{slug}", entry.plural(), panel)
     shown_notice = notice if notice is not None else site.done_notice()

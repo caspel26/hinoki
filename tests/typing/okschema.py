@@ -4,7 +4,18 @@ from collections.abc import Iterable
 from typing import Annotated
 from uuid import UUID
 
-from hinoki import UNSET, Field, Schema, SchemaConfig, SchemaExtra, Unset
+from hinoki import UNSET, Field, Schema, SchemaConfig, SchemaExtra, Unset, derive
+from hinoki.orm import Model, field
+
+
+class TypingPost(Model):
+    id: int = field(primary_key=True)
+    title: str
+
+
+@derive(TypingPost, only=("title",))
+class TypingPostOut(Schema):
+    pass
 
 
 class PostCreate(Schema):

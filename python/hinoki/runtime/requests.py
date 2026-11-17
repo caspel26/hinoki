@@ -13,8 +13,8 @@ from hinoki.auth import Caller, Credentials
 from hinoki.blocking import call_hook
 from hinoki.context import request_id
 from hinoki.errors import Forbidden, InvalidBody, Unauthorized
+from hinoki.http.request import Headers, Request
 from hinoki.parsers import Parsed, UploadedFile
-from hinoki.request import Headers, Request
 from hinoki.runtime.binding import (
     MISSING,
     Binding,

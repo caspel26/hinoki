@@ -33,9 +33,9 @@ from hinoki import (
     http,
 )
 from hinoki.context import request_id
+from hinoki.http.request import Request
+from hinoki.http.response import Response
 from hinoki.modules import ModuleContext
-from hinoki.reply import Reply
-from hinoki.request import Request
 from hinoki.runtime import rustserver
 from hinoki.runtime.rustserver import RustWorker
 from hinoki.runtime.servercore import build_server_core
@@ -195,8 +195,8 @@ async def native_none() -> None:
 
 
 @http.get("/native-reply")
-async def native_reply() -> Reply:
-    return Reply(202, b"accepted", [("x-native", "yes")])
+async def native_reply() -> Response:
+    return Response(202, b"accepted", [("x-native", "yes")])
 
 
 @http.get("/native-error")

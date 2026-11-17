@@ -8,7 +8,7 @@ from openapi_spec_validator import validate
 
 from hinoki import API, Access, Caller, Hinoki, Schema, http
 from hinoki.errors import Conflict, Forbidden, RegistrationError
-from hinoki.request import Request
+from hinoki.http.request import Request
 from hinoki.schema import Field
 from tests.harness import Pool
 from tests.providers import TokenAuth
