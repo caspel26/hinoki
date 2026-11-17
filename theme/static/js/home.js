@@ -248,7 +248,12 @@
       card.addEventListener("pointerenter", (e) => e.pointerType === "mouse" && set(true));
       card.addEventListener("pointerleave", (e) => e.pointerType === "mouse" && set(false));
       card.addEventListener("focusout", (e) => !card.contains(e.relatedTarget) && set(false));
-      card.addEventListener("keydown", (e) => e.key === "Escape" && set(false));
+      card.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          set(false);
+          toggle.focus();
+        }
+      });
     });
   };
 
