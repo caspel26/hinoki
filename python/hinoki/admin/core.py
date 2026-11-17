@@ -115,6 +115,7 @@ class Admin:
             raise RegistrationError(
                 f"admin: {model.__name__} is abstract; register a model with a table"
             )
+        model.check_table()
         for existing in self.models.values():
             if existing.model is not model and table_names_conflict(
                 existing.model, model

@@ -48,7 +48,9 @@ class Caller[T]:
         object.__setattr__(self, "user", user)
         if isinstance(permissions, str | bytes):
             raise TypeError("permissions is a list of names, not one string")
-        object.__setattr__(self, "permissions", frozenset(permissions))
+        # Plain strings, as ``Access`` stores them: a ``Permission`` member
+        # equals its value, so checks match either way.
+        object.__setattr__(self, "permissions", frozenset(str(p) for p in permissions))
 
 
 @dataclass(frozen=True, slots=True)
