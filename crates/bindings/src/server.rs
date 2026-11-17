@@ -14,9 +14,10 @@ use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use hinoki_server::cors::Cors;
+use hinoki_server::cors::{Cors, PreflightError};
 use hinoki_server::early::TemplateError;
 use hinoki_server::headers::{final_headers, Header};
+use hinoki_server::hosts::Hosts;
 use hinoki_server::queue::Push;
 use hinoki_server::{
     proxy, requestid, Early, EarlyBodies, InFlight, Limits, Networks, Permit, Plan, Queue,
@@ -31,6 +32,7 @@ use tokio::sync::oneshot;
 use crate::completion;
 use crate::request;
 use crate::router::{Match, Router};
+use hinoki_server::redirect;
 
 // `args[0]` is `too_large`, `disconnected` or `timeout`.
 pyo3::create_exception!(core, BodyReadError, PyException);
@@ -40,6 +42,7 @@ type NativeArgs = Vec<(String, String)>;
 type NativeDetails = Vec<(String, String, String)>;
 type NativeErrorData = (String, String, Option<String>, NativeDetails);
 type DecodedPathParams = Vec<(String, String)>;
+type HostsSpec = (Vec<Vec<u8>>, Vec<Vec<u8>>);
 
 enum PreparedPathParams {
     Decoded(DecodedPathParams),
@@ -557,8 +560,8 @@ fn collect_native_args(
     (args, errors)
 }
 
-/// `(any_origin, origins, credentials, expose)` of the CORS policy.
-type CorsSpec = (bool, Vec<Vec<u8>>, bool, Vec<u8>);
+/// `(any_origin, origins, credentials, expose, preflight headers)` of the CORS policy.
+type CorsSpec = (bool, Vec<Vec<u8>>, bool, Vec<u8>, Vec<Header>);
 
 fn kind_of(name: &str) -> PyResult<Early> {
     Ok(match name {
@@ -571,6 +574,8 @@ fn kind_of(name: &str) -> PyResult<Early> {
         "invalid_query" => Early::InvalidQuery,
         "not_acceptable" => Early::NotAcceptable,
         "bad_host" => Early::BadHost,
+        "disallowed_host" => Early::DisallowedHost,
+        "cors_origin_denied" => Early::CorsOriginDenied,
         other => {
             return Err(PyValueError::new_err(format!(
                 "unknown early kind {other:?}"
@@ -598,6 +603,8 @@ pub struct Core {
     ready: AtomicBool,
     policies: [Vec<Header>; 2],
     cors: Option<Cors>,
+    hosts: Option<Hosts>,
+    redirect_https: bool,
     id_name: Vec<u8>,
     prefix: String,
     counter: AtomicU64,
@@ -606,7 +613,6 @@ pub struct Core {
     ignored_ids: AtomicU64,
     trust_request_id: bool,
     proxies: Networks,
-    defer_policies: bool,
     python_paths: Vec<String>,
     startup_probe: Option<StartupProbe>,
 }
@@ -634,8 +640,9 @@ impl ServerCore {
     #[pyo3(signature = (
         routes, early_bodies, policies, request_id_name, request_id_prefix,
         limits=(8192, 32_768, 1_048_576, 288), queue_capacity=4096,
-        trust_request_id=false, defer_policies=false, python_paths=Vec::new(),
-        cors=None, trusted_proxies=Vec::new(), startup_path=None, startup_body=Vec::new()
+        trust_request_id=false, python_paths=Vec::new(),
+        cors=None, trusted_proxies=Vec::new(), startup_path=None, startup_body=Vec::new(),
+        hosts=None, redirect_https=false
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -647,13 +654,19 @@ impl ServerCore {
         limits: (usize, usize, usize, usize),
         queue_capacity: usize,
         trust_request_id: bool,
-        defer_policies: bool,
         python_paths: Vec<String>,
         cors: Option<CorsSpec>,
         trusted_proxies: Vec<String>,
         startup_path: Option<String>,
         startup_body: Vec<u8>,
+        hosts: Option<HostsSpec>,
+        redirect_https: bool,
     ) -> PyResult<Self> {
+        if redirect_https && hosts.is_none() {
+            return Err(PyValueError::new_err(
+                "HTTPS redirect requires a configured host allow-list",
+            ));
+        }
         let startup_probe = match startup_path {
             Some(path) if valid_startup_path(&path) && !startup_body.is_empty() => {
                 Some(StartupProbe {
@@ -693,19 +706,23 @@ impl ServerCore {
                 in_flight: InFlight::new(max_in_flight),
                 ready: AtomicBool::new(false),
                 policies: [policies.0, policies.1],
-                cors: cors.map(|(any_origin, origins, credentials, expose)| Cors {
-                    any_origin,
-                    origins,
-                    credentials,
-                    expose,
-                }),
+                cors: cors.map(
+                    |(any_origin, origins, credentials, expose, preflight)| Cors {
+                        any_origin,
+                        origins,
+                        credentials,
+                        expose,
+                        preflight,
+                    },
+                ),
+                hosts: hosts.map(|(exact, suffixes)| Hosts { exact, suffixes }),
+                redirect_https,
                 id_name: request_id_name,
                 prefix: request_id_prefix,
                 counter: AtomicU64::new(0),
                 ignored_ids: AtomicU64::new(0),
                 trust_request_id,
                 proxies,
-                defer_policies,
                 python_paths,
                 startup_probe,
             }),
@@ -890,21 +907,14 @@ impl Core {
         if let Some(early) = head.refusal.clone() {
             return self.answer(&asked, early, Vec::new());
         }
+        if let Some(outcome) = self.policy_response(&head, &asked)? {
+            return Ok(outcome);
+        }
         let is_startup_probe = self
             .startup_probe
             .as_ref()
             .is_some_and(|probe| probe.path == head.path);
         if is_startup_probe {
-            if self.defer_policies {
-                return self.enqueue(
-                    head,
-                    asked,
-                    (None, Vec::new()),
-                    true,
-                    None,
-                    NativeInput::default(),
-                );
-            }
             return self.startup_response(&asked, head.method, head.query, &head.headers);
         }
         let (action, params) = match self.resolve(head.method, head.path) {
@@ -914,7 +924,16 @@ impl Core {
                 (None, Vec::new())
             }
             Resolved::Route(action, params) => (Some(action), params),
-            Resolved::Missing(_, _) if self.defer_policies => (None, Vec::new()),
+            Resolved::Missing(_, _) if self.has_policies() => {
+                return self.enqueue(
+                    head,
+                    asked,
+                    (None, Vec::new()),
+                    true,
+                    None,
+                    NativeInput::default(),
+                );
+            }
             Resolved::Missing(early, extra) => return self.answer(&asked, early, extra),
         };
         let plan = match action {
@@ -933,7 +952,7 @@ impl Core {
                 )
             }
         };
-        let native_handler = plan.native_handler && !self.defer_policies;
+        let native_handler = plan.native_handler;
         let native_input = if native_handler {
             prepare_native_inputs(plan, &params, head.query, &head.headers)
         } else {
@@ -948,6 +967,64 @@ impl Core {
             prepared_path_params,
             native_input,
         )
+    }
+
+    fn policy_response(&self, head: &Head<'_>, asked: &Asked) -> Result<Option<Outcome>, String> {
+        let joined = request::join_headers(&head.headers);
+        let origin = header_value(&joined, "origin");
+        let host = header_value(&joined, "host");
+        let host_bytes = host.as_deref().unwrap_or_default().as_bytes();
+        if self
+            .hosts
+            .as_ref()
+            .is_some_and(|policy| !policy.allows(host_bytes))
+        {
+            return Ok(Some(self.answer(
+                asked,
+                Early::DisallowedHost,
+                Vec::new(),
+            )?));
+        }
+        if let Some(cors) = self.cors.as_ref() {
+            match cors.preflight(
+                head.method,
+                origin.as_deref().map(str::as_bytes),
+                has_header(&joined, "access-control-request-method"),
+            ) {
+                Ok(Some(own)) => {
+                    return Ok(Some(Outcome::Early(self.policy_reply(
+                        asked,
+                        204,
+                        own,
+                        Vec::new(),
+                    )?)))
+                }
+                Err(PreflightError::OriginDenied) => {
+                    return Ok(Some(self.answer(
+                        asked,
+                        Early::CorsOriginDenied,
+                        Vec::new(),
+                    )?));
+                }
+                Ok(None) => {}
+            }
+        }
+        if self.redirect_https && !asked.https {
+            if let Some(location) = redirect::location(host_bytes, head.path.as_bytes(), head.query)
+            {
+                return Ok(Some(Outcome::Early(self.policy_reply(
+                    asked,
+                    308,
+                    vec![(b"location".to_vec(), location)],
+                    Vec::new(),
+                )?)));
+            }
+        }
+        Ok(None)
+    }
+
+    fn has_policies(&self) -> bool {
+        self.hosts.is_some() || self.cors.is_some() || self.redirect_https
     }
 
     fn startup_response(
@@ -1155,11 +1232,7 @@ impl Core {
         early: Early,
         extra: Vec<Header>,
     ) -> Result<Reply, String> {
-        // Counted here, so a queued request dropped at shutdown is counted too.
-        if asked.id_ignored {
-            self.ignored_ids.fetch_add(1, Ordering::Relaxed);
-        }
-        let mut body = self
+        let body = self
             .bodies
             .render(&early, &asked.request_id)
             .ok_or_else(|| format!("no early body registered for {early:?}"))?;
@@ -1171,6 +1244,19 @@ impl Core {
                 .map(|(n, v)| (n.as_bytes().to_vec(), v.as_bytes().to_vec())),
         );
         own.extend(extra);
+        self.policy_reply(asked, early.status(), own, body)
+    }
+
+    fn policy_reply(
+        &self,
+        asked: &Asked,
+        status: u16,
+        own: Vec<Header>,
+        mut body: Vec<u8>,
+    ) -> Result<Reply, String> {
+        if asked.id_ignored {
+            self.ignored_ids.fetch_add(1, Ordering::Relaxed);
+        }
         let cors = self
             .cors
             .as_ref()
@@ -1182,14 +1268,14 @@ impl Core {
             &[],
             (&self.id_name, asked.request_id.as_bytes()),
             &cors,
-            early.status(),
+            status,
             body.len(),
         );
         if asked.head_only {
             body.clear();
         }
         Ok(Reply {
-            status: early.status(),
+            status,
             headers,
             body,
         })
@@ -1214,6 +1300,17 @@ fn origin_of(headers: &[Header]) -> Vec<u8> {
         .map(|(_, value)| value.as_slice())
         .collect();
     found.join(&b", "[..])
+}
+
+fn header_value(headers: &[(String, String)], name: &str) -> Option<String> {
+    headers
+        .iter()
+        .find(|(header, _)| header == name)
+        .map(|(_, value)| value.clone())
+}
+
+fn has_header(headers: &[(String, String)], name: &str) -> bool {
+    headers.iter().any(|(header, _)| header == name)
 }
 
 fn percent_decode(path: &str) -> Vec<u8> {
