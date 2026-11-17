@@ -129,6 +129,80 @@ def test_sync_client_has_head_options_and_default_host() -> None:
             ).status
             == 204
         )
+        assert client.put("/ping").status == 405
+        assert client.patch("/ping").status == 405
+        assert client.delete("/ping").status == 405
+
+
+async def test_client_rejects_conflicting_body_encodings_and_multipart_headers() -> (
+    None
+):
+    async with ASGIClient(Hinoki(include=[ping])) as client:
+        assert (await client.put("/ping")).status == 405
+        assert (await client.patch("/ping")).status == 405
+        assert (await client.delete("/ping")).status == 405
+        with pytest.raises(ValueError, match=r"json=.*body"):
+            await client.post("/ping", json={"x": 1}, body=b"raw")
+        with pytest.raises(ValueError, match="multipart data"):
+            await client.post("/ping", json={"x": 1}, data={"name": "x"})
+        with pytest.raises(ValueError, match="multipart data"):
+            await client.post("/ping", body=b"raw", files=[])
+        with pytest.raises(ValueError, match="content-type is set"):
+            await client.post(
+                "/ping",
+                data={"name": "x"},
+                headers={"content-type": "text/plain"},
+            )
+        with pytest.raises(ValueError, match="line breaks"):
+            await client.post(
+                "/ping",
+                files=[("upload", "x.txt", b"x", "text/plain\r\ninjected: yes")],
+            )
+        with pytest.raises(ValueError, match="cannot contain controls"):
+            await client.post("/ping", data={"bad\nname": "x"})
+        response = await client.post(
+            "/ping",
+            data={'quoted"field': "x"},
+            files=[("upload", 'quoted".txt', b"x", "text/plain")],
+        )
+        assert response.status == 405
+
+
+async def test_async_client_token_query_and_strict_success_paths() -> None:
+    @http.query("/lookup")
+    async def lookup() -> dict[str, str]:
+        return {"result": "ok"}
+
+    app = Hinoki(include=[ping, lookup])
+    async with ASGIClient(app, strict_errors=True) as client:
+        assert (await client.get("/ping", token="test" + "-token")).status == 200
+        assert (await client.query("/lookup")).body == {"result": "ok"}
+
+
+def test_sync_client_cleans_up_after_startup_failure() -> None:
+    class Broken(Module):
+        name = "broken_sync"
+
+        def lifespan(self, ctx):  # type: ignore[no-untyped-def]
+            raise RuntimeError("startup refused")
+
+    app = Hinoki()
+    app.install(Broken())
+    with pytest.raises(RuntimeError, match="startup failed"), SyncClient(app):
+        pytest.fail("failed startup must not enter the client")
+
+
+def test_sync_client_state_and_all_method_helpers() -> None:
+    client = SyncClient(Hinoki(include=[ping]))
+    with client:
+        assert client.get("/ping").status == 200
+        assert client.post("/ping").status == 405
+        assert client.query("/ping").status == 405
+        with pytest.raises(RuntimeError, match="entered once"):
+            client.__enter__()
+    client.__exit__(None, None, None)
+    with pytest.raises(RuntimeError, match="inside its `with` block"):
+        client.request("GET", "/ping")
 
 
 def test_manual_clock_normalizes_and_controls_aware_instants() -> None:

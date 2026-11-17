@@ -5,8 +5,10 @@ import datetime
 import os
 import re
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, ClassVar
+from types import SimpleNamespace
+from typing import Any, ClassVar, cast
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -14,10 +16,11 @@ from zoneinfo import ZoneInfo
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import Access, Caller, Hinoki, Mount
+from hinoki import Access, Caller, Hinoki, Mount, Reply
 from hinoki.admin import (
     THEMES,
     Admin,
+    Avatar,
     Badge,
     BulkAction,
     Fieldset,
@@ -26,6 +29,7 @@ from hinoki.admin import (
     Theme,
     csrf,
 )
+from hinoki.admin import views as admin_views
 from hinoki.admin.components import (
     Components,
     icon_name,
@@ -34,9 +38,12 @@ from hinoki.admin.components import (
     plain_text,
     sparkline,
 )
+from hinoki.admin.formpages import check_references, option_lists, render_fields
 from hinoki.admin.forms import (
     FieldProblem,
+    FormField,
     collect,
+    control,
     convert,
     fields_for,
     input_text,
@@ -44,9 +51,20 @@ from hinoki.admin.forms import (
     render_field,
     to_datetime,
 )
+from hinoki.admin.lists import apply_state, matching, pagination_for, table_head
+from hinoki.admin.modeladmin import OutOfScope
+from hinoki.admin.parts import Event
+from hinoki.admin.site import ListState, Site, guarded, number, parse_key
 from hinoki.admin.templates import UI, Raw, TemplateError, Templates, escape
-from hinoki.db import Database, DatabaseModule
-from hinoki.errors import RegistrationError
+from hinoki.admin.views import (
+    authorize_bulk_rows,
+    authorized_bulk_action,
+    bulk_keys,
+    bulk_rows,
+    index,
+)
+from hinoki.db import Database, DatabaseError, DatabaseModule
+from hinoki.errors import ErrorDetail, ModelValidationError, RegistrationError
 from hinoki.orm import (
     Model,
     OnDelete,
@@ -285,6 +303,53 @@ def test_four_themes_share_the_component_set_and_validate() -> None:
     assert 'data-theme="mine"' in Templates(theme=custom).stylesheet().decode()
 
 
+def test_theme_rejects_incomplete_fixed_tokens_and_invalid_layout_choices() -> None:
+    paper = THEMES["paper"]
+    cases = (
+        (Theme("bad", "Bad", "page", paper.light, paper.dark, {}), "fixed tokens"),
+        (
+            Theme("bad", "Bad", "modal", paper.light, paper.dark, paper.fixed),
+            "bad edit or default_mode",
+        ),
+        (
+            Theme(
+                "bad",
+                "Bad",
+                "page",
+                paper.light,
+                paper.dark,
+                paper.fixed,
+                layout="unknown",
+            ),
+            "bad layout or list_style",
+        ),
+        (
+            Theme(
+                "bad name",
+                "Bad",
+                "page",
+                paper.light,
+                paper.dark,
+                paper.fixed,
+            ),
+            "theme names are letters",
+        ),
+    )
+    for theme, message in cases:
+        with pytest.raises(ValueError, match=message):
+            theme.check()
+
+
+def test_component_fragments_support_hidden_avatar_names_and_typed_cells() -> None:
+    components = Components(Templates())
+    hidden_name = str(components.avatar("Ada Lovelace", show_name=False))
+    assert "Ada Lovelace" not in hidden_name
+    assert "AL" in hidden_name
+    assert "AL" in str(components.cell(Avatar("Ada Lovelace")))
+    raw = Raw("<strong>trusted</strong>")
+    assert components.cell(raw) is raw
+
+
 def test_csrf_tokens_are_signed_for_the_signed_in_subject() -> None:
     guard = csrf.Csrf(SECRET)
     token = guard.mint("ann")
@@ -400,6 +465,398 @@ def test_forms_follow_the_model_and_convert_strictly() -> None:
         with pytest.raises(FieldProblem, match=message):
             convert(fields[field_name], text)
     assert convert(fields["due"], "2026-11-13T09:30")[1].tzinfo is datetime.UTC
+
+
+def test_form_helpers_cover_uuid_defaults_and_readonly_fields() -> None:
+    identifier = FormField(
+        "identifier", "Identifier", "uuid", True, False, False, None, UUID
+    )
+    with pytest.raises(FieldProblem, match="valid UUID"):
+        convert(identifier, "not-a-uuid")
+
+    defaulted = FormField("title", "Title", "text", True, False, True, None, str)
+    assert convert(defaulted, "") == (False, None)
+
+    shown_only = FormField(
+        "computed",
+        "Computed",
+        "readonly",
+        False,
+        False,
+        False,
+        None,
+        object,
+        shown_only=True,
+    )
+    assert collect([shown_only], {"computed": "spoofed"}) == ({}, {})
+    assert "disabled" in str(control(shown_only, "stored", None))
+    rendered = str(render_field(Templates(), shown_only, "stored", None))
+    assert "Not editable here." in rendered
+
+
+def test_form_controls_cover_empty_select_checkbox_and_error_states() -> None:
+    optional_text = FormField(
+        "nickname", "Nickname", "text", False, False, False, 12, str
+    )
+    assert convert(optional_text, "") == (True, "")
+    text_html = str(
+        render_field(Templates(), optional_text, "", "<invalid>", options=None)
+    )
+    assert 'maxlength="12"' in text_html and 'aria-invalid="true"' in text_html
+    assert "&lt;invalid&gt;" in text_html
+    required = FormField("title", "Title", "text", True, False, False, None, str)
+    assert " required" in str(control(required, "", None))
+
+    choice = FormField(
+        "choice", "Choice", "text", False, True, False, None, str, select=True
+    )
+    empty_select = str(control(choice, None, None, options=[("a", "Alpha")]))
+    unknown_select = str(control(choice, "missing", None, options=[("a", "Alpha")]))
+    assert 'value="">—</option>' in empty_select
+    assert 'value="missing" selected>missing</option>' in unknown_select
+
+    checkbox = FormField(
+        "active", "Active", "checkbox", False, False, False, None, bool
+    )
+    assert "checked" in str(control(checkbox, True, None))
+    assert "checked" not in str(control(checkbox, False, None))
+
+    textarea = FormField("body", "Body", "textarea", False, False, False, None, str)
+    assert "<textarea" in str(control(textarea, "\nfirst", None))
+
+
+def test_admin_list_helpers_cover_single_search_ordering_and_pagination_gaps() -> None:
+    single = cast(ModelAdmin[Any], SimpleNamespace(search=("title",)))
+    searched = matching(single, Note.all(), "needle")
+    assert searched.filters == (("title", "contains", ["needle"]),)
+
+    ordered_entry = cast(
+        ModelAdmin[Any],
+        SimpleNamespace(
+            tabs=(),
+            search=(),
+            model=Note,
+            shown_columns=lambda: ("title",),
+            ordering=("-title",),
+        ),
+    )
+    ordered = apply_state(
+        ordered_entry,
+        Note.all(),
+        ListState(sort="not-visible", direction="asc"),
+    )
+    assert ordered.order == (("title", True),)
+
+    extra_column = cast(
+        ModelAdmin[Any],
+        SimpleNamespace(model=Note, shown_columns=lambda: ("virtual",)),
+    )
+    headings = str(
+        table_head(cast(Any, SimpleNamespace()), "notes", extra_column, bulk=False)
+    )
+    assert "Virtual" in headings and '<th scope="col">' in headings
+
+    site = cast(
+        Any,
+        SimpleNamespace(
+            state=ListState(),
+            parts=SimpleNamespace(pagination=lambda urls, summary: (urls, summary)),
+            url=lambda *parts, **_query: "/" + "/".join(parts),
+        ),
+    )
+    links, _summary = cast(
+        tuple[list[tuple[str, str, bool]], str],
+        pagination_for(site, "notes", 10, 1, 20),
+    )
+    assert any(label == "…" for _, label, _current in links)
+
+
+async def test_admin_form_helpers_cover_large_and_unregistered_relations() -> None:
+    owner_field = FormField(
+        "owner_id", "Owner", "uuid", True, False, False, None, UUID, references=Owner
+    )
+
+    class OversizedQuery:
+        async def limit(self, count: int) -> list[object]:
+            assert count == 201
+            return [object()] * count
+
+    related = SimpleNamespace(
+        model=Owner,
+        can=lambda _principal, _action: True,
+        queryset=lambda _principal: OversizedQuery(),
+    )
+    admin = SimpleNamespace(
+        models={"owners": related}, templates=Templates(), timezone=datetime.UTC
+    )
+    site = cast(Site, SimpleNamespace(admin=admin, principal=object()))
+    fields, options = await option_lists(site, [owner_field])
+    assert fields == [owner_field] and options == {}
+
+    missing_admin = SimpleNamespace(
+        models={}, templates=Templates(), timezone=datetime.UTC
+    )
+    absent_site = cast(Site, SimpleNamespace(admin=missing_admin, principal=object()))
+    assert (
+        await check_references(absent_site, [owner_field], {"owner_id": uuid4()}) == {}
+    )
+
+
+def test_admin_fieldsets_without_renderable_fields_are_skipped() -> None:
+    admin = SimpleNamespace(templates=Templates(), timezone=datetime.UTC)
+    site = cast(Site, SimpleNamespace(admin=admin))
+    entry = cast(
+        ModelAdmin[Any],
+        SimpleNamespace(fieldsets=(Fieldset("Empty", ("not_a_field",)),)),
+    )
+    assert str(render_fields(site, entry, [], {}, {}, {})) == ""
+
+
+def test_modeladmin_display_and_config_fallbacks() -> None:
+    admin = NoteAdmin()
+    admin.model = Note
+    row = Note(id=uuid4(), title="", done=False, rank=None)
+    assert admin.title_of(row) == f"Note {row.id}"
+    assert admin.skipped() == frozenset()
+
+
+def test_admin_site_key_and_number_fallbacks(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert number("invalid", 4, 10) == 4
+    entry = cast(ModelAdmin[Any], SimpleNamespace(model=Note))
+    assert parse_key(entry, "\x00") is None
+    monkeypatch.setattr("hinoki.admin.site.key_type", lambda _model: str)
+    assert parse_key(entry, "slug") == "slug"
+
+
+def test_admin_user_card_includes_an_escaped_logout_link() -> None:
+    admin = SimpleNamespace(
+        logout_url='/logout?next="<home>',
+        templates=Templates(),
+        role=lambda _principal: "Staff",
+    )
+    fake_site = cast(
+        Site,
+        SimpleNamespace(admin=admin, principal=Caller(id="Ada", user="Ada")),
+    )
+    rendered = str(Site.user_card(fake_site))
+    assert 'href="/logout?next=&quot;&lt;home&gt;"' in rendered
+
+
+async def test_admin_guarded_writes_summarize_validation_and_database_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    @asynccontextmanager
+    async def transaction() -> AsyncIterator[None]:
+        yield
+
+    monkeypatch.setattr(
+        "hinoki.admin.site.current_database",
+        lambda: SimpleNamespace(transaction=transaction),
+    )
+
+    async def invalid() -> None:
+        raise ModelValidationError([ErrorDetail("title", "invalid", "is invalid")])
+
+    async def rejected() -> None:
+        raise DatabaseError("database rejected values")
+
+    assert await guarded(invalid()) == "title: is invalid"
+    assert await guarded(rejected()) == "The database rejected these values."
+
+
+async def test_admin_bulk_resolution_rejects_bad_or_inaccessible_selections() -> None:
+    principal = Caller(id="admin", user="admin")
+    admin = NoteAdmin()
+    admin.model = Note
+    key = uuid4()
+    row = SimpleNamespace(id=key)
+    assert bulk_keys(admin, ["not-a-uuid"], None) == []
+    assert bulk_keys(admin, ["not-a-uuid"], "publish") is None
+    assert bulk_keys(admin, [str(key), str(key)], None) is None
+    assert bulk_keys(admin, [], "publish") == []
+    assert authorize_bulk_rows(admin, principal, [key, uuid4()], [row], None) == [row]
+    assert authorized_bulk_action(admin, principal, "not-a-real-action") is None
+    fake_site = cast(Site, SimpleNamespace(principal=principal))
+    assert await bulk_rows(fake_site, admin, ["invalid"], "publish") is None
+    assert await bulk_rows(fake_site, admin, [], "publish") == []
+
+
+async def test_admin_dashboard_skips_hidden_entry_and_renders_activity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def activity(_principal: Caller[Any]) -> list[Event]:
+        return [Event("Changed a note", "now", icon="<bad>", tone="unknown")]
+
+    admin = Admin(
+        access=staff,
+        secret=SECRET,
+        dashboard=("hidden",),
+        activity=activity,
+    )
+
+    class FakeSite:
+        def __init__(self, *_args: object) -> None:
+            self.admin = admin
+            self.content = ""
+
+        def entry(self, _slug: str) -> None:
+            return None
+
+        def header(self, *_args: object) -> str:
+            return "header"
+
+        def done_notice(self) -> str:
+            return ""
+
+        async def page(self, _title: str, content: Raw, **_kwargs: object) -> Reply:
+            self.content = str(content)
+            return Reply(200, self.content)
+
+    monkeypatch.setattr(admin_views, "Site", FakeSite)
+    caller = Caller(id="staff", user="staff")
+    fake_self = SimpleNamespace(admin=admin)
+    response = await index(cast(Any, fake_self), cast(Any, None), caller)
+    assert response.status == 200
+    assert "Recent activity" in response.body.decode()
+    assert "Changed a note" in response.body.decode()
+
+
+def test_admin_bulk_row_authorization_fails_closed_for_custom_actions() -> None:
+    principal = Caller(id="admin", user="admin")
+    key = uuid4()
+    row = SimpleNamespace(id=key)
+    denied_view = cast(
+        ModelAdmin[Any],
+        SimpleNamespace(model=Note, can=lambda _p, _a, _r=None: False),
+    )
+    assert authorize_bulk_rows(denied_view, principal, [key], [row], None) == []
+    assert authorize_bulk_rows(denied_view, principal, [key], [row], "publish") is None
+    assert (
+        authorize_bulk_rows(denied_view, principal, [uuid4()], [row], "publish") is None
+    )
+
+
+@needs_database
+async def test_admin_write_views_handle_missing_models_rows_and_csrf(
+    site: tuple[Client, Database],
+) -> None:
+    client, database = site
+    assert (
+        await client.request("GET", "/admin/missing/add", headers=STAFF)
+    ).status == 404
+    assert (
+        await submit(client, "/admin/missing/add", {"csrf": "x"}, STAFF)
+    ).status == 404
+    missing = uuid4()
+    assert (
+        await submit(client, f"/admin/notes/{missing}", {"csrf": "x"}, STAFF)
+    ).status == 404
+    existing = await note_id(database, "csrf")
+    assert (await submit(client, f"/admin/notes/{existing}", {}, STAFF)).status == 403
+
+
+@needs_database
+async def test_admin_bulk_views_report_bad_targets_empty_sets_and_failures(
+    site: tuple[Client, Database], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, database = site
+    assert (await submit(client, "/admin/missing/bulk", {}, STAFF)).status == 404
+    assert (
+        await submit(
+            client, "/admin/notes/bulk", {"action": "missing", "csrf": "x"}, STAFF
+        )
+    ).status == 404
+    token, headers = await session(client, "/admin/notes")
+    empty = await submit(client, "/admin/notes/bulk", {"csrf": token}, headers)
+    assert empty.status == 303
+
+    key = await note_id(database, "bulk-failure")
+
+    async def failed_action(*_args: Any) -> str:
+        return "action refused"
+
+    monkeypatch.setattr("hinoki.admin.views.run_bulk_action", failed_action)
+    failed = await submit(
+        client,
+        "/admin/notes/bulk",
+        {
+            "csrf": token,
+            "action": "mark-done",
+            "confirmed": "1",
+            "ids": str(key),
+        },
+        headers,
+    )
+    assert failed.status == 409 and "action refused" in failed.body
+
+
+@needs_database
+async def test_admin_delete_guard_failure_is_reported_as_conflict(
+    site: tuple[Client, Database], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, database = site
+    key = await note_id(database, "delete-conflict")
+
+    async def refuse_remove(
+        _self: NoteAdmin, _row: Note, _principal: Caller[Any]
+    ) -> None:
+        raise OutOfScope
+
+    monkeypatch.setattr("tests.admintest.NoteAdmin.remove", refuse_remove)
+    token, headers = await session(client, f"/admin/notes/{key}")
+    response = await submit(
+        client, f"/admin/notes/{key}/delete", {"csrf": token}, headers
+    )
+    assert response.status == 409
+    assert "move the row out" in response.body
+
+
+def test_modeladmin_rejects_invalid_bulk_action_shapes_and_text() -> None:
+    class ListActions(ModelAdmin[Note]):
+        bulk_actions: ClassVar[Any] = []
+
+    class WrongItem(ModelAdmin[Note]):
+        bulk_actions = (object(),)  # type: ignore[assignment]
+
+    class BlankLabel(ModelAdmin[Note]):
+        bulk_actions = (BulkAction("publish", " ", "Confirm?", mark_notes_done),)
+
+    class BlankConfirmation(ModelAdmin[Note]):
+        bulk_actions = (BulkAction("publish", "Publish", " ", mark_notes_done),)
+
+    for admin_class, reason in (
+        (ListActions, "bulk_actions must be a tuple"),
+        (WrongItem, "bulk_actions must contain BulkAction values"),
+        (BlankLabel, "label must contain"),
+        (BlankConfirmation, "confirmation must contain"),
+    ):
+        admin = Admin(access=staff, secret=SECRET)
+        with pytest.raises(RegistrationError, match=reason):
+            admin.register(Note, admin_class, slug="notes")
+
+
+def test_modeladmin_rejects_unknown_fieldset_columns() -> None:
+    class WrongFieldset(ModelAdmin[Note]):
+        fieldsets = (Fieldset("Details", ("not_a_column",)),)
+
+    with pytest.raises(RegistrationError, match="fieldset 'Details' names"):
+        Admin(access=staff, secret=SECRET).register(Note, WrongFieldset, slug="notes")
+
+
+@needs_database
+async def test_modeladmin_missing_scoped_rows_raise_not_found(
+    site: tuple[Client, Database],
+) -> None:
+    _, database = site
+    admin = NoteAdmin()
+    admin.model = Note
+    row = Note(id=uuid4(), title="missing")
+    principal = Caller(id="admin", user="admin")
+    with use_database(database):
+        with pytest.raises(Note.NotFound, match="Note not found"):
+            await admin.save({"title": "updated"}, principal, row)
+        with pytest.raises(Note.NotFound, match="Note not found"):
+            await admin.remove(row, principal)
 
 
 def test_unchanged_fields_are_never_rewritten_on_edit() -> None:

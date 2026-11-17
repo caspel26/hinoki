@@ -2,8 +2,9 @@
 
 from collections.abc import Iterator
 from datetime import UTC, datetime
-from types import SimpleNamespace
-from typing import Annotated
+from functools import cached_property
+from types import CellType, FunctionType, SimpleNamespace
+from typing import Annotated, Any, cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -21,6 +22,8 @@ from hinoki import (
     http,
     object_check,
 )
+from hinoki.derive import _class_cell as find_class_cell
+from hinoki.derive import rebuild
 from hinoki.errors import RegistrationError, ValidationError
 from hinoki.orm import Model, OnDelete, field, foreign_key
 from hinoki.schema import graph_has_checks
@@ -242,6 +245,114 @@ def test_derive_is_one_callable_with_tuple_options() -> None:
         pass
 
     assert list(EmptyExclusion.specs()) == list(Post.__columns__)
+
+
+@pytest.mark.parametrize(
+    ("options", "message"),
+    [
+        ({"only": ["title"]}, "only must be a tuple"),
+        ({"exclude": ["title"]}, "exclude must be a tuple"),
+        ({"only": (1,)}, "field names must be strings"),
+        ({"partial": 1}, "partial must be bool or a tuple"),
+        ({"partial": (1,)}, "field names must be strings"),
+    ],
+)
+def test_derive_rejects_invalid_option_shapes(
+    options: dict[str, object], message: str
+) -> None:
+    with pytest.raises(RegistrationError, match=message):
+        derive(**options)  # type: ignore[arg-type]
+
+
+class DescriptorBase(Schema):
+    @property
+    def label(self) -> str:
+        return "base"
+
+    @classmethod
+    def category(cls) -> str:
+        return "base"
+
+
+@derive(only=("title",))
+class DescriptorDerived(DescriptorBase, model=Post):
+    @property
+    def label(self) -> str:
+        return f"{super().label} derived"
+
+    @classmethod
+    def category(cls) -> str:
+        return f"{super().category()} derived"
+
+    @staticmethod
+    def name() -> str:
+        return cast(str, __class__.__name__)  # type: ignore[name-defined]
+
+    @cached_property
+    def cached_label(self) -> str:
+        return f"{super().label} cached"
+
+
+def test_derive_preserves_class_cells_in_descriptors() -> None:
+    item = DescriptorDerived(title="test")  # type: ignore[call-arg]
+    assert item.label == "base derived"
+    assert item.cached_label == "base cached"
+    assert DescriptorDerived.category() == "base derived"
+    assert DescriptorDerived.name() == "DescriptorDerived"
+
+
+def _descriptor_function_with_cell(cell: CellType) -> FunctionType:
+    descriptor = DescriptorDerived.__source__["name"]
+    function = cast(Any, descriptor).__func__
+    return FunctionType(
+        function.__code__, function.__globals__, function.__name__, closure=(cell,)
+    )
+
+
+def _make_cell(value: object) -> CellType:
+    def capture() -> object:
+        return value
+
+    closure = capture.__closure__
+    assert closure is not None
+    return closure[0]
+
+
+def test_derive_rejects_two_distinct_class_cells(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = _descriptor_function_with_cell(_make_cell(DescriptorDerived))
+    second = _descriptor_function_with_cell(_make_cell(DescriptorDerived))
+    monkeypatch.setattr(
+        DescriptorDerived,
+        "__source__",
+        {"first": first, "second": second},
+    )
+
+    with pytest.raises(RegistrationError, match="multiple __class__ cells"):
+        rebuild(DescriptorDerived, (Post, None, (), False))
+
+
+def test_derive_ignores_an_empty_class_cell() -> None:
+    descriptor = DescriptorDerived.__source__["name"]
+    function = cast(Any, descriptor).__func__
+    cell = _make_cell(DescriptorDerived)
+    del cell.cell_contents
+    empty = FunctionType(
+        function.__code__, function.__globals__, function.__name__, closure=(cell,)
+    )
+
+    assert find_class_cell(empty, DescriptorDerived) is None
+
+
+def test_field_pattern_that_python_cannot_compile_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("hinoki.fieldtypes.core.check_pattern", lambda _pattern: None)
+    with pytest.raises(RegistrationError, match="invalid pattern"):
+
+        class InvalidPattern(Schema):
+            value: Annotated[str, Field(pattern="(")]
 
 
 def test_checks_and_methods_in_the_class_body_survive_the_derivation() -> None:

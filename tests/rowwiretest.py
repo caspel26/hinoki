@@ -9,6 +9,7 @@ import json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Annotated, Any, cast
 from uuid import UUID, uuid4
 
@@ -18,6 +19,7 @@ from hinoki import Caller, CrudAPI, Field, Hinoki, JSONRenderer, Schema
 from hinoki.crud import Resource
 from hinoki.db import Database, DatabaseModule
 from hinoki.orm import Model, QuerySet, field
+from hinoki.runtime import rowplan
 from tests.harness import Client, Feed, Pool, Sink
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -209,6 +211,11 @@ class DynamicRecord(Model, table="row_wire_dynamic"):
 class DynamicRecordOut(Schema):
     id: int
     number: int
+
+
+class DefaultDynamicRecordOut(Schema):
+    id: int
+    number: int = 0
 
 
 class DynamicRecords(CrudAPI, model=DynamicRecord, path="/dynamic"):
@@ -442,6 +449,61 @@ def test_mutated_hooks_fail_closed_after_registration() -> None:
         assert not selection.valid_for(WireRecords())
     finally:
         cast(Any, WireRecords).to_schema = original
+
+
+def test_mutated_instance_hook_fails_before_row_wire_query() -> None:
+    selection = Hinoki(include=[WireRecords]).bindings[0].row_wire
+    assert selection is not None
+    api = WireRecords()
+    assert selection.valid_for(api)
+    cast(Any, api).to_schema = changed_crud_schema.__get__(api, WireRecords)
+    assert not selection.valid_for(api)
+
+
+def test_owner_guard_falls_back_when_instance_state_is_unavailable() -> None:
+    class NoInstanceState:
+        __slots__ = ()
+
+    assert rowplan.has_shadowed_owner_state(NoInstanceState())  # type: ignore[arg-type]
+
+
+def test_row_wire_selection_rejects_non_type_model_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = Hinoki(include=[WireRecords])
+    candidate = SimpleNamespace(model=object(), read=WireRecordOut)
+    monkeypatch.setattr(
+        rowplan, "eligible_route", lambda _binding: (WireRecords, candidate)
+    )
+    assert rowplan.select_row_wire(app.bindings[0]) is None
+
+
+def test_row_wire_query_guards_accept_only_the_expected_window() -> None:
+    selection = Hinoki(include=[WireRecords]).bindings[0].row_wire
+    assert selection is not None
+    query = WireRecord.all()
+    assert selection.valid_query(query)
+    window = query.limit(20).offset(0)
+    assert selection.valid_window(window, order=query.order, limit=20, offset=0)
+    assert not selection.valid_query(object())
+    assert not selection.valid_query(query.limit(1))
+    malformed = WireRecord.all()
+    malformed.__dict__["unexpected"] = True
+    assert not selection.valid_query(malformed)
+    assert not selection.valid_window(object(), order=query.order, limit=20, offset=0)
+    custom_query_type = type("CustomQuerySet", (QuerySet,), {})
+    custom_query: QuerySet[Any] = cast(Any, object.__new__(custom_query_type))
+    assert not selection.valid_window(
+        custom_query, order=query.order, limit=20, offset=0
+    )
+
+
+def test_row_wire_schema_projection_rejects_defaulted_fields() -> None:
+    assert rowplan.schema_fields(DynamicRecord, DefaultDynamicRecordOut) is None
+
+
+def test_schema_setter_guard_accepts_the_builtin_dataclass_setter() -> None:
+    assert rowplan.plain_schema_setattr(Schema)
 
 
 def test_mutated_schema_and_model_metadata_fail_closed() -> None:

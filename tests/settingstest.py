@@ -1,10 +1,15 @@
 """Typed settings: loading, precedence, errors, secrets, wiring."""
 # ruff: noqa: S105 - fixture values, not secrets
 
+import dataclasses
+import io
 import json
 import logging
+import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
+from unittest.mock import Mock
 
 import pytest
 
@@ -12,15 +17,37 @@ from hinoki import Hinoki, Request, context, http
 from hinoki.__main__ import main
 from hinoki.settings import (
     AppSettings,
+    CorsSettings,
     DatabaseSettings,
+    ExecutionSettings,
+    FrameOptions,
     JsonFormatter,
+    LifecycleSettings,
     LoggingSettings,
+    PaginationSettings,
     Secret,
+    SecuritySettings,
+    ServerSettings,
     Settings,
     SettingsError,
+    StderrHandler,
+    _flatten_toml_value,
+    _matches_scalar,
+    _matches_sequence,
+    _matches_union,
     _RequestIdFilter,
     _TextFormatter,
+    convert,
+    convert_bool,
+    convert_float,
+    convert_int,
+    convert_list,
+    convert_optional,
+    describe_default,
+    is_host_pattern,
     parse_dotenv,
+    read_secret_file,
+    toml_value_matches,
 )
 from hinoki.testing import ASGIClient
 
@@ -136,9 +163,14 @@ def test_settings_class_and_cli_accept_the_declared_toml_source(
     toml = tmp_path / "settings.toml"
     toml.write_text("[mail]\nport = 6123\n")
 
-    class FileSettings(SampleSettings, prefix="APP_", toml=str(toml)):
+    dotenv = tmp_path / ".env"
+
+    class FileSettings(
+        SampleSettings, prefix="APP_", dotenv=str(dotenv), toml=str(toml)
+    ):
         pass
 
+    assert FileSettings.__dotenv__ == str(dotenv)
     assert FileSettings.load(env=BASE).mail.port == 6123
     for key, value in BASE.items():
         monkeypatch.setenv(key, value)
@@ -471,3 +503,233 @@ def test_the_settings_command_prints_origins_and_failures(
     assert "fix: set the named variables" in error
     with pytest.raises(SystemExit):
         main(["settings", "nope:Nothing"])
+
+
+def test_secret_equality_hash_truth_and_redaction_contract() -> None:
+    value = Secret("token")
+    assert value == Secret("token")
+    assert value != Secret("different")
+    assert value != "token"
+    assert hash(value) == hash("token")
+    assert bool(value)
+    assert not Secret("")
+    assert repr(value) == str(value) == "Secret('***')"
+
+
+def test_toml_type_matching_covers_unions_sequences_literals_and_scalars() -> None:
+    assert toml_value_matches(int | None, None)
+    assert toml_value_matches(int | None, 4)
+    assert not toml_value_matches(int | None, "4")
+    assert toml_value_matches(Literal["a", "b"], "a")
+    assert not toml_value_matches(Literal["a", "b"], "c")
+    assert toml_value_matches(list[int], [1, 2])
+    assert not toml_value_matches(tuple[int, ...], [1, True])
+    assert _matches_union((int, type(None)), None)
+    assert _matches_sequence((int, ...), [1, 2])
+    assert not _matches_sequence((int, ...), (1, 2))
+    assert _matches_scalar(bool, False)
+    assert not _matches_scalar(int, True)
+    assert _matches_scalar(float, 1)
+    assert _matches_scalar(str, "x")
+    assert _matches_scalar(FrameOptions, "deny")
+    assert not _matches_scalar(object, "x")
+
+
+def test_toml_flattening_rejects_group_and_scalar_type_mismatches() -> None:
+    problems: list[str] = []
+    assert _flatten_toml_value("APP_", "MAIL", Mail, 3, problems) == {}
+    assert "APP_MAIL: a settings group must be a TOML table" in problems
+    assert _flatten_toml_value("APP_", "PORT", int, {"nested": 1}, problems) == {}
+    assert problems[-1] == "APP_PORT: TOML value has an incompatible type"
+    assert _flatten_toml_value("APP_", "EXTRA", None, {"x": 1}, problems) == {
+        "APP_EXTRA": {"x": 1}
+    }
+    assert _flatten_toml_value("APP_", "PORT", int, "3", problems) == {}
+
+
+def test_settings_converters_cover_enum_optional_list_and_numeric_edges() -> None:
+    assert convert(FrameOptions, FrameOptions.DENY) is FrameOptions.DENY
+    assert convert(FrameOptions, "deny") is FrameOptions.DENY
+    with pytest.raises(ValueError, match="must be one of"):
+        convert(FrameOptions, "bad")
+    with pytest.raises(ValueError, match="unsupported union"):
+        convert_optional(int | str | None, "1")
+    assert convert_optional(int | None, "") is None
+    assert convert_list(tuple[int, ...], "1, 2") == (1, 2)
+    with pytest.raises(ValueError, match="must be a list"):
+        convert_list(list[int], 1)
+    assert convert_bool(True) is True
+    assert convert_int(-3) == -3
+    with pytest.raises(ValueError, match="must be an integer"):
+        convert_int(True)
+    with pytest.raises(ValueError, match="must be a number"):
+        convert_float(True)
+    assert convert_float(1) == 1.0
+    with pytest.raises(ValueError, match="finite"):
+        convert_float(float("nan"))
+    with pytest.raises(ValueError, match="unsupported type"):
+        convert(dict, {})
+
+
+def test_secret_file_reports_decode_and_io_failures_without_contents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    directory = tmp_path / "directory"
+    directory.mkdir()
+    problems: list[str] = []
+    assert read_secret_file("TOKEN_FILE", str(directory), problems) is None
+    assert problems == ["TOKEN_FILE: must name a regular file of at most 64 KiB"]
+
+    unreadable = tmp_path / "unreadable"
+    unreadable.write_bytes(b"\xff")
+    assert read_secret_file("TOKEN_FILE", str(unreadable), problems) is None
+    assert problems[-1] == "TOKEN_FILE: the file cannot be read as text"
+    monkeypatch.setattr(Path, "read_text", Mock(side_effect=OSError))
+    assert read_secret_file("TOKEN_FILE", str(unreadable), problems) is None
+    assert problems[-1] == "TOKEN_FILE: the file cannot be read as text"
+
+
+def test_rows_skip_private_fields_and_secret_helpers_redact() -> None:
+    class InternalSettings(Settings):
+        _private: str = "hidden"
+        public: str = "shown"
+
+    rows = InternalSettings.explain(prefix="I_")
+    assert [row.key for row in rows] == ["I_PUBLIC"]
+    assert Secret("same") == Secret("same")
+
+
+def test_default_description_handles_factories_and_supported_shapes() -> None:
+    class ExampleSettings(Settings):
+        empty: str | None = None
+        flags: tuple[str, ...] = ("a", "b")
+        generated: list[str] = dataclasses.field(default_factory=lambda: ["x", "y"])
+        child: DatabaseSettings = dataclasses.field(default_factory=DatabaseSettings)
+
+    fields = {item.name: item for item in dataclasses.fields(ExampleSettings)}
+    assert describe_default(fields["empty"]) == ""
+    assert describe_default(fields["flags"]) == "a,b"
+    assert describe_default(fields["generated"]) == "x,y"
+    assert describe_default(fields["child"]) == ""
+    required = dataclasses.field()
+    assert describe_default(required) == ""
+
+
+def test_host_and_security_validation_reject_invalid_public_values() -> None:
+    assert is_host_pattern("localhost")
+    assert is_host_pattern(".example.test")
+    assert is_host_pattern("2001:db8::1")
+    assert not is_host_pattern("https://example.test")
+    assert not is_host_pattern("2001:db8::zz")
+    with pytest.raises(ValueError, match="FrameOptions"):
+        SecuritySettings(frame_options="bad").validate()  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="ReferrerPolicy"):
+        SecuritySettings(referrer_policy="bad").validate()  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="hsts_seconds"):
+        SecuritySettings(hsts_seconds=-1).validate()
+    with pytest.raises(ValueError, match="require hsts_seconds"):
+        SecuritySettings(hsts_include_subdomains=True).validate()
+    with pytest.raises(ValueError, match="hsts_preload requires"):
+        SecuritySettings(
+            hsts_seconds=1, hsts_include_subdomains=True, hsts_preload=True
+        ).validate()
+    with pytest.raises(ValueError, match="allowed_hosts"):
+        AppSettings(allowed_hosts=()).validate()
+
+
+def test_app_host_timezone_security_and_pagination_constraints() -> None:
+    invalid_settings: tuple[tuple[Callable[[], object], str], ...] = (
+        (lambda: AppSettings(allowed_hosts=("*", "example.test")), "allowed_hosts"),
+        (
+            lambda: AppSettings(
+                security=SecuritySettings(redirect_https=True), allowed_hosts=("*",)
+            ),
+            "redirect_https",
+        ),
+        (lambda: AppSettings(allowed_hosts=("https://example.test",)), "allowed_hosts"),
+        (lambda: AppSettings(timezone="Not/A_Timezone"), "timezone"),
+        (lambda: AppSettings(timezone=None), "timezone"),  # type: ignore[arg-type]
+    )
+    for factory, message in invalid_settings:
+        with pytest.raises(ValueError, match=message):
+            factory()
+    with pytest.raises(ValueError, match="at least one host"):
+        AppSettings(allowed_hosts=())
+    with pytest.raises(ValueError, match="must be a valid IANA"):
+        AppSettings(timezone="")
+    with pytest.raises(ValueError, match="timeouts must be positive"):
+        LifecycleSettings(shutdown_timeout=float("inf"))
+    with pytest.raises(ValueError, match="need 1 <= page_size"):
+        PaginationSettings(page_size=0)
+    with pytest.raises(ValueError, match="timeouts must be positive"):
+        LifecycleSettings(startup_timeout=0)
+
+
+def test_server_settings_validate_listener_proxy_request_id_and_limits() -> None:
+    invalid: tuple[tuple[Callable[[], object], str], ...] = (
+        (lambda: ServerSettings(port=0), "port must be"),
+        (lambda: ServerSettings(workers=0), "workers"),
+        (lambda: ServerSettings(runtime_threads=0), "workers"),
+        (lambda: ServerSettings(backlog=0), "backlog"),
+        (lambda: ServerSettings(trusted_proxies=("not-an-ip",)), "trusted_proxies"),
+        (lambda: ServerSettings(trusted_proxies=("fe80::1%eth0",)), "zone id"),
+        (lambda: ServerSettings(request_id_header="bad header"), "HTTP token"),
+        (lambda: ServerSettings(request_id_header="x-frame-options"), "conflicts"),
+        (lambda: ServerSettings(request_id_header="access-control-debug"), "conflicts"),
+        (lambda: ServerSettings(max_connections=0), "max_connections"),
+        (lambda: ServerSettings(write_timeout=0), "write_timeout"),
+        (lambda: ServerSettings(tls_cert_file="cert.pem"), "set together"),
+        (lambda: ServerSettings(http2=True), "needs TLS"),
+        (
+            lambda: ServerSettings(tls_cert_file="cert.pem", tls_key_file="key.pem"),
+            "not a file",
+        ),
+    )
+    for factory, message in invalid:
+        with pytest.raises(ValueError, match=message):
+            factory()
+    assert ServerSettings(access_log=True).conflicts("rust") == ["access_log"]
+    assert "max_connections" in ServerSettings(max_connections=2).conflicts("granian")
+
+
+def test_cors_settings_validate_origin_tokens_credentials_and_max_age() -> None:
+    invalid: tuple[tuple[Callable[[], object], str], ...] = (
+        (lambda: CorsSettings(origins=("*", "https://example.test")), "only entry"),
+        (lambda: CorsSettings(origins=("*",), credentials=True), "credentials"),
+        (lambda: CorsSettings(origins=("not-an-origin",)), "origins must look like"),
+        (lambda: CorsSettings(headers=("bad header",)), "HTTP token"),
+        (lambda: CorsSettings(max_age=-1), "max_age"),
+    )
+    for factory, message in invalid:
+        with pytest.raises(ValueError, match=message):
+            factory()
+
+
+def test_execution_and_server_settings_enforce_resource_bounds() -> None:
+    with pytest.raises(ValueError, match="request_timeout"):
+        ExecutionSettings(request_timeout=0).validate()
+    with pytest.raises(ValueError, match="max_query_bytes"):
+        ExecutionSettings(max_query_bytes=0).validate()
+    with pytest.raises(ValueError, match="max_header_bytes"):
+        ExecutionSettings(max_header_bytes=0).validate()
+    with pytest.raises(ValueError, match="runtime_threads"):
+        ServerSettings(runtime_threads=0).validate()
+    with pytest.raises(ValueError, match="backlog"):
+        ServerSettings(backlog=0).validate()
+    with pytest.raises(ValueError, match="max_size"):
+        DatabaseSettings(max_size=0).validate()
+
+
+def test_json_formatter_formats_exceptions_and_stderr_handler_is_dynamic() -> None:
+    try:
+        raise RuntimeError("sample failure")
+    except RuntimeError:
+        record = logging.LogRecord(
+            "hinoki.x", logging.ERROR, "f", 1, "failed", (), sys.exc_info()
+        )
+    entry = json.loads(JsonFormatter().format(record))
+    assert "RuntimeError: sample failure" in entry["exception"]
+    handler = StderrHandler()
+    original = handler.stream
+    handler.stream = io.StringIO()
+    assert handler.stream is original

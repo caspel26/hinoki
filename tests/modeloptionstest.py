@@ -10,7 +10,15 @@ import pytest
 
 from hinoki.db import Database
 from hinoki.errors import RegistrationError
-from hinoki.orm import Model, field, indexed, ordered_by, unique, use_database
+from hinoki.orm import (
+    Model,
+    field,
+    indexed,
+    ordered_by,
+    timestamps,
+    unique,
+    use_database,
+)
 from hinoki.orm.migrations import index_name, plan, state_of
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -51,8 +59,63 @@ def test_options_are_validated_when_applied() -> None:
             id: UUID = field(primary_key=True, default_factory=uuid4)
             owner: str = ""
 
+    with pytest.raises(RegistrationError, match=r"@unique.*twice"):
+
+        @unique("owner", "value")
+        @unique("owner", "value")
+        class DuplicateUnique(Model, table="mo_duplicate_unique"):
+            id: UUID = field(primary_key=True, default_factory=uuid4)
+            owner: str = ""
+            value: str = ""
+
     with pytest.raises(RegistrationError, match="needs a column"):
         ordered_by()
+
+
+def test_timestamps_reject_non_callable_clock_and_unresolvable_hints(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(RegistrationError, match="clock must be callable"):
+
+        @timestamps(clock=None)  # type: ignore[arg-type]
+        class InvalidClock(Model, table="mo_invalid_clock"):
+            id: UUID = field(primary_key=True, default_factory=uuid4)
+            updated_at: datetime
+
+    monkeypatch.setattr(
+        "hinoki.orm.options.get_type_hints",
+        lambda _model: (_ for _ in ()).throw(NameError("missing type")),
+    )
+    with pytest.raises(RegistrationError, match="cannot resolve timestamp"):
+
+        @timestamps()
+        class Unresolved(Model, table="mo_unresolved"):
+            id: UUID = field(primary_key=True, default_factory=uuid4)
+            updated_at: datetime
+
+
+def test_timestamps_register_a_valid_datetime_field() -> None:
+    @timestamps()
+    class Valid(Model, table="mo_valid_timestamp"):
+        id: UUID = field(primary_key=True, default_factory=uuid4)
+        updated_at: datetime
+
+    assert Valid.__updated_at__ == "updated_at"
+
+
+def test_timestamps_reject_primary_key_and_non_datetime_fields() -> None:
+    with pytest.raises(RegistrationError, match="cannot be the primary key"):
+
+        @timestamps("id")
+        class PrimaryKey(Model, table="mo_timestamp_pk"):
+            id: datetime = field(primary_key=True, default_factory=datetime.now)
+
+    with pytest.raises(RegistrationError, match="must be datetime"):
+
+        @timestamps("value")
+        class NonDatetime(Model, table="mo_timestamp_text"):
+            id: UUID = field(primary_key=True, default_factory=uuid4)
+            value: str
 
 
 def test_the_options_are_visible_on_the_class() -> None:
