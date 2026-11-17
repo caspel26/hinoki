@@ -34,13 +34,27 @@ class _Request:
             "native_handler": False,
             "native_args": (),
             "native_error": None,
+            "_native_failure": None,
+            "_native_rows": None,
         }
         defaults.update(values)
         vars(self).update(defaults)
+        self._native_failure: Any = defaults["_native_failure"]
+        self._native_rows: Any = defaults["_native_rows"]
         self.responses: list[tuple[Any, ...]] = []
 
     async def body(self, _limit: int) -> bytes:
         return b"payload"
+
+    def _take_native_failure(self) -> Any:
+        failure = self._native_failure
+        self._native_failure = None
+        return failure
+
+    def _take_native_rows(self) -> Any:
+        rows = self._native_rows
+        self._native_rows = None
+        return rows
 
     def respond(self, *values: Any) -> None:
         self.responses.append(values)
@@ -197,6 +211,7 @@ def test_housekeeping_reports_invalid_ids_and_dead_parent(
 ) -> None:
     worker: Any = _worker()
     worker.core = SimpleNamespace(take_ignored_ids=lambda: 3)
+    worker.pipeline = SimpleNamespace(crud_plan_selections=())
     worker.parent = 100
     monkeypatch.setattr("hinoki.runtime.rustserver.os.getppid", lambda: 101)
     worker.housekeeping()
@@ -331,8 +346,20 @@ async def test_serve_handles_pipeline_errors_head_and_native_final_responses(
 
 
 @pytest.mark.asyncio
+async def test_native_cold_paths_reject_requests_without_actions() -> None:
+    worker: Any = _worker()
+    request = _Request(action=None)
+    with pytest.raises(RuntimeError, match="no action or failure"):
+        await worker._serve_native_failure(
+            cast(Any, request), ("database", "failed", None, None, None)
+        )
+    with pytest.raises(RuntimeError, match="no action or rows"):
+        await worker._serve_native_rows(cast(Any, request), ([], None))
+
+
+@pytest.mark.asyncio
 async def test_stop_without_server_and_with_shutdown_callbacks(
-    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     worker: Any = _worker()
     assert await worker.stop() == 0
@@ -347,7 +374,18 @@ async def test_stop_without_server_and_with_shutdown_callbacks(
     worker.server = cast(Any, Server())
     worker.timer = SimpleNamespace(cancel=lambda: events.append("timer"))
     worker.core = SimpleNamespace(
-        set_ready=lambda ready: events.append(f"ready:{ready}")
+        set_ready=lambda ready: events.append(f"ready:{ready}"),
+        _disarm_crud_plans=lambda: None,
+        _detach_database=lambda: None,
+    )
+    worker.pipeline = SimpleNamespace(
+        app=SimpleNamespace(runtime=SimpleNamespace(shutdown_timeout=1.0))
+    )
+    drain_results = [(2, False), (0, True)]
+    monkeypatch.setattr(
+        rustserver,
+        "_drain_native_uninterruptibly",
+        lambda *_args: asyncio.sleep(0, result=drain_results.pop(0)),
     )
 
     def fail_housekeeping() -> None:
@@ -363,6 +401,11 @@ async def test_stop_without_server_and_with_shutdown_callbacks(
     )
     assert await worker.stop() == 2
     assert events == ["ready:False", "timer", "reader:9"]
+    assert "aborted 2 native CRUD jobs" in caplog.text
+
+    worker.server = cast(Any, Server())
+    with pytest.raises(asyncio.CancelledError):
+        await worker.stop()
 
 
 @pytest.mark.asyncio
@@ -390,13 +433,23 @@ async def test_start_failure_paths_never_leave_lifespan_running(
     worker._lifespan = startup_ok
     worker._finish_lifespan = finish
     worker.pipeline = SimpleNamespace(
+        crud_plan_selections=(),
         app=SimpleNamespace(
             runtime=SimpleNamespace(
                 shutdown_timeout=4.0, max_header_bytes=8192, request_timeout=20.0
             )
-        )
+        ),
     )
     worker.listener_fd = 11
+    worker.core = SimpleNamespace(
+        _disarm_crud_plans=lambda: None,
+        _detach_database=lambda: None,
+    )
+    monkeypatch.setattr(
+        rustserver,
+        "_drain_native_uninterruptibly",
+        lambda *_args: asyncio.sleep(0, result=(0, False)),
+    )
 
     class FailedServer:
         @staticmethod
@@ -423,11 +476,12 @@ async def test_start_binds_only_after_success_and_registers_housekeeping(
 ) -> None:
     worker: Any = _worker()
     worker.pipeline = SimpleNamespace(
+        crud_plan_selections=(),
         app=SimpleNamespace(
             runtime=SimpleNamespace(
                 shutdown_timeout=4.0, max_header_bytes=8192, request_timeout=20.0
             )
-        )
+        ),
     )
     worker.body_read_timeout = 8.0
     worker.write_timeout = 30.0
@@ -440,7 +494,14 @@ async def test_start_binds_only_after_success_and_registers_housekeeping(
     worker.listener_fd = None
     worker.parent = None
     worker.core = SimpleNamespace(
-        set_ready=lambda ready: events.append(f"ready:{ready}")
+        set_ready=lambda ready: events.append(f"ready:{ready}"),
+        _disarm_crud_plans=lambda: None,
+        _detach_database=lambda: None,
+    )
+    monkeypatch.setattr(
+        rustserver,
+        "_drain_native_uninterruptibly",
+        lambda *_args: asyncio.sleep(0, result=(0, False)),
     )
     events: list[Any] = []
     server = SimpleNamespace(port=9001, wake_fd=17)
@@ -551,7 +612,9 @@ def test_signal_handling_is_graceful_until_unmanaged_second_signal(
 
 @pytest.mark.asyncio
 async def test_run_registers_signals_waits_and_logs_aborted_connections(
-    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    caplog: pytest.LogCaptureFixture,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     worker: Any = _worker()
     worker.host = "::1"
@@ -567,6 +630,7 @@ async def test_run_registers_signals_waits_and_logs_aborted_connections(
     monkeypatch.setattr(worker, "start", lambda: asyncio.sleep(0, result=9555))
     monkeypatch.setattr(worker, "stop", lambda: asyncio.sleep(0, result=2))
     assert await worker.run() == 0
+    assert "listening on https://[::1]:9555" in capsys.readouterr().out
     assert len(events) == 3
     assert "aborted 2 connections" in caplog.text
 
