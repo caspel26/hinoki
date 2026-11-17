@@ -3,10 +3,11 @@
 import asyncio
 import dataclasses
 import math
+import os
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Annotated, Any, cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -14,7 +15,9 @@ import pytest
 from hinoki import (
     API,
     CrudAPI,
+    Field,
     Hinoki,
+    Mount,
     RuntimeConfig,
     Schema,
     SchemaExtra,
@@ -22,12 +25,14 @@ from hinoki import (
     core,
     http,
 )
+from hinoki import crud as crud_module
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import Conflict
 from hinoki.fields import UNSET
 from hinoki.modules import ModuleContext
 from hinoki.orm import Model, QuerySet, field
 from hinoki.orm.queryset import write_statement
+from hinoki.pagination import PageNumberPagination
 from hinoki.runtime import crudplan as crudplan_module
 from hinoki.runtime import servercore as servercore_module
 from hinoki.runtime.binding import Binding
@@ -36,8 +41,10 @@ from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.responses import Response
 from hinoki.runtime.rustserver import RustWorker, _drain_native_uninterruptibly
 from hinoki.runtime.servercore import build_server_core
-from hinoki.settings import AppSettings, CorsSettings
+from hinoki.settings import AppSettings, CorsSettings, ServerSettings
 from hinoki.utils import utc_now
+
+DATABASE_URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 
 
 class PlanItem(Model, table="crud_plan_items"):
@@ -99,6 +106,19 @@ def test_public_crud_actions_get_disarmed_plans() -> None:
     ]
     assert all(item.snapshot_valid() for item in selected)
     assert server.pending == 0
+
+
+def test_unprefixed_retrieve_route_matches_its_generated_suffix() -> None:
+    route = SimpleNamespace(
+        method="GET",
+        path="/items/{item_id}",
+        handler=crudplan_module.ACTION_HANDLERS["retrieve"],
+    )
+    owner = SimpleNamespace(prefix="")
+
+    assert crudplan_module.route_matches_action(
+        route, "retrieve", cast(type[CrudAPI], owner)
+    )
 
 
 def test_plan_templates_match_python_compilers_for_all_dialects() -> None:
@@ -169,6 +189,32 @@ def test_mutated_model_snapshot_invalidates_selection(
     build_server_core(pipeline)
     selection = next(item for item in pipeline.crud_plan_selections if item)
     monkeypatch.setattr(PlanItem, "__clock__", lambda: None)
+    assert not selection.snapshot_valid()
+
+
+@pytest.mark.parametrize("mutation", ["pagination", "crud_helper"])
+def test_read_snapshot_tracks_python_lane_helpers(
+    mutation: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pipeline = plan_pipeline()
+    build_server_core(pipeline)
+    selection = next(
+        item
+        for item in pipeline.crud_plan_selections
+        if item is not None and item.action == "list"
+    )
+    if mutation == "pagination":
+        monkeypatch.setattr(
+            PageNumberPagination,
+            "parse",
+            lambda _self, _query: None,
+        )
+    else:
+        monkeypatch.setattr(
+            crud_module,
+            "schema_items",
+            lambda _self, _rows: [],
+        )
     assert not selection.snapshot_valid()
 
 
@@ -438,6 +484,22 @@ async def test_native_failure_error_translation_timeout_uses_fallback(
     assert response.status == 500
 
 
+async def test_native_database_timeout_returns_gateway_timeout() -> None:
+    pipeline = plan_pipeline()
+    build_server_core(pipeline)
+    action = next(
+        index
+        for index, selection in enumerate(pipeline.crud_plan_selections)
+        if selection is not None and selection.action == "list"
+    )
+
+    response = await pipeline.handle_native_failure(
+        action, "request-id", ("timeout", "request timed out", None, None, None)
+    )
+
+    assert response.status == 504
+
+
 async def test_native_retrieve_empty_rows_uses_model_not_found() -> None:
     pipeline = plan_pipeline()
     build_server_core(pipeline)
@@ -676,6 +738,107 @@ async def test_worker_attaches_and_releases_the_shared_database_clone(
     assert all(not worker.core._crud_armed(action) for action in eligible)
 
 
+async def _crud_http_request(
+    port: int, method: str, target: str, accept: str | None = None
+) -> tuple[int, list[tuple[str, str]], bytes]:
+    reader, writer = await asyncio.open_connection("127.0.0.1", port)
+    accept_header = f"accept: {accept}\r\n" if accept is not None else ""
+    request_head = (
+        f"{method} {target} HTTP/1.1\r\n"
+        "host: test\r\n"
+        "x-request-id: 00000000000000000000000000000001\r\n"
+        f"{accept_header}\r\n"
+    )
+    writer.write(request_head.encode())
+    await writer.drain()
+    header_block = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 5)
+    lines = header_block.decode("latin-1").split("\r\n")
+    status = int(lines[0].split()[1])
+    headers = [tuple(line.split(": ", 1)) for line in lines[1:] if line]
+    length = next(
+        (int(value) for name, value in headers if name == "content-length"), 0
+    )
+    body = (
+        b""
+        if method == "HEAD"
+        else await asyncio.wait_for(reader.readexactly(length), 5)
+    )
+    writer.close()
+    await writer.wait_closed()
+    return status, headers, body  # type: ignore[return-value]
+
+
+@pytest.mark.skipif(DATABASE_URL is None, reason="HINOKI_TEST_DATABASE_URL is not set")
+async def test_native_list_retrieve_and_head_match_forced_python_lane() -> None:
+    assert DATABASE_URL is not None
+    database = await Database.connect(DATABASE_URL, max_size=2, wait=1)
+    await database.execute("DROP TABLE IF EXISTS crud_plan_items")
+    await database.execute(
+        "CREATE TABLE crud_plan_items ("
+        "id uuid PRIMARY KEY, name text NOT NULL, label text NOT NULL)"
+    )
+    item_id = uuid4()
+    await database.execute(
+        "INSERT INTO crud_plan_items (id, name, label) VALUES ($1, $2, $3)",
+        item_id,
+        "native 🌲",
+        "saved",
+    )
+    database.close()
+
+    app = Hinoki(
+        settings=AppSettings(
+            server=ServerSettings(trusted_proxies=("127.0.0.1",), trust_request_id=True)
+        ),
+        include=[PlanItems],
+        modules=[DatabaseModule(DATABASE_URL)],
+    )
+    worker = RustWorker(app, "127.0.0.1", 0)
+    await worker.start()
+    try:
+        targets = [
+            ("GET", "/plan-items?page=1&page_size=20", None),
+            ("GET", f"/plan-items/{item_id}", None),
+            ("GET", "/plan-items/00000000-0000-0000-0000-000000000000", None),
+            ("GET", "/plan-items/not-a-uuid", None),
+            ("GET", "/plan-items?page=5&page_size=1", None),
+            ("HEAD", "/plan-items?page=1&page_size=20", None),
+            ("GET", "/plan-items", "text/plain"),
+        ]
+        native = [
+            await _crud_http_request(worker.address[1], method, target, accept)
+            for method, target, accept in targets
+        ]
+        worker.core._disarm_crud_plans()
+        python = [
+            await _crud_http_request(worker.address[1], method, target, accept)
+            for method, target, accept in targets
+        ]
+        for actual, expected in zip(native, python, strict=True):
+            actual_status, actual_headers, actual_body = actual
+            expected_status, expected_headers, expected_body = expected
+            stable_actual = [
+                (name, value)
+                for name, value in actual_headers
+                if name not in {"date", "x-request-id"}
+            ]
+            stable_expected = [
+                (name, value)
+                for name, value in expected_headers
+                if name not in {"date", "x-request-id"}
+            ]
+            assert (actual_status, stable_actual, actual_body) == (
+                expected_status,
+                stable_expected,
+                expected_body,
+            )
+    finally:
+        await worker.stop()
+        cleanup = await Database.connect(DATABASE_URL, max_size=1, wait=1)
+        await cleanup.execute("DROP TABLE IF EXISTS crud_plan_items")
+        cleanup.close()
+
+
 def test_not_ready_requests_cannot_enter_the_native_crud_path() -> None:
     app = Hinoki(
         include=[PlanItems],
@@ -799,6 +962,27 @@ def test_schema_fields_outside_the_model_are_ineligible(
     )
 
 
+def test_read_schema_constraints_are_ineligible_for_native_crud() -> None:
+    class ConstrainedRead(Schema):
+        id: UUID
+        name: Annotated[str, Field(max_length=3)]
+        label: str
+
+    assert not crudplan_module.plain_crud_schema(ConstrainedRead, PlanItem, "read")
+
+
+def test_read_schema_nullability_must_match_the_model() -> None:
+    class NullableModel(Model, table="crud_plan_nullable_items"):
+        id: UUID = field(primary_key=True, default_factory=uuid4)
+        note: str | None
+
+    class NonNullableRead(Schema):
+        id: UUID
+        note: str
+
+    assert not crudplan_module.plain_crud_schema(NonNullableRead, NullableModel, "read")
+
+
 def test_route_and_model_metadata_guards_fail_closed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -814,6 +998,29 @@ def test_route_and_model_metadata_guards_fail_closed(
 
     monkeypatch.setattr(PlanItem, "__field_types__", {})
     assert crudplan_module.model_fields(PlanItem) is None
+
+
+def test_mounted_crud_routes_remain_eligible() -> None:
+    app = Hinoki(
+        include=[Mount("/api", PlanItems)],
+        modules=[DatabaseModule("sqlite:///mounted-crud-unused.sqlite3")],
+    )
+    pipeline = Pipeline(app)
+    build_server_core(pipeline)
+
+    selections = [
+        selection
+        for selection in pipeline.crud_plan_selections
+        if selection is not None
+    ]
+
+    assert {selection.action for selection in selections} == {
+        "list",
+        "retrieve",
+        "create",
+        "update",
+        "delete",
+    }
 
 
 def test_default_metadata_accepts_only_immutable_native_values() -> None:
