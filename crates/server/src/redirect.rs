@@ -3,8 +3,9 @@
 const PATH_SAFE: &[u8] = b"/%:@!$&'()*+,;=-._~";
 const QUERY_SAFE: &[u8] = b"!$&'()*+,-./:;=?@_%~";
 
+/// `None` for an unsafe host, and for a target that is not a path (`OPTIONS *`).
 pub fn location(host: &[u8], path: &[u8], query: &[u8]) -> Option<Vec<u8>> {
-    if !safe_host(host) {
+    if !safe_host(host) || path.first().is_some_and(|byte| *byte != b'/') {
         return None;
     }
     let host = strip_http_port(host);
