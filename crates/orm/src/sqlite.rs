@@ -289,7 +289,12 @@ fn encode(value: &Value) -> Result<SqliteValue, DbError> {
         Value::Bytes(value) => SqliteValue::Blob(value.clone()),
         Value::Uuid(value) => SqliteValue::Text(value.to_string()),
         Value::Timestamp(value) => {
-            SqliteValue::Text(value.to_rfc3339_opts(chrono::SecondsFormat::Micros, true))
+            SqliteValue::Text(crate::value::timestamp_storage_text(value).ok_or_else(|| {
+                DbError::new(
+                    ErrorKind::Type,
+                    "timestamp year outside 0000-9999 for SQLite",
+                )
+            })?)
         }
         Value::Json(value) => SqliteValue::Text(
             serde_json::to_string(value)
@@ -315,9 +320,9 @@ fn decode(value: ValueRef<'_>, declared: Option<&str>) -> Result<Value, DbError>
                     .map_err(|_| DbError::new(ErrorKind::Type, "invalid UUID in database"));
             }
             if declared.contains("TIMESTAMP") || declared.contains("DATETIME") {
-                return chrono::DateTime::parse_from_rfc3339(text)
-                    .map(|value| Value::Timestamp(value.with_timezone(&chrono::Utc)))
-                    .map_err(|_| DbError::new(ErrorKind::Type, "invalid timestamp in database"));
+                return crate::value::parse_timestamp(text)
+                    .map(Value::Timestamp)
+                    .ok_or_else(|| DbError::new(ErrorKind::Type, "invalid timestamp in database"));
             }
             if declared.contains("JSON") {
                 return serde_json::from_str(text)
