@@ -6,7 +6,7 @@ import pytest
 
 from hinoki import Hinoki, http
 from hinoki.errors import APIError, BadRequest, Conflict, NotFound, ObjectNotFound
-from hinoki.request import Request
+from hinoki.http.request import Request
 from tests.harness import Pool
 
 

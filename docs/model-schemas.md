@@ -14,31 +14,32 @@ from hinoki import Schema, derive
 
 The validation example below is independent and includes its own imports.
 
-A `Schema` can take its fields and constraints from a `Model`. Put the source model on the class; use one `@derive(...)` decorator when you need to select or make fields optional. Without the decorator, every model column is derived.
+A `Schema` can take its fields and constraints from a `Model`. Pass the source model to the single `@derive(Model, ...)` decorator when selecting or making fields optional. A class without a decorator can still use `model=Model` to derive every column during the compatibility cycle.
 
 ```python
 from hinoki import Schema, derive
 
 
-@derive(only=("title", "slug", "body"))
-class PostCreate(Schema, model=Post): ...
+@derive(Post, only=("title", "slug", "body"))
+class PostCreate(Schema): ...
 
 
-@derive(exclude=("author_id", "internal_note"))
-class PostOut(Schema, model=Post):
+@derive(Post, exclude=("author_id", "internal_note"))
+class PostOut(Schema):
     author_name: str
 
 
-@derive(only=("title", "body"), partial=True)
-class PostPatch(Schema, model=Post): ...
+@derive(Post, only=("title", "body"), partial=True)
+class PostPatch(Schema): ...
 
 
-class PostAll(Schema, model=Post): ...
+@derive(Post)
+class PostAll(Schema): ...
 ```
 
 | Option | Effect |
 | --- | --- |
-| `model=Post` | source model; with no decorator, derives every column |
+| `@derive(Post, ...)` | source model and field selection |
 | `only=("a", "b")` | take exactly these columns |
 | `exclude=("a",)` | take every column except these |
 | `partial=True` | make every selected derived field optional (`UNSET` when absent) |
@@ -46,7 +47,39 @@ class PostAll(Schema, model=Post): ...
 
 `only` and `exclude` cannot be combined. An empty `only=()` is invalid; `exclude=()` is equivalent to selecting all columns. Model field types, maximum lengths, defaults and nullability are used. Annotations in the class body add fields or override a derived field, and methods and checks in the body are kept. Methods can use zero-argument `super()` as usual.
 
-Unknown columns, a non-model, an empty `only`, or optional names outside the selection fail when the class is declared. Selection options require `model=` on the class. Relations are not derived as nested values; declare the API shape explicitly. Model derivation is explicit but includes all columns by default, so use `only` or `exclude` when the API must omit private fields.
+Unknown columns, a non-model, an empty `only`, or optional names outside the selection fail when the class is declared. Relations are not derived as nested values; declare the API shape explicitly. Model derivation includes all columns by default, so use `only` or `exclude` when the API must omit private fields. During the compatibility cycle, `@derive(options...)` with `model=Model` remains valid and emits `DeprecationWarning`; use `@derive(Model, options...)` for new code.
+
+## Return a Model from a Schema-annotated handler
+
+When a handler declares one concrete response `Schema`, Hinoki converts a
+directly returned `Model` with that Schema's `from_model()` projection:
+
+```python
+from uuid import UUID
+
+from blog.models import Post
+from hinoki import Schema, derive, http
+
+
+@derive(Post, only=("id", "title"))
+class PostSummary(Schema): ...
+
+
+@http.get("/posts/{post_id}")
+async def one(post_id: UUID) -> PostSummary:
+    return await Post.aget(id=post_id)
+```
+
+An existing `PostOut` return value still works. The conversion applies to one
+Model result only; lists, pages, unions and `Response` values keep their existing
+explicit handling. No relation is loaded implicitly, and the Schema return
+annotation does not validate handler output. For a computed field such as
+`author_name`, keep using `PostOut.from_model(post, author_name=...)`.
+
+Static type checkers still see a Model return as incompatible with a Schema
+annotation; mark that intentional return with `# type: ignore[return-value]`.
+Derived fields are also not synthesized for static type checkers, so declare
+fields in the Schema body when they need static checking.
 
 ## Add validation checks
 

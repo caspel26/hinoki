@@ -11,8 +11,8 @@ import pytest
 from hinoki import Hinoki, Module, RuntimeConfig, Schema, http
 from hinoki.db import Database, DatabaseModule, UniqueViolation
 from hinoki.errors import Conflict
+from hinoki.http.request import Request
 from hinoki.modules import ModuleContext
-from hinoki.request import Request
 from tests.harness import Client, Pool
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
