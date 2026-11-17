@@ -14,15 +14,17 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
+use hinoki_orm::Database;
 use hinoki_server::cors::{Cors, PreflightError};
 use hinoki_server::early::TemplateError;
 use hinoki_server::headers::{final_headers, Header};
 use hinoki_server::hosts::Hosts;
 use hinoki_server::queue::Push;
 use hinoki_server::{
-    proxy, requestid, Early, EarlyBodies, InFlight, Limits, Networks, Permit, Plan, Queue,
-    RoutePlan,
+    proxy, requestid, Early, EarlyBodies, InFlight, Limits, NativeJobs, Networks, Permit, Plan,
+    Queue, RoutePlan,
 };
 use hinoki_server::{Answer, BodyError, BodyReader};
 use pyo3::exceptions::{PyException, PyRuntimeError, PyValueError};
@@ -32,6 +34,7 @@ use tokio::sync::oneshot;
 
 use crate::completion;
 use crate::crudplan::{CrudPlan, PyCrudPlan};
+use crate::db::PyDatabase;
 use crate::request;
 use crate::router::{Match, Router};
 use hinoki_server::redirect;
@@ -89,6 +92,8 @@ pub struct PreparedRequest {
     /// The CORS headers for the request's `Origin`, added to a native handler's
     /// answer unless it sets its own `access-control-allow-origin`.
     native_cors: Vec<Header>,
+    route_headers: Vec<(String, String)>,
+    native_crud: bool,
     request_id_name: Vec<u8>,
     needs_headers: bool,
     params: Vec<(String, String)>,
@@ -285,7 +290,7 @@ impl PreparedRequest {
     /// native policy, request-id and CORS headers, as `Pipeline.with_headers`
     /// does. HEAD retains GET's content length.
     fn respond_final(&self, status: u16, headers: Vec<(Vec<u8>, Vec<u8>)>, body: &[u8]) -> bool {
-        if !self.native_handler {
+        if !self.native_handler && !self.native_crud {
             return false;
         }
         let own = headers;
@@ -293,12 +298,16 @@ impl PreparedRequest {
         let sets_origin = own
             .iter()
             .chain(&self.native_policy)
-            .any(|(name, _)| name.eq_ignore_ascii_case(ALLOW_ORIGIN));
+            .any(|(name, _)| name.eq_ignore_ascii_case(ALLOW_ORIGIN))
+            || self
+                .route_headers
+                .iter()
+                .any(|(name, _)| name.eq_ignore_ascii_case("access-control-allow-origin"));
         let cors: &[Header] = if sets_origin { &[] } else { &self.native_cors };
         let mut final_headers = final_headers(
             &own,
             &self.native_policy,
-            &[],
+            &self.route_headers,
             (&self.request_id_name, self.request_id.as_bytes()),
             cors,
             status,
@@ -612,6 +621,8 @@ pub struct Core {
         reason = "consumed by native CRUD execution in the next phase"
     )]
     crud_plans: HashMap<u32, Arc<CrudPlan>>,
+    database: Mutex<Option<Database>>,
+    native_jobs: Arc<NativeJobs>,
     limits: Limits,
     bodies: EarlyBodies,
     queue: Queue<PreparedRequest>,
@@ -713,6 +724,8 @@ impl ServerCore {
                 router,
                 plan,
                 crud_plans,
+                database: Mutex::new(None),
+                native_jobs: Arc::new(NativeJobs::new(max_in_flight)),
                 limits: Limits {
                     max_query_bytes,
                     max_header_bytes,
@@ -757,6 +770,84 @@ impl ServerCore {
 
     fn set_ready(&self, ready: bool) {
         self.core.ready.store(ready, Ordering::Release);
+    }
+
+    fn _attach_database(&self, database: PyRef<'_, PyDatabase>) -> PyResult<()> {
+        let mut attached = self.core.database.lock().map_err(|_| poisoned())?;
+        if attached.is_some() {
+            return Err(PyValueError::new_err("a database is already attached"));
+        }
+        *attached = Some(database.clone_inner());
+        Ok(())
+    }
+
+    fn _detach_database(&self) -> PyResult<bool> {
+        let mut attached = self.core.database.lock().map_err(|_| poisoned())?;
+        Ok(attached.take().is_some())
+    }
+
+    fn _arm_crud(&self, action: u32) -> bool {
+        if !self
+            .core
+            .database
+            .lock()
+            .is_ok_and(|database| database.is_some())
+        {
+            return false;
+        }
+        let Some(route) = self.core.plan.get(action) else {
+            return false;
+        };
+        let Some(slot) = &route.crud_plan else {
+            return false;
+        };
+        slot.arm();
+        true
+    }
+
+    fn _database_attached(&self) -> bool {
+        self.core
+            .database
+            .lock()
+            .is_ok_and(|database| database.is_some())
+    }
+
+    fn _disarm_crud_plans(&self) {
+        for action in self.core.crud_plans.keys() {
+            self._disarm_crud(*action);
+        }
+    }
+
+    #[getter]
+    fn _native_in_flight(&self) -> usize {
+        self.core.native_jobs.in_flight()
+    }
+
+    fn _disarm_crud(&self, action: u32) -> bool {
+        let Some(route) = self.core.plan.get(action) else {
+            return false;
+        };
+        let Some(slot) = &route.crud_plan else {
+            return false;
+        };
+        slot.disarm();
+        true
+    }
+
+    fn _crud_armed(&self, action: u32) -> bool {
+        self.core
+            .plan
+            .get(action)
+            .and_then(|route| route.crud_plan.as_ref())
+            .is_some_and(|slot| slot.is_armed())
+    }
+
+    fn _drain_native<'py>(&self, py: Python<'py>, timeout_ms: u64) -> PyResult<Bound<'py, PyAny>> {
+        let jobs = self.core.native_jobs.clone();
+        crate::db::ensure_runtime();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            Ok::<usize, PyErr>(jobs.drain(Duration::from_millis(timeout_ms)).await)
+        })
     }
 
     /// How many invalid trusted request ids native answers ignored since the
@@ -1133,15 +1224,27 @@ impl Core {
             return self.answer(&asked, Early::Overloaded, Vec::new());
         };
         let (sender, receiver) = oneshot::channel();
-        let (native_policy, native_cors) = if native_input.enabled {
-            let cors = self
-                .cors
-                .as_ref()
-                .map(|policy| policy.headers(&asked.origin))
-                .unwrap_or_default();
-            (self.policies[usize::from(asked.https)].clone(), cors)
+        let route_plan = action.and_then(|number| self.plan.get(number));
+        let native_crud = route_plan
+            .and_then(|route| route.crud_plan.as_ref())
+            .is_some_and(|slot| slot.is_armed());
+        let native_response = native_input.enabled || native_crud;
+        let native_policy = if native_response {
+            self.policies[usize::from(asked.https)].clone()
         } else {
-            (Vec::new(), Vec::new())
+            Vec::new()
+        };
+        let native_cors = if native_response {
+            self.cors
+                .as_ref()
+                .map_or_else(Vec::new, |cors| cors.headers(&asked.origin))
+        } else {
+            Vec::new()
+        };
+        let route_headers = if native_crud {
+            route_plan.map_or_else(Vec::new, |route| route.headers.clone())
+        } else {
+            Vec::new()
         };
         let request = PreparedRequest {
             method: head.method.to_owned(),
@@ -1156,6 +1259,8 @@ impl Core {
             native_error: native_input.error,
             native_policy,
             native_cors,
+            route_headers,
+            native_crud,
             request_id_name: self.id_name.clone(),
             needs_headers,
             params,
