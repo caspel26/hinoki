@@ -731,3 +731,30 @@ impl Drop for Transaction {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::check_postgres_scheme;
+
+    #[test]
+    fn unsupported_url_schemes_are_named_without_the_url() {
+        for url in ["oracle://user:secret@db/app", "mssql://db/app", "http://db"] {
+            let error = check_postgres_scheme(url).unwrap_err();
+            assert!(error
+                .to_string()
+                .contains("unsupported database URL scheme"));
+            assert!(!error.to_string().contains("secret"));
+        }
+    }
+
+    #[test]
+    fn postgres_urls_and_key_value_strings_pass_the_scheme_check() {
+        for url in [
+            "postgres://user@db/app",
+            "postgresql://user@db/app?sslmode=require",
+            "host=db user=app password=a://b",
+            "://missing-scheme",
+        ] {
+            assert!(check_postgres_scheme(url).is_ok(), "{url}");
+        }
+    }
+}
