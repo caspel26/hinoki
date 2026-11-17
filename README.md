@@ -113,7 +113,6 @@ The application, from [`examples/notes/main.py`](examples/notes/main.py):
 ```python
 from notes.app import create, listing, one, remove
 from hinoki import Hinoki, settings
-from hinoki.db import DatabaseModule
 
 
 class NotesSettings(settings.AppSettings, prefix="NOTES_"):
@@ -126,11 +125,10 @@ app = Hinoki(
     openapi_url="/openapi.json",
     docs_url="/docs",
     include=[listing, one, create, remove],
-    modules=[DatabaseModule],
 )
 ```
 
-The model says what is stored. The schemas say what may come in and what goes out, so a column never leaves the application unless a schema names it. `DatabaseModule` opens a connection pool when a worker starts and closes it when the worker stops; nothing connects at import.
+The model says what is stored. The schemas say what may come in and what goes out, so a column never leaves the application unless a schema names it. The settings' `database` field opens a connection pool when a worker starts and closes it when the worker stops; nothing connects at import.
 
 For model-backed CRUD, `from hinoki import CrudAPI` generates routes on an API
 class. Declare `model=...` in the class header, set its schemas and access

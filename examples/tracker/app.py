@@ -11,7 +11,6 @@ Layers (see docs/patterns.md): ``api`` -> ``operations`` -> ``models``.
 """
 
 from hinoki import Hinoki
-from hinoki.db import DatabaseModule
 from hinoki.mcpapp import expose_as_mcp
 
 from . import api
@@ -35,11 +34,5 @@ def create_app(database_url: str | None = None) -> Hinoki:
     # The MCP endpoint exposes only this action and uses the caller's own token.
     app.include(
         *expose_as_mcp(app, tools=[f"{api.__name__}.list_tasks"], access=member_only)
-    )
-    app.install(
-        DatabaseModule(
-            app_settings.database.url.reveal(),
-            max_size=app_settings.database.max_size,
-        )
     )
     return app

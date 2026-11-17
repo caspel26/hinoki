@@ -7,7 +7,6 @@ Run ``uv run --project .. hinoki manage greet`` from the examples project root, 
 from argparse import ArgumentParser, Namespace
 
 from hinoki import Hinoki, settings
-from hinoki.db import DatabaseModule
 from hinoki.management import Command, CommandContext
 
 
@@ -26,4 +25,4 @@ class ExampleSettings(settings.AppSettings, prefix="EXAMPLES_"):
     database: settings.DatabaseSettings
 
 
-app = Hinoki(settings=ExampleSettings, commands=[Greet], modules=[DatabaseModule])
+app = Hinoki(settings=ExampleSettings, commands=[Greet])

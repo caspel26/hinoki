@@ -200,7 +200,7 @@ The generated app has neither. The reference is `examples/tracker` in the framew
 2. `schemas.py`: an `In` schema without the owner, an `Out` schema.
 3. `operations.py`: plain async functions taking `owner_id` and values; row permission goes in the statement (`Model.filter(owner_id=me)`, `aupdate_where({{...}})`), so someone else's row looks missing (404).
 4. `security.py`: a `BearerAuth` that resolves a token to `Caller(id=..., user=member, permissions=...)` and an `Access(...)`.
-5. `api.py`: actions with `access=...`, `caller: Caller[Member]`, `transaction=True` on writes, `pagination=` on lists; `main.py`: `modules=[DatabaseModule]` in `Hinoki(...)`, which reads `database.url` from the settings.
+5. `api.py`: actions with `access=...`, `caller: Caller[Member]`, `transaction=True` on writes, `pagination=` on lists; `main.py`: `Hinoki(settings=...)`, which opens the database declared by the settings' `database` field (a URL, or `engine` with its connection fields).
 6. `hinoki migrations plan`, then review the SQL. The project manifest discovers app models and migration packages.
 7. Tests: `from hinoki.testing import ASGIClient`; `async with ASGIClient(app) as client: await client.post("/x", json={{...}}, token="...")`.
 
