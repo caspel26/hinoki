@@ -37,6 +37,8 @@ use hinoki_server::redirect;
 // `args[0]` is `too_large`, `disconnected` or `timeout`.
 pyo3::create_exception!(core, BodyReadError, PyException);
 
+const ALLOW_ORIGIN: &[u8] = b"access-control-allow-origin";
+
 pub type Reply = Answer;
 type NativeArgs = Vec<(String, String)>;
 type NativeDetails = Vec<(String, String, String)>;
@@ -82,6 +84,9 @@ pub struct PreparedRequest {
     native_args: NativeArgs,
     native_error: Option<NativeInputError>,
     native_policy: Vec<Header>,
+    /// The CORS headers for the request's `Origin`, added to a native handler's
+    /// answer unless it sets its own `access-control-allow-origin`.
+    native_cors: Vec<Header>,
     request_id_name: Vec<u8>,
     needs_headers: bool,
     params: Vec<(String, String)>,
@@ -275,18 +280,25 @@ impl PreparedRequest {
     }
 
     /// Finalize an automatically eligible handler response with the route's
-    /// native policy and request-id headers. HEAD retains GET's content length.
+    /// native policy, request-id and CORS headers, as `Pipeline.with_headers`
+    /// does. HEAD retains GET's content length.
     fn respond_final(&self, status: u16, headers: Vec<(Vec<u8>, Vec<u8>)>, body: &[u8]) -> bool {
         if !self.native_handler {
             return false;
         }
         let own = headers;
+        // An answer that sets its own CORS headers keeps them.
+        let sets_origin = own
+            .iter()
+            .chain(&self.native_policy)
+            .any(|(name, _)| name.eq_ignore_ascii_case(ALLOW_ORIGIN));
+        let cors: &[Header] = if sets_origin { &[] } else { &self.native_cors };
         let mut final_headers = final_headers(
             &own,
             &self.native_policy,
             &[],
             (&self.request_id_name, self.request_id.as_bytes()),
-            &[],
+            cors,
             status,
             body.len(),
         );
@@ -1099,10 +1111,15 @@ impl Core {
             return self.answer(&asked, Early::Overloaded, Vec::new());
         };
         let (sender, receiver) = oneshot::channel();
-        let native_policy = if native_input.enabled {
-            self.policies[usize::from(asked.https)].clone()
+        let (native_policy, native_cors) = if native_input.enabled {
+            let cors = self
+                .cors
+                .as_ref()
+                .map(|policy| policy.headers(&asked.origin))
+                .unwrap_or_default();
+            (self.policies[usize::from(asked.https)].clone(), cors)
         } else {
-            Vec::new()
+            (Vec::new(), Vec::new())
         };
         let request = PreparedRequest {
             method: head.method.to_owned(),
@@ -1116,6 +1133,7 @@ impl Core {
             native_args: native_input.args,
             native_error: native_input.error,
             native_policy,
+            native_cors,
             request_id_name: self.id_name.clone(),
             needs_headers,
             params,
