@@ -224,6 +224,29 @@ def test_generator_finalization_without_a_loop_skips_async_cleanup() -> None:
     assert not life._can_cleanup_after_startup_error(GeneratorExit())
 
 
+async def test_startup_reraises_generator_exit_when_cleanup_context_is_unsafe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    class ExitsDuringEnter(Recording):
+        name = "exit"
+
+        @asynccontextmanager
+        async def lifespan(self, ctx: ModuleContext) -> AsyncIterator[None]:
+            raise GeneratorExit("context manager is being finalized")
+            yield
+
+    life = build([First(events), ExitsDuringEnter(events)])
+    monkeypatch.setattr(life, "_can_cleanup_after_startup_error", lambda _exc: False)
+    with pytest.raises(GeneratorExit, match="being finalized"):
+        await life.startup()
+
+    assert events == ["start:a"]
+    await life.shutdown()
+    assert events == ["start:a", "stop:a"]
+
+
 async def test_sync_hook_returning_an_awaitable_is_awaited() -> None:
     events: list[str] = []
 
