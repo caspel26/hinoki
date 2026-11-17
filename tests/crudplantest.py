@@ -1,25 +1,30 @@
 """Startup compilation for the private native CRUD plans."""
 
+import asyncio
 import dataclasses
 import math
 from datetime import datetime
+from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import API, CrudAPI, Hinoki, Schema, SchemaExtra, Unset, http
+from hinoki import API, CrudAPI, Hinoki, Schema, SchemaExtra, Unset, core, http
 from hinoki.db import DatabaseModule
 from hinoki.fields import UNSET
+from hinoki.modules import ModuleContext
 from hinoki.orm import Model, QuerySet, field
 from hinoki.orm.queryset import write_statement
 from hinoki.runtime import crudplan as crudplan_module
 from hinoki.runtime import servercore as servercore_module
 from hinoki.runtime.binding import Binding
-from hinoki.runtime.crudplan import select_crud_plan
+from hinoki.runtime.crudplan import CrudPlanSelection, select_crud_plan
 from hinoki.runtime.pipeline import Pipeline
+from hinoki.runtime.rustserver import RustWorker, _drain_native_uninterruptibly
 from hinoki.runtime.servercore import build_server_core
+from hinoki.settings import AppSettings, CorsSettings
 from hinoki.utils import utc_now
 
 
@@ -250,6 +255,156 @@ def test_plan_selector_exceptions_keep_startup_on_the_python_path(
     build_server_core(pipeline)
     assert all(selection is None for selection in pipeline.crud_plan_selections)
     assert set(pipeline.crud_plan_reasons) == {"native_plan_build_failed"}
+
+
+async def test_worker_attaches_and_releases_the_shared_database_clone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        PlanItems,
+        "response_headers",
+        (
+            ("x-crud-resource", "plan-items"),
+            ("access-control-allow-origin", "https://route.example"),
+        ),
+        raising=False,
+    )
+    app = Hinoki(
+        settings=AppSettings(
+            cors=CorsSettings(origins=("https://client.example",), credentials=True)
+        ),
+        include=[PlanItems],
+        modules=[DatabaseModule(f"sqlite:///{tmp_path / 'worker.db'}")],
+    )
+    worker = RustWorker(app, "127.0.0.1", 0)
+    await worker.start()
+
+    eligible = [
+        action
+        for action, selection in enumerate(worker.pipeline.crud_plan_selections)
+        if selection is not None
+    ]
+    assert worker.core.ready
+    assert worker.core._database_attached()
+    assert all(worker.core._crud_armed(action) for action in eligible)
+    submission = worker.core.submit(
+        "GET",
+        "/plan-items",
+        b"",
+        [(b"origin", b"https://client.example")],
+    )
+    [request] = worker.core.drain(1)
+    assert request.respond_final(
+        200, [(b"content-type", b"application/json")], b"{\"items\":[]}"
+    )
+    reply = submission.reply()
+    assert reply is not None
+    assert dict(reply[1])[b"x-crud-resource"] == b"plan-items"
+    assert [value for name, value in reply[1] if name == b"access-control-allow-origin"] == [
+        b"https://route.example"
+    ]
+    assert b"access-control-allow-credentials" not in dict(reply[1])
+
+    await worker.stop()
+    assert not worker.core._database_attached()
+    assert all(not worker.core._crud_armed(action) for action in eligible)
+
+
+async def test_startup_mutation_disarms_crud_plans_before_ready(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def mutate_crud(_: ModuleContext) -> None:
+        monkeypatch.setattr(PlanItems, "get_queryset", lambda _self: None)
+
+    app = Hinoki(
+        include=[PlanItems],
+        modules=[DatabaseModule(f"sqlite:///{tmp_path / 'stale.db'}")],
+        on_startup=[mutate_crud],
+    )
+    worker = RustWorker(app, "127.0.0.1", 0)
+    await worker.start()
+
+    eligible = [
+        action
+        for action, selection in enumerate(worker.pipeline.crud_plan_selections)
+        if selection is not None
+    ]
+    assert worker.core.ready
+    assert not worker.core._database_attached()
+    assert all(not worker.core._crud_armed(action) for action in eligible)
+    assert set(worker.pipeline.crud_plan_reasons) == {"native_plan_stale"}
+
+    await worker.stop()
+
+
+async def test_housekeeping_disarms_a_plan_after_a_snapshot_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app = Hinoki(
+        include=[PlanItems],
+        modules=[DatabaseModule(f"sqlite:///{tmp_path / 'tick.db'}")],
+    )
+    worker = RustWorker(app, "127.0.0.1", 0)
+    await worker.start()
+    eligible = [
+        action
+        for action, selection in enumerate(worker.pipeline.crud_plan_selections)
+        if selection is not None
+    ]
+    assert all(worker.core._crud_armed(action) for action in eligible)
+
+    monkeypatch.setattr(PlanItems, "get_queryset", lambda _self: None)
+    worker.housekeeping()
+
+    assert all(not worker.core._crud_armed(action) for action in eligible)
+    assert set(worker.pipeline.crud_plan_reasons) == {"native_plan_stale"}
+    await worker.stop()
+
+
+async def test_snapshot_exception_fails_closed_before_pool_attachment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail_snapshot(_selection: CrudPlanSelection) -> bool:
+        raise RuntimeError("snapshot failure")
+
+    monkeypatch.setattr(CrudPlanSelection, "snapshot_valid", fail_snapshot)
+    app = Hinoki(
+        include=[PlanItems],
+        modules=[DatabaseModule(f"sqlite:///{tmp_path / 'snapshot-failure.db'}")],
+    )
+    worker = RustWorker(app, "127.0.0.1", 0)
+    await worker.start()
+
+    eligible = [
+        action
+        for action, selection in enumerate(worker.pipeline.crud_plan_selections)
+        if selection is not None
+    ]
+    assert worker.core.ready
+    assert not worker.core._database_attached()
+    assert all(not worker.core._crud_armed(action) for action in eligible)
+    assert set(worker.pipeline.crud_plan_reasons) == {"native_plan_stale"}
+    await worker.stop()
+
+
+async def test_cancelled_drain_waiter_keeps_waiting_for_the_rust_drain() -> None:
+    release = asyncio.Event()
+
+    class SlowCore:
+        async def _drain_native(self, _timeout_ms: int) -> int:
+            await release.wait()
+            return 2
+
+    worker_drain = asyncio.create_task(
+        _drain_native_uninterruptibly(cast(core.ServerCore, SlowCore()), 100)
+    )
+    await asyncio.sleep(0)
+    worker_drain.cancel()
+    await asyncio.sleep(0)
+    assert not worker_drain.done()
+
+    release.set()
+    assert await worker_drain == (2, True)
 
 
 def test_schema_fields_outside_the_model_are_ineligible(
