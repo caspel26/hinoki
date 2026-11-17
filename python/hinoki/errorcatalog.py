@@ -104,7 +104,8 @@ CATALOG: dict[str, tuple[str, str]] = {
     ),
     "unsupported_media_type": (
         "The Content-Type is not one the action accepts (HTTP 415).",
-        "Send a type from the action's `parsers=` (JSON by default).",
+        "Send a type from the action's `parsers=` (JSON by default; multipart "
+        "for actions that bind an uploaded file).",
     ),
     "not_acceptable": (
         "No renderer fits the Accept header (HTTP 406).",

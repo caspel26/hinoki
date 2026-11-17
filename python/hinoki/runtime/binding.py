@@ -342,8 +342,8 @@ def file_parameter(
     return Param(parameter.name, "file", default=parameter.default, file_mode=mode)
 
 
-def file_mode(route: Route, parameter: inspect.Parameter, annotation: object) -> str:
-    """The supported upload annotation shape, or empty for other parameters."""
+def upload_shape(annotation: object) -> str:
+    """``required``, ``many`` or ``optional`` for an upload annotation, else empty."""
     origin = typing.get_origin(annotation)
     args = typing.get_args(annotation)
     if annotation is UploadedFile:
@@ -356,14 +356,33 @@ def file_mode(route: Route, parameter: inspect.Parameter, annotation: object) ->
         and UploadedFile in args
         and NoneType in args
     )
-    if is_optional:
-        if parameter.default is not None:
-            raise RegistrationError(
-                f"{route.name}: optional file parameter {parameter.name!r} "
-                "must default to None"
-            )
-        return "optional"
-    return ""
+    return "optional" if is_optional else ""
+
+
+def file_mode(route: Route, parameter: inspect.Parameter, annotation: object) -> str:
+    """The supported upload annotation shape, or empty for other parameters."""
+    mode = upload_shape(annotation)
+    if mode == "optional" and parameter.default is not None:
+        raise RegistrationError(
+            f"{route.name}: optional file parameter {parameter.name!r} "
+            "must default to None"
+        )
+    return mode
+
+
+def declares_upload(route: Route) -> bool:
+    """Whether a body action binds an uploaded file, so it needs multipart.
+
+    Unresolvable annotations answer ``False``; ``bind`` then reports them.
+    """
+    if route.method not in BODY_METHODS:
+        return False
+    parameters = handler_parameters(route)
+    try:
+        hints = hints_of(route.handler)
+    except (NameError, TypeError):
+        return False
+    return any(upload_shape(hints.get(item.name)) for item in parameters)
 
 
 def check_file_parameter(route: Route, parameter: inspect.Parameter, mode: str) -> None:
@@ -391,7 +410,8 @@ def check_file_parameter(route: Route, parameter: inspect.Parameter, mode: str) 
     if not any(isinstance(parser, MultiPartParser) for parser in route.parsers):
         raise RegistrationError(
             f"{route.name}: file parameters require MultiPartParser in the "
-            "action or application parser defaults"
+            "action's parsers=...; add it, or omit parsers= to select it "
+            "automatically"
         )
 
 
