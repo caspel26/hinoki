@@ -55,6 +55,6 @@ app = Hinoki(include=[tasks])
 * **`caller: Caller[Member]`** is who is asking, typed: `caller.user` is your `Member`.
 * The `request` object is optional: declare `request: Request` first only when you need headers, cookies or the raw body.
 
-For bounded file uploads, declare `UploadedFile` or `list[UploadedFile]` parameters and enable `MultiPartParser`; the [endpoint guide](../endpoints.md#upload-files) covers optional files, limits and OpenAPI output.
+For bounded file uploads, declare `UploadedFile` or `list[UploadedFile]` parameters and Hinoki selects `MultiPartParser` for that action. The [endpoint guide](../endpoints.md#upload-files) covers optional files, limits and OpenAPI output.
 
 Next: [5. Rules](5-rules.md).
