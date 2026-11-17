@@ -70,7 +70,7 @@ pub(crate) fn db_error(py: Python<'_>, err: &DbError) -> PyErr {
     }
 }
 
-fn to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
+pub(crate) fn to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     let py = obj.py();
     if obj.is_none() {
         return Ok(Value::Null);
@@ -159,7 +159,7 @@ fn from_value(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
     })
 }
 
-fn rows_to_py(py: Python<'_>, rows: &[Vec<(String, Value)>]) -> PyResult<Py<PyAny>> {
+pub(crate) fn rows_to_py(py: Python<'_>, rows: &[Vec<(String, Value)>]) -> PyResult<Py<PyAny>> {
     let out = PyList::empty(py);
     for row in rows {
         let dict = PyDict::new(py);

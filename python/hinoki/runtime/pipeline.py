@@ -31,6 +31,7 @@ from hinoki.http.response import Response as HandlerResponse
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
 from hinoki.orm.model import Model
+from hinoki.pagination import Page as ResultPage
 from hinoki.renderers import (
     JSONRenderer,
     Renderer,
@@ -235,6 +236,112 @@ class Pipeline:
         return await self._in_request_context(
             rid, self._respond_native(binding, rid, args, input_error)
         )
+
+    async def handle_native_failure(
+        self, action: int, rid: str, failure: core.NativeFailure
+    ) -> Response:
+        """Translate a Rust CRUD failure through the application's error path."""
+        return await self._in_request_context(
+            rid, self._respond_native_failure(action, rid, failure)
+        )
+
+    async def handle_native_rows(
+        self, action: int, rid: str, fallback: core.NativeRows
+    ) -> Response:
+        """Hydrate a Rust-fetched row in Python without issuing another query."""
+        return await self._in_request_context(
+            rid, self._respond_native_rows(action, rid, fallback)
+        )
+
+    async def _respond_native_failure(
+        self, action: int, rid: str, failure: core.NativeFailure
+    ) -> Response:
+        try:
+            async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
+                try:
+                    exception = self._native_failure_exception(action, failure)
+                except Exception as exc:
+                    return await error_response(exc, rid, self.app.errors, self.debug)
+                return await error_response(exception, rid, self.app.errors, self.debug)
+        except TimeoutError as exc:
+            if limit.expired():
+                return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
+            return await error_response(exc, rid, self.app.errors, self.debug)
+
+    async def _respond_native_rows(
+        self, action: int, rid: str, fallback: core.NativeRows
+    ) -> Response:
+        try:
+            async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
+                try:
+                    result = await self._hydrate_native_rows(action, fallback)
+                    binding = self.bindings[action]
+                    result = project_response(binding.response_schema, result)
+                    body = core.encode_json(result, None, False, None)
+                    return Response.rendered(
+                        binding.route.status, body, "application/json", False
+                    )
+                except Exception as exc:
+                    return await error_response(exc, rid, self.app.errors, self.debug)
+        except TimeoutError as exc:
+            if limit.expired():
+                return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
+            return await error_response(exc, rid, self.app.errors, self.debug)
+
+    async def _hydrate_native_rows(
+        self, action: int, fallback: core.NativeRows
+    ) -> object:
+        selection = self.crud_plan_selections[action]
+        if selection is None:
+            raise RuntimeError("native rows fallback has no CRUD plan")
+        if selection.action not in {"list", "retrieve"}:
+            raise RuntimeError("native rows fallback supports read actions only")
+        rows, page_info = fallback
+        models = await selection.model.all()._hydrate(rows)
+        items = [
+            selection.resource.read(
+                **{
+                    name: getattr(model, name)
+                    for name in selection.resource.read.specs()
+                }
+            )
+            for model in models
+        ]
+        if selection.action == "list":
+            if page_info is None:
+                raise RuntimeError("native list fallback is missing page metadata")
+            return ResultPage(items, *page_info)
+        if not items:
+            raise cast(
+                Exception,
+                selection.model.NotFound(f"{selection.model.__name__} not found"),
+            )
+        if len(items) != 1:
+            raise RuntimeError("native item fallback must contain exactly one row")
+        return items[0]
+
+    def _native_failure_exception(
+        self, action: int, failure: core.NativeFailure
+    ) -> Exception:
+        kind, message, constraint, table, sqlstate = failure
+        if kind == "not_found":
+            selection = self.crud_plan_selections[action]
+            if selection is None:
+                raise RuntimeError("native failure has no CRUD plan")
+            return cast(Exception, selection.model.NotFound(message))
+        exception_type: type[Exception] = {
+            "unique": core.UniqueViolation,
+            "foreign_key": core.ForeignKeyViolation,
+            "not_null": core.NotNullViolation,
+            "check": core.CheckViolation,
+            "database": core.DatabaseError,
+        }.get(kind, RuntimeError)
+        exception = exception_type(message)
+        if isinstance(exception, core.DatabaseError):
+            exception.constraint = constraint
+            exception.table = table
+            exception.sqlstate = sqlstate
+        return exception
 
     async def _in_request_context(
         self, rid: str, response: Awaitable[Response]

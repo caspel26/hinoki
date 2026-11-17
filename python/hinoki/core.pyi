@@ -3,6 +3,9 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+NativeFailure = tuple[str, str, str | None, str | None, str | None]
+NativeRows = tuple[list[dict[str, Any]], tuple[int, int, int] | None]
+
 Param = (
     None
     | bool
@@ -260,6 +263,21 @@ class PreparedRequest:
     def native_error(
         self,
     ) -> tuple[str, str, str | None, list[tuple[str, str, str]]] | None: ...
+    def _take_native_failure(self) -> NativeFailure | None: ...
+    def _set_native_failure(
+        self,
+        kind: str,
+        message: str,
+        constraint: str | None = ...,
+        table: str | None = ...,
+        sqlstate: str | None = ...,
+    ) -> None: ...
+    def _take_native_rows(self) -> NativeRows | None: ...
+    def _set_native_rows(
+        self,
+        rows: list[dict[str, Any]],
+        page_info: tuple[int, int, int] | None = ...,
+    ) -> None: ...
     def respond(
         self, status: int, headers: list[tuple[bytes, bytes]], body: bytes
     ) -> bool: ...

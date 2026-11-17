@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use hinoki_orm::Database;
+use hinoki_orm::{Database, Value};
 use hinoki_server::cors::{Cors, PreflightError};
 use hinoki_server::early::TemplateError;
 use hinoki_server::headers::{final_headers, Header};
@@ -87,6 +87,29 @@ pub(crate) enum NativeBodyError {
     AlreadyTaken,
 }
 
+#[derive(Clone)]
+struct NativeFailure {
+    kind: String,
+    message: String,
+    constraint: Option<String>,
+    table: Option<String>,
+    sqlstate: Option<String>,
+}
+
+type NativeFailureTuple = (
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
+type NativeRowsObject = (Py<PyAny>, Option<(u64, u64, u64)>);
+
+struct NativeRows {
+    rows: Vec<Vec<(String, Value)>>,
+    page_info: Option<(u64, u64, u64)>,
+}
+
 impl NativeBody {
     pub(crate) async fn read(self, limit: usize) -> Result<Vec<u8>, BodyError> {
         let result = match self.reader {
@@ -129,6 +152,8 @@ pub struct PreparedRequest {
     permit: Mutex<Option<Permit>>,
     body: Mutex<BodyState>,
     native_body_consumed: Arc<AtomicBool>,
+    native_failure: Mutex<Option<NativeFailure>>,
+    native_rows: Mutex<Option<NativeRows>>,
 }
 
 impl PreparedRequest {
@@ -147,6 +172,49 @@ impl PreparedRequest {
             reader,
             consumed: Arc::clone(&self.native_body_consumed),
         })
+    }
+
+    fn set_native_failure(&self, failure: NativeFailure) -> PyResult<()> {
+        if !self.native_crud {
+            return Err(PyRuntimeError::new_err(
+                "native failures require an armed CRUD request",
+            ));
+        }
+        let mut slot = self.native_failure.lock().map_err(|_| poisoned())?;
+        if slot.is_some() {
+            return Err(PyRuntimeError::new_err(
+                "a native failure is already set for this request",
+            ));
+        }
+        if self.native_rows.lock().map_err(|_| poisoned())?.is_some() {
+            return Err(PyRuntimeError::new_err(
+                "native failure and rows fallback cannot both be set",
+            ));
+        }
+        *slot = Some(failure);
+        Ok(())
+    }
+
+    fn set_native_rows(&self, rows: NativeRows) -> PyResult<()> {
+        if !self.native_crud {
+            return Err(PyRuntimeError::new_err(
+                "native rows require an armed CRUD request",
+            ));
+        }
+        let failure = self.native_failure.lock().map_err(|_| poisoned())?;
+        if failure.is_some() {
+            return Err(PyRuntimeError::new_err(
+                "native failure and rows fallback cannot both be set",
+            ));
+        }
+        let mut slot = self.native_rows.lock().map_err(|_| poisoned())?;
+        if slot.is_some() {
+            return Err(PyRuntimeError::new_err(
+                "native rows fallback is already set for this request",
+            ));
+        }
+        *slot = Some(rows);
+        Ok(())
     }
 }
 
@@ -329,6 +397,65 @@ impl PreparedRequest {
                 "the request body cannot be buffered in its current state",
             ))
         }
+    }
+
+    fn _take_native_failure(&self) -> PyResult<Option<NativeFailureTuple>> {
+        let mut slot = self.native_failure.lock().map_err(|_| poisoned())?;
+        Ok(slot.take().map(|failure| {
+            (
+                failure.kind.clone(),
+                failure.message.clone(),
+                failure.constraint.clone(),
+                failure.table.clone(),
+                failure.sqlstate.clone(),
+            )
+        }))
+    }
+
+    #[pyo3(signature = (kind, message, constraint=None, table=None, sqlstate=None))]
+    fn _set_native_failure(
+        &self,
+        kind: String,
+        message: String,
+        constraint: Option<String>,
+        table: Option<String>,
+        sqlstate: Option<String>,
+    ) -> PyResult<()> {
+        self.set_native_failure(NativeFailure {
+            kind,
+            message,
+            constraint,
+            table,
+            sqlstate,
+        })
+    }
+
+    fn _take_native_rows(&self, py: Python<'_>) -> PyResult<Option<NativeRowsObject>> {
+        let mut slot = self.native_rows.lock().map_err(|_| poisoned())?;
+        slot.take()
+            .map(|rows| Ok((crate::db::rows_to_py(py, &rows.rows)?, rows.page_info)))
+            .transpose()
+    }
+
+    #[pyo3(signature = (rows, page_info=None))]
+    fn _set_native_rows(
+        &self,
+        rows: &Bound<'_, PyList>,
+        page_info: Option<(u64, u64, u64)>,
+    ) -> PyResult<()> {
+        let mut values = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let dictionary = row.cast::<PyDict>()?;
+            let mut fields = Vec::with_capacity(dictionary.len());
+            for (name, value) in dictionary.iter() {
+                fields.push((name.extract()?, crate::db::to_value(&value)?));
+            }
+            values.push(fields);
+        }
+        self.set_native_rows(NativeRows {
+            rows: values,
+            page_info,
+        })
     }
 
     /// Read a body for a native attempt and mark it reusable only after the
@@ -1359,6 +1486,8 @@ impl Core {
             permit: Mutex::new(Some(permit)),
             body: Mutex::new(head.body.map_or(BodyState::Absent, BodyState::Unread)),
             native_body_consumed: Arc::new(AtomicBool::new(false)),
+            native_failure: Mutex::new(None),
+            native_rows: Mutex::new(None),
         };
         match self.queue.push(request) {
             Ok(pushed) => Ok(Outcome::Queued {

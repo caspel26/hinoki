@@ -38,7 +38,7 @@ from hinoki import core
 from hinoki.db import Database
 from hinoki.errors import InvalidBody
 from hinoki.runtime.listener import inherited_address, open_listener
-from hinoki.runtime.responses import HTTPError
+from hinoki.runtime.responses import HTTPError, Response
 from hinoki.runtime.servercore import build_server_core
 from hinoki.serve import load_target, settings_of
 from hinoki.settings import RUST_ONLY, ServerSettings
@@ -366,6 +366,57 @@ class RustWorker:
         except Exception:
             log.exception("request %s could not be answered", rid)
 
+    async def _serve_native_failure(
+        self, request: core.PreparedRequest, failure: core.NativeFailure
+    ) -> Response:
+        action = request.action
+        if action is None:
+            raise RuntimeError("native failure request has no action or failure")
+        return await self.pipeline.handle_native_failure(
+            action, request.request_id, failure
+        )
+
+    async def _serve_native_rows(
+        self, request: core.PreparedRequest, fallback: core.NativeRows
+    ) -> Response:
+        action = request.action
+        if action is None:
+            raise RuntimeError("native rows request has no action or rows")
+        return await self.pipeline.handle_native_rows(
+            action, request.request_id, fallback
+        )
+
+    async def _pipeline_response(
+        self, request: core.PreparedRequest
+    ) -> tuple[Response, bool]:
+        if request.native_handler:
+            action = request.action
+            if action is None:
+                raise RuntimeError("native handler request has no action")
+            return await self.pipeline.handle_native(
+                self.pipeline.bindings[action],
+                request.request_id,
+                request.native_args,
+                request.native_error,
+            ), True
+        failure = request._take_native_failure()
+        if failure is not None:
+            return await self._serve_native_failure(request, failure), True
+        fallback = request._take_native_rows()
+        if fallback is not None:
+            return await self._serve_native_rows(request, fallback), True
+        route = (
+            None
+            if request.action is None
+            else (request.action, request.prepared_path_params)
+        )
+        return await self.pipeline.handle(
+            scope_of(request, self.address, self.scheme),
+            RustBody(request),
+            request.request_id,
+            route,
+        ), False
+
     async def _serve(self, request: core.PreparedRequest) -> None:
         """Answer one queued request. A request whose task is cancelled (at
         shutdown, after ``shutdown_timeout``) is dropped unanswered: its
@@ -374,35 +425,13 @@ class RustWorker:
         if request.id_ignored:
             log.warning("ignored invalid request ID from trusted proxy")
         try:
-            if request.native_handler:
-                action = request.action
-                if action is None:
-                    raise RuntimeError("native handler request has no action")
-                response = await self.pipeline.handle_native(
-                    self.pipeline.bindings[action],
-                    request.request_id,
-                    request.native_args,
-                    request.native_error,
-                )
-            else:
-                route = (
-                    None
-                    if request.action is None
-                    else (request.action, request.prepared_path_params)
-                )
-                scope = scope_of(request, self.address, self.scheme)
-                response = await self.pipeline.handle(
-                    scope,
-                    RustBody(request),
-                    request.request_id,
-                    route,
-                )
+            response, native_final = await self._pipeline_response(request)
         except Exception:
             log.exception("request %s failed", request.request_id)
             self._fail(request)
             return
         body = b"" if request.method == "HEAD" else response.body
-        if request.native_handler:
+        if native_final:
             request.respond_final(response.status, response.headers, response.body)
         else:
             request.respond(response.status, response.headers, body)
@@ -466,7 +495,6 @@ class RustWorker:
         self.stopping.set()
 
     async def run(self) -> int:
-        """Serve until SIGINT or SIGTERM, then stop gracefully."""
         port = await self.start()
         try:
             loop = asyncio.get_running_loop()
