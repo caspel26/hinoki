@@ -86,7 +86,7 @@ class AppendingJWTKey(JWTKey):
     def spec(self) -> tuple[str | None, str, bytes, bool]:
         if self.appended_key not in self.keys:
             self.keys.append(self.appended_key)
-        return super().spec()
+        return JWTKey.spec(self)
 
 
 GOOD = {
