@@ -267,12 +267,13 @@ A route group carries the policy for all of its endpoints. From [`examples/track
 ```python
 from uuid import UUID
 
-from tracker import operations
-from tracker.errors import TaskAlreadyDone
-from tracker.models import Member, Task
-from tracker.schemas import TaskOut
-from tracker.security import member_only
 from hinoki import Caller, RouteGroup, errors
+
+from . import operations
+from .errors import TaskAlreadyDone
+from .models import Member, Task
+from .schemas import TaskOut
+from .security import member_only
 
 
 def out(task: Task) -> TaskOut:
@@ -309,7 +310,7 @@ uv run hinoki new shop --dir ..
 
 This writes `../shop` with an application, a rule set, a test, settings, and instructions and an MCP configuration for coding agents. Its `pyproject.toml` points at this checkout, because this repository's framework is not published on PyPI and the `hinoki` name there belongs to an unrelated legacy package. The [AI workflow guide](https://caspel26.github.io/hinoki/dev/ai-workflow/) describes how an agent can use the development MCP server.
 
-The generated `hinoki.toml` explicitly registers the project app and its migration package. From that project, `uv run hinoki migrations plan` discovers models automatically, and `uv run hinoki migrations apply` initializes the local SQLite database when no URL is configured. The implicit `.hinoki/local.sqlite3` path is rooted beside `hinoki.toml`, including when you run a migration command from a subdirectory; explicit relative SQLite URLs remain current-directory-relative. Add a separate module with `uv run hinoki app create billing`; Hinoki creates its model and migration package and includes it in dependency-ordered migration commands. `uv run hinoki manage` lists the default app's management commands without requiring a module target.
+The generated `hinoki.toml` registers the project app and its migration package. From that project, `uv run hinoki migrations plan` discovers the models, `uv run hinoki migrations apply` initializes the local SQLite database when no URL is configured, and `uv run hinoki app create billing` adds another app with its own models and migrations. See [projects and apps](https://caspel26.github.io/hinoki/dev/tutorial/8-projects/) for manifest paths and management commands.
 
 Open the app-aware interactive shell with `uv run hinoki shell`; the project manifest supplies its target and model modules. It keeps a persistent event loop for ORM queries:
 
