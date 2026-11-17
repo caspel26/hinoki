@@ -1,3 +1,7 @@
+---
+status: implemented
+---
+
 # 6. Run and test it
 
 ## Settings and serving

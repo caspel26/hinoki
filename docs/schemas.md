@@ -11,6 +11,12 @@ related:
 A `Schema` describes data that crosses the API boundary and validates it strictly. Models describe tables; a column reaches a client only when a `Schema` names it.
 
 ```python
+from typing import Annotated
+from uuid import UUID
+
+from hinoki import Field, Schema
+
+
 class NoteIn(Schema):
     title: Annotated[str, Field(min_length=1, max_length=80)]
     body: str = ""

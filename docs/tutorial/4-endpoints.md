@@ -1,3 +1,7 @@
+---
+status: implemented
+---
+
 # 4. Endpoints
 
 The HTTP layer maps requests to operations and operations to responses. It contains no business rule and no SQL.

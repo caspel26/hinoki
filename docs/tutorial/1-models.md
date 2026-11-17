@@ -1,3 +1,7 @@
+---
+status: implemented
+---
+
 # 1. Models
 
 A model is a table. Hinoki's models are active records over a Rust query compiler: no lazy loading, no surprises.
@@ -31,6 +35,11 @@ The explicit `tracker_members` and `tracker_tasks` names above are pinned to
 the example's checked-in migration history. New models can omit `table=`:
 
 ```python
+from uuid import UUID, uuid4
+
+from hinoki.orm import Model, field
+
+
 class Invoice(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     reference: str

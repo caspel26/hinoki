@@ -45,6 +45,11 @@ class ExtensiblePayload(Schema, config=SchemaConfig(extra=SchemaExtra.IGNORE)):
     count: int
 
 
+class LengthMessages(Schema):
+    name: Annotated[str, Field(min_length=2, max_length=4)]
+    tags: Annotated[list[str], Field(min_length=1, max_length=2)]
+
+
 def native(cls: type[Schema], data: object) -> Any:
     return cls.validate(data)
 
@@ -83,6 +88,36 @@ def test_native_and_oracle_agree_on_ignored_extra_policy() -> None:
         assert outcome(native, ExtensiblePayload, data) == outcome(
             oracle, ExtensiblePayload, data
         )
+
+
+@pytest.mark.parametrize(
+    ("data", "expected"),
+    [
+        (
+            {"name": "x", "tags": ["one"]},
+            ("name", "min_length", "at least 2 characters"),
+        ),
+        (
+            {"name": "longer", "tags": ["one"]},
+            ("name", "max_length", "at most 4 characters"),
+        ),
+        ({"name": "ok", "tags": []}, ("tags", "min_length", "at least 1 item")),
+        (
+            {"name": "ok", "tags": ["a", "b", "c"]},
+            ("tags", "max_length", "at most 2 items"),
+        ),
+    ],
+)
+def test_length_error_messages_name_the_unit(
+    data: dict[str, Any], expected: tuple[str, str, str]
+) -> None:
+    assert outcome(native, LengthMessages, data) == outcome(
+        oracle, LengthMessages, data
+    )
+    with pytest.raises(ValidationError) as caught:
+        native(LengthMessages, data)
+    detail = caught.value.details[0]
+    assert (detail.path, detail.code, detail.message) == expected
 
 
 JUNK: list[Any] = [
