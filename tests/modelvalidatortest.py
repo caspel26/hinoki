@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import os
+import sys
 from collections.abc import AsyncIterator
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
 
+import hinoki.orm.model as model_module
 from hinoki import Field
 from hinoki.db import Database
 from hinoki.errors import FieldError, ModelValidationError, RegistrationError
@@ -250,6 +254,24 @@ def test_model_annotation_helpers_handle_forward_and_mixed_types(
     assert _matches_model_scalar(2, Any) and _matches_model_scalar(2, object)
     assert _matches_model_scalar(2, float) and not _matches_model_scalar(True, float)
     assert _constraint_passes("lt", 1, 2)
+    assert _constraint_passes("gt", 2, 1)
+
+
+def test_python_314_model_import_uses_annotationlib(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = SimpleNamespace(Format=SimpleNamespace(FORWARDREF="forward"))
+    monkeypatch.setitem(sys.modules, "annotationlib", fake)
+    monkeypatch.setattr("sys.version_info", (3, 14))
+    source = Path(model_module.__file__)
+    spec = importlib.util.spec_from_file_location(
+        "hinoki.orm.model_coverage_314", source
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, module)
+    spec.loader.exec_module(module)
+    assert module.annotationlib is fake
 
 
 def test_custom_awaitable_cleanup_calls_its_public_methods() -> None:
@@ -267,6 +289,16 @@ def test_custom_awaitable_cleanup_calls_its_public_methods() -> None:
 
     _stop_custom_awaitable(Awaitable())
     assert events == ["cancel", "close"]
+
+    def returns_awaitable(_value: str) -> Any:
+        return Awaitable()
+
+    class AwaitableValidator(Model, table="model_custom_awaitable_validator"):
+        id: UUID = field(primary_key=True, default_factory=uuid4)
+        value: str = field(validators=(returns_awaitable,))
+
+    with pytest.raises(TypeError, match="must be synchronous"):
+        AwaitableValidator.validate_values({"value": "x"})
 
 
 def test_model_field_rejects_invalid_constraints_and_validators() -> None:
