@@ -12,9 +12,9 @@ import pytest
 from hinoki import Caller, CrudAPI, Schema, crud
 from hinoki.context import sync_runner
 from hinoki.errors import Forbidden, RegistrationError
+from hinoki.http.request import Request
 from hinoki.orm import Model, field
 from hinoki.pagination import PageParams
-from hinoki.request import Request
 from tests.crudtest import Memo, MemoIn, MemoOut, MemoPatch, Memos
 
 

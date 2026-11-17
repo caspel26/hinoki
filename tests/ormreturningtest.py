@@ -14,8 +14,8 @@ import pytest
 from hinoki import Hinoki, http
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import ModelValidationError, RegistrationError
+from hinoki.http.request import Request
 from hinoki.orm import Model, field, timestamps, use_database
-from hinoki.request import Request
 from hinoki.utils import utc_now
 from tests.harness import Client, Pool
 

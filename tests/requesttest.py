@@ -6,9 +6,16 @@ import pytest
 
 from hinoki import API, Hinoki, Request, Schema, core, http
 from hinoki.errors import RegistrationError
-from hinoki.request import Headers
+from hinoki.http.request import Headers
+from hinoki.request import Headers as LegacyHeaders
+from hinoki.request import Request as LegacyRequest
 from hinoki.runtime.binding import bind
 from tests.harness import Client, Pool
+
+
+def test_legacy_request_module_reexports_http_types() -> None:
+    assert LegacyHeaders is Headers
+    assert LegacyRequest is Request
 
 
 @http.get("/echo/{name}")
