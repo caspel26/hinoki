@@ -39,6 +39,12 @@ pub type Reply = Answer;
 type NativeArgs = Vec<(String, String)>;
 type NativeDetails = Vec<(String, String, String)>;
 type NativeErrorData = (String, String, Option<String>, NativeDetails);
+type DecodedPathParams = Vec<(String, String)>;
+
+enum PreparedPathParams {
+    Decoded(DecodedPathParams),
+    InvalidEncoding,
+}
 
 fn reply_to_py<'py>(py: Python<'py>, reply: &Reply) -> PyResult<Bound<'py, PyAny>> {
     let headers = PyList::empty(py);
@@ -76,6 +82,7 @@ pub struct PreparedRequest {
     request_id_name: Vec<u8>,
     needs_headers: bool,
     params: Vec<(String, String)>,
+    prepared_path_params: Option<PreparedPathParams>,
     client: Option<(String, u16)>,
     http_version: &'static str,
     reply: Mutex<Option<oneshot::Sender<Reply>>>,
@@ -172,6 +179,26 @@ impl PreparedRequest {
             out.set_item(name, value)?;
         }
         Ok(out)
+    }
+
+    /// Decoded path captures for the Python pipeline, or `None` when decoding
+    /// failed. Native handlers do not prepare this value because their input
+    /// plan already decodes the captures.
+    #[getter]
+    fn prepared_path_params<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyDict>>> {
+        let Some(prepared) = &self.prepared_path_params else {
+            return Err(PyRuntimeError::new_err(
+                "path parameters were not prepared for the Python pipeline",
+            ));
+        };
+        let PreparedPathParams::Decoded(values) = prepared else {
+            return Ok(None);
+        };
+        let out = PyDict::new(py);
+        for (name, value) in values {
+            out.set_item(name, value)?;
+        }
+        Ok(Some(out))
     }
 
     #[getter]
@@ -471,6 +498,17 @@ fn decode_native_path(
         decoded.insert(name.clone(), value);
     }
     Ok(decoded)
+}
+
+fn prepare_python_path_params(params: &[(String, String)]) -> PreparedPathParams {
+    let mut decoded = Vec::with_capacity(params.len());
+    for (name, value) in params {
+        let Some(value) = request::decode_path_parameter(value) else {
+            return PreparedPathParams::InvalidEncoding;
+        };
+        decoded.push((name.clone(), value));
+    }
+    PreparedPathParams::Decoded(decoded)
 }
 
 fn query_values(pairs: Vec<(String, String)>) -> HashMap<String, Vec<String>> {
@@ -863,6 +901,7 @@ impl Core {
                     asked,
                     (None, Vec::new()),
                     true,
+                    None,
                     NativeInput::default(),
                 );
             }
@@ -889,6 +928,7 @@ impl Core {
                     asked,
                     (action, Vec::new()),
                     true,
+                    None,
                     NativeInput::default(),
                 )
             }
@@ -899,11 +939,13 @@ impl Core {
         } else {
             NativeInput::default()
         };
+        let prepared_path_params = (!native_handler).then(|| prepare_python_path_params(&params));
         self.enqueue(
             head,
             asked,
             (action, params),
             plan.needs_headers(),
+            prepared_path_params,
             native_input,
         )
     }
@@ -973,6 +1015,7 @@ impl Core {
         asked: Asked,
         (action, params): (Option<u32>, Vec<(String, String)>),
         needs_headers: bool,
+        prepared_path_params: Option<PreparedPathParams>,
         native_input: NativeInput,
     ) -> Result<Outcome, String> {
         let Some(permit) = self.in_flight.try_acquire() else {
@@ -999,6 +1042,7 @@ impl Core {
             request_id_name: self.id_name.clone(),
             needs_headers,
             params,
+            prepared_path_params,
             client: head.peer.map(|peer| (peer.ip().to_string(), peer.port())),
             http_version: head.http_version,
             reply: Mutex::new(Some(sender)),
