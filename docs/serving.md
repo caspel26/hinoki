@@ -54,6 +54,9 @@ uv run --project .. hinoki dev   blog.main:create_app --server rust
 ```
 
 ```python
+from hinoki import settings
+
+
 class BlogSettings(settings.AppSettings, prefix="BLOG_"):
     server: settings.ServerSettings = settings.ServerSettings(server="rust", workers=4)
 ```

@@ -1,3 +1,7 @@
+---
+status: implemented
+---
+
 # 2. Schemas
 
 A model describes a table; a `Schema` describes what crosses the API. A column reaches a client only when a schema names it.
