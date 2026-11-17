@@ -15,6 +15,7 @@ from hinoki import core
 from hinoki.context import request_id
 from hinoki.renderers import is_default_json_renderer
 from hinoki.runtime.binding import EMPTY, PATH_PARAM, Binding
+from hinoki.runtime.crudplan import CrudPlanSelection, select_crud_plan
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.responses import RETRY_LATER, HTTPError
 
@@ -78,7 +79,9 @@ def early_bodies() -> list[tuple[str, bytes]]:
         request_id.reset(token)
 
 
-def route_spec(action: int, binding: Binding) -> core.RouteSpec:
+def route_spec(
+    action: int, binding: Binding, crud_plan: core._CrudPlan | None
+) -> core.RouteSpec:
     route = binding.route
     owner = route.owner
     native_handler = native_handler_eligible(binding)
@@ -102,6 +105,7 @@ def route_spec(action: int, binding: Binding) -> core.RouteSpec:
         route.transaction,
         binding.takes_request,
         (native_handler, native_inputs),
+        crud_plan,
     )
 
 
@@ -176,8 +180,21 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
     python_paths = [*pipeline.docs]
     if pipeline.document is not None and app.openapi_url is not None:
         python_paths.append(app.openapi_url)
+    selections: list[CrudPlanSelection | None] = []
+    reasons: list[str] = []
+    routes = []
+    for index, binding in enumerate(pipeline.bindings):
+        try:
+            selection, reason = select_crud_plan(binding, pipeline)
+        except Exception:
+            selection, reason = None, "native_plan_build_failed"
+        selections.append(selection)
+        reasons.append(reason)
+        routes.append(route_spec(index, binding, selection.plan if selection else None))
+    pipeline.crud_plan_selections = selections
+    pipeline.crud_plan_reasons = reasons
     return core.ServerCore(
-        [route_spec(i, b) for i, b in enumerate(pipeline.bindings)],
+        routes,
         early_bodies(),
         (pipeline.policy[False], pipeline.policy[True]),
         pipeline.request_id_name,
