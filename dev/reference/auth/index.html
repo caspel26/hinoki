@@ -337,6 +337,42 @@ service account) and <code>permissions</code> is what the caller may do::</p>
 
 
 
+<h2 id="hinoki.auth.Permission" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.auth.Permission</span>
+
+
+<a href="#hinoki.auth.Permission" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="enum.StrEnum">StrEnum</span></code></p>
+
+
+
+        <p>Base for an application's typed permission names.</p>
+<p>Subclass it with the permissions your application uses::</p>
+<div class="highlight"><pre><span></span><code>class BlogPermission(Permission):
+    WRITE = "posts:write"
+</code></pre></div>
+<p>Members compare and serialize as their string values.</p>
+
+
+
+
+
+
+
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
 <h2 id="hinoki.auth.Credentials" class="doc doc-heading">
             <span class="doc doc-object-name doc-class-name">hinoki.auth.Credentials</span>
 
@@ -1043,7 +1079,7 @@ against a fixed dummy hash so timing does not reveal who exists.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#hinoki.auth.Caller">Caller</a></li><li><a href="#hinoki.auth.Credentials">Credentials</a></li><li><a href="#hinoki.auth.BaseAuth">BaseAuth</a>
+            <ul><li><a href="#hinoki.auth.Caller">Caller</a></li><li><a href="#hinoki.auth.Permission">Permission</a></li><li><a href="#hinoki.auth.Credentials">Credentials</a></li><li><a href="#hinoki.auth.BaseAuth">BaseAuth</a>
             <ul><li><a href="#hinoki.auth.BaseAuth.openapi_scheme">openapi_scheme</a></li><li><a href="#hinoki.auth.BaseAuth.authenticate">authenticate</a></li></ul>
           </li><li><a href="#hinoki.auth.HeaderAuth">HeaderAuth</a>
             <ul><li><a href="#hinoki.auth.HeaderAuth.resolve">resolve</a></li></ul>
@@ -1062,7 +1098,7 @@ against a fixed dummy hash so timing does not reveal who exists.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.7</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 01:38:50 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 19:11:19 UTC">November 17, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/auth.md">Edit on GitHub</a></dd></div>
         </dl>

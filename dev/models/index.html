@@ -393,19 +393,21 @@
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">OnDelete</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">foreign_key</span><span class="p">,</span> <span class="n">indexed</span><span class="p">,</span> <span class="n">ordered_by</span><span class="p">,</span> <span class="n">unique</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">db</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">OnDelete</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">foreign_key</span><span class="p">,</span> <span class="n">pk</span><span class="p">,</span> <span class="n">unique</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">utc_now</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Member</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
-    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
     <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">254</span><span class="p">)</span>
 
 
-<span class="nd">@indexed</span><span class="p">(</span><span class="s2">"owner_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
-<span class="nd">@ordered_by</span><span class="p">(</span><span class="s2">"-created_at"</span><span class="p">,</span> <span class="s2">"-id"</span><span class="p">)</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">indexed</span><span class="p">(</span><span class="s2">"owner_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">ordered_by</span><span class="p">(</span><span class="s2">"-created_at"</span><span class="p">,</span> <span class="s2">"-id"</span><span class="p">)</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s2">"tasks"</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Task</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
-    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
     <span class="n">owner_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span><span class="n">Member</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">RESTRICT</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"tasks"</span><span class="p">)</span>
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
     <span class="n">done</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
@@ -414,13 +416,14 @@
 <p>For a fresh model, Hinoki derives a plural snake-case table name and human
 display names from the class: <code>Member</code> becomes <code>members</code>, <code>Member</code> and
 <code>Members</code>; <code>UserProfile</code> becomes <code>user_profiles</code>, <code>User profile</code> and
-<code>User profiles</code>. <code>table=</code>, <code>label=</code> and <code>plural=</code> are optional overrides.
-Keep an explicit <code>table=</code> when it pins an existing migration history or when
+<code>User profiles</code>. <code>@db.table(...)</code> or the compatible <code>table=</code> class keyword,
+along with <code>label=</code> and <code>plural=</code>, provide optional overrides. Keep an explicit
+table name when it pins an existing migration history or when
 the physical table needs another name. This matters when renaming a Python
 class: changing an implicit table name is planned as a table drop/create and
 is protected by the destructive-migration guard, not treated as a data-safe
 rename. Irregular or localized plurals such as <code>Person</code>/<code>People</code> should set
-<code>table=</code> and <code>plural=</code> explicitly. The fallback inflection is deterministic,
+the table name and <code>plural=</code> explicitly. The fallback inflection is deterministic,
 small and English-oriented; it does not guess irregular nouns. It splits
 underscores and CamelCase into words, lowercases them for the table, and applies
 these suffixes to the final word: consonant plus <code>y</code> becomes <code>ies</code>; <code>s</code>, <code>x</code>,
@@ -432,10 +435,16 @@ portable ASCII SQL names of at most 63 characters. Names beginning with
 SQLite's reserved <code>sqlite_</code> prefix and Hinoki's <code>hinoki_migrations</code> ledger name
 are rejected with an override hint. Physical-table conflicts are reported
 when models are aggregated for migrations, projects or one Admin instance.</p>
-<p>A model has exactly one primary key. Fields are keyword-only when constructing a model.
-Single-column uniqueness is <code>field(unique=True)</code>; use <code>@unique("a", "b")</code> for
-a composite constraint. There is no nested <code>class Meta</code>.</p>
-<p>Supported field metadata includes primary key, uniqueness, maximum string length, defaults and foreign-key behavior. Optional built-in constraints and custom synchronous validators can also check values before ORM writes. Database types are inferred from annotations; unsupported types fail during model or migration validation.</p>
+<p>A model has exactly one primary key. <code>pk()</code> is the field-specifier shorthand for
+<code>field(primary_key=True, ...)</code>; pass <code>default</code> or <code>default_factory</code> explicitly
+when the key is optional in the constructor. Fields are keyword-only when
+constructing a model. Single-column uniqueness is <code>field(unique=True)</code>; use
+<code>@unique("a", "b")</code> for a composite constraint. There is no nested <code>class Meta</code>.</p>
+<p>Supported field metadata includes primary key, uniqueness, a single-column
+index (<code>field(index=True)</code>), maximum string length, defaults and foreign-key behavior.
+Optional built-in constraints and custom synchronous validators can also check
+values before ORM writes. Database types are inferred from annotations;
+unsupported types fail during model or migration validation.</p>
 <h3 id="model-field-constraints-and-validators">Model field constraints and validators<a class="headerlink" href="#model-field-constraints-and-validators" title="Permanent link">&para;</a></h3>
 <p><code>field()</code> metadata describes the database column and its migration: <code>max_length</code> becomes a bounded string column and a derived <code>Schema</code> constraint, <code>unique</code> becomes a database constraint, and <code>default</code> / <code>default_factory</code> provide values when constructing an instance. A <code>foreign_key(...)</code> declares the referenced table and its <code>OnDelete</code> behavior. The Python annotation supplies the column type and nullability.</p>
 <p>Use <code>constraints=Field(...)</code> for built-in value checks and <code>validators=(...)</code> for synchronous, application-specific checks. Existing <code>max_length=</code> remains a shorthand:</p>
@@ -656,7 +665,7 @@ set <code>deletable = True</code>; protect generated writes with <code>access = 
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:30:43 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 19:11:19 UTC">November 17, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>11 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>

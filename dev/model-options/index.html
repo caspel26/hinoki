@@ -392,16 +392,8 @@
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">Model</span><span class="p">,</span>
-    <span class="n">OnDelete</span><span class="p">,</span>
-    <span class="n">field</span><span class="p">,</span>
-    <span class="n">foreign_key</span><span class="p">,</span>
-    <span class="n">indexed</span><span class="p">,</span>
-    <span class="n">ordered_by</span><span class="p">,</span>
-    <span class="n">timestamps</span><span class="p">,</span>
-    <span class="n">unique</span><span class="p">,</span>
-<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">db</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">OnDelete</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">foreign_key</span><span class="p">,</span> <span class="n">timestamps</span><span class="p">,</span> <span class="n">unique</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">utc_now</span>
 
 
@@ -410,10 +402,11 @@
 
 
 <span class="nd">@unique</span><span class="p">(</span><span class="s2">"owner_id"</span><span class="p">,</span> <span class="s2">"url"</span><span class="p">)</span>
-<span class="nd">@indexed</span><span class="p">(</span><span class="s2">"owner_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
-<span class="nd">@ordered_by</span><span class="p">(</span><span class="s2">"-created_at"</span><span class="p">,</span> <span class="s2">"-id"</span><span class="p">)</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">indexed</span><span class="p">(</span><span class="s2">"owner_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">ordered_by</span><span class="p">(</span><span class="s2">"-created_at"</span><span class="p">,</span> <span class="s2">"-id"</span><span class="p">)</span>
 <span class="nd">@timestamps</span><span class="p">()</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">Bookmark</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"saved_links"</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"Saved link"</span><span class="p">,</span> <span class="n">plural</span><span class="o">=</span><span class="s2">"Saved links"</span><span class="p">):</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s2">"saved_links"</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Bookmark</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"Saved link"</span><span class="p">,</span> <span class="n">plural</span><span class="o">=</span><span class="s2">"Saved links"</span><span class="p">):</span>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
     <span class="n">owner_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span><span class="n">Member</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">RESTRICT</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"bookmarks"</span><span class="p">)</span>
     <span class="n">url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
@@ -431,8 +424,8 @@
 <tbody>
 <tr>
 <td>table</td>
-<td><code>table="saved_links"</code> (optional class keyword)</td>
-<td>overrides the default plural snake-case table name derived from the class</td>
+<td><code>@db.table("saved_links")</code> or <code>table="saved_links"</code> (optional)</td>
+<td>overrides the default plural snake-case table name derived from the class; the two forms may be combined only with the same name</td>
 </tr>
 <tr>
 <td>labels</td>
@@ -446,12 +439,12 @@
 </tr>
 <tr>
 <td>index</td>
-<td><code>@indexed("a", "b")</code></td>
+<td><code>field(index=True)</code> for one column; <code>@db.indexed("a", "b")</code> for one or more columns</td>
 <td>a <code>CREATE INDEX</code> planned by the migration tool; adding or removing one is a non-destructive migration</td>
 </tr>
 <tr>
 <td>default order</td>
-<td><code>@ordered_by("-created_at", "id")</code></td>
+<td><code>@db.ordered_by("-created_at", "id")</code></td>
 <td>every query without <code>order_by</code> (lists, pages) is ordered this way; <code>"-"</code> is descending; an explicit <code>order_by</code> replaces it, counts and bulk updates ignore it</td>
 </tr>
 <tr>
@@ -462,14 +455,16 @@
 </tbody>
 </table>
 <ul>
+<li><code>pk(default_factory=...)</code> is a shorthand for a primary key field; it requires an explicit default or factory for static constructor typing. Existing <code>field(primary_key=True, ...)</code> remains valid.</li>
+<li>A primary key or unique field already has an index; <code>field(index=True)</code> cannot be combined with either. Declaring the same one-column index through <code>field(index=True)</code> and <code>@db.indexed("column")</code> produces one index.</li>
 <li>Column names are checked when the decorator is applied; a typo fails at import with the model and the unknown names.</li>
 <li>Stacked decorators are stored in reading order (top to bottom).</li>
-<li>A model inherits the options of its <a href="../models/#share-fields-abstract-models-and-mixins">abstract bases</a>. A decorator on the subclass replaces everything inherited for that kind of option (<code>@indexed</code> replaces the inherited indexes, and so on) and leaves the other kinds inherited. A model that subclasses a table model does not inherit that parent's options.</li>
+<li>A model inherits the options of its <a href="../models/#share-fields-abstract-models-and-mixins">abstract bases</a>. A decorator on the subclass replaces everything inherited for that kind of option (<code>@db.indexed</code> replaces the inherited indexes, and so on) and leaves the other kinds inherited. A model that subclasses a table model does not inherit that parent's options.</li>
 <li>Apply options before the model is used: the migration planner, the query layer and the admin read them from the class.</li>
-<li>The fallback table/display names use a small deterministic English suffix rule, not an inflector. Use explicit values for irregular, already-plural or localized names. Pin <code>table=</code> when a class has an existing migration history; changing an implicit name is a guarded drop/create, not a table rename.</li>
+<li>The fallback table/display names use a small deterministic English suffix rule, not an inflector. Use explicit values for irregular, already-plural or localized names. Pin the table name with <code>@db.table(...)</code> or <code>table=</code> when a class has an existing migration history; changing an implicit name is a guarded drop/create, not a table rename.</li>
 <li>Index names are <code>ix_&lt;table&gt;_&lt;columns&gt;</code>, shortened deterministically (with a hash) past PostgreSQL's 63 bytes.</li>
 </ul>
-<p>Not yet: partial or expression indexes, per-column index options, and soft delete. For timestamps, see <a href="../utilities/">utilities</a>; fields are declared explicitly and migrations remain visible.</p>
+<p>Not yet: partial or expression indexes and soft delete. For timestamps, see <a href="../utilities/">utilities</a>; fields are declared explicitly and migrations remain visible.</p>
         
       </article>
 
@@ -494,7 +489,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.6</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:20:26 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 19:11:19 UTC">November 17, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-options.md">Edit on GitHub</a></dd></div>
         </dl>

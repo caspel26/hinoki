@@ -276,7 +276,8 @@
       <article class="prose" style="--sheet: '5.5'">
         <p class="kicker" data-search-exclude>5.5 · Reference</p>
         <h1 id="models-and-queries">Models and queries<a class="headerlink" href="#models-and-queries" title="Permanent link">&para;</a></h1>
-<p>Concrete Models may omit <code>table=</code> to derive a plural snake-case table name;
+<p>Concrete models may omit <code>@db.table(...)</code> (or the compatible <code>table=</code> class
+keyword) to derive a plural snake-case table name;
 <code>label=</code> and <code>plural=</code> override humanized display names. Explicit table names
 remain the safe choice for migration-backed histories and stable physical names.</p>
 
@@ -574,6 +575,50 @@ remain the safe choice for migration-backed histories and stable physical names.
 
 <a href="#hinoki.orm.Model.__indexes__" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">__indexes__</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.orm.Model.__field_indexes__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">__field_indexes__</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.orm.Model.__field_indexes__" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">__field_indexes__</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.orm.Model.__decorated_indexes__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">__decorated_indexes__</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.orm.Model.__decorated_indexes__" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">__decorated_indexes__</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -963,7 +1008,8 @@ again; a concrete parent keeps its options to itself.</p>
         <p>Options come from the abstract bases the class lists: every such
 base's constraints and indexes, and the first one that sets an order or
 a timestamp column. A decorator applied to this class later replaces what
-was inherited for its kind (see <code>hinoki.orm.options</code>).</p>
+was inherited for its kind (see <code>hinoki.orm.options</code>). Indexes declared
+with <code>field(index=True)</code> belong to their column and always stay.</p>
 
 
     </div>
@@ -1929,6 +1975,7 @@ choose a row's identity (pass it as a keyword when the server does).</p>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">primary_key</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">unique</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">index</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">max_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">constraints</span><span class="p">:</span> <span class="n">FieldInfo</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">validators</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
@@ -1943,8 +1990,41 @@ choose a row's identity (pass it as a keyword when the server does).</p>
         <p>Declare a column and, optionally, write-time constraints and validators.</p>
 <p><code>id: UUID = field(primary_key=True, default_factory=uuid4)</code></p>
 <p><code>name: str = field(constraints=Field(min_length=1), validators=(check_name,))</code></p>
+<p><code>created_at: datetime = field(index=True, default_factory=utc_now)</code> adds a
+single-column index, the same index as <code>@db.indexed("created_at")</code>.</p>
 <p>Constraints run before ORM writes. Custom validators are synchronous and
 raise <code>ValueError</code> to refuse a value; they must not perform I/O.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.orm.pk" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.orm.pk</span>
+
+
+<a href="#hinoki.orm.pk" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">pk</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">max_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">constraints</span><span class="p">:</span> <span class="n">FieldInfo</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">validators</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">default</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">MISSING</span><span class="p">,</span>
+    <span class="n">default_factory</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="o">|</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">MISSING</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Declare the primary key: shorthand for <code>field(primary_key=True, ...)</code>.</p>
+<p><code>id: UUID = pk(default_factory=uuid4)</code></p>
+<p>It takes the options of <code>field</code> that make sense for a key; <code>unique</code>
+and <code>index</code> are implied by the primary key.</p>
 
 
     </div>
@@ -2170,7 +2250,30 @@ columns use <code>field(unique=True)</code>).</p>
     <div class="doc doc-contents first">
 
         <p>A (non-unique) index over one or more columns, created by the migration
-planner.</p>
+planner. A single column can use <code>field(index=True)</code> instead; naming a
+column both ways creates one index.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.orm.table" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.orm.table</span>
+
+
+<a href="#hinoki.orm.table" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">table</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">M</span><span class="p">],</span> <span class="n">M</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Name the model's table; without it the name is derived from the class
+name. <code>@table("saved_links")</code> is the same as <code>table="saved_links"</code> in
+the class header; giving both with different names is an error.</p>
 
 
     </div>
@@ -3700,10 +3803,10 @@ articles: ClassVar[Related[list[Article]]]
           
           
             <ul><li><a href="#hinoki.orm.Model">Model</a>
-            <ul><li><a href="#hinoki.orm.Model.__table__">__table__</a></li><li><a href="#hinoki.orm.Model.__table_is_implicit__">__table_is_implicit__</a></li><li><a href="#hinoki.orm.Model.__columns__">__columns__</a></li><li><a href="#hinoki.orm.Model.__json_columns__">__json_columns__</a></li><li><a href="#hinoki.orm.Model.__field_types__">__field_types__</a></li><li><a href="#hinoki.orm.Model.__field_validators__">__field_validators__</a></li><li><a href="#hinoki.orm.Model.__field_annotations__">__field_annotations__</a></li><li><a href="#hinoki.orm.Model.__field_validation_fields__">__field_validation_fields__</a></li><li><a href="#hinoki.orm.Model.__primary_key__">__primary_key__</a></li><li><a href="#hinoki.orm.Model.__relations__">__relations__</a></li><li><a href="#hinoki.orm.Model.__unique__">__unique__</a></li><li><a href="#hinoki.orm.Model.__indexes__">__indexes__</a></li><li><a href="#hinoki.orm.Model.__ordering__">__ordering__</a></li><li><a href="#hinoki.orm.Model.__label__">__label__</a></li><li><a href="#hinoki.orm.Model.__plural__">__plural__</a></li><li><a href="#hinoki.orm.Model.__updated_at__">__updated_at__</a></li><li><a href="#hinoki.orm.Model.__clock__">__clock__</a></li><li><a href="#hinoki.orm.Model.__abstract__">__abstract__</a></li><li><a href="#hinoki.orm.Model.__inherited_options__">__inherited_options__</a></li><li><a href="#hinoki.orm.Model.NotFound">NotFound</a></li><li><a href="#hinoki.orm.Model.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.orm.Model.check_field_conflicts">check_field_conflicts</a></li><li><a href="#hinoki.orm.Model.check_field_validations">check_field_validations</a></li><li><a href="#hinoki.orm.Model.validate_values">validate_values</a></li><li><a href="#hinoki.orm.Model.adopt_mixin_fields">adopt_mixin_fields</a></li><li><a href="#hinoki.orm.Model._adopt_mixin_base">_adopt_mixin_base</a></li><li><a href="#hinoki.orm.Model.option_bases">option_bases</a></li><li><a href="#hinoki.orm.Model.inherit_options">inherit_options</a></li><li><a href="#hinoki.orm.Model.replace_inherited">replace_inherited</a></li><li><a href="#hinoki.orm.Model.concrete">concrete</a></li><li><a href="#hinoki.orm.Model.check_unique">check_unique</a></li><li><a href="#hinoki.orm.Model.check_names">check_names</a></li><li><a href="#hinoki.orm.Model.check_set_null">check_set_null</a></li><li><a href="#hinoki.orm.Model.register_relations">register_relations</a></li><li><a href="#hinoki.orm.Model.reverse_name">reverse_name</a></li><li><a href="#hinoki.orm.Model.check_attach">check_attach</a></li><li><a href="#hinoki.orm.Model.attach">attach</a></li><li><a href="#hinoki.orm.Model.from_row">from_row</a></li><li><a href="#hinoki.orm.Model.remember">remember</a></li><li><a href="#hinoki.orm.Model.asave">asave</a></li><li><a href="#hinoki.orm.Model.insert">insert</a></li><li><a href="#hinoki.orm.Model.refresh">refresh</a></li><li><a href="#hinoki.orm.Model.save">save</a></li><li><a href="#hinoki.orm.Model.related">related</a></li><li><a href="#hinoki.orm.Model.filter">filter</a></li><li><a href="#hinoki.orm.Model.all">all</a></li><li><a href="#hinoki.orm.Model.from_schema">from_schema</a></li><li><a href="#hinoki.orm.Model.acreate">acreate</a></li><li><a href="#hinoki.orm.Model.assign">assign</a></li><li><a href="#hinoki.orm.Model.aupdate_from">aupdate_from</a></li><li><a href="#hinoki.orm.Model.aget">aget</a></li><li><a href="#hinoki.orm.Model.aget_or_none">aget_or_none</a></li><li><a href="#hinoki.orm.Model.aupdate">aupdate</a></li><li><a href="#hinoki.orm.Model.aupdate_where">aupdate_where</a></li><li><a href="#hinoki.orm.Model.adelete">adelete</a></li><li><a href="#hinoki.orm.Model.create">create</a></li><li><a href="#hinoki.orm.Model.update_from">update_from</a></li><li><a href="#hinoki.orm.Model.update_where">update_where</a></li><li><a href="#hinoki.orm.Model.get">get</a></li><li><a href="#hinoki.orm.Model.get_or_none">get_or_none</a></li><li><a href="#hinoki.orm.Model.update">update</a></li><li><a href="#hinoki.orm.Model.delete">delete</a></li><li><a href="#hinoki.orm.Model.merged_values">merged_values</a></li><li><a href="#hinoki.orm.Model.check_field">check_field</a></li></ul>
-          </li><li><a href="#hinoki.orm.field">field</a></li><li><a href="#hinoki.orm.foreign_key">foreign_key</a></li><li><a href="#hinoki.orm.OnDelete">OnDelete</a>
+            <ul><li><a href="#hinoki.orm.Model.__table__">__table__</a></li><li><a href="#hinoki.orm.Model.__table_is_implicit__">__table_is_implicit__</a></li><li><a href="#hinoki.orm.Model.__columns__">__columns__</a></li><li><a href="#hinoki.orm.Model.__json_columns__">__json_columns__</a></li><li><a href="#hinoki.orm.Model.__field_types__">__field_types__</a></li><li><a href="#hinoki.orm.Model.__field_validators__">__field_validators__</a></li><li><a href="#hinoki.orm.Model.__field_annotations__">__field_annotations__</a></li><li><a href="#hinoki.orm.Model.__field_validation_fields__">__field_validation_fields__</a></li><li><a href="#hinoki.orm.Model.__primary_key__">__primary_key__</a></li><li><a href="#hinoki.orm.Model.__relations__">__relations__</a></li><li><a href="#hinoki.orm.Model.__unique__">__unique__</a></li><li><a href="#hinoki.orm.Model.__indexes__">__indexes__</a></li><li><a href="#hinoki.orm.Model.__field_indexes__">__field_indexes__</a></li><li><a href="#hinoki.orm.Model.__decorated_indexes__">__decorated_indexes__</a></li><li><a href="#hinoki.orm.Model.__ordering__">__ordering__</a></li><li><a href="#hinoki.orm.Model.__label__">__label__</a></li><li><a href="#hinoki.orm.Model.__plural__">__plural__</a></li><li><a href="#hinoki.orm.Model.__updated_at__">__updated_at__</a></li><li><a href="#hinoki.orm.Model.__clock__">__clock__</a></li><li><a href="#hinoki.orm.Model.__abstract__">__abstract__</a></li><li><a href="#hinoki.orm.Model.__inherited_options__">__inherited_options__</a></li><li><a href="#hinoki.orm.Model.NotFound">NotFound</a></li><li><a href="#hinoki.orm.Model.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.orm.Model.check_field_conflicts">check_field_conflicts</a></li><li><a href="#hinoki.orm.Model.check_field_validations">check_field_validations</a></li><li><a href="#hinoki.orm.Model.validate_values">validate_values</a></li><li><a href="#hinoki.orm.Model.adopt_mixin_fields">adopt_mixin_fields</a></li><li><a href="#hinoki.orm.Model._adopt_mixin_base">_adopt_mixin_base</a></li><li><a href="#hinoki.orm.Model.option_bases">option_bases</a></li><li><a href="#hinoki.orm.Model.inherit_options">inherit_options</a></li><li><a href="#hinoki.orm.Model.replace_inherited">replace_inherited</a></li><li><a href="#hinoki.orm.Model.concrete">concrete</a></li><li><a href="#hinoki.orm.Model.check_unique">check_unique</a></li><li><a href="#hinoki.orm.Model.check_names">check_names</a></li><li><a href="#hinoki.orm.Model.check_set_null">check_set_null</a></li><li><a href="#hinoki.orm.Model.register_relations">register_relations</a></li><li><a href="#hinoki.orm.Model.reverse_name">reverse_name</a></li><li><a href="#hinoki.orm.Model.check_attach">check_attach</a></li><li><a href="#hinoki.orm.Model.attach">attach</a></li><li><a href="#hinoki.orm.Model.from_row">from_row</a></li><li><a href="#hinoki.orm.Model.remember">remember</a></li><li><a href="#hinoki.orm.Model.asave">asave</a></li><li><a href="#hinoki.orm.Model.insert">insert</a></li><li><a href="#hinoki.orm.Model.refresh">refresh</a></li><li><a href="#hinoki.orm.Model.save">save</a></li><li><a href="#hinoki.orm.Model.related">related</a></li><li><a href="#hinoki.orm.Model.filter">filter</a></li><li><a href="#hinoki.orm.Model.all">all</a></li><li><a href="#hinoki.orm.Model.from_schema">from_schema</a></li><li><a href="#hinoki.orm.Model.acreate">acreate</a></li><li><a href="#hinoki.orm.Model.assign">assign</a></li><li><a href="#hinoki.orm.Model.aupdate_from">aupdate_from</a></li><li><a href="#hinoki.orm.Model.aget">aget</a></li><li><a href="#hinoki.orm.Model.aget_or_none">aget_or_none</a></li><li><a href="#hinoki.orm.Model.aupdate">aupdate</a></li><li><a href="#hinoki.orm.Model.aupdate_where">aupdate_where</a></li><li><a href="#hinoki.orm.Model.adelete">adelete</a></li><li><a href="#hinoki.orm.Model.create">create</a></li><li><a href="#hinoki.orm.Model.update_from">update_from</a></li><li><a href="#hinoki.orm.Model.update_where">update_where</a></li><li><a href="#hinoki.orm.Model.get">get</a></li><li><a href="#hinoki.orm.Model.get_or_none">get_or_none</a></li><li><a href="#hinoki.orm.Model.update">update</a></li><li><a href="#hinoki.orm.Model.delete">delete</a></li><li><a href="#hinoki.orm.Model.merged_values">merged_values</a></li><li><a href="#hinoki.orm.Model.check_field">check_field</a></li></ul>
+          </li><li><a href="#hinoki.orm.field">field</a></li><li><a href="#hinoki.orm.pk">pk</a></li><li><a href="#hinoki.orm.foreign_key">foreign_key</a></li><li><a href="#hinoki.orm.OnDelete">OnDelete</a>
             <ul><li><a href="#hinoki.orm.OnDelete.RESTRICT">RESTRICT</a></li><li><a href="#hinoki.orm.OnDelete.CASCADE">CASCADE</a></li><li><a href="#hinoki.orm.OnDelete.SET_NULL">SET_NULL</a></li><li><a href="#hinoki.orm.OnDelete.NO_ACTION">NO_ACTION</a></li></ul>
-          </li><li><a href="#hinoki.orm.unique">unique</a></li><li><a href="#hinoki.orm.indexed">indexed</a></li><li><a href="#hinoki.orm.ordered_by">ordered_by</a></li><li><a href="#hinoki.orm.timestamps">timestamps</a></li><li><a href="#hinoki.orm.QuerySet">QuerySet</a>
+          </li><li><a href="#hinoki.orm.unique">unique</a></li><li><a href="#hinoki.orm.indexed">indexed</a></li><li><a href="#hinoki.orm.table">table</a></li><li><a href="#hinoki.orm.ordered_by">ordered_by</a></li><li><a href="#hinoki.orm.timestamps">timestamps</a></li><li><a href="#hinoki.orm.QuerySet">QuerySet</a>
             <ul><li><a href="#hinoki.orm.QuerySet.model">model</a></li><li><a href="#hinoki.orm.QuerySet.filters">filters</a></li><li><a href="#hinoki.orm.QuerySet.order">order</a></li><li><a href="#hinoki.orm.QuerySet.limit_to">limit_to</a></li><li><a href="#hinoki.orm.QuerySet.offset_by">offset_by</a></li><li><a href="#hinoki.orm.QuerySet.loading">loading</a></li><li><a href="#hinoki.orm.QuerySet.__init__">__init__</a></li><li><a href="#hinoki.orm.QuerySet.derive">derive</a></li><li><a href="#hinoki.orm.QuerySet.filter">filter</a></li><li><a href="#hinoki.orm.QuerySet.with_condition">with_condition</a></li><li><a href="#hinoki.orm.QuerySet.select_related">select_related</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_related">prefetch_related</a></li><li><a href="#hinoki.orm.QuerySet.relation">relation</a></li><li><a href="#hinoki.orm.QuerySet.forward">forward</a></li><li><a href="#hinoki.orm.QuerySet.order_by">order_by</a></li><li><a href="#hinoki.orm.QuerySet.limit">limit</a></li><li><a href="#hinoki.orm.QuerySet.offset">offset</a></li><li><a href="#hinoki.orm.QuerySet.joins">joins</a></li><li><a href="#hinoki.orm.QuerySet.compile">compile</a></li><li><a href="#hinoki.orm.QuerySet.build">build</a></li><li><a href="#hinoki.orm.QuerySet.load">load</a></li><li><a href="#hinoki.orm.QuerySet.prefetch">prefetch</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_forward">prefetch_forward</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_reverse">prefetch_reverse</a></li><li><a href="#hinoki.orm.QuerySet.__await__">__await__</a></li><li><a href="#hinoki.orm.QuerySet.fetch">fetch</a></li><li><a href="#hinoki.orm.QuerySet._hydrate">_hydrate</a></li><li><a href="#hinoki.orm.QuerySet.afirst">afirst</a></li><li><a href="#hinoki.orm.QuerySet.aget">aget</a></li><li><a href="#hinoki.orm.QuerySet.aupdate">aupdate</a></li><li><a href="#hinoki.orm.QuerySet.adelete">adelete</a></li><li><a href="#hinoki.orm.QuerySet.refuse_window">refuse_window</a></li><li><a href="#hinoki.orm.QuerySet.acount">acount</a></li><li><a href="#hinoki.orm.QuerySet.aexists">aexists</a></li><li><a href="#hinoki.orm.QuerySet.list">list</a></li><li><a href="#hinoki.orm.QuerySet.first">first</a></li><li><a href="#hinoki.orm.QuerySet.get">get</a></li><li><a href="#hinoki.orm.QuerySet.update">update</a></li><li><a href="#hinoki.orm.QuerySet.delete">delete</a></li><li><a href="#hinoki.orm.QuerySet.count">count</a></li><li><a href="#hinoki.orm.QuerySet.exists">exists</a></li><li><a href="#hinoki.orm.QuerySet.paginate">paginate</a></li><li><a href="#hinoki.orm.QuerySet.apaginate">apaginate</a></li></ul>
           </li><li><a href="#hinoki.pagination.PageParams">PageParams</a></li><li><a href="#hinoki.pagination.Page">Page</a>
             <ul><li><a href="#hinoki.pagination.Page.items">items</a></li><li><a href="#hinoki.pagination.Page.page">page</a></li><li><a href="#hinoki.pagination.Page.page_size">page_size</a></li><li><a href="#hinoki.pagination.Page.total">total</a></li><li><a href="#hinoki.pagination.Page.pages">pages</a></li><li><a href="#hinoki.pagination.Page.__init__">__init__</a></li><li><a href="#hinoki.pagination.Page.of">of</a></li><li><a href="#hinoki.pagination.Page.map">map</a></li><li><a href="#hinoki.pagination.Page.dump">dump</a></li></ul>
@@ -3718,7 +3821,7 @@ articles: ClassVar[Related[list[Article]]]
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.5</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 08:52:38 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 19:11:19 UTC">November 17, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/orm.md">Edit on GitHub</a></dd></div>
         </dl>
