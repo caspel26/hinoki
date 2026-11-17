@@ -6,15 +6,25 @@ are loaded only on request (``select_related`` joins, ``prefetch_related``
 runs one extra query). SQL is produced by the native compiler from validated
 field names; values are always bound parameters.
 
-The package: ``model`` (``Model``, ``field``, ``foreign_key``), ``queryset``
-(``QuerySet``), ``relations`` (``Related``), ``context`` (the active
-database), ``migrations`` and ``migrator`` (planning and applying SQL).
+The package: ``model`` (``Model``, ``field``, ``pk``, ``foreign_key``),
+``options`` (``table``, ``unique``, ``indexed``, ``ordered_by``,
+``timestamps``), ``queryset`` (``QuerySet``), ``relations`` (``Related``),
+``context`` (the active database), ``migrations`` and ``migrator`` (planning
+and applying SQL).
 Everything most code needs is importable from ``hinoki.orm`` itself.
 """
 
 from hinoki.orm.context import current_database, database_var, use_database
-from hinoki.orm.model import MARK, SNAPSHOT, FieldMeta, Model, field, foreign_key
-from hinoki.orm.options import indexed, ordered_by, timestamps, unique
+from hinoki.orm.model import (
+    MARK,
+    SNAPSHOT,
+    FieldMeta,
+    Model,
+    field,
+    foreign_key,
+    pk,
+)
+from hinoki.orm.options import indexed, ordered_by, table, timestamps, unique
 from hinoki.orm.queryset import (
     IN_CHUNK,
     OPERATORS,
@@ -47,6 +57,8 @@ __all__ = [
     "foreign_key",
     "indexed",
     "ordered_by",
+    "pk",
+    "table",
     "timestamps",
     "unique",
     "use_database",

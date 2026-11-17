@@ -1,16 +1,19 @@
 """Model options as decorators, read like the action decorators.
 
+    @db.table("saved_links")
     @unique("owner_id", "url")
-    @indexed("created_at")
-    @ordered_by("-created_at")
-    class Bookmark(Model, table="saved_links", label="Saved link"):
+    @db.indexed("created_at")
+    @db.ordered_by("-created_at")
+    class Bookmark(Model, label="Saved link"):
         ...
 
-``table`` (and the optional ``label``/``plural``) are class keywords because
-they are needed when the class is created; constraints and behaviour are
-decorators that validate their column names when applied and return the same
-class. Apply them before the model is used: they change what the migration
-planner, the query layer and the admin see.
+The decorators are also importable from ``hinoki.db`` (``db.table``,
+``db.indexed``, ``db.ordered_by``). The table name is derived from the class
+name unless ``@table`` or the ``table=`` class keyword names it; ``label`` and
+``plural`` are class keywords. Constraints and behaviour are decorators that
+validate their column names when applied and return the same class. Apply them
+before the model is used: they change what the migration planner, the query
+layer and the admin see.
 
 A model inherits the options of its abstract bases. A decorator applied to the
 subclass replaces what was inherited for that kind of option; it does not add
@@ -59,13 +62,48 @@ def unique[M: type[Model]](*columns: str) -> Callable[[M], M]:
     return apply
 
 
+def table[M: type[Model]](name: str) -> Callable[[M], M]:
+    """Name the model's table; without it the name is derived from the class
+    name. ``@table("saved_links")`` is the same as ``table="saved_links"`` in
+    the class header; giving both with different names is an error."""
+
+    if type(name) is not str or not name:
+        raise RegistrationError("@table needs a non-empty table name")
+
+    def apply(model: M) -> M:
+        if model.__abstract__:
+            raise RegistrationError(
+                f"{model.__name__}: an abstract model has no table; remove "
+                "@table or abstract=True"
+            )
+        if not model.__table_is_implicit__ and model.__table__ != name:
+            raise RegistrationError(
+                f"{model.__name__}: @table({name!r}) conflicts with table="
+                f"{model.__table__!r}; name the table once"
+            )
+        model.__table__ = name
+        model.__table_is_implicit__ = False
+        return model
+
+    return apply
+
+
 def indexed[M: type[Model]](*columns: str) -> Callable[[M], M]:
     """A (non-unique) index over one or more columns, created by the migration
-    planner."""
+    planner. A single column can use ``field(index=True)`` instead; naming a
+    column both ways creates one index."""
 
     def apply(model: M) -> M:
         known(model, columns, "indexed")
-        current = () if model.replace_inherited("indexes") else model.__indexes__
+        current = model.__indexes__
+        if model.replace_inherited("indexes"):
+            current = model.__field_indexes__
+        if columns in model.__field_indexes__:
+            if columns in model.__decorated_indexes__:
+                raise RegistrationError(f"{model.__name__}: @indexed{columns} twice")
+            model.__decorated_indexes__ = (*model.__decorated_indexes__, columns)
+            model.__indexes__ = current
+            return model  # field(index=True) already declares this index
         if columns in current:
             raise RegistrationError(f"{model.__name__}: @indexed{columns} twice")
         model.__indexes__ = (columns, *current)  # top-to-bottom order
