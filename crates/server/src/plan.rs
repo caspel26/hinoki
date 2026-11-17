@@ -34,9 +34,11 @@ impl CrudPlanSlot {
     }
 }
 
+/// Slots compare by the action they stand for; the armed flag changes at run time
+/// and is not part of a plan's identity.
 impl PartialEq for CrudPlanSlot {
     fn eq(&self, other: &Self) -> bool {
-        self.action == other.action && self.is_armed() == other.is_armed()
+        self.action == other.action
     }
 }
 
