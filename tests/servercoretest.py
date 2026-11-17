@@ -16,6 +16,11 @@ from tests.harness import Client, Pool
 HEX32 = re.compile(r"[0-9a-f]{32}")
 
 
+class EmptyBody:
+    async def read(self, limit: int) -> bytes:
+        return b""
+
+
 class StringSubclass(str):
     pass
 
@@ -344,16 +349,16 @@ def test_startup_probe_obeys_readiness_before_success() -> None:
     assert ready is not None and ready[0] == 200
 
 
-def test_startup_probe_uses_python_when_policies_are_deferred() -> None:
+def test_startup_probe_is_answered_after_native_host_policy() -> None:
     app = Hinoki(
         startup_url="/health",
         settings=AppSettings(allowed_hosts=("example.com",)),
     )
     server = classifier(app)
     submission = server.submit("GET", "/health", b"", [(b"host", b"example.com")])
-    assert submission.early is None
-    [request] = server.drain(1)
-    assert request.action is None
+    assert submission.early is not None
+    assert submission.early[0] == 200
+    assert json.loads(submission.early[2]) == {"status": "ok"}
 
 
 def test_only_the_first_queued_request_asks_for_a_wake() -> None:
@@ -425,20 +430,15 @@ def test_docs_and_openapi_paths_go_to_python() -> None:
     assert [r.action for r in server.drain(10)] == [None, None]
 
 
-def test_configured_policies_send_unrouted_requests_to_python() -> None:
-    server = core.ServerCore(
-        [],
-        early_bodies(),
-        ([], []),
-        b"x-request-id",
-        "0123456789abcdef",
-        defer_policies=True,
-    )
-    server.set_ready(True)
-    assert server.submit("GET", "/anything", b"", []).early is None
-    [request] = server.drain(1)
-    assert request.action is None
-    assert request.needs_headers is True
+def test_native_policies_run_before_unrouted_python_fallback() -> None:
+    app = Hinoki(settings=AppSettings(allowed_hosts=("example.com",)))
+    server = classifier(app)
+    submission = server.submit("GET", "/anything", b"", [(b"host", b"example.com")])
+    assert submission.early is None
+    assert [request.action for request in server.drain(1)] == [None]
+    denied = server.submit("GET", "/anything", b"", [(b"host", b"wrong.example")])
+    assert denied.early is not None
+    assert normalized(*denied.early)[0] == 400
 
 
 def test_a_body_without_one_sentinel_is_refused() -> None:
@@ -471,15 +471,16 @@ def cors_app() -> Hinoki:
         ),
     ],
 )
-def test_deferred_policies_keep_simple_routes_on_the_pipeline(
+def test_native_policies_keep_simple_routes_eligible_for_native_handlers(
     settings: AppSettings,
 ) -> None:
     app = Hinoki(settings=settings)
     app.include(native)
     server = classifier(app)
-    server.submit("GET", "/native", b"", [])
+    headers = [(b"host", b"example.com")]
+    server.submit("GET", "/native", b"", headers, https=True)
     [request] = server.drain(1)
-    assert request.native_handler is False
+    assert request.native_handler is True
 
 
 @pytest.mark.parametrize("origin", [b"https://a.example", b"https://b.example", b""])
@@ -494,6 +495,94 @@ async def test_cors_headers_on_native_answers_match_the_pipeline(
     submission = classifier(app).submit("GET", "/ping", query.encode(), headers)
     assert submission.early is not None
     assert normalized(*submission.early) == expected(reply)
+
+
+async def test_host_cors_and_redirect_policies_match_pipeline_precedence(
+    pool: Pool,
+) -> None:
+    app = Hinoki(
+        settings=AppSettings(
+            allowed_hosts=("example.com",),
+            cors=CorsSettings(origins=("https://a.example",)),
+            security=SecuritySettings(redirect_https=True),
+        )
+    )
+    app.include(native)
+    await pool.start(app)
+    cases = [
+        (
+            "GET",
+            "/native",
+            "",
+            [(b"host", b"wrong.example"), (b"origin", b"https://a.example")],
+            400,
+        ),
+        (
+            "GET",
+            "/native",
+            "",
+            [(b"host", b"\xa0example.com\xa0")],
+            200,
+        ),
+        (
+            "OPTIONS",
+            "/native",
+            "",
+            [
+                (b"host", b"example.com"),
+                (b"origin", b"https://evil.example"),
+                (b"access-control-request-method", b"GET"),
+            ],
+            403,
+        ),
+        (
+            "OPTIONS",
+            "/native",
+            "",
+            [
+                (b"host", b"example.com"),
+                (b"origin", b"https://a.example"),
+                (b"access-control-request-method", b"GET"),
+            ],
+            204,
+        ),
+        (
+            "GET",
+            "/native",
+            "q=hello world",
+            [(b"host", b"example.com"), (b"origin", b"https://a.example")],
+            308,
+        ),
+    ]
+    for method, path, query, headers, status in cases:
+        scope = {
+            "type": "http",
+            "method": method,
+            "path": path,
+            "raw_path": path.encode(),
+            "query_string": query.encode(),
+            "headers": headers,
+            "scheme": "http",
+        }
+        response = await app.asgi().pipeline.handle(scope, EmptyBody(), SENTINEL)
+        submission = classifier(app).submit(
+            method, path, query.encode(), headers, https=False
+        )
+        if status == 200:
+            assert response.status == status
+            assert submission.early is None
+            continue
+        expected_reply = (
+            response.status,
+            [
+                (name.decode(), "<id>" if name == b"x-request-id" else value.decode())
+                for name, value in response.headers
+            ],
+            body_of(response.body, SENTINEL) if response.body else None,
+        )
+        assert submission.early is not None
+        assert response.status == status
+        assert normalized(*submission.early) == expected_reply
 
 
 def test_https_selects_the_https_policy_headers() -> None:
