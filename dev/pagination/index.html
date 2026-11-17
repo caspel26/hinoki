@@ -390,7 +390,7 @@
         <h1 id="pagination">Pagination<a class="headerlink" href="#pagination" title="Permanent link">&para;</a></h1>
 <p>An action opts into page-number pagination with <code>pagination=PageNumberPagination()</code>. A size you leave out comes from the application's <code>pagination</code> settings group; without settings the defaults are <code>page_size=20</code> and <code>max_page_size=100</code>. The framework parses and validates <code>page</code> and <code>page_size</code>, injects a <code>PageParams</code> value, and documents both query parameters in OpenAPI.</p>
 <p>This is the Tracker's authenticated list pattern: it limits each page to the
-caller’s own tasks. Include the route in an app that installs <code>DatabaseModule</code>,
+caller’s own tasks. Include the route in an app whose settings declare a database,
 as the <a href="../tutorial/6-run/">Tracker app factory</a> does.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">tracker.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Member</span><span class="p">,</span> <span class="n">Task</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">tracker.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">TaskOut</span>
@@ -445,7 +445,7 @@ assembly.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.14</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 13:06:27 UTC">November 17, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/pagination.md">Edit on GitHub</a></dd></div>
         </dl>

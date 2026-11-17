@@ -253,13 +253,12 @@
         <p class="kicker" data-search-exclude>2.7 · Tutorial</p>
         <h1 id="6-run-and-test-it">6. Run and test it<a class="headerlink" href="#6-run-and-test-it" title="Permanent link">&para;</a></h1>
 <h2 id="settings-and-serving">Settings and serving<a class="headerlink" href="#settings-and-serving" title="Permanent link">&para;</a></h2>
-<p>The Tracker example's factory assembles the HTTP routes, rules, MCP tool and database module. It uses typed <code>TrackerSettings</code>; local SQLite is the default and <code>TRACKER_DATABASE__URL</code> selects another database.</p>
+<p>The Tracker example's factory assembles the HTTP routes, rules and MCP tool; the <code>database</code> field of its settings opens the database. It uses typed <code>TrackerSettings</code>; local SQLite is the default and <code>TRACKER_DATABASE__URL</code> selects another database.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">tracker</span><span class="w"> </span><span class="kn">import</span> <span class="n">api</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">tracker.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">tracker_rules</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">tracker.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member_only</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">tracker.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrackerSettings</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatabaseModule</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.mcpapp</span><span class="w"> </span><span class="kn">import</span> <span class="n">expose_as_mcp</span>
 
 
@@ -279,12 +278,6 @@
     <span class="n">app</span><span class="o">.</span><span class="n">include</span><span class="p">(</span><span class="n">api</span><span class="o">.</span><span class="n">health</span><span class="p">,</span> <span class="n">api</span><span class="o">.</span><span class="n">tasks</span><span class="p">)</span>
     <span class="n">app</span><span class="o">.</span><span class="n">include</span><span class="p">(</span>
         <span class="o">*</span><span class="n">expose_as_mcp</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">api</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.list_tasks"</span><span class="p">],</span> <span class="n">access</span><span class="o">=</span><span class="n">member_only</span><span class="p">)</span>
-    <span class="p">)</span>
-    <span class="n">app</span><span class="o">.</span><span class="n">install</span><span class="p">(</span>
-        <span class="n">DatabaseModule</span><span class="p">(</span>
-            <span class="n">app_settings</span><span class="o">.</span><span class="n">database</span><span class="o">.</span><span class="n">url</span><span class="o">.</span><span class="n">reveal</span><span class="p">(),</span>
-            <span class="n">max_size</span><span class="o">=</span><span class="n">app_settings</span><span class="o">.</span><span class="n">database</span><span class="o">.</span><span class="n">max_size</span><span class="p">,</span>
-        <span class="p">)</span>
     <span class="p">)</span>
     <span class="k">return</span> <span class="n">app</span>
 </code></pre></div>
@@ -365,7 +358,7 @@ declare. For tests without <code>async</code>, use <code>SyncClient</code>.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.7</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 13:06:27 UTC">November 17, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/6-run.md">Edit on GitHub</a></dd></div>
         </dl>

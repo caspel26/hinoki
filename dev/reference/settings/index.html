@@ -2519,7 +2519,11 @@ together) serve HTTPS on either server; <code>http2</code> adds HTTP/2 to it (AL
 
 
 
-        <p>Local SQLite by default; set <code>url</code> explicitly for a server database.</p>
+        <p>Set either <code>url</code> or <code>engine</code> with its connection fields; with
+neither, the database is local SQLite at <code>.hinoki/local.sqlite3</code>.</p>
+<p><code>name</code> is the database name, or the file path for SQLite. <code>options</code> are
+<code>key=value</code> pairs passed in the URL query, such as <code>sslmode=verify-full</code>.
+With <code>engine</code>, <code>url</code> holds the URL built from the fields.</p>
 
 
 
@@ -2554,10 +2558,169 @@ together) serve HTTPS on either server; <code>http2</code> adds HTTP/2 to it (AL
 
 <a href="#hinoki.settings.DatabaseSettings.url" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">url</span><span class="p">:</span> <span class="n">Secret</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span>
-    <span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">Secret</span><span class="p">(</span>
-        <span class="s2">"sqlite://./.hinoki/local.sqlite3"</span>
-    <span class="p">)</span>
+    <span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">Secret</span><span class="p">(</span><span class="n">LOCAL_DATABASE_URL</span><span class="p">)</span>
 <span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.DatabaseSettings.engine" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">engine</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.DatabaseSettings.engine" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">engine</span><span class="p">:</span> <span class="n">DatabaseEngine</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.DatabaseSettings.name" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">name</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.DatabaseSettings.name" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.DatabaseSettings.user" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">user</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.DatabaseSettings.user" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">user</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.DatabaseSettings.password" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">password</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.DatabaseSettings.password" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">password</span><span class="p">:</span> <span class="n">Secret</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.DatabaseSettings.host" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">host</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.DatabaseSettings.host" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.DatabaseSettings.port" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">port</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.DatabaseSettings.port" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.DatabaseSettings.options" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">options</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.DatabaseSettings.options" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">options</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2588,6 +2751,54 @@ together) serve HTTPS on either server; <code>http2</code> adds HTTP/2 to it (AL
     </div>
 
 </div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.settings.DatabaseEngine" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.settings.DatabaseEngine</span>
+
+
+<a href="#hinoki.settings.DatabaseEngine" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="enum.StrEnum">StrEnum</span></code></p>
+
+
+
+        <p>The backend that <code>DatabaseSettings.engine</code> selects.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
 
 
 
@@ -2639,15 +2850,15 @@ together) serve HTTPS on either server; <code>http2</code> adds HTTP/2 to it (AL
           </li><li><a href="#hinoki.settings.SecuritySettings">SecuritySettings</a>
             <ul><li><a href="#hinoki.settings.SecuritySettings.redirect_https">redirect_https</a></li><li><a href="#hinoki.settings.SecuritySettings.hsts_seconds">hsts_seconds</a></li><li><a href="#hinoki.settings.SecuritySettings.hsts_include_subdomains">hsts_include_subdomains</a></li><li><a href="#hinoki.settings.SecuritySettings.hsts_preload">hsts_preload</a></li><li><a href="#hinoki.settings.SecuritySettings.frame_options">frame_options</a></li><li><a href="#hinoki.settings.SecuritySettings.referrer_policy">referrer_policy</a></li></ul>
           </li><li><a href="#hinoki.settings.FrameOptions">FrameOptions</a></li><li><a href="#hinoki.settings.ReferrerPolicy">ReferrerPolicy</a></li><li><a href="#hinoki.settings.DatabaseSettings">DatabaseSettings</a>
-            <ul><li><a href="#hinoki.settings.DatabaseSettings.url">url</a></li><li><a href="#hinoki.settings.DatabaseSettings.max_size">max_size</a></li></ul>
-          </li></ul>
+            <ul><li><a href="#hinoki.settings.DatabaseSettings.url">url</a></li><li><a href="#hinoki.settings.DatabaseSettings.engine">engine</a></li><li><a href="#hinoki.settings.DatabaseSettings.name">name</a></li><li><a href="#hinoki.settings.DatabaseSettings.user">user</a></li><li><a href="#hinoki.settings.DatabaseSettings.password">password</a></li><li><a href="#hinoki.settings.DatabaseSettings.host">host</a></li><li><a href="#hinoki.settings.DatabaseSettings.port">port</a></li><li><a href="#hinoki.settings.DatabaseSettings.options">options</a></li><li><a href="#hinoki.settings.DatabaseSettings.max_size">max_size</a></li></ul>
+          </li><li><a href="#hinoki.settings.DatabaseEngine">DatabaseEngine</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.9</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 04:15:41 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 13:06:27 UTC">November 17, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/settings.md">Edit on GitHub</a></dd></div>
         </dl>

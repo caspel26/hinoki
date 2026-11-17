@@ -393,42 +393,67 @@ default for local development. The backend is selected by the database URL; an
 application uses the same <code>Model</code> and query APIs across these backends where
 their SQL features overlap.</p>
 <h2 id="configure-the-application">Configure the application<a class="headerlink" href="#configure-the-application" title="Permanent link">&para;</a></h2>
-<p>Declare <code>DatabaseSettings</code> on your app settings and install <code>DatabaseModule</code>.
-The module opens one bounded pool per worker during startup and closes it during
-shutdown. Importing models or routes does not open a connection.</p>
+<p>Declare a <code>database: DatabaseSettings</code> field on your app settings. Hinoki then
+opens one bounded pool per worker during startup and closes it during shutdown;
+importing models or routes does not open a connection, and no <code>modules=</code> entry
+is needed.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">settings</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatabaseModule</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"BLOG_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span>
+    <span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"BLOG_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">,</span> <span class="n">toml</span><span class="o">=</span><span class="s2">"hinoki.toml"</span>
+<span class="p">):</span>
     <span class="n">database</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">DatabaseSettings</span>
 
 
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">BlogSettings</span><span class="p">,</span> <span class="n">modules</span><span class="o">=</span><span class="p">[</span><span class="n">DatabaseModule</span><span class="p">])</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">BlogSettings</span><span class="p">)</span>
 </code></pre></div>
-<p><code>DatabaseSettings.url</code> defaults to <code>sqlite://./.hinoki/local.sqlite3</code>, so no
-database URL is needed for local development. You can override it with an
-environment variable (the URL is a secret setting; avoid committing it):</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># Optional override; SQLite is selected automatically when this is omitted.</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">BLOG_DATABASE__URL</span><span class="o">=</span><span class="s1">'sqlite://./.hinoki/local.sqlite3'</span>
-
-<span class="c1"># PostgreSQL</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">BLOG_DATABASE__URL</span><span class="o">=</span><span class="s1">'postgresql://blog:password@db.example.test/blog'</span>
-
-<span class="c1"># PostgreSQL with TLS (recommended for remote databases)</span>
+<p>With nothing configured, the database is local SQLite at
+<code>.hinoki/local.sqlite3</code>. Configure a server database either with separate
+connection fields or with one URL; setting both is an error when settings load.</p>
+<h3 id="connection-fields">Connection fields<a class="headerlink" href="#connection-fields" title="Permanent link">&para;</a></h3>
+<p><code>engine</code> selects the backend with the <code>settings.DatabaseEngine</code> values
+<code>sqlite</code>, <code>postgresql</code>, <code>mysql</code> and <code>mariadb</code>. <code>name</code> is the database name, or
+the file path for SQLite. <code>options</code> are <code>key=value</code> URL query pairs such as
+PostgreSQL's <code>sslmode</code>. <code>host</code> defaults to <code>localhost</code>; the password is a secret
+setting.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># hinoki.toml, or the file named by the settings class's toml=</span>
+<span class="k">[database]</span>
+<span class="n">engine</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"postgresql"</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"blog"</span>
+<span class="n">user</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"blog"</span>
+<span class="n">host</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"db.example.test"</span>
+<span class="n">port</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">5432</span>
+<span class="n">options</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"sslmode=verify-full"</span><span class="p">,</span><span class="w"> </span><span class="s2">"sslrootcert=/run/secrets/db-ca.pem"</span><span class="p">]</span>
+<span class="n">max_size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">10</span><span class="w">            </span><span class="c1"># per worker; the default is 10</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">BLOG_DATABASE__PASSWORD</span><span class="o">=</span><span class="s1">'…'</span><span class="w">     </span><span class="c1"># or BLOG_DATABASE__PASSWORD_FILE</span>
+</code></pre></div>
+<p>Hinoki builds the connection URL from these fields, percent-encoding the user,
+password and name, and keeps it in <code>DatabaseSettings.url</code>. SQLite takes only
+<code>name</code>.</p>
+<p>For PostgreSQL, <code>host</code> may be a Unix-socket directory such as
+<code>/var/run/postgresql</code>; it is encoded in the generated URL. Other engines require
+a host name or address. Environment values for <code>options</code> use the settings
+sequence syntax, with commas separating <code>key=value</code> pairs. If an option value
+itself contains a comma, put it in the TOML array or percent-encode it in a URL.
+Options cannot specify credentials or override <code>user</code>, <code>host</code>, <code>port</code> or database
+name; use their dedicated fields instead. The password always belongs in the
+secret <code>password</code> setting or in a credential-bearing URL supplied as a secret.</p>
+<h3 id="one-url">One URL<a class="headerlink" href="#one-url" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">BLOG_DATABASE__URL</span><span class="o">=</span><span class="s1">'postgresql://blog:password@db.example.test/blog'</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">BLOG_DATABASE__URL</span><span class="o">=</span><span class="s1">'postgresql://blog:password@db.example.test/blog?sslmode=verify-full&amp;sslrootcert=%2Frun%2Fsecrets%2Fdb-ca.pem'</span>
-
-<span class="c1"># MySQL</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">BLOG_DATABASE__URL</span><span class="o">=</span><span class="s1">'mysql://blog:password@db.example.test/blog'</span>
-
-<span class="c1"># Pool capacity is per worker. Omit this to use the default of 10.</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">BLOG_DATABASE__MAX_SIZE</span><span class="o">=</span><span class="m">10</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">BLOG_DATABASE__URL</span><span class="o">=</span><span class="s1">'sqlite://./.hinoki/local.sqlite3'</span>
 </code></pre></div>
-<p>Use a secret manager or a <code>BLOG_DATABASE__URL_FILE</code> variable for deployment
-credentials. Hinoki redacts the URL in settings output and connection errors.
+<p>A <code>DatabaseModule</code> listed in <code>modules=</code>, or installed with <code>app.install(...)</code>,
+replaces the one Hinoki would create from the settings, for example to pass a
+URL chosen at runtime: <code>DatabaseModule(url, max_size=4)</code>.</p>
+<p>Use a secret manager or a <code>BLOG_DATABASE__URL_FILE</code> / <code>BLOG_DATABASE__PASSWORD_FILE</code>
+variable for deployment credentials. Hinoki redacts the URL in settings output and connection errors.
 Avoid placing a credential-bearing URL in shell history or a process argument.
-Database authentication uses the username and password in the URL; percent-encode
-reserved characters in either component. SQLite files are protected by the
+Database authentication uses the username and password; in a hand-written URL,
+percent-encode reserved characters in either component. SQLite files are protected by the
 operating-system account and filesystem permissions, not by database credentials.</p>
 <p>For non-secret pool settings, TOML works as well. Keep <code>url</code> in an environment
 variable or secret file; <code>settings.Secret</code> values are not read from TOML.</p>
@@ -543,15 +568,17 @@ types, raw SQL placeholders and backend limits.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#configure-the-application">Configure the application</a></li><li><a href="#backend-urls-and-behavior">Backend URLs and behavior</a></li><li><a href="#create-and-apply-migrations">Create and apply migrations</a></li></ul>
+            <ul><li><a href="#configure-the-application">Configure the application</a>
+            <ul><li><a href="#connection-fields">Connection fields</a></li><li><a href="#one-url">One URL</a></li></ul>
+          </li><li><a href="#backend-urls-and-behavior">Backend URLs and behavior</a></li><li><a href="#create-and-apply-migrations">Create and apply migrations</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.2</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:44:19 UTC">November 17, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>5 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 13:06:27 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/databases.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

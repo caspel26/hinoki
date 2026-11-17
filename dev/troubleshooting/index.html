@@ -245,7 +245,7 @@
 <h2 id="settings-report-a-missing-or-unknown-variable">Settings report a missing or unknown variable<a class="headerlink" href="#settings-report-a-missing-or-unknown-variable" title="Permanent link">&para;</a></h2>
 <p>Check the settings class's <code>prefix=</code> and nested field names. Nested groups use <code>__</code>, for example <code>APP_DATABASE__URL</code>. Run <code>hinoki settings module:SettingsClass --example</code> to inspect expected names. settings.Secret values are redacted by design.</p>
 <h2 id="database-connection-fails-at-startup">Database connection fails at startup<a class="headerlink" href="#database-connection-fails-at-startup" title="Permanent link">&para;</a></h2>
-<p>The <code>DatabaseModule</code> opens a pool in each worker's startup. Confirm the selected
+<p>The database module opens a pool in each worker's startup. Confirm the selected
 backend URL, network reachability and database availability from the same
 environment as the worker. Check the backend-specific URL, TLS and migration
 limits in <a href="../databases/">Configure a database</a>. Use one worker and a small pool
@@ -288,7 +288,7 @@ migration state.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>6.5</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 22:26:20 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 13:06:27 UTC">November 17, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/troubleshooting.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -395,22 +395,19 @@
     <span class="n">database</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">DatabaseSettings</span>
 
 
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
-    <span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span>
-    <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">health</span><span class="p">,</span> <span class="n">Tasks</span><span class="p">],</span>
-    <span class="n">modules</span><span class="o">=</span><span class="p">[</span><span class="n">DatabaseModule</span><span class="p">],</span>
-<span class="p">)</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span> <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">health</span><span class="p">,</span> <span class="n">Tasks</span><span class="p">])</span>
 </code></pre></div>
-<p>When a module class is passed, Hinoki constructs it from the settings class. A module instance is useful when setup needs explicit runtime arguments. The database pool is opened after the worker starts and closed during shutdown; importing the model module does not open a connection.</p>
+<p>The settings' <code>database: DatabaseSettings</code> field makes Hinoki install <code>DatabaseModule</code> before any declared module, so a module that <code>requires = (DatabaseModule,)</code> finds it. Declaring <code>DatabaseModule</code> in <code>modules=</code>, or installing an instance, replaces that automatic module. When a module class is passed, Hinoki constructs it from the settings class. A module instance is useful when setup needs explicit runtime arguments. The database pool is opened after the worker starts and closed during shutdown; importing the model module does not open a connection.</p>
 <h2 id="provide-and-retrieve-dependencies">Provide and retrieve dependencies<a class="headerlink" href="#provide-and-retrieve-dependencies" title="Permanent link">&para;</a></h2>
 <p>A module calls <code>ctx.provide(Type, value)</code> during lifespan startup. Other modules can declare dependencies and retrieve the provided value with <code>ctx.get(Type)</code>. Dependencies determine startup and shutdown order. Missing, duplicate or circular providers fail application startup.</p>
+<p>A module instance whose class extends a required module class satisfies that dependency. For example, a custom <code>DatabaseModule</code> subclass can replace the settings-provided database while modules requiring <code>DatabaseModule</code> continue to start after it.</p>
 <p>Module lifespan hooks are async. Keep startup bounded, fail fast when a required service is unavailable, and close each owned resource in <code>finally</code>.</p>
 <h2 id="startup-and-shutdown-hooks">Startup and shutdown hooks<a class="headerlink" href="#startup-and-shutdown-hooks" title="Permanent link">&para;</a></h2>
 <p>For an action at the edge of a worker's life that owns no resource, such as warming a cache, logging the build or flushing a counter, list functions on the application instead of writing a module:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">ModuleContext</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">Database</span><span class="p">,</span> <span class="n">DatabaseModule</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">Database</span>
 
 <span class="n">log</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">"app"</span><span class="p">)</span>
 
@@ -426,7 +423,6 @@
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
     <span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span>
     <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">health</span><span class="p">,</span> <span class="n">Tasks</span><span class="p">],</span>
-    <span class="n">modules</span><span class="o">=</span><span class="p">[</span><span class="n">DatabaseModule</span><span class="p">],</span>
     <span class="n">on_startup</span><span class="o">=</span><span class="p">[</span><span class="n">warm_cache</span><span class="p">],</span>
     <span class="n">on_shutdown</span><span class="o">=</span><span class="p">[</span><span class="n">say_goodbye</span><span class="p">],</span>
 <span class="p">)</span>
@@ -494,8 +490,8 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.18</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 13:06:27 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/modules.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
