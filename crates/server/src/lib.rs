@@ -28,6 +28,8 @@ pub mod streams;
 pub mod tls;
 
 #[cfg(test)]
+mod plan_slot_tests;
+#[cfg(test)]
 mod policy_tests;
 
 pub use accept::{serve, Closed, ServerConfig, Stop};
@@ -35,6 +37,6 @@ pub use body::{BodyError, BodyReader};
 pub use conn::{Answer, Backend, Incoming};
 pub use early::{Early, EarlyBodies};
 pub use limits::Limits;
-pub use plan::{Plan, PlanError, RoutePlan};
+pub use plan::{CrudPlanSlot, Plan, PlanError, RoutePlan};
 pub use proxy::Networks;
 pub use queue::{InFlight, Permit, Queue};

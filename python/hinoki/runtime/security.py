@@ -47,27 +47,34 @@ def https_redirect(
     ):
         return None
     host = request_headers.get("host", "")
-    # HostPolicy has already validated this value. Refuse malformed scope values
+    path = redirect_path(scope)
+    # HostPolicy has already validated the host. Refuse malformed scope values
     # too, rather than putting untrusted bytes in a Location response header.
-    try:
-        host_bytes = host.encode("ascii")
-    except UnicodeEncodeError:
+    # A target that is not a path (`OPTIONS *`) names nothing to redirect to.
+    if not header_safe(host) or not path.startswith(b"/"):
         return None
-    if not host_bytes or any(
-        byte <= ASCII_SPACE or byte >= ASCII_DELETE for byte in host_bytes
-    ):
-        return None
+    host_bytes = host.encode("ascii")
     if host.endswith(":80"):
         host_bytes = host_bytes[:-3]
+    query = quote_from_bytes(
+        scope.get("query_string", b""), safe="!$&'()*+,-./:;=?@_%~"
+    ).encode("ascii")
+    target = b"https://" + host_bytes + path
+    if query:
+        target += b"?" + query
+    return Response(308, b"", [(b"location", target)])
+
+
+def header_safe(host: str) -> bool:
+    """A non-empty value of visible ASCII characters only."""
+    return bool(host) and all(ASCII_SPACE < ord(char) < ASCII_DELETE for char in host)
+
+
+def redirect_path(scope: Scope) -> bytes:
+    """The quoted raw request path (``/`` when empty)."""
     raw_path = scope.get("raw_path")
     if raw_path is None:
         path = quote(scope.get("path", "/"), safe="/%:@!$&'()*+,;=-._~").encode("ascii")
     else:
         path = quote_from_bytes(raw_path, safe="/%:@!$&'()*+,;=-._~").encode("ascii")
-    query = quote_from_bytes(
-        scope.get("query_string", b""), safe="!$&'()*+,-./:;=?@_%~"
-    ).encode("ascii")
-    target = b"https://" + host_bytes + (path or b"/")
-    if query:
-        target += b"?" + query
-    return Response(308, b"", [(b"location", target)])
+    return path or b"/"

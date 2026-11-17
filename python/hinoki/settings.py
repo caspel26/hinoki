@@ -1190,7 +1190,7 @@ def is_host_pattern(entry: str) -> bool:
             ipaddress.IPv6Address(entry)
         except ValueError:
             return False
-        return True
+        return entry.isascii()  # a zone ID may be any text; entries are ASCII
     return HOST_PATTERN.fullmatch(entry) is not None
 
 
@@ -1245,7 +1245,8 @@ class AppSettings(Settings):
         if not all(is_host_pattern(entry) for entry in self.allowed_hosts):
             raise ValueError(
                 "allowed_hosts entries are host names, '.domain' or '*' "
-                "(no scheme, port or path)"
+                "(no scheme, port or path; an international name in its ASCII "
+                "IDNA form)"
             )
         try:
             ZoneInfo(self.timezone)

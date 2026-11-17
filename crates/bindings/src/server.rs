@@ -9,6 +9,7 @@
 //! object; `rustserver.rs` drives `Core::classify` from the connection layer, and
 //! the tests call `submit` the same way without a socket.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -30,12 +31,15 @@ use pyo3::types::{PyBytes, PyDict, PyList};
 use tokio::sync::oneshot;
 
 use crate::completion;
+use crate::crudplan::{CrudPlan, PyCrudPlan};
 use crate::request;
 use crate::router::{Match, Router};
 use hinoki_server::redirect;
 
 // `args[0]` is `too_large`, `disconnected` or `timeout`.
 pyo3::create_exception!(core, BodyReadError, PyException);
+
+const ALLOW_ORIGIN: &[u8] = b"access-control-allow-origin";
 
 pub type Reply = Answer;
 type NativeArgs = Vec<(String, String)>;
@@ -82,6 +86,9 @@ pub struct PreparedRequest {
     native_args: NativeArgs,
     native_error: Option<NativeInputError>,
     native_policy: Vec<Header>,
+    /// The CORS headers for the request's `Origin`, added to a native handler's
+    /// answer unless it sets its own `access-control-allow-origin`.
+    native_cors: Vec<Header>,
     request_id_name: Vec<u8>,
     needs_headers: bool,
     params: Vec<(String, String)>,
@@ -275,18 +282,25 @@ impl PreparedRequest {
     }
 
     /// Finalize an automatically eligible handler response with the route's
-    /// native policy and request-id headers. HEAD retains GET's content length.
+    /// native policy, request-id and CORS headers, as `Pipeline.with_headers`
+    /// does. HEAD retains GET's content length.
     fn respond_final(&self, status: u16, headers: Vec<(Vec<u8>, Vec<u8>)>, body: &[u8]) -> bool {
         if !self.native_handler {
             return false;
         }
         let own = headers;
+        // An answer that sets its own CORS headers keeps them.
+        let sets_origin = own
+            .iter()
+            .chain(&self.native_policy)
+            .any(|(name, _)| name.eq_ignore_ascii_case(ALLOW_ORIGIN));
+        let cors: &[Header] = if sets_origin { &[] } else { &self.native_cors };
         let mut final_headers = final_headers(
             &own,
             &self.native_policy,
             &[],
             (&self.request_id_name, self.request_id.as_bytes()),
-            &[],
+            cors,
             status,
             body.len(),
         );
@@ -399,6 +413,7 @@ type RouteSpec = (
     bool,                                // transaction
     bool,                                // takes request
     (bool, Vec<(String, String, bool)>), // native handler and source/name/default
+    Option<Py<PyCrudPlan>>,              // dark generated CRUD plan
 );
 
 #[derive(Clone)]
@@ -445,12 +460,8 @@ fn prepare_native_inputs(
         Ok(path) => path,
         Err(error) => return NativeInput::failed(error),
     };
-    let joined = request::join_headers(headers);
-    let accept = joined
-        .iter()
-        .find(|(name, _)| name == "accept")
-        .map_or("", |(_, value)| value.as_str());
-    if request::negotiate(accept, &plan.media_types).is_none() {
+    let accept = joined_value(headers, b"accept").map_or_else(String::new, |v| latin1(&v));
+    if request::negotiate(&accept, &plan.media_types).is_none() {
         let mut error = native_error("not_acceptable", "not acceptable");
         error.available = Some(plan.media_types.join(", "));
         return NativeInput::failed(error);
@@ -596,6 +607,11 @@ enum Resolved {
 pub struct Core {
     router: Router,
     plan: Plan,
+    #[allow(
+        dead_code,
+        reason = "consumed by native CRUD execution in the next phase"
+    )]
+    crud_plans: HashMap<u32, Arc<CrudPlan>>,
     limits: Limits,
     bodies: EarlyBodies,
     queue: Queue<PreparedRequest>,
@@ -646,6 +662,7 @@ impl ServerCore {
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
+        py: Python<'_>,
         routes: Vec<RouteSpec>,
         early_bodies: Vec<(String, Vec<u8>)>,
         policies: (Vec<Header>, Vec<Header>),
@@ -682,7 +699,7 @@ impl ServerCore {
             }
         };
         let proxies = Networks::parse(&trusted_proxies).map_err(PyValueError::new_err)?;
-        let (router, plan) = build_routes(routes)?;
+        let (router, plan, crud_plans) = build_routes(py, routes)?;
         let rendered = early_bodies
             .into_iter()
             .map(|(kind, body)| kind_of(&kind).map(|k| (k, body)))
@@ -695,6 +712,7 @@ impl ServerCore {
             core: Arc::new(Core {
                 router,
                 plan,
+                crud_plans,
                 limits: Limits {
                     max_query_bytes,
                     max_header_bytes,
@@ -847,9 +865,13 @@ pub enum Outcome {
     },
 }
 
-fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
+fn build_routes(
+    py: Python<'_>,
+    routes: Vec<RouteSpec>,
+) -> PyResult<(Router, Plan, HashMap<u32, Arc<CrudPlan>>)> {
     let mut router = Router::new();
     let mut planned = Vec::with_capacity(routes.len());
+    let mut crud_plans = HashMap::new();
     for (
         action,
         method,
@@ -862,6 +884,7 @@ fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
         transaction,
         takes_request,
         (native_handler, input_params),
+        py_crud_plan,
     ) in routes
     {
         let path_params = Router::parameter_names(&template)
@@ -869,6 +892,10 @@ fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
         router
             .add(&method, &template, action)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let crud_plan = py_crud_plan.map(|plan| Arc::clone(&plan.borrow(py).inner));
+        if let Some(plan) = &crud_plan {
+            crud_plans.insert(action, Arc::clone(plan));
+        }
         planned.push(RoutePlan {
             action,
             method,
@@ -882,10 +909,11 @@ fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
             transaction,
             takes_request,
             native_handler,
+            crud_plan: crud_plan.map(|_| Arc::new(hinoki_server::CrudPlanSlot::new(action))),
         });
     }
     let plan = Plan::new(planned).map_err(|e| PyValueError::new_err(format!("{e:?}")))?;
-    Ok((router, plan))
+    Ok((router, plan, crud_plans))
 }
 
 impl Core {
@@ -970,57 +998,63 @@ impl Core {
     }
 
     fn policy_response(&self, head: &Head<'_>, asked: &Asked) -> Result<Option<Outcome>, String> {
-        let joined = request::join_headers(&head.headers);
-        let origin = header_value(&joined, "origin");
-        let host = header_value(&joined, "host");
-        let host_bytes = host.as_deref().unwrap_or_default().as_bytes();
+        if !self.has_policies() {
+            return Ok(None);
+        }
+        // `Hosts` reads the header as the Latin-1 text `join_headers` makes.
+        let host = joined_value(&head.headers, b"host").map(latin1_bytes);
+        let host_bytes = host.as_deref().unwrap_or_default();
         if self
             .hosts
             .as_ref()
             .is_some_and(|policy| !policy.allows(host_bytes))
         {
-            return Ok(Some(self.answer(
-                asked,
-                Early::DisallowedHost,
-                Vec::new(),
-            )?));
+            return self
+                .answer(asked, Early::DisallowedHost, Vec::new())
+                .map(Some);
         }
-        if let Some(cors) = self.cors.as_ref() {
-            match cors.preflight(
-                head.method,
-                origin.as_deref().map(str::as_bytes),
-                has_header(&joined, "access-control-request-method"),
-            ) {
-                Ok(Some(own)) => {
-                    return Ok(Some(Outcome::Early(self.policy_reply(
-                        asked,
-                        204,
-                        own,
-                        Vec::new(),
-                    )?)))
-                }
-                Err(PreflightError::OriginDenied) => {
-                    return Ok(Some(self.answer(
-                        asked,
-                        Early::CorsOriginDenied,
-                        Vec::new(),
-                    )?));
-                }
-                Ok(None) => {}
-            }
+        if let Some(outcome) = self.preflight_response(head, asked)? {
+            return Ok(Some(outcome));
         }
-        if self.redirect_https && !asked.https {
-            if let Some(location) = redirect::location(host_bytes, head.path.as_bytes(), head.query)
-            {
-                return Ok(Some(Outcome::Early(self.policy_reply(
-                    asked,
-                    308,
-                    vec![(b"location".to_vec(), location)],
-                    Vec::new(),
-                )?)));
-            }
+        if !self.redirect_https || asked.https {
+            return Ok(None);
         }
-        Ok(None)
+        let Some(location) = redirect::location(host_bytes, head.path.as_bytes(), head.query)
+        else {
+            return Ok(None);
+        };
+        self.policy_reply(
+            asked,
+            308,
+            vec![(b"location".to_vec(), location)],
+            Vec::new(),
+        )
+        .map(|reply| Some(Outcome::Early(reply)))
+    }
+
+    /// The answer to a CORS preflight, or its refusal; `None` for any other request.
+    fn preflight_response(
+        &self,
+        head: &Head<'_>,
+        asked: &Asked,
+    ) -> Result<Option<Outcome>, String> {
+        let Some(cors) = self.cors.as_ref() else {
+            return Ok(None);
+        };
+        let origin = joined_value(&head.headers, b"origin");
+        let requests_method = head
+            .headers
+            .iter()
+            .any(|(name, _)| name.eq_ignore_ascii_case(b"access-control-request-method"));
+        match cors.preflight(head.method, origin.as_deref(), requests_method) {
+            Ok(Some(own)) => self
+                .policy_reply(asked, 204, own, Vec::new())
+                .map(|reply| Some(Outcome::Early(reply))),
+            Ok(None) => Ok(None),
+            Err(PreflightError::OriginDenied) => self
+                .answer(asked, Early::CorsOriginDenied, Vec::new())
+                .map(Some),
+        }
     }
 
     fn has_policies(&self) -> bool {
@@ -1099,10 +1133,15 @@ impl Core {
             return self.answer(&asked, Early::Overloaded, Vec::new());
         };
         let (sender, receiver) = oneshot::channel();
-        let native_policy = if native_input.enabled {
-            self.policies[usize::from(asked.https)].clone()
+        let (native_policy, native_cors) = if native_input.enabled {
+            let cors = self
+                .cors
+                .as_ref()
+                .map(|policy| policy.headers(&asked.origin))
+                .unwrap_or_default();
+            (self.policies[usize::from(asked.https)].clone(), cors)
         } else {
-            Vec::new()
+            (Vec::new(), Vec::new())
         };
         let request = PreparedRequest {
             method: head.method.to_owned(),
@@ -1116,6 +1155,7 @@ impl Core {
             native_args: native_input.args,
             native_error: native_input.error,
             native_policy,
+            native_cors,
             request_id_name: self.id_name.clone(),
             needs_headers,
             params,
@@ -1302,15 +1342,39 @@ fn origin_of(headers: &[Header]) -> Vec<u8> {
     found.join(&b", "[..])
 }
 
-fn header_value(headers: &[(String, String)], name: &str) -> Option<String> {
-    headers
-        .iter()
-        .find(|(header, _)| header == name)
-        .map(|(_, value)| value.clone())
+/// One request header as `request::join_headers` reads it: the name compared
+/// without case, repeated fields joined with ", ". Borrowed unless it repeats.
+fn joined_value<'a>(headers: &'a [Header], name: &[u8]) -> Option<Cow<'a, [u8]>> {
+    let mut found: Option<Cow<'a, [u8]>> = None;
+    for (header, value) in headers {
+        if !header.eq_ignore_ascii_case(name) {
+            continue;
+        }
+        found = Some(match found {
+            None => Cow::Borrowed(value.as_slice()),
+            Some(seen) => {
+                let mut joined = seen.into_owned();
+                joined.extend_from_slice(b", ");
+                joined.extend_from_slice(value);
+                Cow::Owned(joined)
+            }
+        });
+    }
+    found
 }
 
-fn has_header(headers: &[(String, String)], name: &str) -> bool {
-    headers.iter().any(|(header, _)| header == name)
+/// Latin-1 header bytes as text, as in ASGI.
+fn latin1(bytes: &[u8]) -> String {
+    bytes.iter().map(|&byte| char::from(byte)).collect()
+}
+
+/// The UTF-8 bytes of that text; plain ASCII is returned as it came.
+fn latin1_bytes(bytes: Cow<'_, [u8]>) -> Cow<'_, [u8]> {
+    if bytes.is_ascii() {
+        bytes
+    } else {
+        Cow::Owned(latin1(&bytes).into_bytes())
+    }
 }
 
 fn percent_decode(path: &str) -> Vec<u8> {

@@ -4,6 +4,7 @@
 //! decoding / JSON (see `request.rs`).
 
 mod completion;
+mod crudplan;
 mod crypto;
 mod db;
 mod jwt;
@@ -82,6 +83,7 @@ impl PyRouter {
 fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(core_version, m)?)?;
     m.add_class::<PyRouter>()?;
+    m.add_class::<crudplan::PyCrudPlan>()?;
     db::register(m)?;
     server::register(m)?;
     rustserver::register(m)?;
@@ -105,6 +107,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(schema::serialize_instance, m)?)?;
     m.add_class::<schema::ModelPlan>()?;
     m.add_class::<rows::PyRowPlan>()?;
+    m.add_class::<crudplan::PyCrudPlan>()?;
     m.add_function(wrap_pyfunction!(jwt::jwt_encode, m)?)?;
     m.add_function(wrap_pyfunction!(jwt::jwt_decode, m)?)?;
     m.add_class::<jwt::PyJWTVerifier>()?;
