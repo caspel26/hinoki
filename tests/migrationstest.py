@@ -850,3 +850,46 @@ async def test_a_failing_migration_rolls_back_and_is_not_recorded(
         {"t": None}
     ]
     assert await migrator.status(db, tmp_path) == [("0001-broken", "pending")]
+
+
+def test_makemigrations_and_migrate_are_short_forms_of_plan_and_apply(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    package = tmp_path / "shortcutapp"
+    (package / "migrations").mkdir(parents=True)
+    (package / "__init__.py").write_text("")
+    (package / "migrations" / "__init__.py").write_text("")
+    (package / "models.py").write_text(
+        "from hinoki.orm import Model, field\n\n\n"
+        "class Note(Model, table='shortcut_notes'):\n"
+        "    id: int = field(primary_key=True, default=0)\n"
+        "    title: str = ''\n"
+    )
+    (tmp_path / "hinoki.toml").write_text(
+        '[project]\napplication = "shortcutapp.main:app"\n\n'
+        '[[apps]]\nname = "shortcutapp"\nmodels = "shortcutapp.models"\n'
+        'migrations = "shortcutapp.migrations"\nrequires = []\n'
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    assert main(["makemigrations", "--check"]) == 1
+    assert not list((package / "migrations").glob("*.sql"))
+    assert main(["makemigrations", "--dry-run"]) == 0
+    assert not list((package / "migrations").glob("*.sql"))
+    assert main(["makemigrations", "shortcutapp", "--name", "initial"]) == 0
+    assert [path.name for path in (package / "migrations").glob("*.sql")] == [
+        "0001-initial.sql"
+    ]
+    assert main(["makemigrations", "--check"]) == 0
+    capsys.readouterr()
+
+    assert main(["migrate"]) == 0
+    assert "0001-initial" in capsys.readouterr().out
+    assert (tmp_path / ".hinoki" / "local.sqlite3").is_file()
+    assert main(["migrate", "shortcutapp"]) == 0
+    assert "nothing to apply" in capsys.readouterr().out
+    assert main(["makemigrations", "missing"]) == 1
+    assert main(["makemigrations", "--check", "--dry-run"]) == 2
