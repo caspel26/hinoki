@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use deadpool_postgres::{Config, Object, PoolConfig, Runtime, SslMode, Timeouts};
-use tokio_postgres::types::{ToSql, Type};
+use tokio_postgres::types::{FromSql, ToSql, Type};
 use tokio_postgres::NoTls;
 use tokio_postgres_rustls::MakeRustlsConnect;
 
@@ -72,7 +72,7 @@ fn decode_cell(row: &tokio_postgres::Row, i: usize, ty: &Type) -> Result<Value, 
         Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::NAME => cell!(String, Value::Text),
         Type::BYTEA => cell!(Vec<u8>, Value::Bytes),
         Type::UUID => cell!(uuid::Uuid, Value::Uuid),
-        Type::TIMESTAMPTZ => cell!(chrono::DateTime<chrono::Utc>, Value::Timestamp),
+        Type::TIMESTAMPTZ => cell!(PgTimestamp, |v: PgTimestamp| Value::timestamp(v.0)),
         Type::JSON | Type::JSONB => cell!(serde_json::Value, Value::Json),
         _ => {
             return Err(DbError::new(
@@ -200,6 +200,27 @@ async fn execute_with_recovery(conn: &Object, sql: &str, values: &[Value]) -> Re
             run_execute(conn, sql, values).await
         }
         other => other,
+    }
+}
+
+/// A finite `timestamptz`. PostgreSQL sends `infinity`/`-infinity` as the i64
+/// extremes; they are refused instead of decoding to far-future instants.
+struct PgTimestamp(time::OffsetDateTime);
+
+impl<'a> FromSql<'a> for PgTimestamp {
+    fn from_sql(
+        ty: &Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let micros = i64::from_sql(&Type::INT8, raw)?;
+        if micros == i64::MAX || micros == i64::MIN {
+            return Err("infinite timestamps are not supported".into());
+        }
+        time::OffsetDateTime::from_sql(ty, raw).map(Self)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        *ty == Type::TIMESTAMPTZ
     }
 }
 

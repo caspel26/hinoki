@@ -3,7 +3,8 @@
 use std::error::Error;
 
 use bytes::BytesMut;
-use chrono::{DateTime, Utc};
+use time::format_description::well_known::Rfc3339;
+use time::{OffsetDateTime, UtcOffset};
 use tokio_postgres::types::{to_sql_checked, IsNull, Json, ToSql, Type};
 use uuid::Uuid;
 
@@ -18,11 +19,17 @@ pub enum Value {
     Text(String),
     Bytes(Vec<u8>),
     Uuid(Uuid),
-    Timestamp(DateTime<Utc>),
+    /// Always normalized to UTC.
+    Timestamp(OffsetDateTime),
     Json(serde_json::Value),
 }
 
 impl Value {
+    /// A UTC timestamp value for any instant.
+    pub fn timestamp(value: OffsetDateTime) -> Self {
+        Self::Timestamp(value.to_offset(UtcOffset::UTC))
+    }
+
     fn kind(&self) -> &'static str {
         match self {
             Self::Null => "null",
@@ -85,3 +92,51 @@ impl ToSql for Value {
 
     to_sql_checked!();
 }
+
+/// Parse RFC 3339 text (any offset) into a UTC instant.
+pub fn parse_timestamp(text: &str) -> Option<OffsetDateTime> {
+    OffsetDateTime::parse(text, &Rfc3339)
+        .ok()
+        .map(|value| value.to_offset(UtcOffset::UTC))
+}
+
+/// ISO 8601 text with microseconds when nonzero and a `+00:00` offset, the
+/// form Python's `datetime.fromisoformat` and Hinoki's JSON output use.
+pub fn timestamp_iso(value: &OffsetDateTime) -> String {
+    let value = value.to_offset(UtcOffset::UTC);
+    let mut text = format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}",
+        value.year(),
+        u8::from(value.month()),
+        value.day(),
+        value.hour(),
+        value.minute(),
+        value.second()
+    );
+    let micros = value.microsecond();
+    if micros != 0 {
+        text.push_str(&format!(".{micros:06}"));
+    }
+    text.push_str("+00:00");
+    text
+}
+
+/// The fixed RFC 3339 text Hinoki stores in SQLite: six fractional digits, `Z`.
+/// RFC 3339 has four-digit years only, so other years have no text form.
+pub fn timestamp_storage_text(value: &OffsetDateTime) -> Option<String> {
+    let value = value.to_offset(UtcOffset::UTC);
+    if !(0..=9999).contains(&value.year()) {
+        return None;
+    }
+    Some(format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:06}Z",
+        value.year(),
+        u8::from(value.month()),
+        value.day(),
+        value.hour(),
+        value.minute(),
+        value.second(),
+        value.microsecond()
+    ))
+}
+
