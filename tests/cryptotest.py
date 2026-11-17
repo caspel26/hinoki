@@ -7,6 +7,7 @@ argon2-cffi (reference C implementation) and an Ed25519 token signed by the
 
 import asyncio
 import base64
+import dataclasses
 import hashlib
 import hmac
 import json
@@ -77,6 +78,17 @@ class Tokens(JWTAuth[str]):
         return Caller(id=subject, user=subject, permissions=scopes)
 
 
+@dataclasses.dataclass(frozen=True, slots=True)
+class AppendingJWTKey(JWTKey):
+    keys: list[JWTKey] = dataclasses.field(repr=False, compare=False, kw_only=True)
+    appended_key: JWTKey = dataclasses.field(repr=False, compare=False, kw_only=True)
+
+    def spec(self) -> tuple[str | None, str, bytes, bool]:
+        if self.appended_key not in self.keys:
+            self.keys.append(self.appended_key)
+        return JWTKey.spec(self)
+
+
 GOOD = {
     "sub": "ann",
     "exp": 2000,
@@ -88,6 +100,20 @@ GOOD = {
 
 async def verdict(token: str, auth: Tokens | None = None) -> bool:
     return await (auth or Tokens()).resolve_token(token) is not None
+
+
+async def test_jwt_key_spec_list_mutation_keeps_python_iteration_semantics() -> None:
+    new_key = JWTKey("new", "HS256", b"n" * 40)
+    keys: list[JWTKey] = []
+    keys.append(
+        AppendingJWTKey("old", "HS256", b"o" * 40, keys=keys, appended_key=new_key)
+    )
+    auth = Tokens()
+    object.__setattr__(auth, "keys", keys)
+    token = oracle_hs256(GOOD, b"n" * 40, kid="new")
+
+    assert await auth.resolve_token(token) is not None
+    assert keys == [keys[0], new_key]
 
 
 # --- passwords ------------------------------------------------------------
@@ -390,3 +416,24 @@ async def test_a_token_is_refused_exactly_at_its_expiry_second() -> None:
     assert await verdict(token, auth)
     auth.clock = 1_000
     assert not await verdict(token, auth)
+
+
+def test_private_jwt_verifier_binding_reuses_keys_with_current_rules() -> None:
+    specs: list[tuple[str | None, str, bytes, bool]] = [("k1", "HS256", SECRET, False)]
+    token = oracle_hs256({**GOOD, "exp": 1_000}, kid="k1")
+    verifier = core._JWTVerifier(specs)
+    valid_rules = (999, 0, "https://api.test", "blog", True)
+    assert verifier.verify(token, valid_rules) == core.jwt_decode(
+        token, specs, valid_rules
+    )
+
+    expired_rules = (1_000, 0, "https://api.test", "blog", True)
+    with pytest.raises(ValueError, match="expired") as expected:
+        core.jwt_decode(token, specs, expired_rules)
+    with pytest.raises(ValueError, match="expired") as actual:
+        verifier.verify(token, expired_rules)
+    assert str(actual.value) == str(expected.value)
+    assert not hasattr(verifier, "__dict__")
+    attribute = "keys"
+    with pytest.raises(AttributeError):
+        setattr(verifier, attribute, specs)

@@ -389,6 +389,63 @@ pub fn jwt_encode(claims: &[u8], key: KeySpec) -> PyResult<String> {
 /// Rules are `(now, leeway, issuer, audience, require_exp)`.
 type RuleSpec = (i64, i64, Option<String>, Option<String>, bool);
 
+/// Parsed immutable verifier configuration. Requests can retain a cloned
+/// Python handle while another request replaces the provider's cached handle.
+struct Verifier {
+    keys: Vec<Key>,
+}
+
+impl Verifier {
+    fn from_specs(keys: Vec<KeySpec>) -> PyResult<Self> {
+        let mut built = Vec::with_capacity(keys.len());
+        for (kid, algorithm, bytes, public) in keys {
+            built.push(key_from(kid, &algorithm, bytes, public)?);
+        }
+        Ok(Self { keys: built })
+    }
+
+    fn verify(&self, token: &str, rules: RuleSpec) -> Result<Vec<u8>, Fail> {
+        let (now, leeway, issuer, audience, require_exp) = rules;
+        let rules = Rules {
+            now,
+            leeway,
+            issuer: issuer.as_deref(),
+            audience: audience.as_deref(),
+            require_exp,
+        };
+        decode(token, &self.keys, &rules)
+    }
+}
+
+/// Private immutable native verifier; Python owns a short-lived reference.
+#[pyclass(name = "_JWTVerifier", module = "hinoki.core")]
+pub(super) struct PyJWTVerifier {
+    inner: Verifier,
+}
+
+#[pymethods]
+impl PyJWTVerifier {
+    #[new]
+    fn new(keys: Vec<KeySpec>) -> PyResult<Self> {
+        Ok(Self {
+            inner: Verifier::from_specs(keys)?,
+        })
+    }
+
+    fn verify(
+        &self,
+        py: Python<'_>,
+        token: &str,
+        rules: RuleSpec,
+    ) -> PyResult<Py<pyo3::types::PyBytes>> {
+        let payload = self
+            .inner
+            .verify(token, rules)
+            .map_err(|failure| PyValueError::new_err(failure.reason()))?;
+        Ok(pyo3::types::PyBytes::new(py, &payload).unbind())
+    }
+}
+
 #[pyfunction]
 pub fn jwt_decode(
     py: Python<'_>,
@@ -396,19 +453,10 @@ pub fn jwt_decode(
     keys: Vec<KeySpec>,
     rules: RuleSpec,
 ) -> PyResult<Py<pyo3::types::PyBytes>> {
-    let mut built = Vec::with_capacity(keys.len());
-    for (kid, algorithm, bytes, public) in keys {
-        built.push(key_from(kid, &algorithm, bytes, public)?);
-    }
-    let (now, leeway, issuer, audience, require_exp) = rules;
-    let rules = Rules {
-        now,
-        leeway,
-        issuer: issuer.as_deref(),
-        audience: audience.as_deref(),
-        require_exp,
-    };
-    let payload = decode(token, &built, &rules).map_err(|f| PyValueError::new_err(f.reason()))?;
+    let verifier = Verifier::from_specs(keys)?;
+    let payload = verifier
+        .verify(token, rules)
+        .map_err(|failure| PyValueError::new_err(failure.reason()))?;
     Ok(pyo3::types::PyBytes::new(py, &payload).unbind())
 }
 
@@ -617,5 +665,35 @@ mod tests {
             ),
             Err(Fail::Key)
         );
+    }
+
+    #[test]
+    fn immutable_verifier_matches_fresh_decode_for_every_algorithm() {
+        let algorithms = [
+            ("HS256", vec![1; 32]),
+            ("HS384", vec![2; 48]),
+            ("HS512", vec![3; 64]),
+            ("EdDSA", vec![4; 32]),
+        ];
+        for (algorithm, bytes) in algorithms {
+            let key = key_from(None, algorithm, bytes.clone(), false).unwrap();
+            let token = encode(br#"{"sub":"rust","exp":2000}"#, &key).unwrap();
+            let verifier =
+                Verifier::from_specs(vec![(None, algorithm.to_owned(), bytes, false)]).unwrap();
+            let policy = rules(1000);
+            let expected = decode(&token, &verifier.keys, &policy);
+            assert_eq!(
+                verifier.verify(&token, (1000, 0, None, None, true)),
+                expected
+            );
+
+            let mut invalid = token;
+            invalid.pop();
+            invalid.push('x');
+            assert_eq!(
+                verifier.verify(&invalid, (1000, 0, None, None, true)),
+                decode(&invalid, &verifier.keys, &policy)
+            );
+        }
     }
 }
