@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import inspect
 import json
 import os
@@ -36,6 +37,7 @@ from hinoki.reply import Reply
 from hinoki.request import Request
 from hinoki.runtime import rustserver
 from hinoki.runtime.rustserver import RustWorker
+from hinoki.runtime.servercore import build_server_core
 from hinoki.settings import AppSettings, CorsSettings, FrameOptions, SecuritySettings
 from tests.harness import Client
 from tests.providers import TokenAuth
@@ -58,6 +60,7 @@ class Probe:
 
 
 PROBE = Probe()
+DEFAULT_VIEW = "".join(("sum", "mary"))
 
 
 @pytest.fixture(autouse=True)
@@ -106,6 +109,41 @@ async def native_echo(item_id: str, term: str) -> dict[str, str]:
 def native_sync_echo(item_id: str, term: str) -> dict[str, str]:
     PROBE.native_input_calls += 1
     return {"item_id": item_id, "term": term}
+
+
+async def observe_default_kwargs_impl(
+    handler: Any, **kwargs: object
+) -> dict[str, object]:
+    """Expose the exact keyword order and default object seen by a wrapper."""
+    del handler
+    return {
+        "keys": list(kwargs),
+        "same_default": kwargs["view"] is DEFAULT_VIEW,
+        "term": kwargs["term"],
+        "view": kwargs["view"],
+    }
+
+
+def observe_default_kwargs(handler: Any) -> Any:
+    """A top-level async partial that retains the wrapped route signature."""
+    wrapper: Any = functools.partial(observe_default_kwargs_impl, handler)
+    wrapper.__signature__ = inspect.signature(handler)
+    wrapper.__annotations__ = handler.__annotations__
+    wrapper.__wrapped__ = handler
+    wrapper.__name__ = handler.__name__
+    wrapper.__qualname__ = handler.__qualname__
+    return wrapper
+
+
+@http.get("/native/default-query")
+@observe_default_kwargs
+async def native_default_query(view: str = DEFAULT_VIEW, *, term: str) -> object:
+    raise AssertionError("the observing wrapper should replace this body")
+
+
+@http.get("/native/default-query-sync")
+def native_default_query_sync(view: str = DEFAULT_VIEW) -> dict[str, object]:
+    return {"same_default": view is DEFAULT_VIEW, "view": view}
 
 
 @http.get("/native/sync-late-awaitable")
@@ -223,6 +261,8 @@ def make_app(**config: Any) -> Hinoki:
             context_sync_awaitable,
             native_echo,
             native_sync_echo,
+            native_default_query,
+            native_default_query_sync,
             native_sync_late_awaitable,
             context_overlap,
             native_none,
@@ -561,6 +601,52 @@ async def test_native_string_inputs_match_pipeline_and_head() -> None:
         assert head.status == get.status == 200
         assert head.body == b""
         assert head.header("content-length") == get.header("content-length")
+    finally:
+        await worker.stop()
+
+
+async def test_native_defaulted_string_queries_match_pipeline() -> None:
+    app = make_app()
+    native = build_server_core(app.asgi().pipeline)
+    native.set_ready(True)
+    native.submit("GET", "/native/default-query", b"term=tail", [])
+    [prepared] = native.drain(1)
+    assert prepared.native_handler is True
+    assert prepared.native_args == {"term": "tail"}
+    worker = RustWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        for target in (
+            "/native/default-query?term=tail",
+            "/native/default-query?term=&view=",
+            "/native/default-query?term=tail&view=custom",
+            "/native/default-query?term=tail&view=one&view=two",
+            "/native/default-query?view=one&view=two",
+            "/native/default-query",
+            "/native/default-query-sync",
+            "/native/default-query-sync?view=custom",
+        ):
+            received = await fetch(port, "GET", target)
+            expected = await pipeline_fetch("GET", target)
+            assert_pipeline_parity(received, expected)
+        defaulted = await fetch(port, "GET", "/native/default-query?term=tail")
+        assert defaulted.json() == {
+            "keys": ["view", "term"],
+            "same_default": True,
+            "term": "tail",
+            "view": DEFAULT_VIEW,
+        }
+        empty = await fetch(port, "GET", "/native/default-query?term=&view=")
+        assert empty.json() == {
+            "keys": ["view", "term"],
+            "same_default": False,
+            "term": "",
+            "view": "",
+        }
+        head = await fetch(port, "HEAD", "/native/default-query?term=tail")
+        assert head.status == defaulted.status == 200
+        assert head.body == b""
+        assert head.header("content-length") == defaulted.header("content-length")
     finally:
         await worker.stop()
 
