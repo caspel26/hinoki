@@ -9,6 +9,8 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use crate::Early;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Push {
     /// Queued; the queue was empty, so the consumer must be woken.
@@ -46,6 +48,12 @@ impl<T> Queue<T> {
         let was_empty = items.is_empty();
         items.push_back(item);
         Ok(if was_empty { Push::Wake } else { Push::Queued })
+    }
+
+    /// Queue a cold-path request for Python, mapping capacity exhaustion to the
+    /// native overload response used by ordinary pipeline admission.
+    pub fn push_cold_path(&self, item: T) -> Result<Push, Early> {
+        self.push(item).map_err(|_| Early::Overloaded)
     }
 
     /// Take up to `max` items in arrival order. A consumer woken by a `Wake`
