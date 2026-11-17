@@ -971,8 +971,10 @@ async def test_native_finalizer_keeps_security_headers() -> None:
 
 
 @http.get("/native-own-origin")
-async def native_own_origin() -> Reply:
-    return Reply(200, b"own", [("access-control-allow-origin", "https://own.example")])
+async def native_own_origin() -> Response:
+    return Response(
+        200, b"own", [("access-control-allow-origin", "https://own.example")]
+    )
 
 
 class NoBody:
