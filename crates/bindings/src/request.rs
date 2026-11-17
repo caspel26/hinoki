@@ -1535,4 +1535,129 @@ mod tests {
             );
         }
     }
+
+    /// Both builders over the same text: the same error message, or values
+    /// with the same Python `repr()` (which tells `1`, `1.0` and `True`
+    /// apart and shows key order). `true` when the text was accepted.
+    fn same_decoding(py: Python<'_>, text: &[u8]) -> bool {
+        let python = decode_json(py, text);
+        let native = decode_json_document(text);
+        let shown = String::from_utf8_lossy(text);
+        match (python, native) {
+            (Ok(python), Ok(native)) => {
+                let rebuilt = json_to_python(py, &native.root).unwrap();
+                let repr = |value: &Bound<'_, PyAny>| value.repr().unwrap().to_string();
+                assert_eq!(repr(&rebuilt), repr(&python), "{shown}");
+                assert!(rebuilt.eq(&python).unwrap(), "{shown}");
+                true
+            }
+            (Err(python), Err(native)) => {
+                assert_eq!(python.value(py).to_string(), native, "{shown}");
+                false
+            }
+            (python, native) => panic!("{shown}: {python:?} vs {native:?}"),
+        }
+    }
+
+    const ACCEPTED: [&str; 24] = [
+        "null",
+        " true ",
+        "false",
+        "0",
+        "-0",
+        "-0.0",
+        "1.5e3",
+        "1E-2",
+        "9223372036854775807",
+        "-9223372036854775808",
+        "9223372036854775808",
+        "-123456789012345678901234567890",
+        "1e308",
+        "\"\"",
+        r#""a\"b\\c\/d\b\f\n\r\t""#,
+        r#""\u00e9\ud83d\ude00\u0000""#,
+        "\"日本語 é\"",
+        "[]",
+        "[1, [2, [3]], {}]",
+        r#"{"a": 1, "b": [true, null], "c": {"d": "e"}}"#,
+        r#"{"k": 1, "j": 2, "k": 3}"#,
+        r#"{"k": {"x": 1}, "k": [2]}"#,
+        "\t\n\r [ ] \n",
+        r#"{"é": "\u00e9", "": ""}"#,
+    ];
+
+    const REFUSED: [&str; 32] = [
+        "",
+        " ",
+        "nul",
+        "tru",
+        "[1,]",
+        "{\"a\":1,}",
+        "{'a': 1}",
+        "{\"a\" 1}",
+        "{1: 2}",
+        "[1 2]",
+        "01",
+        "1.",
+        ".5",
+        "-",
+        "1e",
+        "1e+",
+        "NaN",
+        "Infinity",
+        "1e400",
+        "-1e400",
+        "\"\\ud800\"",
+        "\"\\ud800\\u0041\"",
+        "\"\\udc00\"",
+        "\"\\x41\"",
+        "\"\\u12\"",
+        "\"\\u12g4\"",
+        "\"abc",
+        "\"a\u{1}b\"",
+        "\u{feff}{}",
+        "{} {}",
+        "[1] x",
+        "/* c */ 1",
+    ];
+
+    #[test]
+    fn the_json_tree_decodes_exactly_like_decode_json() {
+        Python::initialize();
+        Python::attach(|py| {
+            for text in ACCEPTED {
+                assert!(same_decoding(py, text.as_bytes()), "{text} should decode");
+            }
+            for text in REFUSED {
+                assert!(!same_decoding(py, text.as_bytes()), "{text} is refused");
+            }
+            let deep = "[".repeat(129) + &"]".repeat(129);
+            assert!(same_decoding(py, deep.as_bytes()));
+            let deeper = "[".repeat(130) + &"]".repeat(130);
+            assert!(!same_decoding(py, deeper.as_bytes()));
+            assert!(!same_decoding(py, b"\"\xff\""));
+            assert!(!same_decoding(py, b"{\"\xc3\x28\": 1}"));
+        });
+    }
+
+    #[test]
+    fn the_json_tree_keeps_python_dict_semantics_and_flags_big_integers() {
+        let document = decode_json_document(br#"{"b": 1, "a": 2, "b": 3}"#).unwrap();
+        let Json::Object(object) = &document.root else {
+            panic!("an object");
+        };
+        assert_eq!(object.keys().collect::<Vec<_>>(), vec!["b", "a"]);
+        assert_eq!(object.get("b"), Some(&Json::Int(3)));
+        assert!(object.contains("a") && !object.contains("c"));
+        assert!(!document.big_integers);
+        let big = decode_json_document(b"[1, 99999999999999999999]").unwrap();
+        assert!(big.big_integers);
+        assert_eq!(
+            big.root,
+            Json::List(vec![
+                Json::Int(1),
+                Json::BigInt("99999999999999999999".into())
+            ])
+        );
+    }
 }
