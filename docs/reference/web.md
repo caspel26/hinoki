@@ -47,17 +47,19 @@ Import the namespace and decorate actions: `from hinoki import http`, then `@htt
 
 ## Request, response and errors
 
-::: hinoki.request.Request
+The types are available from `hinoki.http`, from `hinoki`, or from their modules `hinoki.http.request` and `hinoki.http.response`.
+
+::: hinoki.http.request.Request
     options:
       members: true
       show_if_no_docstring: true
 
-::: hinoki.reply.Response
+::: hinoki.http.response.Response
     options:
       members: true
       show_if_no_docstring: true
 
-::: hinoki.reply.set_cookie
+::: hinoki.http.response.set_cookie
 
 ::: hinoki.access.Access
     options:
