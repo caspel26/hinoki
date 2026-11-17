@@ -71,8 +71,33 @@ enum BodyState {
     /// The request has none.
     Absent,
     Unread(BodyReader),
+    /// Read by a native attempt and retained for a deferred Python request.
+    Buffered(Vec<u8>),
     /// Handed to `body()`, or dropped by `respond`.
     Taken,
+}
+
+pub(crate) struct NativeBody {
+    reader: Option<BodyReader>,
+    consumed: Arc<AtomicBool>,
+}
+
+pub(crate) enum NativeBodyError {
+    Poisoned,
+    AlreadyTaken,
+}
+
+impl NativeBody {
+    pub(crate) async fn read(self, limit: usize) -> Result<Vec<u8>, BodyError> {
+        let result = match self.reader {
+            Some(reader) => reader.read_all(limit).await,
+            None => Ok(Vec::new()),
+        };
+        if result.is_ok() {
+            self.consumed.store(true, Ordering::Release);
+        }
+        result
+    }
 }
 
 /// A request accepted for the Python pipeline. `respond` completes it once.
@@ -103,6 +128,26 @@ pub struct PreparedRequest {
     reply: Mutex<Option<oneshot::Sender<Reply>>>,
     permit: Mutex<Option<Permit>>,
     body: Mutex<BodyState>,
+    native_body_consumed: Arc<AtomicBool>,
+}
+
+impl PreparedRequest {
+    pub(crate) fn take_native_body(&self) -> Result<NativeBody, NativeBodyError> {
+        let reader = {
+            let mut state = self.body.lock().map_err(|_| NativeBodyError::Poisoned)?;
+            match std::mem::replace(&mut *state, BodyState::Taken) {
+                BodyState::Unread(reader) => Some(reader),
+                BodyState::Absent => None,
+                BodyState::Buffered(_) | BodyState::Taken => {
+                    return Err(NativeBodyError::AlreadyTaken);
+                }
+            }
+        };
+        Ok(NativeBody {
+            reader,
+            consumed: Arc::clone(&self.native_body_consumed),
+        })
+    }
 }
 
 #[pymethods]
@@ -232,13 +277,14 @@ impl PreparedRequest {
     /// `too_large`, `disconnected` or `timeout`). Calling it twice raises
     /// `RuntimeError`.
     fn body<'py>(&self, py: Python<'py>, limit: usize) -> PyResult<Bound<'py, PyAny>> {
-        let reader = {
+        let (reader, buffered) = {
             let mut state = self.body.lock().map_err(|_| poisoned())?;
             match std::mem::replace(&mut *state, BodyState::Taken) {
-                BodyState::Unread(reader) => Some(reader),
+                BodyState::Unread(reader) => (Some(reader), None),
+                BodyState::Buffered(bytes) => (None, Some(bytes)),
                 BodyState::Absent => {
                     *state = BodyState::Absent;
-                    None
+                    (None, None)
                 }
                 BodyState::Taken => {
                     return Err(PyRuntimeError::new_err(
@@ -248,11 +294,53 @@ impl PreparedRequest {
             }
         };
         let read = async move {
-            match reader {
-                Some(reader) => reader.read_all(limit).await,
-                None => Ok(Vec::new()),
+            match buffered {
+                Some(bytes) if bytes.len() > limit => Err(BodyError::TooLarge),
+                Some(bytes) => Ok(bytes),
+                None => match reader {
+                    Some(reader) => reader.read_all(limit).await,
+                    None => Ok(Vec::new()),
+                },
             }
         };
+        let fail = |_: Python<'_>, e: BodyError| BodyReadError::new_err(e.to_string());
+        let panicked = |_: Python<'_>| PyRuntimeError::new_err("the native body task failed");
+        completion::submit_with(
+            py,
+            read,
+            |py, bytes: Vec<u8>| Ok(PyBytes::new(py, &bytes).into_any().unbind()),
+            (fail, panicked),
+        )
+    }
+
+    /// Retain bytes consumed by a native attempt for the Python fallback.
+    fn _buffer_body(&self, bytes: &[u8]) -> PyResult<()> {
+        if !self.native_body_consumed.swap(false, Ordering::AcqRel) {
+            return Err(PyRuntimeError::new_err(
+                "only a completed native body read can be buffered",
+            ));
+        }
+        let mut state = self.body.lock().map_err(|_| poisoned())?;
+        if matches!(&*state, BodyState::Taken) {
+            *state = BodyState::Buffered(bytes.to_vec());
+            Ok(())
+        } else {
+            Err(PyRuntimeError::new_err(
+                "the request body cannot be buffered in its current state",
+            ))
+        }
+    }
+
+    /// Read a body for a native attempt and mark it reusable only after the
+    /// read has completed successfully.
+    fn _native_body<'py>(&self, py: Python<'py>, limit: usize) -> PyResult<Bound<'py, PyAny>> {
+        let body = self.take_native_body().map_err(|error| match error {
+            NativeBodyError::Poisoned => poisoned(),
+            NativeBodyError::AlreadyTaken => {
+                PyRuntimeError::new_err("the request body was already taken")
+            }
+        })?;
+        let read = body.read(limit);
         let fail = |_: Python<'_>, e: BodyError| BodyReadError::new_err(e.to_string());
         let panicked = |_: Python<'_>| PyRuntimeError::new_err("the native body task failed");
         completion::submit_with(
@@ -1270,6 +1358,7 @@ impl Core {
             reply: Mutex::new(Some(sender)),
             permit: Mutex::new(Some(permit)),
             body: Mutex::new(head.body.map_or(BodyState::Absent, BodyState::Unread)),
+            native_body_consumed: Arc::new(AtomicBool::new(false)),
         };
         match self.queue.push(request) {
             Ok(pushed) => Ok(Outcome::Queued {
