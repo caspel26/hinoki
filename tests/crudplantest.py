@@ -676,6 +676,20 @@ async def test_worker_attaches_and_releases_the_shared_database_clone(
     assert all(not worker.core._crud_armed(action) for action in eligible)
 
 
+def test_not_ready_requests_cannot_enter_the_native_crud_path() -> None:
+    app = Hinoki(
+        include=[PlanItems],
+        modules=[DatabaseModule("sqlite:///unused-native-error.sqlite3")],
+    )
+    worker = RustWorker(app, "127.0.0.1", 0)
+    assert not worker.core.ready
+    submission = worker.core.submit("GET", "/plan-items", b"", [])
+    reply = submission.early
+    assert reply is not None
+    assert reply[0] == 503
+    assert core.decode_json(reply[2])["error"] == "not_ready"
+
+
 async def test_startup_mutation_disarms_crud_plans_before_ready(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
