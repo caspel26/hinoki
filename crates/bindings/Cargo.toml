@@ -19,7 +19,7 @@ hinoki-orm = { path = "../orm" }
 hinoki-server = { path = "../server" }
 socket2 = { version = "0.6", features = ["all"] }
 tokio = { version = "1", features = ["net", "rt-multi-thread", "sync", "time"] }
-chrono = { version = "0.4", default-features = false, features = ["std"] }
+time = { version = "0.3", features = ["formatting", "parsing", "macros", "large-dates"] }
 uuid = "1"
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 argon2 = "0.6"
