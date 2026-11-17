@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import tempfile
 from pathlib import Path
@@ -124,8 +126,8 @@ def test_unstable_scenario_is_withheld_and_stable_ones_are_reported() -> None:
         rendered = report.render_mode(directory)
 
     assert "Not reported: create" in rendered
-    assert '<th scope="row">Health</th>' in rendered
-    assert '<th scope="row">Create</th>' not in rendered
+    assert ">Health</th>" in rendered
+    assert ">Create</th>" not in rendered
 
 
 def test_unpinned_run_is_described_as_unpinned() -> None:
@@ -254,5 +256,60 @@ def test_documented_slice_has_one_chart_with_a_panel_per_reported_scenario() -> 
         rendered = report.render_mode(directory)
 
     assert rendered.count('class="bench-chart"') == 1
+    assert rendered.count('scope="rowgroup"') == 3
     assert rendered.count('class="bench-panel"') == 3
     assert "Create</div>" not in rendered.split("<table")[0]
+
+
+def test_page_has_the_sections_a_reader_needs_in_order() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        directory = Path(temporary) / "results" / "documented"
+        directory.mkdir(parents=True)
+        (directory / "environment.json").write_text(
+            json.dumps(
+                {
+                    "date": "2026-11-17",
+                    "cpu": "CPU",
+                    "cores": 8,
+                    "machine": "Linux",
+                    "loadavg_at_start": [0.1, 0.2, 0.3],
+                    "postgres": "PostgreSQL 17",
+                    "oha": "oha 1.17",
+                    "packages": json.dumps([{"name": "hinoki", "version": "0.0.1"}]),
+                    "settings": {
+                        "server_mode": "documented",
+                        "stacks": ["hinoki"],
+                        "workers": 4,
+                        "server_cpus": "0-3",
+                        "load_cpus": "6-7",
+                        "concurrency": 64,
+                        "warmup_s": 10,
+                        "runs": 3,
+                        "duration_s": 20,
+                    },
+                }
+            )
+        )
+        (directory / "hinoki-verify.txt").write_text("OK")
+        for scenario in report.SCENARIOS:
+            for index in (1, 2, 3):
+                (directory / f"hinoki-{scenario}-{index}.json").write_text(
+                    json.dumps(sample(10.0))
+                )
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            report.main([directory])
+        page = buffer.getvalue()
+
+    headings = [
+        "# Benchmarks",
+        "## What is measured",
+        "## Results",
+        "## How to read the numbers",
+        "## Reproduce",
+    ]
+    positions = [page.index(heading) for heading in headings]
+    assert positions == sorted(positions)
+    assert "hinoki 0.0.1" in page
+    assert '=== "Each stack on its own server"' in page
+    assert '!!! warning "Read this first"' in page
