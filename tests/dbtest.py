@@ -214,6 +214,13 @@ async def test_connecting_to_an_unreachable_server_fails_without_the_password() 
     assert "topsecret" not in str(info.value)
 
 
+@pytest.mark.parametrize("scheme", ["oracle", "mssql", "http"])
+async def test_an_unsupported_url_scheme_is_named_without_the_url(scheme: str) -> None:
+    with pytest.raises(DatabaseError, match="unsupported database URL scheme") as info:
+        await Database.connect(f"{scheme}://user:topsecret@127.0.0.1:1/none", wait=0.3)
+    assert "topsecret" not in str(info.value)
+
+
 async def test_status_reports_pool_usage(db: Database) -> None:
     await db.fetch("SELECT 1")
     size, idle = db.status()

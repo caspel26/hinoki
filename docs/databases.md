@@ -85,6 +85,10 @@ SQL Server and Oracle are not supported by this release. MySQL and MariaDB are
 separate URL/backend identities and each has its own real-server conformance
 job; MySQL's URL scheme does not imply MariaDB compatibility.
 
+Any other URL scheme, such as `oracle://` or `mssql://`, fails when the pool is
+created with `DatabaseError: unsupported database URL scheme`; the error does not
+repeat the URL, so credentials in it are not logged.
+
 ## Create and apply migrations
 
 Migrations use the same selected URL. With no explicit URL, the CLI uses the
