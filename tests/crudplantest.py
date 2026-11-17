@@ -2,14 +2,29 @@
 
 import dataclasses
 import math
+import types
 from datetime import datetime
 from types import SimpleNamespace
-from typing import cast
+from typing import Annotated, cast
 from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import API, CrudAPI, Hinoki, Schema, SchemaExtra, Unset, http
+from hinoki import (
+    API,
+    Access,
+    BearerAuth,
+    Caller,
+    CrudAPI,
+    Field,
+    Hinoki,
+    Mount,
+    Schema,
+    SchemaExtra,
+    Unset,
+    http,
+)
+from hinoki import crud as crud_module
 from hinoki.db import DatabaseModule
 from hinoki.fields import UNSET
 from hinoki.orm import Model, QuerySet, field
@@ -239,7 +254,7 @@ def test_handwritten_route_is_excluded_before_plan_build() -> None:
 
 
 def test_plan_selector_exceptions_keep_startup_on_the_python_path(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     pipeline = plan_pipeline()
 
@@ -247,9 +262,11 @@ def test_plan_selector_exceptions_keep_startup_on_the_python_path(
         raise RuntimeError("test selection failure")
 
     monkeypatch.setattr(servercore_module, "select_crud_plan", fail_selection)
-    build_server_core(pipeline)
+    with caplog.at_level("WARNING", logger="hinoki.server"):
+        build_server_core(pipeline)
     assert all(selection is None for selection in pipeline.crud_plan_selections)
     assert set(pipeline.crud_plan_reasons) == {"native_plan_build_failed"}
+    assert "native CRUD plan selection failed for GET /plan-items" in caplog.text
 
 
 def test_schema_fields_outside_the_model_are_ineligible(
@@ -324,12 +341,14 @@ def test_invalid_database_url_and_page_strategy_are_rejected() -> None:
 
 
 def test_default_and_field_metadata_edge_cases(monkeypatch: pytest.MonkeyPatch) -> None:
-    fields = dict(PlanItem.__field_types__)
+    original_types = PlanItem.__field_types__
+    fields = dict(original_types)
     fields["name"] = dataclasses.replace(fields["name"], kind="unsupported")
     monkeypatch.setattr(PlanItem, "__field_types__", fields)
     assert crudplan_module.model_fields(PlanItem) is None
     monkeypatch.setattr(PlanItem, "__field_types__", {})
     assert crudplan_module.model_fields(PlanItem) is None
+    monkeypatch.setattr(PlanItem, "__field_types__", original_types)
 
     resource = dataclasses.replace(PlanItems.resource, create=None)
     defaults = crudplan_module.model_default_specs(PlanItem, resource)
@@ -419,4 +438,214 @@ def test_compile_selection_returns_lane_c_on_staged_plan_failures(
     assert (
         crudplan_module.compile_selection(candidate, binding, pipeline.app, module)
         is None
+    )
+
+
+class NoteItem(Model, table="crud_plan_notes"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    name: str
+    note: str | None = None
+
+
+class Tokens(BearerAuth[str]):
+    async def resolve_token(self, token: str) -> Caller[str] | None:
+        return Caller(id=token, user=token, permissions=frozenset())
+
+
+def variant_pipeline(read: type[Schema], **attributes: object) -> Pipeline:
+    def fill(namespace: dict[str, object]) -> None:
+        namespace.update(read_schema=read, public_writes=True, **attributes)
+
+    owner = types.new_class(
+        "Variant", (CrudAPI,), {"model": NoteItem, "path": "/notes"}, fill
+    )
+    return Pipeline(
+        Hinoki(
+            include=[owner],
+            modules=[DatabaseModule("sqlite:///crud-plan-unused.sqlite3")],
+        )
+    )
+
+
+def reasons(pipeline: Pipeline) -> set[str]:
+    build_server_core(pipeline)
+    return set(pipeline.crud_plan_reasons)
+
+
+class ConstrainedRead(Schema):
+    id: UUID
+    name: Annotated[str, Field(max_length=3)]
+    note: str | None
+
+
+class NonNullRead(Schema):
+    id: UUID
+    name: str
+    note: str
+
+
+class PlainRead(Schema):
+    id: UUID
+    name: str
+    note: str | None
+
+
+@pytest.mark.parametrize("read", [ConstrainedRead, NonNullRead])
+def test_read_schema_constraints_and_nullability_keep_lane_c(
+    read: type[Schema],
+) -> None:
+    assert reasons(variant_pipeline(read)) == {"custom_or_unsupported_schema"}
+
+
+def test_matching_read_schema_is_eligible() -> None:
+    assert reasons(variant_pipeline(PlainRead)) == {"eligible"}
+
+
+def test_mounted_crud_routes_get_plans() -> None:
+    app = Hinoki(
+        include=[Mount("/api", PlanItems)],
+        modules=[DatabaseModule("sqlite:///crud-plan-unused.sqlite3")],
+    )
+    pipeline = Pipeline(app)
+    assert reasons(pipeline) == {"eligible"}
+    assert all(
+        item is not None and item.snapshot_valid()
+        for item in pipeline.crud_plan_selections
+    )
+
+
+def test_mount_prefix_does_not_hide_a_changed_route_shape() -> None:
+    route = SimpleNamespace(
+        method="GET", path="/api/other", handler=crudplan_module.ACTION_HANDLERS["list"]
+    )
+    assert not crudplan_module.route_matches_action(route, "list", PlanItems)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "python_list_rows",
+        "schema_items",
+        "wire_list_rows",
+        "current_database",
+        "Page",
+    ],
+)
+def test_lane_c_module_globals_are_snapshotted(
+    name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pipeline = plan_pipeline()
+    build_server_core(pipeline)
+    selections = [item for item in pipeline.crud_plan_selections if item]
+    assert all(item.snapshot_valid() for item in selections)
+    monkeypatch.setattr(crud_module, name, lambda *_a, **_k: None)
+    assert not all(item.snapshot_valid() for item in selections)
+
+
+@pytest.mark.parametrize(
+    ("owner", "name"),
+    [
+        (QuerySet, "__await__"),
+        (QuerySet, "__init__"),
+        (QuerySet, "compile"),
+        (Model, "concrete"),
+        (Model, "refresh"),
+        (_CrudConfigType := crud_module._CrudConfig, "values"),
+    ],
+)
+def test_lane_c_class_attributes_are_snapshotted(
+    owner: type, name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pipeline = plan_pipeline()
+    build_server_core(pipeline)
+    selections = [item for item in pipeline.crud_plan_selections if item]
+    monkeypatch.setattr(owner, name, lambda *_a, **_k: None)
+    assert not all(item.snapshot_valid() for item in selections)
+
+
+@pytest.mark.parametrize(
+    "mutation", ["json_columns", "errors_type", "find", "translate"]
+)
+def test_value_and_error_snapshot_blind_spots(
+    mutation: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pipeline = plan_pipeline()
+    build_server_core(pipeline)
+    selection = next(item for item in pipeline.crud_plan_selections if item)
+    registry = type(pipeline.app.errors)
+    if mutation == "json_columns":
+        monkeypatch.setattr(PlanItem, "__json_columns__", ("name",))
+    elif mutation == "errors_type":
+        monkeypatch.setattr(pipeline.app, "errors", type("Custom", (registry,), {})())
+    else:
+        monkeypatch.setattr(registry, mutation, lambda *_a, **_k: None)
+    assert not selection.snapshot_valid()
+
+
+def custom_queryset(_self: object) -> QuerySet[NoteItem]:
+    return QuerySet(NoteItem)
+
+
+@pytest.mark.parametrize(
+    "attributes",
+    [
+        {"access": Access(auth=Tokens(), permissions=[])},
+        {"read_access": Access(auth=Tokens(), permissions=[])},
+        {"access": Access(auth=Tokens(), permissions=[]), "owner": "name"},
+        {"access": Access(auth=Tokens(), permissions=[]), "assign": {"name": str}},
+        {"get_queryset": custom_queryset},
+        {"to_schema": lambda _self, item: item},
+    ],
+    ids=["access", "read_access", "owner", "assign", "get_queryset", "to_schema"],
+)
+def test_customized_owner_keeps_lane_c(attributes: dict[str, object]) -> None:
+    assert reasons(variant_pipeline(PlainRead, **attributes)) <= {
+        "custom_route_or_access_policy",
+        "custom_owner_type",
+    }
+    assert "eligible" not in reasons(variant_pipeline(PlainRead, **attributes))
+
+
+def test_custom_parser_or_renderer_keeps_lane_c() -> None:
+    pipeline = plan_pipeline()
+    binding = pipeline.bindings[0]
+    route = binding.route
+    assert crudplan_module.route_parsing_is_plain(route)
+    assert crudplan_module.route_rendering_is_plain(route)
+    assert not crudplan_module.route_parsing_is_plain(
+        SimpleNamespace(parsers=(object(),))
+    )
+    assert not crudplan_module.route_rendering_is_plain(
+        SimpleNamespace(renderers=(object(),))
+    )
+
+
+def test_model_default_of_another_kind_than_its_column_is_rejected() -> None:
+    class Mismatch(Model, table="crud_plan_mismatch"):
+        id: UUID = field(primary_key=True, default_factory=uuid4)
+        count: int = 0
+
+    resource = dataclasses.replace(PlanItems.resource, model=Mismatch, create=None)
+    assert crudplan_module.model_default_specs(Mismatch, resource) is not None
+    assert crudplan_module.default_fits_column(Mismatch, "count", "int")
+    assert not crudplan_module.default_fits_column(Mismatch, "count", "str")
+    assert not crudplan_module.default_fits_column(Mismatch, "id", "utc_now")
+    assert not crudplan_module.default_fits_column(Mismatch, "count", "none")
+    assert not crudplan_module.default_fits_column(Mismatch, "ghost", "int")
+    assert crudplan_module.default_fits_column(Mismatch, "count", "required")
+
+
+@pytest.mark.parametrize("mutation", ["subclass", "defaults"])
+def test_custom_error_registry_keeps_lane_c(mutation: str) -> None:
+    app = Hinoki(
+        include=[PlanItems],
+        modules=[DatabaseModule("sqlite:///crud-plan-unused.sqlite3")],
+    )
+    if mutation == "subclass":
+        app.errors = type("Custom", (type(app.errors),), {})()
+    else:
+        app.errors.defaults.clear()
+    pipeline = Pipeline(app)
+    assert select_crud_plan(pipeline.bindings[0], pipeline)[1] == (
+        "database_methods_or_not_found_handler_customized"
     )
