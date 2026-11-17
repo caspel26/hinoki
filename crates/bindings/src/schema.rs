@@ -7,13 +7,28 @@
 //! pure-Python engine that is kept in `tests/oracle` and compared against this
 //! one: strict (no coercion), unknown keys refused by default, at most 50
 //! problems.
+//!
+//! The walk is written once, over a [`View`] of the input: [`PyView`] reads
+//! the Python objects `decode_json` built (and builds the Python result);
+//! [`JsonView`] reads the GIL-free [`Json`] tree and builds [`Validated`]
+//! values. Codes, messages, the error cap, the depth limit and path joining
+//! are the same code for both. The GIL-free side uses a lowered copy of the
+//! schema ([`NativeSchema`]) that holds no Python object; a schema whose
+//! constraints cannot be lowered exactly has none.
 
+use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::collections::HashSet;
+use std::marker::PhantomData;
 
 use pyo3::basic::CompareOp;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 use regex::Regex;
+use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
+use uuid::Uuid;
+
+use crate::request::{Json, JsonObject};
 
 pub type SchemaWireNames = Vec<(String, String)>;
 pub type SchemaInstanceFields = Option<(SchemaWireNames, Py<PyAny>)>;
@@ -22,17 +37,75 @@ const MAX_ERRORS: usize = 50;
 const MAX_KEY_ECHO: usize = 64;
 const MAX_DEPTH: usize = 128;
 
-type Problem = (String, &'static str, String);
+pub(crate) type Problem = (String, &'static str, String);
 type FieldTable<'py> = Vec<(String, String, Bound<'py, PyAny>, bool)>;
 
-enum Kind {
+/// What the constraints of a compiled schema are made of.
+pub(crate) trait Rules {
+    /// The schema class an object is constructed with.
+    type Class;
+    /// A `pattern=` source (its `repr()` is part of the message).
+    type Pattern;
+    /// One `ge`/`le`/`gt`/`lt` bound.
+    type Limit;
+    /// The `one_of` choices.
+    type Choices;
+}
+
+/// The Python objects `hinoki.schema` declared.
+pub(crate) struct PyRules;
+
+impl Rules for PyRules {
+    type Class = Py<PyAny>;
+    type Pattern = Py<PyAny>;
+    type Limit = Py<PyAny>;
+    type Choices = Vec<Py<PyAny>>;
+}
+
+/// Plain Rust values lowered from exact builtin scalars, with the Python
+/// text that messages show captured when the schema was compiled.
+pub(crate) struct NativeRules;
+
+impl Rules for NativeRules {
+    type Class = ();
+    type Pattern = String;
+    type Limit = NativeLimit;
+    type Choices = NativeChoices;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum Number {
+    Int(i64),
+    Float(f64),
+}
+
+/// A lowered bound and its Python `str()`.
+pub(crate) struct NativeLimit {
+    value: Number,
+    shown: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum Choice {
+    /// `bool` choices are stored as `0`/`1`: Python compares them as ints.
+    Number(Number),
+    Str(String),
+}
+
+/// Lowered `one_of` choices and the message text Python would show.
+pub(crate) struct NativeChoices {
+    values: Vec<Choice>,
+    shown: String,
+}
+
+enum Kind<R: Rules> {
     Str,
     Int,
     Float,
     Bool,
     Uuid,
     Datetime,
-    List(Box<Node>),
+    List(Box<Node<R>>),
     Schema(usize),
     TaggedUnion {
         discriminator: String,
@@ -41,55 +114,90 @@ enum Kind {
     },
 }
 
-struct Node {
-    kind: Kind,
+struct Node<R: Rules> {
+    kind: Kind<R>,
     nullable: bool,
     min_length: Option<i64>,
     max_length: Option<i64>,
-    pattern: Option<(Py<PyAny>, Regex)>,
-    ge: Option<Py<PyAny>>,
-    le: Option<Py<PyAny>>,
-    gt: Option<Py<PyAny>>,
-    lt: Option<Py<PyAny>>,
-    one_of: Option<Vec<Py<PyAny>>>,
+    pattern: Option<(R::Pattern, Regex)>,
+    ge: Option<R::Limit>,
+    le: Option<R::Limit>,
+    gt: Option<R::Limit>,
+    lt: Option<R::Limit>,
+    one_of: Option<R::Choices>,
 }
 
-struct Field {
+struct Field<R: Rules> {
     name: String,
     wire_name: String,
-    node: Node,
+    node: Node<R>,
     required: bool,
 }
 
-struct Definition {
-    class: Py<PyAny>,
-    fields: Vec<Field>,
+struct Definition<R: Rules> {
+    class: R::Class,
+    fields: Vec<Field<R>>,
     forbid_extra: bool,
 }
 
 /// A schema (and everything reachable from it) ready to validate.
 #[pyclass(name = "CompiledSchema", module = "hinoki.core")]
 pub struct Compiled {
-    definitions: Vec<Definition>,
+    definitions: Vec<Definition<PyRules>>,
     root: usize,
     uuid: Py<PyAny>,
     from_iso: Py<PyAny>,
     unset: Py<PyAny>,
+    native: Option<NativeSchema>,
 }
 
-enum Abort {
+/// The GIL-free copy of a [`Compiled`] schema.
+pub(crate) struct NativeSchema {
+    definitions: Vec<Definition<NativeRules>>,
+    root: usize,
+}
+
+/// How one validation runs (the keyword arguments of `validate`).
+pub(crate) struct Options {
+    pub(crate) construct: bool,
+    pub(crate) use_aliases: bool,
+    pub(crate) allow_naive_datetime: bool,
+    pub(crate) skip_fields: HashSet<String>,
+}
+
+/// A value the GIL-free path accepted: what the Python path returns with
+/// `construct=False`, as plain Rust data. Objects list their fields by
+/// Python name in declaration order.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Validated {
+    Null,
+    Bool(bool),
+    Int(i64),
+    Float(f64),
+    Str(String),
+    Uuid(Uuid),
+    /// A datetime with its parsed UTC offset.
+    Datetime(OffsetDateTime),
+    /// A datetime without offset (only with `allow_naive_datetime`).
+    NaiveDatetime(PrimitiveDateTime),
+    List(Vec<Validated>),
+    Object(Vec<(String, Validated)>),
+}
+
+/// The GIL-free path met an input whose Python result it does not reproduce
+/// exactly (an integer outside `i64`, a datetime Python may read differently);
+/// the caller must hand the input to the Python path instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Defer(pub(crate) &'static str);
+
+enum Abort<E> {
     TooMany,
     Depth,
-    Python(PyErr),
+    View(E),
 }
 
-impl From<PyErr> for Abort {
-    fn from(err: PyErr) -> Self {
-        Abort::Python(err)
-    }
-}
-
-type Checked<'py> = Result<Option<Bound<'py, PyAny>>, Abort>;
+type Checked<V> = Result<Option<<V as View>::Out>, Abort<<V as View>::Error>>;
+type Outcome<V> = Result<(Option<<V as View>::Out>, Vec<Problem>), <V as View>::Error>;
 
 fn compile_error(message: impl Into<String>) -> PyErr {
     pyo3::exceptions::PyValueError::new_err(message.into())
@@ -117,7 +225,7 @@ fn optional_choices(constraints: &Bound<'_, PyDict>) -> PyResult<Option<Vec<Py<P
     Ok(Some(choices))
 }
 
-fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node> {
+fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
     let (kind, nullable, constraints, item, index): (
         String,
         bool,
@@ -205,6 +313,7 @@ fn required_variants(constraints: &Bound<'_, PyDict>) -> PyResult<Vec<(String, u
 /// schemas refer to a definition by index.
 #[pyfunction]
 pub fn compile_schemas(
+    py: Python<'_>,
     definitions: Vec<(Py<PyAny>, FieldTable<'_>, bool)>,
     root: usize,
     uuid_class: Py<PyAny>,
@@ -239,13 +348,182 @@ pub fn compile_schemas(
             }
         }
     }
+    let native = lower_schemas(py, &built, root);
     Ok(Compiled {
         definitions: built,
         root,
         uuid: uuid_class,
         from_iso,
         unset,
+        native,
     })
+}
+
+/// A constraint that has no exact plain-Rust equivalent.
+struct Unlowerable;
+
+/// The GIL-free copy of `definitions`, or `None` when a constraint is not an
+/// exact builtin scalar the Rust side compares exactly as Python does.
+fn lower_schemas(
+    py: Python<'_>,
+    definitions: &[Definition<PyRules>],
+    root: usize,
+) -> Option<NativeSchema> {
+    let definitions = definitions
+        .iter()
+        .map(|definition| lower_definition(py, definition))
+        .collect::<Result<Vec<_>, Unlowerable>>()
+        .ok()?;
+    Some(NativeSchema { definitions, root })
+}
+
+fn lower_definition(
+    py: Python<'_>,
+    definition: &Definition<PyRules>,
+) -> Result<Definition<NativeRules>, Unlowerable> {
+    let fields = definition
+        .fields
+        .iter()
+        .map(|field| {
+            Ok(Field {
+                name: field.name.clone(),
+                wire_name: field.wire_name.clone(),
+                node: lower_node(py, &field.node)?,
+                required: field.required,
+            })
+        })
+        .collect::<Result<Vec<_>, Unlowerable>>()?;
+    Ok(Definition {
+        class: (),
+        fields,
+        forbid_extra: definition.forbid_extra,
+    })
+}
+
+fn lower_kind(py: Python<'_>, kind: &Kind<PyRules>) -> Result<Kind<NativeRules>, Unlowerable> {
+    Ok(match kind {
+        Kind::Str => Kind::Str,
+        Kind::Int => Kind::Int,
+        Kind::Float => Kind::Float,
+        Kind::Bool => Kind::Bool,
+        Kind::Uuid => Kind::Uuid,
+        Kind::Datetime => Kind::Datetime,
+        Kind::List(item) => Kind::List(Box::new(lower_node(py, item)?)),
+        Kind::Schema(index) => Kind::Schema(*index),
+        Kind::TaggedUnion {
+            discriminator,
+            discriminator_wire_name,
+            variants,
+        } => Kind::TaggedUnion {
+            discriminator: discriminator.clone(),
+            discriminator_wire_name: discriminator_wire_name.clone(),
+            variants: variants.clone(),
+        },
+    })
+}
+
+fn lower_node(py: Python<'_>, node: &Node<PyRules>) -> Result<Node<NativeRules>, Unlowerable> {
+    let kind = lower_kind(py, &node.kind)?;
+    let scalar = matches!(kind, Kind::Str | Kind::Int | Kind::Float | Kind::Bool);
+    // Only strings consult `pattern` and only numbers their bounds; a
+    // constraint the walk never reads needs no Rust equivalent.
+    let numeric = matches!(kind, Kind::Int | Kind::Float);
+    let pattern = match &node.pattern {
+        Some((source, regex)) if matches!(kind, Kind::Str) => {
+            Some((lower_pattern(source.bind(py))?, regex.clone()))
+        }
+        _ => None,
+    };
+    let limit = |limit: &Option<Py<PyAny>>| match limit {
+        Some(limit) if numeric => lower_limit(py, limit).map(Some),
+        _ => Ok(None),
+    };
+    let one_of = match &node.one_of {
+        // Other kinds compare Python objects (UUID, datetime, dict, instance).
+        Some(_) if !scalar => return Err(Unlowerable),
+        Some(choices) => Some(lower_choices(py, choices)?),
+        None => None,
+    };
+    Ok(Node {
+        kind,
+        nullable: node.nullable,
+        min_length: node.min_length,
+        max_length: node.max_length,
+        pattern,
+        ge: limit(&node.ge)?,
+        le: limit(&node.le)?,
+        gt: limit(&node.gt)?,
+        lt: limit(&node.lt)?,
+        one_of,
+    })
+}
+
+fn lower_pattern(source: &Bound<'_, PyAny>) -> Result<String, Unlowerable> {
+    if !source.is_exact_instance_of::<PyString>() {
+        return Err(Unlowerable);
+    }
+    source
+        .repr()
+        .map(|shown| shown.to_string())
+        .map_err(|_| Unlowerable)
+}
+
+fn exact_number(value: &Bound<'_, PyAny>) -> Result<Number, Unlowerable> {
+    if value.is_exact_instance_of::<PyInt>() {
+        return value
+            .extract::<i64>()
+            .map(Number::Int)
+            .map_err(|_| Unlowerable);
+    }
+    if value.is_exact_instance_of::<PyFloat>() {
+        return value
+            .extract::<f64>()
+            .map(Number::Float)
+            .map_err(|_| Unlowerable);
+    }
+    Err(Unlowerable)
+}
+
+fn lower_limit(py: Python<'_>, limit: &Py<PyAny>) -> Result<NativeLimit, Unlowerable> {
+    let limit = limit.bind(py);
+    let value = exact_number(limit)?;
+    let shown = limit.str().map_err(|_| Unlowerable)?.to_string();
+    Ok(NativeLimit { value, shown })
+}
+
+fn exact_choice(value: &Bound<'_, PyAny>) -> Result<Choice, Unlowerable> {
+    if let Ok(flag) = value.cast_exact::<PyBool>() {
+        return Ok(Choice::Number(Number::Int(i64::from(flag.is_true()))));
+    }
+    if value.is_exact_instance_of::<PyString>() {
+        // Fails for lone surrogates, which a Rust string cannot hold.
+        return value
+            .extract::<String>()
+            .map(Choice::Str)
+            .map_err(|_| Unlowerable);
+    }
+    exact_number(value).map(Choice::Number)
+}
+
+fn lower_choices(py: Python<'_>, choices: &[Py<PyAny>]) -> Result<NativeChoices, Unlowerable> {
+    let values = choices
+        .iter()
+        .map(|choice| exact_choice(choice.bind(py)))
+        .collect::<Result<Vec<_>, Unlowerable>>()?;
+    Ok(NativeChoices {
+        values,
+        shown: shown_choices(py, choices),
+    })
+}
+
+/// The `one_of` message text: the `repr()` of the first ten choices.
+fn shown_choices(py: Python<'_>, choices: &[Py<PyAny>]) -> String {
+    let shown: Vec<String> = choices
+        .iter()
+        .take(10)
+        .map(|c| c.bind(py).repr().map(|r| r.to_string()).unwrap_or_default())
+        .collect();
+    shown.join(", ")
 }
 
 /// For a `Schema` instance: its field names in declaration order and the
@@ -324,7 +602,7 @@ pub fn check_pattern(source: &str) -> PyResult<()> {
         .map_err(|e| compile_error(e.to_string()))
 }
 
-fn refers_outside(node: &Node, known: usize) -> bool {
+fn refers_outside<R: Rules>(node: &Node<R>, known: usize) -> bool {
     match &node.kind {
         Kind::Schema(index) => *index >= known,
         Kind::List(inner) => refers_outside(inner, known),
@@ -341,18 +619,678 @@ fn join(path: &str, name: &str) -> String {
     }
 }
 
-struct Run<'a, 'py> {
-    py: Python<'py>,
-    compiled: &'a Compiled,
-    problems: Vec<Problem>,
-    construct: bool,
-    use_aliases: bool,
-    allow_naive_datetime: bool,
-    skip_fields: HashSet<String>,
+/// How the validator reads its input and builds its result. Every method
+/// answers one question the walk asks, in the order the walk asks it, so a
+/// view cannot change which problems are found or their order.
+trait View {
+    type Rules: Rules;
+    /// One input value.
+    type Data;
+    /// An input string.
+    type Str;
+    /// An input object.
+    type Object;
+    /// A string key of an input object.
+    type Key;
+    /// An input array.
+    type List;
+    /// One accepted value.
+    type Out;
+    /// An accepted array being built.
+    type ListOut;
+    /// The accepted fields of one object being built.
+    type Record;
+    type Error;
+
+    fn is_null(&self, data: &Self::Data) -> bool;
+    fn null(&self, data: &Self::Data) -> Self::Out;
+    fn string(&self, data: &Self::Data) -> Option<Self::Str>;
+    /// Length in code points.
+    fn char_count(&self, text: &Self::Str) -> Result<usize, Self::Error>;
+    fn text<'s>(&self, text: &'s Self::Str) -> Result<Cow<'s, str>, Self::Error>;
+    fn string_out(&self, text: Self::Str) -> Self::Out;
+    /// `None` for anything but an integer.
+    fn integer(&self, data: &Self::Data) -> Result<Option<Self::Out>, Self::Error>;
+    /// `None` for anything but an integer or a float; `Some(None)` when it
+    /// has no `f64` value.
+    fn number(&self, data: &Self::Data) -> Result<Option<Option<f64>>, Self::Error>;
+    fn float(&self, value: f64) -> Self::Out;
+    fn boolean(&self, data: &Self::Data) -> Option<Self::Out>;
+    /// A canonical UUID string (`text` is its content).
+    fn uuid(&self, data: &Self::Data, text: &str) -> Result<Self::Out, Self::Error>;
+    /// An RFC 3339-shaped string: `None` when it is not a valid datetime,
+    /// otherwise the value and whether it has no UTC offset.
+    fn datetime(
+        &self,
+        data: &Self::Data,
+        text: &str,
+    ) -> Result<Option<(Self::Out, bool)>, Self::Error>;
+    fn list(&self, data: &Self::Data) -> Option<Self::List>;
+    fn list_len(&self, list: &Self::List) -> usize;
+    fn items(list: &Self::List) -> impl Iterator<Item = Self::Data>;
+    fn new_list(&self) -> Self::ListOut;
+    fn push(&self, out: &mut Self::ListOut, value: Self::Out) -> Result<(), Self::Error>;
+    fn close_list(&self, out: Self::ListOut) -> Self::Out;
+    fn object(&self, data: &Self::Data) -> Option<Self::Object>;
+    fn non_string_keys(&self, object: &Self::Object) -> usize;
+    fn string_keys(&self, object: &Self::Object) -> Vec<Self::Key>;
+    fn key_text<'k>(&self, key: &'k Self::Key) -> Result<Cow<'k, str>, Self::Error>;
+    fn contains(&self, object: &Self::Object, key: &str) -> Result<bool, Self::Error>;
+    fn get(&self, object: &Self::Object, key: &str) -> Result<Option<Self::Data>, Self::Error>;
+    fn new_record(&self) -> Self::Record;
+    fn set_field(
+        &self,
+        record: &mut Self::Record,
+        name: &str,
+        value: Self::Out,
+    ) -> Result<(), Self::Error>;
+    fn close_record(
+        &self,
+        class: &<Self::Rules as Rules>::Class,
+        record: Self::Record,
+        path: &str,
+        construct: bool,
+    ) -> Result<Self::Out, Self::Error>;
+    /// `Some(shown limit)` when `value` violates `limit` under `op`.
+    fn limit_fails(
+        &self,
+        value: &Self::Out,
+        limit: &<Self::Rules as Rules>::Limit,
+        op: CompareOp,
+    ) -> Result<Option<String>, Self::Error>;
+    fn is_choice(
+        &self,
+        value: &Self::Out,
+        choices: &<Self::Rules as Rules>::Choices,
+    ) -> Result<bool, Self::Error>;
+    fn choices_shown(&self, choices: &<Self::Rules as Rules>::Choices) -> String;
+    fn pattern_shown(
+        &self,
+        pattern: &<Self::Rules as Rules>::Pattern,
+    ) -> Result<String, Self::Error>;
 }
 
-impl<'py> Run<'_, 'py> {
-    fn fail(&mut self, path: &str, code: &'static str, message: String) -> Checked<'py> {
+/// Reads Python objects and builds the Python result (`CompiledSchema.validate`).
+struct PyView<'a, 'py> {
+    py: Python<'py>,
+    uuid: &'a Py<PyAny>,
+    from_iso: &'a Py<PyAny>,
+}
+
+impl<'py> View for PyView<'_, 'py> {
+    type Rules = PyRules;
+    type Data = Bound<'py, PyAny>;
+    type Str = Bound<'py, PyString>;
+    type Object = Bound<'py, PyDict>;
+    type Key = Bound<'py, PyString>;
+    type List = Bound<'py, PyList>;
+    type Out = Bound<'py, PyAny>;
+    type ListOut = Bound<'py, PyList>;
+    type Record = Bound<'py, PyDict>;
+    type Error = PyErr;
+
+    fn is_null(&self, data: &Self::Data) -> bool {
+        data.is_none()
+    }
+
+    fn null(&self, data: &Self::Data) -> Self::Out {
+        data.clone()
+    }
+
+    fn string(&self, data: &Self::Data) -> Option<Self::Str> {
+        data.cast::<PyString>().ok().cloned()
+    }
+
+    fn char_count(&self, text: &Self::Str) -> PyResult<usize> {
+        text.len()
+    }
+
+    fn text<'s>(&self, text: &'s Self::Str) -> PyResult<Cow<'s, str>> {
+        text.to_cow()
+    }
+
+    fn string_out(&self, text: Self::Str) -> Self::Out {
+        text.into_any()
+    }
+
+    fn integer(&self, data: &Self::Data) -> PyResult<Option<Self::Out>> {
+        Ok(data.is_exact_instance_of::<PyInt>().then(|| data.clone()))
+    }
+
+    fn number(&self, data: &Self::Data) -> PyResult<Option<Option<f64>>> {
+        if !(data.is_exact_instance_of::<PyInt>() || data.is_exact_instance_of::<PyFloat>()) {
+            return Ok(None);
+        }
+        Ok(Some(data.extract::<f64>().ok()))
+    }
+
+    fn float(&self, value: f64) -> Self::Out {
+        PyFloat::new(self.py, value).into_any()
+    }
+
+    fn boolean(&self, data: &Self::Data) -> Option<Self::Out> {
+        data.is_exact_instance_of::<PyBool>().then(|| data.clone())
+    }
+
+    fn uuid(&self, data: &Self::Data, _text: &str) -> PyResult<Self::Out> {
+        self.uuid.bind(self.py).call1((data,))
+    }
+
+    fn datetime(&self, data: &Self::Data, _text: &str) -> PyResult<Option<(Self::Out, bool)>> {
+        let parsed = match self.from_iso.bind(self.py).call1((data,)) {
+            Ok(value) => value,
+            Err(err) if err.is_instance_of::<pyo3::exceptions::PyValueError>(self.py) => {
+                return Ok(None);
+            }
+            Err(err) => return Err(err),
+        };
+        let naive = parsed.getattr("tzinfo")?.is_none();
+        Ok(Some((parsed, naive)))
+    }
+
+    fn list(&self, data: &Self::Data) -> Option<Self::List> {
+        data.cast::<PyList>().ok().cloned()
+    }
+
+    fn list_len(&self, list: &Self::List) -> usize {
+        list.len()
+    }
+
+    fn items(list: &Self::List) -> impl Iterator<Item = Self::Data> {
+        list.iter()
+    }
+
+    fn new_list(&self) -> Self::ListOut {
+        PyList::empty(self.py)
+    }
+
+    fn push(&self, out: &mut Self::ListOut, value: Self::Out) -> PyResult<()> {
+        out.append(value)
+    }
+
+    fn close_list(&self, out: Self::ListOut) -> Self::Out {
+        out.into_any()
+    }
+
+    fn object(&self, data: &Self::Data) -> Option<Self::Object> {
+        data.cast::<PyDict>().ok().cloned()
+    }
+
+    fn non_string_keys(&self, object: &Self::Object) -> usize {
+        object
+            .keys()
+            .iter()
+            .filter(|key| key.cast::<PyString>().is_err())
+            .count()
+    }
+
+    fn string_keys(&self, object: &Self::Object) -> Vec<Self::Key> {
+        object
+            .keys()
+            .iter()
+            .filter_map(|key| key.cast_into::<PyString>().ok())
+            .collect()
+    }
+
+    fn key_text<'k>(&self, key: &'k Self::Key) -> PyResult<Cow<'k, str>> {
+        key.to_cow()
+    }
+
+    fn contains(&self, object: &Self::Object, key: &str) -> PyResult<bool> {
+        object.contains(key)
+    }
+
+    fn get(&self, object: &Self::Object, key: &str) -> PyResult<Option<Self::Data>> {
+        object.get_item(key)
+    }
+
+    fn new_record(&self) -> Self::Record {
+        PyDict::new(self.py)
+    }
+
+    fn set_field(&self, record: &mut Self::Record, name: &str, value: Self::Out) -> PyResult<()> {
+        record.set_item(name, value)
+    }
+
+    fn close_record(
+        &self,
+        class: &Py<PyAny>,
+        record: Self::Record,
+        path: &str,
+        construct: bool,
+    ) -> PyResult<Self::Out> {
+        if !construct {
+            return Ok(record.into_any());
+        }
+        class
+            .bind(self.py)
+            .call_method1("__hinoki_construct_validated__", (record, path))
+    }
+
+    fn limit_fails(
+        &self,
+        value: &Self::Out,
+        limit: &Py<PyAny>,
+        op: CompareOp,
+    ) -> PyResult<Option<String>> {
+        let limit = limit.bind(self.py);
+        if value.rich_compare(limit, op)?.is_truthy()? {
+            return Ok(None);
+        }
+        Ok(Some(limit.str()?.to_string()))
+    }
+
+    fn is_choice(&self, value: &Self::Out, choices: &Vec<Py<PyAny>>) -> PyResult<bool> {
+        for choice in choices {
+            if value.eq(choice.bind(self.py))? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn choices_shown(&self, choices: &Vec<Py<PyAny>>) -> String {
+        shown_choices(self.py, choices)
+    }
+
+    fn pattern_shown(&self, pattern: &Py<PyAny>) -> PyResult<String> {
+        Ok(pattern.bind(self.py).repr()?.to_string())
+    }
+}
+
+/// Reads the GIL-free [`Json`] tree and builds [`Validated`] values.
+struct JsonView<'v> {
+    input: PhantomData<&'v Json>,
+}
+
+impl Number {
+    fn of(value: &Validated) -> Option<Number> {
+        match value {
+            Validated::Int(int) => Some(Number::Int(*int)),
+            Validated::Float(float) => Some(Number::Float(*float)),
+            Validated::Bool(flag) => Some(Number::Int(i64::from(*flag))),
+            _ => None,
+        }
+    }
+}
+
+const TWO_POW_63: f64 = 9_223_372_036_854_775_808.0;
+
+/// Python's exact comparison of an `int` with a `float` (no rounding).
+fn compare_int_float(int: i64, float: f64) -> Option<Ordering> {
+    if float.is_nan() {
+        return None;
+    }
+    if float >= TWO_POW_63 {
+        return Some(Ordering::Less);
+    }
+    if float < -TWO_POW_63 {
+        return Some(Ordering::Greater);
+    }
+    let whole = float.trunc();
+    // In range and integral, so the cast is exact.
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "whole is integral and in i64 range"
+    )]
+    let whole_int = whole as i64;
+    match int.cmp(&whole_int) {
+        Ordering::Equal => 0.0_f64.partial_cmp(&(float - whole)),
+        other => Some(other),
+    }
+}
+
+/// Python's ordering of two numbers; `None` when unordered (NaN).
+fn compare_numbers(left: Number, right: Number) -> Option<Ordering> {
+    match (left, right) {
+        (Number::Int(a), Number::Int(b)) => Some(a.cmp(&b)),
+        (Number::Float(a), Number::Float(b)) => a.partial_cmp(&b),
+        (Number::Int(a), Number::Float(b)) => compare_int_float(a, b),
+        (Number::Float(a), Number::Int(b)) => compare_int_float(b, a).map(Ordering::reverse),
+    }
+}
+
+fn holds(op: CompareOp, order: Option<Ordering>) -> bool {
+    let Some(order) = order else {
+        return matches!(op, CompareOp::Ne);
+    };
+    match op {
+        CompareOp::Ge => order != Ordering::Less,
+        CompareOp::Le => order != Ordering::Greater,
+        CompareOp::Gt => order == Ordering::Greater,
+        CompareOp::Lt => order == Ordering::Less,
+        CompareOp::Eq => order == Ordering::Equal,
+        CompareOp::Ne => order != Ordering::Equal,
+    }
+}
+
+fn equals_choice(value: &Validated, choice: &Choice) -> bool {
+    match (Number::of(value), choice) {
+        (Some(number), Choice::Number(expected)) => {
+            holds(CompareOp::Eq, compare_numbers(number, *expected))
+        }
+        (None, Choice::Str(expected)) => matches!(value, Validated::Str(text) if text == expected),
+        _ => false,
+    }
+}
+
+const UNCERTAIN_DATETIME: Defer = Defer("datetime Python may read differently");
+
+fn digits_value(bytes: &[u8]) -> u32 {
+    bytes
+        .iter()
+        .fold(0, |total, digit| total * 10 + u32::from(digit - b'0'))
+}
+
+/// The microseconds of an optional `.fraction` at `at` (1 to 6 digits; more
+/// are left to Python) and where the text continues.
+fn fraction_micros(bytes: &[u8], at: usize) -> Result<(u32, usize), Defer> {
+    if bytes.get(at) != Some(&b'.') {
+        return Ok((0, at));
+    }
+    let start = at + 1;
+    let end = start
+        + bytes[start..]
+            .iter()
+            .take_while(|byte| byte.is_ascii_digit())
+            .count();
+    let count = end - start;
+    if count == 0 || count > 6 {
+        return Err(UNCERTAIN_DATETIME);
+    }
+    let scale = 10_u32.pow(u32::try_from(6 - count).map_err(|_| UNCERTAIN_DATETIME)?);
+    Ok((digits_value(&bytes[start..end]) * scale, end))
+}
+
+/// The UTC offset in seconds of `rest` (`Z` or `+hh:mm`/`-hh:mm` within a
+/// day), `None` when there is none.
+fn offset_seconds(rest: &[u8]) -> Result<Option<i32>, Defer> {
+    let (sign, digits) = match rest {
+        [] => return Ok(None),
+        [b'Z'] => return Ok(Some(0)),
+        [b'+', digits @ ..] => (1, digits),
+        [b'-', digits @ ..] => (-1, digits),
+        _ => return Err(UNCERTAIN_DATETIME),
+    };
+    let hours = digits_value(&digits[..2]);
+    let minutes = digits_value(&digits[3..5]);
+    if hours > 23 || minutes > 59 {
+        return Err(UNCERTAIN_DATETIME);
+    }
+    let seconds = i32::try_from(hours * 3600 + minutes * 60).map_err(|_| UNCERTAIN_DATETIME)?;
+    Ok(Some(sign * seconds))
+}
+
+/// An RFC 3339-shaped string (see [`is_rfc3339`]) as `datetime.fromisoformat`
+/// reads it, for the inputs where every supported Python version agrees:
+/// upper-case `T`/`Z`, real calendar dates from year 1, seconds below 60, at
+/// most six fraction digits, offsets within a day. Anything else is
+/// [`Defer`]red, never guessed.
+fn native_datetime(text: &str) -> Result<(Validated, bool), Defer> {
+    let bytes = text.as_bytes();
+    if bytes.get(10) != Some(&b'T') {
+        return Err(UNCERTAIN_DATETIME);
+    }
+    let field = |from: usize, to: usize| digits_value(&bytes[from..to]);
+    let year = i32::try_from(field(0, 4)).map_err(|_| UNCERTAIN_DATETIME)?;
+    let month = u8::try_from(field(5, 7)).map_err(|_| UNCERTAIN_DATETIME)?;
+    let day = u8::try_from(field(8, 10)).map_err(|_| UNCERTAIN_DATETIME)?;
+    let (hour, minute, second) = (field(11, 13), field(14, 16), field(17, 19));
+    if year == 0 || hour > 23 || minute > 59 || second > 59 {
+        return Err(UNCERTAIN_DATETIME);
+    }
+    let (micros, at) = fraction_micros(bytes, 19)?;
+    let offset = offset_seconds(&bytes[at..])?;
+    let month = Month::try_from(month).map_err(|_| UNCERTAIN_DATETIME)?;
+    let date = Date::from_calendar_date(year, month, day).map_err(|_| UNCERTAIN_DATETIME)?;
+    let clock = |value: u32| u8::try_from(value).map_err(|_| UNCERTAIN_DATETIME);
+    let time = Time::from_hms_micro(clock(hour)?, clock(minute)?, clock(second)?, micros)
+        .map_err(|_| UNCERTAIN_DATETIME)?;
+    let local = PrimitiveDateTime::new(date, time);
+    let Some(seconds) = offset else {
+        return Ok((Validated::NaiveDatetime(local), true));
+    };
+    let offset = UtcOffset::from_whole_seconds(seconds).map_err(|_| UNCERTAIN_DATETIME)?;
+    Ok((Validated::Datetime(local.assume_offset(offset)), false))
+}
+
+const BIG_INTEGER: Defer = Defer("integer outside i64");
+
+impl<'v> View for JsonView<'v> {
+    type Rules = NativeRules;
+    type Data = &'v Json;
+    type Str = &'v str;
+    type Object = &'v JsonObject;
+    type Key = &'v str;
+    type List = &'v [Json];
+    type Out = Validated;
+    type ListOut = Vec<Validated>;
+    type Record = Vec<(String, Validated)>;
+    type Error = Defer;
+
+    fn is_null(&self, data: &Self::Data) -> bool {
+        matches!(data, Json::Null)
+    }
+
+    fn null(&self, _data: &Self::Data) -> Validated {
+        Validated::Null
+    }
+
+    fn string(&self, data: &Self::Data) -> Option<&'v str> {
+        match data {
+            Json::Str(text) => Some(text.as_str()),
+            _ => None,
+        }
+    }
+
+    fn char_count(&self, text: &&'v str) -> Result<usize, Defer> {
+        Ok(text.chars().count())
+    }
+
+    fn text<'s>(&self, text: &'s &'v str) -> Result<Cow<'s, str>, Defer> {
+        Ok(Cow::Borrowed(text))
+    }
+
+    fn string_out(&self, text: &'v str) -> Validated {
+        Validated::Str(text.to_owned())
+    }
+
+    fn integer(&self, data: &Self::Data) -> Result<Option<Validated>, Defer> {
+        match data {
+            Json::Int(int) => Ok(Some(Validated::Int(*int))),
+            Json::BigInt(_) => Err(BIG_INTEGER),
+            _ => Ok(None),
+        }
+    }
+
+    fn number(&self, data: &Self::Data) -> Result<Option<Option<f64>>, Defer> {
+        match data {
+            // Round to nearest, ties to even: Python's int-to-float conversion.
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "Python rounds int to float the same way"
+            )]
+            Json::Int(int) => Ok(Some(Some(*int as f64))),
+            Json::Float(float) => Ok(Some(Some(*float))),
+            Json::BigInt(_) => Err(BIG_INTEGER),
+            _ => Ok(None),
+        }
+    }
+
+    fn float(&self, value: f64) -> Validated {
+        Validated::Float(value)
+    }
+
+    fn boolean(&self, data: &Self::Data) -> Option<Validated> {
+        match data {
+            Json::Bool(flag) => Some(Validated::Bool(*flag)),
+            _ => None,
+        }
+    }
+
+    fn uuid(&self, _data: &Self::Data, text: &str) -> Result<Validated, Defer> {
+        Uuid::parse_str(text)
+            .map(Validated::Uuid)
+            .map_err(|_| Defer("uuid"))
+    }
+
+    fn datetime(&self, _data: &Self::Data, text: &str) -> Result<Option<(Validated, bool)>, Defer> {
+        native_datetime(text).map(Some)
+    }
+
+    fn list(&self, data: &Self::Data) -> Option<&'v [Json]> {
+        match data {
+            Json::List(items) => Some(items.as_slice()),
+            _ => None,
+        }
+    }
+
+    fn list_len(&self, list: &&'v [Json]) -> usize {
+        list.len()
+    }
+
+    fn items(list: &&'v [Json]) -> impl Iterator<Item = &'v Json> {
+        list.iter()
+    }
+
+    fn new_list(&self) -> Vec<Validated> {
+        Vec::new()
+    }
+
+    fn push(&self, out: &mut Vec<Validated>, value: Validated) -> Result<(), Defer> {
+        out.push(value);
+        Ok(())
+    }
+
+    fn close_list(&self, out: Vec<Validated>) -> Validated {
+        Validated::List(out)
+    }
+
+    fn object(&self, data: &Self::Data) -> Option<&'v JsonObject> {
+        match data {
+            Json::Object(object) => Some(object),
+            _ => None,
+        }
+    }
+
+    fn non_string_keys(&self, _object: &&'v JsonObject) -> usize {
+        0
+    }
+
+    fn string_keys(&self, object: &&'v JsonObject) -> Vec<&'v str> {
+        object.keys().collect()
+    }
+
+    fn key_text<'k>(&self, key: &'k &'v str) -> Result<Cow<'k, str>, Defer> {
+        Ok(Cow::Borrowed(key))
+    }
+
+    fn contains(&self, object: &&'v JsonObject, key: &str) -> Result<bool, Defer> {
+        Ok(object.contains(key))
+    }
+
+    fn get(&self, object: &&'v JsonObject, key: &str) -> Result<Option<&'v Json>, Defer> {
+        Ok(object.get(key))
+    }
+
+    fn new_record(&self) -> Vec<(String, Validated)> {
+        Vec::new()
+    }
+
+    fn set_field(
+        &self,
+        record: &mut Vec<(String, Validated)>,
+        name: &str,
+        value: Validated,
+    ) -> Result<(), Defer> {
+        record.push((name.to_owned(), value));
+        Ok(())
+    }
+
+    fn close_record(
+        &self,
+        _class: &(),
+        record: Vec<(String, Validated)>,
+        _path: &str,
+        _construct: bool,
+    ) -> Result<Validated, Defer> {
+        Ok(Validated::Object(record))
+    }
+
+    fn limit_fails(
+        &self,
+        value: &Validated,
+        limit: &NativeLimit,
+        op: CompareOp,
+    ) -> Result<Option<String>, Defer> {
+        let number = Number::of(value).ok_or(Defer("bound on a non-number"))?;
+        if holds(op, compare_numbers(number, limit.value)) {
+            return Ok(None);
+        }
+        Ok(Some(limit.shown.clone()))
+    }
+
+    fn is_choice(&self, value: &Validated, choices: &NativeChoices) -> Result<bool, Defer> {
+        Ok(choices
+            .values
+            .iter()
+            .any(|choice| equals_choice(value, choice)))
+    }
+
+    fn choices_shown(&self, choices: &NativeChoices) -> String {
+        choices.shown.clone()
+    }
+
+    fn pattern_shown(&self, pattern: &String) -> Result<String, Defer> {
+        Ok(pattern.clone())
+    }
+}
+
+/// One validation: the walk over the input, written once for every [`View`].
+struct Run<'a, V: View> {
+    view: V,
+    definitions: &'a [Definition<V::Rules>],
+    options: &'a Options,
+    problems: Vec<Problem>,
+}
+
+impl<'a, V: View> Run<'a, V> {
+    fn new(view: V, definitions: &'a [Definition<V::Rules>], options: &'a Options) -> Self {
+        Run {
+            view,
+            definitions,
+            options,
+            problems: Vec::new(),
+        }
+    }
+
+    /// `(value, problems)` of the root schema at `root`: exactly one of them
+    /// is meaningful.
+    fn validate(mut self, root: usize, data: &V::Data) -> Outcome<V> {
+        match self.schema(root, data, "", 0) {
+            Ok(value) => Ok((value, self.problems)),
+            Err(Abort::TooMany) => {
+                let mut problems = self.problems;
+                problems.push((
+                    String::new(),
+                    "too_many_errors",
+                    "further errors omitted".to_owned(),
+                ));
+                Ok((None, problems))
+            }
+            Err(Abort::Depth) => Ok((
+                None,
+                vec![(
+                    String::new(),
+                    "depth",
+                    "input is nested too deeply".to_owned(),
+                )],
+            )),
+            Err(Abort::View(err)) => Err(err),
+        }
+    }
+
+    fn fail(&mut self, path: &str, code: &'static str, message: String) -> Checked<V> {
         self.problems.push((path.to_owned(), code, message));
         if self.problems.len() >= MAX_ERRORS {
             return Err(Abort::TooMany);
@@ -362,17 +1300,17 @@ impl<'py> Run<'_, 'py> {
 
     fn check(
         &mut self,
-        node: &Node,
-        data: &Bound<'py, PyAny>,
+        node: &Node<V::Rules>,
+        data: &V::Data,
         path: &str,
         depth: usize,
-    ) -> Checked<'py> {
+    ) -> Checked<V> {
         if depth > MAX_DEPTH {
             return Err(Abort::Depth);
         }
-        if data.is_none() {
+        if self.view.is_null(data) {
             if node.nullable {
-                return Ok(Some(data.clone()));
+                return Ok(Some(self.view.null(data)));
             }
             return self.fail(path, "null", "null is not allowed".to_owned());
         }
@@ -405,36 +1343,27 @@ impl<'py> Run<'_, 'py> {
     }
 
     /// The value must equal one of the declared choices (strict types were
-    /// already enforced by the kind, so `1` never matches `True`).
+    /// already enforced by the kind, so `True` never passes as an integer).
     fn one_of(
         &mut self,
-        choices: &[Py<PyAny>],
-        value: Bound<'py, PyAny>,
+        choices: &<V::Rules as Rules>::Choices,
+        value: V::Out,
         path: &str,
-    ) -> Checked<'py> {
-        for choice in choices {
-            if value.eq(choice.bind(self.py))? {
-                return Ok(Some(value));
-            }
+    ) -> Checked<V> {
+        if self.view.is_choice(&value, choices).map_err(Abort::View)? {
+            return Ok(Some(value));
         }
-        let shown: Vec<String> = choices
-            .iter()
-            .take(10)
-            .map(|c| {
-                c.bind(self.py)
-                    .repr()
-                    .map(|r| r.to_string())
-                    .unwrap_or_default()
-            })
-            .collect();
-        self.fail(
-            path,
-            "one_of",
-            format!("must be one of {}", shown.join(", ")),
-        )
+        let shown = self.view.choices_shown(choices);
+        self.fail(path, "one_of", format!("must be one of {shown}"))
     }
 
-    fn length(&mut self, node: &Node, size: usize, path: &str, unit: &str) -> Result<bool, Abort> {
+    fn length(
+        &mut self,
+        node: &Node<V::Rules>,
+        size: usize,
+        path: &str,
+        unit: &str,
+    ) -> Result<bool, Abort<V::Error>> {
         let size = i64::try_from(size).unwrap_or(i64::MAX);
         if let Some(least) = node.min_length {
             if size < least {
@@ -461,24 +1390,29 @@ impl<'py> Run<'_, 'py> {
         Ok(true)
     }
 
-    fn text(&mut self, node: &Node, data: &Bound<'py, PyAny>, path: &str) -> Checked<'py> {
-        let Ok(text) = data.cast::<PyString>() else {
+    fn text(&mut self, node: &Node<V::Rules>, data: &V::Data, path: &str) -> Checked<V> {
+        let Some(text) = self.view.string(data) else {
             return self.fail(path, "type", "expected a string".to_owned());
         };
-        if !self.length(node, text.len()?, path, "character")? {
+        let size = self.view.char_count(&text).map_err(Abort::View)?;
+        if !self.length(node, size, path, "character")? {
             return Ok(None);
         }
         if let Some((source, regex)) = &node.pattern {
-            let matched = text.to_cow().map(|s| regex.is_match(&s)).unwrap_or(false);
+            let matched = self
+                .view
+                .text(&text)
+                .map(|s| regex.is_match(&s))
+                .unwrap_or(false);
             if !matched {
-                let shown = source.bind(self.py).repr()?;
+                let shown = self.view.pattern_shown(source).map_err(Abort::View)?;
                 return self.fail(path, "pattern", format!("must match {shown}"));
             }
         }
-        Ok(Some(data.clone()))
+        Ok(Some(self.view.string_out(text)))
     }
 
-    fn bounds(&mut self, node: &Node, data: &Bound<'py, PyAny>, path: &str) -> Checked<'py> {
+    fn bounds(&mut self, node: &Node<V::Rules>, value: V::Out, path: &str) -> Checked<V> {
         let tests = [
             ("ge", "greater than or equal to", CompareOp::Ge, &node.ge),
             ("le", "less than or equal to", CompareOp::Le, &node.le),
@@ -487,73 +1421,71 @@ impl<'py> Run<'_, 'py> {
         ];
         for (name, words, op, limit) in tests {
             if let Some(limit) = limit {
-                let limit = limit.bind(self.py);
-                if !data.rich_compare(limit, op)?.is_truthy()? {
-                    return self.fail(path, name, format!("must be {words} {}", limit.str()?));
+                let failed = self
+                    .view
+                    .limit_fails(&value, limit, op)
+                    .map_err(Abort::View)?;
+                if let Some(shown) = failed {
+                    return self.fail(path, name, format!("must be {words} {shown}"));
                 }
             }
         }
-        Ok(Some(data.clone()))
+        Ok(Some(value))
     }
 
-    fn integer(&mut self, node: &Node, data: &Bound<'py, PyAny>, path: &str) -> Checked<'py> {
-        if !data.is_exact_instance_of::<PyInt>() {
+    fn integer(&mut self, node: &Node<V::Rules>, data: &V::Data, path: &str) -> Checked<V> {
+        let Some(value) = self.view.integer(data).map_err(Abort::View)? else {
             return self.fail(path, "type", "expected an integer".to_owned());
-        }
-        self.bounds(node, data, path)
+        };
+        self.bounds(node, value, path)
     }
 
-    fn number(&mut self, node: &Node, data: &Bound<'py, PyAny>, path: &str) -> Checked<'py> {
-        if !(data.is_exact_instance_of::<PyInt>() || data.is_exact_instance_of::<PyFloat>()) {
+    fn number(&mut self, node: &Node<V::Rules>, data: &V::Data, path: &str) -> Checked<V> {
+        let Some(number) = self.view.number(data).map_err(Abort::View)? else {
             return self.fail(path, "type", "expected a number".to_owned());
-        }
-        let Ok(value) = data.extract::<f64>() else {
+        };
+        let Some(value) = number else {
             return self.fail(path, "finite", "number is out of range".to_owned());
         };
         if !value.is_finite() {
             return self.fail(path, "finite", "number must be finite".to_owned());
         }
-        let converted = PyFloat::new(self.py, value).into_any();
-        self.bounds(node, &converted, path)
+        let converted = self.view.float(value);
+        self.bounds(node, converted, path)
     }
 
-    fn boolean(&mut self, data: &Bound<'py, PyAny>, path: &str) -> Checked<'py> {
-        if !data.is_exact_instance_of::<PyBool>() {
+    fn boolean(&mut self, data: &V::Data, path: &str) -> Checked<V> {
+        let Some(value) = self.view.boolean(data) else {
             return self.fail(path, "type", "expected a boolean".to_owned());
-        }
-        Ok(Some(data.clone()))
-    }
-
-    fn uuid(&mut self, data: &Bound<'py, PyAny>, path: &str) -> Checked<'py> {
-        let canonical = data
-            .cast::<PyString>()
-            .ok()
-            .and_then(|s| s.to_cow().ok().map(|c| is_canonical_uuid(&c)))
-            .unwrap_or(false);
-        if !canonical {
-            return self.fail(path, "uuid", "expected a canonical UUID string".to_owned());
-        }
-        Ok(Some(self.compiled.uuid.bind(self.py).call1((data,))?))
-    }
-
-    fn moment(&mut self, data: &Bound<'py, PyAny>, path: &str) -> Checked<'py> {
-        let shaped = data
-            .cast::<PyString>()
-            .ok()
-            .and_then(|s| s.to_cow().ok().map(|c| is_rfc3339(&c)))
-            .unwrap_or(false);
-        let message = "expected an RFC 3339 datetime string";
-        if !shaped {
-            return self.fail(path, "datetime", message.to_owned());
-        }
-        let parsed = match self.compiled.from_iso.bind(self.py).call1((data,)) {
-            Ok(value) => value,
-            Err(err) if err.is_instance_of::<pyo3::exceptions::PyValueError>(self.py) => {
-                return self.fail(path, "datetime", message.to_owned());
-            }
-            Err(err) => return Err(err.into()),
         };
-        if parsed.getattr("tzinfo")?.is_none() && !self.allow_naive_datetime {
+        Ok(Some(value))
+    }
+
+    /// The content of a string input, `None` for anything else or a string
+    /// that is not valid Unicode.
+    fn plain_text(&self, data: &V::Data) -> Option<String> {
+        let text = self.view.string(data)?;
+        self.view.text(&text).ok().map(Cow::into_owned)
+    }
+
+    fn uuid(&mut self, data: &V::Data, path: &str) -> Checked<V> {
+        let text = self.plain_text(data).filter(|text| is_canonical_uuid(text));
+        let Some(text) = text else {
+            return self.fail(path, "uuid", "expected a canonical UUID string".to_owned());
+        };
+        Ok(Some(self.view.uuid(data, &text).map_err(Abort::View)?))
+    }
+
+    fn moment(&mut self, data: &V::Data, path: &str) -> Checked<V> {
+        let message = "expected an RFC 3339 datetime string";
+        let text = self.plain_text(data).filter(|text| is_rfc3339(text));
+        let Some(text) = text else {
+            return self.fail(path, "datetime", message.to_owned());
+        };
+        let Some((parsed, naive)) = self.view.datetime(data, &text).map_err(Abort::View)? else {
+            return self.fail(path, "datetime", message.to_owned());
+        };
+        if naive && !self.options.allow_naive_datetime {
             return self.fail(
                 path,
                 "datetime_tz",
@@ -565,80 +1497,74 @@ impl<'py> Run<'_, 'py> {
 
     fn sequence(
         &mut self,
-        node: &Node,
-        item: &Node,
-        data: &Bound<'py, PyAny>,
+        node: &Node<V::Rules>,
+        item: &Node<V::Rules>,
+        data: &V::Data,
         path: &str,
         depth: usize,
-    ) -> Checked<'py> {
-        let Ok(list) = data.cast::<PyList>() else {
+    ) -> Checked<V> {
+        let Some(list) = self.view.list(data) else {
             return self.fail(path, "type", "expected an array".to_owned());
         };
-        if !self.length(node, list.len(), path, "item")? {
+        if !self.length(node, self.view.list_len(&list), path, "item")? {
             return Ok(None);
         }
         let before = self.problems.len();
-        let out = PyList::empty(self.py);
-        for (index, element) in list.iter().enumerate() {
+        let mut out = self.view.new_list();
+        for (index, element) in V::items(&list).enumerate() {
             let found = self.check(item, &element, &format!("{path}[{index}]"), depth + 1)?;
             if let Some(value) = found {
-                out.append(value)?;
+                self.view.push(&mut out, value).map_err(Abort::View)?;
             }
         }
         Ok(if self.problems.len() > before {
             None
         } else {
-            Some(out.into_any())
+            Some(self.view.close_list(out))
         })
     }
 
-    fn schema(
-        &mut self,
-        index: usize,
-        data: &Bound<'py, PyAny>,
-        path: &str,
-        depth: usize,
-    ) -> Checked<'py> {
-        let Ok(object) = data.cast::<PyDict>() else {
+    fn schema(&mut self, index: usize, data: &V::Data, path: &str, depth: usize) -> Checked<V> {
+        let Some(object) = self.view.object(data) else {
             return self.fail(path, "type", "expected an object".to_owned());
         };
-        let compiled = self.compiled;
-        let definition = &compiled.definitions[index];
+        let definitions = self.definitions;
+        let definition = &definitions[index];
         let before = self.problems.len();
+        let use_aliases = self.options.use_aliases;
         let known: HashSet<&str> = definition
             .fields
             .iter()
             .map(|field| {
-                if self.use_aliases {
+                if use_aliases {
                     field.wire_name.as_str()
                 } else {
                     field.name.as_str()
                 }
             })
             .collect();
-        self.validate_object_key_types(object, path)?;
+        self.validate_object_key_types(&object, path)?;
         if self.problems.len() > before {
             return Ok(None);
         }
-        let duplicate_names = if self.use_aliases {
-            self.duplicate_python_names(definition, object, path)?
+        let duplicate_names = if use_aliases {
+            self.duplicate_python_names(definition, &object, path)?
         } else {
             HashSet::new()
         };
         if definition.forbid_extra {
-            self.reject_unknown_fields(object, &known, &duplicate_names, path)?;
+            self.reject_unknown_fields(&object, &known, &duplicate_names, path)?;
         }
-        let values = self.validate_fields(definition, object, &duplicate_names, path, depth)?;
+        let values = self.validate_fields(definition, &object, &duplicate_names, path, depth)?;
         if self.problems.len() > before {
             return Ok(None);
         }
-        if !self.construct {
-            return Ok(Some(values.into_any()));
-        }
-        Ok(Some(definition.class.bind(self.py).call_method1(
-            "__hinoki_construct_validated__",
-            (values, path),
-        )?))
+        let construct = self.options.construct;
+        let built = self
+            .view
+            .close_record(&definition.class, values, path, construct)
+            .map_err(Abort::View)?;
+        Ok(Some(built))
     }
 
     fn tagged_union(
@@ -646,28 +1572,28 @@ impl<'py> Run<'_, 'py> {
         discriminator: &str,
         wire_name: &str,
         variants: &[(String, usize)],
-        data: &Bound<'py, PyAny>,
+        data: &V::Data,
         path: &str,
         depth: usize,
-    ) -> Checked<'py> {
-        let Ok(object) = data.cast::<PyDict>() else {
+    ) -> Checked<V> {
+        let Some(object) = self.view.object(data) else {
             return self.fail(path, "type", "expected an object".to_owned());
         };
         let before = self.problems.len();
-        self.validate_object_key_types(object, path)?;
+        self.validate_object_key_types(&object, path)?;
         if self.problems.len() > before {
             return Ok(None);
         }
-        let field_name = if self.use_aliases {
+        let use_aliases = self.options.use_aliases;
+        let field_name = if use_aliases {
             wire_name
         } else {
             discriminator
         };
         let field_path = join(path, field_name);
-        if self.use_aliases
+        if use_aliases
             && wire_name != discriminator
-            && object.contains(discriminator)?
-            && object.contains(wire_name)?
+            && self.both_present(&object, discriminator, wire_name)?
         {
             self.fail(
                 &field_path,
@@ -676,23 +1602,9 @@ impl<'py> Run<'_, 'py> {
             )?;
             return Ok(None);
         }
-        let Some(raw_tag) = object.get_item(field_name)? else {
-            self.fail(
-                &field_path,
-                "discriminator_required",
-                "discriminator field is required".to_owned(),
-            )?;
+        let Some(tag) = self.discriminator_tag(&object, field_name, &field_path)? else {
             return Ok(None);
         };
-        let Ok(tag) = raw_tag.cast::<PyString>() else {
-            self.fail(
-                &field_path,
-                "discriminator_type",
-                "discriminator must be a string".to_owned(),
-            )?;
-            return Ok(None);
-        };
-        let tag = tag.to_cow()?.into_owned();
         let Some((_, index)) = variants.iter().find(|(candidate, _)| *candidate == tag) else {
             self.fail(
                 &field_path,
@@ -704,17 +1616,55 @@ impl<'py> Run<'_, 'py> {
         self.schema(*index, data, path, depth)
     }
 
+    /// The discriminator's string value, or `None` after reporting why there
+    /// is none.
+    fn discriminator_tag(
+        &mut self,
+        object: &V::Object,
+        field_name: &str,
+        field_path: &str,
+    ) -> Result<Option<String>, Abort<V::Error>> {
+        let Some(raw_tag) = self.view.get(object, field_name).map_err(Abort::View)? else {
+            self.fail(
+                field_path,
+                "discriminator_required",
+                "discriminator field is required".to_owned(),
+            )?;
+            return Ok(None);
+        };
+        let Some(tag) = self.view.string(&raw_tag) else {
+            self.fail(
+                field_path,
+                "discriminator_type",
+                "discriminator must be a string".to_owned(),
+            )?;
+            return Ok(None);
+        };
+        Ok(Some(
+            self.view.text(&tag).map_err(Abort::View)?.into_owned(),
+        ))
+    }
+
+    fn both_present(
+        &self,
+        object: &V::Object,
+        name: &str,
+        wire_name: &str,
+    ) -> Result<bool, Abort<V::Error>> {
+        Ok(self.view.contains(object, name).map_err(Abort::View)?
+            && self.view.contains(object, wire_name).map_err(Abort::View)?)
+    }
+
     fn duplicate_python_names(
         &mut self,
-        definition: &Definition,
-        object: &Bound<'py, PyDict>,
+        definition: &Definition<V::Rules>,
+        object: &V::Object,
         path: &str,
-    ) -> Result<HashSet<String>, Abort> {
+    ) -> Result<HashSet<String>, Abort<V::Error>> {
         let mut duplicates = HashSet::new();
         for field in &definition.fields {
             if field.name != field.wire_name
-                && object.contains(&field.name)?
-                && object.contains(&field.wire_name)?
+                && self.both_present(object, &field.name, &field.wire_name)?
             {
                 duplicates.insert(field.name.clone());
                 self.fail(
@@ -729,16 +1679,13 @@ impl<'py> Run<'_, 'py> {
 
     fn reject_unknown_fields(
         &mut self,
-        object: &Bound<'py, PyDict>,
+        object: &V::Object,
         known: &HashSet<&str>,
         duplicate_names: &HashSet<String>,
         path: &str,
-    ) -> Result<(), Abort> {
-        for key in object.keys() {
-            let Ok(key) = key.cast::<PyString>() else {
-                continue;
-            };
-            let name = key.to_cow()?.into_owned();
+    ) -> Result<(), Abort<V::Error>> {
+        for key in self.view.string_keys(object) {
+            let name = self.view.key_text(&key).map_err(Abort::View)?.into_owned();
             let known_wire_name = known.contains(name.as_str());
             let duplicate_python_name = duplicate_names.contains(&name);
             if !known_wire_name && !duplicate_python_name {
@@ -755,43 +1702,43 @@ impl<'py> Run<'_, 'py> {
 
     fn validate_object_key_types(
         &mut self,
-        object: &Bound<'py, PyDict>,
+        object: &V::Object,
         path: &str,
-    ) -> Result<(), Abort> {
-        for key in object.keys() {
-            if key.cast::<PyString>().is_err() {
-                self.fail(path, "type", "object keys must be strings".to_owned())?;
-            }
+    ) -> Result<(), Abort<V::Error>> {
+        for _ in 0..self.view.non_string_keys(object) {
+            self.fail(path, "type", "object keys must be strings".to_owned())?;
         }
         Ok(())
     }
 
     fn validate_fields(
         &mut self,
-        definition: &Definition,
-        object: &Bound<'py, PyDict>,
+        definition: &Definition<V::Rules>,
+        object: &V::Object,
         duplicate_names: &HashSet<String>,
         path: &str,
         depth: usize,
-    ) -> Result<Bound<'py, PyDict>, Abort> {
-        let values = PyDict::new(self.py);
+    ) -> Result<V::Record, Abort<V::Error>> {
+        let mut values = self.view.new_record();
         for field in &definition.fields {
-            if path.is_empty() && self.skip_fields.contains(&field.name) {
+            if path.is_empty() && self.options.skip_fields.contains(&field.name) {
                 continue;
             }
             if duplicate_names.contains(&field.name) {
                 continue;
             }
-            let key = if self.use_aliases {
+            let key = if self.options.use_aliases {
                 &field.wire_name
             } else {
                 &field.name
             };
             let here = join(path, key);
-            match object.get_item(key)? {
+            match self.view.get(object, key).map_err(Abort::View)? {
                 Some(raw) => {
                     if let Some(value) = self.check(&field.node, &raw, &here, depth + 1)? {
-                        values.set_item(&field.name, value)?;
+                        self.view
+                            .set_field(&mut values, &field.name, value)
+                            .map_err(Abort::View)?;
                     }
                 }
                 None if field.required => {
@@ -858,6 +1805,41 @@ fn is_rfc3339(text: &str) -> bool {
     }
 }
 
+// The GIL-free entry points have no caller in the extension yet: the native
+// CRUD executor uses them. Allowing them keeps everything they reach checked.
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "consumed by the native CRUD executor")
+)]
+impl Compiled {
+    /// The GIL-free copy of this schema; `None` when a constraint has no
+    /// exact plain-Rust equivalent.
+    pub(crate) fn native(&self) -> Option<&NativeSchema> {
+        self.native.as_ref()
+    }
+}
+
+// The GIL-free entry points have no caller in the extension yet: the native
+// CRUD executor uses them. Allowing them keeps everything they reach checked.
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "consumed by the native CRUD executor")
+)]
+impl NativeSchema {
+    /// Validate a decoded document without the GIL. `Ok` carries exactly
+    /// the problems the Python path reports for the same input, or the
+    /// value it would return with `construct=False`; `Err(Defer)` when that
+    /// cannot be guaranteed. `options.construct` has no effect here.
+    pub(crate) fn validate(
+        &self,
+        data: &Json,
+        options: &Options,
+    ) -> Result<(Option<Validated>, Vec<Problem>), Defer> {
+        let view = JsonView { input: PhantomData };
+        Run::new(view, &self.definitions, options).validate(self.root, &data)
+    }
+}
+
 #[pymethods]
 impl Compiled {
     /// `(instance, problems)`: exactly one of them is meaningful. Problems are
@@ -872,36 +1854,18 @@ impl Compiled {
         allow_naive_datetime: bool,
         skip_fields: Vec<String>,
     ) -> PyResult<(Option<Bound<'py, PyAny>>, Vec<Problem>)> {
-        let mut run = Run {
-            py,
-            compiled: self,
-            problems: Vec::new(),
+        let options = Options {
             construct,
             use_aliases,
             allow_naive_datetime,
             skip_fields: skip_fields.into_iter().collect(),
         };
-        match run.schema(self.root, data, "", 0) {
-            Ok(value) => Ok((value, run.problems)),
-            Err(Abort::TooMany) => {
-                let mut problems = run.problems;
-                problems.push((
-                    String::new(),
-                    "too_many_errors",
-                    "further errors omitted".to_owned(),
-                ));
-                Ok((None, problems))
-            }
-            Err(Abort::Depth) => Ok((
-                None,
-                vec![(
-                    String::new(),
-                    "depth",
-                    "input is nested too deeply".to_owned(),
-                )],
-            )),
-            Err(Abort::Python(err)) => Err(err),
-        }
+        let view = PyView {
+            py,
+            uuid: &self.uuid,
+            from_iso: &self.from_iso,
+        };
+        Run::new(view, &self.definitions, &options).validate(self.root, data)
     }
 }
 
