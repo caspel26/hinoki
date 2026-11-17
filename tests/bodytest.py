@@ -8,7 +8,7 @@ import pytest
 
 from hinoki import Hinoki, Schema, http
 from hinoki.errors import RegistrationError
-from hinoki.request import Request
+from hinoki.http.request import Request
 from hinoki.runtime.requests import MAX_BODY
 from hinoki.schema import Field
 from tests.harness import Client, Pool

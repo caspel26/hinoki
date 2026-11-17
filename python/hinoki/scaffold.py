@@ -184,7 +184,7 @@ uv run hinoki dev {name}.main:app      # reload; `serve` runs it for production
 
 * Path, query and body values are typed parameters. The request object is optional: declare `request: Request` as the first parameter only when you need headers, cookies or the raw body.
 * Public by default: any action that is not public on purpose names an `Access` policy (`access=editor`).
-* Writes use `transaction=True`. Failures are exceptions, not `Reply` values (a `Reply` commits).
+* Writes use `transaction=True`. Failures are exceptions, not `Response` values (a `Response` commits).
 * Request and response bodies are `Schema` classes. Never return a `Model`; list the fields a response may contain. Fields named in the exposure rule (`password_hash`, ...) never appear in a response schema.
 * Relations are loaded explicitly (`select_related` / `prefetch_related`); there is no lazy loading.
 * Create from a schema with `Model.acreate(data, owner_id=me)`: keyword values set by the server win over the client's. Build responses with `Out.from_model(row)`.

@@ -6,7 +6,7 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import Access, Caller, Hinoki, Reply, Request, Schema, http
+from hinoki import Access, Caller, Hinoki, Request, Response, Schema, http
 from hinoki.errors import Conflict
 from hinoki.mcpapp import ExposureError, expose_as_mcp, place, select
 from hinoki.testing import ASGIClient
@@ -50,8 +50,8 @@ async def drop_note(request: Request, note_id: str) -> None: ...
 
 
 @http.get("/plain")
-async def plain_output(request: Request) -> Reply:
-    return Reply(body=b"plain", content_type="text/plain")
+async def plain_output(request: Request) -> Response:
+    return Response(body=b"plain", content_type="text/plain")
 
 
 @http.get("/secret")

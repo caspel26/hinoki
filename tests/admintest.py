@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import Access, Caller, Hinoki, Mount, Reply
+from hinoki import Access, Caller, Hinoki, Mount, Response
 from hinoki.admin import (
     THEMES,
     Admin,
@@ -708,9 +708,9 @@ async def test_admin_dashboard_skips_hidden_entry_and_renders_activity(
         def done_notice(self) -> str:
             return ""
 
-        async def page(self, _title: str, content: Raw, **_kwargs: object) -> Reply:
+        async def page(self, _title: str, content: Raw, **_kwargs: object) -> Response:
             self.content = str(content)
-            return Reply(200, self.content)
+            return Response(200, self.content)
 
     monkeypatch.setattr(admin_views, "Site", FakeSite)
     caller = Caller(id="staff", user="staff")

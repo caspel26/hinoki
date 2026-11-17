@@ -12,6 +12,7 @@ from hinoki import Hinoki, RuntimeConfig, http
 from hinoki.blocking import run_sync
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import FieldError
+from hinoki.http.request import Request
 from hinoki.orm import (
     Model,
     OnDelete,
@@ -22,7 +23,6 @@ from hinoki.orm import (
 )
 from hinoki.orm.relations import Related
 from hinoki.pagination import Page, PageNumberPagination, PageParams
-from hinoki.request import Request
 from tests.harness import Client, Pool
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")

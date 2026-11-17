@@ -33,12 +33,12 @@ async def list_tasks(page: PageParams, caller: Caller[Member]) -> Page[TaskOut]:
 
 @tasks.post("/", status=201)
 async def create_task(data: TaskIn, caller: Caller[Member]) -> TaskOut:
-    return out(await operations.create_task(caller.user.id, data))
+    return await operations.create_task(caller.user.id, data)
 
 
 @tasks.post("/{task_id}/complete", errors=(errors.NotFound, TaskAlreadyDone))
 async def complete_task(task_id: UUID, caller: Caller[Member]) -> TaskOut:
-    return out(await operations.complete_task(caller.user.id, task_id))
+    return await operations.complete_task(caller.user.id, task_id)
 
 
 @tasks.delete("/{task_id}", status=204, errors=(errors.NotFound, DoneTasksAreKept))
@@ -53,6 +53,7 @@ app = Hinoki(include=[tasks])
 * **`atomic=True`** wraps writes in a transaction that commits after the response is encoded and rolls back before an error becomes HTTP.
 * **`errors=(...)`** declares what an action may raise. The status and code come from each error class; OpenAPI, the MCP tool description and the strict test client all use it.
 * **`caller: Caller[Member]`** is who is asking, typed: `caller.user` is your `Member`.
+* A handler annotated with one response `Schema` may return a `Model` directly; Hinoki projects it through that Schema. Lists and pages still use explicit mapping.
 * The `request` object is optional: declare `request: Request` first only when you need headers, cookies or the raw body.
 
 For bounded file uploads, declare `UploadedFile` or `list[UploadedFile]` parameters and Hinoki selects `MultiPartParser` for that action. The [endpoint guide](../endpoints.md#upload-files) covers optional files, limits and OpenAPI output.

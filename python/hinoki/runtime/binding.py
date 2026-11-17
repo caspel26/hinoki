@@ -31,9 +31,9 @@ from hinoki.errors import (
     ValidationError,
 )
 from hinoki.handlerhints import hints_of, signature_of
+from hinoki.http.request import Request
 from hinoki.pagination import PageNumberPagination, PageParams
 from hinoki.parsers import MultiPartParser, UploadedFile
-from hinoki.request import Request
 from hinoki.routing import Route
 from hinoki.schema import Schema
 
@@ -202,6 +202,7 @@ class Binding:
     params: tuple[Param, ...]
     takes_request: bool = True  # False: the action did not declare `Request`
     needs_body: bool = False  # a parameter binds the body; decided once in `bind`
+    response_schema: type[Schema] | None = None
     row_wire: RowWireSelection | None = field(default=None, repr=False, compare=False)
     is_async: bool = field(init=False, repr=False, compare=False)
     native_input_names: tuple[str, ...] = field(init=False, repr=False, compare=False)
@@ -499,4 +500,12 @@ def bind(route: Route) -> Binding:
             f"{route.name}: a Schema body cannot be combined with file parameters"
         )
     needs_body = any(p.source in {"body", "file"} for p in params)
-    return Binding(route, params, takes_request, needs_body)
+    response = hints.get("return")
+    response_schema = (
+        response
+        if isinstance(response, type)
+        and issubclass(response, Schema)
+        and response is not Schema
+        else None
+    )
+    return Binding(route, params, takes_request, needs_body, response_schema)

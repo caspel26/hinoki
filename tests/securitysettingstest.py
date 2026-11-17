@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import Access, BearerAuth, Caller, Hinoki, Reply, http
+from hinoki import Access, BearerAuth, Caller, Hinoki, Response, http
 from hinoki.admin import Admin
 from hinoki.settings import (
     AppSettings,
@@ -75,8 +75,8 @@ async def submit() -> dict[str, str]:
 
 
 @http.get("/custom-security")
-async def custom_security() -> Reply:
-    return Reply(
+async def custom_security() -> Response:
+    return Response(
         200,
         b"ok",
         headers=[
