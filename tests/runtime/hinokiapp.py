@@ -10,7 +10,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from hinoki import Hinoki, Module, ModuleContext, RuntimeConfig, http
-from hinoki.request import Request
+from hinoki.http.request import Request
 
 LOG = os.environ.get("EXP_LOG", os.devnull)
 FAIL = os.environ.get("EXP_FAIL", "")

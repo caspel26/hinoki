@@ -7,7 +7,7 @@ passes only while every line below is still flagged.
 from uuid import UUID
 
 from hinoki import API, http
-from hinoki.request import Request
+from hinoki.http.request import Request
 
 
 class Posts(API, path="/posts"):

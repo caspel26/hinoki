@@ -8,7 +8,7 @@ import pytest
 from hinoki import API, Hinoki, Mount, RouteGroup, http
 from hinoki.__main__ import main
 from hinoki.errors import RegistrationError
-from hinoki.request import Request
+from hinoki.http.request import Request
 
 APP = "tests.routeinclusiontest:make_app"
 

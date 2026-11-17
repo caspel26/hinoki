@@ -1,13 +1,13 @@
-"""An explicit HTTP answer: ``return Reply(303, headers={"location": "/x"})``.
+"""An explicit HTTP answer: ``return Response(303, headers={"location": "/x"})``.
 
-A handler returns a ``Reply`` when it needs a status, headers (redirects,
+A handler returns a ``Response`` when it needs a status, headers (redirects,
 cookies) or a body of its own; it bypasses the renderers. Everything is
-validated when the ``Reply`` is built, so a bad header fails in the handler
+validated when the ``Response`` is built, so a bad header fails in the handler
 (a 500 with a request id) instead of corrupting the response.
 
-An answer that signals failure should be an exception, not a ``Reply``: a
+An answer that signals failure should be an exception, not a ``Response``: a
 ``transaction=True`` action commits when the handler returns, whatever the
-status of the ``Reply``.
+status of the ``Response``.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ def encode_header(name: str, value: str) -> tuple[bytes, bytes]:
         raise ValueError(f"header {name!r} must be Latin-1") from None
 
 
-class Reply:
+class Response:
     """Status, headers and body chosen by the handler."""
 
     __slots__ = ("body", "headers", "status")
@@ -76,7 +76,7 @@ def set_cookie(
     secure: bool = True,
     same_site: str = "Lax",
 ) -> tuple[str, str]:
-    """A ``("set-cookie", ...)`` header for ``Reply(headers=[...])``. The name
+    """A ``("set-cookie", ...)`` header for ``Response(headers=[...])``. The name
     must be a token and the value cookie-safe (no space, quote, comma,
     semicolon or backslash); encode richer data yourself."""
     if not TOKEN.fullmatch(name) or not COOKIE_VALUE.fullmatch(value):
@@ -90,3 +90,6 @@ def set_cookie(
         parts.append(f"Max-Age={int(max_age)}")
     parts += [flag for flag, on in (("HttpOnly", http_only), ("Secure", secure)) if on]
     return "set-cookie", "; ".join(parts)
+
+
+__all__ = ["Headers", "Response", "set_cookie"]

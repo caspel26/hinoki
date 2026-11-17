@@ -34,12 +34,12 @@ async def list_tasks(page: PageParams, caller: Caller[Member]) -> Page[TaskOut]:
 
 @tasks.post("/", status=201)
 async def create_task(data: TaskIn, caller: Caller[Member]) -> TaskOut:
-    return out(await operations.create_task(caller.user.id, data))
+    return await operations.create_task(caller.user.id, data)  # type: ignore[return-value]
 
 
 @tasks.post("/{task_id}/complete", errors=(errors.NotFound, TaskAlreadyDone))
 async def complete_task(task_id: UUID, caller: Caller[Member]) -> TaskOut:
-    return out(await operations.complete_task(caller.user.id, task_id))
+    return await operations.complete_task(caller.user.id, task_id)  # type: ignore[return-value]
 
 
 @tasks.delete("/{task_id}", status=204, errors=(errors.NotFound, DoneTasksAreKept))
