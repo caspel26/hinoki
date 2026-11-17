@@ -16,17 +16,15 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
-import inspect
 import logging
 import time
-import types
 from abc import abstractmethod
 from collections.abc import Awaitable, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar
 
 from hinoki import core
-from hinoki.auth import BearerAuth, Caller, HeaderAuth
+from hinoki.auth import BearerAuth, Caller
 from hinoki.blocking import call_hook
 from hinoki.errors import APIError
 
@@ -39,11 +37,6 @@ ALGORITHMS = (*HS_MIN_BYTES, "EdDSA")
 ED25519_BYTES = 32
 MAX_KID = 64
 MAX_TTL = 366 * 24 * 3600  # a year
-_JWT_RULE_COUNT = 5
-_JWT_KEY_SPEC_COUNT = 4
-_JWT_CACHE_ENTRY_COUNT = 2
-_JWT_VERIFIER_CACHE_KEY = "_hinoki_private_jwt_verifier"
-_MISSING = object()
 
 
 class HashingBusy(APIError):
@@ -178,10 +171,6 @@ class JWTKey:
         return (self.kid, self.algorithm, self.material(), self.public)
 
 
-_DEFAULT_JWTKEY_SPEC = JWTKey.spec
-_DEFAULT_JWTKEY_MATERIAL = JWTKey.material
-
-
 def check_key_set(keys: Sequence[JWTKey]) -> None:
     """Fail when the provider is built, not on the first request."""
     if not keys:
@@ -240,15 +229,7 @@ class JWTAuth[T](BearerAuth[T]):
     async def resolve_token(self, token: str) -> Caller[T] | None:
         rules = (self.now(), self.leeway, self.issuer, self.audience, self.require_exp)
         try:
-            keys = self.keys
-            if type(keys) is list:
-                keys = tuple(keys)
-            specs = [key.spec() for key in keys]
-            verifier = _cached_verifier(self, token, rules, keys, specs)
-            if verifier is None:
-                payload = core.jwt_decode(token, specs, rules)
-            else:
-                payload = verifier.verify(token, rules)
+            payload = core.jwt_decode(token, [k.spec() for k in self.keys], rules)
         except ValueError as reason:
             log.debug("token rejected: %s", reason)
             return None
@@ -277,158 +258,3 @@ class JWTAuth[T](BearerAuth[T]):
         if self.audience is not None:
             body.setdefault("aud", self.audience)
         return core.jwt_encode(core.encode_json(body), signer.spec())
-
-
-_DEFAULT_JWT_RESOLVE_TOKEN = JWTAuth.resolve_token
-_DEFAULT_BEARER_RESOLVE = BearerAuth.resolve
-_DEFAULT_HEADER_AUTHENTICATE = HeaderAuth.authenticate
-_DEFAULT_VERIFIER_TYPE = core._JWTVerifier
-
-
-def _provider_namespace(provider: JWTAuth[Any]) -> dict[str, object] | None:
-    descriptor = inspect.getattr_static(provider, "__dict__", _MISSING)
-    if type(descriptor) is not types.GetSetDescriptorType:
-        return None
-    try:
-        namespace = object.__getattribute__(provider, "__dict__")
-    except (AttributeError, TypeError):
-        return None
-    return namespace if type(namespace) is dict else None
-
-
-def _clear_verifier(namespace: dict[str, object] | None) -> None:
-    if namespace is not None:
-        namespace.pop(_JWT_VERIFIER_CACHE_KEY, None)
-
-
-def _exact_wire_spec(spec: object) -> bool:
-    if type(spec) is not tuple or len(spec) != _JWT_KEY_SPEC_COUNT:
-        return False
-    kid, algorithm, material, public = cast(tuple[object, object, object, object], spec)
-    return (
-        (kid is None or type(kid) is str)
-        and type(algorithm) is str
-        and type(material) is bytes
-        and type(public) is bool
-    )
-
-
-def _valid_cached_snapshot(snapshot: object) -> bool:
-    return type(snapshot) is tuple and all(
-        _exact_wire_spec(spec) for spec in cast(tuple[object, ...], snapshot)
-    )
-
-
-def _exact_rules(rules: object) -> bool:
-    if type(rules) is not tuple or len(rules) != _JWT_RULE_COUNT:
-        return False
-    now, leeway, issuer, audience, require_exp = cast(
-        tuple[object, object, object, object, object], rules
-    )
-    return (
-        type(now) is int
-        and -(1 << 63) <= now < (1 << 63)
-        and type(leeway) is int
-        and -(1 << 63) <= leeway < (1 << 63)
-        and (issuer is None or type(issuer) is str)
-        and (audience is None or type(audience) is str)
-        and type(require_exp) is bool
-    )
-
-
-def _exact_spec_pair(key: object, spec: object) -> bool:
-    return type(key) is JWTKey and _exact_wire_spec(spec)
-
-
-def _exact_specs(keys: object, specs: object) -> bool:
-    if type(keys) not in (tuple, list) or type(specs) is not list:
-        return False
-    key_sequence = cast(tuple[object, ...] | list[object], keys)
-    spec_list = cast(list[object], specs)
-    if (
-        len(key_sequence) != len(spec_list)
-        or JWTKey.spec is not _DEFAULT_JWTKEY_SPEC
-        or JWTKey.material is not _DEFAULT_JWTKEY_MATERIAL
-    ):
-        return False
-    return all(
-        _exact_spec_pair(key, spec)
-        for key, spec in zip(key_sequence, spec_list, strict=True)
-    )
-
-
-def _default_auth_dispatch(provider: JWTAuth[Any]) -> bool:
-    return (
-        inspect.getattr_static(type(provider), "__getattribute__")
-        is object.__getattribute__
-        and inspect.getattr_static(provider, "authenticate")
-        is _DEFAULT_HEADER_AUTHENTICATE
-        and inspect.getattr_static(provider, "resolve") is _DEFAULT_BEARER_RESOLVE
-        and inspect.getattr_static(provider, "resolve_token")
-        is _DEFAULT_JWT_RESOLVE_TOKEN
-    )
-
-
-def _construct_verifier(
-    namespace: dict[str, object],
-    snapshot: tuple[tuple[str | None, str, bytes, bool], ...],
-    specs: list[tuple[str | None, str, bytes, bool]],
-) -> core._JWTVerifier | None:
-    _clear_verifier(namespace)
-    try:
-        verifier = _DEFAULT_VERIFIER_TYPE(specs)
-    except (AttributeError, TypeError, ValueError):
-        return None
-    namespace[_JWT_VERIFIER_CACHE_KEY] = (snapshot, verifier)
-    return verifier
-
-
-def _matching_verifier(
-    namespace: dict[str, object],
-    snapshot: tuple[tuple[str | None, str, bytes, bool], ...],
-) -> core._JWTVerifier | None:
-    cached = namespace.get(_JWT_VERIFIER_CACHE_KEY)
-    if (
-        type(cached) is tuple
-        and len(cached) == _JWT_CACHE_ENTRY_COUNT
-        and _valid_cached_snapshot(cached[0])
-        and cached[0] == snapshot
-        and type(cached[1]) is _DEFAULT_VERIFIER_TYPE
-    ):
-        return cached[1]
-    return None
-
-
-def _cached_verifier(
-    provider: JWTAuth[Any],
-    token: object,
-    rules: object,
-    keys: object,
-    specs: object,
-) -> core._JWTVerifier | None:
-    namespace = _provider_namespace(provider)
-    if namespace is None:
-        return None
-    if (
-        inspect.getattr_static(type(provider), _JWT_VERIFIER_CACHE_KEY, _MISSING)
-        is not _MISSING
-    ):
-        _clear_verifier(namespace)
-        return None
-    if not (
-        type(token) is str
-        and _exact_rules(rules)
-        and _exact_specs(keys, specs)
-        and _default_auth_dispatch(provider)
-        and core._JWTVerifier is _DEFAULT_VERIFIER_TYPE
-    ):
-        _clear_verifier(namespace)
-        return None
-    exact_specs = cast(list[tuple[str | None, str, bytes, bool]], specs)
-    snapshot: tuple[tuple[str | None, str, bytes, bool], ...] = tuple(exact_specs)
-    cached = _matching_verifier(namespace, snapshot)
-    return (
-        cached
-        if cached is not None
-        else _construct_verifier(namespace, snapshot, exact_specs)
-    )
