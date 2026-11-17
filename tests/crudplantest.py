@@ -11,8 +11,19 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import API, CrudAPI, Hinoki, Schema, SchemaExtra, Unset, core, http
+from hinoki import (
+    API,
+    CrudAPI,
+    Hinoki,
+    RuntimeConfig,
+    Schema,
+    SchemaExtra,
+    Unset,
+    core,
+    http,
+)
 from hinoki.db import Database, DatabaseModule
+from hinoki.errors import Conflict
 from hinoki.fields import UNSET
 from hinoki.modules import ModuleContext
 from hinoki.orm import Model, QuerySet, field
@@ -22,6 +33,7 @@ from hinoki.runtime import servercore as servercore_module
 from hinoki.runtime.binding import Binding
 from hinoki.runtime.crudplan import CrudPlanSelection, select_crud_plan
 from hinoki.runtime.pipeline import Pipeline
+from hinoki.runtime.responses import Response
 from hinoki.runtime.rustserver import RustWorker, _drain_native_uninterruptibly
 from hinoki.runtime.servercore import build_server_core
 from hinoki.settings import AppSettings, CorsSettings
@@ -56,6 +68,13 @@ class PlanItems(CrudAPI, model=PlanItem, path="/plan-items"):
     update_schema = PlanItemPatch
     deletable = True
     public_writes = True
+
+
+def unique_to_conflict(error: core.UniqueViolation) -> Conflict:
+    assert error.constraint == "plan_items_name_key"
+    assert error.table == "plan_items"
+    assert error.sqlstate == "23505"
+    return Conflict("A unique value is already in use.", code="unique_conflict")
 
 
 def plan_pipeline() -> Pipeline:
@@ -329,6 +348,232 @@ async def test_deferred_request_reuses_buffered_body_once_with_the_same_limit() 
         await request.body(7)
 
 
+async def test_native_failure_error_handlers_obey_the_request_timeout() -> None:
+    app = Hinoki(
+        runtime=RuntimeConfig(request_timeout=0.01),
+        include=[PlanItems],
+        modules=[DatabaseModule("sqlite:///unused-native-error.sqlite3")],
+    )
+    pipeline = Pipeline(app)
+    build_server_core(pipeline)
+
+    async def slow_unique(_error: core.UniqueViolation) -> Conflict:
+        await asyncio.sleep(0.1)
+        return Conflict("A unique value is already in use.", code="unique_conflict")
+
+    app.errors.handle(core.UniqueViolation)(slow_unique)
+    action = next(
+        index
+        for index, selection in enumerate(pipeline.crud_plan_selections)
+        if selection is not None and selection.action == "create"
+    )
+    response = await pipeline.handle_native_failure(
+        action,
+        "request-id",
+        ("unique", "unique constraint violated", None, None, "23505"),
+    )
+    assert response.status == 504
+
+
+async def test_native_failure_translation_errors_use_the_error_registry() -> None:
+    @http.get("/manual-native-failure")
+    async def manual() -> dict[str, bool]:
+        return {"ok": True}
+
+    pipeline = Pipeline(Hinoki(include=[manual]))
+    build_server_core(pipeline)
+    response = await pipeline.handle_native_failure(
+        0, "request-id", ("not_found", "missing", None, None, None)
+    )
+    assert response.status == 500
+
+
+async def test_native_error_handler_timeout_is_translated_as_an_error() -> None:
+    app = Hinoki(
+        include=[PlanItems],
+        modules=[DatabaseModule("sqlite:///unused-native-error.sqlite3")],
+    )
+    pipeline = Pipeline(app)
+    build_server_core(pipeline)
+
+    async def internal_timeout(_error: core.UniqueViolation) -> Conflict:
+        raise TimeoutError("handler timeout")
+
+    app.errors.handle(core.UniqueViolation)(internal_timeout)
+    action = next(
+        index
+        for index, selection in enumerate(pipeline.crud_plan_selections)
+        if selection is not None and selection.action == "create"
+    )
+    response = await pipeline.handle_native_failure(
+        action, "request-id", ("unique", "duplicate", None, None, "23505")
+    )
+    assert response.status == 500
+
+
+async def test_native_failure_error_translation_timeout_uses_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipeline = plan_pipeline()
+    build_server_core(pipeline)
+
+    attempts = 0
+
+    async def interrupted(*_args: Any, **_kwargs: Any) -> Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise TimeoutError("error translation timed out")
+        return Response(500, b"fallback")
+
+    monkeypatch.setattr("hinoki.runtime.pipeline.error_response", interrupted)
+    action = next(
+        index
+        for index, selection in enumerate(pipeline.crud_plan_selections)
+        if selection is not None and selection.action == "create"
+    )
+    response = await pipeline.handle_native_failure(
+        action, "request-id", ("unique", "duplicate", None, None, "23505")
+    )
+    assert response.status == 500
+
+
+async def test_native_retrieve_empty_rows_uses_model_not_found() -> None:
+    pipeline = plan_pipeline()
+    build_server_core(pipeline)
+    action = next(
+        index
+        for index, selection in enumerate(pipeline.crud_plan_selections)
+        if selection is not None and selection.action == "retrieve"
+    )
+    selection = pipeline.crud_plan_selections[action]
+    assert selection is not None
+    with pytest.raises(selection.model.NotFound):
+        await pipeline._hydrate_native_rows(action, ([], None))
+
+
+async def test_native_rows_shape_errors_use_the_error_registry() -> None:
+    @http.get("/manual-native-rows")
+    async def manual() -> dict[str, bool]:
+        return {"ok": True}
+
+    plain = Pipeline(Hinoki(include=[manual]))
+    build_server_core(plain)
+    no_plan = await plain.handle_native_rows(0, "request-id", ([], None))
+    assert no_plan.status == 500
+
+    pipeline = plan_pipeline()
+    build_server_core(pipeline)
+    list_action = next(
+        index
+        for index, selection in enumerate(pipeline.crud_plan_selections)
+        if selection is not None and selection.action == "list"
+    )
+    no_page = await pipeline.handle_native_rows(list_action, "request-id", ([], None))
+    assert no_page.status == 500
+
+    create_action = next(
+        index
+        for index, selection in enumerate(pipeline.crud_plan_selections)
+        if selection is not None and selection.action == "create"
+    )
+    wrong_action = await pipeline.handle_native_rows(
+        create_action, "request-id", ([], None)
+    )
+    assert wrong_action.status == 500
+
+    retrieve_action = next(
+        index
+        for index, selection in enumerate(pipeline.crud_plan_selections)
+        if selection is not None and selection.action == "retrieve"
+    )
+    duplicate_rows = [
+        {"id": uuid4(), "name": "duplicate", "label": "saved"},
+        {"id": uuid4(), "name": "duplicate", "label": "saved"},
+    ]
+    multiple = await pipeline.handle_native_rows(
+        retrieve_action, "request-id", (duplicate_rows, None)
+    )
+    assert multiple.status == 500
+
+    one = await pipeline.handle_native_rows(
+        retrieve_action, "request-id", (duplicate_rows[:1], None)
+    )
+    assert one.status == 200
+    assert core.decode_json(one.body)["name"] == "duplicate"
+
+
+async def test_native_rows_error_handler_timeout_is_translated() -> None:
+    app = Hinoki(
+        include=[PlanItems],
+        modules=[DatabaseModule("sqlite:///unused-native-error.sqlite3")],
+    )
+    pipeline = Pipeline(app)
+    build_server_core(pipeline)
+
+    async def internal_timeout(_error: RuntimeError) -> Conflict:
+        raise TimeoutError("handler timeout")
+
+    app.errors.handle(RuntimeError)(internal_timeout)
+    action = next(
+        index
+        for index, selection in enumerate(pipeline.crud_plan_selections)
+        if selection is not None and selection.action == "create"
+    )
+    response = await pipeline.handle_native_rows(action, "request-id", ([], None))
+    assert response.status == 500
+
+
+async def test_native_rows_error_translation_timeout_uses_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipeline = plan_pipeline()
+    build_server_core(pipeline)
+
+    attempts = 0
+
+    async def interrupted(*_args: Any, **_kwargs: Any) -> Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise TimeoutError("error translation timed out")
+        return Response(500, b"fallback")
+
+    monkeypatch.setattr("hinoki.runtime.pipeline.error_response", interrupted)
+    action = next(
+        index
+        for index, selection in enumerate(pipeline.crud_plan_selections)
+        if selection is not None and selection.action == "create"
+    )
+    response = await pipeline.handle_native_rows(action, "request-id", ([], None))
+    assert response.status == 500
+
+
+async def test_native_rows_timeout_returns_gateway_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = Hinoki(
+        runtime=RuntimeConfig(request_timeout=0.01),
+        include=[PlanItems],
+        modules=[DatabaseModule("sqlite:///unused-native-error.sqlite3")],
+    )
+    pipeline = Pipeline(app)
+    build_server_core(pipeline)
+    action = next(
+        index
+        for index, selection in enumerate(pipeline.crud_plan_selections)
+        if selection is not None and selection.action == "list"
+    )
+
+    async def slow_hydration(_action: int, _fallback: Any) -> object:
+        await asyncio.sleep(0.1)
+        return []
+
+    monkeypatch.setattr(pipeline, "_hydrate_native_rows", slow_hydration)
+    response = await pipeline.handle_native_rows(action, "request-id", ([], (1, 20, 0)))
+    assert response.status == 504
+
+
 async def test_worker_attaches_and_releases_the_shared_database_clone(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -348,6 +593,7 @@ async def test_worker_attaches_and_releases_the_shared_database_clone(
         include=[PlanItems],
         modules=[DatabaseModule(f"sqlite:///{tmp_path / 'worker.db'}")],
     )
+    app.errors.handle(core.UniqueViolation)(unique_to_conflict)
     worker = RustWorker(app, "127.0.0.1", 0)
     await worker.start()
 
@@ -377,6 +623,53 @@ async def test_worker_attaches_and_releases_the_shared_database_clone(
     ]
     assert allow_origins == [b"https://route.example"]
     assert b"access-control-allow-credentials" not in dict(reply[1])
+
+    failed_submission = worker.core.submit("POST", "/plan-items", b"", [])
+    [failed_request] = worker.core.drain(1)
+    failed_request._set_native_failure(
+        "unique",
+        "unique constraint violated",
+        "plan_items_name_key",
+        "plan_items",
+        "23505",
+    )
+    await worker._serve(failed_request)
+    assert failed_request._take_native_failure() is None
+    failure_reply = failed_submission.reply()
+    assert failure_reply is not None
+    assert failure_reply[0] == 409
+    assert [
+        value
+        for name, value in failure_reply[1]
+        if name == b"access-control-allow-origin"
+    ] == [b"https://route.example"]
+
+    rows_submission = worker.core.submit("GET", "/plan-items", b"", [])
+    [rows_request] = worker.core.drain(1)
+    row_id = uuid4()
+    rows_request._set_native_rows(
+        [{"id": row_id, "name": "fallback", "label": "saved"}], (1, 20, 1)
+    )
+    await worker._serve(rows_request)
+    rows_reply = rows_submission.reply()
+    assert rows_reply is not None
+    assert rows_reply[0] == 200
+    decoded = core.decode_json(rows_reply[2])
+    assert decoded["items"][0] == {
+        "id": str(row_id),
+        "name": "fallback",
+        "label": "saved",
+    }
+    assert (decoded["page"], decoded["page_size"], decoded["total"]) == (1, 20, 1)
+    assert rows_request._take_native_rows() is None
+
+    missing_submission = worker.core.submit("GET", "/plan-items", b"", [])
+    [missing_request] = worker.core.drain(1)
+    missing_request._set_native_failure("not_found", "PlanItem not found")
+    await worker._serve(missing_request)
+    missing_reply = missing_submission.reply()
+    assert missing_reply is not None
+    assert missing_reply[0] == 404
 
     await worker.stop()
     assert not worker.core._database_attached()
