@@ -213,3 +213,46 @@ def test_cpu_time_accepts_macos_and_linux_ps_formats() -> None:
     assert report.cpu_seconds("00:05:59") == 359
     assert report.cpu_seconds("01:02:03") == 3723
     assert report.cpu_seconds("2-00:00:01") == 172801
+
+
+def test_documented_slice_has_one_chart_with_a_panel_per_reported_scenario() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        directory = Path(temporary) / "results" / "documented"
+        directory.mkdir(parents=True)
+        (directory / "environment.json").write_text(
+            json.dumps(
+                {
+                    "date": "2026-11-17",
+                    "cpu": "CPU",
+                    "cores": 8,
+                    "machine": "Linux",
+                    "loadavg_at_start": [0.1, 0.2, 0.3],
+                    "postgres": "PostgreSQL 17",
+                    "oha": "oha 1.17",
+                    "settings": {
+                        "server_mode": "documented",
+                        "stacks": ["hinoki"],
+                        "workers": 4,
+                        "server_cpus": "0-3",
+                        "load_cpus": "6-7",
+                        "concurrency": 64,
+                        "warmup_s": 10,
+                        "runs": 3,
+                        "duration_s": 20,
+                    },
+                }
+            )
+        )
+        (directory / "hinoki-verify.txt").write_text("OK")
+        for scenario in report.SCENARIOS:
+            rates = (10.0, 40.0, 90.0) if scenario == "create" else (10.0, 10.1, 9.9)
+            for index, rate in enumerate(rates, start=1):
+                (directory / f"hinoki-{scenario}-{index}.json").write_text(
+                    json.dumps(sample(rate))
+                )
+
+        rendered = report.render_mode(directory)
+
+    assert rendered.count('class="bench-chart"') == 1
+    assert rendered.count('class="bench-panel"') == 3
+    assert "Create</div>" not in rendered.split("<table")[0]
