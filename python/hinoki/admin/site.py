@@ -21,9 +21,9 @@ from hinoki.db import (
     UniqueViolation,
 )
 from hinoki.errors import ModelValidationError
+from hinoki.http.request import Request
+from hinoki.http.response import Response
 from hinoki.orm import current_database
-from hinoki.reply import Response
-from hinoki.request import Request
 from hinoki.runtime.binding import to_int
 
 if typing.TYPE_CHECKING:

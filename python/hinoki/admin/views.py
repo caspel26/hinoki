@@ -40,9 +40,9 @@ from hinoki.admin.site import (
 from hinoki.admin.templates import Raw, escape
 from hinoki.api import API
 from hinoki.auth import Caller
+from hinoki.http.request import Request
+from hinoki.http.response import Response
 from hinoki.orm.context import current_database
-from hinoki.reply import Response
-from hinoki.request import Request
 
 if typing.TYPE_CHECKING:
     from hinoki.admin.core import Admin

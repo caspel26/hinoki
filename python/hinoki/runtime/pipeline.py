@@ -26,6 +26,8 @@ from hinoki.db import Database
 from hinoki.docsui import CSP, Page
 from hinoki.docsui import pages as docs_pages
 from hinoki.errors import ErrorDetail, InvalidBody, RegistrationError, ValidationError
+from hinoki.http.request import Request
+from hinoki.http.response import Response as HandlerResponse
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
 from hinoki.orm.model import Model
@@ -35,8 +37,6 @@ from hinoki.renderers import (
     is_default_json_renderer,
     negotiate,
 )
-from hinoki.reply import Response as HandlerResponse
-from hinoki.request import Request
 from hinoki.routing import MethodNotAllowed
 from hinoki.runtime.binding import BODY_METHODS, Binding, parse_query
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor

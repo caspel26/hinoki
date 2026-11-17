@@ -11,8 +11,8 @@ from hinoki.admin.forms import (
 from hinoki.admin.modeladmin import ModelAdmin
 from hinoki.admin.site import MAX_PAGE, ListState, Site  # noqa: F401
 from hinoki.admin.templates import Raw, escape
+from hinoki.http.response import Response
 from hinoki.orm import QuerySet
-from hinoki.reply import Response
 
 NO_HTML = Raw("")
 
