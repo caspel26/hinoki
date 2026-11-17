@@ -393,6 +393,7 @@
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--name<span class="w"> </span>add-published
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>billing<span class="w"> </span>--name<span class="w"> </span>add-invoice-index
 </code></pre></div>
+<p>The app can be named as an argument or with <code>--app</code>: <code>hinoki migrations plan billing</code> and <code>hinoki migrations plan --app billing</code> are the same. Naming it twice with different values is an error.</p>
 <p>The manifest must register the selected app. A single-app project defaults to that app; in a multi-app project, writing a plan requires <code>--app</code>. Read-only <code>--dry-run</code> and <code>--check</code> without <code>--app</code> cover every registered app in dependency order. The planner targets the local SQLite default unless a URL is provided through <code>HINOKI_DATABASE_URL</code> or <code>--database</code>. It writes a numbered <code>.sql</code> file and a matching <code>.state.json</code> file into the registered migration package. Numbering and a stable slug derived from the first schema change are automatic; an optional <code>--name</code> replaces only that slug for a focused plan. Review both files before applying the change. Cross-app model references require an explicit <code>requires</code> dependency in <code>hinoki.toml</code>; this lets Hinoki validate references and order migrations without assigning another app's tables to the current app's migration state.</p>
 <p><code>--dry-run</code> previews ordinary destructive changes without <code>--allow-destructive</code>
 and writes no files. An all-app preview is hypothetical: it can show a child
@@ -449,6 +450,7 @@ changes are pending.</p>
 <span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"accounts"</span><span class="p">]</span>
 </code></pre></div>
 <h2 id="apply-and-inspect">Apply and inspect<a class="headerlink" href="#apply-and-inspect" title="Permanent link">&para;</a></h2>
+<p><code>apply</code> and <code>status</code> take the app the same way: <code>hinoki migrations apply billing</code> applies <code>billing</code> and its prerequisites. Planning and applying stay two separate commands, so a migration is never written and applied in one step.</p>
 <div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$BLOG_DATABASE__URL</span><span class="s2">"</span>
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>status
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>accounts<span class="w"> </span><span class="m">0001</span>-initial
@@ -499,8 +501,8 @@ whether an older migration actually created its constraint.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.9</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 10:18:10 UTC">November 16, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>5 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 23:25:01 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/migrations.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
