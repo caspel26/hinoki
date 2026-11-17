@@ -218,8 +218,8 @@ fn write_float(output: &mut Vec<u8>, value: f64) -> Option<()> {
 #[cfg(test)]
 mod tests {
     use super::{encode_page, RowPlan};
-    use chrono::{TimeZone, Utc};
     use hinoki_orm::Value;
+    use time::macros::datetime;
     use uuid::Uuid;
 
     fn plan() -> RowPlan {
@@ -249,7 +249,7 @@ mod tests {
             ("name".into(), name),
             (
                 "created".into(),
-                Value::Timestamp(Utc.with_ymd_and_hms(2026, 11, 16, 10, 0, 0).unwrap()),
+                Value::Timestamp(datetime!(2026-11-16 10:00:00 UTC)),
             ),
             ("weight".into(), weight),
         ]
@@ -290,8 +290,7 @@ mod tests {
             },
         ];
         let mut values = row(Value::Null, Value::Int(i64::MAX));
-        let timestamp = Utc.with_ymd_and_hms(2026, 11, 16, 10, 0, 0).unwrap()
-            + chrono::Duration::microseconds(123_000);
+        let timestamp = datetime!(2026-11-16 10:00:00 UTC) + time::Duration::microseconds(123_000);
         values[2].1 = Value::Timestamp(timestamp);
         let bytes = encode_page(&[values], &planned, 1, 20, 1).unwrap();
         assert_eq!(
@@ -331,17 +330,16 @@ mod tests {
             vec![("id".into(), "id".into(), "int".into(), false)],
         )
         .unwrap();
-        let year_zero = Utc.with_ymd_and_hms(0, 1, 1, 0, 0, 0).unwrap();
+        let year_zero = datetime!(0000-01-01 0:00 UTC);
         let projected = vec![("created".into(), Value::Timestamp(year_zero))];
         assert!(encode_page(&[projected], &projected_plan, 1, 20, 1).is_none());
 
-        let leap_second = Utc.timestamp_opt(1_483_228_799, 1_500_000_000).unwrap();
-        assert!(leap_second.timestamp_subsec_nanos() >= 1_000_000_000);
-        let projected_leap = vec![("created".into(), Value::Timestamp(leap_second))];
-        assert!(encode_page(&[projected_leap], &projected_plan, 1, 20, 1).is_none());
+        let beyond_python = datetime!(+10000-01-01 0:00 UTC);
+        let projected_late = vec![("created".into(), Value::Timestamp(beyond_python))];
+        assert!(encode_page(&[projected_late], &projected_plan, 1, 20, 1).is_none());
         let unprojected = vec![
             ("id".into(), Value::Int(1)),
-            ("created".into(), Value::Timestamp(leap_second)),
+            ("created".into(), Value::Timestamp(beyond_python)),
         ];
         assert!(encode_page(&[unprojected], &unprojected_plan, 1, 20, 1).is_none());
     }
