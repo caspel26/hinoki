@@ -46,7 +46,7 @@ async fn typed_values_round_trip_and_pool_recovers_after_errors() {
     let is_mariadb = url().is_some_and(|url| url.starts_with("mariadb://"));
     assert_eq!(db.dialect(), if is_mariadb { "mariadb" } else { "mysql" });
     let id = Uuid::new_v4();
-    let now = chrono::Utc::now();
+    let now = time::OffsetDateTime::now_utc();
     let values = [
         Value::Uuid(id),
         Value::Text("hello".into()),
@@ -90,7 +90,7 @@ async fn typed_values_round_trip_and_pool_recovers_after_errors() {
     let Value::Timestamp(back) = &row["at"] else {
         panic!("timestamp expected")
     };
-    assert!((*back - now).num_microseconds().unwrap().abs() < 2);
+    assert!((*back - now).whole_microseconds().abs() < 2);
 
     sleep(Duration::from_millis(20)).await;
     let (size, idle) = db.status();
