@@ -35,7 +35,7 @@ Use a disposable database while evaluating the example.
 uv run --project .. hinoki dev notes.main:app
 ```
 
-The `DatabaseModule` opens a pool for the worker and closes it at shutdown. It does not create tables. In another terminal, create a note and list the collection:
+The `database` field of the Notes settings opens a pool for the worker and closes it at shutdown. It does not create tables. In another terminal, create a note and list the collection:
 
 ```sh
 curl -i -X POST http://127.0.0.1:8000/notes \
