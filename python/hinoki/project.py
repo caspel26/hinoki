@@ -145,6 +145,8 @@ class ProjectManifest:
         for app in self.ordered_apps():
             models = self.models(app)
             for model in models:
+                if model.__table_problem__:
+                    raise ProjectError(model.__table_problem__)
                 if model.__table__.casefold() == MIGRATION_LEDGER:
                     raise ProjectError(
                         f"{model.__module__}.{model.__qualname__} claims Hinoki's "

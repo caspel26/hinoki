@@ -398,6 +398,8 @@ def field(  # noqa: PLR0913 - each keyword is an independent public field option
     Constraints run before ORM writes. Custom validators are synchronous and
     raise ``ValueError`` to refuse a value; they must not perform I/O.
     """
+    if type(index) is not bool:
+        raise RegistrationError("field(index=...) must be True or False")
     if index and (primary_key or unique):
         raise RegistrationError(
             "field(index=True) is redundant: a primary key or unique column "
@@ -501,6 +503,8 @@ class Model:
 
     __table__: ClassVar[str] = ""
     __table_is_implicit__: ClassVar[bool] = False
+    __table_decorated__: ClassVar[bool] = False
+    __table_problem__: ClassVar[str] = ""
     __columns__: ClassVar[tuple[str, ...]] = ()
     __json_columns__: ClassVar[tuple[str, ...]] = ()
     __field_types__: ClassVar[dict[str, FieldType]] = {}
@@ -532,10 +536,14 @@ class Model:
         **kwargs: object,
     ) -> None:
         super().__init_subclass__(**kwargs)
-        table, label, plural, implicit_table = resolve_model_names(
+        table, label, plural, implicit_table, problem = resolve_model_names(
             cls.__name__, table, label, plural, abstract=abstract
         )
         cls.__table_is_implicit__ = implicit_table
+        cls.__table_decorated__ = False
+        # A derived name that cannot be used is reported only if no @db.table
+        # names the table: the decorator runs after this method.
+        cls.__table_problem__ = problem
         cls.check_field_conflicts()
         cls.adopt_mixin_fields()
         dataclasses.dataclass(kw_only=True)(cls)
@@ -700,11 +708,14 @@ class Model:
         base's constraints and indexes, and the first one that sets an order or
         a timestamp column. A decorator applied to this class later replaces what
         was inherited for its kind (see ``hinoki.orm.options``). Indexes declared
-        with ``field(index=True)`` belong to their column and always stay."""
+        with ``field(index=True)`` belong to their column: they stay while the
+        column keeps ``index=True`` and go when this class redeclares the column
+        without it, whether or not a decorator is applied."""
         bases = cls.option_bases()
         cls.__unique__ = without_repeats([g for b in bases for g in b.__unique__])
-        inherited_indexes = without_repeats([g for b in bases for g in b.__indexes__])
-        cls.__indexes__ = without_repeats([*inherited_indexes, *cls.__field_indexes__])
+        indexes = [g for b in bases for g in b.__indexes__ if cls.keeps_index(b, g)]
+        inherited_indexes = [g for g in indexes if g not in cls.__field_indexes__]
+        cls.__indexes__ = without_repeats([*indexes, *cls.__field_indexes__])
         cls.__ordering__ = next((b.__ordering__ for b in bases if b.__ordering__), ())
         timed = next((b for b in bases if b.__updated_at__ is not None), None)
         cls.__updated_at__ = timed.__updated_at__ if timed else None
@@ -719,6 +730,23 @@ class Model:
             cls.__unique__ = cls.check_unique(unique)
             inherited["unique"] = False
         cls.__inherited_options__ = frozenset(k for k, v in inherited.items() if v)
+
+    @classmethod
+    def keeps_index(cls, base: type[Model], columns: tuple[str, ...]) -> bool:
+        """Whether an index of ``base`` carries over: a decorator index always
+        does, a ``field(index=True)`` index only while this class's column still
+        declares it."""
+        if columns not in base.__field_indexes__:
+            return True
+        return columns in base.__decorated_indexes__ or columns in cls.__field_indexes__
+
+    @classmethod
+    def check_table(cls) -> None:
+        """Raise the deferred error of a derived table name that cannot be
+        used: the class name gave no portable or free name and no
+        ``@db.table``/``table=`` replaced it."""
+        if cls.__table_problem__:
+            raise RegistrationError(cls.__table_problem__)
 
     @classmethod
     def replace_inherited(cls, kind: str) -> bool:
@@ -737,6 +765,7 @@ class Model:
                 f"{cls.__name__} is abstract and has no table; query or save a "
                 "model that subclasses it with table=..."
             )
+        cls.check_table()
         return cls
 
     @classmethod
@@ -806,6 +835,7 @@ class Model:
             meta: FieldMeta = column.metadata.get(MARK, FieldMeta())
             if meta.references is None:
                 continue
+            meta.references.check_table()
             cls.check_set_null(column, meta)
             if column.name in copied:
                 # The parent owns a fixed reverse name; a placeholder gives
