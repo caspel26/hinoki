@@ -31,9 +31,9 @@ from hinoki.errors import (
     ValidationError,
 )
 from hinoki.handlerhints import hints_of, signature_of
+from hinoki.http.request import Request
 from hinoki.pagination import PageNumberPagination, PageParams
 from hinoki.parsers import MultiPartParser, UploadedFile
-from hinoki.request import Request
 from hinoki.routing import Route
 from hinoki.schema import Schema
 

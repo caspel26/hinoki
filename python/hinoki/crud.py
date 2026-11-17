@@ -18,11 +18,11 @@ from hinoki.api import API
 from hinoki.auth import Caller
 from hinoki.errors import Forbidden, RegistrationError
 from hinoki.fields import UNSET
+from hinoki.http.request import Request
+from hinoki.http.response import Response
 from hinoki.orm import Model, QuerySet
 from hinoki.orm.context import current_database
 from hinoki.pagination import Page, PageNumberPagination, PageParams
-from hinoki.reply import Response
-from hinoki.request import Request
 from hinoki.routing import Options, RouteDeclaration
 from hinoki.schema import Schema
 

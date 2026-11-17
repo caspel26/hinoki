@@ -17,8 +17,8 @@ import re
 import secrets
 from urllib.parse import urlsplit
 
-from hinoki.reply import set_cookie
-from hinoki.request import Request
+from hinoki.http.request import Request
+from hinoki.http.response import set_cookie
 
 COOKIE = "hinoki_csrf"
 FIELD = "csrf"

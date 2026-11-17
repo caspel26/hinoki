@@ -92,7 +92,4 @@ def set_cookie(
     return "set-cookie", "; ".join(parts)
 
 
-# Compatibility alias retained while applications migrate from Reply.
-Reply = Response
-
-__all__ = ["Headers", "Reply", "Response", "set_cookie"]
+__all__ = ["Headers", "Response", "set_cookie"]

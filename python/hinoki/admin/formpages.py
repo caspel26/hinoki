@@ -17,7 +17,7 @@ from hinoki.admin.modeladmin import ModelAdmin
 from hinoki.admin.parts import Badge
 from hinoki.admin.site import OPTION_LIMIT, Site
 from hinoki.admin.templates import Raw, escape
-from hinoki.reply import Response
+from hinoki.http.response import Response
 
 
 async def option_lists(
