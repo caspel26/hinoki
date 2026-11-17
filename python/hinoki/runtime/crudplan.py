@@ -24,7 +24,7 @@ from hinoki.crud import (
     update_row,
 )
 from hinoki.db import Database, DatabaseModule
-from hinoki.errors import ErrorDetail
+from hinoki.errors import ErrorDetail, ErrorRegistry
 from hinoki.fields import UNSET
 from hinoki.orm import Model, QuerySet
 from hinoki.orm import queryset as queryset_module
@@ -40,6 +40,7 @@ from hinoki.runtime.rowplan import (
     is_plain_model,
     plain_column,
     plain_schema_setattr,
+    schema_fields,
     static_state,
     static_state_matches,
 )
@@ -81,14 +82,6 @@ OWNER_METHODS = (
     "invoke_default_hook",
     "invoke_custom_hook",
 )
-OWNER_INSTANCE_STATE = (
-    "resource",
-    "model",
-    "read_schema",
-    "create_schema",
-    "update_schema",
-    "pagination",
-)
 MODEL_METHODS = (
     "__new__",
     "__getattribute__",
@@ -104,8 +97,13 @@ MODEL_METHODS = (
     "check_field",
     "validate_values",
     "aget",
+    "concrete",
+    "refresh",
 )
 QUERYSET_METHODS = (
+    "__init__",
+    "__await__",
+    "compile",
     "derive",
     "filter",
     "order_by",
@@ -127,9 +125,6 @@ QUERYSET_METHODS_ORIGINAL = static_state(QuerySet, QUERYSET_METHODS)
 OWNER_METHODS_ORIGINAL = static_state(CrudAPI, OWNER_METHODS)
 MODEL_METHODS_ORIGINAL = static_state(Model, MODEL_METHODS)
 IMMUTABLE_TYPES = (type(None), bool, int, float, str)
-QUERYSET_FUNCTIONS_ORIGINAL = (condition, written_rows, write_statement)
-DATABASE_MODULE_METHODS = ("lifespan", "from_settings")
-DATABASE_MODULE_METHODS_ORIGINAL = static_state(DatabaseModule, DATABASE_MODULE_METHODS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,6 +219,19 @@ CRUD_HANDLER_NAMES = (
 CRUD_HANDLER_ORIGINALS = tuple(
     getattr(crud_module, name) for name in CRUD_HANDLER_NAMES
 )
+# Names lane C resolves through ``hinoki.crud``'s module globals at request time.
+CRUD_HELPER_NAMES = (
+    "python_list_rows",
+    "schema_items",
+    "wire_list_rows",
+    "current_database",
+    "Page",
+)
+CRUD_HELPER_ORIGINALS = tuple(getattr(crud_module, name) for name in CRUD_HELPER_NAMES)
+CONFIG_METHODS = ("values",)
+CONFIG_METHODS_ORIGINAL = static_state(_CrudConfig, CONFIG_METHODS)
+ERROR_REGISTRY_METHODS = ("handle", "add", "find", "translate")
+ERROR_REGISTRY_METHODS_ORIGINAL = static_state(ErrorRegistry, ERROR_REGISTRY_METHODS)
 QUERYSET_FUNCTIONS_ORIGINAL = (condition, written_rows, write_statement)
 DATABASE_MODULE_METHODS = ("lifespan", "from_settings")
 DATABASE_MODULE_METHODS_ORIGINAL = static_state(DatabaseModule, DATABASE_MODULE_METHODS)
@@ -328,22 +336,42 @@ def route_matches_action(route: Any, action: str, owner: type[CrudAPI]) -> bool:
         return False
     method, suffix = expected
     path = owner.prefix + ("" if suffix == "/" else suffix)
-    if not path:
-        path = "/"
     return (
         inspect.isfunction(route.handler)
-        and (route.method, route.path) == (method, path)
+        and route.method == method
+        and path_is_mounted(route.path, path)
         and route.handler.__code__ is template.__code__
         and route.handler.__globals__ is template.__globals__
         and crud_handler_is_original(action)
     )
 
 
+def path_is_mounted(actual: str, declared: str) -> bool:
+    """``actual`` is ``declared`` itself or ``declared`` under a ``Mount`` prefix.
+
+    ``declared`` is the owner's path without a trailing slash (empty for the root).
+    """
+    if actual == (declared or "/"):
+        return True
+    if not actual.endswith(declared):
+        return False
+    mount = actual[: len(actual) - len(declared)]
+    return mount.startswith("/") and not mount.endswith("/")
+
+
 def crud_handler_is_original(action: str) -> bool:
     index = ACTIONS.index(action)
     return (
         getattr(crud_module, CRUD_HANDLER_NAMES[index]) is CRUD_HANDLER_ORIGINALS[index]
+        and crud_helpers_are_original()
     )
+
+
+def crud_helpers_are_original() -> bool:
+    return all(
+        getattr(crud_module, name) is original
+        for name, original in zip(CRUD_HELPER_NAMES, CRUD_HELPER_ORIGINALS, strict=True)
+    ) and static_state_matches(_CrudConfig, CONFIG_METHODS, CONFIG_METHODS_ORIGINAL)
 
 
 def public_route_is_plain(
@@ -494,10 +522,32 @@ def model_default_specs(
         if name in sent:
             continue
         encoded = model_field_default(item)
-        if encoded is None:
+        if encoded is None or not default_fits_column(model, name, encoded[0]):
             return None
         found.append((name, *encoded))
     return found
+
+
+DEFAULT_COLUMN_KINDS = {
+    "str": {"str"},
+    "int": {"int"},
+    "float": {"float"},
+    "bool": {"bool"},
+    "uuid4": {"uuid"},
+    "utc_now": {"datetime"},
+}
+
+
+def default_fits_column(model: type[Model], name: str, default_kind: str) -> bool:
+    """A default is native only when its kind is the column's own kind."""
+    field_type = model.__field_types__.get(name)
+    if field_type is None:
+        return False
+    if default_kind == "none":
+        return field_type.nullable
+    if default_kind == "required":
+        return True
+    return field_type.kind in DEFAULT_COLUMN_KINDS.get(default_kind, set())
 
 
 def model_field_default(field: dataclasses.Field[Any]) -> tuple[str, str] | None:
@@ -614,8 +664,19 @@ def plain_crud_schema(schema: type[Schema], model: type[Model], role: str) -> bo
         if not schema_default_is_plain(field, role):
             return False
     return (
-        static_state_matches(Schema, SCHEMA_METHODS, SCHEMA_METHODS_ORIGINAL)
+        (role != "read" or read_schema_matches_rows(schema, model))
+        and static_state_matches(Schema, SCHEMA_METHODS, SCHEMA_METHODS_ORIGINAL)
         and schema.native_schema() is not None
+    )
+
+
+def read_schema_matches_rows(schema: type[Schema], model: type[Model]) -> bool:
+    """Stored rows are emitted as they are: no constraint may reject them and a
+    non-null field must not be fed a nullable column."""
+    fields = schema_fields(model, schema)
+    return fields is not None and all(
+        nullable == model.__field_types__[name].nullable
+        for name, _wire, _kind, nullable in fields
     )
 
 
@@ -677,8 +738,15 @@ def database_module_snapshot(module: DatabaseModule) -> tuple[object, ...]:
 
 
 def error_handlers_snapshot(app: Any) -> tuple[object, ...]:
-    handlers = app.errors.handlers
-    return id(handlers), tuple(handlers.items())
+    errors = app.errors
+    handlers = errors.handlers
+    return (
+        type(errors),
+        static_state(type(errors), ERROR_REGISTRY_METHODS),
+        id(handlers),
+        tuple(handlers.items()),
+        tuple(errors.defaults.items()),
+    )
 
 
 def dialect_of(module: DatabaseModule) -> str | None:
@@ -694,6 +762,8 @@ def dialect_of(module: DatabaseModule) -> str | None:
 
 def database_is_plain(app: Any, module: DatabaseModule, model: type[Model]) -> bool:
     if type(module) is not DatabaseModule or type(app.errors.handlers) is not dict:
+        return False
+    if not error_registry_is_plain(app.errors):
         return False
     if any(error in app.errors.handlers for error in model.NotFound.__mro__):
         return False
@@ -717,6 +787,16 @@ def database_is_plain(app: Any, module: DatabaseModule, model: type[Model]) -> b
             queryset_module.write_statement,
         )
         == QUERYSET_FUNCTIONS_ORIGINAL
+    )
+
+
+def error_registry_is_plain(errors: Any) -> bool:
+    return (
+        type(errors) is ErrorRegistry
+        and static_state_matches(
+            ErrorRegistry, ERROR_REGISTRY_METHODS, ERROR_REGISTRY_METHODS_ORIGINAL
+        )
+        and errors.defaults == ErrorRegistry().defaults
     )
 
 
@@ -765,7 +845,7 @@ def pagination_limits(binding: Binding, action: str) -> tuple[int | None, int]:
     strategy = next(
         (item.strategy for item in binding.params if item.source == "page"), None
     )
-    if strategy is None or type(strategy).__name__ != "PageNumberPagination":
+    if type(strategy) is not PageNumberPagination:
         return None, 0
     return strategy.sizes()
 
@@ -860,6 +940,7 @@ def value_state(
         model.__table__,
         tuple(model.__field_types__.items()),
         tuple(model.__field_validation_fields__),
+        tuple(model.__json_columns__),
         tuple(
             (item.name, item.default, item.default_factory)
             for item in dataclasses.fields(cast(Any, model))
