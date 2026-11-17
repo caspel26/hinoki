@@ -21,12 +21,18 @@ from hinoki.management import Command, _normalize_commands
 from hinoki.modules import Module, order_modules
 from hinoki.openapi import OpenAPIBuilder
 from hinoki.pagination import DEFAULT_MAX_PAGE_SIZE, DEFAULT_PAGE_SIZE
-from hinoki.parsers import DEFAULT_PARSERS, Parser, check_parsers
+from hinoki.parsers import (
+    DEFAULT_PARSERS,
+    UPLOAD_PARSERS,
+    MultiPartParser,
+    Parser,
+    check_parsers,
+)
 from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers
 from hinoki.routing import Found, MethodNotAllowed, Mount, Route, RouteGroup, route_of
 from hinoki.rules import Phase, Project, RuleSet, failing
 from hinoki.runtime.asgi import ASGIAdapter
-from hinoki.runtime.binding import Binding, bind
+from hinoki.runtime.binding import Binding, bind, declares_upload
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.runtime.lifespan import Hook
 from hinoki.settings import AppSettings, DocsSettings, Settings
@@ -362,12 +368,23 @@ class Hinoki:
             )
         return [route]
 
+    def inherited_parsers(self, route: Route) -> tuple[Parser, ...]:
+        """Parsers for an action without its own: the application's, unless
+        an upload action needs multipart and they do not include it."""
+        parsers = self.default_parsers or route.parsers
+        has_multipart = any(isinstance(item, MultiPartParser) for item in parsers)
+        if not has_multipart and declares_upload(route):
+            return UPLOAD_PARSERS
+        return parsers
+
     def with_defaults(self, route: Route) -> Route:
         """The route with this application's default parsers/renderers filled in
         where the action did not choose its own."""
         changes: dict[str, Any] = {}
-        if self.default_parsers is not None and route.parsers is DEFAULT_PARSERS:
-            changes["parsers"] = self.default_parsers
+        if route.parsers is DEFAULT_PARSERS:
+            parsers = self.inherited_parsers(route)
+            if parsers is not route.parsers:
+                changes["parsers"] = parsers
         if self.default_renderers is not None and route.renderers is DEFAULT_RENDERERS:
             changes["renderers"] = self.default_renderers
         if route.pagination is not None:
