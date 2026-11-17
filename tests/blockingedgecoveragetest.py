@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from typing import Any
 
 import pytest
@@ -40,8 +41,10 @@ async def test_run_sync_hands_work_to_worker_loop_without_handoff() -> None:
 @pytest.mark.asyncio
 async def test_run_sync_refuses_handoff_that_closes_during_registration() -> None:
     finished = asyncio.Event()
+    started = threading.Event()
 
     async def value() -> int:
+        started.set()
         try:
             await asyncio.Event().wait()
             return 0
@@ -50,6 +53,7 @@ async def test_run_sync_refuses_handoff_that_closes_during_registration() -> Non
 
     class ClosingHandoff(context.Handoff):
         def add(self, future: Any) -> bool:
+            assert started.wait(timeout=2)
             self.close()
             return super().add(future)
 
@@ -58,7 +62,7 @@ async def test_run_sync_refuses_handoff_that_closes_during_registration() -> Non
     try:
         with pytest.raises(RuntimeError, match="request ended"):
             await asyncio.to_thread(run_sync, value())
-        await asyncio.wait_for(finished.wait(), timeout=1)
+        await asyncio.wait_for(finished.wait(), timeout=2)
     finally:
         context.handed_off.reset(handoff_token)
         context.event_loop.reset(loop_token)
