@@ -36,13 +36,7 @@ def test_latency_spread_is_median_of_per_run_percentiles_with_run_range() -> Non
     assert p95 == {"median": 4.0, "low": 2.0, "high": 10.0}
 
 
-def test_axis_ceiling_is_a_round_number_above_the_data() -> None:
-    assert report.nice_ceiling(867.1) == 1000
-    assert report.nice_ceiling(70.0) == 100
-    assert report.nice_ceiling(4.4) == 5
-
-
-def test_chart_has_accessible_label_and_table_is_next_to_it() -> None:
+def test_results_are_one_table_without_charts() -> None:
     with tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary)
         (directory / "environment.json").write_text(
@@ -85,18 +79,53 @@ def test_chart_has_accessible_label_and_table_is_next_to_it() -> None:
 
         rendered = report.render_mode(directory)
 
-    assert 'role="img"' in rendered
-    assert "aria-labelledby=" in rendered
-    assert "lower is better" in rendered
-    assert '<table class="benchmark-table">' in rendered
-    assert rendered.index("</figure>") < rendered.index("<table")
+    assert "<svg" not in rendered
+    assert "lat-chart" not in rendered
+    assert rendered.count('<table class="benchmark-table">') == 1
+    assert 'scope="col">Requests/s<' in rendered
     assert 'scope="col">p99 ms<' in rendered
-    assert "Unexpected responses" in rendered
-    assert "no CPU pinning" not in rendered
-    assert rendered.index("response time") < rendered.index("Throughput (secondary)")
-    assert 'scope="col">Median req/s<' in rendered.split("Throughput (secondary)")[1]
-    assert 'scope="col">CV<' in rendered
-    assert "Additional capture environment-same-granian-110000.json" in rendered
+
+
+def test_unstable_scenario_is_withheld_and_stable_ones_are_reported() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        directory = Path(temporary)
+        (directory / "environment.json").write_text(
+            json.dumps(
+                {
+                    "date": "2026-11-17",
+                    "cpu": "CPU",
+                    "cores": 8,
+                    "machine": "Linux",
+                    "loadavg_at_start": [0.1, 0.2, 0.3],
+                    "postgres": "PostgreSQL 17",
+                    "oha": "oha 1.17",
+                    "settings": {
+                        "server_mode": "documented",
+                        "stacks": ["hinoki"],
+                        "workers": 4,
+                        "server_cpus": "0-3",
+                        "load_cpus": "6-7",
+                        "concurrency": 64,
+                        "warmup_s": 10,
+                        "runs": 3,
+                        "duration_s": 20,
+                    },
+                }
+            )
+        )
+        (directory / "hinoki-verify.txt").write_text("OK")
+        for scenario in report.SCENARIOS:
+            rates = (10.0, 40.0, 90.0) if scenario == "create" else (10.0, 10.1, 9.9)
+            for index, rate in enumerate(rates, start=1):
+                (directory / f"hinoki-{scenario}-{index}.json").write_text(
+                    json.dumps(sample(rate))
+                )
+
+        rendered = report.render_mode(directory)
+
+    assert "Not reported: create" in rendered
+    assert '<th scope="row">Health</th>' in rendered
+    assert '<th scope="row">Create</th>' not in rendered
 
 
 def test_unpinned_run_is_described_as_unpinned() -> None:
