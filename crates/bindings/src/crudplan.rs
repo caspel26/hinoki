@@ -73,7 +73,7 @@ pub(crate) struct CrudPlan {
     _schemas: Vec<Arc<NativeSchema>>,
 }
 
-#[pyclass(name = "_CrudPlan", module = "hinoki.core")]
+#[pyclass(name = "_CrudPlan", module = "hinoki.core", frozen)]
 pub(crate) struct PyCrudPlan {
     pub(crate) inner: Arc<CrudPlan>,
 }
