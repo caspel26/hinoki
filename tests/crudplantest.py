@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from hinoki import API, CrudAPI, Hinoki, Schema, SchemaExtra, Unset, core, http
-from hinoki.db import DatabaseModule
+from hinoki.db import Database, DatabaseModule
 from hinoki.fields import UNSET
 from hinoki.modules import ModuleContext
 from hinoki.orm import Model, QuerySet, field
@@ -255,6 +255,53 @@ def test_plan_selector_exceptions_keep_startup_on_the_python_path(
     build_server_core(pipeline)
     assert all(selection is None for selection in pipeline.crud_plan_selections)
     assert set(pipeline.crud_plan_reasons) == {"native_plan_build_failed"}
+
+
+def test_native_crud_activation_fails_closed_for_missing_and_failed_database(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(CrudPlanSelection, "snapshot_valid", lambda _self: True)
+    database = object.__new__(Database)
+    database.engine = object()
+
+    for mode, expected in (
+        ("missing", "database_missing_after_startup"),
+        ("attach", "database_attach_failed"),
+        ("arm", "native_plan_arm_failed"),
+    ):
+        pipeline = plan_pipeline()
+        build_server_core(pipeline)
+        pipeline.ctx = SimpleNamespace(
+            find=lambda _type, mode=mode: None if mode == "missing" else database
+        )
+        disarmed: list[int] = []
+
+        class CoreStub:
+            def _database_attached(self) -> bool:
+                return False
+
+            def _attach_database(self, _engine: object, mode: str = mode) -> None:
+                if mode == "attach":
+                    raise RuntimeError("pool clone rejected")
+
+            def _disarm_crud_plans(self) -> None:
+                pass
+
+            def _disarm_crud(self, action: int, disarmed: list[int] = disarmed) -> None:
+                disarmed.append(action)
+
+            def _arm_crud(self, _action: int) -> bool:
+                return False
+
+        worker = object.__new__(RustWorker)
+        worker.pipeline = pipeline
+        worker.core = CoreStub()
+        worker._disarmed_crud_actions = set()
+        worker._activate_crud_plans()
+
+        assert set(filter(None, pipeline.crud_plan_reasons)) == {expected}
+        if expected == "native_plan_arm_failed":
+            assert len(disarmed) == len(pipeline.crud_plan_selections)
 
 
 async def test_worker_attaches_and_releases_the_shared_database_clone(
