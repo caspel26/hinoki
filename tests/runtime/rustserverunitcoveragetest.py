@@ -406,7 +406,7 @@ async def test_start_failure_paths_never_leave_lifespan_running(
             runtime=SimpleNamespace(
                 shutdown_timeout=4.0, max_header_bytes=8192, request_timeout=20.0
             )
-        )
+        ),
     )
     worker.listener_fd = 11
     worker.core = SimpleNamespace(
@@ -449,7 +449,7 @@ async def test_start_binds_only_after_success_and_registers_housekeeping(
             runtime=SimpleNamespace(
                 shutdown_timeout=4.0, max_header_bytes=8192, request_timeout=20.0
             )
-        )
+        ),
     )
     worker.body_read_timeout = 8.0
     worker.write_timeout = 30.0

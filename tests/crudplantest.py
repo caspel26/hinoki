@@ -295,14 +295,15 @@ async def test_worker_attaches_and_releases_the_shared_database_clone(
     )
     [request] = worker.core.drain(1)
     assert request.respond_final(
-        200, [(b"content-type", b"application/json")], b"{\"items\":[]}"
+        200, [(b"content-type", b"application/json")], b'{"items":[]}'
     )
     reply = submission.reply()
     assert reply is not None
     assert dict(reply[1])[b"x-crud-resource"] == b"plan-items"
-    assert [value for name, value in reply[1] if name == b"access-control-allow-origin"] == [
-        b"https://route.example"
+    allow_origins = [
+        value for name, value in reply[1] if name == b"access-control-allow-origin"
     ]
+    assert allow_origins == [b"https://route.example"]
     assert b"access-control-allow-credentials" not in dict(reply[1])
 
     await worker.stop()
