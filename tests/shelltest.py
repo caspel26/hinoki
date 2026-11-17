@@ -10,7 +10,7 @@ import threading
 import time
 from argparse import Namespace
 from collections.abc import AsyncIterator, Coroutine
-from concurrent.futures import Future
+from concurrent.futures import CancelledError, Future
 from contextlib import asynccontextmanager
 from pathlib import Path
 from types import CodeType
@@ -475,6 +475,106 @@ def test_shell_bounds_startup_that_suppresses_cancellation(
     assert time.monotonic() - started < 1
     assert not runtime.thread.is_alive()
     assert "abandoning" in caplog.text
+
+
+@pytest.mark.parametrize("mode", ["timeout", "error"])
+def test_shell_startup_reports_when_its_loop_does_not_stop(
+    mode: str, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    runtime = ShellRuntime(
+        Hinoki(runtime=RuntimeConfig(startup_timeout=0.01, shutdown_timeout=0.01))
+    )
+
+    def submit(coroutine: Coroutine[Any, Any, Any]) -> Future[Any]:
+        coroutine.close()
+        future: Future[Any] = Future()
+        if mode == "error":
+            future.set_exception(
+                StartupError("<lifespan>", RuntimeError("startup failed"))
+            )
+        return future
+
+    monkeypatch.setattr(runtime, "_submit", submit)
+    monkeypatch.setattr(runtime, "_stop_loop", lambda: False)
+    with (
+        caplog.at_level("ERROR", logger="hinoki.shell"),
+        pytest.raises(StartupError) as raised,
+    ):
+        runtime.start({})
+    if mode == "timeout":
+        notes = " ".join(getattr(raised.value.cause, "__notes__", []))
+        assert "did not stop after cancellation" in notes
+    else:
+        assert "did not stop after startup failure" in caplog.text
+    monkeypatch.undo()
+    runtime.close()
+
+
+async def test_shell_preserves_cancelled_error_from_a_cell() -> None:
+    runtime = ShellRuntime(Hinoki())
+    runtime.start({"asyncio": asyncio})
+    try:
+        with pytest.raises(CancelledError):
+            runtime.run_cell(_compile("raise asyncio.CancelledError"))
+    finally:
+        runtime.close()
+
+
+@pytest.mark.parametrize("mode", ["timeout", "error"])
+def test_shell_close_collects_timeout_and_unexpected_failures(
+    mode: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = ShellRuntime(Hinoki(runtime=RuntimeConfig(shutdown_timeout=0.01)))
+    runtime.start({})
+
+    def submit(coroutine: Coroutine[Any, Any, Any]) -> Future[Any]:
+        coroutine.close()
+        future: Future[Any] = Future()
+        if mode == "error":
+            future.set_exception(RuntimeError("unexpected close error"))
+        return future
+
+    monkeypatch.setattr(runtime, "_submit", submit)
+    with pytest.raises(ShutdownError) as raised:
+        runtime.close()
+    if mode == "timeout":
+        assert any(isinstance(cause, TimeoutError) for cause in raised.value.causes)
+    else:
+        assert any(
+            str(cause) == "unexpected close error" for cause in raised.value.causes
+        )
+
+
+def test_shell_logs_async_generator_shutdown_errors(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = ShellRuntime(Hinoki())
+    runtime.start({})
+
+    async def broken_shutdown() -> None:
+        raise RuntimeError("async generator close failed")
+
+    monkeypatch.setattr(runtime.loop, "shutdown_asyncgens", broken_shutdown)
+    with caplog.at_level("ERROR", logger="hinoki.shell"):
+        runtime.close()
+    assert "error closing shell async generators" in caplog.text
+
+
+def test_shell_bounds_async_generator_shutdown(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def slow_generator() -> AsyncIterator[int]:
+        try:
+            yield 1
+        finally:
+            await asyncio.Event().wait()
+
+    runtime = ShellRuntime(Hinoki(runtime=RuntimeConfig(shutdown_timeout=0.01)))
+    runtime.start({"generator": slow_generator()})
+    runtime.run_cell(_compile("await generator.__anext__()"))
+    with caplog.at_level("WARNING", logger="hinoki.shell"):
+        runtime.close()
+    assert "async generator cleanup exceeded" in caplog.text
 
 
 def test_shell_reports_module_shutdown_failure_and_stops_loop() -> None:
