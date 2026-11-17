@@ -666,4 +666,34 @@ mod tests {
             Err(Fail::Key)
         );
     }
+
+    #[test]
+    fn immutable_verifier_matches_fresh_decode_for_every_algorithm() {
+        let algorithms = [
+            ("HS256", vec![1; 32]),
+            ("HS384", vec![2; 48]),
+            ("HS512", vec![3; 64]),
+            ("EdDSA", vec![4; 32]),
+        ];
+        for (algorithm, bytes) in algorithms {
+            let key = key_from(None, algorithm, bytes.clone(), false).unwrap();
+            let token = encode(br#"{"sub":"rust","exp":2000}"#, &key).unwrap();
+            let verifier =
+                Verifier::from_specs(vec![(None, algorithm.to_owned(), bytes, false)]).unwrap();
+            let policy = rules(1000);
+            let expected = decode(&token, &verifier.keys, &policy);
+            assert_eq!(
+                verifier.verify(&token, (1000, 0, None, None, true)),
+                expected
+            );
+
+            let mut invalid = token;
+            invalid.pop();
+            invalid.push('x');
+            assert_eq!(
+                verifier.verify(&invalid, (1000, 0, None, None, true)),
+                decode(&invalid, &verifier.keys, &policy)
+            );
+        }
+    }
 }
