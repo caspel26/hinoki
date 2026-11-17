@@ -54,6 +54,25 @@ class Note(Model, table="rel_notes"):
     article: ClassVar[Related[Article | None]]
 
 
+async def test_bulk_writes_reject_unsafe_or_joined_queries_before_database_access() -> (
+    None
+):
+    with pytest.raises(FieldError, match="aupdate needs filters and values"):
+        await Article.all().aupdate({"title": "x"})
+    with pytest.raises(FieldError, match="aupdate needs filters and values"):
+        await Article.filter(title="x").aupdate({})
+    with pytest.raises(FieldError, match="adelete needs at least one condition"):
+        await Article.all().adelete()
+    with pytest.raises(FieldError, match="updates cannot filter across a relation"):
+        await (
+            Article.filter(writer__name="x")
+            .select_related("writer")
+            .aupdate({"title": "updated"})
+        )
+    with pytest.raises(FieldError, match="adelete cannot filter across a relation"):
+        await Article.filter(writer__name="x").select_related("writer").adelete()
+
+
 class Profile(Model, table="rel_profiles"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     writer_id: UUID = foreign_key(

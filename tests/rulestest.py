@@ -1,5 +1,6 @@
 """Startup rules: typed, deterministic, optional."""
 
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -26,6 +27,9 @@ from hinoki.rules import (
     Severity,
     Status,
     failing,
+    is_open,
+    reachable,
+    where,
 )
 from tests.providers import TokenAuth
 
@@ -85,6 +89,22 @@ def test_require_access_names_every_unprotected_action_with_its_location() -> No
     assert found[0].location.startswith("tests/rulestest.py:")
     assert found[0].status is Status.VIOLATED
     assert found[0].phase is Phase.STARTUP
+
+
+def test_rule_location_and_open_annotation_fallbacks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert where(42) == "42"
+    monkeypatch.setattr("hinoki.rules.inspect.getsourcefile", lambda _target: None)
+    monkeypatch.setattr("hinoki.rules.inspect.getsourcelines", lambda _target: ([], 1))
+    assert where(object()).startswith("<object object at")
+    assert is_open(None) and is_open(Any) and is_open(object)
+    with pytest.raises(NotImplementedError):
+        Rule().check(project())
+
+
+def test_reachable_schema_graph_deduplicates_repeated_roots() -> None:
+    assert list(reachable([Address, Address])) == [Address]
 
 
 def test_require_access_exceptions_and_patterns() -> None:

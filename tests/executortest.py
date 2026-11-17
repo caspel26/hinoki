@@ -4,12 +4,13 @@ import inspect
 import threading
 import time
 from collections.abc import Coroutine
+from concurrent.futures import Future
 from typing import Any
 
 import pytest
 
 from hinoki import blocking, context
-from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
+from hinoki.runtime.executor import AbandonedResult, ExecutorSaturated, SyncExecutor
 
 var: contextvars.ContextVar[str] = contextvars.ContextVar("var", default="unset")
 
@@ -180,3 +181,112 @@ async def test_handed_off_futures_are_released_and_refused_after_cancel() -> Non
         await asyncio.sleep(0.2)
     assert seen[0].closed
     assert refused == ["the request ended; sync model calls are refused"]
+
+
+async def test_executor_releases_capacity_when_submit_fails() -> None:
+    class RejectingPool:
+        _shutdown = False
+
+        def submit(self, _call: Any) -> None:
+            raise RuntimeError("submit rejected")
+
+    executor = SyncExecutor(1, 0)
+    executor._pool = RejectingPool()  # type: ignore[assignment]
+    with pytest.raises(RuntimeError, match="submit rejected"):
+        await executor.run(lambda: None)
+    assert executor.in_flight == 0
+
+
+@pytest.mark.parametrize(
+    ("message", "shutdown"),
+    [
+        ("cannot schedule new futures after interpreter shutdown", False),
+        ("pool shutdown", True),
+    ],
+)
+async def test_shutdown_hook_uses_temporary_thread_after_pool_shutdown(
+    message: str, shutdown: bool
+) -> None:
+    class RejectingPool:
+        _shutdown = shutdown
+
+        def submit(self, _call: Any) -> None:
+            raise RuntimeError(message)
+
+    executor = SyncExecutor(1, 0)
+    executor._pool = RejectingPool()  # type: ignore[assignment]
+    assert await executor.run_shutdown(lambda: "finished") == "finished"
+    await asyncio.sleep(0)
+    assert executor.in_flight == 0
+
+
+async def test_shutdown_thread_failure_releases_handoff_and_capacity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class RejectingPool:
+        _shutdown = True
+
+        def submit(self, _call: Any) -> None:
+            raise RuntimeError("pool shutdown")
+
+    def fail(_call: Any) -> Future[Any]:
+        raise OSError("thread unavailable")
+
+    monkeypatch.setattr(SyncExecutor, "_run_in_shutdown_thread", staticmethod(fail))
+    executor = SyncExecutor(1, 0)
+    executor._pool = RejectingPool()  # type: ignore[assignment]
+    with pytest.raises(OSError, match="thread unavailable"):
+        await executor.run_shutdown(lambda: None)
+    assert executor.in_flight == 0
+
+
+def test_shutdown_thread_captures_callable_errors() -> None:
+    def fail() -> None:
+        raise ValueError("hook failed")
+
+    future = SyncExecutor._run_in_shutdown_thread(fail)
+    with pytest.raises(ValueError, match="hook failed"):
+        future.result(timeout=1)
+
+
+def test_abandoned_result_ignores_live_or_non_abandoned_futures() -> None:
+    abandoned: AbandonedResult[int] = AbandonedResult()
+    future: Future[int] = Future()
+    abandoned.discard(future)
+    future.set_result(1)
+    abandoned.abandon()
+    abandoned.discard(future)
+    abandoned.discard(future)
+
+
+async def test_submit_base_exception_releases_capacity() -> None:
+    class Fatal(BaseException):
+        pass
+
+    class RejectingPool:
+        _shutdown = False
+
+        def submit(self, _call: Any) -> None:
+            raise Fatal
+
+    executor = SyncExecutor(1, 0)
+    executor._pool = RejectingPool()  # type: ignore[assignment]
+    with pytest.raises(Fatal):
+        await executor.run(lambda: None)
+    assert executor.in_flight == 0
+
+
+def test_cancelled_shutdown_thread_future_does_not_run_callable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class CancelBeforeRun:
+        def __init__(self, target: Any, **_kwargs: Any) -> None:
+            self.target = target
+
+        def start(self) -> None:
+            inspect.getclosurevars(self.target).nonlocals["future"].cancel()
+            self.target()
+
+    monkeypatch.setattr("hinoki.runtime.executor.threading.Thread", CancelBeforeRun)
+    future = SyncExecutor._run_in_shutdown_thread(lambda: pytest.fail("was called"))
+    assert future.cancelled()

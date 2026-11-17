@@ -1,5 +1,6 @@
 """The development MCP server: protocol, tools and isolation."""
 
+import argparse
 import contextlib
 import datetime
 import io
@@ -12,13 +13,25 @@ from typing import Any
 
 import pytest
 
-from hinoki import Hinoki, mcp
+from hinoki import API, Access, Hinoki, Request, http, mcp
 from hinoki.mcp import DevProject, Server, serve
 from hinoki.modules import Module, ModuleContext
+from hinoki.orm import Model, field
 from hinoki.proposals import ProposalError, propose
 from tests.projects.rulesapp import create_app, rules
+from tests.providers import TokenAuth
 
 TODAY = datetime.date(2026, 11, 13)
+
+
+class DescribedModel(Model, table="mcp_described_models"):
+    id: int = field(primary_key=True)
+    name: str
+
+
+@http.get("/protected", access=Access(auth=TokenAuth(), permissions=["read"]))
+def protected(request: Request) -> dict[str, bool]:
+    return {"ok": True}
 
 
 @pytest.fixture
@@ -99,6 +112,117 @@ def test_inspect_project_describes_actions(server: Server) -> None:
     )
     assert create["location"].startswith("tests/projects/rulesapp.py:")
     assert json.loads(result["content"][0]["text"]) == data
+
+
+def test_describe_access_and_models_are_structured() -> None:
+    app = Hinoki()
+    app.include(protected)
+    action = mcp.describe_action(app.routes[0])
+    assert action["access"] == {"provider": "TokenAuth", "permissions": ["read"]}
+    model = mcp.describe_model(DescribedModel)
+    assert model["table"] == "mcp_described_models"
+    assert model["columns"] == {"id": "<class 'int'>", "name": "<class 'str'>"}
+
+
+def test_propose_model_tool_returns_proposals_and_translates_errors(
+    server: Server,
+) -> None:
+    project = server.project
+    args = {"name": "Article", "fields": [{"name": "title", "type": "str"}]}
+    assert "class Article(Model" in mcp.tool_propose_model(project, args)["source"]
+    with pytest.raises(mcp.ToolFailure, match="plain ASCII identifier"):
+        mcp.tool_propose_model(project, {"name": "bad name", "fields": []})
+
+
+def test_action_lookup_reports_ambiguous_short_names() -> None:
+    class First(API):
+        @http.get("/first")
+        def listing(self) -> dict[str, bool]:
+            return {"ok": True}
+
+    class Second(API):
+        @http.get("/second")
+        def listing(self) -> dict[str, bool]:
+            return {"ok": True}
+
+    app = Hinoki()
+    app.include(First, Second)
+    project = DevProject(app, rules)
+    with pytest.raises(mcp.ToolFailure, match="is ambiguous"):
+        project.find("listing")
+
+
+def test_explain_error_validates_codes_and_describes_enabled_rules(
+    server: Server,
+) -> None:
+    with pytest.raises(mcp.ToolFailure, match="must be an error code"):
+        mcp.tool_explain_error(server.project, {"code": ""})
+    result = mcp.tool_explain_error(server.project, {"code": "HNK-ACC-001"})
+    assert result["kind"] == "rule"
+    with pytest.raises(mcp.ToolFailure, match="unknown code"):
+        mcp.tool_explain_error(server.project, {"code": "unknown-code"})
+
+
+def test_answer_line_contains_unexpected_tool_failures(
+    server: Server, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(_message: Any) -> dict[str, Any]:
+        raise RuntimeError("secret")
+
+    monkeypatch.setattr(server, "handle", broken)
+    assert mcp.answer_line(server, '{"jsonrpc":"2.0","id":3}') == {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "error": {"code": -32603, "message": "internal error"},
+    }
+
+
+def test_run_mcp_reports_invalid_targets_to_stderr(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def invalid_target(_target: str) -> Hinoki:
+        raise ValueError("bad target")
+
+    monkeypatch.setattr("hinoki.mcp.build_app", invalid_target)
+    args = argparse.Namespace(target="missing:app")
+    assert mcp.run_mcp(args) == 2
+    assert "bad target" in capsys.readouterr().err
+
+
+def test_run_mcp_restores_stdout_after_serving(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    protocol = io.StringIO()
+    diagnostics = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", protocol)
+    monkeypatch.setattr(sys, "stderr", diagnostics)
+    monkeypatch.setattr("hinoki.mcp.build_app", lambda _target: Hinoki())
+    monkeypatch.setattr("hinoki.mcp.build_rules", lambda _rules, _app: rules)
+    monkeypatch.setattr("hinoki.mcp.default_packages", lambda _target: ())
+
+    def serve_once(_server: Server, _source: Any, sink: Any) -> None:
+        assert sys.stdout is diagnostics
+        assert sink is protocol
+
+    monkeypatch.setattr("hinoki.mcp.serve", serve_once)
+    args = argparse.Namespace(
+        target="tests.projects.rulesapp:create_app",
+        rules=None,
+        package=None,
+        models=None,
+        waivers=None,
+        scenarios="off",
+    )
+    assert mcp.run_mcp(args) == 0
+    assert sys.stdout is protocol
+
+
+def test_problem_of_rejects_boolean_request_ids() -> None:
+    assert mcp.problem_of({"id": True, "method": "ping"}) == (
+        None,
+        -32600,
+        "id must be a string or an integer",
+    )
 
 
 def test_list_rules_reports_waivers_read_only(tmp_path: Path) -> None:
@@ -430,8 +554,32 @@ def test_propose_model_with_an_owner_scopes_every_query_and_paginates() -> None:
     assert "TODO: add access" not in source
     compile(source, "<proposal>", "exec")
     with pytest.raises(ProposalError):
-        propose("A", None, [{"name": "x"}], path="/Bad Path")
+        propose("Article", None, [{"name": "x"}], path="/Bad Path")
     with pytest.raises(ProposalError):
-        propose("A", None, [{"name": "x"}], unique_together=[["nope"]])
+        propose("Article", None, [{"name": "x"}], unique_together=[["nope"]])
     with pytest.raises(ProposalError):
-        propose("A", None, [{"name": "owner_id"}], owner="Member")
+        propose("Article", None, [{"name": "owner_id"}], owner="Member")
+
+
+@pytest.mark.parametrize("groups", ["not-a-list", [[]], [["x", 1]], [["x"], []]])
+def test_propose_model_rejects_malformed_unique_groups(groups: object) -> None:
+    with pytest.raises(ProposalError, match="unique_together is a list"):
+        propose("Article", None, [{"name": "x"}], unique_together=groups)
+
+
+def test_propose_model_rejects_duplicate_or_empty_fields() -> None:
+    with pytest.raises(ProposalError, match="fields is a list"):
+        propose("Article", None, [])
+    with pytest.raises(ProposalError, match="field names must be unique"):
+        propose("Article", None, [{"name": "title"}, {"name": "title"}])
+    with pytest.raises(ProposalError, match="each field is an object"):
+        propose("Article", None, [None])
+
+
+def test_propose_model_rejects_non_class_owner_and_uses_explicit_names() -> None:
+    with pytest.raises(ProposalError, match="owning model class name"):
+        propose("Article", None, [{"name": "title"}], owner="member")
+
+    result = propose("Article", "articles_v2", [{"name": "title"}], path="/articles/v2")
+    assert 'table="articles_v2"' in result["source"]
+    assert '"/articles/v2"' in result["source"]
