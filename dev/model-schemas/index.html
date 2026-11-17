@@ -388,19 +388,18 @@
       <article class="prose" style="--sheet: '3.5'">
         <p class="kicker" data-search-exclude>3.5 · Guides</p>
         <h1 id="schemas-derived-from-models">Schemas derived from models<a class="headerlink" href="#schemas-derived-from-models" title="Permanent link">&para;</a></h1>
+<p>Each example below includes its own imports. <code>Post</code> is the blog example's
+model (<code>examples/blog/models.py</code>).</p>
+<p>A <code>Schema</code> can take its fields and constraints from a <code>Model</code>. Pass the source model to the single <code>@derive(Model, ...)</code> decorator when selecting or making fields optional. A class without a decorator can still use <code>model=Model</code> to derive every column during the compatibility cycle.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">derive</span>
-</code></pre></div>
-<p>The validation example below is independent and includes its own imports.</p>
-<p>A <code>Schema</code> can take its fields and constraints from a <code>Model</code>. Pass the source model to the single <code>@derive(Model, ...)</code> decorator when selecting or making fields optional. A class without a decorator can still use <code>model=Model</code> to derive every column during the compatibility cycle.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">derive</span>
 
 
 <span class="nd">@derive</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">only</span><span class="o">=</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"slug"</span><span class="p">,</span> <span class="s2">"body"</span><span class="p">))</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">PostCreate</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
 
 
-<span class="nd">@derive</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">(</span><span class="s2">"author_id"</span><span class="p">,</span> <span class="s2">"internal_note"</span><span class="p">))</span>
+<span class="nd">@derive</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">(</span><span class="s2">"author_id"</span><span class="p">,))</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">PostOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
     <span class="n">author_name</span><span class="p">:</span> <span class="nb">str</span>
 
@@ -443,7 +442,26 @@
 </tbody>
 </table>
 <p><code>only</code> and <code>exclude</code> cannot be combined. An empty <code>only=()</code> is invalid; <code>exclude=()</code> is equivalent to selecting all columns. Model field types, maximum lengths, defaults and nullability are used. Annotations in the class body add fields or override a derived field, and methods and checks in the body are kept. Methods can use zero-argument <code>super()</code> as usual.</p>
-<p>Unknown columns, a non-model, an empty <code>only</code>, or optional names outside the selection fail when the class is declared. Relations are not derived as nested values; declare the API shape explicitly. Model derivation includes all columns by default, so use <code>only</code> or <code>exclude</code> when the API must omit private fields. During the compatibility cycle, <code>@derive(options...)</code> with <code>model=Model</code> remains valid and emits <code>DeprecationWarning</code>; use <code>@derive(Model, options...)</code> for new code.</p>
+<p>Unknown columns, a non-model, an empty <code>only</code>, optional names outside the selection, a class that is not a <code>Schema</code>, or a second <code>@derive</code> on the same class fail when the class is declared. Relations are not derived as nested values; declare the API shape explicitly. Model derivation includes all columns by default, so use <code>only</code> or <code>exclude</code> when the API must omit private fields. During the compatibility cycle, <code>@derive(options...)</code> with <code>model=Model</code> remains valid and emits <code>DeprecationWarning</code>; use <code>@derive(Model, options...)</code> for new code.</p>
+<h3 id="inheriting-from-a-schema">Inheriting from a Schema<a class="headerlink" href="#inheriting-from-a-schema" title="Permanent link">&para;</a></h3>
+<p>A derived class inherits its base's fields as usual, and <code>only</code> or <code>exclude</code>
+cannot remove an inherited field. To fail closed, a derivation whose selection
+leaves out a model column that a base Schema already declares raises
+<code>RegistrationError</code> when the class is declared, naming the field and the base:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">derive</span>
+
+
+<span class="nd">@derive</span><span class="p">(</span><span class="n">Post</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PostAll</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
+
+
+<span class="nd">@derive</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">only</span><span class="o">=</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,))</span>  <span class="c1"># RegistrationError: inherited field 'id' from PostAll</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TitleOnly</span><span class="p">(</span><span class="n">PostAll</span><span class="p">):</span> <span class="o">...</span>
+</code></pre></div>
+<p>Derive the narrower Schema from <code>Schema</code> (or from a base that declares only the
+columns it keeps). A selection that keeps or widens the inherited columns is
+allowed, and a field redeclared in the class body is kept on purpose.</p>
 <h2 id="return-a-model-from-a-schema-annotated-handler">Return a Model from a Schema-annotated handler<a class="headerlink" href="#return-a-model-from-a-schema-annotated-handler" title="Permanent link">&para;</a></h2>
 <p>When a handler declares one concrete response <code>Schema</code>, Hinoki converts a
 directly returned <code>Model</code> with that Schema's <code>from_model()</code> projection:</p>
@@ -459,17 +477,65 @@ directly returned <code>Model</code> with that Schema's <code>from_model()</code
 
 <span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/posts/</span><span class="si">{post_id}</span><span class="s2">"</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">one</span><span class="p">(</span><span class="n">post_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PostSummary</span><span class="p">:</span>
-    <span class="k">return</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">aget</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">post_id</span><span class="p">)</span>
+    <span class="k">return</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">aget</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">post_id</span><span class="p">)</span>  <span class="c1"># type: ignore[return-value]</span>
 </code></pre></div>
-<p>An existing <code>PostOut</code> return value still works. The conversion applies to one
-Model result only; lists, pages, unions and <code>Response</code> values keep their existing
-explicit handling. No relation is loaded implicitly, and the Schema return
-annotation does not validate handler output. For a computed field such as
+<p>The declared Schema decides what is sent for these results:</p>
+<table>
+<thead>
+<tr>
+<th>Handler result</th>
+<th>Response body</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>an instance of the declared Schema</td>
+<td>sent as is</td>
+</tr>
+<tr>
+<td>an instance of a subclass of the declared Schema</td>
+<td>only the declared Schema's fields; the subclass's extra fields are dropped</td>
+</tr>
+<tr>
+<td>one <code>Model</code> row</td>
+<td><code>from_model()</code> projection of that row</td>
+</tr>
+<tr>
+<td>a <code>Model</code> row that fails the Schema's constraints</td>
+<td><code>500 internal_error</code> with the request id; the <code>ValidationError</code> is logged as the cause and not sent to the client</td>
+</tr>
+<tr>
+<td>a <code>Model</code> of another class than the Schema's source model</td>
+<td><code>500 internal_error</code></td>
+</tr>
+<tr>
+<td>a list or <code>Page</code> of <code>Model</code> rows</td>
+<td><code>500 internal_error</code>; convert explicitly with <code>from_models()</code></td>
+</tr>
+<tr>
+<td>a <code>dict</code> or other plain value</td>
+<td>sent unchanged</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">Plain values are not validated</p>
+<p>A returned <code>dict</code> (or any other non-Schema, non-Model value) is serialized
+as it is, even with extra keys. The annotation describes the OpenAPI document
+only; return a Schema instance or a Model when the declared shape must be
+enforced.</p>
+</div>
+<p>A row that fails the Schema's constraints is the server's fault (for example a
+stored value longer than the Schema allows), so it is never reported as a
+client <code>422</code>. No relation is loaded implicitly. For a computed field such as
 <code>author_name</code>, keep using <code>PostOut.from_model(post, author_name=...)</code>.</p>
-<p>Static type checkers still see a Model return as incompatible with a Schema
-annotation; mark that intentional return with <code># type: ignore[return-value]</code>.
-Derived fields are also not synthesized for static type checkers, so declare
-fields in the Schema body when they need static checking.</p>
+<p>Static type checkers do not know about this runtime conversion: they see a
+<code>Post</code> returned from a function annotated <code>-&gt; PostSummary</code> as a type error.
+This is a limitation of static typing, not of the handler, so the intentional
+Model return needs <code># type: ignore[return-value]</code> (or an explicit
+<code>PostSummary.from_model(...)</code> call, which type-checks without one). Derived
+fields are also not synthesized for static type checkers, so declare fields in
+the Schema body when they need static checking.</p>
 <h2 id="add-validation-checks">Add validation checks<a class="headerlink" href="#add-validation-checks" title="Permanent link">&para;</a></h2>
 <p>Use <code>@field_check("name")</code> for a rule on one or more structurally valid fields, and <code>@object_check</code> for a rule over the whole object. Raise <code>Invalid(code, message, path=...)</code> to report a problem. Checks are synchronous and must not perform I/O; database-dependent rules belong in an operation.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
@@ -520,15 +586,15 @@ fields in the Schema body when they need static checking.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#return-a-model-from-a-schema-annotated-handler">Return a Model from a Schema-annotated handler</a></li><li><a href="#add-validation-checks">Add validation checks</a></li></ul>
+            <ul><li><a href="#inheriting-from-a-schema">Inheriting from a Schema</a></li><li><a href="#return-a-model-from-a-schema-annotated-handler">Return a Model from a Schema-annotated handler</a></li><li><a href="#add-validation-checks">Add validation checks</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.5</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 20:05:13 UTC">November 17, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 21:10:30 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
