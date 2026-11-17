@@ -1,10 +1,10 @@
-"""Schemas derived from models with ``@derive(...)`` and ``model=``."""
+"""Schemas derived from models with ``@derive(Model, ...)``."""
 
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from functools import cached_property
 from types import CellType, FunctionType, SimpleNamespace
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, cast, get_type_hints
 from uuid import UUID, uuid4
 
 import pytest
@@ -14,6 +14,7 @@ from hinoki import (
     Field,
     Hinoki,
     Invalid,
+    Response,
     Schema,
     SchemaConfig,
     SchemaExtra,
@@ -26,6 +27,7 @@ from hinoki.derive import _class_cell as find_class_cell
 from hinoki.derive import rebuild
 from hinoki.errors import RegistrationError, ValidationError
 from hinoki.orm import Model, OnDelete, field, foreign_key
+from hinoki.runtime.pipeline import Pipeline, project_response
 from hinoki.schema import graph_has_checks
 from hinoki.testing import ASGIClient
 
@@ -48,30 +50,28 @@ class Post(Model, table="ds_posts"):
     created_at: datetime = field(default_factory=datetime.now)
 
 
-@derive(only=("title", "slug", "body", "published"))
-class PostCreate(Schema, model=Post):
+@derive(Post, only=("title", "slug", "body", "published"))
+class PostCreate(Schema):
     pass
 
 
-@derive(exclude=("note",))
-class PostOut(Schema, model=Post):
+@derive(Post, exclude=("note",))
+class PostOut(Schema):
     author_name: str
 
 
-@derive(only=("title", "body", "note"), partial=True)
-class PostPatch(Schema, model=Post):
+@derive(Post, only=("title", "body", "note"), partial=True)
+class PostPatch(Schema):
     pass
 
 
-@derive(only=("title", "body"))
-class Overridden(Schema, model=Post):
+@derive(Post, only=("title", "body"))
+class Overridden(Schema):
     title: Annotated[str, Field(min_length=3, max_length=10)]
 
 
-@derive(only=("title",))
-class IgnoreConfiguredDerived(
-    Schema, model=Post, config=SchemaConfig(extra=SchemaExtra.IGNORE)
-):
+@derive(Post, only=("title",))
+class IgnoreConfiguredDerived(Schema, config=SchemaConfig(extra=SchemaExtra.IGNORE)):
     pass
 
 
@@ -79,8 +79,8 @@ class IgnoreBase(Schema, config=SchemaConfig(extra=SchemaExtra.IGNORE)):
     pass
 
 
-@derive(only=("title",))
-class ExplicitForbidDerived(IgnoreBase, model=Post, config=SchemaConfig()):
+@derive(Post, only=("title",))
+class ExplicitForbidDerived(IgnoreBase, config=SchemaConfig()):
     pass
 
 
@@ -189,20 +189,20 @@ def test_declared_fields_override_derived_ones() -> None:
 def test_mistakes_fail_when_the_class_is_declared_or_first_used() -> None:
     with pytest.raises(RegistrationError, match="no columns"):
 
-        @derive(only=("nope",))
-        class A(Schema, model=Post):
+        @derive(Post, only=("nope",))
+        class A(Schema):
             pass
 
     with pytest.raises(RegistrationError, match="only and exclude"):
 
-        @derive(only=("title",), exclude=("body",))
-        class B(Schema, model=Post):
+        @derive(Post, only=("title",), exclude=("body",))
+        class B(Schema):
             pass
 
     with pytest.raises(RegistrationError, match="unknown fields"):
 
-        @derive(only=("title",), partial=("body",))
-        class C(Schema, model=Post):
+        @derive(Post, only=("title",), partial=("body",))
+        class C(Schema):
             pass
 
     with pytest.raises(RegistrationError, match="Model class"):
@@ -210,11 +210,33 @@ def test_mistakes_fail_when_the_class_is_declared_or_first_used() -> None:
         class E(Schema, model=int):
             pass
 
-    with pytest.raises(RegistrationError, match="requires model="):
+    with pytest.raises(RegistrationError, match="source must be a Model class"):
+
+        @derive(str)  # type: ignore[arg-type]
+        class InvalidSource(Schema):
+            pass
+
+    with pytest.raises(RegistrationError, match="requires a Model argument"):
 
         @derive(only=("title",))
         class D(Schema):
             pass
+
+    with pytest.raises(RegistrationError, match="not both"):
+
+        @derive(Post, only=("title",))
+        class DuplicateSource(Schema, model=Post):
+            pass
+
+
+def test_legacy_derive_form_warns_and_remains_usable() -> None:
+    with pytest.warns(DeprecationWarning, match="pass the Model to @derive"):
+
+        @derive(only=("title",))
+        class Legacy(Schema, model=Post):
+            pass
+
+    assert list(Legacy.specs()) == ["title"]
 
 
 def test_without_a_selection_every_column_is_taken_and_partial_can_name_fields() -> (
@@ -225,8 +247,8 @@ def test_without_a_selection_every_column_is_taken_and_partial_can_name_fields()
 
     assert list(Everything.specs()) == list(Post.__columns__)
 
-    @derive(only=("title", "body"), partial=("body",))
-    class Some(Schema, model=Post):
+    @derive(Post, only=("title", "body"), partial=("body",))
+    class Some(Schema):
         pass
 
     assert Some.specs()["title"].required and not Some.specs()["body"].required
@@ -240,11 +262,15 @@ def test_derive_is_one_callable_with_tuple_options() -> None:
     with pytest.raises(RegistrationError, match="selects no columns"):
         derive(only=())
 
-    @derive(exclude=())
-    class EmptyExclusion(Schema, model=Post):
+    @derive(Post, exclude=())
+    class EmptyExclusion(Schema):
         pass
 
     assert list(EmptyExclusion.specs()) == list(Post.__columns__)
+
+
+def test_derive_model_annotation_resolves_for_runtime_introspection() -> None:
+    assert get_type_hints(derive)["model"] == type[Model] | None
 
 
 @pytest.mark.parametrize(
@@ -274,8 +300,8 @@ class DescriptorBase(Schema):
         return "base"
 
 
-@derive(only=("title",))
-class DescriptorDerived(DescriptorBase, model=Post):
+@derive(Post, only=("title",))
+class DescriptorDerived(DescriptorBase):
     @property
     def label(self) -> str:
         return f"{super().label} derived"
@@ -356,8 +382,8 @@ def test_field_pattern_that_python_cannot_compile_is_rejected(
 
 
 def test_checks_and_methods_in_the_class_body_survive_the_derivation() -> None:
-    @derive(only=("title", "body"))
-    class Checked(Schema, model=Post):
+    @derive(Post, only=("title", "body"))
+    class Checked(Schema):
         @field_check("title")
         def not_shouting(self, value: str) -> None:
             if value.isupper():
@@ -533,8 +559,8 @@ class SchemaLabel(Schema):
         return "base"
 
 
-@derive(only=("title", "slug", "body", "published"))
-class DerivedLabel(SchemaLabel, model=Post):
+@derive(Post, only=("title", "slug", "body", "published"))
+class DerivedLabel(SchemaLabel):
     def label(self) -> str:
         return f"{super().label()} derived"
 
@@ -544,3 +570,83 @@ def test_derived_schema_methods_keep_zero_argument_super() -> None:
         title="x", slug="x", body="x", published=False
     )
     assert instance.label() == "base derived"
+
+
+@derive(Post, only=("title",))
+class AutomaticPostOut(Schema):
+    title: str
+
+
+async def test_handler_model_result_is_projected_to_declared_schema() -> None:
+    @http.get("/auto")
+    def synchronous() -> AutomaticPostOut:
+        return post_row("sync")  # type: ignore[return-value]
+
+    @http.get("/auto-async")
+    async def asynchronous() -> AutomaticPostOut:
+        return post_row("async")  # type: ignore[return-value]
+
+    app = Hinoki()
+    app.include(synchronous, asynchronous)
+    async with ASGIClient(app) as client:
+        sync_response = await client.get("/auto")
+        async_response = await client.get("/auto-async")
+
+    assert sync_response.status == async_response.status == 200
+    assert sync_response.body == {"title": "sync"}
+    assert async_response.body == {"title": "async"}
+
+    native_app = Hinoki()
+
+    @http.get("/native")
+    async def native() -> AutomaticPostOut:
+        return post_row("native")  # type: ignore[return-value]
+
+    native_app.include(native)
+    built = Pipeline(native_app)
+    native_response = await built._call_native(built.bindings[0], {})
+    assert native_response.status == 200
+    assert native_response.body == b'{"title":"native"}'
+
+
+async def test_handler_model_projection_rejects_an_unrelated_model() -> None:
+    with pytest.raises(TypeError, match="derived from Post, not Author"):
+        project_response(AutomaticPostOut, Author(id=uuid4(), name="author"))
+
+    @http.get("/wrong")
+    def wrong() -> AutomaticPostOut:
+        return Author(id=uuid4(), name="author")  # type: ignore[return-value]
+
+    app = Hinoki()
+    app.include(wrong)
+    async with ASGIClient(app) as client:
+        response = await client.get("/wrong")
+
+    assert response.status == 500
+
+
+async def test_handler_projection_keeps_schema_reply_and_bodyless_responses() -> None:
+    schema_value = AutomaticPostOut(title="existing")
+
+    @http.get("/existing")
+    def existing() -> AutomaticPostOut:
+        return schema_value
+
+    @http.get("/reply")
+    def reply() -> AutomaticPostOut:
+        return Response(202, b"accepted", [("content-type", "text/plain")])  # type: ignore[return-value]
+
+    @http.get("/empty", status=204)
+    def empty() -> AutomaticPostOut:
+        return post_row()  # type: ignore[return-value]
+
+    app = Hinoki()
+    app.include(existing, reply, empty)
+    async with ASGIClient(app) as client:
+        existing_response = await client.get("/existing")
+        reply_response = await client.get("/reply")
+        empty_response = await client.get("/empty")
+
+    assert existing_response.body == {"title": "existing"}
+    assert (reply_response.status, reply_response.body) == (202, "accepted")
+    assert empty_response.status == 204 and empty_response.body is None

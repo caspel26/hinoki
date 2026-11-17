@@ -14,7 +14,7 @@ from hinoki import (
     http,
 )
 from hinoki.errors import RegistrationError
-from hinoki.request import Request
+from hinoki.http.request import Request
 from tests.harness import Client, Pool
 from tests.providers import TokenAuth
 

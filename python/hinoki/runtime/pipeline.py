@@ -26,16 +26,17 @@ from hinoki.db import Database
 from hinoki.docsui import CSP, Page
 from hinoki.docsui import pages as docs_pages
 from hinoki.errors import ErrorDetail, InvalidBody, RegistrationError, ValidationError
+from hinoki.http.request import Request
+from hinoki.http.response import Response as HandlerResponse
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
+from hinoki.orm.model import Model
 from hinoki.renderers import (
     JSONRenderer,
     Renderer,
     is_default_json_renderer,
     negotiate,
 )
-from hinoki.reply import Reply
-from hinoki.request import Request
 from hinoki.routing import MethodNotAllowed
 from hinoki.runtime.binding import BODY_METHODS, Binding, parse_query
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
@@ -51,7 +52,7 @@ from hinoki.runtime.responses import (
     error_response,
 )
 from hinoki.runtime.security import headers_for, https_redirect
-from hinoki.schema import encode
+from hinoki.schema import Schema, encode
 from hinoki.settings import AppSettings, SecuritySettings
 
 if TYPE_CHECKING:
@@ -534,9 +535,10 @@ class Pipeline:
             else None
         )
         result = await self._handler_result(binding, request, kwargs, row_wire)
-        if isinstance(result, Reply):
+        if isinstance(result, HandlerResponse):
             return Response(result.status, result.body, result.headers)
         if result is not None and route.status not in BODYLESS:
+            result = project_response(binding.response_schema, result)
             shown = result if renderer.consumes_objects else encode(result)
             body = renderer.render(shown, request)
             many = len(route.renderers) > 1
@@ -550,9 +552,10 @@ class Pipeline:
         result = await self._handler_result(
             binding, None, binding.complete_native_args(args)
         )
-        if isinstance(result, Reply):
+        if isinstance(result, HandlerResponse):
             return Response(result.status, result.body, result.headers)
         if result is not None and route.status not in BODYLESS:
+            result = project_response(binding.response_schema, result)
             body = core.encode_json(result, None, False, None)
             return Response.rendered(route.status, body, "application/json", False)
         if route.status == HTTPStatus.OK:
@@ -589,3 +592,16 @@ class Pipeline:
             raise HTTPError(
                 HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
             ) from None
+
+
+def project_response(schema: type[Schema] | None, value: object) -> object:
+    """Project a direct Model result when the handler declares a Schema."""
+    if schema is None or isinstance(value, schema) or not isinstance(value, Model):
+        return value
+    source = schema.__dict__.get("__derived_model__")
+    if source is not None and not isinstance(value, source):
+        raise TypeError(
+            f"{schema.__name__} is derived from {source.__name__}, "
+            f"not {type(value).__name__}"
+        )
+    return schema.from_model(value)

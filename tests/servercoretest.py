@@ -7,8 +7,8 @@ from typing import Any
 import pytest
 
 from hinoki import Hinoki, RuntimeConfig, core, http
+from hinoki.http.request import Request
 from hinoki.renderers import JSONRenderer
-from hinoki.request import Request
 from hinoki.runtime.servercore import SENTINEL, build_server_core, early_bodies
 from hinoki.settings import AppSettings, CorsSettings, SecuritySettings, ServerSettings
 from tests.harness import Client, Pool

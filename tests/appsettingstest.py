@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import Access, BearerAuth, Caller, Hinoki, Reply, Request, errors, http
+from hinoki import Access, BearerAuth, Caller, Hinoki, Request, Response, errors, http
 from hinoki.__main__ import main
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.runtime.origins import HostPolicy, host_name
@@ -528,8 +528,10 @@ async def test_an_allowed_origin_can_read_responses_and_errors() -> None:
 
 
 @http.get("/own")
-async def own_cors() -> Reply:
-    return Reply(200, b"x", headers=[("Access-Control-Allow-Origin", "https://o.test")])
+async def own_cors() -> Response:
+    return Response(
+        200, b"x", headers=[("Access-Control-Allow-Origin", "https://o.test")]
+    )
 
 
 async def test_an_answer_with_its_own_cors_headers_keeps_them() -> None:
