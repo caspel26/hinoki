@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from hinoki import db
 from hinoki.db import Database
 from hinoki.errors import RegistrationError
 from hinoki.orm import (
@@ -15,6 +16,7 @@ from hinoki.orm import (
     field,
     indexed,
     ordered_by,
+    pk,
     timestamps,
     unique,
     use_database,
@@ -126,6 +128,72 @@ def test_the_options_are_visible_on_the_class() -> None:
     assert Mark.all().order == (("created", True), ("id", False))
     assert Mark.all().order_by("owner").order == (("owner", False),)
     assert Mark.all().compile("select")[0].count("ORDER BY") == 1
+
+
+def test_pk_index_field_and_database_decorators() -> None:
+    @db.indexed("title")
+    @db.table("mo_decorated_records")
+    class DecoratedRecord(Model):
+        id: UUID = pk(default_factory=uuid4)
+        title: str = field(index=True)
+
+    assert DecoratedRecord.__table__ == "mo_decorated_records"
+    assert DecoratedRecord.__primary_key__ == "id"
+    assert DecoratedRecord(title="sample").__dict__["id"]
+    assert DecoratedRecord.__indexes__ == (("title",),)
+    assert state_of([DecoratedRecord])["tables"]["mo_decorated_records"]["indexes"] == [
+        ["title"]
+    ]
+
+
+def test_table_decorator_rejects_conflicting_class_table() -> None:
+    with pytest.raises(RegistrationError, match="conflicts with table="):
+
+        @db.table("mo_new_name")
+        class ConflictingTable(Model, table="mo_old_name"):
+            id: int = field(primary_key=True)
+
+
+def test_table_decorator_rejects_empty_names_and_abstract_models() -> None:
+    with pytest.raises(RegistrationError, match="non-empty table name"):
+        db.table("")
+
+    with pytest.raises(RegistrationError, match="abstract model has no table"):
+
+        @db.table("mo_abstract_records")
+        class AbstractRecord(Model, abstract=True):
+            id: int = field(primary_key=True)
+
+
+def test_index_field_rejects_primary_and_unique_indexes() -> None:
+    with pytest.raises(RegistrationError, match="already has an index"):
+        field(primary_key=True, index=True)
+    with pytest.raises(RegistrationError, match="already has an index"):
+        field(unique=True, index=True)
+
+
+def test_matching_decorator_still_replaces_inherited_indexes() -> None:
+    @indexed("owner")
+    class IndexedBase(Model, abstract=True):
+        id: int = field(primary_key=True)
+        owner: str = ""
+        title: str = field(default="", index=True)
+
+    @indexed("title")
+    class IndexedChild(IndexedBase, table="mo_indexed_child"):
+        pass
+
+    assert IndexedChild.__indexes__ == (("title",),)
+
+
+def test_duplicate_decorator_for_field_index_is_rejected() -> None:
+    with pytest.raises(RegistrationError, match=r"@indexed.*twice"):
+
+        @indexed("title")
+        @indexed("title")
+        class DuplicateIndex(Model):
+            id: int = field(primary_key=True)
+            title: str = field(default="", index=True)
 
 
 def test_the_planner_creates_and_changes_indexes(tmp_path: Path) -> None:
