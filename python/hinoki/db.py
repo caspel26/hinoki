@@ -9,14 +9,15 @@ any exception (including cancellation and timeouts).
 The namespace also carries the model declaration decorators, so a models
 module reads ``from hinoki import db`` and then ``@db.table("posts")``,
 ``@db.indexed("created_at")`` and ``@db.ordered_by("-created_at")``. They are
-the decorators of ``hinoki.orm.options``.
+the decorators of ``hinoki.orm.options`` (the same objects), loaded on first
+access.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar, Token
 from types import TracebackType
@@ -34,7 +35,7 @@ from hinoki.modules import Module, ModuleContext
 
 if TYPE_CHECKING:
     from hinoki.core import Param, Row, _RowPlan
-    from hinoki.orm.model import Model
+    from hinoki.orm.options import indexed, ordered_by, table
 
 __all__ = [
     "CheckViolation",
@@ -51,31 +52,21 @@ __all__ = [
 log = logging.getLogger("hinoki.db")
 
 
-# The model decorators import inside the call: hinoki.orm imports this module
-# (hinoki.orm.context), so a module-level import here would be circular.
+# The model decorators are those of hinoki.orm.options, re-exported lazily:
+# hinoki.orm imports this module (hinoki.orm.context), so a module-level import
+# here would be circular, and importing hinoki.db should not load the ORM.
+MODEL_DECORATORS = frozenset({"indexed", "ordered_by", "table"})
 
+if not TYPE_CHECKING:
 
-def table[M: type[Model]](name: str) -> Callable[[M], M]:
-    """Name a model's table (``hinoki.orm.options.table``); optional, the name
-    is derived from the class name otherwise."""
-    from hinoki.orm import options  # noqa: PLC0415 - circular, see above
+    def __getattr__(name: str) -> object:
+        if name in MODEL_DECORATORS:
+            from hinoki.orm import options  # noqa: PLC0415 - circular, see above
 
-    return options.table(name)
-
-
-def indexed[M: type[Model]](*columns: str) -> Callable[[M], M]:
-    """An index over one or more columns (``hinoki.orm.options.indexed``)."""
-    from hinoki.orm import options  # noqa: PLC0415 - circular, see above
-
-    return options.indexed(*columns)
-
-
-def ordered_by[M: type[Model]](*names: str) -> Callable[[M], M]:
-    """The default query order, ``"-col"`` descending
-    (``hinoki.orm.options.ordered_by``)."""
-    from hinoki.orm import options  # noqa: PLC0415 - circular, see above
-
-    return options.ordered_by(*names)
+            found: object = getattr(options, name)
+            globals()[name] = found  # later lookups skip this function
+            return found
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class ActiveTransaction:

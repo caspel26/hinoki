@@ -197,7 +197,7 @@ def state_of(
 ) -> State:
     owned = _unique_model_classes(models)
     references = _unique_model_classes(reference_models or [])
-    _reject_ledger_models([*owned, *references])
+    _reject_unusable_tables([*owned, *references])
     tables: dict[str, Any] = {}
     owners: list[type[Model]] = []
     for model in owned:
@@ -226,8 +226,10 @@ def _unique_model_classes(models: list[type[Model]]) -> list[type[Model]]:
     return unique
 
 
-def _reject_ledger_models(models: list[type[Model]]) -> None:
+def _reject_unusable_tables(models: list[type[Model]]) -> None:
     for model in models:
+        if model.__table_problem__:
+            raise MigrationError(model.__table_problem__)
         if model.__table__.casefold() == MIGRATION_LEDGER:
             raise MigrationError(
                 f"{model.__name__} claims Hinoki's migration ledger table "

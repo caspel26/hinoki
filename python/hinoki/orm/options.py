@@ -77,12 +77,19 @@ def table[M: type[Model]](name: str) -> Callable[[M], M]:
                 "@table or abstract=True"
             )
         if not model.__table_is_implicit__ and model.__table__ != name:
+            earlier = (
+                f"@table({model.__table__!r})"
+                if model.__table_decorated__
+                else f"table={model.__table__!r}"
+            )
             raise RegistrationError(
-                f"{model.__name__}: @table({name!r}) conflicts with table="
-                f"{model.__table__!r}; name the table once"
+                f"{model.__name__}: @table({name!r}) conflicts with {earlier}; "
+                "name the table once"
             )
         model.__table__ = name
         model.__table_is_implicit__ = False
+        model.__table_decorated__ = True
+        model.__table_problem__ = ""  # an explicit name replaces the derived one
         return model
 
     return apply
