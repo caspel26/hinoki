@@ -81,7 +81,10 @@ def route_spec(action: int, binding: Binding, defer_policies: bool) -> core.Rout
     owner = route.owner
     native_handler = native_handler_eligible(binding, defer_policies)
     native_inputs = (
-        [(param.source, param.name) for param in binding.params]
+        [
+            (param.source, param.name, param.default is not EMPTY)
+            for param in binding.params
+        ]
         if native_handler
         else []
     )
@@ -113,7 +116,13 @@ def native_handler_eligible(binding: Binding, defer_policies: bool) -> bool:
         param.source in {"path", "query"}
         and param.kind == "str"
         and param.convert is str
-        and param.default is EMPTY
+        and (
+            (param.source == "path" and param.default is EMPTY)
+            or (
+                param.source == "query"
+                and (param.default is EMPTY or type(param.default) is str)
+            )
+        )
         for param in binding.params
     )
     bound_path_names = {

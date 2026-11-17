@@ -241,7 +241,7 @@ RouteSpec = tuple[
     list[tuple[str, str]],
     bool,
     bool,
-    tuple[bool, list[tuple[str, str]]],
+    tuple[bool, list[tuple[str, str, bool]]],
 ]
 
 class ServerCore:

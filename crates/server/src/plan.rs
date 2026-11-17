@@ -9,9 +9,9 @@ pub struct RoutePlan {
     pub action: u32,
     pub method: String,
     pub path_params: Vec<String>,
-    /// `(source, name)` for the required string inputs carried by the native
-    /// handler bridge. Sources are only `path` or `query`.
-    pub input_params: Vec<(String, String)>,
+    /// `(source, name, has_default)` for string inputs carried by the native
+    /// handler bridge. Only query strings may have defaults.
+    pub input_params: Vec<(String, String, bool)>,
     pub has_body: bool,
     pub has_access: bool,
     pub media_types: Vec<String>,
@@ -85,12 +85,15 @@ impl Plan {
 fn native_handler_is_valid(route: &RoutePlan) -> bool {
     let mut names = HashSet::new();
     let mut path_inputs = HashSet::new();
-    let inputs_are_supported = route.input_params.iter().all(|(source, name)| {
+    let inputs_are_supported = route.input_params.iter().all(|(source, name, defaulted)| {
         let unique = names.insert(name);
         if source == "path" {
             path_inputs.insert(name);
         }
-        unique && !name.is_empty() && matches!(source.as_str(), "path" | "query")
+        unique
+            && !name.is_empty()
+            && matches!(source.as_str(), "path" | "query")
+            && (source == "query" || !defaulted)
     });
     let route_path_params: HashSet<_> = route.path_params.iter().collect();
     let has_supported_request_inputs = inputs_are_supported
@@ -181,8 +184,8 @@ mod tests {
         let mut r = route(0);
         r.path_params = vec!["item_id".into()];
         r.input_params = vec![
-            ("path".into(), "item_id".into()),
-            ("query".into(), "term".into()),
+            ("path".into(), "item_id".into(), false),
+            ("query".into(), "term".into(), false),
         ];
         r.native_handler = true;
         assert!(Plan::new(vec![r]).is_ok());
@@ -199,10 +202,27 @@ mod tests {
         );
 
         let mut unsupported = route(1);
-        unsupported.input_params = vec![("body".into(), "payload".into())];
+        unsupported.input_params = vec![("body".into(), "payload".into(), false)];
         unsupported.native_handler = true;
         assert_eq!(
             Plan::new(vec![unsupported]).unwrap_err(),
+            PlanError::InvalidNativeHandler(1)
+        );
+    }
+
+    #[test]
+    fn native_handler_accepts_defaulted_query_strings_but_not_path_defaults() {
+        let mut query_default = route(0);
+        query_default.input_params = vec![("query".into(), "view".into(), true)];
+        query_default.native_handler = true;
+        assert!(Plan::new(vec![query_default]).is_ok());
+
+        let mut path_default = route(1);
+        path_default.path_params = vec!["item_id".into()];
+        path_default.input_params = vec![("path".into(), "item_id".into(), true)];
+        path_default.native_handler = true;
+        assert_eq!(
+            Plan::new(vec![path_default]).unwrap_err(),
             PlanError::InvalidNativeHandler(1)
         );
     }
