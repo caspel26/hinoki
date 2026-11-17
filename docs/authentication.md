@@ -58,4 +58,6 @@ async def list_my_posts(caller: Caller[User]) -> list[PostOut]:
 
 `hinoki.crypto.PasswordHasher` provides Argon2id hashing and verification; `JWTKey` and `JWTAuth` issue and verify configured token algorithms. Read keys from `settings.Secret` fields and reveal them only when constructing the provider. Validate audience, issuer, expiry and key rotation settings for your deployment. See the [crypto API reference](reference/auth.md).
 
+For `JWTAuth`, Rust verifies the signature and registered claims using the current key snapshot. `now()` and the configured issuer, audience, leeway and expiry policy are read for each verification. A request already verifying with a captured key snapshot finishes with that snapshot; a later verification observes key rotation. Rust does not turn token claims into a `Caller`: the application's `resolve_claims` hook still runs for every valid token, and remains responsible for loading or rejecting the identity and deciding its permissions. Sync, async and sync functions returning awaitables follow the normal hook execution path.
+
 Hinoki does not create users, sessions or permission rules for your application. Those remain application data and policy.
