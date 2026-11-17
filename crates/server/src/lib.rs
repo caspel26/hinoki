@@ -17,6 +17,7 @@ pub mod early;
 pub mod framing;
 pub mod headers;
 pub mod hosts;
+pub mod jobs;
 pub mod limits;
 pub mod plan;
 pub mod proxy;
@@ -28,6 +29,8 @@ pub mod streams;
 pub mod tls;
 
 #[cfg(test)]
+mod jobs_tests;
+#[cfg(test)]
 mod plan_slot_tests;
 #[cfg(test)]
 mod policy_tests;
@@ -36,6 +39,7 @@ pub use accept::{serve, Closed, ServerConfig, Stop};
 pub use body::{BodyError, BodyReader};
 pub use conn::{Answer, Backend, Incoming};
 pub use early::{Early, EarlyBodies};
+pub use jobs::NativeJobs;
 pub use limits::Limits;
 pub use plan::{CrudPlanSlot, Plan, PlanError, RoutePlan};
 pub use proxy::Networks;

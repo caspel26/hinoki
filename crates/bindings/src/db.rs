@@ -186,6 +186,12 @@ pub struct PyDatabase {
     inner: Database,
 }
 
+impl PyDatabase {
+    pub(crate) fn clone_inner(&self) -> Database {
+        self.inner.clone()
+    }
+}
+
 #[pymethods]
 impl PyDatabase {
     #[getter]
