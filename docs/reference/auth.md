@@ -4,6 +4,8 @@
 
 ::: hinoki.auth.Caller
 
+::: hinoki.auth.Permission
+
 ::: hinoki.auth.Credentials
 
 ::: hinoki.auth.BaseAuth

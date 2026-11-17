@@ -1,6 +1,7 @@
 # Models and queries
 
-Concrete Models may omit `table=` to derive a plural snake-case table name;
+Concrete models may omit `@db.table(...)` (or the compatible `table=` class
+keyword) to derive a plural snake-case table name;
 `label=` and `plural=` override humanized display names. Explicit table names
 remain the safe choice for migration-backed histories and stable physical names.
 
@@ -12,6 +13,8 @@ remain the safe choice for migration-backed histories and stable physical names.
 
 ::: hinoki.orm.field
 
+::: hinoki.orm.pk
+
 Model write validation raises `ModelValidationError` from `hinoki.errors`, with field paths, stable codes and messages in `details`. See [Model field constraints and validators](../models.md#model-field-constraints-and-validators).
 
 ::: hinoki.orm.foreign_key
@@ -21,6 +24,8 @@ Model write validation raises `ModelValidationError` from `hinoki.errors`, with 
 ::: hinoki.orm.unique
 
 ::: hinoki.orm.indexed
+
+::: hinoki.orm.table
 
 ::: hinoki.orm.ordered_by
 

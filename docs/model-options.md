@@ -10,16 +10,8 @@ Options that describe a model beyond its columns are **decorators**, read like t
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from hinoki.orm import (
-    Model,
-    OnDelete,
-    field,
-    foreign_key,
-    indexed,
-    ordered_by,
-    timestamps,
-    unique,
-)
+from hinoki import db
+from hinoki.orm import Model, OnDelete, field, foreign_key, timestamps, unique
 from hinoki.utils import utc_now
 
 
@@ -28,10 +20,11 @@ class Member(Model):
 
 
 @unique("owner_id", "url")
-@indexed("owner_id", "created_at")
-@ordered_by("-created_at", "-id")
+@db.indexed("owner_id", "created_at")
+@db.ordered_by("-created_at", "-id")
 @timestamps()
-class Bookmark(Model, table="saved_links", label="Saved link", plural="Saved links"):
+@db.table("saved_links")
+class Bookmark(Model, label="Saved link", plural="Saved links"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     owner_id: UUID = foreign_key(Member, on_delete=OnDelete.RESTRICT, related_name="bookmarks")
     url: str = field(max_length=500)
@@ -41,18 +34,20 @@ class Bookmark(Model, table="saved_links", label="Saved link", plural="Saved lin
 
 | Option | Form | Effect |
 | --- | --- | --- |
-| table | `table="saved_links"` (optional class keyword) | overrides the default plural snake-case table name derived from the class |
+| table | `@db.table("saved_links")` or `table="saved_links"` (optional) | overrides the default plural snake-case table name derived from the class; the two forms may be combined only with the same name |
 | labels | `label=`, `plural=` (optional class keywords) | override the humanized singular and plural display names derived from the class |
 | composite uniqueness | `@unique("a", "b")` | a `UNIQUE (a, b)` constraint; a single column uses `field(unique=True)` |
-| index | `@indexed("a", "b")` | a `CREATE INDEX` planned by the migration tool; adding or removing one is a non-destructive migration |
-| default order | `@ordered_by("-created_at", "id")` | every query without `order_by` (lists, pages) is ordered this way; `"-"` is descending; an explicit `order_by` replaces it, counts and bulk updates ignore it |
+| index | `field(index=True)` for one column; `@db.indexed("a", "b")` for one or more columns | a `CREATE INDEX` planned by the migration tool; adding or removing one is a non-destructive migration |
+| default order | `@db.ordered_by("-created_at", "id")` | every query without `order_by` (lists, pages) is ordered this way; `"-"` is descending; an explicit `order_by` replaces it, counts and bulk updates ignore it |
 | update timestamp | `@timestamps()` | refresh a declared `updated_at: datetime` field for every ORM update statement; use `@timestamps("modified_at", clock=...)` to customize |
 
+* `pk(default_factory=...)` is a shorthand for a primary key field; it requires an explicit default or factory for static constructor typing. Existing `field(primary_key=True, ...)` remains valid.
+* A primary key or unique field already has an index; `field(index=True)` cannot be combined with either. Declaring the same one-column index through `field(index=True)` and `@db.indexed("column")` produces one index.
 * Column names are checked when the decorator is applied; a typo fails at import with the model and the unknown names.
 * Stacked decorators are stored in reading order (top to bottom).
-* A model inherits the options of its [abstract bases](models.md#share-fields-abstract-models-and-mixins). A decorator on the subclass replaces everything inherited for that kind of option (`@indexed` replaces the inherited indexes, and so on) and leaves the other kinds inherited. A model that subclasses a table model does not inherit that parent's options.
+* A model inherits the options of its [abstract bases](models.md#share-fields-abstract-models-and-mixins). A decorator on the subclass replaces everything inherited for that kind of option (`@db.indexed` replaces the inherited indexes, and so on) and leaves the other kinds inherited. A model that subclasses a table model does not inherit that parent's options.
 * Apply options before the model is used: the migration planner, the query layer and the admin read them from the class.
-* The fallback table/display names use a small deterministic English suffix rule, not an inflector. Use explicit values for irregular, already-plural or localized names. Pin `table=` when a class has an existing migration history; changing an implicit name is a guarded drop/create, not a table rename.
+* The fallback table/display names use a small deterministic English suffix rule, not an inflector. Use explicit values for irregular, already-plural or localized names. Pin the table name with `@db.table(...)` or `table=` when a class has an existing migration history; changing an implicit name is a guarded drop/create, not a table rename.
 * Index names are `ix_<table>_<columns>`, shortened deterministically (with a hash) past PostgreSQL's 63 bytes.
 
-Not yet: partial or expression indexes, per-column index options, and soft delete. For timestamps, see [utilities](utilities.md); fields are declared explicitly and migrations remain visible.
+Not yet: partial or expression indexes and soft delete. For timestamps, see [utilities](utilities.md); fields are declared explicitly and migrations remain visible.
