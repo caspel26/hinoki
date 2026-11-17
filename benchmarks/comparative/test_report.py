@@ -3,12 +3,15 @@ import io
 import json
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import pytest
-import report
+import report  # type: ignore[import-not-found]
+
+JSONData = dict[str, Any]
 
 
-def sample(rate: float) -> dict:
+def sample(rate: float) -> JSONData:
     return {
         "summary": {"requestsPerSec": rate},
         "statusCodeDistribution": {"200": 500},
@@ -38,7 +41,7 @@ def test_latency_spread_is_median_of_per_run_percentiles_with_run_range() -> Non
     assert p95 == {"median": 4.0, "low": 2.0, "high": 10.0}
 
 
-def test_results_are_one_table_without_charts() -> None:
+def test_report_has_labeled_range_plots_and_a_semantic_table_per_scenario() -> None:
     with tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary)
         (directory / "environment.json").write_text(
@@ -81,9 +84,11 @@ def test_results_are_one_table_without_charts() -> None:
 
         rendered = report.render_mode(directory)
 
-    assert "<svg" not in rendered
-    assert "lat-chart" not in rendered
-    assert rendered.count('<table class="benchmark-table">') == 1
+    assert rendered.count('class="bench-chart"') == 4
+    assert rendered.count('<table class="benchmark-table">') == 4
+    assert rendered.count('role="img" aria-labelledby=') == 4
+    assert 'scope="rowgroup"' not in rendered
+    assert 'scope="row">Hinoki · Granian<' in rendered
     assert 'scope="col">Requests/s<' in rendered
     assert 'scope="col">p99 ms<' in rendered
 
@@ -125,9 +130,10 @@ def test_unstable_scenario_is_withheld_and_stable_ones_are_reported() -> None:
 
         rendered = report.render_mode(directory)
 
-    assert "Not reported: create" in rendered
-    assert ">Health</th>" in rendered
-    assert ">Create</th>" not in rendered
+    assert 'class="bench-withheld"' in rendered
+    assert "Not compared: requests-per-second CV exceeded 15%" in rendered
+    assert "GET /health" in rendered
+    assert "POST /posts" not in rendered
 
 
 def test_unpinned_run_is_described_as_unpinned() -> None:
@@ -217,48 +223,52 @@ def test_cpu_time_accepts_macos_and_linux_ps_formats() -> None:
     assert report.cpu_seconds("2-00:00:01") == 172801
 
 
-def test_documented_slice_has_one_chart_with_a_panel_per_reported_scenario() -> None:
+def test_scenario_axis_scale_is_shared_across_serving_modes() -> None:
     with tempfile.TemporaryDirectory() as temporary:
-        directory = Path(temporary) / "results" / "documented"
-        directory.mkdir(parents=True)
-        (directory / "environment.json").write_text(
-            json.dumps(
-                {
-                    "date": "2026-11-17",
-                    "cpu": "CPU",
-                    "cores": 8,
-                    "machine": "Linux",
-                    "loadavg_at_start": [0.1, 0.2, 0.3],
-                    "postgres": "PostgreSQL 17",
-                    "oha": "oha 1.17",
-                    "settings": {
-                        "server_mode": "documented",
-                        "stacks": ["hinoki"],
-                        "workers": 4,
-                        "server_cpus": "0-3",
-                        "load_cpus": "6-7",
-                        "concurrency": 64,
-                        "warmup_s": 10,
-                        "runs": 3,
-                        "duration_s": 20,
-                    },
-                }
-            )
-        )
-        (directory / "hinoki-verify.txt").write_text("OK")
-        for scenario in report.SCENARIOS:
-            rates = (10.0, 40.0, 90.0) if scenario == "create" else (10.0, 10.1, 9.9)
-            for index, rate in enumerate(rates, start=1):
-                (directory / f"hinoki-{scenario}-{index}.json").write_text(
-                    json.dumps(sample(rate))
-                )
+        root = Path(temporary) / "results"
+        modes = [root / "documented", root / "same-granian"]
+        for mode, stack, scale in zip(
+            modes, ("hinoki", "hinoki-granian"), (100.0, 300.0), strict=True
+        ):
+            mode.mkdir(parents=True)
+            environment = {
+                "date": "2026-11-17",
+                "cpu": "CPU",
+                "cores": 8,
+                "machine": "Linux",
+                "loadavg_at_start": [0.1, 0.2, 0.3],
+                "postgres": "PostgreSQL 17",
+                "oha": "oha 1.17",
+                "settings": {
+                    "server_mode": mode.name,
+                    "stacks": [stack],
+                    "workers": 4,
+                    "server_cpus": "0-3",
+                    "load_cpus": "6-7",
+                    "concurrency": 64,
+                    "warmup_s": 10,
+                    "runs": 3,
+                    "duration_s": 20,
+                },
+            }
+            (mode / "environment.json").write_text(json.dumps(environment))
+            (mode / f"{stack}-verify.txt").write_text("OK")
+            for scenario in report.SCENARIOS:
+                rates = (scale, scale * 1.1, scale * 0.9)
+                for index, rate in enumerate(rates, start=1):
+                    (mode / f"{stack}-{scenario}-{index}.json").write_text(
+                        json.dumps(sample(rate))
+                    )
 
-        rendered = report.render_mode(directory)
+        scales = report.comparison_scales(modes)
+        first = report.render_mode(modes[0], scales)
+        second = report.render_mode(modes[1], scales)
 
-    assert rendered.count('class="bench-chart"') == 1
-    assert rendered.count('scope="rowgroup"') == 3
-    assert rendered.count('class="bench-panel"') == 3
-    assert "Create</div>" not in rendered.split("<table")[0]
+    assert scales["list"] == pytest.approx(330.0)
+    assert first.count("330 requests/s") == 4
+    assert second.count("330 requests/s") == 4
+    assert "left:30.30%" in first
+    assert "left:90.91%" in second
 
 
 def test_page_has_the_sections_a_reader_needs_in_order() -> None:
@@ -303,8 +313,8 @@ def test_page_has_the_sections_a_reader_needs_in_order() -> None:
 
     headings = [
         "# Benchmarks",
-        "## What is measured",
         "## Results",
+        "## What was measured",
         "## How to read the numbers",
         "## Reproduce",
     ]
@@ -313,3 +323,4 @@ def test_page_has_the_sections_a_reader_needs_in_order() -> None:
     assert "hinoki 0.0.1" in page
     assert '=== "Each stack on its own server"' in page
     assert '!!! warning "Read this first"' in page
+    assert page.index("FIELD NOTE") < page.index("# Benchmarks")
