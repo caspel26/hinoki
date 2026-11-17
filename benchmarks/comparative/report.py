@@ -257,7 +257,7 @@ def cpu_seconds(text: str) -> float:
     days, _, clock = text.rpartition("-")
     *larger, seconds = clock.split(":")
     total = float(seconds)
-    for unit, part in zip((60, 3600), reversed(larger)):
+    for unit, part in zip((60, 3600), reversed(larger), strict=False):
         total += int(part) * unit
     return total + (int(days) * 86400 if days else 0)
 
