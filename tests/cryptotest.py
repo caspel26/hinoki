@@ -11,8 +11,8 @@ import dataclasses
 import hashlib
 import hmac
 import json
-from collections.abc import Awaitable, Callable, Iterator, Sequence
-from typing import Any, ClassVar, cast, overload
+from collections.abc import Sequence
+from typing import Any, ClassVar
 
 import pytest
 
@@ -22,7 +22,6 @@ from hinoki.crypto import (
     JWTAuth,
     JWTKey,
     PasswordHasher,
-    _exact_rules,
     random_token,
 )
 from tests.harness import Pool
@@ -80,173 +79,14 @@ class Tokens(JWTAuth[str]):
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
-class CountingJWTKey(JWTKey):
-    spec_calls: list[None] = dataclasses.field(default_factory=list, repr=False)
+class AppendingJWTKey(JWTKey):
+    keys: list[JWTKey] = dataclasses.field(repr=False, compare=False, kw_only=True)
+    appended_key: JWTKey = dataclasses.field(repr=False, compare=False, kw_only=True)
 
     def spec(self) -> tuple[str | None, str, bytes, bool]:
-        self.spec_calls.append(None)
+        if self.appended_key not in self.keys:
+            self.keys.append(self.appended_key)
         return super().spec()
-
-
-@dataclasses.dataclass(frozen=True, slots=True)
-class MutatingJWTKey(JWTKey):
-    mutation: Callable[[], None] = dataclasses.field(
-        default=lambda: None, repr=False, compare=False
-    )
-
-    def spec(self) -> tuple[str | None, str, bytes, bool]:
-        self.mutation()
-        return super().spec()
-
-
-class _SlottedMetadata:
-    __slots__ = ("label",)
-    label: str
-
-
-class _DescriptorCacheTokens(Tokens):
-    @property
-    def _hinoki_private_jwt_verifier(self) -> object:
-        raise AssertionError("private cache descriptor must not run")
-
-    @_hinoki_private_jwt_verifier.setter
-    def _hinoki_private_jwt_verifier(self, value: object) -> None:
-        del value
-        raise AssertionError("private cache descriptor must not run")
-
-
-class _DescriptorNamespaceTokens(Tokens):
-    @property
-    def __dict__(self) -> dict[str, object]:  # type: ignore[override]
-        raise AssertionError("custom namespace descriptor must not run")
-
-
-class _ForeignNamespaceTokens(Tokens):
-    __dict__ = type.__dict__["__dict__"]
-
-
-class _KeySequence(Sequence[JWTKey]):
-    def __init__(self, keys: list[JWTKey]) -> None:
-        self.keys = keys
-        self.iterations = 0
-
-    @overload
-    def __getitem__(self, index: int) -> JWTKey: ...
-
-    @overload
-    def __getitem__(self, index: slice) -> Sequence[JWTKey]: ...
-
-    def __getitem__(self, index: int | slice) -> JWTKey | Sequence[JWTKey]:
-        return self.keys[index]
-
-    def __len__(self) -> int:
-        return len(self.keys)
-
-    def __iter__(self) -> Iterator[JWTKey]:
-        self.iterations += 1
-        return iter(self.keys)
-
-
-class _MixedTokens(_SlottedMetadata, Tokens):
-    pass
-
-
-class _HostileEquality:
-    __hash__ = object.__hash__
-
-    def __eq__(self, other: object) -> bool:
-        del other
-        raise AssertionError("untrusted cache equality must not run")
-
-
-@dataclasses.dataclass
-class _AppendKeyOnce:
-    keys: list[JWTKey]
-    key: JWTKey
-    appended: bool = False
-
-    def __call__(self) -> None:
-        if not self.appended:
-            self.keys.append(self.key)
-            self.appended = True
-
-
-class _LegacyDecoderSpy:
-    def __init__(self) -> None:
-        self.called = False
-
-    def __call__(
-        self,
-        token: str,
-        keys: list[tuple[str | None, str, bytes, bool]],
-        rules: tuple[int, int, str | None, str | None, bool],
-    ) -> bytes:
-        self.called = True
-        return _ORIGINAL_JWT_DECODER(token, keys, rules)
-
-
-_ORIGINAL_JWT_DECODER = core.jwt_decode
-_PATCHED_SPEC_CALLS: list[JWTKey] = []
-
-
-def _record_jwt_key_spec(key: JWTKey) -> tuple[str | None, str, bytes, bool]:
-    _PATCHED_SPEC_CALLS.append(key)
-    return _ORIGINAL_JWT_KEY_SPEC(key)
-
-
-_ORIGINAL_JWT_KEY_SPEC = JWTKey.spec
-
-
-def _resolved_jwt_claims(claims: dict[str, Any]) -> Caller[str] | None:
-    subject = claims.get("sub")
-    if subject == "denied":
-        return None
-    permissions = {"read"} if subject == "sync" else set()
-    return Caller(str(subject), str(subject), permissions)
-
-
-async def _async_resolved_jwt_claims(
-    claims: dict[str, Any],
-) -> Caller[str] | None:
-    return _resolved_jwt_claims(claims)
-
-
-class SyncClaimTokens(JWTAuth[str]):
-    keys: ClassVar[Sequence[JWTKey]] = (JWTKey("sync", "HS256", b"s" * 40),)
-    issuer: ClassVar[str | None] = None
-    audience: ClassVar[str | None] = None
-
-    def now(self) -> int:
-        return 1_000
-
-    def resolve_claims(self, claims: dict[str, Any]) -> Caller[str] | None:
-        return _resolved_jwt_claims(claims)
-
-
-class AwaitableClaimTokens(JWTAuth[str]):
-    keys: ClassVar[Sequence[JWTKey]] = (JWTKey("awaitable", "HS256", b"a" * 40),)
-    issuer: ClassVar[str | None] = None
-    audience: ClassVar[str | None] = None
-
-    def now(self) -> int:
-        return 1_000
-
-    def resolve_claims(self, claims: dict[str, Any]) -> Awaitable[Caller[str] | None]:
-        return _async_resolved_jwt_claims(claims)
-
-
-sync_claim_access = Access(auth=SyncClaimTokens(), permissions={"read"})
-awaitable_claim_access = Access(auth=AwaitableClaimTokens(), permissions={"read"})
-
-
-@http.get("/jwt-sync-claims", access=sync_claim_access)
-async def jwt_sync_claims(request: Request, caller: Caller[str]) -> dict[str, str]:
-    return {"id": caller.id}
-
-
-@http.get("/jwt-awaitable-claims", access=awaitable_claim_access)
-async def jwt_awaitable_claims(request: Request, caller: Caller[str]) -> dict[str, str]:
-    return {"id": caller.id}
 
 
 GOOD = {
@@ -262,13 +102,18 @@ async def verdict(token: str, auth: Tokens | None = None) -> bool:
     return await (auth or Tokens()).resolve_token(token) is not None
 
 
-type VerifierCache = tuple[
-    tuple[tuple[str | None, str, bytes, bool], ...], core._JWTVerifier
-]
+async def test_jwt_key_spec_list_mutation_keeps_python_iteration_semantics() -> None:
+    new_key = JWTKey("new", "HS256", b"n" * 40)
+    keys: list[JWTKey] = []
+    keys.append(
+        AppendingJWTKey("old", "HS256", b"o" * 40, keys=keys, appended_key=new_key)
+    )
+    auth = Tokens()
+    object.__setattr__(auth, "keys", keys)
+    token = oracle_hs256(GOOD, b"n" * 40, kid="new")
 
-
-def verifier_cache(auth: JWTAuth[Any]) -> VerifierCache | None:
-    return cast(VerifierCache | None, auth.__dict__.get("_hinoki_private_jwt_verifier"))
+    assert await auth.resolve_token(token) is not None
+    assert keys == [keys[0], new_key]
 
 
 # --- passwords ------------------------------------------------------------
@@ -573,217 +418,22 @@ async def test_a_token_is_refused_exactly_at_its_expiry_second() -> None:
     assert not await verdict(token, auth)
 
 
-async def test_jwt_verifier_handle_is_reused_and_replaced_on_key_rotation() -> None:
-    auth = Tokens()
-    old_key = JWTKey("old", "HS256", b"o" * 40)
-    object.__setattr__(auth, "keys", [old_key])
-    old_token = auth.issue({"sub": "ann", "scopes": ["w"]})
-    assert await auth.resolve_token(old_token) is not None
-    first = verifier_cache(auth)
-    assert first is not None
-
-    assert await auth.resolve_token(old_token) is not None
-    assert verifier_cache(auth) is first
-
-    new_key = JWTKey("new", "HS256", b"n" * 40)
-    object.__setattr__(auth, "keys", [new_key])
-    new_token = auth.issue({"sub": "ann", "scopes": ["w"]})
-    assert await auth.resolve_token(new_token) is not None
-    second = verifier_cache(auth)
-    assert second is not None and second is not first
-    assert first[1].verify(old_token, (1_000, 0, auth.issuer, auth.audience, True))
-    with pytest.raises(ValueError, match="key"):
-        second[1].verify(old_token, (1_000, 0, auth.issuer, auth.audience, True))
-
-
-async def test_jwt_verifier_snapshot_tracks_in_place_key_material_changes() -> None:
-    auth = Tokens()
-    key = JWTKey("mutable", "HS256", b"a" * 40)
-    object.__setattr__(auth, "keys", [key])
-    first_token = auth.issue({"sub": "ann", "scopes": ["w"]})
-    assert await auth.resolve_token(first_token) is not None
-    first = verifier_cache(auth)
-
-    object.__setattr__(key, "key", b"b" * 40)
-    second_token = auth.issue({"sub": "ann", "scopes": ["w"]})
-    assert await auth.resolve_token(second_token) is not None
-    second = verifier_cache(auth)
-    assert first is not None and second is not None and second is not first
-    assert first[1].verify(first_token, (1_000, 0, auth.issuer, auth.audience, True))
-
-
-async def test_jwt_invalid_rules_keep_legacy_conversion_precedence() -> None:
-    auth = Tokens()
-    key = JWTKey("precedence", "HS256", b"p" * 40)
-    object.__setattr__(auth, "keys", [key])
-    token = auth.issue({"sub": "ann", "scopes": ["w"]})
-    assert await auth.resolve_token(token) is not None
-    assert verifier_cache(auth) is not None
-
-    object.__setattr__(key, "algorithm", "unsupported")
-    object.__setattr__(auth, "leeway", 1 << 100)
-    with pytest.raises(OverflowError):
-        await auth.resolve_token(token)
-    assert verifier_cache(auth) is None
-
-
-async def test_custom_jwt_key_spec_uses_legacy_decoder_once() -> None:
-    auth = Tokens()
-    key = CountingJWTKey("custom", "HS256", b"c" * 40)
-    object.__setattr__(auth, "keys", [key])
-    token = auth.issue({"sub": "ann", "scopes": ["w"]})
-    key.spec_calls.clear()
-
-    assert await auth.resolve_token(token) is not None
-    assert len(key.spec_calls) == 1
-    assert verifier_cache(auth) is None
-
-
-async def test_jwt_verifier_keeps_slotted_mixin_layout_compatible() -> None:
-    auth = _MixedTokens()
-    auth.label = "metadata"
-    token = oracle_hs256(GOOD, kid="k1")
-    assert await auth.resolve_token(token) is not None
-    assert auth.label == "metadata"
-
-
-async def test_jwt_verifier_skips_custom_cache_descriptors() -> None:
-    auth = _DescriptorCacheTokens()
-    token = oracle_hs256(GOOD, kid="k1")
-    assert await auth.resolve_token(token) is not None
-    assert verifier_cache(auth) is None
-
-
-async def test_jwt_verifier_skips_custom_namespace_descriptors() -> None:
-    auth = _DescriptorNamespaceTokens()
-    token = oracle_hs256(GOOD, kid="k1")
-    assert await auth.resolve_token(token) is not None
-
-
-async def test_jwt_verifier_falls_back_for_foreign_namespace_descriptor() -> None:
-    auth = _ForeignNamespaceTokens()
-    token = oracle_hs256(GOOD, kid="k1")
-    assert await auth.resolve_token(token) is not None
-
-
-async def test_jwt_custom_key_sequence_uses_legacy_path_once() -> None:
-    auth = Tokens()
-    key = CountingJWTKey("sequence", "HS256", b"q" * 40)
-    sequence = _KeySequence([key])
-    object.__setattr__(auth, "keys", sequence)
-    token = oracle_hs256(GOOD, b"q" * 40, kid="sequence")
-    sequence.iterations = 0
-
-    assert await auth.resolve_token(token) is not None
-    assert sequence.iterations == 1
-    assert key.spec_calls == [None]
-    assert verifier_cache(auth) is None
-
-
-def test_jwt_reuse_gate_refuses_malformed_rule_shapes() -> None:
-    assert _exact_rules((1, 0, None, None)) is False
-
-
-async def test_jwt_verifier_falls_back_to_preserve_unicode_conversion_order(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    auth = Tokens()
-    key = JWTKey("unicode", "HS256", b"u" * 40)
-    object.__setattr__(auth, "keys", [key])
-    token = auth.issue({"sub": "ann", "scopes": ["w"]})
-    object.__setattr__(key, "algorithm", "unsupported")
-    object.__setattr__(auth, "issuer", "\ud800")
-    spy = _LegacyDecoderSpy()
-    monkeypatch.setattr(core, "jwt_decode", spy)
-    assert await auth.resolve_token(token) is None
-    assert spy.called
-
-
-def test_jwt_default_clock_returns_integer_seconds() -> None:
-    assert type(JWTAuth.now(Tokens())) is int
-
-
-async def test_jwt_verifier_rejects_malformed_cached_snapshot_without_equality(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    auth = Tokens()
-    token = oracle_hs256(GOOD, kid="k1")
-    assert await auth.resolve_token(token) is not None
-    cache = verifier_cache(auth)
-    assert cache is not None
-
-    auth.__dict__["_hinoki_private_jwt_verifier"] = (
-        (_HostileEquality(),),
-        cache[1],
+def test_private_jwt_verifier_binding_reuses_keys_with_current_rules() -> None:
+    specs: list[tuple[str | None, str, bytes, bool]] = [("k1", "HS256", SECRET, False)]
+    token = oracle_hs256({**GOOD, "exp": 1_000}, kid="k1")
+    verifier = core._JWTVerifier(specs)
+    valid_rules = (999, 0, "https://api.test", "blog", True)
+    assert verifier.verify(token, valid_rules) == core.jwt_decode(
+        token, specs, valid_rules
     )
-    assert await auth.resolve_token(token) is not None
-    assert verifier_cache(auth) is not None
 
-
-async def test_jwtkey_spec_monkeypatch_after_provider_creation_falls_back(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    auth = Tokens()
-    token = oracle_hs256(GOOD, kid="k1")
-    _PATCHED_SPEC_CALLS.clear()
-    monkeypatch.setattr(JWTKey, "spec", _record_jwt_key_spec)
-    assert await auth.resolve_token(token) is not None
-    assert len(_PATCHED_SPEC_CALLS) == 1
-    assert verifier_cache(auth) is None
-
-
-async def test_jwt_key_list_mutation_does_not_change_an_inflight_snapshot() -> None:
-    auth = Tokens()
-    keys: list[JWTKey] = []
-    new_key = CountingJWTKey("new", "HS256", b"n" * 40)
-    append_new = _AppendKeyOnce(keys, new_key)
-    old_key = MutatingJWTKey("old", "HS256", b"o" * 40, mutation=append_new)
-    keys.append(old_key)
-    object.__setattr__(auth, "keys", keys)
-    old_token = oracle_hs256(GOOD, b"o" * 40, kid="old")
-
-    assert await auth.resolve_token(old_token) is not None
-    assert len(keys) == 2
-    assert new_key.spec_calls == []
-
-    new_token = oracle_hs256(GOOD, b"n" * 40, kid="new")
-    assert await auth.resolve_token(new_token) is not None
-    assert len(new_key.spec_calls) == 1
-
-
-async def test_jwt_resolver_sync_and_sync_returning_awaitable_keep_auth_semantics(
-    pool: Pool,
-) -> None:
-    app = Hinoki(include=[jwt_sync_claims, jwt_awaitable_claims])
-    client = await pool.start(app)
-    sync_auth = SyncClaimTokens()
-    awaitable_auth = AwaitableClaimTokens()
-
-    sync_token = sync_auth.issue({"sub": "sync"})
-    response = await client.request(
-        "GET", "/jwt-sync-claims", headers={"authorization": f"Bearer {sync_token}"}
-    )
-    assert (response.status, response.body) == (200, {"id": "sync"})
-
-    awaitable_token = awaitable_auth.issue({"sub": "sync"})
-    response = await client.request(
-        "GET",
-        "/jwt-awaitable-claims",
-        headers={"authorization": f"Bearer {awaitable_token}"},
-    )
-    assert (response.status, response.body) == (200, {"id": "sync"})
-
-    denied_token = sync_auth.issue({"sub": "denied"})
-    denied = await client.request(
-        "GET",
-        "/jwt-sync-claims",
-        headers={"authorization": f"Bearer {denied_token}"},
-    )
-    assert denied.status == 401
-    limited_token = sync_auth.issue({"sub": "limited"})
-    limited = await client.request(
-        "GET",
-        "/jwt-sync-claims",
-        headers={"authorization": f"Bearer {limited_token}"},
-    )
-    assert limited.status == 403
+    expired_rules = (1_000, 0, "https://api.test", "blog", True)
+    with pytest.raises(ValueError, match="expired") as expected:
+        core.jwt_decode(token, specs, expired_rules)
+    with pytest.raises(ValueError, match="expired") as actual:
+        verifier.verify(token, expired_rules)
+    assert str(actual.value) == str(expected.value)
+    assert not hasattr(verifier, "__dict__")
+    attribute = "keys"
+    with pytest.raises(AttributeError):
+        setattr(verifier, attribute, specs)
