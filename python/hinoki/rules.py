@@ -519,6 +519,176 @@ class RequirePagination(Rule):
                 )
 
 
+class RequirePermissions(Rule):
+    id = "HNK-ACC-002"
+    fix = "name at least one permission in the Access policy of the action"
+    explanation = (
+        "An Access with no permission accepts any authenticated caller. This "
+        "project requires every protected action to name what it needs."
+    )
+
+    def __init__(self, match: str = "*", except_: Iterable[str] = ()) -> None:
+        self.match = match
+        self.exceptions = tuple(except_)
+
+    def summary(self) -> str:
+        return (
+            f"Actions.require_permissions(match={self.match!r}, "
+            f"except_={list(self.exceptions)})"
+        )
+
+    def check(self, project: Project) -> Iterator[Diagnostic]:
+        for route in project.app.routes:
+            if not matches(route, [self.match]) or matches(route, self.exceptions):
+                continue
+            if route.access is not None and not route.access.permissions:
+                yield self.diagnostic(
+                    f"{route.method} {route.path} ({route.handler.__qualname__}) "
+                    "names an Access policy without permissions",
+                    where(route.handler),
+                    subject=qualified(route),
+                )
+
+
+def request_schemas(route: Route) -> Iterator[type[Schema]]:
+    """Schema classes the action accepts (every parameter, not the return type)."""
+    for name, annotation in hints_of(route.handler).items():
+        if name != "return":
+            yield from schemas_in(annotation)
+
+
+def is_bounded_text(field_type: Any) -> bool:
+    constraints = field_type.info.constraints()
+    return "max_length" in constraints or "one_of" in constraints
+
+
+class RequireStringLimits(Rule):
+    id = "HNK-SCH-002"
+    fix = "bound the field: Annotated[str, Field(max_length=...)] or one_of=..."
+    explanation = (
+        "A text field of a request Schema without max_length accepts a body of "
+        "any size up to the server limit, and stores it."
+    )
+
+    def summary(self) -> str:
+        return "Schemas.require_string_limits()"
+
+    def check(self, project: Project) -> Iterator[Diagnostic]:
+        seen: set[type[Schema]] = set()
+        for route in project.app.routes:
+            for schema in reachable(request_schemas(route)):
+                if schema in seen:
+                    continue
+                seen.add(schema)
+                for name, spec in sorted(schema.specs().items()):
+                    if spec.ftype.kind == "str" and not is_bounded_text(spec.ftype):
+                        yield self.diagnostic(
+                            f"{schema.__name__}.{name} is read from "
+                            f"{route.method} {route.path} without a max_length",
+                            where(schema),
+                            subject=f"{schema.__module__}.{schema.__qualname__}.{name}",
+                        )
+
+
+def declared_models(match: str) -> list[Any]:
+    """Concrete models whose module matches ``match`` (``fnmatch``)."""
+    from hinoki.orm import Model  # noqa: PLC0415 - orm is only needed to check this
+
+    found: dict[Any, None] = {}
+    pending: list[Any] = list(Model.__subclasses__())
+    while pending:
+        model = pending.pop()
+        pending.extend(model.__subclasses__())
+        if not model.__abstract__ and fnmatch.fnmatchcase(model.__module__, match):
+            found[model] = None
+    return sorted(found, key=lambda item: (item.__module__, item.__qualname__))
+
+
+def unverifiable_models(rule: Rule, match: str) -> Diagnostic:
+    return rule.diagnostic(
+        f"match={match!r} names no model, so nothing was checked",
+        rule.id,
+        Status.UNVERIFIABLE,
+        "",
+    )
+
+
+class RequireExplicitTable(Rule):
+    id = "HNK-DB-001"
+    fix = "name the table with @db.table(...) or table=... on the model"
+    explanation = (
+        "A derived table name follows the Python class and module names, so a "
+        "rename changes the physical table. Pinning it keeps migration identity."
+    )
+
+    def __init__(self, match: str = "*") -> None:
+        self.match = match
+
+    def summary(self) -> str:
+        return f"Models.require_explicit_table(match={self.match!r})"
+
+    def check(self, _project: Project) -> Iterator[Diagnostic]:
+        models = declared_models(self.match)
+        if not models:
+            yield unverifiable_models(self, self.match)
+        for model in models:
+            if model.__table_is_implicit__:
+                yield self.diagnostic(
+                    f"{model.__qualname__} uses the derived table name "
+                    f"{model.__table__!r}",
+                    where(model),
+                    subject=f"{model.__module__}.{model.__qualname__}",
+                )
+
+
+def is_indexed(model: Any, column: str) -> bool:
+    """The column leads a primary key, a unique column or group, or an index."""
+    from hinoki.orm import MARK, FieldMeta  # noqa: PLC0415 - orm is only needed here
+
+    unique_columns = {
+        item.name
+        for item in dataclasses.fields(model)
+        if item.metadata.get(MARK, FieldMeta()).unique
+    }
+    groups = (*model.__indexes__, *model.__unique__)
+    return (
+        column == model.__primary_key__
+        or column in unique_columns
+        or any(group[0] == column for group in groups)
+    )
+
+
+class RequireForeignKeyIndex(Rule):
+    id = "HNK-DB-002"
+    fix = "index the column: field(index=True) or @db.indexed(...)"
+    explanation = (
+        "A foreign key column without an index makes joins and parent deletes "
+        "scan the child table."
+    )
+
+    def __init__(self, match: str = "*") -> None:
+        self.match = match
+
+    def summary(self) -> str:
+        return f"Models.require_foreign_key_index(match={self.match!r})"
+
+    def check(self, _project: Project) -> Iterator[Diagnostic]:
+        models = declared_models(self.match)
+        if not models:
+            yield unverifiable_models(self, self.match)
+        for model in models:
+            relations = model.__relations__
+            for relation in relations.values():
+                if relation.forward and not is_indexed(model, relation.column):
+                    yield self.diagnostic(
+                        f"{model.__qualname__}.{relation.column} references "
+                        f"{relation.model.__name__} and has no index",
+                        where(model),
+                        subject=f"{model.__module__}.{model.__qualname__}."
+                        f"{relation.column}",
+                    )
+
+
 class ForbidImports(Rule):
     id = "HNK-IMP-001"
     fix = (
@@ -593,6 +763,7 @@ class Actions:
     forbid_model_responses: ClassVar[Callable[..., Rule]] = ForbidModelResponses
     require_return_type: ClassVar[Callable[..., Rule]] = RequireReturnType
     require_pagination: ClassVar[Callable[..., Rule]] = RequirePagination
+    require_permissions: ClassVar[Callable[..., Rule]] = RequirePermissions
 
 
 class Transactions:
@@ -601,3 +772,11 @@ class Transactions:
 
 class Schemas:
     forbid_exposure: ClassVar[Callable[..., Rule]] = ForbidExposure
+    require_string_limits: ClassVar[Callable[..., Rule]] = RequireStringLimits
+
+
+class Models:
+    """Namespace of model rules; ``match`` is an ``fnmatch`` on the model's module."""
+
+    require_explicit_table: ClassVar[Callable[..., Rule]] = RequireExplicitTable
+    require_foreign_key_index: ClassVar[Callable[..., Rule]] = RequireForeignKeyIndex
