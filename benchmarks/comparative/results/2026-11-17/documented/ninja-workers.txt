@@ -1,0 +1,7 @@
+pid pgid cputime command
+3852815 3852815 00:00:00 /tmp/hinoki-final-bench/benchmarks/comparative/.venv/bin/python -m uvicorn ninja_app:application --workers 4 --port 8801 --log-level warning --no-access-log
+3852816 3852815 00:00:00 /tmp/hinoki-final-bench/benchmarks/comparative/.venv/bin/python -c from multiprocessing.resource_tracker import main;main(6)
+3852817 3852815 00:01:10 /tmp/hinoki-final-bench/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=9) --multiprocessing-fork
+3852818 3852815 00:01:10 /tmp/hinoki-final-bench/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=13) --multiprocessing-fork
+3852819 3852815 00:01:10 /tmp/hinoki-final-bench/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=17) --multiprocessing-fork
+3852820 3852815 00:01:11 /tmp/hinoki-final-bench/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=21) --multiprocessing-fork
