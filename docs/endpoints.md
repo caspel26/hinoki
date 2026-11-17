@@ -309,7 +309,7 @@ Use `--path` or `--method` to narrow it, and `--format json` for scripts. The li
 
 Return a value matching the declared response type, or return `Response` when the handler needs to set an explicit status, headers or body. Declare expected `APIError` subclasses in `errors=(...)`; their status, stable code and message feed the OpenAPI document and strict test client.
 
-`Reply` remains an import-compatible alias for `Response`; new code should use `Response` from `hinoki`.
+Use `Response` from `hinoki` or `hinoki.http` for explicit status, headers or body. It is also available from `hinoki.http.response`.
 
 Paginated actions declare a pagination policy. See [pagination](pagination.md) for the query parameters and response envelope.
 
