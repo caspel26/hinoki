@@ -164,14 +164,20 @@ tracker_rules = RuleSet(
 
 Optional, and absent until included. The admin provides staff lists, search, forms, bulk actions and dashboards behind your `Access` policy, with CSRF-protected forms. It does not provide a sign-in page; the [Blog example](examples/blog/adminsite.py) authenticates staff with its application policy:
 
+The Blog settings require `BLOG_ADMIN_SECRET` (at least 32 bytes) before they can be loaded.
+
 ```python
+from hinoki import Hinoki
 from blog.adminsite import build_admin
 from blog.settings import BlogSettings
 
 admin_settings = BlogSettings.load()
-app.include(build_admin(
-    admin_settings.admin_secret.reveal(), admin_settings.admin_theme
-).api())
+app = Hinoki(settings=admin_settings)
+app.include(
+    build_admin(
+        admin_settings.admin_secret.reveal(), admin_settings.admin_theme
+    ).api()
+)
 ```
 
 <table>
