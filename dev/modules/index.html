@@ -403,7 +403,7 @@
 <p>A module instance whose class extends a required module class satisfies that dependency. For example, a custom <code>DatabaseModule</code> subclass can replace the settings-provided database while modules requiring <code>DatabaseModule</code> continue to start after it.</p>
 <p>Module lifespan hooks are async. Keep startup bounded, fail fast when a required service is unavailable, and close each owned resource in <code>finally</code>.</p>
 <h2 id="startup-and-shutdown-hooks">Startup and shutdown hooks<a class="headerlink" href="#startup-and-shutdown-hooks" title="Permanent link">&para;</a></h2>
-<p>For an action at the edge of a worker's life that owns no resource, such as warming a cache, logging the build or flushing a counter, list functions on the application instead of writing a module:</p>
+<p>For an action at the edge of a worker's life that owns no resource, such as warming a cache, logging the build or flushing a counter, list functions on the application instead of writing a module (<code>ProjectSettings</code>, <code>health</code> and <code>Tasks</code> are those of the previous example):</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">ModuleContext</span>

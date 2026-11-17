@@ -232,7 +232,7 @@
       <article class="prose" style="--sheet: '4.3'">
         <p class="kicker" data-search-exclude>4.3 · Concepts</p>
         <h1 id="structuring-a-hinoki-application-pattern-and-best-practices">Structuring a Hinoki application: pattern and best practices<a class="headerlink" href="#structuring-a-hinoki-application-pattern-and-best-practices" title="Permanent link">&para;</a></h1>
-<p>Opinionated, with reasons. It describes how the framework's features fit together; each rule is something the framework either enforces, can check with an optional rule, or leaves to review (marked <strong>enforced</strong>, <strong>rule</strong> or <strong>convention</strong>). The reference blog (<code>examples/blog</code>) and the one-file notes example (<code>examples/notes</code>) show the parts; <code>examples/tracker</code> is the layered example: <code>api</code> → <code>operations</code> → <code>models</code>, row permission in the statements, the direction enforced by <code>Imports.forbid</code>, operations tested without HTTP.</p>
+<p>Opinionated, with reasons. It describes how the framework's features fit together; each rule is something the framework either enforces, can check with an optional rule, or leaves to review (marked <strong>enforced</strong>, <strong>rule</strong> or <strong>convention</strong>). The reference blog (<code>examples/blog</code>) and the small notes example (<code>examples/notes</code>) show the parts; <code>examples/tracker</code> is the layered example: <code>api</code> → <code>operations</code> → <code>models</code>, row permission in the statements, the direction enforced by <code>Imports.forbid</code>, operations tested without HTTP.</p>
 <h2 id="1-three-layers-one-direction">1. Three layers, one direction<a class="headerlink" href="#1-three-layers-one-direction" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>HTTP layer      API classes / functions   shapes, status codes, access policy, transaction=True
    │            (hinoki.routing, Access, Schema)
@@ -375,7 +375,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.3</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:48:12 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:30:43 UTC">November 17, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/patterns.md">Edit on GitHub</a></dd></div>
         </dl>

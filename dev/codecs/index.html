@@ -450,7 +450,10 @@
 </code></pre></div>
 <p><code>default</code> is a Python callback for a value the encoder does not know and must return something that is JSON (returning the same object is an error). It does not override what the encoder already handles (UUID, datetime, <code>Schema</code>, anything with <code>dump()</code>). With <code>sort_keys=True</code> object keys are ordered by their encoded text (quotes and escapes included), which is deterministic but not always <code>json.dumps</code> order for unusual keys, and integer keys sort as text. The public renderer accepts <code>indent</code> from 0 to 16, or <code>None</code> for compact output.</p>
 <h2 id="inherit-and-override">Inherit and override<a class="headerlink" href="#inherit-and-override" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Envelope</span><span class="p">(</span><span class="n">JSONRenderer</span><span class="p">):</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">JSONParser</span><span class="p">,</span> <span class="n">JSONRenderer</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Envelope</span><span class="p">(</span><span class="n">JSONRenderer</span><span class="p">):</span>
     <span class="n">media_type</span> <span class="o">=</span> <span class="s2">"application/vnd.myapp+json"</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">prepare</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>                 <span class="c1"># reshape, then Rust encodes</span>
@@ -485,7 +488,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.15</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:09:57 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:30:43 UTC">November 17, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/codecs.md">Edit on GitHub</a></dd></div>
         </dl>
