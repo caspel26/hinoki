@@ -426,8 +426,10 @@ pub fn compile_select_with<V: Clone>(q: &Select<V>, dialect: Dialect) -> Compile
     let table = quote_with(&q.table, dialect)?;
     let joined = !q.joins.is_empty();
     let mut columns = select_list(q, joined, dialect)?;
-    if q.count && dialect == Dialect::Sqlite {
-        columns.push_str(" AS \"count\"");
+    // PostgreSQL names the column `count`; the other servers name it `count(*)`.
+    if q.count && dialect != Dialect::Postgres {
+        columns.push_str(" AS ");
+        columns.push_str(&quote_with("count", dialect)?);
     }
     let mut b = Builder::new(format!("SELECT {columns} FROM {table}"), dialect);
     b.sql.push_str(&join_clauses(q, dialect)?);
@@ -620,6 +622,23 @@ mod tests {
             compile_select(&q).unwrap().0,
             "SELECT count(*) FROM \"posts\""
         );
+    }
+
+    #[test]
+    fn names_the_count_column_on_every_dialect() {
+        let mut q = select(vec![]);
+        q.count = true;
+        q.columns.clear();
+        for (dialect, expected) in [
+            (Dialect::Postgres, "SELECT count(*) FROM \"posts\""),
+            (
+                Dialect::Sqlite,
+                "SELECT count(*) AS \"count\" FROM \"posts\"",
+            ),
+            (Dialect::Mysql, "SELECT count(*) AS `count` FROM `posts`"),
+        ] {
+            assert_eq!(compile_select_with(&q, dialect).unwrap().0, expected);
+        }
     }
 
     #[test]
