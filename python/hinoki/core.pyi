@@ -257,12 +257,15 @@ class ServerCore:
         limits: tuple[int, int, int, int] = ...,
         queue_capacity: int = 4096,
         trust_request_id: bool = False,
-        defer_policies: bool = False,
         python_paths: list[str] = ...,
-        cors: tuple[bool, list[bytes], bool, bytes] | None = None,
+        cors: (
+            tuple[bool, list[bytes], bool, bytes, list[tuple[bytes, bytes]]] | None
+        ) = None,
         trusted_proxies: list[str] = ...,
         startup_path: str | None = None,
         startup_body: bytes = ...,
+        hosts: tuple[list[bytes], list[bytes]] | None = None,
+        redirect_https: bool = False,
     ) -> None: ...
     def trusts(self, address: str) -> bool: ...
     def set_ready(self, ready: bool) -> None: ...

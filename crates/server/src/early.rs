@@ -21,6 +21,8 @@ pub enum Early {
     NotAcceptable,
     /// A missing or repeated `Host` on HTTP/1.1 (RFC 9112 section 3.2).
     BadHost,
+    DisallowedHost,
+    CorsOriginDenied,
 }
 
 impl Early {
@@ -34,6 +36,8 @@ impl Early {
             Early::InvalidQuery => 400,
             Early::NotAcceptable => 406,
             Early::BadHost => 400,
+            Early::DisallowedHost => 400,
+            Early::CorsOriginDenied => 403,
         }
     }
 
