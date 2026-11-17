@@ -22,7 +22,7 @@ async with ASGIClient(create_app(TEST_DATABASE_URL), strict_errors=True) as clie
     assert response.status == 201
 ```
 
-Its context manager runs module lifespans and the application's startup and shutdown hooks. If the application has a `DatabaseModule`, point it to a disposable PostgreSQL database. `strict_errors=True` catches an HTTP error returned by an action but missing from its `errors=` declaration.
+Its context manager runs module lifespans and the application's startup and shutdown hooks. If the application declares a database, point it to a disposable PostgreSQL database. `strict_errors=True` catches an HTTP error returned by an action but missing from its `errors=` declaration.
 
 Both clients have `get`, `post`, `put`, `patch`, `delete`, `head`, `options` and `query` (the HTTP `QUERY` method; its body goes in `json=` or `body=`, while the `query=` option of every call is the query string), plus `request(method, path, ...)` for any other method.
 

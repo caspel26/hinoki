@@ -16,48 +16,83 @@ their SQL features overlap.
 
 ## Configure the application
 
-Declare `DatabaseSettings` on your app settings and install `DatabaseModule`.
-The module opens one bounded pool per worker during startup and closes it during
-shutdown. Importing models or routes does not open a connection.
+Declare a `database: DatabaseSettings` field on your app settings. Hinoki then
+opens one bounded pool per worker during startup and closes it during shutdown;
+importing models or routes does not open a connection, and no `modules=` entry
+is needed.
 
 ```python
 from hinoki import Hinoki, settings
-from hinoki.db import DatabaseModule
 
 
-class BlogSettings(settings.AppSettings, prefix="BLOG_", dotenv=".env"):
+class BlogSettings(
+    settings.AppSettings, prefix="BLOG_", dotenv=".env", toml="hinoki.toml"
+):
     database: settings.DatabaseSettings
 
 
-app = Hinoki(settings=BlogSettings, modules=[DatabaseModule])
+app = Hinoki(settings=BlogSettings)
 ```
 
-`DatabaseSettings.url` defaults to `sqlite://./.hinoki/local.sqlite3`, so no
-database URL is needed for local development. You can override it with an
-environment variable (the URL is a secret setting; avoid committing it):
+With nothing configured, the database is local SQLite at
+`.hinoki/local.sqlite3`. Configure a server database either with separate
+connection fields or with one URL; setting both is an error when settings load.
+
+### Connection fields
+
+`engine` selects the backend with the `settings.DatabaseEngine` values
+`sqlite`, `postgresql`, `mysql` and `mariadb`. `name` is the database name, or
+the file path for SQLite. `options` are `key=value` URL query pairs such as
+PostgreSQL's `sslmode`. `host` defaults to `localhost`; the password is a secret
+setting.
+
+```toml
+# hinoki.toml, or the file named by the settings class's toml=
+[database]
+engine = "postgresql"
+name = "blog"
+user = "blog"
+host = "db.example.test"
+port = 5432
+options = ["sslmode=verify-full", "sslrootcert=/run/secrets/db-ca.pem"]
+max_size = 10            # per worker; the default is 10
+```
 
 ```sh
-# Optional override; SQLite is selected automatically when this is omitted.
-export BLOG_DATABASE__URL='sqlite://./.hinoki/local.sqlite3'
-
-# PostgreSQL
-export BLOG_DATABASE__URL='postgresql://blog:password@db.example.test/blog'
-
-# PostgreSQL with TLS (recommended for remote databases)
-export BLOG_DATABASE__URL='postgresql://blog:password@db.example.test/blog?sslmode=verify-full&sslrootcert=%2Frun%2Fsecrets%2Fdb-ca.pem'
-
-# MySQL
-export BLOG_DATABASE__URL='mysql://blog:password@db.example.test/blog'
-
-# Pool capacity is per worker. Omit this to use the default of 10.
-export BLOG_DATABASE__MAX_SIZE=10
+export BLOG_DATABASE__PASSWORD='…'     # or BLOG_DATABASE__PASSWORD_FILE
 ```
 
-Use a secret manager or a `BLOG_DATABASE__URL_FILE` variable for deployment
-credentials. Hinoki redacts the URL in settings output and connection errors.
+Hinoki builds the connection URL from these fields, percent-encoding the user,
+password and name, and keeps it in `DatabaseSettings.url`. SQLite takes only
+`name`.
+
+For PostgreSQL, `host` may be a Unix-socket directory such as
+`/var/run/postgresql`; it is encoded in the generated URL. Other engines require
+a host name or address. Environment values for `options` use the settings
+sequence syntax, with commas separating `key=value` pairs. If an option value
+itself contains a comma, put it in the TOML array or percent-encode it in a URL.
+Options cannot specify credentials or override `user`, `host`, `port` or database
+name; use their dedicated fields instead. The password always belongs in the
+secret `password` setting or in a credential-bearing URL supplied as a secret.
+
+### One URL
+
+```sh
+export BLOG_DATABASE__URL='postgresql://blog:password@db.example.test/blog'
+export BLOG_DATABASE__URL='postgresql://blog:password@db.example.test/blog?sslmode=verify-full&sslrootcert=%2Frun%2Fsecrets%2Fdb-ca.pem'
+export BLOG_DATABASE__URL='mysql://blog:password@db.example.test/blog'
+export BLOG_DATABASE__URL='sqlite://./.hinoki/local.sqlite3'
+```
+
+A `DatabaseModule` listed in `modules=`, or installed with `app.install(...)`,
+replaces the one Hinoki would create from the settings, for example to pass a
+URL chosen at runtime: `DatabaseModule(url, max_size=4)`.
+
+Use a secret manager or a `BLOG_DATABASE__URL_FILE` / `BLOG_DATABASE__PASSWORD_FILE`
+variable for deployment credentials. Hinoki redacts the URL in settings output and connection errors.
 Avoid placing a credential-bearing URL in shell history or a process argument.
-Database authentication uses the username and password in the URL; percent-encode
-reserved characters in either component. SQLite files are protected by the
+Database authentication uses the username and password; in a hand-written URL,
+percent-encode reserved characters in either component. SQLite files are protected by the
 operating-system account and filesystem permissions, not by database credentials.
 
 For non-secret pool settings, TOML works as well. Keep `url` in an environment

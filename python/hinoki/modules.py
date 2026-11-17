@@ -113,7 +113,7 @@ class ModuleGraph:
 
     def _provider(self, owner: Module, wanted: type[Module]) -> Module:
         for candidate in self.modules:
-            if type(candidate) is wanted:
+            if isinstance(candidate, wanted):
                 return candidate
         raise ModuleGraphError(
             f"module {owner.name!r} requires {wanted.__name__}, which is not installed"

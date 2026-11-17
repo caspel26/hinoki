@@ -15,18 +15,16 @@ class ProjectSettings(settings.AppSettings, prefix="APP_"):
     database: settings.DatabaseSettings
 
 
-app = Hinoki(
-    settings=ProjectSettings,
-    include=[health, Tasks],
-    modules=[DatabaseModule],
-)
+app = Hinoki(settings=ProjectSettings, include=[health, Tasks])
 ```
 
-When a module class is passed, Hinoki constructs it from the settings class. A module instance is useful when setup needs explicit runtime arguments. The database pool is opened after the worker starts and closed during shutdown; importing the model module does not open a connection.
+The settings' `database: DatabaseSettings` field makes Hinoki install `DatabaseModule` before any declared module, so a module that `requires = (DatabaseModule,)` finds it. Declaring `DatabaseModule` in `modules=`, or installing an instance, replaces that automatic module. When a module class is passed, Hinoki constructs it from the settings class. A module instance is useful when setup needs explicit runtime arguments. The database pool is opened after the worker starts and closed during shutdown; importing the model module does not open a connection.
 
 ## Provide and retrieve dependencies
 
 A module calls `ctx.provide(Type, value)` during lifespan startup. Other modules can declare dependencies and retrieve the provided value with `ctx.get(Type)`. Dependencies determine startup and shutdown order. Missing, duplicate or circular providers fail application startup.
+
+A module instance whose class extends a required module class satisfies that dependency. For example, a custom `DatabaseModule` subclass can replace the settings-provided database while modules requiring `DatabaseModule` continue to start after it.
 
 Module lifespan hooks are async. Keep startup bounded, fail fast when a required service is unavailable, and close each owned resource in `finally`.
 
@@ -38,7 +36,7 @@ For an action at the edge of a worker's life that owns no resource, such as warm
 import logging
 
 from hinoki import Hinoki, ModuleContext
-from hinoki.db import Database, DatabaseModule
+from hinoki.db import Database
 
 log = logging.getLogger("app")
 
@@ -54,7 +52,6 @@ def say_goodbye(ctx: ModuleContext) -> None:
 app = Hinoki(
     settings=ProjectSettings,
     include=[health, Tasks],
-    modules=[DatabaseModule],
     on_startup=[warm_cache],
     on_shutdown=[say_goodbye],
 )

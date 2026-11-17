@@ -10,6 +10,10 @@ class A(Module):
     name = "a"
 
 
+class AChild(A):
+    name = "a-child"
+
+
 class B(Module):
     name = "b"
     requires = (A,)
@@ -53,6 +57,12 @@ def names(modules: list[Module]) -> list[str]:
 
 def test_dependencies_come_first_regardless_of_install_order() -> None:
     assert names(order_modules([C(), B(), A()])) == ["a", "b", "c"]
+
+
+def test_module_subclasses_satisfy_base_class_dependencies() -> None:
+    child = AChild()
+    dependent = B()
+    assert order_modules([dependent, child]) == [child, dependent]
 
 
 def test_order_is_stable_for_independent_modules() -> None:
