@@ -27,6 +27,8 @@ pub mod stall;
 pub mod streams;
 pub mod tls;
 
+#[cfg(test)]
+mod policy_tests;
 
 pub use accept::{serve, Closed, ServerConfig, Stop};
 pub use body::{BodyError, BodyReader};
