@@ -16,14 +16,19 @@ pub mod cors;
 pub mod early;
 pub mod framing;
 pub mod headers;
+pub mod hosts;
 pub mod limits;
 pub mod plan;
 pub mod proxy;
 pub mod queue;
+pub mod redirect;
 pub mod requestid;
 pub mod stall;
 pub mod streams;
 pub mod tls;
+
+#[cfg(test)]
+mod policy_tests;
 
 pub use accept::{serve, Closed, ServerConfig, Stop};
 pub use body::{BodyError, BodyReader};

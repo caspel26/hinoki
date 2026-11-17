@@ -4,6 +4,10 @@
 
 use crate::headers::Header;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PreflightError {
+    OriginDenied,
+}
 #[derive(Debug, Clone, Default)]
 pub struct Cors {
     pub any_origin: bool,
@@ -11,6 +15,8 @@ pub struct Cors {
     pub origins: Vec<Vec<u8>>,
     pub credentials: bool,
     pub expose: Vec<u8>,
+    /// Headers owned by an allowed preflight response.
+    pub preflight: Vec<Header>,
 }
 
 impl Cors {
@@ -44,54 +50,24 @@ impl Cors {
         }
         head
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn listed() -> Cors {
-        Cors {
-            origins: vec![b"https://a.example".to_vec()],
-            credentials: true,
-            expose: b"x-total".to_vec(),
-            ..Cors::default()
+    /// The preflight answer's own headers, or the denied-origin condition.
+    pub fn preflight(
+        &self,
+        method: &str,
+        origin: Option<&[u8]>,
+        requests_method: bool,
+    ) -> Result<Option<Vec<Header>>, PreflightError> {
+        if method != "OPTIONS" || !requests_method {
+            return Ok(None);
         }
-    }
-
-    #[test]
-    fn listed_origin_gets_permission_and_vary() {
-        let names: Vec<_> = listed()
-            .headers(b"https://a.example")
-            .into_iter()
-            .map(|(n, _)| String::from_utf8(n).unwrap())
-            .collect();
-        assert_eq!(
-            names,
-            [
-                "access-control-allow-origin",
-                "vary",
-                "access-control-allow-credentials",
-                "access-control-expose-headers"
-            ]
-        );
-    }
-
-    #[test]
-    fn unlisted_origin_only_varies() {
-        assert_eq!(
-            listed().headers(b"https://evil.example"),
-            vec![(b"vary".to_vec(), b"origin".to_vec())]
-        );
-    }
-
-    #[test]
-    fn any_origin_answers_only_when_an_origin_was_sent() {
-        let any = Cors {
-            any_origin: true,
-            ..Cors::default()
+        let Some(origin) = origin.filter(|value| !value.is_empty()) else {
+            return Ok(None);
         };
-        assert!(any.headers(b"").is_empty());
-        assert_eq!(any.headers(b"https://x").len(), 1);
+        if self.any_origin || self.origins.iter().any(|allowed| allowed == origin) {
+            Ok(Some(self.preflight.clone()))
+        } else {
+            Err(PreflightError::OriginDenied)
+        }
     }
 }

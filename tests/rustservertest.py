@@ -435,7 +435,7 @@ async def test_startup_probe_refuses_invalid_requests_with_pipeline_parity() -> 
         assert malformed.json()["error"] == "invalid_query"
 
 
-async def test_startup_probe_defers_host_policy() -> None:
+async def test_startup_probe_applies_host_policy_before_answering() -> None:
     settings = AppSettings(allowed_hosts=("example.com",))
     async with rust_probe(settings) as (_worker, port), asgi_probe(settings) as client:
         rejected = await compare_probe(port, client, "GET")
@@ -446,7 +446,7 @@ async def test_startup_probe_defers_host_policy() -> None:
         assert accepted.status == 200 and accepted.json() == {"status": "ok"}
 
 
-async def test_startup_probe_defers_cors_preflight() -> None:
+async def test_startup_probe_answers_cors_preflight_natively() -> None:
     settings = AppSettings(cors=CorsSettings(origins=("https://client.example",)))
     async with rust_probe(settings) as (_worker, port), asgi_probe(settings) as client:
         headers = {
@@ -465,7 +465,7 @@ async def test_startup_probe_defers_cors_preflight() -> None:
         )
 
 
-async def test_startup_probe_defers_https_redirect() -> None:
+async def test_startup_probe_applies_https_redirect_before_answering() -> None:
     settings = AppSettings(
         allowed_hosts=("example.com",),
         security=SecuritySettings(redirect_https=True),
