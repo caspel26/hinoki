@@ -123,3 +123,12 @@ fn redirect_refuses_untrusted_header_bytes() {
     assert_eq!(redirect::location(b"evil\r\nlocation:x", b"/", b""), None);
     assert_eq!(redirect::location(b"", b"/", b""), None);
 }
+
+#[test]
+fn redirect_skips_a_target_that_is_not_a_path() {
+    assert_eq!(redirect::location(b"example.com", b"*", b""), None);
+    assert_eq!(
+        redirect::location(b"example.com", b"", b""),
+        Some(b"https://example.com/".to_vec())
+    );
+}
