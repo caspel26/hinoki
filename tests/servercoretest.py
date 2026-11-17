@@ -286,6 +286,7 @@ def test_native_plan_rejects_inputs_that_do_not_match_the_template(
         False,
         False,
         (True, inputs),
+        None,
     )
     with pytest.raises(ValueError, match="InvalidNativeHandler"):
         core.ServerCore([route], early_bodies(), ([], []), b"x-request-id", "0" * 16)

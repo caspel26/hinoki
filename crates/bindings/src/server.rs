@@ -31,6 +31,7 @@ use pyo3::types::{PyBytes, PyDict, PyList};
 use tokio::sync::oneshot;
 
 use crate::completion;
+use crate::crudplan::{CrudPlan, PyCrudPlan};
 use crate::request;
 use crate::router::{Match, Router};
 use hinoki_server::redirect;
@@ -412,6 +413,7 @@ type RouteSpec = (
     bool,                                // transaction
     bool,                                // takes request
     (bool, Vec<(String, String, bool)>), // native handler and source/name/default
+    Option<Py<PyCrudPlan>>,              // dark generated CRUD plan
 );
 
 #[derive(Clone)]
@@ -605,6 +607,11 @@ enum Resolved {
 pub struct Core {
     router: Router,
     plan: Plan,
+    #[allow(
+        dead_code,
+        reason = "consumed by native CRUD execution in the next phase"
+    )]
+    crud_plans: HashMap<u32, Arc<CrudPlan>>,
     limits: Limits,
     bodies: EarlyBodies,
     queue: Queue<PreparedRequest>,
@@ -655,6 +662,7 @@ impl ServerCore {
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
+        py: Python<'_>,
         routes: Vec<RouteSpec>,
         early_bodies: Vec<(String, Vec<u8>)>,
         policies: (Vec<Header>, Vec<Header>),
@@ -691,7 +699,7 @@ impl ServerCore {
             }
         };
         let proxies = Networks::parse(&trusted_proxies).map_err(PyValueError::new_err)?;
-        let (router, plan) = build_routes(routes)?;
+        let (router, plan, crud_plans) = build_routes(py, routes)?;
         let rendered = early_bodies
             .into_iter()
             .map(|(kind, body)| kind_of(&kind).map(|k| (k, body)))
@@ -704,6 +712,7 @@ impl ServerCore {
             core: Arc::new(Core {
                 router,
                 plan,
+                crud_plans,
                 limits: Limits {
                     max_query_bytes,
                     max_header_bytes,
@@ -856,9 +865,13 @@ pub enum Outcome {
     },
 }
 
-fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
+fn build_routes(
+    py: Python<'_>,
+    routes: Vec<RouteSpec>,
+) -> PyResult<(Router, Plan, HashMap<u32, Arc<CrudPlan>>)> {
     let mut router = Router::new();
     let mut planned = Vec::with_capacity(routes.len());
+    let mut crud_plans = HashMap::new();
     for (
         action,
         method,
@@ -871,6 +884,7 @@ fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
         transaction,
         takes_request,
         (native_handler, input_params),
+        py_crud_plan,
     ) in routes
     {
         let path_params = Router::parameter_names(&template)
@@ -878,6 +892,10 @@ fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
         router
             .add(&method, &template, action)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let crud_plan = py_crud_plan.map(|plan| Arc::clone(&plan.borrow(py).inner));
+        if let Some(plan) = &crud_plan {
+            crud_plans.insert(action, Arc::clone(plan));
+        }
         planned.push(RoutePlan {
             action,
             method,
@@ -891,10 +909,11 @@ fn build_routes(routes: Vec<RouteSpec>) -> PyResult<(Router, Plan)> {
             transaction,
             takes_request,
             native_handler,
+            crud_plan: crud_plan.map(|_| Arc::new(hinoki_server::CrudPlanSlot::new(action))),
         });
     }
     let plan = Plan::new(planned).map_err(|e| PyValueError::new_err(format!("{e:?}")))?;
-    Ok((router, plan))
+    Ok((router, plan, crud_plans))
 }
 
 impl Core {
