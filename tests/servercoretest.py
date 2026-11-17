@@ -16,6 +16,10 @@ from tests.harness import Client, Pool
 HEX32 = re.compile(r"[0-9a-f]{32}")
 
 
+class StringSubclass(str):
+    pass
+
+
 @http.get("/ping")
 def ping(request: Request) -> dict[str, str]:
     return {"pong": "yes"}
@@ -46,6 +50,21 @@ def native_default(term: str = "hinoki") -> dict[str, str]:
     return {"term": term}
 
 
+@http.get("/native/default-path/{item_id}")
+def native_default_path(item_id: str = "fallback") -> dict[str, str]:
+    return {"item_id": item_id}
+
+
+@http.get("/native/default-number")
+def native_default_number(value: int = 4) -> dict[str, int]:
+    return {"value": value}
+
+
+@http.get("/native/default-subclass")
+def native_default_subclass(value: str = StringSubclass("custom")) -> dict[str, str]:
+    return {"value": value}
+
+
 @http.get("/custom-renderer", renderers=[JSONRenderer(indent=2)])
 async def custom_renderer() -> dict[str, str]:
     return {"native": "no"}
@@ -70,6 +89,9 @@ def make_app(**config: int) -> Hinoki:
         native_search,
         native_number,
         native_default,
+        native_default_path,
+        native_default_number,
+        native_default_subclass,
         custom_renderer,
         item,
         made,
@@ -175,23 +197,57 @@ def test_native_dispatch_selects_only_supported_get_inputs() -> None:
     server.submit("GET", "/native/search", b"term=green+tea", [])
     server.submit("GET", "/native/numbers/4", b"", [])
     server.submit("GET", "/native/default", b"", [])
+    server.submit("GET", "/native/default-path/actual", b"", [])
+    server.submit("GET", "/native/default-number", b"", [])
+    server.submit("GET", "/native/default-subclass", b"", [])
     server.submit("GET", "/ping", b"", [])
     server.submit("GET", "/custom-renderer", b"", [])
-    native, path, query, number, default, request_handler, custom = server.drain(7)
+    (
+        native,
+        path,
+        query,
+        number,
+        default,
+        default_path,
+        default_number,
+        default_subclass,
+        request_handler,
+        custom,
+    ) = server.drain(10)
     assert native.native_handler is True
     assert path.native_handler is True
     assert path.native_args == {"item_id": "a/b"}
     assert query.native_handler is True
     assert query.native_args == {"term": "green tea"}
     assert number.native_handler is False
-    assert default.native_handler is False
+    assert default.native_handler is True
+    assert default.native_args == {}
+    assert default_path.native_handler is False
+    assert default_number.native_handler is False
+    assert default_subclass.native_handler is False
     assert request_handler.native_handler is False
     assert custom.native_handler is False
 
 
-@pytest.mark.parametrize("inputs", [[], [("path", "other")]])
+def test_native_query_default_is_omitted_until_python_restores_the_same_object() -> (
+    None
+):
+    app = Hinoki(include=[native_default])
+    server = classifier(app)
+    missing = server.submit("GET", "/native/default", b"", [])
+    supplied = server.submit("GET", "/native/default", b"term=custom", [])
+    [missing_request, supplied_request] = server.drain(2)
+    assert missing.wake is True
+    assert supplied.wake is False
+    assert missing_request.native_handler is True
+    assert missing_request.native_args == {}
+    assert supplied_request.native_handler is True
+    assert supplied_request.native_args == {"term": "custom"}
+
+
+@pytest.mark.parametrize("inputs", [[], [("path", "other", False)]])
 def test_native_plan_rejects_inputs_that_do_not_match_the_template(
-    inputs: list[tuple[str, str]],
+    inputs: list[tuple[str, str, bool]],
 ) -> None:
     route: core.RouteSpec = (
         0,
