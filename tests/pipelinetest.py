@@ -126,6 +126,64 @@ async def test_native_executor_saturation_returns_service_unavailable(
     assert response.status == 503
 
 
+async def test_native_input_error_is_translated_through_the_error_registry() -> None:
+    built = pipeline()
+    response = await built.handle_native(
+        built.bindings[0],
+        "r" * 32,
+        {},
+        ("invalid_query", "query is invalid", None, []),
+    )
+    assert response.status == 400
+
+
+async def test_native_internal_timeout_exception_uses_the_error_registry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    built = pipeline()
+
+    async def timed_out(_binding: object, _args: object) -> Response:
+        raise TimeoutError("handler timeout")
+
+    monkeypatch.setattr(built, "_call_native", timed_out)
+    response = await built._respond_native(built.bindings[0], "r" * 32, {}, None)
+    assert response.status == 500
+
+
+def test_request_id_selection_and_final_header_replacement(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    built = pipeline()
+    built.trust_request_id = True
+    trusted_scope = scope("GET", "/ping", [(b"x-request-id", b"client-42")])
+    assert built._request_id(trusted_scope, True) == "client-42"
+    generated = built._request_id(scope("GET", "/ping"), False)
+    assert len(generated) == 32
+    assert generated != built._new_request_id()
+    invalid = scope("GET", "/ping", [(b"x-request-id", b"bad id")])
+    assert built._request_id(invalid, True) != "bad id"
+    assert "ignored invalid request ID" in caplog.text
+    response = built.with_headers(
+        Response(200, b"ok", []), scope("GET", "/ping"), "r" * 32
+    )
+    assert header_map(response.headers)[b"content-length"] == b"2"
+
+
+async def test_shared_respond_catches_handler_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    built = pipeline()
+
+    async def broken(_scope: Any, _source: Any, _route: Any) -> Response:
+        raise RuntimeError("pipeline failure")
+
+    monkeypatch.setattr(built, "_serve", broken)
+    response = await built._respond(
+        scope("GET", "/ping"), FakeBody(b""), "r" * 32, None
+    )
+    assert response.status == 500
+
+
 async def test_internal_timeout_exception_is_translated_as_an_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
