@@ -96,6 +96,50 @@ class CheckObserver:
         self.calls.append("schema-check")
 
 
+class TransparentDescriptor:
+    def __init__(self, name: str, calls: list[str] | None = None) -> None:
+        self.name = name
+        self.calls = calls
+
+    def __get__(self, instance: object | None, owner: type | None = None) -> Any:
+        del owner
+        if instance is None:
+            return self
+        if self.calls is not None:
+            self.calls.append(f"get:{self.name}")
+        return vars(instance)[self.name]
+
+    def __set__(self, instance: object, value: object) -> None:
+        if self.calls is not None:
+            self.calls.append(f"set:{self.name}")
+        vars(instance)[self.name] = value
+
+
+class StaticDescriptorBase:
+    inherited = object()
+    shadowed = object()
+
+
+class StaticDescriptor(StaticDescriptorBase):
+    __slots__ = ("slot",)
+    shadowed = object()
+    data_descriptor = TransparentDescriptor("data_descriptor")
+
+    def non_data_descriptor(self) -> StaticDescriptor:
+        return self
+
+
+class StaticMeta(type):
+    def __getattribute__(cls, name: str) -> Any:
+        if name == "observed":
+            return "dynamic lookup must not run"
+        return super().__getattribute__(name)
+
+
+class StaticMetaClass(metaclass=StaticMeta):
+    observed = object()
+
+
 def changed_crud_schema(self: CrudAPI, item: Any) -> Any:
     del self
     return item
@@ -414,6 +458,63 @@ def test_row_wire_selection_is_per_app_and_not_in_the_public_contract() -> None:
     assert standard.openapi() == formatted.openapi()
 
 
+def test_class_static_matches_getattr_static_for_every_row_guard_name() -> None:
+    owners = (
+        WireRecords,
+        WireRecord,
+        WireRecordOut,
+        QuerySet,
+        StaticDescriptorBase,
+        StaticDescriptor,
+        StaticMetaClass,
+    )
+    guard_names = {
+        *rowplan.OWNER_GUARD_NAMES,
+        *rowplan.MODEL_GUARD_NAMES,
+        *rowplan.SCHEMA_GUARD_NAMES,
+        *rowplan.QUERYSET_GUARD_NAMES,
+        *(name for name, _ in WireRecord.__field_types__.items()),
+        *(name for name in WireRecordOut.specs()),
+        "__name__",
+        "__doc__",
+        "__dict__",
+        "__bases__",
+        "__mro__",
+        "__module__",
+        "__weakref__",
+        "inherited",
+        "shadowed",
+        "slot",
+        "data_descriptor",
+        "non_data_descriptor",
+        "observed",
+        "missing_attribute",
+    }
+    for owner in owners:
+        for name in guard_names:
+            assert rowplan.class_static(owner, name) is inspect.getattr_static(
+                owner, name, None
+            ), (owner.__qualname__, name)
+    calls: list[str] = []
+    descriptor_owner = type(
+        "DescriptorOwner",
+        (),
+        {"descriptor": TransparentDescriptor("descriptor", calls)},
+    )
+    descriptor = descriptor_owner.__dict__["descriptor"]
+    assert rowplan.class_static(descriptor_owner, "descriptor") is descriptor
+    assert calls == []
+
+
+def test_custom_metaclass_static_lookup_does_not_run_dynamic_lookup() -> None:
+    assert rowplan.class_static(StaticMetaClass, "observed") is inspect.getattr_static(
+        StaticMetaClass, "observed", None
+    )
+    assert rowplan.class_static(StaticMetaClass, "observed") != (
+        "dynamic lookup must not run"
+    )
+
+
 def test_ineligible_generated_lists_stay_on_the_python_path() -> None:
     for api in (
         ConstrainedRecords,
@@ -691,6 +792,77 @@ async def test_mutated_checks_fall_back_before_count_and_wire_fetch(
     finally:
         WireRecordOut.__checks__ = original_checks
         del WireRecordOut.observed_check  # type: ignore[attr-defined]
+        await admin.execute("DROP TABLE row_wire_records")
+        admin.close()
+
+
+@pytest.mark.skipif(URL is None, reason="HINOKI_TEST_DATABASE_URL is not set")
+@pytest.mark.parametrize("owner", [WireRecord, WireRecordOut], ids=["model", "schema"])
+async def test_field_descriptor_added_after_include_uses_python_path_before_query(
+    owner: type[Any], pool: Pool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert URL is not None
+    admin = await Database.connect(URL)
+    await admin.execute("DROP TABLE IF EXISTS row_wire_records")
+    await admin.execute(
+        "CREATE TABLE row_wire_records (id uuid PRIMARY KEY, name text NOT NULL, "
+        "count bigint NOT NULL, score float8 NOT NULL, active boolean NOT NULL, "
+        "created timestamptz NOT NULL, nullable text NULL)"
+    )
+    await admin.execute(
+        "INSERT INTO row_wire_records VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        uuid4(),
+        "descriptor mutation",
+        1,
+        1.5,
+        True,
+        datetime(2026, 11, 16, 10, 11, 12, tzinfo=UTC),
+        None,
+    )
+    app = Hinoki(include=[WireRecords], modules=[DatabaseModule(URL, max_size=2)])
+    selection = app.bindings[0].row_wire
+    assert selection is not None
+    descriptor_calls: list[str] = []
+    monkeypatch.setattr(
+        owner,
+        "name",
+        TransparentDescriptor("name", descriptor_calls),
+        raising=False,
+    )
+    assert not selection.valid_for(WireRecords())
+
+    counts: list[str] = []
+    selects: list[str] = []
+    wire_calls: list[str] = []
+    monkeypatch.setattr(
+        QuerySet, "acount", MethodObserver("count", QuerySet.acount, counts)
+    )
+    monkeypatch.setattr(
+        Database,
+        "fetch",
+        MethodObserver("fetch", Database.fetch, [], mode="selects", records=selects),
+    )
+    monkeypatch.setattr(
+        Database,
+        "_fetch_page_wire",
+        MethodObserver(
+            "_fetch_page_wire",
+            Database._fetch_page_wire,
+            [],
+            mode="wire",
+            records=wire_calls,
+        ),
+    )
+    try:
+        client = await pool.start(app)
+        start, end = await raw_request(client, "GET", "/rows", "page=1")
+        assert start["status"] == 200
+        assert b'"displayName":"descriptor mutation"' in end["body"]
+        assert descriptor_calls
+        assert counts == ["count"]
+        assert len(selects) == 2
+        assert wire_calls == []
+    finally:
         await admin.execute("DROP TABLE row_wire_records")
         admin.close()
 
