@@ -8,6 +8,7 @@ mod crudplan;
 mod crypto;
 mod db;
 mod jwt;
+mod nativecrud;
 mod pytypes;
 mod query;
 mod request;

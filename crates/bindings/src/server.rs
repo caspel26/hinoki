@@ -88,12 +88,12 @@ pub(crate) enum NativeBodyError {
 }
 
 #[derive(Clone)]
-struct NativeFailure {
-    kind: String,
-    message: String,
-    constraint: Option<String>,
-    table: Option<String>,
-    sqlstate: Option<String>,
+pub(crate) struct NativeFailure {
+    pub(crate) kind: String,
+    pub(crate) message: String,
+    pub(crate) constraint: Option<String>,
+    pub(crate) table: Option<String>,
+    pub(crate) sqlstate: Option<String>,
 }
 
 type NativeFailureTuple = (
@@ -105,9 +105,9 @@ type NativeFailureTuple = (
 );
 type NativeRowsObject = (Py<PyAny>, Option<(u64, u64, u64)>);
 
-struct NativeRows {
-    rows: Vec<Vec<(String, Value)>>,
-    page_info: Option<(u64, u64, u64)>,
+pub(crate) struct NativeRows {
+    pub(crate) rows: Vec<Vec<(String, Value)>>,
+    pub(crate) page_info: Option<(u64, u64, u64)>,
 }
 
 impl NativeBody {
@@ -157,6 +157,27 @@ pub struct PreparedRequest {
 }
 
 impl PreparedRequest {
+    pub(crate) fn release_admission(&self) {
+        if let Ok(mut permit) = self.permit.lock() {
+            permit.take();
+        }
+    }
+
+    fn restore_admission(&self, permit: Permit) -> Result<(), Permit> {
+        let Ok(mut slot) = self.permit.lock() else {
+            return Err(permit);
+        };
+        if slot.is_some() {
+            return Err(permit);
+        }
+        *slot = Some(permit);
+        Ok(())
+    }
+
+    fn has_admission(&self) -> bool {
+        self.permit.lock().is_ok_and(|slot| slot.is_some())
+    }
+
     pub(crate) fn take_native_body(&self) -> Result<NativeBody, NativeBodyError> {
         let reader = {
             let mut state = self.body.lock().map_err(|_| NativeBodyError::Poisoned)?;
@@ -174,7 +195,7 @@ impl PreparedRequest {
         })
     }
 
-    fn set_native_failure(&self, failure: NativeFailure) -> PyResult<()> {
+    pub(crate) fn set_native_failure(&self, failure: NativeFailure) -> PyResult<()> {
         if !self.native_crud {
             return Err(PyRuntimeError::new_err(
                 "native failures require an armed CRUD request",
@@ -195,7 +216,7 @@ impl PreparedRequest {
         Ok(())
     }
 
-    fn set_native_rows(&self, rows: NativeRows) -> PyResult<()> {
+    pub(crate) fn set_native_rows(&self, rows: NativeRows) -> PyResult<()> {
         if !self.native_crud {
             return Err(PyRuntimeError::new_err(
                 "native rows require an armed CRUD request",
@@ -480,7 +501,12 @@ impl PreparedRequest {
 
     /// Complete the request with the final status, headers and body. Returns
     /// `False` when it was already completed or nobody is waiting any more.
-    fn respond(&self, status: u16, headers: Vec<(Vec<u8>, Vec<u8>)>, body: &[u8]) -> bool {
+    pub(crate) fn respond(
+        &self,
+        status: u16,
+        headers: Vec<(Vec<u8>, Vec<u8>)>,
+        body: &[u8],
+    ) -> bool {
         // The slot is free as soon as the answer is given, not when Python lets
         // go of this object. So is an unread body: hyper cannot finish a
         // connection while the body is still held.
@@ -504,7 +530,12 @@ impl PreparedRequest {
     /// Finalize an automatically eligible handler response with the route's
     /// native policy, request-id and CORS headers, as `Pipeline.with_headers`
     /// does. HEAD retains GET's content length.
-    fn respond_final(&self, status: u16, headers: Vec<(Vec<u8>, Vec<u8>)>, body: &[u8]) -> bool {
+    pub(crate) fn respond_final(
+        &self,
+        status: u16,
+        headers: Vec<(Vec<u8>, Vec<u8>)>,
+        body: &[u8],
+    ) -> bool {
         if !self.native_handler && !self.native_crud {
             return false;
         }
@@ -838,6 +869,7 @@ pub struct Core {
     crud_plans: HashMap<u32, Arc<CrudPlan>>,
     database: Mutex<Option<Database>>,
     native_jobs: Arc<NativeJobs>,
+    request_timeout: Duration,
     limits: Limits,
     bodies: EarlyBodies,
     queue: Queue<PreparedRequest>,
@@ -857,6 +889,58 @@ pub struct Core {
     proxies: Networks,
     python_paths: Vec<String>,
     startup_probe: Option<StartupProbe>,
+}
+
+impl Core {
+    pub(crate) fn native_jobs(&self) -> Arc<NativeJobs> {
+        Arc::clone(&self.native_jobs)
+    }
+
+    pub(crate) fn request_timeout(&self) -> Duration {
+        self.request_timeout
+    }
+
+    pub(crate) fn requeue_native(
+        &self,
+        request: PreparedRequest,
+        asked: Asked,
+    ) -> Result<bool, Box<(PreparedRequest, Reply)>> {
+        if !self.ready.load(Ordering::Acquire) {
+            let reply = self
+                .early_reply(&asked, Early::NotReady, Vec::new())
+                .unwrap_or_else(|_| Reply {
+                    status: 503,
+                    headers: vec![(b"content-length".to_vec(), b"0".to_vec())],
+                    body: Vec::new(),
+                });
+            return Err(Box::new((request, reply)));
+        }
+        if !request.has_admission() {
+            let Some(permit) = self.in_flight.try_acquire() else {
+                return Err(Box::new((request, self.overloaded_reply(&asked))));
+            };
+            if let Err(permit) = request.restore_admission(permit) {
+                drop(permit);
+                return Err(Box::new((request, self.overloaded_reply(&asked))));
+            }
+        }
+        match self.queue.push(request) {
+            Ok(pushed) => Ok(pushed == Push::Wake),
+            Err(request) => {
+                let reply = self.overloaded_reply(&asked);
+                Err(Box::new((request, reply)))
+            }
+        }
+    }
+
+    fn overloaded_reply(&self, asked: &Asked) -> Reply {
+        self.early_reply(asked, Early::Overloaded, Vec::new())
+            .unwrap_or_else(|_| Reply {
+                status: 503,
+                headers: vec![(b"content-length".to_vec(), b"0".to_vec())],
+                body: Vec::new(),
+            })
+    }
 }
 
 struct StartupProbe {
@@ -882,6 +966,7 @@ impl ServerCore {
     #[pyo3(signature = (
         routes, early_bodies, policies, request_id_name, request_id_prefix,
         limits=(8192, 32_768, 1_048_576, 288), queue_capacity=4096,
+        request_timeout_ms=30000,
         trust_request_id=false, python_paths=Vec::new(),
         cors=None, trusted_proxies=Vec::new(), startup_path=None, startup_body=Vec::new(),
         hosts=None, redirect_https=false
@@ -896,6 +981,7 @@ impl ServerCore {
         request_id_prefix: String,
         limits: (usize, usize, usize, usize),
         queue_capacity: usize,
+        request_timeout_ms: u64,
         trust_request_id: bool,
         python_paths: Vec<String>,
         cors: Option<CorsSpec>,
@@ -941,6 +1027,7 @@ impl ServerCore {
                 crud_plans,
                 database: Mutex::new(None),
                 native_jobs: Arc::new(NativeJobs::new(max_in_flight)),
+                request_timeout: Duration::from_millis(request_timeout_ms),
                 limits: Limits {
                     max_query_bytes,
                     max_header_bytes,
@@ -1121,7 +1208,10 @@ impl ServerCore {
             refusal: None,
             body: None,
         };
-        let outcome = self.core.classify(head).map_err(PyRuntimeError::new_err)?;
+        let outcome = self
+            .core
+            .classify(head, false)
+            .map_err(PyRuntimeError::new_err)?;
         Ok(match outcome {
             Outcome::Early(reply) => Submission {
                 early: Some(reply),
@@ -1135,6 +1225,28 @@ impl ServerCore {
                 receiver: Mutex::new(Some(receiver)),
                 delivered: Mutex::new(None),
             },
+            Outcome::NativeCrud {
+                request,
+                receiver,
+                asked,
+                ..
+            } => {
+                let reply = self
+                    .core
+                    .early_reply(&asked, Early::NotReady, Vec::new())
+                    .unwrap_or_else(|_| Reply {
+                        status: 503,
+                        headers: vec![(b"content-length".to_vec(), b"0".to_vec())],
+                        body: Vec::new(),
+                    });
+                request.respond(reply.status, reply.headers, &reply.body);
+                Submission {
+                    early: None,
+                    wake: false,
+                    receiver: Mutex::new(Some(receiver)),
+                    delivered: Mutex::new(None),
+                }
+            }
         })
     }
 }
@@ -1158,7 +1270,7 @@ pub struct Head<'a> {
 }
 
 /// What the classifier decided.
-pub enum Outcome {
+pub(crate) enum Outcome {
     /// Answered without Python.
     Early(Reply),
     /// Queued for the pipeline. `wake` says the queue went from empty to
@@ -1168,6 +1280,16 @@ pub enum Outcome {
         wake: bool,
         receiver: oneshot::Receiver<Reply>,
         asked: Asked,
+    },
+    /// Eligible read request whose database work runs on the Rust worker.
+    NativeCrud {
+        request: Box<PreparedRequest>,
+        receiver: oneshot::Receiver<Reply>,
+        asked: Asked,
+        plan: Arc<CrudPlan>,
+        database: Database,
+        params: Vec<(String, String)>,
+        query: Vec<u8>,
     },
 }
 
@@ -1226,7 +1348,11 @@ impl Core {
     /// Classify one request: refuse it, answer it natively, or queue it for the
     /// Python pipeline. The `Err` is an internal inconsistency (a missing plan or
     /// early body), never a client mistake.
-    pub fn classify(&self, head: Head<'_>) -> Result<Outcome, String> {
+    pub(crate) fn classify(
+        &self,
+        head: Head<'_>,
+        native_execution: bool,
+    ) -> Result<Outcome, String> {
         let (request_id, id_ignored) = self.request_id(&head.headers, head.trusted);
         let asked = Asked {
             head_only: head.method == "HEAD",
@@ -1265,7 +1391,7 @@ impl Core {
                     (None, Vec::new()),
                     true,
                     None,
-                    NativeInput::default(),
+                    (NativeInput::default(), false),
                 );
             }
             Resolved::Missing(early, extra) => return self.answer(&asked, early, extra),
@@ -1282,7 +1408,7 @@ impl Core {
                     (action, Vec::new()),
                     true,
                     None,
-                    NativeInput::default(),
+                    (NativeInput::default(), false),
                 )
             }
         };
@@ -1299,7 +1425,7 @@ impl Core {
             (action, params),
             plan.needs_headers(),
             prepared_path_params,
-            native_input,
+            (native_input, native_execution),
         )
     }
 
@@ -1433,7 +1559,7 @@ impl Core {
         (action, params): (Option<u32>, Vec<(String, String)>),
         needs_headers: bool,
         prepared_path_params: Option<PreparedPathParams>,
-        native_input: NativeInput,
+        (native_input, native_execution): (NativeInput, bool),
     ) -> Result<Outcome, String> {
         let Some(permit) = self.in_flight.try_acquire() else {
             return self.answer(&asked, Early::Overloaded, Vec::new());
@@ -1478,7 +1604,7 @@ impl Core {
             native_crud,
             request_id_name: self.id_name.clone(),
             needs_headers,
-            params,
+            params: params.clone(),
             prepared_path_params,
             client: head.peer.map(|peer| (peer.ip().to_string(), peer.port())),
             http_version: head.http_version,
@@ -1489,6 +1615,32 @@ impl Core {
             native_failure: Mutex::new(None),
             native_rows: Mutex::new(None),
         };
+        let accepts_native_crud = route_plan.is_some_and(|route| {
+            let accept = joined_value(&request.headers, b"accept").unwrap_or_default();
+            std::str::from_utf8(&accept)
+                .is_ok_and(|accept| request::negotiate(accept, &route.media_types).is_some())
+        });
+        if native_execution && native_crud && accepts_native_crud {
+            let native_plan = action
+                .and_then(|number| self.crud_plans.get(&number))
+                .filter(|plan| matches!(plan.action.as_str(), "list" | "retrieve"));
+            let database = self
+                .database
+                .lock()
+                .ok()
+                .and_then(|attached| attached.clone());
+            if let (Some(plan), Some(database)) = (native_plan, database) {
+                return Ok(Outcome::NativeCrud {
+                    request: Box::new(request),
+                    receiver,
+                    asked,
+                    plan: Arc::clone(plan),
+                    database,
+                    params,
+                    query: head.query.to_vec(),
+                });
+            }
+        }
         match self.queue.push_cold_path(request) {
             Ok(pushed) => Ok(Outcome::Queued {
                 wake: pushed == Push::Wake,
@@ -1578,7 +1730,7 @@ impl Core {
     /// An answer without Python: final headers (policy for the effective
     /// scheme, request id, CORS), body with the request id, and no body for HEAD
     /// (the length stays).
-    pub fn answer(
+    pub(crate) fn answer(
         &self,
         asked: &Asked,
         early: Early,
@@ -1646,6 +1798,7 @@ impl Core {
 }
 
 /// What `answer` needs to know about the request it refuses.
+#[derive(Clone)]
 pub struct Asked {
     head_only: bool,
     request_id: String,

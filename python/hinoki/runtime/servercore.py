@@ -205,6 +205,7 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
             runtime.max_body_bytes,
             4 * (runtime.sync_workers + runtime.sync_queue),
         ),
+        request_timeout_ms=max(1, round(runtime.request_timeout * 1000)),
         trust_request_id=pipeline.trust_request_id,
         python_paths=python_paths,
         cors=cors_of(pipeline),

@@ -540,6 +540,7 @@ def schema_fields(
             name not in columns
             or field_type.kind not in ROW_KINDS
             or field_type.kind != model_types[name].kind
+            or field_type.nullable != model_types[name].nullable
             or field_type.info.constraints()
             or field_type.allows_unset
             or field_type.item is not None
