@@ -543,7 +543,9 @@ class Pipeline:
     async def _call_native(self, binding: Binding, args: dict[str, object]) -> Response:
         """Run a selected no-Request JSON handler and encode through Rust."""
         route = binding.route
-        result = await self._handler_result(binding, None, args)
+        result = await self._handler_result(
+            binding, None, binding.complete_native_args(args)
+        )
         if isinstance(result, Reply):
             return Response(result.status, result.body, result.headers)
         if result is not None and route.status not in BODYLESS:
