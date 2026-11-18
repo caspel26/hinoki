@@ -31,7 +31,13 @@ struct DialectTemplates {
     update: Option<String>,
     delete: String,
     read_back: String,
+    write_read_back: String,
+    savepoint: Option<String>,
+    rollback_savepoint: Option<String>,
+    release_savepoint: Option<String>,
 }
+
+type WriteSchemas = (Option<Arc<NativeSchema>>, Option<Arc<NativeSchema>>);
 
 #[derive(Clone, Debug)]
 pub(crate) enum ModelDefaultValue {
@@ -68,12 +74,15 @@ pub(crate) struct CrudPlan {
     pub(crate) model_fields: Vec<(String, String, bool)>,
     pub(crate) model_defaults: Vec<ModelDefault>,
     pub(crate) create_defaults: Vec<ModelDefault>,
+    pub(crate) update_defaults: Vec<ModelDefault>,
     pub(crate) create_columns: Vec<String>,
     pub(crate) update_columns: Vec<String>,
+    pub(crate) updated_at: Option<String>,
     pub(crate) read_rows: Arc<RowPlan>,
     templates: Vec<DialectTemplates>,
     validation_error: Vec<u8>,
-    _schemas: Vec<Arc<NativeSchema>>,
+    create_schema: Option<Arc<NativeSchema>>,
+    update_schema: Option<Arc<NativeSchema>>,
 }
 
 #[pyclass(name = "_CrudPlan", module = "hinoki.core", frozen)]
@@ -86,7 +95,8 @@ impl PyCrudPlan {
     #[new]
     #[pyo3(signature = (
         action, model_name, table, columns, primary_key, ordering, page_size, max_page_size,
-        model_fields, model_defaults, create_defaults, create_columns, update_columns,
+        model_fields, model_defaults, create_defaults, update_defaults, create_columns, update_columns,
+        updated_at,
         read_schema, read_fields,
         create_schema=None, update_schema=None, validation_error=Vec::new()
     ))]
@@ -104,15 +114,19 @@ impl PyCrudPlan {
         model_fields: Vec<(String, String, bool)>,
         model_defaults: Vec<(String, String, String)>,
         create_defaults: Vec<(String, String, String)>,
+        update_defaults: Vec<(String, String, String)>,
         create_columns: Vec<String>,
         update_columns: Vec<String>,
+        updated_at: Option<String>,
         read_schema: Py<Compiled>,
         read_fields: Vec<(String, String, String, bool)>,
         create_schema: Option<Py<Compiled>>,
         update_schema: Option<Py<Compiled>>,
         validation_error: Vec<u8>,
     ) -> PyResult<Self> {
-        let schemas = compiled_schemas(py, read_schema, create_schema, update_schema)?;
+        let _ = native_schema(py, &read_schema)?;
+        let (create_schema, update_schema) =
+            compiled_write_schemas(py, create_schema, update_schema)?;
         let inner = CrudPlan::new(
             action,
             model_name,
@@ -125,11 +139,14 @@ impl PyCrudPlan {
             model_fields,
             model_defaults,
             create_defaults,
+            update_defaults,
             create_columns,
             update_columns,
+            updated_at,
             read_fields,
             validation_error,
-            schemas,
+            create_schema,
+            update_schema,
         )?;
         Ok(Self {
             inner: Arc::new(inner),
@@ -185,7 +202,21 @@ impl PyCrudPlan {
                     "read_back".to_owned(),
                     template.read_back.clone(),
                 ),
+                (
+                    template.dialect.clone(),
+                    "write_read_back".to_owned(),
+                    template.write_read_back.clone(),
+                ),
             ]);
+            for (kind, sql) in [
+                ("savepoint", &template.savepoint),
+                ("rollback_savepoint", &template.rollback_savepoint),
+                ("release_savepoint", &template.release_savepoint),
+            ] {
+                if let Some(sql) = sql {
+                    found.push((template.dialect.clone(), kind.to_owned(), sql.clone()));
+                }
+            }
             if let Some(sql) = &template.create {
                 found.push((template.dialect.clone(), "create".to_owned(), sql.clone()));
             }
@@ -248,6 +279,94 @@ impl CrudPlan {
             .map(|template| template.retrieve.as_str())
     }
 
+    pub(crate) fn create_sql(&self, dialect: &str) -> Option<&str> {
+        self.template(dialect)?.create.as_deref()
+    }
+
+    pub(crate) fn delete_sql(&self, dialect: &str) -> Option<&str> {
+        self.template(dialect)
+            .map(|template| template.delete.as_str())
+    }
+
+    pub(crate) fn read_back_sql(&self, dialect: &str) -> Option<&str> {
+        self.template(dialect)
+            .map(|template| template.read_back.as_str())
+    }
+
+    pub(crate) fn write_read_back_sql(&self, dialect: &str) -> Option<&str> {
+        self.template(dialect)
+            .map(|template| template.write_read_back.as_str())
+    }
+
+    pub(crate) fn savepoint_sql(&self, dialect: &str) -> Option<&str> {
+        self.template(dialect)?.savepoint.as_deref()
+    }
+
+    pub(crate) fn rollback_savepoint_sql(&self, dialect: &str) -> Option<&str> {
+        self.template(dialect)?.rollback_savepoint.as_deref()
+    }
+
+    pub(crate) fn release_savepoint_sql(&self, dialect: &str) -> Option<&str> {
+        self.template(dialect)?.release_savepoint.as_deref()
+    }
+
+    pub(crate) fn create_schema(&self) -> Option<&NativeSchema> {
+        self.create_schema.as_deref()
+    }
+
+    pub(crate) fn update_schema(&self) -> Option<&NativeSchema> {
+        self.update_schema.as_deref()
+    }
+
+    pub(crate) fn create_columns(&self) -> &[String] {
+        &self.create_columns
+    }
+
+    pub(crate) fn create_defaults(&self) -> &[ModelDefault] {
+        &self.create_defaults
+    }
+
+    pub(crate) fn update_defaults(&self) -> &[ModelDefault] {
+        &self.update_defaults
+    }
+
+    pub(crate) fn model_defaults(&self) -> &[ModelDefault] {
+        &self.model_defaults
+    }
+
+    pub(crate) fn model_field_kind(&self, column: &str) -> Option<&str> {
+        self.model_fields
+            .iter()
+            .find(|(name, _, _)| name == column)
+            .map(|(_, kind, _)| kind.as_str())
+    }
+
+    pub(crate) fn update_sql(&self, dialect_name: &str, columns: &[String]) -> PyResult<String> {
+        let dialect = DIALECTS
+            .iter()
+            .find_map(|(name, dialect)| (*name == dialect_name).then_some(*dialect))
+            .ok_or_else(|| PyValueError::new_err("unsupported CRUD database dialect"))?;
+        if columns.is_empty()
+            || columns
+                .iter()
+                .any(|column| !self.update_columns.contains(column))
+        {
+            return Err(PyValueError::new_err("invalid CRUD update columns"));
+        }
+        let assignments = indexed(columns);
+        compile_update_with(
+            &Update {
+                table: self.table.clone(),
+                assignments,
+                filters: vec![equality_filter(&self.primary_key, columns.len())],
+                returning: returning_columns(&self.columns, dialect),
+            },
+            dialect,
+        )
+        .map(|(sql, _)| sql)
+        .map_err(query_error)
+    }
+
     pub(crate) fn list_sql(
         &self,
         dialect_name: &str,
@@ -302,11 +421,14 @@ impl CrudPlan {
         model_fields: Vec<(String, String, bool)>,
         model_defaults: Vec<(String, String, String)>,
         create_defaults: Vec<(String, String, String)>,
+        update_defaults: Vec<(String, String, String)>,
         create_columns: Vec<String>,
         update_columns: Vec<String>,
+        updated_at: Option<String>,
         read_fields: Vec<(String, String, String, bool)>,
         validation_error: Vec<u8>,
-        schemas: Vec<Arc<NativeSchema>>,
+        create_schema: Option<Arc<NativeSchema>>,
+        update_schema: Option<Arc<NativeSchema>>,
     ) -> PyResult<Self> {
         validate_metadata(
             &action,
@@ -317,8 +439,10 @@ impl CrudPlan {
             &model_fields,
             &model_defaults,
             &create_defaults,
+            &update_defaults,
             &create_columns,
             &update_columns,
+            updated_at.as_deref(),
         )?;
         validate_error_template(&validation_error)?;
         let read_rows = Arc::new(
@@ -359,27 +483,34 @@ impl CrudPlan {
             model_fields,
             model_defaults: parse_model_defaults(model_defaults)?,
             create_defaults: parse_model_defaults(create_defaults)?,
+            update_defaults: parse_model_defaults(update_defaults)?,
             create_columns,
             update_columns,
+            updated_at,
             read_rows,
             templates,
             validation_error,
-            _schemas: schemas,
+            create_schema,
+            update_schema,
         })
     }
 }
 
-fn compiled_schemas(
+fn compiled_write_schemas(
     py: Python<'_>,
-    read: Py<Compiled>,
     create: Option<Py<Compiled>>,
     update: Option<Py<Compiled>>,
-) -> PyResult<Vec<Arc<NativeSchema>>> {
-    let mut found = vec![native_schema(py, &read)?];
-    for schema in [create, update].into_iter().flatten() {
-        found.push(native_schema(py, &schema)?);
-    }
-    Ok(found)
+) -> PyResult<WriteSchemas> {
+    Ok((
+        create
+            .as_ref()
+            .map(|schema| native_schema(py, schema))
+            .transpose()?,
+        update
+            .as_ref()
+            .map(|schema| native_schema(py, schema))
+            .transpose()?,
+    ))
 }
 
 fn native_schema(py: Python<'_>, schema: &Py<Compiled>) -> PyResult<Arc<NativeSchema>> {
@@ -399,8 +530,10 @@ fn validate_metadata(
     model_fields: &[(String, String, bool)],
     model_defaults: &[(String, String, String)],
     create_defaults: &[(String, String, String)],
+    update_defaults: &[(String, String, String)],
     create_columns: &[String],
     update_columns: &[String],
+    updated_at: Option<&str>,
 ) -> PyResult<()> {
     if !matches!(action, "list" | "retrieve" | "create" | "update" | "delete") {
         return Err(PyValueError::new_err("unknown generated CRUD action"));
@@ -417,6 +550,10 @@ fn validate_metadata(
     validate_model_fields(model_fields, columns)?;
     validate_model_defaults(model_defaults, &names)?;
     validate_model_defaults(create_defaults, &names)?;
+    validate_model_defaults(update_defaults, &names)?;
+    if updated_at.is_some_and(|column| !update_columns.iter().any(|known| known == column)) {
+        return Err(PyValueError::new_err("invalid CRUD updated-at column"));
+    }
     Ok(())
 }
 
@@ -598,6 +735,7 @@ fn compile_templates(
     .map_err(query_error)?
     .0;
     let read_back = select_filtered_sql(table, columns, primary_key, ordering, Some(2), dialect)?;
+    let write_read_back = select_write_sql(table, columns, primary_key, dialect)?;
     Ok(DialectTemplates {
         dialect: name.to_owned(),
         count,
@@ -607,7 +745,36 @@ fn compile_templates(
         update,
         delete,
         read_back,
+        write_read_back,
+        savepoint: (dialect == Dialect::Mysql).then(|| "SAVEPOINT hinoki_sp_1".to_owned()),
+        rollback_savepoint: (dialect == Dialect::Mysql)
+            .then(|| "ROLLBACK TO SAVEPOINT hinoki_sp_1".to_owned()),
+        release_savepoint: (dialect == Dialect::Mysql)
+            .then(|| "RELEASE SAVEPOINT hinoki_sp_1".to_owned()),
     })
+}
+
+fn select_write_sql(
+    table: &str,
+    columns: &[String],
+    primary_key: &str,
+    dialect: Dialect,
+) -> PyResult<String> {
+    compile_select_with(
+        &Select::<usize> {
+            table: table.to_owned(),
+            columns: columns.to_vec(),
+            joins: Vec::new(),
+            filters: vec![equality_filter(primary_key, 0)],
+            order: Vec::new(),
+            limit: None,
+            offset: None,
+            count: false,
+        },
+        dialect,
+    )
+    .map(|(sql, _)| sql)
+    .map_err(query_error)
 }
 
 fn select_sql(

@@ -1831,6 +1831,14 @@ impl Compiled {
     allow(dead_code, reason = "consumed by the native CRUD executor")
 )]
 impl NativeSchema {
+    pub(crate) fn field_names(&self) -> Vec<String> {
+        self.definitions[self.root]
+            .fields
+            .iter()
+            .map(|field| field.name.clone())
+            .collect()
+    }
+
     /// Validate a decoded document without the GIL. `Ok` carries exactly
     /// the problems the Python path reports for the same input, or the
     /// value it would return with `construct=False`; `Err(Defer)` when that
