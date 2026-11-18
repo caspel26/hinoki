@@ -571,7 +571,9 @@ can share it. Start with
 or to replace an individual generated action.</p>
 <p>Give each feature one module that owns its routes and exports them as a list, with paths relative to the feature. Choose where each feature lives in the root declaration with <code>Mount</code>, so the paths stay visible in one place:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># tasks/routes.py (paths are relative: "/" and "/{task_id}")</span>
-<span class="n">routes</span> <span class="o">=</span> <span class="p">[</span><span class="n">tasks_group</span><span class="p">,</span> <span class="n">TaskReports</span><span class="p">,</span> <span class="n">export_tasks</span><span class="p">]</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Includable</span>
+
+<span class="n">routes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">tasks_group</span><span class="p">,</span> <span class="n">TaskReports</span><span class="p">,</span> <span class="n">export_tasks</span><span class="p">]</span>
 
 <span class="c1"># main.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Mount</span>
@@ -634,7 +636,7 @@ prefix is declared once in <code>api/v1.py</code>:</p>
 when a new version is needed. Feature route lists and mixins can be shared
 where their behavior is genuinely the same. Route collisions are still checked
 after prefixes are composed.</p>
-<p><code>include</code> spreads nested lists and tuples in place, so order is the order you wrote. <code>Mount(prefix, *items)</code> prepends its prefix to every route it holds; mounts nest and prefixes join from the outside in. The prefix starts with <code>/</code> and does not end with one. Items you do not mount keep their own paths, so small apps can stay a flat list. Mounting changes only the path: access, errors and transactions are unchanged, and a route that ends up at the same method and path as another still fails at declaration time. A <code>RouteGroup</code> reached twice, an item that is not an action, class or group, or a module passed instead of its list is refused and named; a module gets a hint to export a list.</p>
+<p><code>Includable</code> is the type of everything <code>include</code> accepts: an <code>API</code> class, a decorated function, a <code>RouteGroup</code>, a <code>Mount</code>, an object with an <code>api()</code> method (the admin, which is included as it is) or a list or tuple of those. Annotate a feature's list with it (<code>routes: list[Includable]</code>) and the type checker rejects anything else. <code>include</code> spreads nested lists and tuples in place, so order is the order you wrote. <code>Mount(prefix, *items)</code> prepends its prefix to every route it holds; mounts nest and prefixes join from the outside in. The prefix starts with <code>/</code> and does not end with one. Items you do not mount keep their own paths, so small apps can stay a flat list. Mounting changes only the path: access, errors and transactions are unchanged, and a route that ends up at the same method and path as another still fails at declaration time. A <code>RouteGroup</code> reached twice, an item that is not an action, class or group, or a module passed instead of its list is refused and named; a module gets a hint to export a list.</p>
 <p>If a feature declares its own prefix (a <code>RouteGroup("/tasks")</code> or <code>API, path="/tasks"</code>), mounting adds to it. Pick one place for each prefix: feature-relative paths with <code>Mount</code> at the root is the layout that keeps the whole map readable in <code>main.py</code>.</p>
 <p>To see the resulting map without starting the server, run <code>hinoki routes blog.main:create_app --path /posts</code> (the blog example):</p>
 <div class="highlight"><pre><span></span><code>GET     /posts                    public                   blog.api.Posts.listing
@@ -693,7 +695,7 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.10</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 02:41:13 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 03:05:52 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>10 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
