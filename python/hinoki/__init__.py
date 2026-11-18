@@ -28,6 +28,7 @@ from hinoki.parsers import (
     MultiPartParser,
     Parser,
     UploadedFile,
+    XMLParser,
 )
 from hinoki.ratelimit import RateLimitContext, RateLimitPolicy
 from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer, XMLRenderer
@@ -46,7 +47,7 @@ from hinoki.schema import (
     field_normalize,
     object_check,
 )
-from hinoki.sources import Form
+from hinoki.sources import XML, Form
 
 __version__ = core_version()
 
@@ -72,6 +73,7 @@ else:
 __all__ = [
     "API",
     "UNSET",
+    "XML",
     "APIKeyAuth",
     "Access",
     "Actions",
@@ -114,6 +116,7 @@ __all__ = [
     "Transactions",
     "Unset",
     "UploadedFile",
+    "XMLParser",
     "XMLRenderer",
     "__version__",
     "derive",

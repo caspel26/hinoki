@@ -24,6 +24,7 @@ from uuid import UUID
 import pytest
 
 from hinoki import (
+    XML,
     Access,
     Caller,
     Form,
@@ -197,6 +198,11 @@ async def native_form(data: Item) -> dict[str, object]:
 
 @http.post("/native/form-source", status=201)
 async def native_form_source(data: Form[Item]) -> dict[str, object]:
+    return {"title": data.title, "count": data.count}
+
+
+@http.post("/native/xml-source", status=201)
+async def native_xml_source(data: XML[Item]) -> dict[str, object]:
     return {"title": data.title, "count": data.count}
 
 
@@ -456,6 +462,7 @@ def make_app(**config: Any) -> Hinoki:
             native_multi_body,
             native_form,
             native_form_source,
+            native_xml_source,
             native_text,
             native_limited_sync,
             native_limited_body,
@@ -858,6 +865,7 @@ async def test_native_delete_matches_pipeline(
 
 JSON = "content-type: application/json\r\n"
 FORM = "content-type: application/x-www-form-urlencoded\r\n"
+XMLT = "content-type: application/xml\r\n"
 JSON_HEADER = {"content-type": "application/json"}
 
 
@@ -1060,6 +1068,22 @@ async def test_native_rate_limit_matches_pipeline(
         ("POST", "/native/form-source", FORM, b"title=a&count=1&count=2"),
         ("POST", "/native/form-source", FORM, b"count=3"),
         ("POST", "/native/form-source", JSON, b'{"title":"a"}'),
+        (
+            "POST",
+            "/native/xml-source",
+            XMLT,
+            b"<i><title>t</title><count>4</count></i>",
+        ),
+        (
+            "POST",
+            "/native/xml-source",
+            XMLT,
+            b"<i><title>t</title><count>x</count></i>",
+        ),
+        ("POST", "/native/xml-source", XMLT, b"<i><count>3</count></i>"),
+        ("POST", "/native/xml-source", XMLT, b"<!DOCTYPE i><i/>"),
+        ("POST", "/native/xml-source", XMLT, b"<i><title>a"),
+        ("POST", "/native/xml-source", JSON, b'{"title":"a"}'),
         ("POST", "/native/text", "content-type: text/plain\r\n", b"hello"),
         ("POST", "/native/text", "content-type: text/plain\r\n", b"\xff"),
         (
