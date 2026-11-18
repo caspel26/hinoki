@@ -611,8 +611,9 @@ the limits.</p>
         <p><code>application/xml</code>. <code>data</code> is the tree under the root element: an
 element with children is a <code>dict</code>, a repeated child name a <code>list</code>, a
 text-only element a <code>str</code> and an empty one <code>None</code>. Attributes are not
-read. DTDs and custom entities are refused, and nesting and element count
-are capped.</p>
+read. DTDs, custom entities, characters XML 1.0 forbids and an encoding
+other than UTF-8 are refused, and nesting (at most <code>MAX_XML_DEPTH</code>) and
+element count are capped.</p>
 
 
 
