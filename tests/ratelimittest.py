@@ -319,7 +319,7 @@ def test_openapi_documents_the_429_and_its_required_retry_after_header() -> None
     ] == {"error": {"enum": ["rate_limited"]}}
 
 
-def test_a_rate_limited_get_stays_on_the_python_path() -> None:
+def test_a_rate_limited_get_stays_on_the_native_path() -> None:
     @http.get("/plain")
     async def plain() -> dict[str, str]:
         return {}
@@ -331,7 +331,7 @@ def test_a_rate_limited_get_stays_on_the_python_path() -> None:
     pipeline = Pipeline(Hinoki(include=[plain, limited]))
     by_path = {b.route.path: native_handler_eligible(b) for b in pipeline.bindings}
 
-    assert by_path == {"/plain": True, "/limited": False}
+    assert by_path == {"/plain": True, "/limited": True}
 
 
 async def test_a_route_group_passes_the_policy_through() -> None:

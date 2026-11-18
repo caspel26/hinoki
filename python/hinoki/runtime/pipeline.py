@@ -83,11 +83,12 @@ MatchedRoute = tuple[int, dict[str, str] | None]
 class NativeBody(NamedTuple):
     """What a native handler reads beyond Rust's prepared inputs: the body
     source, the raw request headers and the raw query string (credentials and
-    the body of a body method)."""
+    the body of a body method) and the peer the rate limit counts."""
 
     source: BodySource
     headers: list[tuple[bytes, bytes]]
     query: bytes
+    client: tuple[str, int] | None
 
 
 class BodySource(Protocol):
@@ -400,7 +401,10 @@ class Pipeline:
         response: Response
         try:
             async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
-                if binding.route.access is not None:
+                if (
+                    binding.route.access is not None
+                    or binding.route.rate_limit is not None
+                ):
                     args = await self._native_authorize(
                         binding, args, input_error, body
                     )
@@ -600,7 +604,7 @@ class Pipeline:
             query = parse_query(scope.get("query_string", b""))
             principal = await authorize(access, headers, query)
         if binding.route.rate_limit is not None:
-            await self._rate_limit(binding, scope, principal)
+            await self._rate_limit(binding, scope.get("client"), principal)
         renderer = negotiate(headers.get("accept", ""), binding.route.renderers)
         if renderer is None:
             wanted = ", ".join(r.media_type for r in binding.route.renderers)
@@ -618,14 +622,16 @@ class Pipeline:
         return await self._invoke(binding, request, renderer, binding.collect(data))
 
     async def _rate_limit(
-        self, binding: Binding, scope: Scope, principal: object | None
+        self,
+        binding: Binding,
+        client: tuple[str, int] | None,
+        principal: object | None,
     ) -> None:
         """Ask the route's policy before the body is read. Only the policy's own
         ``TooManyRequests`` refuses with 429; any other failure of the policy or
         its store fails closed with a generic 503 that names nothing."""
         route = binding.route
         policy = cast("RateLimitPolicy", route.rate_limit)
-        client = scope.get("client")
         context = RateLimitContext(
             method=route.method,
             route=route.path,
@@ -762,15 +768,20 @@ class Pipeline:
     ) -> dict[str, object]:
         """Authenticate before anything else the request carries is judged, in
         the order of the full pipeline: a bad path encoding and a malformed
-        query string first, then the credentials. Negotiation, body and
-        validation errors wait until the caller is known."""
+        query string first, then the credentials, then the rate limit.
+        Negotiation, body and validation errors wait until the caller is
+        known and admitted."""
         access = binding.route.access
-        if access is None or native is None:
-            raise RuntimeError("native access route without its request data")
+        if native is None:
+            raise RuntimeError("native guarded route without its request data")
         if input_error is not None and input_error[0] == "bad_path_encoding":
             raise native_input_exception(input_error)
-        query = parse_query(native.query)
-        principal = await authorize(access, core.header_dict(native.headers), query)
+        principal = None
+        if access is not None:
+            query = parse_query(native.query)
+            principal = await authorize(access, core.header_dict(native.headers), query)
+        if binding.route.rate_limit is not None:
+            await self._rate_limit(binding, native.client, principal)
         name = binding.principal_name
         return args if name is None else {**args, name: principal}
 
