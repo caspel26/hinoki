@@ -315,7 +315,7 @@ def test_ineligible_routes_have_stable_reasons(
     pipeline = Pipeline(app)
     binding = pipeline.bindings[0]
     if mutation == "owner":
-        monkeypatch.setattr(PlanItems, "perform_create", lambda _self, *_args: None)
+        monkeypatch.setattr(PlanItems, "store", lambda _self, *_args: None)
     elif mutation == "model":
         monkeypatch.setattr(PlanItem, "__json_columns__", ("name",))
     elif mutation == "schema":
@@ -1063,8 +1063,7 @@ async def test_native_writes_match_forced_python_lane(
     monkeypatch.setattr(worker, "_check_crud_snapshots", lambda: None)
     await worker.start()
     originals = {
-        name: getattr(PlanItems, name)
-        for name in ("perform_create", "perform_update", "perform_delete")
+        name: getattr(PlanItems, name) for name in ("store", "change", "remove")
     }
     try:
         for name in originals:
@@ -1122,8 +1121,7 @@ async def test_native_writes_match_forced_python_lane_on_sqlite(
     monkeypatch.setattr(worker, "_check_crud_snapshots", lambda: None)
     await worker.start()
     originals = {
-        name: getattr(PlanItems, name)
-        for name in ("perform_create", "perform_update", "perform_delete")
+        name: getattr(PlanItems, name) for name in ("store", "change", "remove")
     }
     try:
         for name in originals:
