@@ -1,14 +1,15 @@
-"""The blog's admin: editors only, authenticated by a session cookie.
+"""The blog's admin: the admin's own users, with a sign-in page and per-model grants.
 
-Hinoki has no login UI yet, so the cookie ``blog_token`` is set by whatever
-signs the editor in (here: by hand or by the browser test). The admin itself
-only needs an ``Access`` policy; this one reads the cookie instead of a header.
+Nothing here handles authentication. ``Admin()`` without ``access=`` keeps its own
+users (``hinoki admin create-superuser`` makes the first); a superuser adds the
+editors in the Users section and ticks what each may do. The blog's own ``User``
+rows are the authors of posts, a different thing from the people who sign in.
 """
 
 import datetime
 from typing import Any, ClassVar
 
-from hinoki import Access, Caller, core
+from hinoki import Caller
 from hinoki.admin import (
     Admin,
     Avatar,
@@ -19,33 +20,11 @@ from hinoki.admin import (
     Tone,
     action,
 )
-from hinoki.auth import BaseAuth, Credentials
-from hinoki.errors import Unauthorized
 from hinoki.utils import utc_now
 
 from .models import Post, User
-from .security import WRITE
 
-COOKIE = "blog_token"
 DAYS = 7
-
-
-class CookieAuth(BaseAuth[User]):
-    """Resolves the editor from the ``blog_token`` cookie."""
-
-    def openapi_scheme(self) -> dict[str, object] | None:
-        return {"type": "apiKey", "in": "cookie", "name": COOKIE}
-
-    async def authenticate(self, credentials: Credentials) -> Caller[User] | None:
-        cookies = core.parse_cookie_header(credentials.headers.get("cookie", ""))
-        token = cookies.get(COOKIE)
-        if not token:
-            return None
-        user = await User.aget_or_none(token=token)
-        if user is None:
-            raise Unauthorized("Invalid credentials.")
-        scopes = frozenset({WRITE}) if user.is_editor else frozenset()
-        return Caller(id=user.name, user=user, permissions=scopes)
 
 
 def per_day(rows: list[Post]) -> tuple[float, ...]:
@@ -61,9 +40,6 @@ class PostAdmin(ModelAdmin, model=Post):  # type: ignore[type-arg]
     columns = ("title", "published", "author_id", "created_at")
     ordering = ("-created_at", "-id")
     readonly = ("created_at",)
-    assign: ClassVar[dict[str, Any]] = {
-        "author_id": lambda principal: principal.user.id
-    }
     modified_field = "created_at"
     modified_label = "Created"
     badges: ClassVar[dict[str, Any]] = {
@@ -117,7 +93,7 @@ class UserAdmin(ModelAdmin, model=User):  # type: ignore[type-arg]
     """Authors can be listed and renamed, never created or deleted here; their
     tokens are neither shown nor editable, and editor rights are read-only."""
 
-    slug = "users"
+    slug = "authors"
     label = "Authors"
     icon = "users"
     columns = ("name", "is_editor")
@@ -157,9 +133,7 @@ async def recent_activity(principal: Caller[Any]) -> list[Event]:
 
 def build_admin(theme: str = "studio") -> Admin:
     """The site, signed with the app's ``admin.secret``; one line per model."""
-    editors = Access(auth=CookieAuth(), permissions=[WRITE])
     site = Admin(
-        access=editors,
         theme=theme,
         site="Blog Studio",
         tagline="My blog",

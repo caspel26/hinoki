@@ -16,7 +16,17 @@ from hinoki.admin.parts import Event, Link
 from hinoki.admin.site import SECURITY_HEADERS
 from hinoki.admin.templates import Templates
 from hinoki.admin.themes import Theme
-from hinoki.admin.views import ROUTES, VIEWS
+from hinoki.admin.users.auth import BASE_PERMISSION, EVERYTHING, AdminSessionAuth
+from hinoki.admin.users.service import ACTIONS, AdminAccounts
+from hinoki.admin.users.useradmin import ADMIN_TABLES, UserAdmin
+from hinoki.admin.views import (
+    ASSETS,
+    AUTH_VIEWS,
+    HASHING_VIEWS,
+    PUBLIC_VIEWS,
+    ROUTES,
+    VIEWS,
+)
 from hinoki.api import API
 from hinoki.auth import Caller
 from hinoki.errors import RegistrationError
@@ -25,9 +35,10 @@ from hinoki.orm.naming import table_names_conflict
 from hinoki.parsers import FormParser
 from hinoki.renderers import HTMLRenderer
 from hinoki.routing import Options, RouteDeclaration
+from hinoki.settings import AdminSettings
 
 SLUG = re.compile(r"[a-z0-9][a-z0-9-]*")
-RESERVED = {"static", "search"}
+RESERVED = {"static", "search", "login", "logout", "password"}
 
 
 def clone(function: Callable[..., Any], name: str) -> Callable[..., Any]:
@@ -58,7 +69,9 @@ class Admin:
     def __init__(  # noqa: PLR0913 - keyword-only site options
         self,
         *,
-        access: Access,
+        access: Access | None = None,
+        users: AdminAccounts | None = None,
+        manage_users: bool = True,
         secret: str | bytes | None = None,
         prefix: str | None = None,
         theme: str | Theme = "studio",
@@ -77,7 +90,14 @@ class Admin:
     ) -> None:
         if prefix and (not prefix.startswith("/") or prefix.endswith("/")):
             raise ValueError("prefix must start with '/' and not end with '/'")
-        self.access = access
+        if access is not None and users is not None:
+            raise ValueError("pass access= (your own sign-in) or users=, not both")
+        if access is None and users is None:
+            users = AdminAccounts()  # the default: the admin's own users
+        self.users = users
+        self.access: Access = access or Access(
+            auth=AdminSessionAuth(self), permissions=[BASE_PERMISSION]
+        )
         self._csrf = Csrf(secret) if secret is not None else None
         self._prefix = prefix
         self.per_page = per_page
@@ -99,6 +119,7 @@ class Admin:
         self.theme = self.templates.theme
         self.parts = Components(self.templates)
         self.models: dict[str, ModelAdmin[Any]] = {}
+        self.manage_users = manage_users
         self.digests = {
             "admin.css": digest(self.templates.stylesheet()),
             "admin.js": digest(self.templates.script()),
@@ -110,13 +131,22 @@ class Admin:
             raise RegistrationError(NO_SECRET_MESSAGE)
         return self._csrf
 
-    def bind_secret(self, secret: str | bytes | None) -> None:
-        """Use the app's ``admin.secret`` unless the admin was given its own."""
+    @property
+    def accounts(self) -> AdminAccounts:
+        if self.users is None:
+            raise RegistrationError("admin: this site has no users= accounts")
+        return self.users
+
+    def bind_settings(self, settings: AdminSettings | None) -> None:
+        """Use the app's ``admin`` settings: the secret (unless the admin was given
+        its own) and the session and password rules of its own users."""
+        if self.users is not None and settings is not None:
+            self.users.bind(settings)
         if self._csrf is not None:
             return
-        if secret is None:
+        if settings is None or settings.secret is None:
             raise RegistrationError(NO_SECRET_MESSAGE)
-        self._csrf = Csrf(secret)
+        self._csrf = Csrf(settings.secret.reveal())
 
     @property
     def prefix(self) -> str:
@@ -181,6 +211,17 @@ class Admin:
             self.attach(target, admin, slug)
         return target
 
+    def refuse_own_tables(self, model: type[Model], admin: object) -> None:
+        """The admin's own account tables are managed by the Users section only: a
+        plain model admin would show the password hash and let a grant holder edit
+        who is a superuser."""
+        plain = not (isinstance(admin, type) and issubclass(admin, UserAdmin))
+        if self.users is not None and model in ADMIN_TABLES and plain:
+            raise RegistrationError(
+                f"admin: {model.__name__} holds the admin's own accounts; it is "
+                "managed by the Users section, not registered as a model"
+            )
+
     def admin[A: type[ModelAdmin[Any]]](
         self, model: type[Model], *, slug: str | None = None
     ) -> Callable[[A], A]:
@@ -221,6 +262,7 @@ class Admin:
                 f"admin: {model.__name__} is abstract; register a model with a table"
             )
         model.check_table()
+        self.refuse_own_tables(model, admin)
         for existing in self.models.values():
             if existing.model is not model and table_names_conflict(
                 existing.model, model
@@ -242,20 +284,27 @@ class Admin:
             )
         instance = (admin or ModelAdmin)()
         instance.model = model
+        instance.site = self
         if instance.per_page is None:
             instance.per_page = self.per_page  # type: ignore[misc]
         if instance.show_count is None:
             instance.show_count = self.show_count  # type: ignore[misc]
         instance.validate_config(name)
+        if self.users is not None:
+            instance.can = granted(name, instance.can)  # type: ignore[method-assign, assignment]
         self.models[name] = instance
+
+    def holds_no_connection(self, name: str) -> bool:
+        """Routes that may hash a password take no route-wide transaction, so no
+        connection waits on Argon2; their writes open their own, short one."""
+        if name in HASHING_VIEWS:
+            return True
+        return self.users is not None and name in {"add_submit", "edit_submit"}
 
     def api(self) -> type[API]:
         """The ``API`` class to ``include`` in the application."""
-        for slug in self.dashboard:
-            if slug not in self.models:
-                raise RegistrationError(
-                    f"admin: dashboard names unknown model {slug!r}"
-                )
+        self.add_user_admin()
+        self.check_dashboard()
         self._served = self.prefix  # links must match the routes built below
         namespace: dict[str, Any] = {
             "admin": self,
@@ -263,18 +312,42 @@ class Admin:
             "response_headers": SECURITY_HEADERS,
         }
         for name, method, path, write in ROUTES:
-            public = name in {"stylesheet", "script"}
-            options = Options(
-                access=None if public else self.access,
-                transaction=write,
-                parsers=[FormParser()] if write else None,
-                renderers=None if public else [HTMLRenderer()],
-            )
-            declare = RouteDeclaration(method, path, options)
+            if name in AUTH_VIEWS and self.users is None:
+                continue
+            declare = RouteDeclaration(method, path, self.route_options(name, write))
             namespace[name] = declare(clone(VIEWS[name], name))
         namespace["bind_mount"] = staticmethod(self.bind_mount)
         return types.new_class(
             "AdminSite", (API,), {"path": self.prefix}, lambda ns: ns.update(namespace)
+        )
+
+    def add_user_admin(self) -> None:
+        """Register the Users section last, after the application's own models."""
+        if (
+            self.users is not None
+            and self.manage_users
+            and not any(isinstance(each, UserAdmin) for each in self.models.values())
+        ):
+            self.register(UserAdmin)
+
+    def check_dashboard(self) -> None:
+        for slug in self.dashboard:
+            if slug not in self.models:
+                raise RegistrationError(
+                    f"admin: dashboard names unknown model {slug!r}"
+                )
+
+    def route_options(self, name: str, write: bool) -> Options:
+        """The options of one admin view: public views name no access policy, and
+        the views that hash a password take the sign-in rate limit."""
+        public = name in PUBLIC_VIEWS
+        limited = name in HASHING_VIEWS and self.users is not None
+        return Options(
+            access=None if public else self.access,
+            transaction=write and not self.holds_no_connection(name),
+            parsers=[FormParser()] if write else None,
+            renderers=None if public and name in ASSETS else [HTMLRenderer()],
+            rate_limit=self.users.login_limit if limited and self.users else None,
         )
 
     @property
@@ -286,6 +359,23 @@ class Admin:
         """Called by ``Hinoki.include`` with the prefix of the ``Mount`` around the
         admin, so generated links, assets and the CSRF cookie path match the routes."""
         self.mount = mount
+
+
+def granted(
+    slug: str, inner: Callable[..., bool]
+) -> Callable[[Caller[Any], str, Any], bool]:
+    """``ModelAdmin.can`` limited to what the user's grants allow, whatever the
+    admin class's own ``can`` says: an override cannot widen a grant. An action
+    that is not view/add/change/delete (a bulk action) needs ``change``."""
+
+    def can(principal: Caller[Any], action: str, row: Any = None) -> bool:
+        needed = action if action in ACTIONS else "change"
+        held = principal.permissions
+        return (EVERYTHING in held or f"{slug}:{needed}" in held) and inner(
+            principal, action, row
+        )
+
+    return can
 
 
 def digest(data: bytes) -> str:

@@ -81,11 +81,14 @@ MatchedRoute = tuple[int, dict[str, str] | None]
 
 
 class NativeBody(NamedTuple):
-    """What a native body-method handler reads: the body source and the raw
-    request headers."""
+    """What a native handler reads beyond Rust's prepared inputs: the body
+    source, the raw request headers and the raw query string (credentials and
+    the body of a body method) and the peer the rate limit counts."""
 
     source: BodySource
     headers: list[tuple[bytes, bytes]]
+    query: bytes
+    client: tuple[str, int] | None
 
 
 class BodySource(Protocol):
@@ -398,13 +401,20 @@ class Pipeline:
         response: Response
         try:
             async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
-                if body is not None:
+                if (
+                    binding.route.access is not None
+                    or binding.route.rate_limit is not None
+                ):
+                    args = await self._native_authorize(
+                        binding, args, input_error, body
+                    )
+                if binding.body_param is not None:
                     args = await self._native_body_args(
                         binding, args, input_error, body
                     )
                 elif input_error is not None:
                     raise native_input_exception(input_error)
-                response = await self._call_native(binding, args)
+                response = await self._call_native(binding, args, body)
         except TimeoutError as exc:
             if limit.expired():
                 response = HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
@@ -594,7 +604,7 @@ class Pipeline:
             query = parse_query(scope.get("query_string", b""))
             principal = await authorize(access, headers, query)
         if binding.route.rate_limit is not None:
-            await self._rate_limit(binding, scope, principal)
+            await self._rate_limit(binding, scope.get("client"), principal)
         renderer = negotiate(headers.get("accept", ""), binding.route.renderers)
         if renderer is None:
             wanted = ", ".join(r.media_type for r in binding.route.renderers)
@@ -612,14 +622,16 @@ class Pipeline:
         return await self._invoke(binding, request, renderer, binding.collect(data))
 
     async def _rate_limit(
-        self, binding: Binding, scope: Scope, principal: object | None
+        self,
+        binding: Binding,
+        client: tuple[str, int] | None,
+        principal: object | None,
     ) -> None:
         """Ask the route's policy before the body is read. Only the policy's own
         ``TooManyRequests`` refuses with 429; any other failure of the policy or
         its store fails closed with a generic 503 that names nothing."""
         route = binding.route
         policy = cast("RateLimitPolicy", route.rate_limit)
-        client = scope.get("client")
         context = RateLimitContext(
             method=route.method,
             route=route.path,
@@ -747,12 +759,38 @@ class Pipeline:
         no_content = route.status == HTTPStatus.OK
         return Response(HTTPStatus.NO_CONTENT if no_content else route.status)
 
+    async def _native_authorize(
+        self,
+        binding: Binding,
+        args: dict[str, object],
+        input_error: tuple[str, str, str | None, list[tuple[str, str, str]]] | None,
+        native: NativeBody | None,
+    ) -> dict[str, object]:
+        """Authenticate before anything else the request carries is judged, in
+        the order of the full pipeline: a bad path encoding and a malformed
+        query string first, then the credentials, then the rate limit.
+        Negotiation, body and validation errors wait until the caller is
+        known and admitted."""
+        access = binding.route.access
+        if native is None:
+            raise RuntimeError("native guarded route without its request data")
+        if input_error is not None and input_error[0] == "bad_path_encoding":
+            raise native_input_exception(input_error)
+        principal = None
+        if access is not None:
+            query = parse_query(native.query)
+            principal = await authorize(access, core.header_dict(native.headers), query)
+        if binding.route.rate_limit is not None:
+            await self._rate_limit(binding, native.client, principal)
+        name = binding.principal_name
+        return args if name is None else {**args, name: principal}
+
     async def _native_body_args(
         self,
         binding: Binding,
         args: dict[str, object],
         input_error: tuple[str, str, str | None, list[tuple[str, str, str]]] | None,
-        body: NativeBody,
+        body: NativeBody | None,
     ) -> dict[str, object]:
         """The handler arguments of a body method, failing in the order of the
         full pipeline: path and negotiation, body read, query syntax, body
@@ -767,6 +805,8 @@ class Pipeline:
             and input_error[0] != "invalid_query"
         ):
             raise native_input_exception(input_error)
+        if body is None:
+            raise RuntimeError("native body route without its request data")
         headers = core.header_dict(body.headers)
         raw = await self._body(body.source, headers.get("content-length", ""))
         if input_error is not None and not invalid:
@@ -791,8 +831,25 @@ class Pipeline:
             raise ValidationError(errors)
         return binding.complete_native_args(args, (param.name, value))
 
-    async def _call_native(self, binding: Binding, args: dict[str, object]) -> Response:
-        """Run a selected no-Request JSON handler and encode through Rust."""
+    async def _call_native(
+        self,
+        binding: Binding,
+        args: dict[str, object],
+        native: NativeBody | None = None,
+    ) -> Response:
+        """Run a selected no-Request JSON handler and encode through Rust; with
+        ``transaction=True`` the commit follows the encoding, as in ``_invoke``."""
+        if not binding.route.transaction:
+            return await self._native_result(binding, args, native)
+        async with self.ctx.get(Database).transaction():
+            return await self._native_result(binding, args, native)
+
+    async def _native_result(
+        self,
+        binding: Binding,
+        args: dict[str, object],
+        native: NativeBody | None = None,
+    ) -> Response:
         route = binding.route
         result = await self._handler_result(
             binding, None, binding.complete_native_args(args)
@@ -802,11 +859,34 @@ class Pipeline:
         enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
             result = project_response(binding.response_schema, result)
-            body = core.encode_json(result, None, False, None)
-            return Response.rendered(route.status, body, "application/json", False)
+            return self._native_rendered(binding, result, native)
         if route.status == HTTPStatus.OK:
             return Response(HTTPStatus.NO_CONTENT)
         return Response(route.status)
+
+    def _native_rendered(
+        self, binding: Binding, result: object, native: NativeBody | None
+    ) -> Response:
+        """Render with the renderer ``Accept`` selects among the route's
+        built-in renderers, which never read the ``Request``."""
+        route = binding.route
+        if binding.default_json:
+            body = core.encode_json(result, None, False, None)
+            return Response.rendered(route.status, body, "application/json", False)
+        if len(route.renderers) == 1:
+            renderer = route.renderers[0]
+        else:
+            if native is None:
+                raise RuntimeError("native multi-renderer route without its headers")
+            accept = core.header_dict(native.headers).get("accept", "")
+            chosen = negotiate(accept, route.renderers)
+            if chosen is None:
+                raise RuntimeError("native route answered an unacceptable request")
+            renderer = chosen
+        shown = result if renderer.consumes_objects else encode(result)
+        body = renderer.render(shown, cast("Request", None))
+        many = len(route.renderers) > 1
+        return Response.rendered(route.status, body, renderer.media_type, many)
 
     async def _handler_result(
         self,

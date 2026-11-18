@@ -67,7 +67,7 @@ The listener, HTTP/1.1 parsing, connection and header limits, body framing and i
 
 The lifespan, documentation and OpenAPI pages, handwritten handlers and their database calls still use Python. Host allow-list checks, CORS preflight answers and HTTPS redirects run in the Rust classifier before docs and route lookup, with the same response order and headers as the Python pipeline. For matched routes that continue through the Python pipeline, the Rust server also percent-decodes the captured path values and passes them to Python; an invalid UTF-8 escape is carried as an error marker and reported at the same point where the pipeline previously decoded it. Python still applies `str`, `int`, UUID, bool and custom converters, and owns authentication, hooks, body/query binding, handlers, error translation and response assembly.
 
-For an eligible public `GET`, `DELETE`, `POST`, `PUT`, `PATCH` or `QUERY` function, the Rust server skips Python route matching and request binding. It accepts parameters from the path and query string annotated `str`, `int`, `float`, `bool` or `UUID` with the built-in converter, and query parameters whose default has exactly that type. Rust decodes provided values, converts them with the same rules as the Python converters (an invalid value gives the same `422`), validates the full query, negotiates `Accept`, and prepares the handler arguments. An absent optional query uses its declared default, including when a wrapper observes the keyword arguments; an empty value is still an explicitly supplied empty string. Missing required or repeated query parameters use the same validation response as the Python pipeline. Error translation and `Response` creation remain in Python; JSON encoding uses Hinoki's Rust encoder, and Rust finalizes the response headers and suppresses the body for `HEAD`. Those final headers include the CORS headers for the request's `Origin`, on successful and error answers alike, exactly as the Python pipeline adds them; an answer that sets its own `Access-Control-Allow-Origin` keeps its CORS headers. An async handler runs in its ordinary asyncio task, while a sync handler uses the bounded executor. If a sync handler returns an awaitable, Hinoki awaits it on the same request task after the executor call completes. An integer longer than 18 digits is left to the Python pipeline, which applies Python's own integer limits. A body method is eligible with exactly one `Schema` body parameter and the default JSON parser. Its body is read from the native connection only when the handler's turn comes, after content negotiation, with the same limits, and is then decoded and validated by the Rust decoder and validator. The failures keep the order and the answers of the Python pipeline: a declared length above the limit or a body read failure first, then a malformed query string, then the content type (`415`) and malformed JSON (`400`), then one `422` listing every path, query and body problem in declaration order. A refusal before the body is read closes the connection, as on the Python pipeline. The automatic path does not accept several body parameters, file or `Request` parameters, custom parsers, defaults on path parameters, access policies, transactions, custom response headers or renderers. Host restrictions, CORS and HTTPS redirects are checked natively and do not make an otherwise eligible route fall back. Every other route uses the full Python request pipeline for binding, access policies, validation, error translation and response assembly. The request body is read natively only when that pipeline asks for it, after authentication, so an unauthenticated client cannot make the server buffer a body. Handlers themselves remain Python code; this is not an application written in Rust, and no performance figure is claimed here.
+For an eligible public `GET`, `DELETE`, `POST`, `PUT`, `PATCH` or `QUERY` function, the Rust server skips Python route matching and request binding. It accepts parameters from the path and query string annotated `str`, `int`, `float`, `bool` or `UUID` with the built-in converter, and query parameters whose default has exactly that type. Rust decodes provided values, converts them with the same rules as the Python converters (an invalid value gives the same `422`), validates the full query, negotiates `Accept`, and prepares the handler arguments. An absent optional query uses its declared default, including when a wrapper observes the keyword arguments; an empty value is still an explicitly supplied empty string. Missing required or repeated query parameters use the same validation response as the Python pipeline. Error translation and `Response` creation remain in Python; JSON encoding uses Hinoki's Rust encoder, and Rust finalizes the response headers and suppresses the body for `HEAD`. Those final headers include the CORS headers for the request's `Origin`, on successful and error answers alike, exactly as the Python pipeline adds them; an answer that sets its own `Access-Control-Allow-Origin` keeps its CORS headers. An async handler runs in its ordinary asyncio task, while a sync handler uses the bounded executor. If a sync handler returns an awaitable, Hinoki awaits it on the same request task after the executor call completes. An integer longer than 18 digits is left to the Python pipeline, which applies Python's own integer limits. A body method is eligible with exactly one `Schema` body parameter and the default JSON parser. Its body is read from the native connection only when the handler's turn comes, after content negotiation, with the same limits, and is then decoded and validated by the Rust decoder and validator. The failures keep the order and the answers of the Python pipeline: a declared length above the limit or a body read failure first, then a malformed query string, then the content type (`415`) and malformed JSON (`400`), then one `422` listing every path, query and body problem in declaration order. A refusal before the body is read closes the connection, as on the Python pipeline. The automatic path does not accept several body parameters, file or `Request` parameters, custom parsers, defaults on path parameters, custom response headers or custom renderers. The built-in `JSONRenderer`, `HTMLRenderer`, `TextRenderer` and `XMLRenderer`, alone or several on one route, are eligible: Rust negotiates `Accept` (including `406`) and Python renders with the chosen one, exactly as on the Python pipeline. A subclass of a built-in renderer or one with extra attributes is custom. A route with an `access` policy stays eligible, with at most one `Caller` principal parameter: Python authenticates the request before anything else, so the order of the answers (`400`, `invalid_query`, `401`/`403`) matches the Python pipeline, and the body is still read only after authentication succeeds. A route with a `rate_limit` policy is eligible too: Python asks the policy, with the peer address and the authenticated caller, right after authentication and before negotiation, the body and validation, so a refused client gets the same `429` or `503` without the server reading its body. A route with `transaction=True` stays eligible: the handler runs inside the same transaction as on the Python pipeline, the commit follows the encoding of the answer, and any error or timeout rolls back before it is translated. Host restrictions, CORS and HTTPS redirects are checked natively and do not make an otherwise eligible route fall back. Every other route uses the full Python request pipeline for binding, validation, error translation and response assembly. The request body is read natively only when that pipeline asks for it, after authentication, so an unauthenticated client cannot make the server buffer a body. Handlers themselves remain Python code; this is not an application written in Rust, and no performance figure is claimed here.
 
 ### Generated CRUD
 
@@ -146,6 +146,44 @@ app_settings = BlogSettings.load()          # reads BLOG_* and .env
 ## Other runners
 
 `dev` and `serve` are conveniences. The application is a plain ASGI app, so `granian --interface asgi --factory blog.main:create_app` (or another ASGI server) works too; run that command from `examples/` with the locked environment active. The `server` group is ignored, because only `hinoki serve` applies it.
+
+## Metrics and tracing
+
+Hinoki ships no metrics registry, exporter or tracing integration, and no health route besides the optional [startup probe](#optional-startup-probe). On an ASGI server the application is a plain ASGI callable, so wrap it with the instrumentation you already use, or with a few lines of your own:
+
+```python
+import time
+
+
+class Timing:
+    """Report each request's method, status and duration to ``record``."""
+
+    def __init__(self, app, record):
+        self.app, self.record = app, record
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        started, status = time.monotonic(), None
+
+        async def watch(message):
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = message["status"]
+            await send(message)
+
+        try:
+            await self.app(scope, receive, watch)
+        finally:  # status stays None when the request was aborted before a response began
+            self.record(scope["method"], status, time.monotonic() - started)
+
+app = Timing(create_app(), record=my_metrics.observe)   # run this with Granian or any ASGI server
+```
+
+What this measures is the time from the ASGI call to the last byte handed to the server, not what a client perceives. Keep method and status as labels; do **not** label by `scope["path"]` (it holds ids and has unbounded cardinality), the request ID (it is for correlating logs: `logging.include_request_id` adds it to each Hinoki log line) or the caller. Hinoki does not currently expose the matched route template to a wrapper, so per-route metrics need an application-level counter inside the handler or a gap report so a hook can be designed.
+
+The Rust server (`--server rust`) has no ASGI boundary, so this wrapper does not apply to it and it has no instrumentation seam today. Use the server's own limits and the request log of your proxy, or serve with Granian when you need to wrap the application.
 
 ## WSGI
 

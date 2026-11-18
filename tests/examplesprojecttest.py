@@ -21,11 +21,12 @@ def test_manifest_lists_each_example_app_without_importing_it(
     assert main(["app", "list", "--format", "json"]) == 0
 
     apps = json.loads(capsys.readouterr().out)["apps"]
-    assert [app["name"] for app in apps] == ["notes", "tracker", "blog"]
+    assert [app["name"] for app in apps] == ["notes", "tracker", "blog", "admin"]
     assert [app["models"] for app in apps] == [
         "notes.models",
         "tracker.models",
         "blog.models",
+        "hinoki.admin.users.models",
     ]
 
 
@@ -44,6 +45,7 @@ def test_manifest_applies_each_app_migration_to_a_database_url(
     assert "notes: 0001-create-table-notes" in output
     assert "tracker: 0001-initial, 0002-indexes" in output
     assert "blog: 0001-initial, 0002-accounts" in output
+    assert "admin: 0001-initial" in output
     assert (tmp_path / "examples.sqlite3").is_file()
 
 
