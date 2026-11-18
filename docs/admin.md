@@ -6,19 +6,16 @@ status: implemented
 
 The optional `hinoki.admin` module gives staff a list, search, create, edit, bulk delete and a dashboard for your models, with the same access policies and CSRF protection as the rest of the app. It is included in the framework package; nothing is mounted unless you ask, and importing it never touches a database.
 
-The following excerpt follows the [Blog admin module](https://github.com/caspel26/hinoki/blob/main/examples/blog/adminsite.py). `PostAdmin` names its model once and configures how it is shown; `build_admin()` creates the cookie-authenticated `editors` policy and the `Admin` that lists the model admins; the app includes the admin under a `Mount`. The snippet shows the relevant imports and function context; consult the linked module for the complete cookie-auth implementation.
+The following excerpt follows the [Blog admin module](https://github.com/caspel26/hinoki/blob/main/examples/blog/adminsite.py). `PostAdmin` names its model once and configures how it is shown; `build_admin()` creates the `Admin` (with the admin's own users, so there is no sign-in code) and registers the model admins; the app includes the admin under a `Mount`. The snippet shows the relevant imports and function context; consult the linked module for the complete version.
 
 ```python
-from blog.adminsite import CookieAuth
 from blog.models import Post, User
-from blog.security import WRITE
-from hinoki import Access, Mount
+from hinoki import Mount
 from hinoki.admin import Admin, ModelAdmin, Tone, action
 
 class PostAdmin(ModelAdmin, model=Post):
     columns = ("title", "published", "author_id", "created_at")
     readonly = ("created_at",)
-    assign = {"author_id": lambda principal: principal.user.id}   # set by the server
     badges = {"published": {True: ("Published", Tone.OK), False: ("Draft", Tone.WARN)}}
     tabs = ("published",)                       # one tab for each badge: Published | Draft
     fieldsets = {"Organization": ("author_id", "published")}
@@ -28,8 +25,7 @@ class PostAdmin(ModelAdmin, model=Post):
         await Post.filter(id__in=[p.id for p in posts]).aupdate({"published": True})
 
 def build_admin(theme: str = "studio") -> Admin:
-    editors = Access(auth=CookieAuth(), permissions=[WRITE])
-    site = Admin(access=editors, theme=theme, site="Blog Studio", per_page=8)
+    site = Admin(theme=theme, site="Blog Studio", per_page=8)
     site.register(PostAdmin)                    # a customised admin ...
     site.register(User)                         # ... or a model, for the default admin
     return site
