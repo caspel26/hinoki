@@ -303,17 +303,8 @@ class Admin:
 
     def api(self) -> type[API]:
         """The ``API`` class to ``include`` in the application."""
-        if (
-            self.users is not None
-            and self.manage_users
-            and not any(isinstance(each, UserAdmin) for each in self.models.values())
-        ):
-            self.register(UserAdmin)  # last, after the application's own models
-        for slug in self.dashboard:
-            if slug not in self.models:
-                raise RegistrationError(
-                    f"admin: dashboard names unknown model {slug!r}"
-                )
+        self.add_user_admin()
+        self.check_dashboard()
         self._served = self.prefix  # links must match the routes built below
         namespace: dict[str, Any] = {
             "admin": self,
@@ -323,21 +314,40 @@ class Admin:
         for name, method, path, write in ROUTES:
             if name in AUTH_VIEWS and self.users is None:
                 continue
-            public = name in PUBLIC_VIEWS
-            options = Options(
-                access=None if public else self.access,
-                transaction=write and not self.holds_no_connection(name),
-                parsers=[FormParser()] if write else None,
-                renderers=None if public and name in ASSETS else [HTMLRenderer()],
-                rate_limit=self.users.login_limit
-                if name in HASHING_VIEWS and self.users is not None
-                else None,
-            )
-            declare = RouteDeclaration(method, path, options)
+            declare = RouteDeclaration(method, path, self.route_options(name, write))
             namespace[name] = declare(clone(VIEWS[name], name))
         namespace["bind_mount"] = staticmethod(self.bind_mount)
         return types.new_class(
             "AdminSite", (API,), {"path": self.prefix}, lambda ns: ns.update(namespace)
+        )
+
+    def add_user_admin(self) -> None:
+        """Register the Users section last, after the application's own models."""
+        if (
+            self.users is not None
+            and self.manage_users
+            and not any(isinstance(each, UserAdmin) for each in self.models.values())
+        ):
+            self.register(UserAdmin)
+
+    def check_dashboard(self) -> None:
+        for slug in self.dashboard:
+            if slug not in self.models:
+                raise RegistrationError(
+                    f"admin: dashboard names unknown model {slug!r}"
+                )
+
+    def route_options(self, name: str, write: bool) -> Options:
+        """The options of one admin view: public views name no access policy, and
+        the views that hash a password take the sign-in rate limit."""
+        public = name in PUBLIC_VIEWS
+        limited = name in HASHING_VIEWS and self.users is not None
+        return Options(
+            access=None if public else self.access,
+            transaction=write and not self.holds_no_connection(name),
+            parsers=[FormParser()] if write else None,
+            renderers=None if public and name in ASSETS else [HTMLRenderer()],
+            rate_limit=self.users.login_limit if limited and self.users else None,
         )
 
     @property
