@@ -414,7 +414,7 @@ class Pipeline:
                     )
                 elif input_error is not None:
                     raise native_input_exception(input_error)
-                response = await self._call_native(binding, args)
+                response = await self._call_native(binding, args, body)
         except TimeoutError as exc:
             if limit.expired():
                 response = HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
@@ -831,16 +831,24 @@ class Pipeline:
             raise ValidationError(errors)
         return binding.complete_native_args(args, (param.name, value))
 
-    async def _call_native(self, binding: Binding, args: dict[str, object]) -> Response:
+    async def _call_native(
+        self,
+        binding: Binding,
+        args: dict[str, object],
+        native: NativeBody | None = None,
+    ) -> Response:
         """Run a selected no-Request JSON handler and encode through Rust; with
         ``transaction=True`` the commit follows the encoding, as in ``_invoke``."""
         if not binding.route.transaction:
-            return await self._native_result(binding, args)
+            return await self._native_result(binding, args, native)
         async with self.ctx.get(Database).transaction():
-            return await self._native_result(binding, args)
+            return await self._native_result(binding, args, native)
 
     async def _native_result(
-        self, binding: Binding, args: dict[str, object]
+        self,
+        binding: Binding,
+        args: dict[str, object],
+        native: NativeBody | None = None,
     ) -> Response:
         route = binding.route
         result = await self._handler_result(
@@ -851,11 +859,34 @@ class Pipeline:
         enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
             result = project_response(binding.response_schema, result)
-            body = core.encode_json(result, None, False, None)
-            return Response.rendered(route.status, body, "application/json", False)
+            return self._native_rendered(binding, result, native)
         if route.status == HTTPStatus.OK:
             return Response(HTTPStatus.NO_CONTENT)
         return Response(route.status)
+
+    def _native_rendered(
+        self, binding: Binding, result: object, native: NativeBody | None
+    ) -> Response:
+        """Render with the renderer ``Accept`` selects among the route's
+        built-in renderers, which never read the ``Request``."""
+        route = binding.route
+        if binding.default_json:
+            body = core.encode_json(result, None, False, None)
+            return Response.rendered(route.status, body, "application/json", False)
+        if len(route.renderers) == 1:
+            renderer = route.renderers[0]
+        else:
+            if native is None:
+                raise RuntimeError("native multi-renderer route without its headers")
+            accept = core.header_dict(native.headers).get("accept", "")
+            chosen = negotiate(accept, route.renderers)
+            if chosen is None:
+                raise RuntimeError("native route answered an unacceptable request")
+            renderer = chosen
+        shown = result if renderer.consumes_objects else encode(result)
+        body = renderer.render(shown, cast("Request", None))
+        many = len(route.renderers) > 1
+        return Response.rendered(route.status, body, renderer.media_type, many)
 
     async def _handler_result(
         self,
