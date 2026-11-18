@@ -132,7 +132,7 @@ def test_model_declaration_errors_fail_at_class_creation() -> None:
     class NoTable(Model):
         id: int = field(primary_key=True)
 
-    assert NoTable.__table__ == "no_tables"
+    assert NoTable.__table__ == "ormtest_no_tables"
     with pytest.raises(RegistrationError, match="primary_key"):
         type("NoKey", (Model,), {"__annotations__": {"x": int}}, table="t")
 

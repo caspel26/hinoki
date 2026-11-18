@@ -45,7 +45,8 @@ class Invoice(Model):
     reference: str
 ```
 
-That declaration derives the table `invoices`, the singular display name
+Placed in a `billing` package's `models` module, that declaration derives the table
+`billing_invoices` (`<app>_<models>`), the singular display name
 `Invoice` and the plural `Invoices`. `label=` and `plural=` override the
 display names; set `table=` explicitly for irregular/localized names and to
 keep a physical table stable when a Python class is renamed. The fallback
