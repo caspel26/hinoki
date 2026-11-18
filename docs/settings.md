@@ -69,6 +69,7 @@ Settings types live in the `hinoki.settings` namespace: `from hinoki import sett
 | `cors` | `expose_headers` | empty | Response headers a browser script may read |
 | `cors` | `credentials` | `false` | Allow cookies and HTTP authentication; refused together with `*` |
 | `cors` | `max_age` | `600` seconds | `0` to `86400`; how long a browser may cache a preflight |
+| `security` | `secret` | unset | The server secret (32+ bytes, from the environment or `*_FILE`) that keys the admin's CSRF tokens; an admin without its own `secret=` needs it |
 | `security` | `redirect_https` | `false` | Send known HTTP requests to HTTPS with `308`; requires explicit `allowed_hosts` |
 | `security` | `hsts_seconds` | `0` | `0` to `63072000`; emit HSTS only when the effective scheme is HTTPS |
 | `security` | `hsts_include_subdomains` | `false` | Add `includeSubDomains`; requires nonzero `hsts_seconds` |
