@@ -52,7 +52,7 @@ class Route:
     parsers: tuple[Parser, ...] = DEFAULT_PARSERS
     renderers: tuple[Renderer, ...] = DEFAULT_RENDERERS
     errors: tuple[type[APIError], ...] = ()
-    validate_response: bool = False
+    validate_response: bool = True
     rate_limit: RateLimitPolicy | None = None
 
     @property
@@ -76,7 +76,7 @@ class Options:
     parsers: Sequence[Parser] | None = None
     renderers: Sequence[Renderer] | None = None
     errors: Sequence[type[APIError]] = ()
-    validate_response: bool = False
+    validate_response: bool = True
     rate_limit: RateLimitPolicy | None = None
 
 
@@ -160,7 +160,7 @@ def get(
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
-    validate_response: bool = False,
+    validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
 ) -> RouteDeclaration:
     """Declare a GET action. ``errors`` lists the ``APIError`` subclasses the
@@ -192,7 +192,7 @@ def post(
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
-    validate_response: bool = False,
+    validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
 ) -> RouteDeclaration:
     """Declare a POST action. ``errors`` lists the ``APIError`` subclasses the
@@ -224,7 +224,7 @@ def put(
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
-    validate_response: bool = False,
+    validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
 ) -> RouteDeclaration:
     """Declare a PUT action. ``errors`` lists the ``APIError`` subclasses the
@@ -256,7 +256,7 @@ def patch(
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
-    validate_response: bool = False,
+    validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
 ) -> RouteDeclaration:
     """Declare a PATCH action. ``errors`` lists the ``APIError`` subclasses the
@@ -288,7 +288,7 @@ def delete(
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
-    validate_response: bool = False,
+    validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
 ) -> RouteDeclaration:
     """Declare a DELETE action. ``errors`` lists the ``APIError`` subclasses the
@@ -320,7 +320,7 @@ def query(
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
-    validate_response: bool = False,
+    validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
 ) -> RouteDeclaration:
     """Declare a QUERY action: a safe, idempotent request that carries a body
@@ -447,7 +447,7 @@ class RouteGroup:
             parsers=options.pop("parsers", None),
             renderers=options.pop("renderers", None),
             errors=(*self.errors, *own_errors),
-            validate_response=options.pop("validate_response", False),
+            validate_response=options.pop("validate_response", True),
             rate_limit=options.pop("rate_limit", None),
         )
         if options:

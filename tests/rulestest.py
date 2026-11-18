@@ -269,12 +269,12 @@ def test_forbid_model_responses_finds_models_through_containers() -> None:
     assert exempt.run(project(leaky, leaky_page, tidy)) == []
 
 
-@http.get("/typed/untyped")
+@http.get("/typed/untyped", validate_response=False)
 def untyped(request: Request):  # type: ignore[no-untyped-def]
     return {}
 
 
-@http.get("/typed/any")
+@http.get("/typed/any", validate_response=False)
 def any_return(request: Request) -> Any:
     return {}
 

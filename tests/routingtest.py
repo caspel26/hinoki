@@ -158,7 +158,7 @@ def test_unknown_path_and_wrong_method_do_not_resolve() -> None:
 def test_duplicate_route_fails_and_leaves_app_unchanged() -> None:
     app = make_app()
     before = len(app.routes)
-    clash = http.get("/health")(lambda: None)
+    clash = http.get("/health", validate_response=False)(lambda: None)
     with pytest.raises(RegistrationError, match="duplicate"):
         app.include(clash)
     assert len(app.routes) == before
@@ -220,7 +220,7 @@ def test_errors_option_validates_what_it_is_given() -> None:
         code = "bad_status"
 
     with pytest.raises(ValueError, match="status must be 400 to 599"):
-        http.get("/bad", errors=(BadStatus,))(lambda: None)
+        http.get("/bad", errors=(BadStatus,), validate_response=False)(lambda: None)
 
 
 @pytest.mark.parametrize(
@@ -236,7 +236,8 @@ def test_remaining_http_declaration_methods(
     declaration: Callable[..., object], method: str
 ) -> None:
     decorator = cast(
-        Callable[[Callable[[], None]], Callable[[], None]], declaration("/method")
+        Callable[[Callable[[], None]], Callable[[], None]],
+        declaration("/method", validate_response=False),
     )
     handler = decorator(lambda: None)
     assert Hinoki(include=[handler]).routes[0].method == method
@@ -315,7 +316,7 @@ def test_route_group_cannot_be_included_twice_or_changed_after_inclusion() -> No
     with pytest.raises(RegistrationError, match="only once"):
         app.include(group)
     with pytest.raises(RuntimeError, match="cannot change"):
-        group.get("/two")(lambda: None)
+        group.get("/two", validate_response=False)(lambda: None)
     assert len(app.routes) == 1
 
 
@@ -325,7 +326,8 @@ def test_failed_route_group_include_does_not_freeze_group() -> None:
     @group.get("/health")
     def one() -> None: ...
 
-    app = Hinoki(include=[http.get("/group/health")(lambda: None)])  # type: ignore[misc]
+    health = http.get("/group/health", validate_response=False)(lambda: None)
+    app = Hinoki(include=[health])
     with pytest.raises(RegistrationError, match="duplicate"):
         app.include(group)
 
