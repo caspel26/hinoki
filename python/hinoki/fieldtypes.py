@@ -7,7 +7,8 @@ import re
 import types
 import typing
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, Any, cast, get_args, get_origin
 from uuid import UUID
 
@@ -25,9 +26,25 @@ SCALARS: dict[type, str] = {
     bool: "bool",
     UUID: "uuid",
     datetime: "datetime",
+    date: "date",
+    time: "time",
+    timedelta: "timedelta",
+    Decimal: "decimal",
+    bytes: "bytes",
 }
 
+DECIMAL_DIGITS_CEILING = 1000
+"""Most digits a ``Decimal`` field may declare through ``max_digits``."""
+MAX_DECIMAL_DIGITS = 64
+"""Most digits a ``Decimal`` field accepts from wire input unless it declares
+``max_digits``."""
+MAX_BYTES_LENGTH = 65536
+"""Most decoded bytes a ``bytes`` field accepts from wire input unless it
+declares ``max_length``."""
+
 ALLOWED_CONSTRAINTS: dict[str, frozenset[str]] = {
+    "decimal": frozenset({"ge", "le", "gt", "lt", "max_digits", "decimal_places"}),
+    "bytes": frozenset({"min_length", "max_length"}),
     "str": frozenset({"min_length", "max_length", "pattern", "one_of"}),
     "int": frozenset({"ge", "le", "gt", "lt", "one_of"}),
     "float": frozenset({"ge", "le", "gt", "lt", "one_of"}),
@@ -129,11 +146,13 @@ def field_info_from_constraints(
         min_length=cast(int | None, constraints.get("min_length")),
         max_length=cast(int | None, constraints.get("max_length")),
         pattern=cast(str | None, constraints.get("pattern")),
-        ge=cast(float | None, constraints.get("ge")),
-        le=cast(float | None, constraints.get("le")),
-        gt=cast(float | None, constraints.get("gt")),
-        lt=cast(float | None, constraints.get("lt")),
+        ge=cast(float | Decimal | None, constraints.get("ge")),
+        le=cast(float | Decimal | None, constraints.get("le")),
+        gt=cast(float | Decimal | None, constraints.get("gt")),
+        lt=cast(float | Decimal | None, constraints.get("lt")),
         one_of=cast(tuple[Any, ...] | None, constraints.get("one_of")),
+        max_digits=cast(int | None, constraints.get("max_digits")),
+        decimal_places=cast(int | None, constraints.get("decimal_places")),
         alias=alias,
         discriminator=discriminator,
     )
@@ -152,19 +171,54 @@ def check_pattern(pattern: str, where: str) -> None:
         raise RegistrationError(f"{where}: invalid pattern: {exc}") from exc
 
 
-def check_limits(info: FieldInfo, where: str) -> None:
+def decimal_limits(info: FieldInfo) -> tuple[int, int | None, int | None]:
+    """``(max_digits, decimal_places, max_whole_digits)`` in force on wire input;
+    the whole-digits bound exists only when ``decimal_places`` is declared."""
+    most = info.max_digits if info.max_digits is not None else MAX_DECIMAL_DIGITS
+    places = info.decimal_places
+    return most, places, None if places is None else most - places
+
+
+def is_whole(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def check_limits(info: FieldInfo, where: str, kind: str = "") -> None:
     for name in ("min_length", "max_length"):
         value = getattr(info, name)
-        if value is not None and (
-            isinstance(value, bool) or not isinstance(value, int) or abs(value) > 2**62
-        ):
+        if value is not None and (not is_whole(value) or abs(value) > 2**62):
             raise RegistrationError(f"{where}: {name} must be an integer")
     for name in ("ge", "le", "gt", "lt"):
-        value = getattr(info, name)
-        if value is not None and (
-            isinstance(value, bool) or not isinstance(value, int | float)
-        ):
+        check_bound(name, getattr(info, name), kind, where)
+    if kind == "decimal":
+        check_decimal_digits(info, where)
+
+
+def check_bound(name: str, value: object, kind: str, where: str) -> None:
+    if value is None:
+        return
+    if kind != "decimal":
+        if isinstance(value, bool) or not isinstance(value, int | float):
             raise RegistrationError(f"{where}: {name} must be a number")
+    elif not is_whole(value) and not (isinstance(value, Decimal) and value.is_finite()):
+        raise RegistrationError(f"{where}: {name} must be an int or a finite Decimal")
+
+
+def check_decimal_digits(info: FieldInfo, where: str) -> None:
+    most, places = info.max_digits, info.decimal_places
+    if most is not None and (
+        not is_whole(most) or not 1 <= most <= DECIMAL_DIGITS_CEILING
+    ):
+        raise RegistrationError(
+            f"{where}: max_digits must be an integer from 1 to {DECIMAL_DIGITS_CEILING}"
+        )
+    if places is not None and (not is_whole(places) or places < 0):
+        raise RegistrationError(f"{where}: decimal_places must be an integer")
+    bound = most if most is not None else MAX_DECIMAL_DIGITS
+    if places is not None and places > bound:
+        raise RegistrationError(
+            f"{where}: decimal_places {places} exceeds max_digits {bound}"
+        )
 
 
 def check_one_of(info: FieldInfo, kind: str, where: str) -> None:
@@ -380,13 +434,19 @@ def build(
     else:
         raise RegistrationError(f"{where}: unsupported type {base!r}")
     check_constraints(info, kind, where)
-    return FieldType(kind, nullable, allows_unset, info, item, schema)
+    default = None
+    if kind == "bytes":
+        default = MAX_BYTES_LENGTH if input_bounds and info.max_length is None else None
+        check_reachable(info, MAX_BYTES_LENGTH if input_bounds else None, where)
+    return FieldType(
+        kind, nullable, allows_unset, info, item, schema, input_max_length=default
+    )
 
 
 def check_constraints(info: FieldInfo, kind: str, where: str) -> None:
     if info.pattern is not None:
         check_pattern(info.pattern, where)
-    check_limits(info, where)
+    check_limits(info, where, kind)
     unsupported = set(info.constraints()) - ALLOWED_CONSTRAINTS.get(kind, frozenset())
     if unsupported:
         raise RegistrationError(
