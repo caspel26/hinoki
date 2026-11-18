@@ -2128,6 +2128,18 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
         (Made, [("kind", "type", node("str"), True), ("good", "good", node("bool"), False)], False),
     ]"#;
 
+    const MAPPING: &str = r#"[
+        (Made, [
+            ("labels", "labels", node("dict", item=node("str", max_length=3),
+                                      key=node("str", max_length=4), max_length=3), True),
+            ("points", "points", node("dict", item=node("schema", index=1),
+                                      key=node("str", min_length=2, max_length=256, pattern="[a-z]+")), False),
+            ("grid", "grid", node("dict", nullable=True, item=node("list", nullable=True, item=node("int")),
+                                  key=node("str", max_length=256), min_length=1), False),
+        ], True),
+        (Made, [("x", "x", node("int"), True), ("y", "y", node("int", ge=0), False)], True),
+    ]"#;
+
     const CHAIN: &str = r#"[(Made, [
         ("next", "next", node("schema", nullable=True, index=0), False),
         ("n", "n", node("int"), False),
@@ -2495,6 +2507,40 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
     }
 
     #[test]
+    fn mappings_report_the_same_problems_and_values() {
+        Python::initialize();
+        Python::attach(|py| {
+            let compiled = compile(py, MAPPING);
+            let long_key = "k".repeat(70);
+            let long = format!(
+                r#"{{"labels": {{"{long_key}": "x"}}, "points": {{"{long_key}": {{"x": 1}}}}}}"#
+            );
+            let bodies = [
+                r#"{"labels": {"b": "x", "a": "yy"}}"#,
+                r#"{"labels": {"b": "x", "a": "yy", "b": "z"}}"#,
+                r#"{"labels": {}}"#,
+                r#"{"labels": {"a": "x", "b": "x", "c": "x", "d": "x"}}"#,
+                r#"{"labels": {"a": 1, "b": "toolong", "c": null}}"#,
+                r#"{"labels": {"abcde": "x", "__proto__": "y"}}"#,
+                r#"{"labels": [], "points": "x", "grid": 3}"#,
+                r#"{"labels": {"a": "x"}, "points": {"ab": {"x": 1}, "a": {"x": 2}, "AB": {"x": 3}}}"#,
+                r#"{"labels": {"a": "x"}, "points": {"ab": {"y": -1, "z": 1}, "cd": 5}}"#,
+                r#"{"labels": {"a": "x"}, "grid": null}"#,
+                r#"{"labels": {"a": "x"}, "grid": {}}"#,
+                r#"{"labels": {"a": "x"}, "grid": {"r": [1, "2"], "n": null, "e": []}}"#,
+                r#"{"labels": {"é": "é"}, "grid": {"r": [99999999999999999999]}}"#,
+                long.as_str(),
+            ];
+            let same = compare_all(py, &compiled, &bodies, &option_sets());
+            // Only the integer outside i64 inside `grid` defers.
+            assert_eq!(
+                same,
+                bodies.len() * option_sets().len() - option_sets().len()
+            );
+        });
+    }
+
+    #[test]
     fn the_error_cap_and_the_depth_limit_are_shared() {
         Python::initialize();
         Python::attach(|py| {
@@ -2576,6 +2622,8 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
                 r#"node("int", one_of=(None,))"#,
                 r#"node("uuid", one_of=("12345678-1234-5678-1234-567812345678",))"#,
                 r#"node("list", item=node("int", ge=decimal.Decimal(1)))"#,
+                r#"node("dict", item=node("int", ge=decimal.Decimal(1)), key=node("str"))"#,
+                r#"node("dict", item=node("int"), key=node("str", pattern=Text("a+")))"#,
             ] {
                 let table = format!(r#"[(Made, [("f", "f", {constraint}, True)], False)]"#);
                 assert!(compile(py, &table).native().is_none(), "{constraint}");
@@ -2696,7 +2744,7 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
         "\"\\u00e9\\ud83d\\ude00\"",
     ];
 
-    const KEYS: [&str; 32] = [
+    const KEYS: [&str; 34] = [
         "name",
         "count",
         "ratio",
@@ -2729,6 +2777,8 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
         "type",
         "extra",
         "é",
+        "labels",
+        "points",
     ];
 
     fn random_body(draw: &mut Draw) -> String {
@@ -2747,7 +2797,7 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
         Python::initialize();
         Python::attach(|py| {
             let mut draw = Draw(0x9E37_79B9_7F4A_7C15);
-            for definitions in [SCALARS, ALIASES, NESTED, UNION, CHAIN] {
+            for definitions in [SCALARS, ALIASES, NESTED, UNION, MAPPING, CHAIN] {
                 let compiled = compile(py, definitions);
                 let mut same = 0;
                 let sets = option_sets();

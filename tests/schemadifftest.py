@@ -50,6 +50,16 @@ class LengthMessages(Schema):
     tags: Annotated[list[str], Field(min_length=1, max_length=2)]
 
 
+class Mapping(Schema):
+    labels: Annotated[
+        dict[str, Annotated[str, Field(max_length=3)]], Field(max_length=3)
+    ]
+    points: dict[Annotated[str, Field(min_length=2, pattern="[a-z]+")], Point] = Field(
+        default_factory=dict
+    )
+    grid: dict[str, list[int] | None] | None = None
+
+
 def native(cls: type[Schema], data: object) -> Any:
     return cls.validate(data)
 
@@ -227,6 +237,43 @@ def test_every_junk_value_in_every_slot_agrees(junk: Any) -> None:
             path,
             junk,
         )
+
+
+def valid_mapping(rng: random.Random) -> dict[str, Any]:
+    data: dict[str, Any] = {
+        "labels": {rng.choice(["a", "b", "é", "__proto__"]): "x" for _ in range(2)}
+    }
+    if rng.random() < 0.6:
+        data["points"] = {"ab": {"x": 1.0, "y": 2.0}, "zz": {"x": 0.5, "y": 0.0}}
+    if rng.random() < 0.6:
+        data["grid"] = {"row": [1, 2], "none": None}
+    return data
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_mapping_inputs_agree(seed: int) -> None:
+    rng = random.Random(500 + seed)
+    for _ in range(600):
+        data = mutate(rng, valid_mapping(rng))
+        assert outcome(native, Mapping, data) == outcome(oracle, Mapping, data), data
+
+
+@pytest.mark.parametrize("junk", JUNK)
+def test_every_junk_value_in_every_mapping_slot_agrees(junk: Any) -> None:
+    base = {
+        "labels": {"a": "x"},
+        "points": {"ab": {"x": 1.0, "y": 2.0}},
+        "grid": {"row": [1]},
+    }
+    for key in list(base):
+        data = {**base, key: junk}
+        assert outcome(native, Mapping, data) == outcome(oracle, Mapping, data)
+    for field_name, entry in (("labels", "a"), ("points", "ab"), ("grid", "row")):
+        data = {**base, field_name: {entry: junk}}
+        assert outcome(native, Mapping, data) == outcome(oracle, Mapping, data)
+    for bad_key in ("", "A", "x" * 70, 7):
+        data = {**base, "points": {bad_key: {"x": 1.0, "y": 2.0}}}
+        assert outcome(native, Mapping, data) == outcome(oracle, Mapping, data)
 
 
 def test_many_problems_are_capped_the_same_way() -> None:
