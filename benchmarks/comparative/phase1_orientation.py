@@ -523,7 +523,6 @@ def write_report(
                     f"The supplemental update series stopped at Hinoki pair {failure['pair']} after unsuccessful responses (status distribution: {distribution}). Its server log reports database connection acquisition timeouts. The failed sample and log are retained and excluded from throughput summaries; the initial update series remains volatile (Hinoki CV 11.8%, Django Bolt CV 23.5%).",
                 ]
             )
-    lines.append("")
     report = "\n".join(lines) + "\n"
     (output / "orientation.md").write_text(report)
     (repo / "docs/rust-crud-orientation.md").write_text(report)
