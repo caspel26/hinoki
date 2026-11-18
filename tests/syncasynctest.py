@@ -52,14 +52,14 @@ async def read_async(request: Request, item_id: int) -> ItemOut:
     return ItemOut.from_model(await Item.aget(id=item_id))
 
 
-@http.post("/sync/{item_id}/hit", transaction=True)
+@http.post("/sync/{item_id}/hit", atomic=True)
 def hit_sync(request: Request, item_id: int) -> ItemOut:
     (row,) = Item.update_where({"id": item_id}, {"hits": 5})
     Item.filter(id=item_id).update({"hits": row.hits + 1})
     return ItemOut.from_model(Item.get(id=item_id))
 
 
-@http.post("/async/{item_id}/hit", transaction=True)
+@http.post("/async/{item_id}/hit", atomic=True)
 async def hit_async(request: Request, item_id: int) -> ItemOut:
     (row,) = await Item.aupdate_where({"id": item_id}, {"hits": 5})
     await Item.filter(id=item_id).aupdate({"hits": row.hits + 1})

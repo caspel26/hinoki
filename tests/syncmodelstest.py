@@ -56,7 +56,7 @@ class SyncProfile(Model, table="sync_profiles"):
     owner: ClassVar[Related[SyncOwner]]
 
 
-@http.post("/gadgets", status=201, transaction=True)
+@http.post("/gadgets", status=201, atomic=True)
 def add(request: Request, name: str) -> dict[str, Any]:
     made = Gadget.create(name=name)
     if name == "boom":
@@ -257,7 +257,7 @@ def statements(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return seen
 
 
-@http.post("/slow", transaction=True)
+@http.post("/slow", atomic=True)
 def slow(request: Request) -> dict[str, str]:
     run_sync(current_database().fetch("SELECT pg_sleep(4)"))
     return {}

@@ -24,7 +24,7 @@ class Posts(API, path="/posts"):
     async def retrieve(self, request: Request, post_id: UUID) -> str:
         return str(post_id)
 
-    @http.post("/", status=201, access=editor, transaction=True)
+    @http.post("/", status=201, access=editor, atomic=True)
     async def create(self, request: Request, title: str) -> int:
         return len(title)
 

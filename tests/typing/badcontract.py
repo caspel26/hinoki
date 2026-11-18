@@ -23,7 +23,7 @@ async def misuse(posts: Posts, request: Request) -> None:
     print(number)
 
 
-@http.get("/x", transaction="yes")  # type: ignore[arg-type]
+@http.get("/x", atomic="yes")  # type: ignore[arg-type]
 def bad_option(request: Request) -> None: ...
 
 

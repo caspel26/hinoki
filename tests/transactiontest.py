@@ -1,4 +1,4 @@
-"""transaction=True end to end against a disposable PostgreSQL (skipped without one)."""
+"""atomic=True end to end against a disposable PostgreSQL (skipped without one)."""
 
 import asyncio
 import os
@@ -44,25 +44,25 @@ def database() -> Database:
     return Holder.current[-1]
 
 
-@http.post("/ok", status=201, transaction=True)
+@http.post("/ok", status=201, atomic=True)
 async def create_ok(request: Request, data: Item) -> dict[str, str]:
     await database().execute(f"INSERT INTO {TABLE} (name) VALUES ($1)", data.name)  # noqa: S608
     return {"name": data.name}
 
 
-@http.post("/crash", transaction=True)
+@http.post("/crash", atomic=True)
 async def create_then_crash(request: Request, data: Item) -> dict[str, str]:
     await database().execute(f"INSERT INTO {TABLE} (name) VALUES ($1)", data.name)  # noqa: S608
     raise RuntimeError("secret failure")
 
 
-@http.post("/conflict", transaction=True)
+@http.post("/conflict", atomic=True)
 async def create_then_conflict(request: Request, data: Item) -> dict[str, str]:
     await database().execute(f"INSERT INTO {TABLE} (name) VALUES ($1)", data.name)  # noqa: S608
     raise Conflict("Already there.", code="already_there")
 
 
-@http.post("/duplicate", transaction=True)
+@http.post("/duplicate", atomic=True)
 async def create_duplicate(request: Request, data: Item) -> dict[str, str]:
     sql = f"INSERT INTO {TABLE} (name) VALUES ($1)"  # noqa: S608
     await database().execute(sql, data.name)
@@ -70,7 +70,7 @@ async def create_duplicate(request: Request, data: Item) -> dict[str, str]:
     return {}
 
 
-@http.post("/swallow", transaction=True)
+@http.post("/swallow", atomic=True)
 async def swallow_database_error(request: Request, data: Item) -> dict[str, str]:
     """Catches a constraint error and returns normally: the commit must fail."""
     sql = f"INSERT INTO {TABLE} (name) VALUES ($1)"  # noqa: S608
@@ -80,7 +80,7 @@ async def swallow_database_error(request: Request, data: Item) -> dict[str, str]
     return {"name": data.name}
 
 
-@http.post("/slow", transaction=True)
+@http.post("/slow", atomic=True)
 async def create_slow(request: Request, data: Item) -> dict[str, str]:
     await database().execute(f"INSERT INTO {TABLE} (name) VALUES ($1)", data.name)  # noqa: S608
     await database().fetch("SELECT pg_sleep(5)")
@@ -93,7 +93,7 @@ async def count(request: Request) -> dict[str, int]:
     return {"count": rows[0]["c"]}
 
 
-@http.post("/no-db", transaction=True)
+@http.post("/no-db", atomic=True)
 async def needs_database(request: Request) -> None: ...
 
 

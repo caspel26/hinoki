@@ -129,18 +129,18 @@ def test_an_atomic_group_does_not_wrap_a_query_in_a_transaction() -> None:
     app.include(atomic)
     routes = {route.name: route for route in app.routes}
     assert routes["entries"].method == "QUERY"
-    assert routes["entries"].transaction is False
-    assert routes["add_entry"].transaction is True
+    assert routes["entries"].atomic is False
+    assert routes["add_entry"].atomic is True
 
 
 def test_a_query_action_can_ask_for_a_transaction_explicitly() -> None:
-    @http.query("/snapshot", transaction=True)
+    @http.query("/snapshot", atomic=True)
     async def snapshot(data: Search) -> Found:
         return Found(text=data.text, limit=data.limit, via="snapshot")
 
     app = Hinoki()
     app.include(snapshot)
-    assert app.routes[0].transaction is True
+    assert app.routes[0].atomic is True
 
 
 async def test_allow_lists_query_and_head_does_not_fall_back_to_it() -> None:

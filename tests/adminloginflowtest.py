@@ -448,6 +448,6 @@ def test_password_checks_hold_no_connection_and_are_rate_limited() -> None:
     routes = {route.path: route for route in app.routes if route.method == "POST"}
 
     for path in ("/admin/login", "/admin/password"):
-        assert routes[path].transaction is False  # hashing waits with no connection
+        assert routes[path].atomic is False  # hashing waits with no connection
         assert routes[path].rate_limit is not None
-    assert routes["/admin/logout"].transaction is True
+    assert routes["/admin/logout"].atomic is True

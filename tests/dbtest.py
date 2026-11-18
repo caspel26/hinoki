@@ -132,12 +132,12 @@ async def test_constraint_errors_are_typed_and_carry_no_values(db: Database) -> 
 async def test_transaction_commits_on_success_and_rolls_back_on_error(
     db: Database,
 ) -> None:
-    async with db.transaction():
+    async with db.atomic():
         await add(db, "kept")
     assert await count(db) == 1
 
     with pytest.raises(RuntimeError, match="boom"):
-        async with db.transaction():
+        async with db.atomic():
             await add(db, "gone")
             raise RuntimeError("boom")
     assert await count(db) == 1
@@ -148,19 +148,19 @@ async def test_a_failed_commit_or_statement_is_an_error_not_success(
 ) -> None:
     await add(db, "dup")
     with pytest.raises(UniqueViolation):
-        async with db.transaction():
+        async with db.atomic():
             await add(db, "dup")
     assert await count(db) == 1
 
 
 async def test_nested_scopes_use_savepoints(db: Database) -> None:
-    async with db.transaction():
+    async with db.atomic():
         await add(db, "outer")
         with pytest.raises(RuntimeError):
-            async with db.transaction():
+            async with db.atomic():
                 await add(db, "inner-lost")
                 raise RuntimeError
-        async with db.transaction():
+        async with db.atomic():
             await add(db, "inner-kept")
     rows = await db.fetch(f"SELECT slug FROM {table(db)} ORDER BY slug")
     assert [r["slug"] for r in rows] == ["inner-kept", "outer"]
@@ -170,7 +170,7 @@ async def test_uncommitted_rows_are_invisible_to_other_connections(
     db: Database,
 ) -> None:
     sql = f"SELECT count(*)::int AS c FROM {table(db)}"
-    async with db.transaction():
+    async with db.atomic():
         await add(db, "pending")
         assert (await db.fetch(sql))[0]["c"] == 1  # same connection
         assert (await db.engine.fetch(sql, []))[0]["c"] == 0  # another one
@@ -178,7 +178,7 @@ async def test_uncommitted_rows_are_invisible_to_other_connections(
 
 
 async def test_concurrent_use_of_one_transaction_is_refused(db: Database) -> None:
-    async with db.transaction():
+    async with db.atomic():
         results = await asyncio.gather(
             db.fetch("SELECT pg_sleep(0.3)"),
             db.fetch("SELECT 1 AS one"),
@@ -191,7 +191,7 @@ async def test_timeout_during_a_query_rolls_back_and_keeps_the_pool_usable(
     db: Database,
 ) -> None:
     with pytest.raises(TimeoutError):
-        async with asyncio.timeout(0.2), db.transaction():
+        async with asyncio.timeout(0.2), db.atomic():
             await add(db, "never-committed")
             await db.fetch("SELECT pg_sleep(5)")
     assert await count(db) == 0
@@ -251,7 +251,7 @@ async def test_commit_of_an_aborted_transaction_is_an_error_not_success(
 ) -> None:
     await add(db, "dup")
     with pytest.raises(DatabaseError) as info:
-        async with db.transaction():
+        async with db.atomic():
             await add(db, "fresh")
             with pytest.raises(UniqueViolation):
                 await add(db, "dup")
@@ -264,10 +264,10 @@ async def test_an_error_inside_a_savepoint_scope_does_not_abort_the_outer_commit
     db: Database,
 ) -> None:
     await add(db, "dup")
-    async with db.transaction():
+    async with db.atomic():
         await add(db, "outer")
         with pytest.raises(UniqueViolation):
-            async with db.transaction():
+            async with db.atomic():
                 await add(db, "dup")
     assert await count(db) == 2
 
@@ -278,7 +278,7 @@ async def test_leaving_a_scope_waits_for_a_running_child_and_leaves_nothing_open
     async def child() -> None:
         await db.fetch("SELECT pg_sleep(0.4)")
 
-    async with db.transaction():
+    async with db.atomic():
         await add(db, "parent")
         task = asyncio.create_task(child())
         await asyncio.sleep(0.1)
@@ -290,7 +290,7 @@ async def test_leaving_a_scope_waits_for_a_running_child_and_leaves_nothing_open
 
 async def test_a_task_that_outlives_its_transaction_cannot_use_it(db: Database) -> None:
     holder: list[asyncio.Task[object]] = []
-    async with db.transaction():
+    async with db.atomic():
         holder.append(asyncio.create_task(late(db)))
     with pytest.raises(DatabaseError, match="has ended"):
         await holder[0]
@@ -314,7 +314,7 @@ async def test_a_timeout_inside_a_transaction_is_enforced_promptly(
 ) -> None:
     start = asyncio.get_running_loop().time()
     with pytest.raises(TimeoutError):
-        async with asyncio.timeout(0.2), db.transaction():
+        async with asyncio.timeout(0.2), db.atomic():
             await db.fetch("SELECT pg_sleep(4)")
     assert asyncio.get_running_loop().time() - start < 2.0
     assert (await db.fetch("SELECT 1 AS one")) == [{"one": 1}]
@@ -331,10 +331,10 @@ async def test_cached_statements_survive_ddl_changes(db: Database) -> None:
 
 async def test_savepoints_must_be_opened_by_the_owning_task(db: Database) -> None:
     async def sibling() -> None:
-        async with db.transaction():
+        async with db.atomic():
             pass
 
-    async with db.transaction():
+    async with db.atomic():
         with pytest.raises(DatabaseError, match="owns the transaction"):
             await asyncio.create_task(sibling())
 
