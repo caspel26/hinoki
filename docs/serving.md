@@ -43,6 +43,8 @@ From the application's **`server` settings group** ([settings guide](settings.md
 
 `dev` always runs one worker with reload. The settings command shows what is in effect: `hinoki settings blog.settings:BlogSettings`.
 
+Before serving a deployment, narrow [`allowed_hosts`](settings.md#allowed_hosts) to the names it answers to (`BLOG_ALLOWED_HOSTS=app.example.com`). While it is the default `*` and `debug` is off, each worker logs `allowed_hosts is '*' and debug is off: ...` at startup, on Granian, the Rust server, WSGI and other ASGI servers alike.
+
 ## The Rust server
 
 `hinoki serve --server rust` (or `server.server = "rust"`) runs the application on a second server that is part of Hinoki's native extension. Granian stays the default and `--server granian` always selects it; nothing changes for an app that does not opt in.
