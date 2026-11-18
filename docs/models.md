@@ -228,6 +228,46 @@ The cost of the default is the data sent back. In a raw-SQL measurement on Postg
 
 `returning` is a keyword-only option of these methods, so a model cannot declare a field named `returning`: the class definition raises `RegistrationError` and asks for another name.
 
+## Lifecycle hooks and instance state
+
+A model can react to its own writes by defining `before_save`, `before_create`, `after_create` and `after_save`. Each is an ordinary method, `def` or `async def`, taking only `self`; a model that defines none pays nothing.
+
+```python
+class Post(Model):
+    id: UUID = pk(default_factory=uuid4)
+    title: str
+    slug: str = ""
+
+    async def before_save(self) -> None:
+        if self.was_changed("title"):
+            self.slug = slugify(self.title)
+
+    async def after_create(self) -> None:
+        self.after_commit(lambda: notify_followers(self.id))
+```
+
+| Write | Order |
+| --- | --- |
+| insert (`acreate`, `insert`, `asave` of a new instance) | `before_save`, `before_create`, the write, `after_create`, `after_save` |
+| update (`asave` of a loaded instance, `aupdate_from`) | `before_save`, the write, `after_save` |
+
+`before_*` hooks see the values about to be written and may change them; the write sees the result. `after_*` hooks run after the statement, with the stored row loaded into the instance (generated keys, database defaults, `@timestamps`). An update with no changed column after `before_save` writes nothing and skips `after_save`. To extend a hook that a base model or mixin already defines, call `super()`; a subclass method replaces the inherited one like any other override.
+
+The instance reports its own state, so a hook, or any code holding the instance, needs no event object or global context:
+
+| Member | Meaning |
+| --- | --- |
+| `is_new` | `True` until the row has been written or loaded; still `True` inside `before_*` and `after_*` of an insert |
+| `is_dirty` | `True` for a new instance, or when a column differs from the stored row |
+| `changes` | `{column: Change(old, new)}` for the columns that differ; a new instance lists every column with `old=UNSET`. Computed when read |
+| `was_changed("title")` | whether one column differs; a name that is not a column raises `FieldError` |
+
+The stored values are taken again after the `after_*` hooks, so `changes` still shows what this write changed while they run.
+
+When any hook is defined, the write runs in a transaction (a savepoint when one is already open), so an exception in any hook rolls the write back and reaches the caller. `after_*` hooks run before the commit; the work that must happen only after it goes through `self.after_commit(callback)` (a sync or async callable without arguments). Callbacks run in registration order after the outermost transaction commits; a rollback of the transaction, or of the savepoint they were registered in, drops them, and an exception in one is logged without undoing the commit. See [transactions](transactions.md#after-commit-callbacks).
+
+Limits, by design: hooks belong to instances. `QuerySet.aupdate`, `adelete`, `Model.aupdate`, `aupdate_where` and raw SQL do not run them. Sync hooks run inline on the event loop, so keep them short and use `async def` for I/O. `is_new`, `is_dirty`, `changes`, `was_changed`, `after_commit` and the four hook names are reserved: a field cannot use them. Generated CRUD calls the same methods; see [CRUD](crud.md#model-hooks-and-the-rust-server).
+
 ## Share fields: abstract models and mixins
 
 Fields, options and methods that several models need can live in a base class. An **abstract model** has no table of its own: it is not migrated, cannot be queried or saved, and exists to be subclassed.
