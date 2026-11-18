@@ -33,11 +33,11 @@ CATALOG: dict[str, tuple[str, str]] = {
     ),
     "conflict": (
         "The request conflicts with the current state (HTTP 409), for example a duplicate.",
-        "Raise a named `Conflict` subclass with its own `code` for each business rule so clients can tell the cases apart; map database unique violations once with `app.errors.handle(UniqueViolation)`.",
+        "Raise a named `Conflict` subclass with its own `code` for each business rule so clients can tell the cases apart; a database unique violation is already answered with `unique_conflict`; change that with `app.error_handler(UniqueViolation)`.",
     ),
     "unique_conflict": (
-        "A unique value is already in use (the blog example's mapping of `UniqueViolation`).",
-        "Choose another value; in your own app map `UniqueViolation` to a named `Conflict`.",
+        "A unique value is already in use (HTTP 409): the default answer to a database `UniqueViolation`.",
+        "Choose another value; to change the answer, register your own with `app.error_handler(UniqueViolation)`.",
     ),
     "required": (
         "A required field is missing.",
