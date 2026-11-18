@@ -290,7 +290,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 </tr>
 <tr>
 <td>Errors</td>
-<td>Raise <code>APIError</code> subclasses and <strong>declare them on the action</strong>: <code>@http.post(..., errors=(PostAlreadyPublished, errors.Forbidden))</code>. A database <code>UniqueViolation</code> is already a <code>409 unique_conflict</code>; translate other outside exceptions once with <code>app.error_handler(...)</code> or <code>app.register_errors({...})</code></td>
+<td>Raise <code>APIError</code> subclasses and <strong>declare them on the action</strong>: <code>@http.post(..., errors=(PostAlreadyPublished, errors.Forbidden))</code>. A database <code>UniqueViolation</code> is already a <code>409 unique_conflict</code>; answer exceptions you cannot change once with <code>@app.error_handler(...)</code></td>
 <td>Failures are exceptions. The declaration (status and code come from the class) feeds OpenAPI, the MCP tool description and, in tests, <code>ASGIClient(app, strict_errors=True)</code>, which fails on an error answer the action did not declare. <strong>A returned <code>Response</code> commits the transaction</strong></td>
 </tr>
 <tr>
@@ -375,7 +375,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.3</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:19:14 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 02:04:05 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/patterns.md">Edit on GitHub</a></dd></div>
         </dl>
