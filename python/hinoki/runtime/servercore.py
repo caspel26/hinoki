@@ -158,7 +158,6 @@ def native_handler_eligible(binding: Binding) -> bool:
         and supported_inputs
         and route.access is None
         and route.rate_limit is None
-        and not route.transaction
         and not binding.takes_request
         and renderer_ok
     )
