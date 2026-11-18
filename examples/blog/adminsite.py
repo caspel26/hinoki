@@ -57,14 +57,9 @@ def per_day(rows: list[Post]) -> tuple[float, ...]:
 
 class PostAdmin(ModelAdmin, model=Post):  # type: ignore[type-arg]
     slug = "posts"
-    label = "Posts"
     icon = "file-text"
     columns = ("title", "published", "author_id", "created_at")
-    search = ("title",)
     ordering = ("-created_at", "-id")
-    per_page = 8
-    show_count = True
-    bulk_delete = True
     readonly = ("created_at",)
     assign: ClassVar[dict[str, Any]] = {
         "author_id": lambda principal: principal.user.id
@@ -126,7 +121,6 @@ class UserAdmin(ModelAdmin, model=User):  # type: ignore[type-arg]
     label = "Authors"
     icon = "users"
     columns = ("name", "is_editor")
-    search = ("name",)
     exclude = ("token",)
     readonly = ("is_editor",)
     badges: ClassVar[dict[str, Any]] = {
@@ -175,5 +169,7 @@ def build_admin(secret: str, theme: str = "studio") -> Admin:
         ),
         activity=recent_activity,
         dashboard=("posts",),
+        per_page=8,
+        show_count=True,
         models=[PostAdmin, UserAdmin],
     )
