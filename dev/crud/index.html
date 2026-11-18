@@ -371,7 +371,19 @@
               
             
               
-                <li><a class="side__link" href="../benchmarks/"><i>3.31</i><span>Benchmarks</span></a></li>
+                <li class="side__group"><span>Benchmarks</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../benchmarks/"><i>3.31</i><span>Comparative results</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.32</i><span>Native CRUD orientation</span></a></li>
+              
+            
+            </ul>
+          </li>
               
             
             </ul>
@@ -479,6 +491,12 @@ match its fields. See <a href="../schemas/">Schemas</a> for model-derived schema
 deliberately. Reads are public by default; <code>read_access = ...</code> protects them.
 Writes run in a transaction. <code>pagination</code> selects the page-number policy for
 the generated list route.</p>
+<p>On the Rust server, eligible generated routes are selected automatically and
+execute in Rust. List, retrieve, create, PATCH update and delete are eligible
+when their schemas and model are supported and the resource has no access
+policy, owner/assignment rule or custom hook. Unsupported and stale plans keep
+using the Python request lane. See <a href="../serving/#generated-crud">Serving</a> for
+the runtime boundary and staleness behavior; no public switch is required.</p>
 <h2 id="reuse-and-customization">Reuse and customization<a class="headerlink" href="#reuse-and-customization" title="Permanent link">&para;</a></h2>
 <p>CRUD configuration and Python methods compose through normal inheritance.</p>
 <p>Generated create actions return <code>409 Conflict</code> when the database rejects a
@@ -582,7 +600,7 @@ side-effects beyond the single model mutation.</p>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
-          <ul><li><a href="../models/">Models and queries</a></li><li><a href="../endpoints/">Endpoint declarations</a></li><li><a href="../authentication/">Authentication and access</a></li><li><a href="../openapi/">OpenAPI</a></li><li><a href="../pagination/">Pagination</a></li></ul>
+          <ul><li><a href="../models/">Models and queries</a></li><li><a href="../endpoints/">Endpoint declarations</a></li><li><a href="../authentication/">Authentication and access</a></li><li><a href="../openapi/">OpenAPI</a></li><li><a href="../pagination/">Pagination</a></li><li><a href="../serving/">Serving</a></li></ul>
         </aside>
         
       </article>
@@ -608,7 +626,7 @@ side-effects beyond the single model mutation.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.11</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:12:37 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:56:56 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
