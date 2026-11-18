@@ -62,6 +62,10 @@ def sample_database_state() -> None:
         )
 
 
+def request_count(result: dict[str, Any]) -> int:
+    return sum(int(count) for count in result["statusCodeDistribution"].values())
+
+
 def scenario_request(name: str) -> tuple[str, str, dict[str, str] | None]:
     if name.startswith("list_"):
         return "GET", f"/crud-posts?page=1&page_size={name.removeprefix('list_')}", None
@@ -325,7 +329,7 @@ def sample(
                 "loadavg_at_sample_start": load,
                 "requests_per_second": result["summary"]["requestsPerSec"],
                 "success_rate": result["summary"]["successRate"],
-                "requests": result["summary"]["total"],
+                "requests": request_count(result),
                 "sql_stats": statements,
                 "raw_file": raw_path.name,
             }
@@ -366,7 +370,7 @@ def summary(output: Path) -> list[dict[str, Any]]:
                     "calls_by_kind"
                 ].values()
             )
-            / sample_metadata["hinoki", scenario, pair]["requests"]
+            / request_count(samples["hinoki", scenario, pair])
             for pair in range(1, 6)
         ]
         bolt_calls = [
@@ -375,7 +379,7 @@ def summary(output: Path) -> list[dict[str, Any]]:
                     "calls_by_kind"
                 ].values()
             )
-            / sample_metadata["bolt", scenario, pair]["requests"]
+            / request_count(samples["bolt", scenario, pair])
             for pair in range(1, 6)
         ]
         hinoki_rps = [item["summary"]["requestsPerSec"] for item in hinoki]
@@ -450,7 +454,7 @@ def write_report(
         "# Native CRUD phase 1: end-to-end orientation run",
         "",
         "This is one host-specific orientation measurement, not a performance claim or a framework ranking.",
-        "Each row is five alternating pairs of Hinoki's automatically selected Rust generated `CrudAPI` path and a manually implemented equivalent Django Bolt endpoint.",
+        "The primary table reports five alternating pairs of Hinoki's automatically selected Rust generated `CrudAPI` path and a manually implemented equivalent Django Bolt endpoint.",
         "Both apps use the same PostgreSQL table and deterministic 10,000-row seed. Their list, detail, create and update responses were verified against the database before timing.",
         "",
         f"Run started: {metadata['started_at_utc']}. Host: {metadata['cpu']} ({metadata['cores']} logical CPUs), {metadata['platform']}; Python {metadata['python_short']}; PostgreSQL {metadata['postgres']}; Rust {metadata['rustc']}; Oha {metadata['oha']}.",
@@ -484,6 +488,42 @@ def write_report(
             "Reproduction: build the native extension in release mode, start an isolated PostgreSQL 17 container, then run `phase1_orientation.py` as documented in `benchmarks/README.md`. The script refuses to time a sample whose starting load is above 1.0.",
         ]
     )
+    followup_path = output / "followup-summary.json"
+    if followup_path.exists():
+        followup = json.loads(followup_path.read_text())
+        if "list_100" in followup:
+            lines.extend(
+                [
+                    "",
+                    "## Supplemental samples",
+                    "",
+                    "Because the initial `list_100` Hinoki CV exceeded 15%, five additional alternating pairs (6-10) were collected separately. This block is not pooled into the primary table:",
+                    "",
+                    "| Scenario | Hinoki median req/s (range, CV) | Django Bolt median req/s (range, CV) |",
+                    "| --- | ---: | ---: |",
+                ]
+            )
+            values = followup["list_100"]
+            lines.append(
+                f"| list_100, pairs 6-10 | {values['hinoki']['median_rps']:.1f} ({values['hinoki']['min_rps']:.1f}-{values['hinoki']['max_rps']:.1f}, {values['hinoki']['cv_pct']:.1f}%) | {values['bolt']['median_rps']:.1f} ({values['bolt']['min_rps']:.1f}-{values['bolt']['max_rps']:.1f}, {values['bolt']['cv_pct']:.1f}%) |"
+            )
+            lines.append(
+                "The supplemental block is internally stable, while the initial Hinoki list_100 series remains unstable and shows a change in throughput regime. Treat both blocks as host-specific orientation data; the stable follow-up does not erase the initial variance."
+            )
+        failure_path = output / "followup-failures.json"
+        if failure_path.exists():
+            failure = json.loads(failure_path.read_text())
+            distribution = ", ".join(
+                f"{status} = {count:,}"
+                for status, count in failure["http_status_distribution"].items()
+            )
+            lines.extend(
+                [
+                    "",
+                    f"The supplemental update series stopped at Hinoki pair {failure['pair']} after unsuccessful responses (status distribution: {distribution}). Its server log reports database connection acquisition timeouts. The failed sample and log are retained and excluded from throughput summaries; the initial update series remains volatile (Hinoki CV 11.8%, Django Bolt CV 23.5%).",
+                ]
+            )
+    lines.append("")
     report = "\n".join(lines) + "\n"
     (output / "orientation.md").write_text(report)
     (repo / "docs/rust-crud-orientation.md").write_text(report)
