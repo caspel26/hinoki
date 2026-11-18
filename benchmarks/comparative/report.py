@@ -199,34 +199,25 @@ def reported_scenarios(
     return reported, withheld, excluded
 
 
-def comparison_scales(directories: list[Path]) -> dict[str, float]:
-    maxima = dict.fromkeys(SCENARIOS, 0.0)
-    for directory in directories:
-        reported, _, _ = reported_scenarios(directory)
-        for scenario, rows in reported.items():
-            maxima[scenario] = max(maxima[scenario], *(row["high"] for _, row in rows))
-    return {scenario: maximum or 1.0 for scenario, maximum in maxima.items()}
-
-
 def throughput_panel(
     scenario: str,
     request: str,
     description: str,
     rows: list[tuple[str, JSONData]],
-    axis_max: float,
     chart_id: str,
 ) -> str:
+    rows = sorted(rows, key=lambda item: item[1]["median"], reverse=True)
+    axis_max = max((row["median"] for _, row in rows), default=1.0) or 1.0
     chart_description = "; ".join(
         f"{label}: median {row['median']:,.0f}, range {row['low']:,.0f} to {row['high']:,.0f} requests per second"
         for label, row in rows
     )
     tracks = "".join(
         '<div class="bench-row">'
-        f'<span class="bench-name">{html.escape(label)}</span>'
+        f'<span class="bench-name" title="{html.escape(label)}">'
+        f"{html.escape(label.partition(' · ')[0])}</span>"
         '<span class="bench-track" aria-hidden="true">'
-        f'<span class="bench-range" style="left:{row["low"] / axis_max * 100:.2f}%;'
-        f'width:{(row["high"] - row["low"]) / axis_max * 100:.2f}%"></span>'
-        f'<span class="bench-median" style="left:{row["median"] / axis_max * 100:.2f}%"></span>'
+        f'<span class="bench-bar" style="width:{row["median"] / axis_max * 100:.2f}%"></span>'
         "</span>"
         f'<span class="bench-value">{row["median"]:,.0f}</span></div>'
         for label, row in rows
@@ -242,7 +233,7 @@ def throughput_panel(
         f'aria-describedby="{chart_id}-desc">{tracks}</div>'
         '<div class="bench-axis" aria-hidden="true">'
         f"<span>0</span><span>{axis_max:,.0f} requests/s</span></div>"
-        '<p class="bench-scenario__note">Median shown as a point; line spans the lowest and highest run.</p>'
+        '<p class="bench-scenario__note">Bars show median requests per second; the table below gives the lowest and highest run.</p>'
         f"{results_table(scenario, rows)}</section>"
     )
 
@@ -250,7 +241,6 @@ def throughput_panel(
 def throughput_chart(
     reported: dict[str, list[tuple[str, JSONData]]],
     chart_id: str,
-    scales: dict[str, float],
 ) -> str:
     rows = []
     for scenario, request, description in SERVICE_ROWS:
@@ -261,7 +251,6 @@ def throughput_chart(
                     request,
                     description,
                     reported[scenario],
-                    scales[scenario],
                     f"{chart_id}-{scenario}",
                 )
             )
@@ -346,7 +335,7 @@ SLICE_TITLES = {
 }
 READING_NOTES = (
     "**Requests per second and latency are one measurement.** Every run keeps 64 connections busy, so higher latency means fewer requests per second; the two do not confirm each other.",
-    "**Each chart panel has its own scale from 0.** The scenarios differ by orders of magnitude, so bars compare stacks inside a panel, never across panels. The line over a bar is the lowest to highest run.",
+    "**Each chart starts at 0 and shows the median requests per second.** Bars are sorted from highest to lowest within a workload and server setup. Each panel has its own scale; use the tables for exact values and the lowest-to-highest run range.",
     "**p50 and p99 are medians of per-run percentiles**, not percentiles of all requests pooled together. A range is descriptive, not a confidence interval.",
     f"**CV is the coefficient of variation of requests per second across runs.** Above {STABLE_CV}% for any stack, the scenario is not reported: the samples are too unstable to compare, and the raw files are kept.",
     "**What this does not cover:** TLS, proxies, authentication, compression, memory, cold data, larger tables or other hardware. Pool sizes are equal per process, but each library schedules work differently.",
@@ -373,7 +362,7 @@ def indented(text: str, spaces: int = 4) -> str:
     return "\n".join(pad + line if line else line for line in text.split("\n"))
 
 
-def render_mode(directory: Path, scales: dict[str, float] | None = None) -> str:
+def render_mode(directory: Path) -> str:
     env_path = directory / "environment.json"
     if not env_path.exists():
         raise ValueError(f"missing environment metadata in {directory}")
@@ -390,14 +379,9 @@ def render_mode(directory: Path, scales: dict[str, float] | None = None) -> str:
                 "",
             ]
         )
-    if scales is None:
-        scales = {
-            scenario: max((row["high"] for _, row in rows), default=1.0)
-            for scenario, rows in reported.items()
-        }
     lines.extend(
         [
-            throughput_chart(reported, f"bench-{slug(directory)}", scales),
+            throughput_chart(reported, f"bench-{slug(directory)}"),
             "",
         ]
     )
@@ -452,7 +436,6 @@ def stacks_table(env: JSONData) -> str:
 
 def main(directories: list[Path]) -> None:
     first_env = json.loads((directories[0] / "environment.json").read_text())
-    scales = comparison_scales(directories)
     measured_at = html.escape(first_env["date"])
     machine = html.escape(first_env["machine"])
     cpu = html.escape(first_env["cpu"])
@@ -465,13 +448,13 @@ def main(directories: list[Path]) -> None:
         "# Benchmarks\n",
         "## One API. Two server setups.\n",
         "Four framework stacks served the same small API and PostgreSQL data. These measurements describe "
-        "one machine and one run; they do not rank frameworks or predict production performance.\n",
+        "one machine and one benchmark session; they do not rank frameworks or predict production performance.\n",
         f'<div class="bench-run-strip"><span><b>01</b>{cpu}</span><span><b>02</b>{cores} logical CPUs</span>'
         f"<span><b>03</b>{concurrency} concurrent requests</span><span><b>04</b>{run_count} measured runs</span></div>\n",
         '!!! warning "Read this first"\n'
         "    Hinoki is pre-alpha. The run used one host, warm data and loopback networking. It is not a framework ranking or a production claim. Unstable samples stay visible as withheld results.\n",
         "## Results\n",
-        "Switch the server setup to compare each stack on its documented server or compare the three ASGI stacks on Granian. Each workload keeps the same requests-per-second axis in both views.\n",
+        "Switch the server setup to compare each stack on its documented server or compare the three ASGI stacks on Granian. Each chart starts at zero and uses its own scale; read exact values and run ranges in the tables below.\n",
     ]
     for directory in directories:
         mode = json.loads((directory / "environment.json").read_text())["settings"].get(
@@ -479,7 +462,7 @@ def main(directories: list[Path]) -> None:
         )
         title, intro = SLICE_TITLES[mode]
         parts.append(f'=== "{title}"\n')
-        parts.append(indented(intro + "\n\n" + render_mode(directory, scales)) + "\n")
+        parts.append(indented(intro + "\n\n" + render_mode(directory)) + "\n")
     locations = ", ".join(
         sorted(
             {f"`benchmarks/comparative/results/{d.parent.name}/`" for d in directories}
