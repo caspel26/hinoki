@@ -23,8 +23,8 @@ use hinoki_server::headers::{final_headers, Header};
 use hinoki_server::hosts::Hosts;
 use hinoki_server::queue::Push;
 use hinoki_server::{
-    proxy, requestid, Early, EarlyBodies, InFlight, Limits, NativeJobs, Networks, Permit, Plan,
-    Queue, RoutePlan,
+    convert, proxy, requestid, Converted, Early, EarlyBodies, InFlight, InputKind, InputParam,
+    InputValue, Limits, NativeJobs, Networks, Permit, Plan, Queue, RoutePlan,
 };
 use hinoki_server::{Answer, BodyError, BodyReader};
 use pyo3::exceptions::{PyException, PyRuntimeError, PyValueError};
@@ -45,7 +45,7 @@ pyo3::create_exception!(core, BodyReadError, PyException);
 const ALLOW_ORIGIN: &[u8] = b"access-control-allow-origin";
 
 pub type Reply = Answer;
-type NativeArgs = Vec<(String, String)>;
+type NativeArgs = Vec<(String, InputValue)>;
 type NativeDetails = Vec<(String, String, String)>;
 type NativeErrorData = (String, String, Option<String>, NativeDetails);
 type DecodedPathParams = Vec<(String, String)>;
@@ -306,7 +306,16 @@ impl PreparedRequest {
     fn native_args<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let args = PyDict::new(py);
         for (name, value) in &self.native_args {
-            args.set_item(name, value)?;
+            match value {
+                InputValue::Str(text) => args.set_item(name, text)?,
+                InputValue::Int(number) => args.set_item(name, number)?,
+                InputValue::Float(number) => args.set_item(name, number)?,
+                InputValue::Bool(flag) => args.set_item(name, flag)?,
+                InputValue::Uuid(text) => {
+                    let uuid = py.import("uuid")?.getattr("UUID")?.call1((text,))?;
+                    args.set_item(name, uuid)?;
+                }
+            }
         }
         Ok(args)
     }
@@ -679,18 +688,18 @@ fn valid_startup_path(path: &str) -> bool {
 
 /// A route as Python describes it: the plan fields plus the router entry.
 type RouteSpec = (
-    u32,                                 // action
-    String,                              // method
-    String,                              // template
-    bool,                                // has body
-    bool,                                // has access
-    Vec<String>,                         // media types
-    u16,                                 // status
-    Vec<(String, String)>,               // route headers
-    bool,                                // transaction
-    bool,                                // takes request
-    (bool, Vec<(String, String, bool)>), // native handler and source/name/default
-    Option<Py<PyCrudPlan>>,              // dark generated CRUD plan
+    u32,                                         // action
+    String,                                      // method
+    String,                                      // template
+    bool,                                        // has body
+    bool,                                        // has access
+    Vec<String>,                                 // media types
+    u16,                                         // status
+    Vec<(String, String)>,                       // route headers
+    bool,                                        // transaction
+    bool,                                        // takes request
+    (bool, Vec<(String, String, bool, String)>), // native handler and source/name/default/kind
+    Option<Py<PyCrudPlan>>,                      // dark generated CRUD plan
 );
 
 #[derive(Clone)]
@@ -732,26 +741,29 @@ fn prepare_native_inputs(
     path_params: &[(String, String)],
     query: &[u8],
     headers: &[Header],
-) -> NativeInput {
+) -> Option<NativeInput> {
     let decoded_path = match decode_native_path(plan, path_params) {
         Ok(path) => path,
-        Err(error) => return NativeInput::failed(error),
+        Err(error) => return Some(NativeInput::failed(error)),
     };
     let accept = joined_value(headers, b"accept").map_or_else(String::new, |v| latin1(&v));
     if request::negotiate(&accept, &plan.media_types).is_none() {
         let mut error = native_error("not_acceptable", "not acceptable");
         error.available = Some(plan.media_types.join(", "));
-        return NativeInput::failed(error);
+        return Some(NativeInput::failed(error));
     }
     let parsed = match request::parse_query(query, 1000) {
         Ok(parsed) => parsed,
         Err(_) => {
-            return NativeInput::failed(native_error("invalid_query", "malformed query string"));
+            return Some(NativeInput::failed(native_error(
+                "invalid_query",
+                "malformed query string",
+            )));
         }
     };
     let values = query_values(parsed);
-    let (args, errors) = collect_native_args(plan, &decoded_path, &values);
-    if errors.is_empty() {
+    let (args, errors) = collect_native_args(plan, &decoded_path, &values)?;
+    Some(if errors.is_empty() {
         NativeInput {
             enabled: true,
             args,
@@ -761,7 +773,7 @@ fn prepare_native_inputs(
         let mut error = native_error("validation_error", "invalid request parameters");
         error.details = errors;
         NativeInput::failed(error)
-    }
+    })
 }
 
 fn decode_native_path(
@@ -773,8 +785,9 @@ fn decode_native_path(
         .map(|(name, value)| (name.clone(), value.clone()))
         .collect();
     let mut decoded = HashMap::new();
-    for (source, name, _) in &plan.input_params {
-        if source != "path" {
+    for input in &plan.input_params {
+        let name = &input.name;
+        if input.source != "path" {
             continue;
         }
         let Some(value) = raw.get(name) else {
@@ -810,42 +823,60 @@ fn query_values(pairs: Vec<(String, String)>) -> HashMap<String, Vec<String>> {
     values
 }
 
+enum Lookup<'a> {
+    Found(&'a String),
+    Absent,
+    Duplicate,
+}
+
+fn lookup<'a>(
+    input: &InputParam,
+    path: &'a HashMap<String, String>,
+    query: &'a HashMap<String, Vec<String>>,
+) -> Lookup<'a> {
+    let found = if input.source == "path" {
+        return path.get(&input.name).map_or(Lookup::Absent, Lookup::Found);
+    } else {
+        query.get(&input.name).map_or(&[][..], Vec::as_slice)
+    };
+    match found {
+        [] => Lookup::Absent,
+        [one] => Lookup::Found(one),
+        _ => Lookup::Duplicate,
+    }
+}
+
 fn collect_native_args(
     plan: &RoutePlan,
     path: &HashMap<String, String>,
     query: &HashMap<String, Vec<String>>,
-) -> (NativeArgs, NativeDetails) {
+) -> Option<(NativeArgs, NativeDetails)> {
     let mut args = Vec::new();
     let mut errors = Vec::new();
-    for (source, name, defaulted) in &plan.input_params {
-        let value = if source == "path" {
-            path.get(name)
-        } else {
-            query.get(name).and_then(|values| match values.len() {
-                0 => None,
-                1 => values.first(),
-                _ => {
-                    errors.push((
-                        name.clone(),
-                        "duplicate".into(),
-                        "given more than once".into(),
-                    ));
-                    None
+    for input in &plan.input_params {
+        let name = &input.name;
+        match lookup(input, path, query) {
+            Lookup::Found(value) => match convert(input.kind, value.clone()) {
+                Converted::Value(value) => args.push((name.clone(), value)),
+                Converted::Invalid => {
+                    errors.push((name.clone(), "type".into(), "invalid value".into()));
                 }
-            })
-        };
-        if let Some(value) = value {
-            args.push((name.clone(), value.clone()));
-        } else if source == "query" && !defaulted && !errors.iter().any(|(path, _, _)| path == name)
-        {
-            errors.push((
+                Converted::Defer => return None,
+            },
+            Lookup::Duplicate => errors.push((
+                name.clone(),
+                "duplicate".into(),
+                "given more than once".into(),
+            )),
+            Lookup::Absent if input.source == "query" && !input.has_default => errors.push((
                 name.clone(),
                 "required".into(),
                 "query parameter is required".into(),
-            ));
+            )),
+            Lookup::Absent => {}
         }
     }
-    (args, errors)
+    Some((args, errors))
 }
 
 /// `(any_origin, origins, credentials, expose, preflight headers)` of the CORS policy.
@@ -1337,7 +1368,7 @@ fn build_routes(
         headers,
         transaction,
         takes_request,
-        (native_handler, input_params),
+        (native_handler, raw_inputs),
         py_crud_plan,
     ) in routes
     {
@@ -1346,6 +1377,19 @@ fn build_routes(
         router
             .add(&method, &template, action)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let input_params = raw_inputs
+            .into_iter()
+            .map(|(source, name, has_default, kind)| {
+                let kind = InputKind::parse(&kind)
+                    .ok_or_else(|| PyValueError::new_err(format!("unknown input kind {kind:?}")))?;
+                Ok(InputParam {
+                    source,
+                    name,
+                    has_default,
+                    kind,
+                })
+            })
+            .collect::<PyResult<Vec<_>>>()?;
         let crud_plan = py_crud_plan.map(|plan| Arc::clone(&plan.borrow(py).inner));
         if let Some(plan) = &crud_plan {
             crud_plans.insert(action, Arc::clone(plan));
@@ -1440,11 +1484,12 @@ impl Core {
         };
         let native_handler = plan.native_handler;
         let native_input = if native_handler {
-            prepare_native_inputs(plan, &params, head.query, &head.headers)
+            prepare_native_inputs(plan, &params, head.query, &head.headers).unwrap_or_default()
         } else {
             NativeInput::default()
         };
-        let prepared_path_params = (!native_handler).then(|| prepare_python_path_params(&params));
+        let prepared_path_params =
+            (!native_input.enabled).then(|| prepare_python_path_params(&params));
         self.enqueue(
             head,
             asked,
