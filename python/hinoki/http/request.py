@@ -52,6 +52,15 @@ class Headers(Mapping[str, str]):
         return len(self.items_)
 
 
+def media_type(raw: str) -> str:
+    """The media type of a Content-Type value without parameters, lower-case."""
+    if "," in raw:
+        # Repeated headers arrive joined with ", ": which value counts is
+        # ambiguous, and proxies may pick a different one.
+        raise InvalidBody("invalid_content_type", "several Content-Type values")
+    return raw.split(";", maxsplit=1)[0].strip().lower()
+
+
 class Request:
     """One HTTP request. Never mutate it; it is shared with the whole call."""
 
@@ -106,12 +115,7 @@ class Request:
     @property
     def content_type(self) -> str:
         """Media type without parameters, lower-case ("" when absent)."""
-        raw = self.headers.get("content-type", "")
-        if "," in raw:
-            # Repeated headers arrive joined with ", ": which value counts is
-            # ambiguous, and proxies may pick a different one.
-            raise InvalidBody("invalid_content_type", "several Content-Type values")
-        return raw.split(";", maxsplit=1)[0].strip().lower()
+        return media_type(self.headers.get("content-type", ""))
 
     def parsed(self) -> Parsed:
         """The body through the parser for its content type, once; raises
