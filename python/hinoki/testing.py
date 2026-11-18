@@ -47,6 +47,7 @@ FRAMEWORK_CODES = frozenset(
         "invalid_query",
         "internal_error",
         "overloaded",
+        "rate_limit_unavailable",
         "timeout",
         "not_ready",
         "disallowed_host",
