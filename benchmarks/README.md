@@ -161,6 +161,64 @@ Raw samples and environment metadata are retained in [`results/orm-compile-postg
 
 Hinoki, FastAPI, Django Ninja and Django Bolt implementing the same small API against the same PostgreSQL data, with a verifier for behaviour and statement counts. See `comparative/README.md` for the method and limits and the [benchmarks page](../docs/benchmarks.md) for the first measured run (2026-11-14).
 
+## `comparative/phase1_orientation.py` — generated CRUD, end to end
+
+This dedicated run measures the public generated `CrudAPI` on Hinoki's Rust
+server against equivalent Django Bolt endpoints. It covers list pages of 20 and
+100 rows, detail, create and PATCH update on the same 10,000-row PostgreSQL
+table. The script checks that all native plans arm, verifies both apps against
+the seeded rows, alternates five paired samples per scenario, and retains each
+raw Oha result, response verification, per-sample host load and SQL call counts.
+It records no result when the one-minute host load at sample start is above
+1.0. Treat the result as orientation data for this host and workload only.
+
+For reproduction and the retained data, see [Native CRUD orientation](../docs/rust-crud-orientation.md)
+and `comparative/results/2026-11-18/crud-phase1/`.
+
+Run on Linux with `taskset`, Oha and Docker available. Start a fresh PostgreSQL
+17 container with a dynamically assigned loopback port, then set
+`PHASE1_DATABASE_URL` to the published port and `PHASE1_POSTGRES_CONTAINER` to
+the task's container name. Put the virtual environment, `TMPDIR`, uv cache and
+Cargo target under `/home/caspel/.cache` by setting `UV_PROJECT_ENVIRONMENT`,
+`TMPDIR`, `UV_CACHE_DIR` and `CARGO_TARGET_DIR`. From this directory:
+
+```sh
+uv sync --locked
+uv run --locked --with maturin maturin develop --release \
+  --manifest-path ../../crates/bindings/Cargo.toml
+uv run --locked --no-sync python phase1_orientation.py \
+  --out results/2026-11-18/crud-phase1
+```
+
+The script verifies that the Rust server arms list/retrieve/create/update
+plans, compares both apps with the seeded database, and waits for one-minute
+host load at or below 1.0 before each timed sample. If the host does not become
+quiet within 20 minutes, the run stops without timing that sample. Remove only
+the disposable container created for the run.
+
+Run on Linux with `taskset`, Oha and Docker available. Create a fresh PostgreSQL
+17 container using an automatically assigned loopback port, then set
+`PHASE1_DATABASE_URL` to that port and `PHASE1_POSTGRES_CONTAINER` to the
+container name. Keep the build target, virtual environment, `TMPDIR` and uv
+cache under `/home/caspel/.cache`; set `CARGO_TARGET_DIR`,
+`UV_PROJECT_ENVIRONMENT`, `TMPDIR`, `UV_CACHE_DIR` and `PHASE1_DATABASE_URL`
+before running:
+
+```sh
+cd benchmarks/comparative
+uv sync --locked
+uv run --locked --with maturin maturin develop --release \
+  --manifest-path ../../crates/bindings/Cargo.toml
+uv run --locked --no-sync python phase1_orientation.py \
+  --out results/2026-11-18/crud-phase1
+```
+
+The script verifies that the Rust server arms list/retrieve/create/update
+plans, compares both apps with the seeded database, and waits for one-minute
+host load at or below 1.0 before each timed sample. If the host does not become
+quiet within 20 minutes, the run stops without timing that sample. Keep the
+container for the run and remove only that task's container afterward.
+
 ### Request-size limit check
 
 For the query/header byte limits, five alternating baseline/candidate runs of the existing protected-GET microbenchmark were collected on 2026-11-15 (Python 3.13.18, debug-profile extension). The baseline is `f334e0c`; each run executes 7 samples × 20,000 in-process requests after warm-up. Baseline medians were 48.386, 47.976, 47.945, 47.629 and 46.950 µs; candidate medians were 48.990, 51.299, 49.774, 50.148 and 49.264 µs. The group medians are 47.945 µs and 49.774 µs (+3.8%). Within-run CV was 2.6–2.9% for baseline and 2.7–4.3% for the candidate. This is below the 15% regression detector threshold and is the measured cost of checking the default bounds. This in-process result has no server, network or database and does not predict end-to-end throughput. Raw data: [`protected-get-request-limits.json`](results/protected-get-request-limits.json).

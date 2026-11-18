@@ -71,6 +71,8 @@ For an eligible public `GET` function, the Rust server skips Python route matchi
 
 Generated CRUD plans can also execute public `create` (`POST`), `update` (`PATCH`) and `delete` actions in Rust. These routes use the native path only when their model and schemas are supported and they have no access policy, owner/assignment rule or custom CRUD hook. Rust reads and validates the bounded request body, runs the database transaction, fetches the written row where the response requires it, and encodes the response before commit. Writes continue to completion if the client disconnects. A unique-constraint violation returns `409 Conflict` by default; a registered application error handler takes precedence. Routes that are ineligible or become stale use the ordinary Python CRUD pipeline. Plans are selected automatically at worker startup and checked once per second; a changed plan is disarmed until the worker restarts. This path adds no public setting.
 
+The measured phase 1 path is documented in the [native CRUD orientation run](rust-crud-orientation.md). It is a single-host, workload-specific measurement and does not establish general or production performance.
+
 ### Optional startup probe
 
 `Hinoki(startup_url="/health")` reserves one public, fixed `GET`/`HEAD` endpoint and returns `{"status":"ok"}` after that worker's lifespan startup has completed. The setting is off by default. Its path must be a literal ASCII path; query strings, fragments, parameters, percent escapes and dot segments are rejected. It must not match an application route or an enabled OpenAPI/docs path. The endpoint is not an application route and does not appear in OpenAPI or generated CRUD/MCP tools.
