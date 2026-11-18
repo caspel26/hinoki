@@ -17,9 +17,9 @@ Status: Proposed · 2026-11-13
 The ADR is still Proposed. What the code does today, checked against the source:
 
 - **Matches the decision.** Database pools are created in the worker's lifespan (`DatabaseModule`), closed in shutdown, never at import, in a factory or before fork, and are not shared between workers. The native server keeps a non-owning handle to the worker's pool and drains its own jobs before Python closes it.
-- **Differs from the decision.** There is no `WorkerRuntime` object. The Tokio runtime used by the ORM bridge is process-wide and created on the first native database call (`crates/bindings/src/db.rs`, `ensure_runtime`), with no matching shutdown step. Because each worker is its own process, this is one runtime per worker in practice. Its thread count is set by `configure_runtime` only before that first call, and nothing in the Python runtime calls it, so it stays at one thread; `server.runtime_threads` configures the native server, not this runtime.
+- **Differs from the decision.** There is no `WorkerRuntime` object and no shutdown step for the runtime. The Tokio runtime used by the ORM bridge is process-wide and created on the first native database call (`crates/bindings/src/db.rs`, `ensure_runtime`). Because each worker is its own process, this is one runtime per worker in practice. Its thread count is `server.runtime_threads` (default 1), applied by `configure_runtime` when `hinoki serve` or the Rust server starts, and valid only before that first call.
 
 **For the owner to decide**, not implemented here:
 
-1. *Revise the ADR to the implemented design* (a lazily created, process-wide runtime, one per worker process) and wire `configure_runtime` to a setting, so the thread count is configurable as the decision states. This is the smaller change and matches how workers are started.
+1. *Revise the ADR to the implemented design*: a lazily created, process-wide runtime, one per worker process, sized by `server.runtime_threads`. This is the smaller change and matches how workers are started.
 2. *Change the code to the ADR*: a `WorkerRuntime` created in lifespan startup and closed in shutdown. It adds lifecycle code for a property the process boundary already gives.
