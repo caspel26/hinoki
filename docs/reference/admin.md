@@ -22,6 +22,10 @@
 
 ::: hinoki.admin.Fieldset
 
+::: hinoki.admin.Extra
+
+::: hinoki.admin.Refusal
+
 ::: hinoki.admin.Event
 
 ::: hinoki.admin.Link

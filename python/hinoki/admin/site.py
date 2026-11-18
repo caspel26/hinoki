@@ -11,6 +11,7 @@ from urllib.parse import quote, urlencode
 from hinoki.admin.components import initials
 from hinoki.admin.csrf import cookie_header
 from hinoki.admin.modeladmin import ModelAdmin, OutOfScope
+from hinoki.admin.parts import Refusal
 from hinoki.admin.templates import Raw, escape
 from hinoki.auth import Caller
 from hinoki.db import (
@@ -37,7 +38,12 @@ SECURITY_HEADERS = (
     ("cache-control", "no-store"),
     ("referrer-policy", "same-origin"),
 )
-NOTICES = {"created": "Created.", "saved": "Saved.", "deleted": "Deleted."}
+NOTICES = {
+    "created": "Created.",
+    "saved": "Saved.",
+    "deleted": "Deleted.",
+    "password": "Password changed.",
+}
 MAX_PAGE = 1_000_000
 MAX_QUERY = 200
 INT_MIN, INT_MAX = -(2**63), 2**63 - 1
@@ -153,7 +159,19 @@ class Site:
     def user_card(self) -> Raw:
         name = principal_name(self.principal)
         action = Raw("")
-        if self.admin.logout_url:
+        if self.admin.users is not None:
+            base = escape(self.admin.base)
+            action = Raw(
+                f'<a class="hn-iconbtn" href="{base}/password" '
+                'aria-label="Change password"><svg class="hn-icon" aria-hidden="true">'
+                '<use href="#i-settings"/></svg></a>'
+                f'<form method="post" action="{base}/logout">'
+                f'<input type="hidden" name="csrf" value="{escape(self.token)}">'
+                '<button class="hn-iconbtn" type="submit" aria-label="Sign out">'
+                '<svg class="hn-icon" aria-hidden="true"><use href="#i-log-out"/></svg>'
+                "</button></form>"
+            )
+        elif self.admin.logout_url:
             action = Raw(
                 f'<a class="hn-iconbtn" href="{escape(self.admin.logout_url)}" '
                 'aria-label="Sign out"><svg class="hn-icon" aria-hidden="true">'
@@ -300,6 +318,8 @@ async def guarded(operation: Awaitable[Any]) -> str:
         return "That value is already in use."
     except ForeignKeyViolation:
         return "That refers to, or is used by, another row."
+    except Refusal as error:
+        return str(error)
     except OutOfScope:
         return "That change would move the row out of the rows you may manage."
     except ModelValidationError as error:

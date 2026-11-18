@@ -1573,17 +1573,18 @@ class Dumpable(Protocol):
     def dump(self) -> dict[str, Any]: ...
 
 
-def encode_items(value: list[Any] | dict[str, Any]) -> Any:
+def encode_items(value: list[Any] | tuple[Any, ...] | dict[str, Any]) -> Any:
     if isinstance(value, dict):
         return {key: encode(item) for key, item in value.items()}
     return [encode(item) for item in value]
 
 
 def encode(value: object) -> Any:
-    """JSON-compatible form of a value produced by a handler or schema."""
+    """JSON-compatible form of a value produced by a handler or schema. A tuple
+    becomes a list, as the JSON encoder writes it as an array."""
     if isinstance(value, Dumpable):
         return value.dump()
-    if isinstance(value, list | dict):
+    if isinstance(value, list | tuple | dict):
         return encode_items(value)
     encoder = ENCODERS.get(type(value))
     return encoder(value) if encoder else value

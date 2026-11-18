@@ -17,6 +17,7 @@ from hinoki.admin.modeladmin import ModelAdmin
 from hinoki.admin.parts import Badge
 from hinoki.admin.site import OPTION_LIMIT, Site
 from hinoki.admin.templates import Raw, escape
+from hinoki.http.request import Request
 from hinoki.http.response import Response
 
 
@@ -199,7 +200,46 @@ def form_fields(entry: ModelAdmin[Any], *, creating: bool) -> list[FormField]:
         frozenset(entry.assign) if creating else frozenset()
     )
     readonly = frozenset(entry.readonly) | frozenset(entry.assign)
-    return fields_for(entry.model, skip, readonly, creating=creating)
+    columns = fields_for(entry.model, skip, readonly, creating=creating)
+    extras = [
+        FormField(
+            extra.name,
+            extra.label,
+            extra.kind,
+            False,
+            False,
+            True,
+            None,
+            str,
+            virtual=True,
+            choices=extra.choices,
+            note=extra.note,
+        )
+        for extra in entry.extras()
+    ]
+    return [*columns, *extras]
+
+
+async def current_values(
+    entry: ModelAdmin[Any], row: Any, fields: list[FormField]
+) -> dict[str, Any]:
+    """What the edit form shows: the row's columns, then each extra's initial."""
+    extra = await entry.extra_initial(row)
+    return {
+        f.name: extra.get(f.name, frozenset() if f.kind == "choices" else "")
+        if f.virtual
+        else getattr(row, f.name)
+        for f in fields
+    }
+
+
+def submitted(request: Request, fields: list[FormField]) -> dict[str, Any]:
+    """The posted values for a form shown again, a set of choices kept whole."""
+    shown: dict[str, Any] = dict(request.POST)
+    for field in fields:
+        if field.kind == "choices":
+            shown[field.name] = frozenset(request.POST.getlist(field.name))
+    return shown
 
 
 async def check_references(

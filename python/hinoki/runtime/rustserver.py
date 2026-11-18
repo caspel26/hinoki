@@ -37,7 +37,7 @@ from urllib.parse import unquote
 from hinoki import core
 from hinoki.db import Database
 from hinoki.errors import InvalidBody
-from hinoki.runtime.binding import BODY_METHODS
+from hinoki.runtime.binding import BODY_METHODS, Binding
 from hinoki.runtime.listener import inherited_address, open_listener
 from hinoki.runtime.pipeline import NativeBody
 from hinoki.runtime.responses import HTTPError, Response
@@ -121,6 +121,17 @@ def scope_of(
         "client": request.client,
         "server": server,
     }
+
+
+def route_guarded(binding: Binding) -> bool:
+    """Whether Python must see the headers or the peer before the handler: for
+    credentials, the rate limit, or the ``Accept`` choice among renderers."""
+    route = binding.route
+    return (
+        route.access is not None
+        or route.rate_limit is not None
+        or len(route.renderers) > 1
+    )
 
 
 class RustWorker:
@@ -395,13 +406,16 @@ class RustWorker:
             action = request.action
             if action is None:
                 raise RuntimeError("native handler request has no action")
+            binding = self.pipeline.bindings[action]
             return await self.pipeline.handle_native(
-                self.pipeline.bindings[action],
+                binding,
                 request.request_id,
                 request.native_args,
                 request.native_error,
-                NativeBody(RustBody(request), request.headers)
-                if request.method in BODY_METHODS
+                NativeBody(
+                    RustBody(request), request.headers, request.query, request.client
+                )
+                if request.method in BODY_METHODS or route_guarded(binding)
                 else None,
             ), True
         failure = request._take_native_failure()

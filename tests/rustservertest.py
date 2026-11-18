@@ -25,17 +25,24 @@ import pytest
 
 from hinoki import (
     Access,
+    Caller,
     Hinoki,
+    HTMLRenderer,
+    JSONRenderer,
     MultiPartParser,
+    RateLimitContext,
     RuntimeConfig,
     Schema,
     UploadedFile,
+    XMLRenderer,
     http,
 )
 from hinoki.context import request_id
+from hinoki.errors import TooManyRequests
 from hinoki.http.request import Request
 from hinoki.http.response import Response
 from hinoki.modules import ModuleContext
+from hinoki.renderers import is_native_renderer
 from hinoki.runtime import rustserver
 from hinoki.runtime.rustserver import RustWorker
 from hinoki.runtime.servercore import build_server_core
@@ -129,6 +136,88 @@ async def native_item(item_id: int, data: Item, dry: bool = False) -> dict[str, 
 @http.patch("/native/items-sync/{item_id}")
 def native_item_sync(data: Item, item_id: int) -> dict[str, object]:
     return {"id": item_id, "title": data.title}
+
+
+WRITERS = Access(auth=TokenAuth(), permissions=["posts:write"])
+
+
+@http.get("/native/me/{item_id}", access=WRITERS)
+async def native_me(
+    item_id: int, who: Caller[str], limit: int = 5
+) -> dict[str, object]:
+    return {"id": item_id, "who": who.id, "limit": limit}
+
+
+@http.post("/native/guarded", status=201, access=Access(auth=TokenAuth()))
+def native_guarded(data: Item, who: Caller[str]) -> dict[str, object]:
+    return {"title": data.title, "who": who.id}
+
+
+@http.get("/native/html/{item_id}", renderers=[HTMLRenderer()])
+async def native_html(item_id: int) -> str:
+    return f"<p>{item_id}</p>"
+
+
+@http.get("/native/html-bad", renderers=[HTMLRenderer()])
+async def native_html_bad() -> dict[str, str]:
+    return {"not": "a string"}
+
+
+@http.get("/native/multi/{item_id}", renderers=[JSONRenderer(), XMLRenderer(root="r")])
+async def native_multi(item_id: int) -> dict[str, object]:
+    return {"id": item_id, "tags": ["a", "b"], "none": None}
+
+
+@http.get("/native/pretty", renderers=[JSONRenderer(indent=2, sort_keys=True)])
+async def native_pretty() -> dict[str, int]:
+    return {"b": 1, "a": 2}
+
+
+@http.post(
+    "/native/multi-body",
+    status=201,
+    renderers=[XMLRenderer(), JSONRenderer()],
+)
+async def native_multi_body(data: Item) -> dict[str, object]:
+    return {"title": data.title}
+
+
+class RefuseAll:
+    async def check(self, context: RateLimitContext) -> None:
+        raise TooManyRequests(7)
+
+
+class RefuseSync:
+    def check(self, context: RateLimitContext) -> None:
+        raise TooManyRequests(3)
+
+
+class AdmitEditors:
+    """Admits only a caller the access policy has already named."""
+
+    async def check(self, context: RateLimitContext) -> None:
+        if context.caller is None or context.caller.id != "editor":
+            raise TooManyRequests(5)
+
+
+@http.get("/native/limited/{item_id}", rate_limit=RefuseAll())
+async def native_limited(item_id: int) -> dict[str, object]:
+    return {"id": item_id}
+
+
+@http.get("/native/limited-sync/{item_id}", rate_limit=RefuseSync())
+def native_limited_sync(item_id: int) -> dict[str, object]:
+    return {"id": item_id}
+
+
+@http.post("/native/limited-body", status=201, rate_limit=RefuseAll())
+async def native_limited_body(data: Item) -> dict[str, object]:
+    return {"title": data.title}
+
+
+@http.get("/native/admitted/{item_id}", access=WRITERS, rate_limit=AdmitEditors())
+async def native_admitted(item_id: int, who: Caller[str]) -> dict[str, object]:
+    return {"id": item_id, "who": who.id}
 
 
 @http.get("/native/typed/{ident}")
@@ -330,6 +419,17 @@ def make_app(**config: Any) -> Hinoki:
             native_remove_sync,
             native_item,
             native_item_sync,
+            native_me,
+            native_guarded,
+            native_limited,
+            native_html,
+            native_html_bad,
+            native_multi,
+            native_pretty,
+            native_multi_body,
+            native_limited_sync,
+            native_limited_body,
+            native_admitted,
             pipeline_echo,
             pipeline_integer,
             pipeline_uuid,
@@ -597,6 +697,13 @@ def assert_pipeline_parity(received: Received, expected: Any) -> None:
         if name not in {"x-request-id", "date"}
     ]
     assert dict(actual_headers) == dict(pipeline_headers)
+    if (
+        not dict(received.headers)
+        .get("content-type", "")
+        .startswith("application/json")
+    ):
+        assert (received.body.decode() or None) == expected.body
+        return
     actual_body = received.json() if received.body else None
     expected_body = expected.body
     if (
@@ -798,6 +905,150 @@ async def test_native_body_early_refusal_closes_like_the_pipeline() -> None:
         assert native.header("connection") == python.header("connection")
     finally:
         await worker.stop()
+
+
+def bearer(token: str) -> tuple[str, dict[str, str]]:
+    return f"authorization: Bearer {token}\r\n", {"authorization": f"Bearer {token}"}
+
+
+@pytest.mark.parametrize(
+    ("method", "target", "auth", "extra", "body"),
+    [
+        ("GET", "/native/me/3?limit=9", "editor-token", "", b""),
+        ("GET", "/native/me/3", "reader-token", "", b""),
+        ("GET", "/native/me/3", "nobody", "", b""),
+        ("GET", "/native/me/3", None, "", b""),
+        ("GET", "/native/me/x?limit=y", None, "", b""),
+        ("GET", "/native/me/x?limit=y", "editor-token", "", b""),
+        ("GET", "/native/me/3", None, "accept: text/html\r\n", b""),
+        ("GET", "/native/me/3", "editor-token", "accept: text/html\r\n", b""),
+        ("GET", "/native/me/3?limit=%ff", None, "", b""),
+        ("GET", "/native/me/3?limit=%ff", "editor-token", "", b""),
+        ("GET", "/native/me/%ff", None, "", b""),
+        ("POST", "/native/guarded", "reader-token", JSON, b'{"title":"a"}'),
+        ("POST", "/native/guarded", None, JSON, b'{"title":"a"}'),
+        ("POST", "/native/guarded", None, JSON, b"{nope"),
+        ("POST", "/native/guarded", "reader-token", JSON, b"{nope"),
+        ("POST", "/native/guarded", "nobody", JSON, b'{"title":"a"}'),
+        ("POST", "/native/guarded", "reader-token", JSON, b'{"title":5}'),
+    ],
+)
+async def test_native_access_matches_pipeline(
+    method: str, target: str, auth: str | None, extra: str, body: bytes
+) -> None:
+    await check_native_parity(method, target, auth, extra, body)
+
+
+async def check_native_parity(
+    method: str, target: str, auth: str | None, extra: str, body: bytes
+) -> None:
+    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        raw, headers = bearer(auth) if auth else ("", {})
+        for item in extra.strip().split("\r\n"):
+            if item:
+                name, _, value = item.partition(": ")
+                headers[name] = value
+        length = f"content-length: {len(body)}\r\n" if body else ""
+        sent = raw + extra + length
+        assert served_natively(
+            worker, method, target.partition("?")[0], [(b"content-length", b"0")]
+        )
+        received = await fetch(port, method, target, sent, body=body)
+        if method == "POST" and received.status >= 400:
+            # The ASGI client has no connection to close; the Python lane on the
+            # same socket is the reference for it.
+            same = await fetch(port, method, "/secured", sent, body=body)
+            assert [v for k, v in received.headers if k == "connection"] == [
+                v for k, v in same.headers if k == "connection"
+            ]
+            received.headers[:] = [
+                (k, v) for k, v in received.headers if k != "connection"
+            ]
+        assert_pipeline_parity(
+            received, await pipeline_fetch(method, target, headers, body)
+        )
+    finally:
+        await worker.stop()
+
+
+@pytest.mark.parametrize(
+    ("method", "target", "auth", "extra", "body"),
+    [
+        ("GET", "/native/limited/3", None, "", b""),
+        ("GET", "/native/limited/x", None, "", b""),
+        ("GET", "/native/limited/3", None, "accept: text/html\r\n", b""),
+        ("GET", "/native/limited-sync/3", None, "", b""),
+        ("POST", "/native/limited-body", None, JSON, b'{"title":"a"}'),
+        ("POST", "/native/limited-body", None, JSON, b"{nope"),
+        ("GET", "/native/admitted/3", "editor-token", "", b""),
+        ("GET", "/native/admitted/3", "reader-token", "", b""),
+        ("GET", "/native/admitted/3", None, "", b""),
+        ("GET", "/native/admitted/x", "reader-token", "", b""),
+        ("GET", "/native/admitted/3?limit=%ff", None, "", b""),
+    ],
+)
+async def test_native_rate_limit_matches_pipeline(
+    method: str, target: str, auth: str | None, extra: str, body: bytes
+) -> None:
+    await check_native_parity(method, target, auth, extra, body)
+
+
+@pytest.mark.parametrize(
+    ("method", "target", "extra", "body"),
+    [
+        ("GET", "/native/html/3", "", b""),
+        ("GET", "/native/html/3", "accept: text/html\r\n", b""),
+        ("GET", "/native/html/3", "accept: application/json\r\n", b""),
+        ("GET", "/native/html/x", "", b""),
+        ("GET", "/native/html-bad", "", b""),
+        ("GET", "/native/multi/3", "", b""),
+        ("GET", "/native/multi/3", "accept: application/xml\r\n", b""),
+        ("GET", "/native/multi/3", "accept: application/json\r\n", b""),
+        ("GET", "/native/multi/3", "accept: */*;q=0.1\r\n", b""),
+        (
+            "GET",
+            "/native/multi/3",
+            "accept: application/xml;q=0.9, application/json;q=0.2\r\n",
+            b"",
+        ),
+        ("GET", "/native/multi/3", "accept: text/csv\r\n", b""),
+        ("GET", "/native/multi/x", "accept: text/csv\r\n", b""),
+        ("GET", "/native/pretty", "", b""),
+        ("POST", "/native/multi-body", JSON, b'{"title":"a"}'),
+        (
+            "POST",
+            "/native/multi-body",
+            JSON + "accept: application/json\r\n",
+            b'{"title":"a"}',
+        ),
+    ],
+)
+async def test_native_renderers_match_pipeline(
+    method: str, target: str, extra: str, body: bytes
+) -> None:
+    await check_native_parity(method, target, None, extra, body)
+
+
+class JSONShape(JSONRenderer):
+    pass
+
+
+class OwnRenderer(HTMLRenderer):
+    pass
+
+
+def test_only_builtin_renderers_with_their_options_are_native() -> None:
+    assert all(
+        is_native_renderer(r)
+        for r in (JSONRenderer(indent=2), HTMLRenderer(), XMLRenderer(item="x"))
+    )
+    assert not is_native_renderer(JSONShape())
+    assert not is_native_renderer(OwnRenderer())
+    changed = HTMLRenderer()
+    changed.media_type = "text/x-other"  # type: ignore[misc]
+    assert not is_native_renderer(changed)
 
 
 TYPED_ID = "123e4567-E89b-12d3-a456-426614174000"

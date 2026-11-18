@@ -60,6 +60,27 @@ class Event:
     tone: Tone | str = Tone.ACCENT
 
 
+class Refusal(Exception):
+    """A write the admin refuses with a message meant for the person: raised from
+    ``save`` or ``remove``, it is shown on the form and rolls the write back."""
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class Extra:
+    """A form field that is not a column of the model.
+
+    ``kind`` is ``"password"`` (a masked input that is never filled in again) or
+    ``"choices"`` (a set of checkboxes: ``choices`` are ``(value, label)`` pairs
+    and the submitted value is a ``frozenset`` of the checked ones). The values
+    reach ``ModelAdmin.check`` and ``save`` next to the model's own columns."""
+
+    name: str
+    label: str
+    kind: str
+    note: str = ""
+    choices: tuple[tuple[str, str], ...] = ()
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class Tab:
     """A saved filter shown as a tab: ``Tab("Drafts", {"published": False})``."""
