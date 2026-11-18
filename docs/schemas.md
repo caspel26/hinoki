@@ -27,7 +27,7 @@ class NoteOut(Schema):
     body: str
 ```
 
-* **Strict, no coercion.** `"1"` is not `1` (`Schema.validate_text()` and `Form[Schema]` are the explicit text-source exception, below); unknown keys are refused by default; every problem is reported with its path (capped at 50). Validation, instance construction and JSON serialisation run in Rust.
+* **Strict, no coercion.** `"1"` is not `1` (`Schema.validate_text()` and `Form[Schema]`, `XML[Schema]`, `Query[Schema]` are the explicit text-source exception, below); unknown keys are refused by default; every problem is reported with its path (capped at 50). Validation, instance construction and JSON serialisation run in Rust.
 * **Partial updates.** Declare `title: str | Unset = UNSET`: a field the client did not send stays `UNSET` and is left out of `dump()` and `to_dict()`, so `row.aupdate_from(patch)` writes only what was sent.
 * **Get data out.** `schema.to_dict()` gives Python values (UUID and datetime stay objects), `schema.dump()` the JSON-compatible form; both skip `UNSET`.
 * **From rows.** `NoteOut.from_model(row, author_name=row.author.name)` converts one row; `NoteOut.from_models(rows)` eagerly converts a synchronous iterable to a list. Relations must already be loaded (nothing fetches lazily). A derived schema keeps its selected fields. Conversion reads the expected attributes rather than checking the concrete model class; missing attributes raise `AttributeError`. Values passed as `**extra` are shared across rows.

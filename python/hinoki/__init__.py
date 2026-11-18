@@ -47,7 +47,7 @@ from hinoki.schema import (
     field_normalize,
     object_check,
 )
-from hinoki.sources import XML, Form
+from hinoki.sources import XML, Form, Query
 
 __version__ = core_version()
 
@@ -101,6 +101,7 @@ __all__ = [
     "MultiPartParser",
     "Parser",
     "Permission",
+    "Query",
     "RateLimitContext",
     "RateLimitPolicy",
     "Renderer",

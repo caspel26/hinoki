@@ -174,11 +174,17 @@ class Param:
         return self.convert_text(values[0])
 
     def from_body(self, request: RequestData) -> object:
-        assert self.schema is not None  # noqa: S101 - set for body params
+        return self.checked(request.body)
+
+    def from_queryschema(self, request: RequestData) -> object:
+        return self.checked(request.query)
+
+    def checked(self, data: object) -> object:
+        assert self.schema is not None  # noqa: S101 - set for Schema params
         try:
             if self.text:
-                return self.schema.validate_text(request.body)
-            return self.schema.validate(request.body)
+                return self.schema.validate_text(data)
+            return self.schema.validate(data)
         except ValidationError as exc:
             prefixed = [
                 ErrorDetail(
@@ -270,8 +276,12 @@ class Binding:
         }
 
     @property
+    def query_param(self) -> Param | None:
+        return next((p for p in self.params if p.source == "queryschema"), None)
+
+    @property
     def takes_text(self) -> bool:
-        return any(param.text for param in self.params)
+        return any(param.text and param.source == "body" for param in self.params)
 
     @property
     def has_files(self) -> bool:
@@ -392,10 +402,17 @@ def text_body_param(
         raise RegistrationError(
             f"{where}: {source.kind}[...] of {name!r} needs a Schema class"
         )
-    if name in PATH_PARAM.findall(route.path) or route.method not in BODY_METHODS:
+    if name in PATH_PARAM.findall(route.path):
+        raise RegistrationError(
+            f"{where}: {source.kind}[...] parameter {name!r} cannot be a path parameter"
+        )
+    annotation.specs()  # unresolvable annotations fail now, not per request
+    if source.kind == "query":
+        return Param(name, "queryschema", schema=annotation, text=True)
+    if route.method not in BODY_METHODS:
         raise RegistrationError(
             f"{where}: {source.kind}[...] parameter {name!r} must be the body of a "
-            "POST/PUT/PATCH/QUERY action, not a path or query parameter"
+            "POST/PUT/PATCH/QUERY action"
         )
     if not all(accepts_source(source, p) for p in route.parsers):
         raise RegistrationError(
@@ -403,8 +420,20 @@ def text_body_param(
             f"{SOURCE_PARSERS[source.kind]} in the action's parsers=...; omit "
             "parsers= to select the default, and use a plain Schema for JSON"
         )
-    annotation.specs()  # unresolvable annotations fail now, not per request
     return Param(name, "body", schema=annotation, text=True)
+
+
+def check_query_schema(route: Route, params: tuple[Param, ...]) -> None:
+    """``Query[...]`` owns the whole query string: one per action, and no other
+    query or page parameters beside it."""
+    whole = [p for p in params if p.source == "queryschema"]
+    if len(whole) > 1:
+        raise RegistrationError(f"{route.name}: at most one Query[...] parameter")
+    if whole and any(p.source in {"query", "page"} for p in params):
+        raise RegistrationError(
+            f"{route.name}: Query[...] reads the whole query string; declare the "
+            "other query values as fields of its Schema"
+        )
 
 
 def text_sources(route: Route) -> dict[str, TextSource]:
@@ -428,7 +457,8 @@ def declared_source(route: Route) -> TextSource | None:
     decides the parsers it needs."""
     if route.method not in BODY_METHODS:
         return None
-    return next(iter(text_sources(route).values()), None)
+    marks = text_sources(route).values()
+    return next((mark for mark in marks if mark.kind in SOURCE_PARSERS), None)
 
 
 def file_parameter(
@@ -609,6 +639,7 @@ def bind(route: Route) -> Binding:
         raise RegistrationError(
             f"{route.name}: pagination=... needs a PageParams parameter"
         )
+    check_query_schema(route, params)
     if sum(p.source == "body" for p in params) > 1:
         raise RegistrationError(f"{route.name}: at most one body parameter")
     if any(p.source == "body" for p in params) and any(

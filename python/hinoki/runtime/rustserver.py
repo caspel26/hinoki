@@ -130,6 +130,7 @@ def route_guarded(binding: Binding) -> bool:
     return (
         route.access is not None
         or route.rate_limit is not None
+        or binding.query_param is not None
         or len(route.renderers) > 1
     )
 

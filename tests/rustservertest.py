@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import functools
 import inspect
 import json
@@ -34,6 +35,7 @@ from hinoki import (
     JSONParser,
     JSONRenderer,
     MultiPartParser,
+    Query,
     RateLimitContext,
     RuntimeConfig,
     Schema,
@@ -204,6 +206,24 @@ async def native_form_source(data: Form[Item]) -> dict[str, object]:
 @http.post("/native/xml-source", status=201)
 async def native_xml_source(data: XML[Item]) -> dict[str, object]:
     return {"title": data.title, "count": data.count}
+
+
+class Search(Schema):
+    term: str
+    limit: int = 10
+    ids: list[int] = dataclasses.field(default_factory=list)
+
+
+@http.get("/native/query-source")
+async def native_query_source(filters: Query[Search]) -> dict[str, object]:
+    return {"term": filters.term, "limit": filters.limit, "ids": filters.ids}
+
+
+@http.delete("/native/query-source/{item_id}")
+def native_query_source_delete(
+    item_id: int, filters: Query[Search]
+) -> dict[str, object]:
+    return {"id": item_id, "term": filters.term}
 
 
 @http.post("/native/text", parsers=[TextParser()])
@@ -463,6 +483,8 @@ def make_app(**config: Any) -> Hinoki:
             native_form,
             native_form_source,
             native_xml_source,
+            native_query_source,
+            native_query_source_delete,
             native_text,
             native_limited_sync,
             native_limited_body,
@@ -1084,6 +1106,16 @@ async def test_native_rate_limit_matches_pipeline(
         ("POST", "/native/xml-source", XMLT, b"<!DOCTYPE i><i/>"),
         ("POST", "/native/xml-source", XMLT, b"<i><title>a"),
         ("POST", "/native/xml-source", JSON, b'{"title":"a"}'),
+        ("GET", "/native/query-source?term=a&limit=3&ids=1&ids=2", "", b""),
+        ("GET", "/native/query-source?term=a", "", b""),
+        ("GET", "/native/query-source", "", b""),
+        ("GET", "/native/query-source?term=a&limit=x", "", b""),
+        ("GET", "/native/query-source?term=a&limit=1&limit=2", "", b""),
+        ("GET", "/native/query-source?term=a&zzz=1", "", b""),
+        ("GET", "/native/query-source?term=%ff", "", b""),
+        ("DELETE", "/native/query-source/4?term=a", "", b""),
+        ("DELETE", "/native/query-source/x?term=a", "", b""),
+        ("DELETE", "/native/query-source/x", "", b""),
         ("POST", "/native/text", "content-type: text/plain\r\n", b"hello"),
         ("POST", "/native/text", "content-type: text/plain\r\n", b"\xff"),
         (

@@ -406,19 +406,7 @@ class Pipeline:
         response: Response
         try:
             async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
-                if (
-                    binding.route.access is not None
-                    or binding.route.rate_limit is not None
-                ):
-                    args = await self._native_authorize(
-                        binding, args, input_error, body
-                    )
-                if binding.body_param is not None:
-                    args = await self._native_body_args(
-                        binding, args, input_error, body
-                    )
-                elif input_error is not None:
-                    raise native_input_exception(input_error)
+                args = await self._native_arguments(binding, args, input_error, body)
                 response = await self._call_native(binding, args, body)
         except TimeoutError as exc:
             if limit.expired():
@@ -792,6 +780,59 @@ class Pipeline:
             await self._rate_limit(binding, client, principal)
         name = binding.principal_name
         return args if name is None else {**args, name: principal}
+
+    async def _native_arguments(
+        self,
+        binding: Binding,
+        args: dict[str, object],
+        input_error: tuple[str, str, str | None, list[tuple[str, str, str]]] | None,
+        body: NativeBody | None,
+    ) -> dict[str, object]:
+        """Admit the caller, then judge the request values: the handler
+        arguments, or the error the full pipeline would answer."""
+        route = binding.route
+        if route.access is not None or route.rate_limit is not None:
+            args = await self._native_authorize(binding, args, input_error, body)
+        if binding.body_param is not None:
+            return await self._native_body_args(binding, args, input_error, body)
+        if binding.query_param is not None:
+            return self._native_query_args(binding, args, input_error, body)
+        if input_error is not None:
+            raise native_input_exception(input_error)
+        return args
+
+    def _native_query_args(
+        self,
+        binding: Binding,
+        args: dict[str, object],
+        input_error: tuple[str, str, str | None, list[tuple[str, str, str]]] | None,
+        native: NativeBody | None,
+    ) -> dict[str, object]:
+        """The handler arguments of a ``Query[Schema]`` action: a malformed
+        query string first, then every path and query problem in declaration
+        order."""
+        param = binding.query_param
+        if param is None or native is None:
+            raise RuntimeError("native query route without its request data")
+        invalid = input_error is not None and input_error[0] == "validation_error"
+        if input_error is not None and not invalid:
+            raise native_input_exception(input_error)
+        query = parse_query(native.query)
+        errors = (
+            [ErrorDetail(*item) for item in input_error[3]]
+            if invalid and input_error
+            else []
+        )
+        value: object = None
+        try:
+            value = param.from_queryschema(RequestData(query=query))
+        except ValidationError as exc:
+            errors.extend(exc.details)
+        if errors:
+            order = {name: i for i, name in enumerate(binding.native_input_names)}
+            errors.sort(key=lambda d: order.get(d.path.split(".", 1)[0], 0))
+            raise ValidationError(errors)
+        return binding.complete_native_args(args, (param.name, value))
 
     async def _native_body_args(
         self,
