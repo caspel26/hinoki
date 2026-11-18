@@ -46,10 +46,10 @@ class Invoice(Model):
 ```
 
 Placed in a `billing` package's `models` module, that declaration derives the table
-`billing_invoice` (`<app>_<model>`), the singular display name
+`billing_invoices` (`<app>_<models>`), the singular display name
 `Invoice` and the plural `Invoices`. `label=` and `plural=` override the
 display names; set `table=` explicitly for irregular/localized names and to
-keep a physical table stable when a Python class is renamed. The fallback display
+keep a physical table stable when a Python class is renamed. The fallback
 pluralizer is deterministic and English-oriented, so use explicit names for
 irregular nouns.
 

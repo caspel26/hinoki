@@ -41,10 +41,10 @@ Plan its migration from the project root. The app name is required when more tha
 uv run hinoki migrations plan --app billing --dry-run
 uv run hinoki migrations plan --app billing
 uv run hinoki migrations status
-uv run hinoki migrations sql --app billing 0001-create-table-billing-invoice
+uv run hinoki migrations sql --app billing 0001-create-table-billing-invoices
 uv run hinoki migrations apply
 ```
 
-Hinoki assigns the next migration number and derives a stable slug from the first schema change, such as `create-table-billing-invoice` (the table is `billing_invoice`: the app, then the model). You can optionally override just the slug with `--name add-invoice-table`. Review the generated SQL and state file before applying it. With no database URL configured, `status` and `apply` initialize the local SQLite database at `.hinoki/local.sqlite3`. Set `HINOKI_DATABASE_URL` to target another supported backend. Migrations are explicit commands and never run automatically when the app starts.
+Hinoki assigns the next migration number and derives a stable slug from the first schema change, such as `create-table-billing-invoices` (the table is `billing_invoices`: the app, then the model). You can optionally override just the slug with `--name add-invoice-table`. Review the generated SQL and state file before applying it. With no database URL configured, `status` and `apply` initialize the local SQLite database at `.hinoki/local.sqlite3`. Set `HINOKI_DATABASE_URL` to target another supported backend. Migrations are explicit commands and never run automatically when the app starts.
 
 See [project migrations](../migrations.md) for dependency ordering, destructive changes and existing projects that still use explicit `--models` and `--dir` targets.

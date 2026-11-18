@@ -37,13 +37,13 @@ class Task(Model):
     created_at: datetime = field(default_factory=utc_now)
 ```
 
-For a fresh model, Hinoki derives the table name as `<app>_<model>` and human
+For a fresh model, Hinoki derives the table name as `<app>_<models>` and human
 display names from the class. The app is the package that holds the model's
 `models` module: `shop.apps.billing.models` is `billing`, `shop.models` and
 `shop.models.invoice` are `shop`; a module without a `models` segment uses its own
-last name. The model part is the class name in snake case and singular, so
-`Invoice` in `billing` becomes `billing_invoice` and `LineItem` becomes
-`billing_line_item`. Display names are `Invoice` and `Invoices`; `UserProfile`
+last name. The model part is the class name in snake case and plural, so
+`Invoice` in `billing` becomes `billing_invoices` and `LineItem` becomes
+`billing_line_items`. Display names are `Invoice` and `Invoices`; `UserProfile`
 becomes `User profile` and `User profiles`. The class keyword `app="billing"` replaces the
 app part (lowercase letters, digits and underscores). `@db.table(...)` or the
 compatible `table=` class keyword, along with `label=` and `plural=`, provide
@@ -52,17 +52,16 @@ table name when it pins an existing migration history or when
 the physical table needs another name. This matters when renaming a Python
 class or moving its module: changing an implicit table name is planned as a table
 drop/create and is protected by the destructive-migration guard, not treated as a
-data-safe rename. A project that created tables under the earlier plural
-snake-case default pins them with `@db.table("old_name")` before planning again.
+data-safe rename. A project whose tables were created under the earlier default (the
+plural class name without the app) pins them with `@db.table("old_name")` before planning again.
 The optional `HNK-DB-001` rule (`Models.require_explicit_table`) can require every
 model to pin its table. Irregular or localized plurals such as `Person`/`People`
-should set `plural=` explicitly. The fallback inflection applies only to display
-names: it is deterministic, small and English-oriented, and does not guess
+should set the table name and `plural=` explicitly. The fallback inflection is deterministic, small and English-oriented, and does not guess
 irregular nouns. It splits underscores and CamelCase into words and applies these
-suffixes to the final word: consonant plus `y` becomes `ies`; `s`, `x`,
+suffixes to the final word of the table and display names: consonant plus `y` becomes `ies`; `s`, `x`,
 `z`, `ch` and `sh` take `es`; other words take `s`. Display labels retain
 uppercase acronyms (`APIKey` becomes `API key` / `API keys`). Thus `Person`
-displays as `Persons`, and `Analysis` as `Analysises`; provide explicit values
+defaults to `persons` (`Persons`), and `Analysis` to `analysises`; provide explicit values
 when those mechanical defaults are not right. Generated identifiers must be
 portable ASCII SQL names of at most 63 characters. Names beginning with
 SQLite's reserved `sqlite_` prefix and Hinoki's `hinoki_migrations` ledger name
