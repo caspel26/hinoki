@@ -127,9 +127,7 @@ def start_server(stack: str, log_path: Path) -> tuple[subprocess.Popen[bytes], s
     raise TimeoutError(f"{stack} did not become ready; see {log_path}")
 
 
-def oha(
-    scenario: str, base: str, seconds: int, output: Path | None
-) -> dict[str, Any]:
+def oha(scenario: str, base: str, seconds: int, output: Path | None) -> dict[str, Any]:
     method, path, body, _ = SCENARIOS[scenario]
     command = [
         "oha", "-z", f"{seconds}s", "-c", str(CONCURRENCY), "--no-tui",
@@ -291,9 +289,7 @@ def metadata(args: argparse.Namespace) -> dict[str, Any]:
         "cpu": cpu,
         "cores": os.cpu_count(),
         "python": platform.python_version(),
-        "packages": {
-            n: importlib.metadata.version(n) for n in ("hinoki", "granian")
-        },
+        "packages": {n: importlib.metadata.version(n) for n in ("hinoki", "granian")},
         "rustc": execute(["rustc", "--version"]).stdout.strip(),
         "oha": execute(["oha", "--version"]).stdout.strip(),
         "loadavg_before_run": os.getloadavg(),
