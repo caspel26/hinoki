@@ -431,6 +431,11 @@
 <td>Decodes UTF-8 in Python; <code>media_type</code></td>
 </tr>
 <tr>
+<td><code>BytesParser</code></td>
+<td>—</td>
+<td>Hands <code>request.data</code> the raw <code>bytes</code> of an <code>application/octet-stream</code> body</td>
+</tr>
+<tr>
 <td><code>JSONRenderer</code></td>
 <td>Encodes <code>dict</code>, <code>list</code>, <code>Schema</code>, UUID, datetime and <code>dump()</code> objects</td>
 <td><code>prepare(value, request)</code> and <code>default</code> callbacks run in Python; <code>indent</code>, <code>sort_keys</code>, <code>media_type</code></td>
