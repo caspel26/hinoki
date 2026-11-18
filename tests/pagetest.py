@@ -79,7 +79,7 @@ async def test_invalid_page_parameters_give_422(
 @pytest.mark.parametrize("handler", [orphan, unused])
 def test_pagination_option_and_parameter_must_come_together(handler: object) -> None:
     with pytest.raises(RegistrationError):
-        Hinoki().include(handler)
+        Hinoki().include(handler)  # type: ignore[arg-type]
 
 
 def test_openapi_documents_the_query_parameters_and_the_page_schema() -> None:
