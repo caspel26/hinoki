@@ -181,6 +181,35 @@ class Admin:
             self.attach(target, admin, slug)
         return target
 
+    def admin[A: type[ModelAdmin[Any]]](
+        self, model: type[Model], *, slug: str | None = None
+    ) -> Callable[[A], A]:
+        """Decorate a ``ModelAdmin`` class that does not name its model:
+
+            @site.admin(Post)
+            class PostAdmin(ModelAdmin):
+                columns = ("title", "published")
+
+        The class may also say ``model=Post`` itself; naming two different models
+        is a ``RegistrationError``."""
+
+        def decorate(cls: A) -> A:
+            if not (isinstance(cls, type) and issubclass(cls, ModelAdmin)):
+                raise RegistrationError(
+                    "admin: @site.admin(Model) decorates a ModelAdmin class"
+                )
+            declared = getattr(cls, "model", None)
+            if declared is not None and declared is not model:
+                raise RegistrationError(
+                    f"admin: {cls.__name__} is for {declared.__name__}, "
+                    f"not {model.__name__}"
+                )
+            cls.model = model  # type: ignore[misc]
+            self.attach(model, cls, slug or getattr(cls, "slug", None) or None)
+            return cls
+
+        return decorate
+
     def attach[M: Model](
         self,
         model: type[M],
