@@ -355,7 +355,18 @@ async def test_database_enforces_the_declared_rule(db: Database) -> None:
 
 
 def test_a_field_named_like_a_model_method_is_refused() -> None:
-    for reserved in ("refresh", "remember", "insert", "asave", "get"):
+    for reserved in (
+        "remember",
+        "insert",
+        "asave",
+        "get",
+        "changes",
+        "is_new",
+        "is_dirty",
+        "was_changed",
+        "after_commit",
+        "before_save",
+    ):
         with pytest.raises(RegistrationError, match="collide"):
             type(
                 "Clashing",
