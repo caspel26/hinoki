@@ -118,7 +118,9 @@ nav:
           - Development tools: ai-workflow.md
       - Operating:
           - Sync and async: sync-async.md
-          - Benchmarks: benchmarks.md
+          - Benchmarks:
+              - Comparative results: benchmarks.md
+              - Native CRUD orientation: rust-crud-orientation.md
   - Concepts:
       - Overview: concepts.md
       - Request lifecycle: request-lifecycle.md
