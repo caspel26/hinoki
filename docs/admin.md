@@ -84,7 +84,8 @@ A superuser sees a **Users** section in the sidebar and manages everyone else th
 - The permission checkboxes list `view`, `add`, `change` and `delete` for each registered model except the users themselves; a superuser holds all of them whatever is checked.
 - Leaving the password empty on edit keeps it. Typing one changes it and signs the user out everywhere. A password is never written back into the page.
 - Deactivating a user ends their sessions. You cannot deactivate yourself, remove your own superuser status or delete yourself, so the admin cannot lock itself out.
-- Deleting removes the user's sessions and grants too.
+- Deleting removes the user's sessions and grants too. Every write checks that some active superuser remains (two superusers editing each other at the very same instant could still defeat that; `hinoki admin create-superuser` recovers).
+- The admin's own tables (`AdminUser`, `AdminSession`, `AdminGrant`) cannot be registered as ordinary models: `register` refuses them, because a plain model admin would show the password hash and let a grant holder promote themselves.
 
 `Admin(users=AdminAccounts(), manage_users=False)` leaves the section out, for a site that creates its users another way.
 
