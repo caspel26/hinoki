@@ -1,6 +1,6 @@
 # ADR 0004 — Python ≥ 3.12, abi3 wheels, maturin backend
 
-Status: Proposed · 2026-11-13
+Status: Accepted · 2026-11-18 (proposed 2026-11-13)
 
 **Context.** The example syntax uses `StrEnum`, PEP 695-friendly generics and modern typing. A Rust extension multiplies the wheel matrix. uv needs a PEP 517 backend that builds mixed Python/Rust projects.
 

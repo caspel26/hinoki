@@ -1,10 +1,10 @@
 # ADR 0002 — Resources are owned per worker; ORM gets its own Tokio runtime
 
-Status: Proposed · 2026-11-13
+Status: Accepted · 2026-11-18 (proposed 2026-11-13)
 
 **Context.** ASGI lifespan runs per event loop; Granian runs lifespan once per worker (observed). Pools bound to a loop must not cross loops or fork.
 
-**Decision.** A `WorkerRuntime` is created in lifespan startup and closed in shutdown. It owns a dedicated Tokio runtime (default 1 worker thread, configurable) for ORM and native I/O, bridged to the worker's running asyncio loop with `pyo3-async-runtimes`. Pools are created inside it. Nothing is opened at import, in factories, or before fork. Blocking `block_on` from a runtime/loop thread is forbidden.
+**Decision.** Each worker process owns one Tokio runtime for the ORM and native I/O, created lazily on the first native database call and sized by `server.runtime_threads` (default 1). It is bridged to the worker's running asyncio loop with `pyo3-async-runtimes`. Pools are created in the worker's lifespan and closed in its shutdown. Nothing is opened at import, in factories, or before fork. Blocking `block_on` from a runtime/loop thread is forbidden.
 
 **Consequences.** Each worker carries extra native threads (cost to be measured, V10). Pools are not shared between workers; the connection budget is `replicas × workers × pool_max`. Reusing Granian's internal runtime is rejected because it is not a public API.
 
@@ -14,12 +14,6 @@ Status: Proposed · 2026-11-13
 
 ## Implementation notes (2026-11-18)
 
-The ADR is still Proposed. What the code does today, checked against the source:
+Accepted after checking the decision against the source. The decision was revised to the implemented design: there is no `WorkerRuntime` object; the runtime is process-wide, created lazily (`crates/bindings/src/db.rs`, `ensure_runtime`) and, because each worker is its own process, is one runtime per worker. Pools are created in the worker's lifespan (`DatabaseModule`), closed in shutdown, never at import, in a factory or before fork, and are not shared between workers. The native server keeps a non-owning handle to the worker's pool and drains its own jobs before Python closes it.
 
-- **Matches the decision.** Database pools are created in the worker's lifespan (`DatabaseModule`), closed in shutdown, never at import, in a factory or before fork, and are not shared between workers. The native server keeps a non-owning handle to the worker's pool and drains its own jobs before Python closes it.
-- **Differs from the decision.** There is no `WorkerRuntime` object and no shutdown step for the runtime. The Tokio runtime used by the ORM bridge is process-wide and created on the first native database call (`crates/bindings/src/db.rs`, `ensure_runtime`). Because each worker is its own process, this is one runtime per worker in practice. Under the Rust server its thread count is `server.runtime_threads` (default 1), applied by `configure_runtime` before the first native call. On the Granian path the same setting is passed to Granian instead, and nothing calls `configure_runtime`, so the ORM runtime keeps its default of one thread there.
-
-**For the owner to decide**, not implemented here:
-
-1. *Revise the ADR to the implemented design*: a lazily created, process-wide runtime, one per worker process, sized by `server.runtime_threads`. This is the smaller change and matches how workers are started.
-2. *Change the code to the ADR*: a `WorkerRuntime` created in lifespan startup and closed in shutdown. It adds lifecycle code for a property the process boundary already gives.
+Under the Rust server `configure_runtime` applies `server.runtime_threads` before the first native call. On the Granian path the setting is passed to Granian instead and the ORM runtime keeps its default of one thread.
