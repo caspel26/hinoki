@@ -33,7 +33,7 @@ def test_the_blog_passes_its_own_rules_from_the_command_line(
 ) -> None:
     monkeypatch.chdir(str(tmp_path))
     assert main(CHECK) == 0
-    assert "4 rule(s): 0 violated" in capsys.readouterr().out
+    assert "11 rule(s): 0 violated, 0 unverifiable" in capsys.readouterr().out
 
 
 def test_the_blog_app_enforces_them_at_startup() -> None:
@@ -61,12 +61,25 @@ def test_a_new_unprotected_write_would_be_caught() -> None:
 
     purge.__module__ = "blog.api"
     app.include(purge)
-    found = RuleSet(*blog_rules.rules[:2]).run(Project(app))
+    chosen = [r for r in blog_rules.rules if r.id in {"HNK-ACC-001", "HNK-TXN-001"}]
+    found = RuleSet(*chosen).run(Project(app))
     messages = " ".join(d.message for d in failing(found))
     assert "DELETE /posts/purge" in messages and "transaction=True" in messages
 
 
 def test_the_rule_names_are_stable_ids() -> None:
     ids = [rule.id for rule in blog_rules.rules]
-    assert ids == ["HNK-ACC-001", "HNK-TXN-001", "HNK-SCH-001", "HNK-IMP-001"]
+    assert ids == [
+        "HNK-ACC-001",
+        "HNK-ACC-002",
+        "HNK-API-001",
+        "HNK-API-002",
+        "HNK-API-003",
+        "HNK-TXN-001",
+        "HNK-SCH-001",
+        "HNK-SCH-002",
+        "HNK-DB-001",
+        "HNK-DB-002",
+        "HNK-IMP-001",
+    ]
     assert Actions.require_access().id == ids[0] and Hinoki is not None
