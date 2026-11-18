@@ -74,6 +74,8 @@ app = Hinoki(settings=BlogSettings.load(), include=[Mount("/admin", site)])
 - **Permissions** are per model and per action (`view`, `add`, `change`, `delete`; a bulk action needs `change`), stored as grants. A **superuser** holds every grant. The check is applied around each model admin's `can`, so an override of `can` can narrow what a grant allows but never widen it. A user without a grant for a model does not see it in the sidebar and gets `404` for its pages.
 - **Rate limit.** The sign-in route is protected by `LoginWindow`, a fixed window per client address (10 attempts a minute) kept in one worker's memory, so each worker counts on its own: it is a brake, not a defence, and the cost of hashing is the main one. For a shared limit pass your own policy: `AdminAccounts(login_limit=MyPolicy())` (see [rate limit an action](endpoints.md#rate-limit-an-action)).
 
+The first user is a superuser made with [`hinoki admin create-superuser`](cli.md#admin); `hinoki admin set-password` resets a password from a shell.
+
 To use your own identity instead (single sign-on, an existing user table), pass `Admin(access=Access(auth=MyAuth(), permissions=[...]))`: the admin then has no sign-in pages of its own, and the permissions of your callers decide what they see through `ModelAdmin.can`, as before. `Admin(access=..., users=...)` is an error.
 
 ## What needs no configuration
