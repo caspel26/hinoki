@@ -9,7 +9,7 @@ import pytest
 
 from hinoki import Hinoki, RuntimeConfig, Schema, core, http
 from hinoki.http.request import Request
-from hinoki.parsers import JSONParser, TextParser
+from hinoki.parsers import BytesParser, FormParser, JSONParser, TextParser
 from hinoki.renderers import JSONRenderer
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.servercore import (
@@ -773,7 +773,7 @@ def test_python_paths_are_compared_decoded_and_odd_targets_go_to_python() -> Non
     assert [r.action for r in server.drain(10)] == [None, None]
 
 
-def test_body_methods_are_native_only_with_one_schema_body_and_default_parsers() -> (
+def test_body_methods_are_native_only_with_one_schema_body_and_built_in_parsers() -> (
     None
 ):
     class Body(Schema):
@@ -798,17 +798,22 @@ def test_body_methods_are_native_only_with_one_schema_body_and_default_parsers()
     async def text(data: Body) -> dict[str, int]:
         return {}
 
+    @http.post("/form", parsers=[FormParser(max_fields=5), BytesParser()])
+    async def form(data: Body) -> dict[str, int]:
+        return {}
+
     @http.post("/bare")
     async def bare() -> dict[str, int]:
         return {}
 
-    pipeline = Pipeline(Hinoki(include=[ok, with_request, parsers, text, bare]))
+    pipeline = Pipeline(Hinoki(include=[ok, with_request, parsers, text, form, bare]))
     by_path = {b.route.path: native_handler_eligible(b) for b in pipeline.bindings}
 
     assert by_path == {
         "/ok/{item}": True,
         "/request": False,
         "/parsers": False,
-        "/text": False,
+        "/text": True,
+        "/form": True,
         "/bare": False,
     }
