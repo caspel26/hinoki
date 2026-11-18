@@ -20,7 +20,7 @@ from hinoki.renderers import is_default_json_renderer
 from hinoki.runtime.binding import Binding
 from hinoki.schema import Schema, uses_generated_init
 
-ROW_KINDS = frozenset({"str", "int", "float", "bool", "uuid", "datetime"})
+ROW_KINDS = frozenset({"str", "int", "float", "bool", "uuid", "datetime", "bytes"})
 OWNER_GUARD_NAMES = (
     "__init__",
     "__new__",

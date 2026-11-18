@@ -31,9 +31,9 @@ def test_the_rust_encoder_has_indent_sort_keys_and_a_default_hook() -> None:
     assert json.loads(core.encode_json(value, 4, True)) == value
     assert core.encode_json({"d": Decimal("1.5")}, None, False, str) == b'{"d":"1.5"}'
     with pytest.raises(TypeError):
-        core.encode_json({"d": Decimal("1.5")})
+        core.encode_json({"d": {1}})
     with pytest.raises(ValueError, match="same object"):
-        core.encode_json(Decimal("1"), None, False, lambda v: v)
+        core.encode_json(object(), None, False, lambda v: v)
     item = Item(id=UUID(int=1), name="n")
     assert core.encode_json(item, None, True).startswith(b'{"id":')
     assert json.loads(core.encode_json([item], 2)) == [item.dump()]

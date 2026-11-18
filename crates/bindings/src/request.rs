@@ -1134,6 +1134,9 @@ struct Encoder<'py> {
     sort_keys: bool,
     default: Option<Bound<'py, PyAny>>,
     hops: usize,
+    /// Schema instances being written: only inside one do `date`, `time`,
+    /// `timedelta`, `Decimal` and `bytes` values have a wire form.
+    schemas: usize,
 }
 
 impl<'py> Encoder<'py> {
@@ -1266,6 +1269,8 @@ impl<'py> Encoder<'py> {
                 &mut self.out,
                 &value.call_method0("isoformat")?.str()?.to_string(),
             )?;
+        } else if let Some(text) = self.wire_text(value)? {
+            write_string(&mut self.out, &text)?;
         } else if value.hasattr("dump")? {
             self.replace(&value.call_method0("dump")?, depth)?;
         } else if let Some(hook) = self.default.clone() {
@@ -1285,7 +1290,27 @@ impl<'py> Encoder<'py> {
         Ok(())
     }
 
+    fn wire_text(&self, value: &Bound<'py, PyAny>) -> PyResult<Option<String>> {
+        if self.schemas == 0 {
+            return Ok(None);
+        }
+        crate::schema::wire_text(value)
+    }
+
     fn schema_object(
+        &mut self,
+        value: &Bound<'py, PyAny>,
+        names: Vec<(String, String)>,
+        unset: &Py<PyAny>,
+        depth: usize,
+    ) -> PyResult<()> {
+        self.schemas += 1;
+        let result = self.schema_fields(value, names, unset, depth);
+        self.schemas -= 1;
+        result
+    }
+
+    fn schema_fields(
         &mut self,
         value: &Bound<'py, PyAny>,
         names: Vec<(String, String)>,
@@ -1348,6 +1373,7 @@ pub fn encode_json<'py>(
         sort_keys,
         default,
         hops: 0,
+        schemas: 0,
     };
     encoder.write(value, 0)?;
     Ok(PyBytes::new(py, &encoder.out))
