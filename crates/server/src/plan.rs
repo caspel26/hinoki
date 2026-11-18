@@ -175,11 +175,16 @@ fn native_handler_is_valid(route: &RoutePlan) -> bool {
     let has_supported_request_inputs = inputs_are_supported
         && path_inputs == route_path_params
         && path_inputs.len() == route.path_params.len();
-    let has_no_unsupported_inputs = !route.has_body && !route.has_access && !route.takes_request;
+    let body_matches_method = match route.method.as_str() {
+        "GET" | "DELETE" => !route.has_body,
+        "POST" | "PUT" | "PATCH" | "QUERY" => route.has_body,
+        _ => false,
+    };
+    let has_no_unsupported_inputs =
+        body_matches_method && !route.has_access && !route.takes_request;
     let uses_default_json = route.media_types.as_slice() == ["application/json"];
     let has_no_response_hooks = route.headers.is_empty() && !route.transaction;
-    matches!(route.method.as_str(), "GET" | "DELETE")
-        && has_supported_request_inputs
+    has_supported_request_inputs
         && has_no_unsupported_inputs
         && uses_default_json
         && has_no_response_hooks
@@ -278,12 +283,20 @@ mod tests {
     }
 
     #[test]
-    fn native_handler_accepts_delete_but_not_other_body_methods() {
-        for (method, valid) in [("DELETE", true), ("POST", false), ("PUT", false)] {
+    fn native_handler_pairs_body_with_the_method() {
+        for (method, has_body, valid) in [
+            ("DELETE", false, true),
+            ("DELETE", true, false),
+            ("POST", true, true),
+            ("PATCH", true, true),
+            ("POST", false, false),
+            ("HEAD", false, false),
+        ] {
             let mut r = route(0);
             r.method = method.into();
+            r.has_body = has_body;
             r.native_handler = true;
-            assert_eq!(Plan::new(vec![r]).is_ok(), valid, "{method}");
+            assert_eq!(Plan::new(vec![r]).is_ok(), valid, "{method} {has_body}");
         }
     }
 
