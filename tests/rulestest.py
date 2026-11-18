@@ -451,3 +451,12 @@ def test_require_foreign_key_index_flags_unindexed_references() -> None:
         project()
     )
     assert [d.status for d in nothing] == [Status.UNVERIFIABLE]
+
+
+def test_require_atomic_leaves_the_admins_own_routes_alone() -> None:
+    from hinoki.admin import Admin  # noqa: PLC0415 - only this test needs the admin
+
+    app = Hinoki(include=[Admin(secret="s" * 40)])
+    found = RuleSet(Transactions.require_atomic()).run(Project(app))
+
+    assert failing(found) == []

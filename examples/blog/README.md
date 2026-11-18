@@ -19,11 +19,12 @@ uv run --project .. hinoki migrations plan --app blog --dry-run
 uv run --project .. hinoki migrations sql --app blog 0001-initial
 uv run --project .. hinoki migrations sql --app blog 0002-accounts
 uv run --project .. hinoki migrations sql --app blog 0003-index-blog-posts-author-id
-uv run --project .. hinoki migrations apply --app blog
+uv run --project .. hinoki migrations apply
+uv run --project .. hinoki admin create-superuser ada
 uv run --project .. hinoki dev blog.main:create_app
 ```
 
-Open `/docs` for OpenAPI or `/admin` for the editor interface. `BLOG_JWT_SECRET`
+Open `/docs` for OpenAPI or `/admin` for the admin, which asks you to sign in with the superuser you just created; add the editors from its Users section and tick what each may do. `BLOG_JWT_SECRET`
 optionally enables `/auth/login`; without it, use the seeded editor token only
 for local exploration. To select a server database, set
 `BLOG_DATABASE__URL` and `HINOKI_DATABASE_URL` to the same URL before applying
@@ -34,8 +35,8 @@ applies migrations and inserts fixed synthetic users and posts. Run it only
 once against a fresh disposable database: those unique demo records are not a
 resettable fixture. Never use real credentials or user data with this command.
 
-The manifest registers Notes, Tracker and Blog as separate apps, each with its
-own models and migrations. `hinoki migrations apply` initializes all three in
+The manifest registers Notes, Tracker, Blog and the admin's own users as separate apps, each with its
+own models and migrations. `hinoki migrations apply` initializes all four in
 dependency order.
 
 All eleven built-in rules are on in `rules.py` (see [rules](../../docs/rules.md)); `hinoki check` exits 0, and startup refuses an app that breaks one.

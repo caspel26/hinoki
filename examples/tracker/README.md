@@ -35,7 +35,7 @@ completed tasks cannot be deleted. The repository tests create synthetic
 members and use a disposable PostgreSQL database.
 
 The manifest registers Notes, Tracker and Blog as separate apps, each with its
-own models and migrations. `hinoki migrations apply` initializes all three in
+own models and migrations. `hinoki migrations apply` initializes all four in
 dependency order.
 
 All built-in rules are on in `rules.py`, plus its three import-direction promises (13 in total); see [rules](../../docs/rules.md).
