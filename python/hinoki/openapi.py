@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import inspect
 import re
+from decimal import Decimal
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, get_args, get_origin
 
@@ -37,6 +38,21 @@ KIND_SCHEMAS: dict[str, dict[str, Any]] = {
     "bool": {"type": "boolean"},
     "uuid": {"type": "string", "format": "uuid"},
     "datetime": {"type": "string", "format": "date-time"},
+    "date": {"type": "string", "format": "date"},
+    "time": {"type": "string", "format": "time"},
+    "timedelta": {"type": "string", "format": "duration"},
+    "decimal": {
+        "type": "string",
+        "format": "decimal",
+        "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+    },
+    "bytes": {"type": "string", "format": "byte", "contentEncoding": "base64"},
+}
+# Not keywords of the document: digit counts are enforced, not described, and
+# the length of a ``bytes`` field counts decoded bytes, not base64 characters.
+UNDESCRIBED = {
+    "decimal": frozenset({"max_digits", "decimal_places"}),
+    "bytes": frozenset({"min_length", "max_length"}),
 }
 CONSTRAINT_KEYWORDS = {
     "min_length": None,  # depends on the kind (string vs array)
@@ -372,14 +388,24 @@ class OpenAPIBuilder:
 
     def field(self, ftype: FieldType) -> dict[str, Any]:
         base = self.shape(ftype)
+        skipped = UNDESCRIBED.get(ftype.kind, frozenset())
         for name, value in ftype.info.constraints().items():
+            if name in skipped:
+                continue
             keyword = constraint_keyword(name, base)
             if keyword is not None:
-                base[keyword] = list(value) if isinstance(value, tuple) else value
+                base[keyword] = document_value(value)
             elif name == "pattern":
                 # JSON Schema patterns are unanchored; the runtime matches fully.
                 base["pattern"] = f"^(?:{value})$"
         return {"anyOf": [base, {"type": "null"}]} if ftype.nullable else base
+
+
+def document_value(value: object) -> object:
+    """A constraint value as JSON: a tuple as a list, a ``Decimal`` as a number."""
+    if isinstance(value, tuple):
+        return list(value)
+    return float(value) if isinstance(value, Decimal) else value
 
 
 def constraint_keyword(name: str, schema: dict[str, Any]) -> str | None:

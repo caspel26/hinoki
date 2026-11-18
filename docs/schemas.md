@@ -37,7 +37,58 @@ class NoteOut(Schema):
 
 ## Field types
 
-A field is annotated with `str`, `int`, `float`, `bool`, `UUID`, `datetime`, a nested `Schema`, `list[X]`, `dict[str, X]` or a [discriminated union](#discriminated-unions), optionally `| None` (accepts `null`) and `| Unset` (may be left out of a partial update), and optionally wrapped in `Annotated[..., Field(...)]`. `X` can be any of these, so `list[dict[str, int]]` and `dict[str, list[Point]]` work. Anything else (`set`, `tuple`, `bytes`, `Any`, plain unions, `dict[int, X]`) raises `RegistrationError` when the class is created.
+A field is annotated with `str`, `int`, `float`, `bool`, `UUID`, `datetime`, `date`, `time`, `timedelta`, `Decimal`, `bytes`, a nested `Schema`, `list[X]`, `dict[str, X]` or a [discriminated union](#discriminated-unions), optionally `| None` (accepts `null`) and `| Unset` (may be left out of a partial update), and optionally wrapped in `Annotated[..., Field(...)]`. `X` can be any of these, so `list[dict[str, int]]` and `dict[str, list[Point]]` work. Anything else (`set`, `tuple`, `bytearray`, `Any`, plain unions, `dict[int, X]`) raises `RegistrationError` when the class is created.
+
+### Dates, durations, decimals and bytes
+
+`date`, `time`, `timedelta`, `Decimal` and `bytes` travel as JSON strings and are validated identically by the Python and the Rust lane:
+
+```python
+import datetime as dt
+from decimal import Decimal
+from typing import Annotated
+
+from hinoki import Field, Schema
+
+
+class Booking(Schema):
+    day: dt.date
+    opens: dt.time
+    length: dt.timedelta
+    price: Annotated[Decimal, Field(ge=0, max_digits=8, decimal_places=2)]
+    receipt: Annotated[bytes, Field(max_length=1024)]
+
+
+booking = Booking.validate(
+    {
+        "day": "2026-03-14",
+        "opens": "09:30:00+01:00",
+        "length": "PT1H30M",
+        "price": "19.90",
+        "receipt": "aGVsbG8=",
+    }
+)
+assert booking.length == dt.timedelta(hours=1, minutes=30)
+assert booking.price == Decimal("19.90")
+assert booking.receipt == b"hello"
+assert booking.dump()["price"] == "19.90"
+```
+
+| Type | Accepted input | Output | Error code |
+|---|---|---|---|
+| `date` | `YYYY-MM-DD`, a real calendar date in years 0001–9999, ASCII digits | the same text | `date` |
+| `time` | `HH:MM:SS[.f…f]` with 1 to 6 fraction digits and a `Z` or `±HH:MM` offset | `isoformat()` | `time`; `time_tz` when the offset is missing |
+| `timedelta` | ISO 8601 `[-]P[nD][T[nH][nM][n[.f…f]S]]`; years, months and weeks are refused | `PT1H30M`, `P1DT2S`, `-PT0.5S` | `duration`; `duration_range` outside `timedelta`'s range |
+| `Decimal` | a string `-?(0\|[1-9][0-9]*)(\.[0-9]+)?` or an integer; floats, booleans, exponents, `NaN` and infinities are refused | a fixed-point string that keeps the scale (`"0.10"`) | `decimal` |
+| `bytes` | standard padded base64 (`+`, `/`, `=`); no whitespace or URL-safe alphabet | padded base64 | `bytes` |
+
+* **A time needs an offset** on the wire, as a `datetime` does; a time without one is reported as `time_tz`. Fields derived from a `Model` through `from_model()` accept naive times, as they accept naive datetimes. A `date` field refuses a `datetime`.
+* **`Decimal` is exact.** Bounds `ge`, `le`, `gt` and `lt` (an `int` or `Decimal`, never a float) compare exactly. `max_digits` (default 64, at most 1000) counts all digits, `decimal_places` the digits after the point, and when `decimal_places` is declared the digits before the point are limited to `max_digits - decimal_places`. The codes are `max_digits`, `decimal_places` and `max_whole_digits`; the checks run in that order, then the bounds. A `decimal_places` above `max_digits` is refused at class creation.
+* **`bytes` size.** `min_length` and `max_length` count decoded bytes (`at most 1024 bytes`). Client input without a `max_length` is limited to 65536 decoded bytes (`hinoki.fieldtypes.MAX_BYTES_LENGTH`); a declared `max_length` replaces the limit. Fields derived from a `Model` column never get it. `pattern` and `format=` do not apply to `bytes`.
+* **Text sources.** Form, query and XML values use the same text forms, so `validate_text` needs no conversion for these types.
+* **Models.** A `bytes` column stores as `BYTEA` on PostgreSQL and a blob on SQLite, and native CRUD serialises it as base64. Constraints on a `bytes` model column are refused. The ORM stores only `bytes` among these types; `date`, `time`, `timedelta` and `Decimal` are not model column types yet.
+* **OpenAPI** documents `date` as `format: date`, `time` as `format: time`, `timedelta` as `format: duration`, `Decimal` as a `string` with `format: decimal` and a `pattern`, and `bytes` as `format: byte` with `contentEncoding: base64`. Decimal bounds appear as `minimum`/`maximum` numbers.
+* **Output.** The JSON encoder writes these values only inside `Schema` instances; a bare `Decimal` or `bytes` in a plain dictionary is still a `TypeError`, so a handler that returns one must return a `Schema` or supply a `default=` hook. A `Decimal` that is `NaN`, infinite or has more than 1000 digits raises `ValueError`.
 
 ### Dictionary fields
 
