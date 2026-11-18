@@ -12,14 +12,12 @@ from hinoki import Access, Caller, core
 from hinoki.admin import (
     Admin,
     Avatar,
-    Badge,
-    BulkAction,
     Event,
-    Fieldset,
     Link,
     ModelAdmin,
     Stat,
-    Tab,
+    Tone,
+    action,
 )
 from hinoki.auth import BaseAuth, Credentials
 from hinoki.errors import Unauthorized
@@ -57,11 +55,8 @@ def per_day(rows: list[Post]) -> tuple[float, ...]:
     return tuple(float(sum(1 for r in rows if r.created_at.date() == d)) for d in days)
 
 
-async def publish_posts(posts: tuple[Post, ...], _principal: Caller[Any]) -> None:
-    await Post.filter(id__in=[post.id for post in posts]).aupdate({"published": True})
-
-
-class PostAdmin(ModelAdmin[Post]):
+class PostAdmin(ModelAdmin, model=Post):  # type: ignore[type-arg]
+    slug = "posts"
     label = "Posts"
     icon = "file-text"
     columns = ("title", "published", "author_id", "created_at")
@@ -70,14 +65,6 @@ class PostAdmin(ModelAdmin[Post]):
     per_page = 8
     show_count = True
     bulk_delete = True
-    bulk_actions = (
-        BulkAction(
-            name="publish",
-            label="Publish selected",
-            confirm="Publish the selected posts?",
-            handler=publish_posts,
-        ),
-    )
     readonly = ("created_at",)
     assign: ClassVar[dict[str, Any]] = {
         "author_id": lambda principal: principal.user.id
@@ -86,12 +73,16 @@ class PostAdmin(ModelAdmin[Post]):
     modified_label = "Created"
     badges: ClassVar[dict[str, Any]] = {
         "published": {
-            True: Badge("Published", "ok", "circle-check"),
-            False: Badge("Draft", "warn", "pencil"),
+            True: ("Published", Tone.OK, "circle-check"),
+            False: ("Draft", Tone.WARN, "pencil"),
         }
     }
-    tabs = (Tab("Published", {"published": True}), Tab("Drafts", {"published": False}))
-    fieldsets = (Fieldset("Organization", ("author_id", "published")),)
+    tabs = ("published",)  # one tab for each badge: Published | Draft
+    fieldsets = {"Organization": ("author_id", "published")}  # noqa: RUF012
+
+    @action(confirm="Publish the selected posts?")
+    async def publish(self, posts: tuple[Post, ...], principal: Caller[Any]) -> None:
+        await Post.filter(id__in=[p.id for p in posts]).aupdate({"published": True})
 
     def queryset(self, principal: Caller[Any]) -> Any:
         return Post.all().select_related("author")
@@ -109,28 +100,29 @@ class PostAdmin(ModelAdmin[Post]):
         since = utc_now() - datetime.timedelta(days=DAYS)
         week = await Post.filter(created_at__gte=since)
         return [
-            Stat("Posts", total, "file-text", "accent", per_day(week)),
+            Stat("Posts", total, "file-text", Tone.ACCENT, per_day(week)),
             Stat(
                 "Published",
                 published,
                 "circle-check",
-                "ok",
+                Tone.OK,
                 per_day([r for r in week if r.published]),
             ),
             Stat(
                 "Drafts",
                 total - published,
                 "pencil",
-                "warn",
+                Tone.WARN,
                 per_day([r for r in week if not r.published]),
             ),
         ]
 
 
-class UserAdmin(ModelAdmin[User]):
+class UserAdmin(ModelAdmin, model=User):  # type: ignore[type-arg]
     """Authors can be listed and renamed, never created or deleted here; their
     tokens are neither shown nor editable, and editor rights are read-only."""
 
+    slug = "users"
     label = "Authors"
     icon = "users"
     columns = ("name", "is_editor")
@@ -139,8 +131,8 @@ class UserAdmin(ModelAdmin[User]):
     readonly = ("is_editor",)
     badges: ClassVar[dict[str, Any]] = {
         "is_editor": {
-            True: Badge("Editor", "accent", "shield-check"),
-            False: Badge("Reader", "neutral", "user"),
+            True: ("Editor", Tone.ACCENT, "shield-check"),
+            False: ("Reader", Tone.NEUTRAL, "user"),
         }
     }
 
@@ -163,7 +155,7 @@ async def recent_activity(principal: Caller[Any]) -> list[Event]:
             f"{row.author.name} {verb(row)} “{row.title}”",
             row.created_at.strftime("%Y-%m-%d %H:%M"),
             "circle-check" if row.published else "pencil",
-            "ok" if row.published else "warn",
+            Tone.OK if row.published else Tone.WARN,
         )
         for row in rows
     ]
@@ -171,10 +163,9 @@ async def recent_activity(principal: Caller[Any]) -> list[Event]:
 
 def build_admin(secret: str, theme: str = "studio") -> Admin:
     editors = Access(auth=CookieAuth(), permissions=[WRITE])
-    admin = Admin(
+    return Admin(
         access=editors,
         secret=secret,
-        prefix="/admin",
         theme=theme,
         site="Blog Studio",
         tagline="My blog",
@@ -184,7 +175,5 @@ def build_admin(secret: str, theme: str = "studio") -> Admin:
         ),
         activity=recent_activity,
         dashboard=("posts",),
+        models=[PostAdmin, UserAdmin],
     )
-    admin.register(Post, PostAdmin, slug="posts")
-    admin.register(User, UserAdmin, slug="users")
-    return admin
