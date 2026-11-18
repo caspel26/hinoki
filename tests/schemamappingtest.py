@@ -290,6 +290,20 @@ def test_a_model_json_column_keeps_its_kind_and_maps_to_a_dict_field() -> None:
     assert SettingsOut.from_model(row).dump() == {"id": 1, "payload": {"a": 1}}
 
 
+def test_constraints_on_a_model_json_column_are_refused() -> None:
+    with pytest.raises(RegistrationError, match="do not apply to a JSON column"):
+        type(
+            "BadSettings",
+            (Model,),
+            {
+                "__annotations__": {"id": int, "payload": dict[str, int]},
+                "id": field(primary_key=True),
+                "payload": field(constraints=Field(max_length=2)),
+            },
+            table="mapping_bad_settings",
+        )
+
+
 @http.post("/mapping/labels")
 async def echo_labels(data: Labels) -> Labels:
     return data
