@@ -53,7 +53,11 @@ from hinoki.runtime.binding import BODY_METHODS, Binding, RequestData, parse_que
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.lifespan import Lifespan
 from hinoki.runtime.origins import ALLOW_ORIGIN, CorsPolicy, HostPolicy
-from hinoki.runtime.proxy import effective_scope, inbound_request_id
+from hinoki.runtime.proxy import (
+    effective_client,
+    effective_scope,
+    inbound_request_id,
+)
 from hinoki.runtime.requests import Scope, authorize, build_request, decode_params
 from hinoki.runtime.responsecheck import ResponseContractError
 from hinoki.runtime.responses import (
@@ -83,7 +87,8 @@ MatchedRoute = tuple[int, dict[str, str] | None]
 class NativeBody(NamedTuple):
     """What a native handler reads beyond Rust's prepared inputs: the body
     source, the raw request headers and the raw query string (credentials and
-    the body of a body method) and the peer the rate limit counts."""
+    the body of a body method) and the TCP peer, from which the rate limit
+    resolves its client like the full pipeline does."""
 
     source: BodySource
     headers: list[tuple[bytes, bytes]]
@@ -781,7 +786,10 @@ class Pipeline:
             query = parse_query(native.query)
             principal = await authorize(access, core.header_dict(native.headers), query)
         if binding.route.rate_limit is not None:
-            await self._rate_limit(binding, native.client, principal)
+            client = effective_client(
+                native.client, native.headers, self.trusted_proxies
+            )
+            await self._rate_limit(binding, client, principal)
         name = binding.principal_name
         return args if name is None else {**args, name: principal}
 
