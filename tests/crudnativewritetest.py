@@ -237,10 +237,7 @@ async def test_int_key_timestamp_and_schema_default_writes_match_python(
     started, url = worker
     monkeypatch.setattr(started, "_check_crud_snapshots", lambda: None)
     assert selected(started, "/parts") >= {"create", "update", "delete"}
-    originals = {
-        name: getattr(Parts, name)
-        for name in ("perform_create", "perform_update", "perform_delete")
-    }
+    originals = {name: getattr(Parts, name) for name in ("store", "change", "remove")}
     for name in originals:
         monkeypatch.setattr(
             Parts,
