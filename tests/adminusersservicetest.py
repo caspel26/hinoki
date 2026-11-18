@@ -235,3 +235,31 @@ def test_the_settings_bound_sessions_and_passwords() -> None:
         AdminSettings(session_hours=1, idle_minutes=61)
     with pytest.raises(ValueError, match="min_password_length"):
         AdminSettings(min_password_length=4)
+
+
+async def test_a_session_opened_for_an_old_password_is_not_valid(
+    database: Database, accounts: AdminAccounts
+) -> None:
+    """A sign-in that verified the old password while it was being reset."""
+    user = await accounts.create_user("ada", PASSWORD)
+    stale = await AdminUser.aget(id=user.id)  # what verify() returned before the reset
+
+    await accounts.set_password(user, "a different password")
+    token = await accounts.open_session(stale)
+
+    assert await accounts.user_for(token) is None
+
+
+async def test_deactivating_ends_the_sessions_and_reactivating_does_not_revive_them(
+    database: Database, accounts: AdminAccounts
+) -> None:
+    user = await accounts.create_user("ada", PASSWORD)
+    token = await accounts.open_session(user)
+
+    await accounts.set_active(user, False)
+    assert await accounts.user_for(token) is None
+    await accounts.set_active(user, True)
+
+    assert await accounts.user_for(token) is None
+    assert await accounts.verify("ada", PASSWORD) is not None
+    assert await accounts.user_for(await accounts.open_session(user)) is not None
