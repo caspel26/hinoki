@@ -478,6 +478,28 @@
     <span class="k">return</span> <span class="p">{</span><span class="s2">"age"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">age</span><span class="p">}</span>  <span class="c1"># name=Ada&amp;age=36&amp;tags=1&amp;tags=2</span>
 </code></pre></div>
 <p>Before validation, text is converted to the <code>int</code>, <code>float</code> and <code>bool</code> the <code>Schema</code> declares (and a lone value of a <code>list</code> field becomes a one-item list); <code>Schema</code> and JSON stay strict. A value that does not convert, or several values for a scalar, fails with the normal <code>422</code> type error. Empty text is not turned into <code>None</code>, and nested <code>Schema</code> fields are not read from form keys. An action with a <code>Form[...]</code> parameter and no <code>parsers=</code> uses <code>FormParser</code> (add <code>MultiPartParser()</code> explicitly for multipart text fields). <code>Form[...]</code> is valid only for the <code>Schema</code> body of a POST, PUT, PATCH or QUERY action, takes only form parsers (a JSON body needs a plain <code>Schema</code> parameter, so one cannot be coerced by mistake), and appears in OpenAPI as <code>application/x-www-form-urlencoded</code>.</p>
+<h2 id="xml-bodies">XML bodies<a class="headerlink" href="#xml-bodies" title="Permanent link">&para;</a></h2>
+<p><code>XML[...]</code> reads a <code>Schema</code> from an <code>application/xml</code> body the same way <code>Form[...]</code> reads a form: the elements under the root become the fields, text is converted to the declared <code>int</code>, <code>float</code> and <code>bool</code>, and the strict validation follows.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">XML</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Line</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">sku</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">qty</span><span class="p">:</span> <span class="nb">int</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Order</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">customer</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">lines</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Line</span><span class="p">]</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/orders"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">XML</span><span class="p">[</span><span class="n">Order</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"lines"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">lines</span><span class="p">)}</span>
+    <span class="c1"># &lt;order&gt;&lt;customer&gt;Ada&lt;/customer&gt;</span>
+    <span class="c1">#   &lt;lines&gt;&lt;sku&gt;a&lt;/sku&gt;&lt;qty&gt;2&lt;/qty&gt;&lt;/lines&gt;&lt;/order&gt;</span>
+</code></pre></div>
+<p>A repeated element is a list (a single one still fills a <code>list</code> field), nested elements fill nested <code>Schema</code> fields, and an empty element is <code>None</code>. Attributes are not read and namespace prefixes are dropped (<code>&lt;a:x&gt;</code> and <code>&lt;b:x&gt;</code> are both <code>x</code>). Malformed XML, a DTD, a custom entity, mixed text and child elements, or exceeding <code>XMLParser(max_depth=..., max_elements=...)</code> is <code>400 invalid_xml</code>. As with <code>Form[...]</code>, the action takes only <code>XMLParser</code> (selected when <code>parsers=</code> is omitted), and the OpenAPI document lists <code>application/xml</code>.</p>
 <h2 id="upload-files">Upload files<a class="headerlink" href="#upload-files" title="Permanent link">&para;</a></h2>
 <p>Bind a file by the multipart field name. An action that declares a file parameter and no <code>parsers=</code> gets <code>MultiPartParser()</code> automatically, with its default limits, unless the application's <code>parsers=</code> include one; pass <code>parsers=[MultiPartParser(...)]</code> to change them. <code>UploadedFile</code> contains the client filename, claimed content type and in-memory <code>bytes</code>; it does not save files or validate their content.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">MultiPartParser</span><span class="p">,</span> <span class="n">Request</span><span class="p">,</span> <span class="n">UploadedFile</span><span class="p">,</span> <span class="n">http</span>
@@ -792,7 +814,7 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#declare-an-action">Declare an action</a></li><li><a href="#read-with-a-body-httpquery">Read with a body: @http.query</a></li><li><a href="#bind-request-values">Bind request values</a></li><li><a href="#form-bodies">Form bodies</a></li><li><a href="#upload-files">Upload files</a></li><li><a href="#group-related-paths">Group related paths</a></li><li><a href="#function-or-class">Function or class</a></li><li><a href="#organising-a-large-application">Organising a large application</a></li><li><a href="#responses-errors-and-pagination">Responses, errors and pagination</a>
+            <ul><li><a href="#declare-an-action">Declare an action</a></li><li><a href="#read-with-a-body-httpquery">Read with a body: @http.query</a></li><li><a href="#bind-request-values">Bind request values</a></li><li><a href="#form-bodies">Form bodies</a></li><li><a href="#xml-bodies">XML bodies</a></li><li><a href="#upload-files">Upload files</a></li><li><a href="#group-related-paths">Group related paths</a></li><li><a href="#function-or-class">Function or class</a></li><li><a href="#organising-a-large-application">Organising a large application</a></li><li><a href="#responses-errors-and-pagination">Responses, errors and pagination</a>
             <ul><li><a href="#rate-limit-an-action">Rate limit an action</a></li><li><a href="#the-response-is-checked-against-the-annotation">The response is checked against the annotation</a></li></ul>
           </li><li><a href="#migrating-from-the-top-level-decorators">Migrating from the top-level decorators</a></li></ul>
           
@@ -801,7 +823,7 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.10</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 18:09:46 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 18:41:28 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>17 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
