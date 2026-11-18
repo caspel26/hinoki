@@ -19,3 +19,5 @@
 ::: hinoki.renderers.HTMLRenderer
 
 ::: hinoki.renderers.TextRenderer
+
+::: hinoki.renderers.XMLRenderer
