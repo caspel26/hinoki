@@ -13,6 +13,7 @@ from collections.abc import Callable, Iterable
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from typing import (
     Annotated,
     Any,
@@ -33,7 +34,7 @@ from hinoki.errors import (
     ValidationError,
 )
 from hinoki.fields import UNSET, Field, FieldInfo, Unset
-from hinoki.fieldtypes import FieldType, parse_annotation
+from hinoki.fieldtypes import DECIMAL_DIGITS_CEILING, FieldType, parse_annotation
 from hinoki.schemaconfig import SchemaConfig, SchemaExtra
 
 _NO_MODEL = object()
@@ -393,9 +394,43 @@ def typed_instance_value(
             if isinstance(value, datetime)
             else _INVALID_INSTANCE_VALUE
         )
+    elif ftype.kind in WIRE_KINDS:
+        checked = wire_instance_value(ftype.kind, value)
     else:
         checked = value
     return checked
+
+
+WIRE_KINDS = {
+    "date": (dt.date, "a date"),
+    "time": (dt.time, "a time"),
+    "timedelta": (dt.timedelta, "a duration"),
+    "decimal": (Decimal, "a decimal"),
+    "bytes": (bytes, "bytes"),
+}
+OVERSIZED_DECIMAL = "9" * (DECIMAL_DIGITS_CEILING + 1)
+
+
+def wire_instance_value(kind: str, value: Any) -> Any:
+    """A ``date``, ``time``, ``timedelta``, ``Decimal`` or ``bytes`` value as the
+    text the validator reads; a value of another type is not accepted."""
+    wanted = WIRE_KINDS[kind][0]
+    if not isinstance(value, wanted) or (
+        kind == "date" and isinstance(value, datetime)
+    ):
+        return _INVALID_INSTANCE_VALUE
+    if kind == "bytes" and type(value) is not bytes:
+        return _INVALID_INSTANCE_VALUE
+    try:
+        text = core.wire_text(value)
+    except ValueError:
+        # not finite (no text form) or beyond the digit ceiling (over any bound)
+        return (
+            OVERSIZED_DECIMAL
+            if cast(Decimal, value).is_finite()
+            else _INVALID_INSTANCE_VALUE
+        )
+    return text
 
 
 def tagged_union_instance_value(
@@ -1658,7 +1693,15 @@ def from_row(ftype: FieldType, value: Any) -> Any:
     return value
 
 
-ENCODERS: dict[type, Callable[[Any], Any]] = {UUID: str, datetime: datetime.isoformat}
+ENCODERS: dict[type, Callable[[Any], Any]] = {
+    UUID: str,
+    datetime: datetime.isoformat,
+    dt.date: dt.date.isoformat,
+    dt.time: dt.time.isoformat,
+    dt.timedelta: core.wire_text,
+    Decimal: core.wire_text,
+    bytes: core.wire_text,
+}
 
 
 @runtime_checkable
