@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-from hinoki import projectcli
 from hinoki.__main__ import main
 from hinoki.project import load_manifest
 from hinoki.scaffold import create
@@ -116,7 +115,7 @@ def test_add_reports_a_manifest_that_cannot_be_replaced(
     def refuse(*_args: object) -> None:
         raise OSError("read-only file system")
 
-    monkeypatch.setattr(projectcli.os, "replace", refuse)
+    monkeypatch.setattr("os.replace", refuse)
     original = (project / "hinoki.toml").read_bytes()
 
     assert main(["app", "add", "billing", "--models", "legacy.billing.models"]) == 2
