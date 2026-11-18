@@ -172,7 +172,7 @@ class Tasks(CrudAPI, model=Task, path="/tasks"):
         return Task.active()
 
 
-class TaskAdmin(ModelAdmin[Task]):
+class TaskAdmin(ModelAdmin, model=Task):
     def queryset(self, principal):
         return Task.active()
 ```

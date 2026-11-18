@@ -60,7 +60,7 @@ def render_fields(
 ) -> Raw:
     t = site.admin.templates
     by_name = {f.name: f for f in fields}
-    grouped = {name for fs in entry.fieldsets for name in fs.fields}
+    grouped = {name for fs in entry.fieldset_list for name in fs.fields}
 
     def one(field: FormField) -> Raw:
         return render_field(
@@ -73,7 +73,7 @@ def render_fields(
         )
 
     rendered = [one(f) for f in fields if f.name not in grouped]
-    for fieldset in entry.fieldsets:
+    for fieldset in entry.fieldset_list:
         inside = [one(by_name[n]) for n in fieldset.fields if n in by_name]
         if not inside:
             continue

@@ -9,7 +9,7 @@ JWT secret is configured and builds the optional admin from settings.
 The factory builds declarations only; the pool opens in the worker's lifespan.
 """
 
-from hinoki import Hinoki
+from hinoki import Hinoki, Mount
 
 from .accounts import build_accounts
 from .adminsite import build_admin
@@ -47,7 +47,10 @@ def create_app(
     app.include(
         health,
         Posts,
-        build_admin(app_settings.admin_secret.reveal(), app_settings.admin_theme).api(),
+        Mount(
+            "/admin",
+            build_admin(app_settings.admin_secret.reveal(), app_settings.admin_theme),
+        ),
     )
     # password login is on only when a signing secret exists
     if app_settings.jwt_secret:
