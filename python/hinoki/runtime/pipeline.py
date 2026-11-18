@@ -18,7 +18,7 @@ import logging
 import secrets
 from collections.abc import Awaitable, Callable
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, cast
 
 from hinoki import context, core
 from hinoki.context import request_id
@@ -34,12 +34,13 @@ from hinoki.errors import (
     TooManyRequests,
     ValidationError,
 )
-from hinoki.http.request import Request
+from hinoki.http.request import Request, media_type
 from hinoki.http.response import Response as HandlerResponse
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
 from hinoki.orm.model import Model
 from hinoki.pagination import Page as ResultPage
+from hinoki.parsers import choose
 from hinoki.ratelimit import RateLimitContext
 from hinoki.renderers import (
     JSONRenderer,
@@ -48,7 +49,7 @@ from hinoki.renderers import (
     negotiate,
 )
 from hinoki.routing import MethodNotAllowed
-from hinoki.runtime.binding import BODY_METHODS, Binding, parse_query
+from hinoki.runtime.binding import BODY_METHODS, Binding, RequestData, parse_query
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.lifespan import Lifespan
 from hinoki.runtime.origins import ALLOW_ORIGIN, CorsPolicy, HostPolicy
@@ -77,6 +78,14 @@ log = logging.getLogger("hinoki.runtime")
 # `None` is the private marker for a path decoding error, deferred until after
 # the pipeline's early host/CORS/redirect/docs policies.
 MatchedRoute = tuple[int, dict[str, str] | None]
+
+
+class NativeBody(NamedTuple):
+    """What a native body-method handler reads: the body source and the raw
+    request headers."""
+
+    source: BodySource
+    headers: list[tuple[bytes, bytes]]
 
 
 class BodySource(Protocol):
@@ -243,10 +252,12 @@ class Pipeline:
         rid: str,
         args: dict[str, object],
         input_error: tuple[str, str, str | None, list[tuple[str, str, str]]] | None,
+        body: NativeBody | None = None,
     ) -> Response:
-        """Run an eligible handler with Rust-prepared path and query inputs."""
+        """Run an eligible handler with Rust-prepared path and query inputs;
+        ``body`` supplies the request body and headers of a body method."""
         return await self._in_request_context(
-            rid, self._respond_native(binding, rid, args, input_error)
+            rid, self._respond_native(binding, rid, args, input_error, body)
         )
 
     async def handle_native_failure(
@@ -382,11 +393,16 @@ class Pipeline:
         rid: str,
         args: dict[str, object],
         input_error: tuple[str, str, str | None, list[tuple[str, str, str]]] | None,
+        body: NativeBody | None = None,
     ) -> Response:
         response: Response
         try:
             async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
-                if input_error is not None:
+                if body is not None:
+                    args = await self._native_body_args(
+                        binding, args, input_error, body
+                    )
+                elif input_error is not None:
                     raise native_input_exception(input_error)
                 response = await self._call_native(binding, args)
         except TimeoutError as exc:
@@ -730,6 +746,50 @@ class Pipeline:
             return Response.rendered(route.status, body, renderer.media_type, many)
         no_content = route.status == HTTPStatus.OK
         return Response(HTTPStatus.NO_CONTENT if no_content else route.status)
+
+    async def _native_body_args(
+        self,
+        binding: Binding,
+        args: dict[str, object],
+        input_error: tuple[str, str, str | None, list[tuple[str, str, str]]] | None,
+        body: NativeBody,
+    ) -> dict[str, object]:
+        """The handler arguments of a body method, failing in the order of the
+        full pipeline: path and negotiation, body read, query syntax, body
+        parse, then every path, query and body problem in declaration order."""
+        param = binding.body_param
+        if param is None:
+            raise RuntimeError("native body route without a body parameter")
+        invalid = input_error is not None and input_error[0] == "validation_error"
+        if (
+            input_error is not None
+            and not invalid
+            and input_error[0] != "invalid_query"
+        ):
+            raise native_input_exception(input_error)
+        headers = core.header_dict(body.headers)
+        raw = await self._body(body.source, headers.get("content-length", ""))
+        if input_error is not None and not invalid:
+            raise native_input_exception(input_error)
+        content_type = headers.get("content-type", "")
+        parsed = choose(binding.route.parsers, media_type(content_type)).parse(
+            raw, content_type
+        )
+        errors = (
+            [ErrorDetail(*item) for item in input_error[3]]
+            if invalid and input_error
+            else []
+        )
+        value: object = None
+        try:
+            value = param.from_body(RequestData(body=parsed.data))
+        except ValidationError as exc:
+            errors.extend(exc.details)
+        if errors:
+            order = {name: i for i, name in enumerate(binding.native_input_names)}
+            errors.sort(key=lambda d: order.get(d.path.split(".", 1)[0], 0))
+            raise ValidationError(errors)
+        return binding.complete_native_args(args, (param.name, value))
 
     async def _call_native(self, binding: Binding, args: dict[str, object]) -> Response:
         """Run a selected no-Request JSON handler and encode through Rust."""

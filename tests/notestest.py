@@ -43,6 +43,11 @@ async def test_the_whole_api_in_one_file(client: Client) -> None:
         "POST", "/notes", b'{"title": "Hi", "body": "there"}', content_type=JSON
     )
     assert made.status == 201 and made.body["title"] == "Hi"
+    padded = await client.request(
+        "POST", "/notes", b'{"title": "  Padded  "}', content_type=JSON
+    )
+    assert padded.body["title"] == "Padded"  # the model's before_save hook
+    await client.request("DELETE", f"/notes/{padded.body['id']}")
     key = made.body["id"]
     assert (await client.request("GET", f"/notes/{key}")).body == made.body
     assert [n["title"] for n in (await client.request("GET", "/notes")).body] == ["Hi"]

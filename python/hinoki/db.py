@@ -16,8 +16,9 @@ access.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from contextvars import ContextVar, Token
 from types import TracebackType
@@ -78,6 +79,7 @@ class ActiveTransaction:
         self.owner = asyncio.current_task()
         self.savepoints = 0
         self.finished = False
+        self.commit_callbacks: list[Callable[[], object]] = []
 
     def next_savepoint(self) -> str:
         """A name never reused within this transaction, so sibling scopes can
@@ -156,6 +158,16 @@ class Database:
     def transaction(self) -> TransactionScope:
         return TransactionScope(self)
 
+    def after_commit(self, callback: Callable[[], object]) -> None:
+        """Run ``callback`` (sync or async) after the outermost transaction
+        commits, in registration order. A rollback, of the transaction or of
+        the savepoint scope it was registered in, drops it; an exception in a
+        callback is logged and does not undo the commit."""
+        active = self.active()
+        if active is None:
+            raise DatabaseError("after_commit needs an active transaction")
+        active.commit_callbacks.append(callback)
+
     def migration(self) -> TransactionScope:
         """An exclusive migration transaction with backend locking semantics."""
         return TransactionScope(self, migration=True)
@@ -177,6 +189,7 @@ class TransactionScope:
         self.state: ActiveTransaction | None = None
         self.token: Token[ActiveTransaction | None] | None = None
         self.savepoint: str | None = None
+        self.callback_mark = 0
 
     async def __aenter__(self) -> TransactionScope:
         parent = self.database.active()
@@ -198,6 +211,7 @@ class TransactionScope:
             raise DatabaseError("migration transactions cannot be nested")
         self.state = parent
         self.savepoint = parent.next_savepoint()
+        self.callback_mark = len(parent.commit_callbacks)
         await parent.native.execute(f"SAVEPOINT {self.savepoint}", [])
         return self
 
@@ -224,10 +238,23 @@ class TransactionScope:
         except BaseException:
             await self.rollback(state)  # make sure nothing stays open
             raise
+        await self.run_commit_callbacks(state)
 
     async def leave_savepoint(self, state: ActiveTransaction, ok: bool) -> None:
         verb = "RELEASE SAVEPOINT" if ok else "ROLLBACK TO SAVEPOINT"
+        if not ok:
+            del state.commit_callbacks[self.callback_mark :]
         await state.native.execute(f"{verb} {self.savepoint}", [])
+
+    @staticmethod
+    async def run_commit_callbacks(state: ActiveTransaction) -> None:
+        for callback in state.commit_callbacks:
+            try:
+                result = callback()
+                if inspect.isawaitable(result):
+                    await result
+            except Exception:
+                log.exception("an after_commit callback failed")
 
     @staticmethod
     async def rollback(state: ActiveTransaction) -> None:

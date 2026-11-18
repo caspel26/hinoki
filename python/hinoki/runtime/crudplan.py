@@ -100,8 +100,18 @@ MODEL_METHODS = (
     "aget",
     "all",
     "concrete",
-    "refresh",
+    "load_stored",
+    "write_insert",
+    "write_update",
+    "run_hooks",
+    "before_save",
+    "before_create",
+    "after_create",
+    "after_save",
 )
+# Overridden hooks only matter to the actions that write through the model.
+HOOK_METHODS = frozenset(MODEL_METHODS[-4:])
+HOOKED_ACTIONS = frozenset({"create", "update"})
 QUERYSET_METHODS = (
     "__init__",
     "__await__",
@@ -518,7 +528,7 @@ def plain_crud_model(model: type[Model], resource: _CrudConfig, action: str) -> 
     fields = model_fields(model)
     written = write_columns(model, resource, action)
     return bool(
-        plain_model_methods(model)
+        plain_model_methods(model, action in HOOKED_ACTIONS)
         and fields is not None
         and model.__field_types__[model.__primary_key__].kind in {"int", "uuid", "str"}
         and not set(written) & set(model.__field_validation_fields__)
@@ -527,7 +537,7 @@ def plain_crud_model(model: type[Model], resource: _CrudConfig, action: str) -> 
     )
 
 
-def plain_model_methods(model: type[Model]) -> bool:
+def plain_model_methods(model: type[Model], hooked: bool) -> bool:
     if type(model) is not type or model.__json_columns__:
         return False
     return (
@@ -537,6 +547,7 @@ def plain_model_methods(model: type[Model]) -> bool:
             for name, original in zip(
                 MODEL_METHODS, MODEL_METHODS_ORIGINAL, strict=True
             )
+            if hooked or name not in HOOK_METHODS
         )
         and all(plain_column(model, column) for column in model.__columns__)
     )

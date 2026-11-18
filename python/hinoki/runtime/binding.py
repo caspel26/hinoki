@@ -211,6 +211,7 @@ class Binding:
     row_wire: RowWireSelection | None = field(default=None, repr=False, compare=False)
     is_async: bool = field(init=False, repr=False, compare=False)
     native_input_names: tuple[str, ...] = field(init=False, repr=False, compare=False)
+    body_param: Param | None = field(init=False, repr=False, compare=False)
     native_defaults: tuple[tuple[str, object], ...] = field(
         init=False, repr=False, compare=False
     )
@@ -223,6 +224,9 @@ class Binding:
         object.__setattr__(
             self, "native_input_names", tuple(p.name for p in self.params)
         )
+        bodies = [p for p in self.params if p.source == "body"]
+        only_body = len(bodies) == 1 and not self.has_files
+        object.__setattr__(self, "body_param", bodies[0] if only_body else None)
         object.__setattr__(
             self,
             "native_defaults",
@@ -233,11 +237,16 @@ class Binding:
             ),
         )
 
-    def complete_native_args(self, supplied: dict[str, object]) -> dict[str, object]:
-        """Restore omitted query defaults in declaration order."""
-        if not self.native_defaults:
+    def complete_native_args(
+        self, supplied: dict[str, object], body: tuple[str, object] | None = None
+    ) -> dict[str, object]:
+        """Restore omitted query defaults, and place the validated body, in
+        declaration order."""
+        if not self.native_defaults and body is None:
             return supplied
         defaults = dict(self.native_defaults)
+        if body is not None:
+            defaults[body[0]] = body[1]
         return {
             name: supplied[name] if name in supplied else defaults[name]
             for name in self.native_input_names
