@@ -109,6 +109,13 @@
           "primary_key": false,
           "unique": false,
           "references": null
+        },
+        "fingerprint": {
+          "type": "varchar(64)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
         }
       },
       "unique": [],
