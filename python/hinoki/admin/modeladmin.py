@@ -9,12 +9,14 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-from hinoki.admin.parts import Badge, Fieldset, Stat, Tab
+from hinoki.admin.parts import Badge, Extra, Fieldset, Stat, Tab
 from hinoki.auth import Caller
 from hinoki.errors import RegistrationError
 from hinoki.orm import Model, QuerySet
 
 _ACTION_NAME = re.compile(r"[a-z][a-z0-9-]{0,47}\Z")
+# The names the permission model uses; a bulk action cannot take one.
+RESERVED_ACTIONS = frozenset({"view", "add", "change", "delete"})
 _MAX_ACTION_LABEL = 80
 _MAX_ACTION_CONFIRMATION = 240
 
@@ -89,6 +91,8 @@ class ModelAdmin[M: Model]:
     show_count: ClassVar[bool | None] = None  # the site's ``show_count`` when unset
     bulk_delete: ClassVar[bool] = True  # offered where ``can(principal, "delete")``
     bulk_actions: ClassVar[tuple[BulkAction[Any], ...]] = ()
+    extra_fields: ClassVar[tuple[Extra, ...]] = ()
+    site: Any = None  # the Admin this model admin is registered in
 
     def __init_subclass__(cls, model: type[M] | None = None, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -117,6 +121,14 @@ class ModelAdmin[M: Model]:
             self.bulk_actions = (*declared_here, *declared)  # type: ignore[misc]
         self.tab_list: tuple[Tab, ...] = ()  # set by ``normalize`` at registration
         self.fieldset_list: tuple[Fieldset, ...] = ()
+
+    def extras(self) -> tuple[Extra, ...]:
+        """The form fields that are not columns (``extra_fields`` by default)."""
+        return self.extra_fields
+
+    async def extra_initial(self, row: M) -> dict[str, Any]:
+        """What the extra fields show for ``row`` on the edit form."""
+        return {}
 
     def queryset(self, principal: Caller[Any]) -> QuerySet[M]:
         return self.model.all()
@@ -322,7 +334,7 @@ def _validate_bulk_action(action: BulkAction[Any], slug: str, names: set[str]) -
     if (
         not isinstance(action.name, str)
         or not _ACTION_NAME.fullmatch(action.name)
-        or action.name == "delete"
+        or action.name in RESERVED_ACTIONS
     ):
         raise RegistrationError(
             f"admin {slug!r}: invalid or reserved bulk action name {action.name!r}"

@@ -22,6 +22,12 @@ class AdminUser(Model, table="hinoki_admin_users"):
     sessions: ClassVar["Related[list[AdminSession]]"]
     grants: ClassVar["Related[list[AdminGrant]]"]
 
+    def __repr__(self) -> str:
+        """Without the password hash, so a traceback or a log line never carries it."""
+        return (
+            f"AdminUser(username={self.username!r}, is_superuser={self.is_superuser})"
+        )
+
 
 @db.indexed("user_id")
 class AdminSession(Model, table="hinoki_admin_sessions"):

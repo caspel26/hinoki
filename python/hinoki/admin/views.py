@@ -6,12 +6,15 @@ import typing
 from collections.abc import Callable
 from typing import Any
 
+from hinoki.admin.authviews import AUTH_VIEW_FUNCTIONS
 from hinoki.admin.components import icon_name
 from hinoki.admin.formpages import (
     FormView,
     check_references,
+    current_values,
     form_fields,
     form_response,
+    submitted,
 )
 from hinoki.admin.forms import (
     collect,
@@ -213,7 +216,7 @@ async def add_submit(
     message = "" if errors else await guarded(entry.save(values, principal))
     if errors or message:
         view = FormView(
-            model, entry, None, fields, dict(request.POST), errors, message, 422
+            model, entry, None, fields, submitted(request, fields), errors, message, 422
         )
         return await form_response(site, view)
     return Response(
@@ -243,7 +246,7 @@ async def edit_form(
     if entry is None:
         return await site.problem(404, "Not found.")
     fields = form_fields(entry, creating=False)
-    values = {f.name: getattr(row, f.name) for f in fields}
+    values = await current_values(entry, row, fields)
     return await form_response(site, FormView(model, entry, row, fields, values))
 
 
@@ -259,14 +262,14 @@ async def edit_submit(
             403, "The form expired or is invalid. Reload and try again."
         )
     fields = form_fields(entry, creating=False)
-    original = {f.name: getattr(row, f.name) for f in fields}
+    original = await current_values(entry, row, fields)
     values, errors = collect(fields, request.POST, original)
     errors = errors or await check_references(site, fields, values)
     errors = errors or await entry.check(values, principal, row)
     message = "" if errors else await guarded(entry.save(values, principal, row))
     if errors or message:
         view = FormView(
-            model, entry, row, fields, dict(request.POST), errors, message, 422
+            model, entry, row, fields, submitted(request, fields), errors, message, 422
         )
         return await form_response(site, view)
     return Response(
@@ -497,6 +500,7 @@ async def bulk(
 
 
 VIEWS: dict[str, Callable[..., Any]] = {
+    **AUTH_VIEW_FUNCTIONS,
     "stylesheet": stylesheet,
     "script": script,
     "index": index,
@@ -510,9 +514,22 @@ VIEWS: dict[str, Callable[..., Any]] = {
     "delete_submit": delete_submit,
     "bulk": bulk,
 }
+ASSETS = frozenset({"stylesheet", "script"})
+AUTH_VIEWS = frozenset(
+    {"login_form", "login_submit", "logout", "password_form", "password_submit"}
+)
+PUBLIC_VIEWS = ASSETS | {"login_form", "login_submit"}
+# They verify a password, which takes tens of milliseconds of hashing: they hold
+# no database connection meanwhile and are rate limited.
+HASHING_VIEWS = frozenset({"login_submit", "password_submit"})
 ROUTES: list[tuple[str, str, str, bool]] = [
     ("stylesheet", "GET", "/static/admin.css", False),
     ("script", "GET", "/static/admin.js", False),
+    ("login_form", "GET", "/login", False),
+    ("login_submit", "POST", "/login", True),
+    ("logout", "POST", "/logout", True),
+    ("password_form", "GET", "/password", False),
+    ("password_submit", "POST", "/password", True),
     ("index", "GET", "/", False),
     ("search", "GET", "/search", False),
     ("listing", "GET", "/{model}", False),
