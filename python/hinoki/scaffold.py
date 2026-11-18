@@ -93,14 +93,26 @@ def health() -> Health:
 
 RULES = '''"""The project's rules. Weaken them only with the owner's decision (see hinoki-rules.toml)."""
 
-from hinoki import Actions, Schemas, Transactions
+from hinoki import Actions, Schemas, Transactions  # add Models with your first model
 from hinoki.rules import RuleSet
 
 project_rules = RuleSet(
+    # Anything not public on purpose names an access policy, and the policy names permissions.
     Actions.require_access(match="{name}.*", except_=["{name}.api.health"]),
-    Transactions.require_atomic(),
-    Schemas.forbid_exposure("password_hash", "password", "token"),
+    Actions.require_permissions(match="{name}.*", except_=["{name}.api.health"]),
+    # Responses are concrete Schema types and lists are paginated.
     Actions.forbid_model_responses(match="{name}.*"),
+    Actions.require_return_type(match="{name}.*"),
+    Actions.require_pagination(match="{name}.*"),
+    # Writes run in a transaction that rolls back before errors become HTTP.
+    Transactions.require_atomic(),
+    # Secrets never reach a client, and request text is bounded.
+    Schemas.forbid_exposure("password_hash", "password", "token"),
+    Schemas.require_string_limits(),
+    # Turn these on with your first model (a model rule that matches no model
+    # fails the check): tables are pinned and foreign keys are indexed.
+    # Models.require_explicit_table(match="{name}.*"),
+    # Models.require_foreign_key_index(match="{name}.*"),
 )
 '''
 
@@ -203,7 +215,7 @@ uv run hinoki dev {name}.main:app      # reload; `serve` runs it for production
 
 The generated app has neither. The reference is `examples/tracker` in the framework repository; the shape is:
 
-1. `models.py`: a `Member` (id, name, token) and your model with `owner_id: UUID = foreign_key(Member, on_delete=OnDelete.RESTRICT, related_name="...")` (`OnDelete` comes from `hinoki.orm`).
+1. `models.py`: a `Member` (id, name, token) and your model with `owner_id: UUID = foreign_key(Member, on_delete=OnDelete.RESTRICT, related_name="...")` (`OnDelete` comes from `hinoki.orm`). Then turn on the two model rules in `rules.py` (`Models.require_explicit_table`, `Models.require_foreign_key_index`): pin each table with `table=` or `@db.table(...)`, and index each foreign key with `@db.indexed("owner_id")`.
 2. `schemas.py`: an `In` schema without the owner, an `Out` schema.
 3. `operations.py`: plain async functions taking `owner_id` and values; row permission goes in the statement (`Model.filter(owner_id=me)`, `aupdate_where({{...}})`), so someone else's row looks missing (404).
 4. `security.py`: a `BearerAuth` that resolves a token to `Caller(id=..., user=member, permissions=...)` and an `Access(...)`.

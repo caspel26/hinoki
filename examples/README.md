@@ -23,7 +23,8 @@ registered apps in dependency order. Migration numbers and slugs are generated
 from planned schema changes. Review generated SQL and state before applying.
 
 Use `hinoki new NAME` to scaffold a separate project and `hinoki app create
-NAME` from a manifest-backed project to add an independently registered app. A
+NAME` from a manifest-backed project to add an independently registered app (`hinoki app add NAME --models
+MODULE` registers a package that already exists). A
 scaffolded project lists its routes in `routes.py`, which `hinoki.toml` names; the
 examples here keep their explicit `include=[...]`, which always takes precedence
 over the manifest. Notes declares `app` at module level; Tracker and Blog use a

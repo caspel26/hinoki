@@ -16,7 +16,7 @@ class PostCreate(Schema):
 
     title: Annotated[str, Field(min_length=1, max_length=160)]
     slug: Slug
-    body: str
+    body: Annotated[str, Field(max_length=20_000)]
 
 
 class PostOut(Schema):
