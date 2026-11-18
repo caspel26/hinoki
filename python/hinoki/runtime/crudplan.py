@@ -98,6 +98,7 @@ MODEL_METHODS = (
     "check_field",
     "validate_values",
     "aget",
+    "all",
     "concrete",
     "refresh",
 )
@@ -640,6 +641,15 @@ def schema_default_specs(
     return found
 
 
+def schema_defaults_fit(model: type[Model], *specs: list[tuple[str, str, str]]) -> bool:
+    """Every schema default is stored as is only in a column of its own kind."""
+    return all(
+        default_fits_column(model, name, kind)
+        for found in specs
+        for name, kind, _value in found
+    )
+
+
 def action_schemas(resource: _CrudConfig) -> tuple[type[Schema], ...]:
     return tuple(
         schema
@@ -871,6 +881,7 @@ def compile_selection(
         or create_defaults is None
         or update_defaults is None
         or read_fields is None
+        or not schema_defaults_fit(model, create_defaults, update_defaults)
     ):
         return None
     try:
@@ -985,6 +996,7 @@ def value_state(
 ) -> tuple[object, ...]:
     return (
         owner.__dict__.get("resource"),
+        tuple(getattr(owner, "response_headers", ())),
         resource.model,
         resource.read,
         resource.create,
