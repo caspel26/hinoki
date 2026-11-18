@@ -118,15 +118,17 @@ def app_label(module: str) -> str:
 
 
 def _derived_table(class_name: str, words: list[str], app: str) -> tuple[str, str]:
-    """The table name derived from the app and the class name (``<app>_<model>``)
-    and, when that name cannot be used, the reason. The reason is reported only
+    """The table name derived from the app and the plural class name
+    (``<app>_<models>``) and, when that name cannot be used, the reason. The reason is reported only
     if no ``@db.table`` or ``table=`` replaces the name (see ``Model.check_table``)."""
     if not words or not app:
         return "", (
             f"{class_name}: cannot derive a table name from this class name; "
             "name the table with @db.table(...) or table="
         )
-    table = "_".join([app, *(word.lower() for word in words)])
+    table_words = [word.lower() for word in words]
+    table_words[-1] = _plural_word(table_words[-1])
+    table = "_".join([app, *table_words])
     return table, _derived_table_problem(class_name, table)
 
 
@@ -157,7 +159,8 @@ def resolve_model_names(
 ) -> tuple[str, str, str, bool, str]:
     """Return resolved names, whether the table came from the class name and,
     for a derived table name that cannot be used, the deferred error. The
-    table is ``<app>_<model>``; ``app`` overrides the app taken from ``module``."""
+    table is ``<app>_<models>`` (the model name in the plural); ``app`` overrides
+    the app taken from ``module``."""
     _validate_options(class_name, table, label, plural)
     if app and not _APP_LABEL.fullmatch(app):
         raise RegistrationError(
