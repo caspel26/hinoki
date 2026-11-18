@@ -14,6 +14,7 @@ A **parser** turns a request body into Python data; a **renderer** turns a handl
 | `TextParser` | — | Decodes UTF-8 in Python; `media_type` |
 | `JSONRenderer` | Encodes `dict`, `list`, `Schema`, UUID, datetime and `dump()` objects | `prepare(value, request)` and `default` callbacks run in Python; `indent`, `sort_keys`, `media_type` |
 | `HTMLRenderer`, `TextRenderer` | — | Type-check and UTF-8 encode strings in Python; `media_type` |
+| `XMLRenderer` | — | Writes the JSON-compatible result as UTF-8 XML in Python; `root`, `item` |
 
 Content negotiation (`Accept`, quality values, wildcards) also runs in Rust; with nothing acceptable the answer is 406 before the handler runs.
 
@@ -36,6 +37,20 @@ async def report() -> dict[str, int]: ...
 @http.post("/hook", parsers=[JSONParser(), TextParser()])
 async def hook(request: Request) -> None: ...   # request.data is a dict or a str
 ```
+
+## Answer XML
+
+`XMLRenderer` renders the same JSON-compatible result a `JSONRenderer` would, as `application/xml; charset=utf-8` with an XML declaration:
+
+```python
+from hinoki import JSONRenderer, XMLRenderer
+
+@http.get("/report", renderers=[JSONRenderer(), XMLRenderer(root="report")])
+async def report() -> dict[str, object]:
+    return {"id": 1, "tags": ["a", "b"], "note": None}
+```
+
+`Accept: application/xml` answers `<?xml version="1.0" encoding="UTF-8"?><report><id>1</id><tags><item>a</item><item>b</item></tags><note/></report>`; without it the first renderer (JSON) answers. A mapping becomes child elements named by its keys, a list becomes repeated `item` elements (`item=` renames them), `None` an empty element and booleans `true`/`false`. A key that is not a valid XML name (a space, a leading digit, a name starting with `xml`) is written as `<item key="...">`, escaped, instead of failing the request. Tab and line breaks are written as character references so a parser keeps them, and characters XML 1.0 cannot carry are replaced by U+FFFD. Non-finite floats are written `NaN`, `INF` and `-INF`. Nesting deeper than 200 levels (the JSON encoder's limit), an integer of more than 4300 digits or a value that is not JSON-compatible raises an error (`500`). The renderer runs in Python, but it never reads the request, so an action that lists it stays on the native handler lane.
 
 ## Configure the Rust JSON encoder
 

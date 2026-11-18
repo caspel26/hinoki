@@ -181,11 +181,11 @@ fn native_handler_is_valid(route: &RoutePlan) -> bool {
         _ => false,
     };
     let has_no_unsupported_inputs = body_matches_method && !route.takes_request;
-    let uses_default_json = route.media_types.as_slice() == ["application/json"];
+    let has_media_types = !route.media_types.is_empty();
     let has_no_response_hooks = route.headers.is_empty();
     has_supported_request_inputs
         && has_no_unsupported_inputs
-        && uses_default_json
+        && has_media_types
         && has_no_response_hooks
 }
 

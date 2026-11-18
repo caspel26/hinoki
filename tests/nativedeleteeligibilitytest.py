@@ -74,6 +74,7 @@ def test_only_plain_and_transactional_deletes_are_native() -> None:
     assert native == [
         "/plain/{item}",
         "/guarded/{item}",
+        "/limited/{item}",
         "/atomic/{item}",
         "/group/{item}",
     ]
@@ -81,8 +82,8 @@ def test_only_plain_and_transactional_deletes_are_native() -> None:
 
 @pytest.mark.parametrize(
     "route",
-    [limited, with_request],
-    ids=["rate_limit", "request"],
+    [with_request],
+    ids=["request"],
 )
 def test_each_guard_alone_keeps_a_delete_on_the_python_path(
     route: Callable[..., Any],
