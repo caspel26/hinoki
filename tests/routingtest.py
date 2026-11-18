@@ -325,7 +325,7 @@ def test_failed_route_group_include_does_not_freeze_group() -> None:
     @group.get("/health")
     def one() -> None: ...
 
-    app = Hinoki(include=[http.get("/group/health")(lambda: None)])
+    app = Hinoki(include=[http.get("/group/health")(lambda: None)])  # type: ignore[misc]
     with pytest.raises(RegistrationError, match="duplicate"):
         app.include(group)
 

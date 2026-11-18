@@ -9,11 +9,12 @@ import re
 import sys
 import tomllib
 from pathlib import Path
+from typing import cast
 
 from hinoki.orm import MARK, FieldMeta, Model
 from hinoki.orm.migrations import models_of
 from hinoki.orm.naming import MIGRATION_LEDGER, table_names_conflict
-from hinoki.routing import Mount
+from hinoki.routing import Includable, Mount
 from hinoki.scaffold import NAME, RESERVED_NAMES
 
 _MODULE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\Z")
@@ -131,14 +132,14 @@ class ProjectManifest:
         root_package = self.application.partition(":")[0].split(".", maxsplit=1)[0]
         return "" if app.name == root_package else app.name
 
-    def route_items(self) -> list[object]:
+    def route_items(self) -> list[Includable]:
         """The project's routes, then each app's routes mounted at its prefix.
 
         Apps follow the dependency order; an app without ``routes`` adds nothing.
         Importing the route modules is the only effect.
         """
         add_project_root(self)
-        items: list[object] = []
+        items: list[Includable] = []
         if self.routes:
             items.extend(self._route_list(self.routes, "project"))
         for app in self.ordered_apps():
@@ -148,7 +149,7 @@ class ProjectManifest:
                     items.append(Mount(app.prefix or f"/{app.name}", *mine))
         return items
 
-    def _route_list(self, target: str, owner: str) -> list[object]:
+    def _route_list(self, target: str, owner: str) -> list[Includable]:
         module_name, _, attribute = target.partition(":")
         try:
             found = getattr(importlib.import_module(module_name), attribute)
@@ -160,7 +161,7 @@ class ProjectManifest:
             raise ProjectError(
                 f"the routes of {owner} ({target}) must be a list of routes"
             )
-        return list(found)
+        return cast(list[Includable], list(found))
 
     def models(self, app: ProjectApp) -> list[type[Model]]:
         """Load this app's concrete model classes without opening resources."""

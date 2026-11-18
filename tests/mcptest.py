@@ -402,7 +402,7 @@ def test_propose_model_generates_source_that_imports_and_registers() -> None:
     exec(compile(result["source"], "<proposal>", "exec"), space)  # noqa: S102
     app = Hinoki()
     app.include(
-        *[v for k, v in space.items() if k.endswith("_article") or "articles" in k]
+        *[v for k, v in space.items() if k.endswith("_article") or "articles" in k]  # type: ignore[arg-type]
     )
     assert len(app.routes) == 5
     assert "TODO: add access" in result["source"]
