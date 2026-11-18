@@ -13,6 +13,7 @@ enum Kind {
     Bool,
     Uuid,
     Timestamp,
+    Bytes,
 }
 
 impl Kind {
@@ -24,6 +25,7 @@ impl Kind {
             "bool" => Ok(Self::Bool),
             "uuid" => Ok(Self::Uuid),
             "datetime" => Ok(Self::Timestamp),
+            "bytes" => Ok(Self::Bytes),
             _ => Err(PyValueError::new_err(format!(
                 "unsupported row wire kind {value:?}"
             ))),
@@ -197,6 +199,10 @@ fn write_value(output: &mut Vec<u8>, value: &Value, field: &Field) -> Option<()>
                 return None;
             }
             write_json(output, &hinoki_orm::timestamp_iso(value))
+        }
+        (Kind::Bytes, Value::Bytes(value)) => {
+            use base64::{engine::general_purpose::STANDARD, Engine};
+            write_json(output, &STANDARD.encode(value))
         }
         _ => None,
     }
