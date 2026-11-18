@@ -5,10 +5,11 @@ from __future__ import annotations
 import dataclasses
 import inspect
 import logging
+import sys
 from collections.abc import Iterator, MutableMapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from functools import partial
-from types import ModuleType
+from types import FrameType, ModuleType
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -29,6 +30,7 @@ from hinoki.parsers import (
     Parser,
     check_parsers,
 )
+from hinoki.project import manifest_declaring
 from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers
 from hinoki.routing import Found, MethodNotAllowed, Mount, Route, RouteGroup, route_of
 from hinoki.rules import Phase, Project, RuleSet, failing
@@ -127,7 +129,7 @@ class Hinoki:
         self,
         *,
         settings: object | None = None,
-        include: Sequence[object] = (),
+        include: Sequence[object] | None = None,
         modules: Sequence[Module | type[Module]] = (),
         commands: Sequence[Command | type[Command]] = (),
         on_startup: Sequence[Hook] = (),
@@ -162,8 +164,19 @@ class Hinoki:
         if automatic is not None or declared:
             self.install(*([automatic] if automatic else []), *declared)
         self._automatic_database: DatabaseModule | None = automatic
+        if include is None:
+            include = self._project_routes(sys._getframe(1))
         if include:
             self.include(*include)
+
+    @staticmethod
+    def _project_routes(caller: FrameType) -> list[object]:
+        """Without ``include=``, the routes ``hinoki.toml`` declares, when the
+        manifest names the module that builds this application."""
+        manifest = manifest_declaring(
+            caller.f_globals.get("__name__", ""), caller.f_globals.get("__file__")
+        )
+        return manifest.route_items() if manifest is not None else []
 
     def _configure_runtime(
         self, built_in: AppSettings | None, runtime: RuntimeConfig | None

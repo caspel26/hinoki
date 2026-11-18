@@ -13,6 +13,7 @@ from pathlib import Path
 from hinoki.orm import MARK, FieldMeta, Model
 from hinoki.orm.migrations import models_of
 from hinoki.orm.naming import MIGRATION_LEDGER, table_names_conflict
+from hinoki.routing import Mount
 from hinoki.scaffold import NAME, RESERVED_NAMES
 
 _MODULE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\Z")
@@ -26,6 +27,8 @@ class ProjectApp:
     models: str
     migrations: str
     requires: tuple[str, ...]
+    routes: str = ""  # ``module:attribute`` of the app's list of routes
+    prefix: str = ""  # where the routes are mounted, ``/<name>`` when empty
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -35,6 +38,7 @@ class ProjectManifest:
     path: Path
     application: str
     apps: tuple[ProjectApp, ...]
+    routes: str = ""  # ``module:attribute`` of the project's own routes
 
     @property
     def root(self) -> Path:
@@ -126,6 +130,37 @@ class ProjectManifest:
         """Keep the scaffolded root app compatible with the legacy ledger."""
         root_package = self.application.partition(":")[0].split(".", maxsplit=1)[0]
         return "" if app.name == root_package else app.name
+
+    def route_items(self) -> list[object]:
+        """The project's routes, then each app's routes mounted at its prefix.
+
+        Apps follow the dependency order; an app without ``routes`` adds nothing.
+        Importing the route modules is the only effect.
+        """
+        add_project_root(self)
+        items: list[object] = []
+        if self.routes:
+            items.extend(self._route_list(self.routes, "project"))
+        for app in self.ordered_apps():
+            if app.routes:
+                mine = self._route_list(app.routes, f"app {app.name!r}")
+                if mine:
+                    items.append(Mount(app.prefix or f"/{app.name}", *mine))
+        return items
+
+    def _route_list(self, target: str, owner: str) -> list[object]:
+        module_name, _, attribute = target.partition(":")
+        try:
+            found = getattr(importlib.import_module(module_name), attribute)
+        except (ImportError, AttributeError) as error:
+            raise ProjectError(
+                f"cannot load the routes of {owner} ({target}): {error}"
+            ) from None
+        if not isinstance(found, list | tuple):
+            raise ProjectError(
+                f"the routes of {owner} ({target}) must be a list of routes"
+            )
+        return list(found)
 
     def models(self, app: ProjectApp) -> list[type[Model]]:
         """Load this app's concrete model classes without opening resources."""
@@ -282,9 +317,35 @@ def load_manifest(path: Path | None = None) -> ProjectManifest:
             raise ProjectError(
                 f"app {app.name!r} requires unknown app {sorted(unknown)[0]!r}"
             )
-    manifest = ProjectManifest(manifest_path.resolve(), application, apps)
+    routes = project.get("routes", "")
+    if routes and (not isinstance(routes, str) or not _valid_target(routes)):
+        raise ProjectError("project.routes must be a module:attribute target")
+    manifest = ProjectManifest(manifest_path.resolve(), application, apps, routes)
     manifest.ordered_apps()
     return manifest
+
+
+def manifest_declaring(module: str, file: str | None) -> ProjectManifest | None:
+    """The manifest whose ``project.application`` is in ``module``, found from the
+    directory of ``file`` upwards, else ``None``.
+
+    Only a manifest that names this module is parsed in full, so an unrelated
+    ``Hinoki()`` next to a project (a test, a script) never reads its routes.
+    """
+    path = find_manifest_or_none(Path(file).parent) if file else None
+    if path is None or _declared_module(path) != module:
+        return None
+    return load_manifest(path)
+
+
+def _declared_module(path: Path) -> str | None:
+    """The module of ``project.application``, read without validating the rest."""
+    try:
+        project = tomllib.loads(path.read_text(encoding="utf-8")).get("project")
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError):
+        return None
+    target = project.get("application") if isinstance(project, dict) else None
+    return target.partition(":")[0] if isinstance(target, str) else None
 
 
 def _valid_target(value: str) -> bool:
@@ -316,7 +377,22 @@ def _parse_app(value: object) -> ProjectApp:
         raise ProjectError(f"app {name!r} requires must be a list of app names")
     if len(set(requires)) != len(requires):
         raise ProjectError(f"app {name!r} repeats a dependency")
-    return ProjectApp(name, models, migrations, tuple(requires))
+    routes, prefix = _parse_app_routes(name, value)
+    return ProjectApp(name, models, migrations, tuple(requires), routes, prefix)
+
+
+def _parse_app_routes(name: str, value: dict[str, object]) -> tuple[str, str]:
+    routes = value.get("routes", "")
+    prefix = value.get("prefix", "")
+    if routes and (not isinstance(routes, str) or not _valid_target(routes)):
+        raise ProjectError(f"app {name!r} routes must be a module:attribute target")
+    if not isinstance(prefix, str) or (
+        prefix and (not prefix.startswith("/") or prefix.endswith("/"))
+    ):
+        raise ProjectError(
+            f"app {name!r} prefix must start with '/' and not end with one"
+        )
+    return str(routes), prefix
 
 
 def add_project_root(manifest: ProjectManifest) -> None:
