@@ -3,6 +3,7 @@
 import json
 import re
 from typing import Any
+from uuid import UUID
 
 import pytest
 
@@ -70,6 +71,13 @@ def native_default_subclass(value: str = StringSubclass("custom")) -> dict[str, 
     return {"value": value}
 
 
+@http.get("/native/typed/{ident}")
+def native_typed(
+    ident: UUID, count: int, ratio: float = 1.5, flag: bool = False
+) -> dict[str, object]:
+    return {"ident": ident, "count": count, "ratio": ratio, "flag": flag}
+
+
 @http.get("/custom-renderer", renderers=[JSONRenderer(indent=2)])
 async def custom_renderer() -> dict[str, str]:
     return {"native": "no"}
@@ -102,6 +110,7 @@ def make_app(**config: int) -> Hinoki:
         native_default_path,
         native_default_number,
         native_default_subclass,
+        native_typed,
         custom_renderer,
         item,
         string_item,
@@ -244,14 +253,51 @@ def test_native_dispatch_selects_only_supported_get_inputs() -> None:
     assert path.native_args == {"item_id": "a/b"}
     assert query.native_handler is True
     assert query.native_args == {"term": "green tea"}
-    assert number.native_handler is False
+    assert number.native_handler is True
+    assert number.native_args == {"item_id": 4}
     assert default.native_handler is True
     assert default.native_args == {}
     assert default_path.native_handler is False
-    assert default_number.native_handler is False
+    assert default_number.native_handler is True
+    assert default_number.native_args == {}
     assert default_subclass.native_handler is False
     assert request_handler.native_handler is False
     assert custom.native_handler is False
+
+
+def test_native_typed_inputs_are_converted_in_rust() -> None:
+    server = classifier(make_app())
+    ident = "123e4567-E89b-12d3-a456-426614174000"
+    server.submit("GET", f"/native/typed/{ident}", b"count=-7&ratio=2e1&flag=1", [])
+    server.submit("GET", f"/native/typed/{ident}", b"count=3", [])
+    server.submit("GET", "/native/typed/nope", b"count=x&ratio=nan&flag=yes", [])
+    server.submit("GET", f"/native/typed/{ident}", b"count=1&count=2", [])
+    server.submit("GET", f"/native/typed/{ident}", b"count=" + b"9" * 19, [])
+    [full, partial, invalid, duplicate, huge] = server.drain(5)
+    assert full.native_handler is True
+    assert full.native_args == {
+        "ident": UUID(ident),
+        "count": -7,
+        "ratio": 20.0,
+        "flag": True,
+    }
+    assert partial.native_args == {"ident": UUID(ident), "count": 3}
+    assert invalid.native_handler is True
+    assert invalid.native_error == (
+        "validation_error",
+        "invalid request parameters",
+        None,
+        [
+            ("ident", "type", "invalid value"),
+            ("count", "type", "invalid value"),
+            ("ratio", "type", "invalid value"),
+            ("flag", "type", "invalid value"),
+        ],
+    )
+    assert duplicate.native_error is not None
+    assert duplicate.native_error[3] == [("count", "duplicate", "given more than once")]
+    # Beyond what Rust decides exactly, the request keeps the Python lane.
+    assert huge.native_handler is False
 
 
 def test_native_query_default_is_omitted_until_python_restores_the_same_object() -> (
@@ -270,9 +316,9 @@ def test_native_query_default_is_omitted_until_python_restores_the_same_object()
     assert supplied_request.native_args == {"term": "custom"}
 
 
-@pytest.mark.parametrize("inputs", [[], [("path", "other", False)]])
+@pytest.mark.parametrize("inputs", [[], [("path", "other", False, "str")]])
 def test_native_plan_rejects_inputs_that_do_not_match_the_template(
-    inputs: list[tuple[str, str, bool]],
+    inputs: list[tuple[str, str, bool, str]],
 ) -> None:
     route: core.RouteSpec = (
         0,
