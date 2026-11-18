@@ -39,7 +39,7 @@ Break one on purpose (remove `access=` from an action) and the failure names the
 
 ```text
 tests/projects/rulesapp.py:7: HNK-ACC-001 [violated] GET /health (health) declares no access policy
-tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does not declare transaction=True
+tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does not declare atomic=True
 ```
 
 An exception is a **waiver** in `hinoki-rules.toml` with a reason, an owner and a bounded target. The owner writes waivers; tools and agents read them but never edit them to pass a check. See [Rules](../rules.md).

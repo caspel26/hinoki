@@ -30,7 +30,8 @@ first = await Post.all().afirst()
 | QuerySet: write | `aupdate`, `adelete` | `update`, `delete` | |
 | Relations | explicit loading (`select_related`, `prefetch_related`) | same | never lazy, so no hidden I/O in either style |
 | Raw SQL (`Database.fetch`, `fetch_one`, `execute`) | async | none | Use the model/queryset methods from sync code; raw SQL is an async-only escape hatch |
-| Transactions | `transaction=True` on the action | same | The runtime owns it for both styles |
+| Transactions | `atomic=True` on the action | same | The runtime owns it for both styles |
+| Atomic blocks in application code | `async with db.atomic():`, `@db.atomic` | none | `@db.atomic` on a plain `def` raises `TypeError`; in a sync handler use `atomic=True` on the action ([transactions](transactions.md#atomic-blocks-and-functions-in-application-code)) |
 | `Schema`, `Request`, `Response`, parsers, renderers | plain code | same | No I/O |
 | Password hashing | `await hasher.hash/verify` | `hash_sync`, `verify_sync` | The async calls use a bounded thread pool |
 | Error handlers (`app.error_handler`) | `async def` | `def` | Run on the loop: no blocking calls inside |
