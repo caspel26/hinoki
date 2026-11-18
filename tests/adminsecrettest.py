@@ -1,0 +1,57 @@
+"""The admin signs its forms with ``security.secret`` unless it is given its own."""
+
+import pytest
+
+from hinoki import Access, Hinoki, errors
+from hinoki.admin import Admin
+from hinoki.auth import BaseAuth
+from hinoki.settings import AppSettings, Secret, SecuritySettings
+
+LONG = "s" * 40
+
+
+class Nobody(BaseAuth[str]):
+    async def authenticate(self, credentials: object) -> None:
+        return None
+
+
+def site(**options: object) -> Admin:
+    return Admin(access=Access(auth=Nobody()), **options)  # type: ignore[arg-type]
+
+
+def settings_with(secret: str | None) -> AppSettings:
+    value = Secret(secret) if secret is not None else None
+    return AppSettings(security=SecuritySettings(secret=value))
+
+
+def test_the_app_secret_signs_an_admin_that_has_none() -> None:
+    admin = site()
+    Hinoki(settings=settings_with(LONG), include=[admin])
+
+    assert admin.csrf is admin.csrf  # bound, and the same object each time
+
+
+def test_an_admin_with_its_own_secret_keeps_it() -> None:
+    admin = site(secret="own" * 20)
+    own = admin.csrf
+
+    Hinoki(settings=settings_with(LONG), include=[admin])
+
+    assert admin.csrf is own
+
+
+def test_no_secret_anywhere_stops_the_app_at_include() -> None:
+    with pytest.raises(errors.RegistrationError, match=r"security\.secret"):
+        Hinoki(settings=settings_with(None), include=[site()])
+    with pytest.raises(errors.RegistrationError, match=r"security\.secret"):
+        Hinoki(include=[site()])  # settings that are not AppSettings carry none
+
+
+def test_an_unbound_admin_refuses_to_issue_tokens() -> None:
+    with pytest.raises(errors.RegistrationError, match=r"security\.secret"):
+        site().csrf  # noqa: B018 - reading it is the failure under test
+
+
+def test_the_app_secret_is_at_least_32_bytes() -> None:
+    with pytest.raises(ValueError, match="at least 32 bytes"):
+        SecuritySettings(secret=Secret("short"))

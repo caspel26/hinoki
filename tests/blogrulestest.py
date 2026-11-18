@@ -23,7 +23,7 @@ CHECK = [
 @pytest.fixture(autouse=True)
 def environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("BLOG_DATABASE__URL", raising=False)
-    monkeypatch.setenv("BLOG_ADMIN_SECRET", SECRET)
+    monkeypatch.setenv("BLOG_SECURITY__SECRET", SECRET)
 
 
 def test_the_blog_passes_its_own_rules_from_the_command_line(
@@ -48,7 +48,7 @@ def test_local_settings_default_to_sqlite_without_opening_a_connection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("BLOG_DATABASE__URL", raising=False)
-    app = create_app(admin_secret=SECRET)
+    app = create_app(secret=SECRET)
     assert isinstance(app.settings, BlogSettings)
     assert app.settings.database.url.reveal() == "sqlite://./.hinoki/local.sqlite3"
 
