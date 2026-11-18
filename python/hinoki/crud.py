@@ -564,6 +564,9 @@ class CrudAPI(API):
     async def apply_change(
         self, item: Any, scoped: QuerySet[Any], values: dict[str, Any], principal: Any
     ) -> Any:
+        if item.__write_hooks__:
+            # The item was loaded through the scoped query in this transaction.
+            return await item.aupdate_from(**values)
         if values and not await scoped.aupdate(values):
             raise await self.refuse(getattr(item, item.__primary_key__), principal)
         return item

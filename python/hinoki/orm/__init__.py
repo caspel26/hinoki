@@ -18,6 +18,7 @@ from hinoki.orm.context import current_database, database_var, use_database
 from hinoki.orm.model import (
     MARK,
     SNAPSHOT,
+    Change,
     FieldMeta,
     Model,
     field,
@@ -42,6 +43,7 @@ __all__ = [
     "OPERATORS",
     "SEPARATOR",
     "SNAPSHOT",
+    "Change",
     "FieldMeta",
     "Loading",
     "Model",
