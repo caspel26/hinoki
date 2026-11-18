@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import psycopg
+from phase1_metrics import request_count
 from phase1_seed import BASE_TITLE, BODY, FIXED_ID, seed
 
 HERE = Path(__file__).parent
@@ -60,10 +61,6 @@ def sample_database_state() -> None:
             "UPDATE phase1_posts SET title = %s WHERE id = %s",
             (BASE_TITLE, FIXED_ID),
         )
-
-
-def request_count(result: dict[str, Any]) -> int:
-    return sum(int(count) for count in result["statusCodeDistribution"].values())
 
 
 def scenario_request(name: str) -> tuple[str, str, dict[str, str] | None]:
