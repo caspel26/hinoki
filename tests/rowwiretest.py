@@ -243,8 +243,8 @@ class GetattrRecords(WireRecords, path="/getattr"):
 
 
 class InvokeHookRecords(WireRecords, path="/invoke-hook"):
-    async def invoke_hook(self, name: str, *arguments: Any) -> Any:
-        return await super().invoke_hook(name, *arguments)
+    async def call_hook(self, name: str, *arguments: Any) -> Any:
+        return await super().call_hook(name, *arguments)
 
 
 class DynamicRecord(Model, table="row_wire_dynamic"):
