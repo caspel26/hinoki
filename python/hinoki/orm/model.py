@@ -8,6 +8,7 @@ docs/typing.md) until generated stubs exist.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import copy
 import dataclasses
 import datetime
@@ -17,7 +18,8 @@ import re
 import sys
 import types
 import typing
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
+from contextlib import AbstractAsyncContextManager
 from decimal import Decimal
 from typing import (
     TYPE_CHECKING,
@@ -43,7 +45,7 @@ from hinoki.errors import (
     ObjectNotFound,
     RegistrationError,
 )
-from hinoki.fields import FieldInfo
+from hinoki.fields import UNSET, FieldInfo
 from hinoki.fieldtypes import FieldType, parse_annotation, split_annotated
 from hinoki.orm.context import current_database
 from hinoki.orm.naming import resolve_model_names
@@ -62,6 +64,8 @@ SNAPSHOT = "hinoki_snapshot"
 # Keyword-only options of the ``**values`` write methods (``acreate``,
 # ``aupdate``): a column with one of these names could not be passed to them.
 WRITE_OPTIONS = frozenset({"returning"})
+# The model methods ``insert`` and ``asave`` call around a write, in this order.
+HOOKS = ("before_save", "before_create", "after_create", "after_save")
 # Values that cannot change in place, so a snapshot may keep the same object.
 _IMMUTABLE = frozenset(
     {
@@ -495,6 +499,15 @@ def foreign_key(
 
 
 MIN_UNIQUE = 2
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class Change:
+    """One column's stored and current value; ``old`` is ``UNSET`` for a row
+    that has not been written yet."""
+
+    old: Any
+    new: Any
 
 
 @dataclass_transform(kw_only_default=True, field_specifiers=(field, pk, foreign_key))
@@ -956,13 +969,125 @@ class Model:
             for c in columns
         }
 
+    @property
+    def is_new(self) -> bool:
+        """``True`` until the row has been written or loaded."""
+        return SNAPSHOT not in self.__dict__
+
+    @property
+    def is_dirty(self) -> bool:
+        """``True`` for a new instance and for one whose columns differ from
+        the stored values."""
+        return self.is_new or bool(self.changes)
+
+    @property
+    def changes(self) -> dict[str, Change]:
+        """The columns that differ from the stored row, as ``Change(old, new)``.
+        A new instance reports every column with ``old=UNSET``. Computed when
+        read: nothing is tracked on assignment."""
+        stored = self.__dict__.get(SNAPSHOT)
+        columns = type(self).__columns__
+        if stored is None:
+            return {c: Change(UNSET, getattr(self, c)) for c in columns}
+        return {
+            c: Change(stored[c], current)
+            for c in columns
+            if (current := getattr(self, c)) != stored[c]
+        }
+
+    def was_changed(self, name: str) -> bool:
+        """Whether column ``name`` differs from the stored row (always ``True``
+        for a new instance)."""
+        if name not in type(self).__columns__:
+            raise FieldError(f"{type(self).__name__} has no column {name!r}")
+        stored = self.__dict__.get(SNAPSHOT)
+        return stored is None or getattr(self, name) != stored[name]
+
+    def after_commit(self, callback: Callable[[], object]) -> None:
+        """Run ``callback`` (sync or async) once the surrounding transaction
+        commits; never after a rollback. Meant for ``after_*`` hooks."""
+        current_database().after_commit(callback)
+
+    def before_save(self) -> Awaitable[None] | None:
+        """Hook: runs before every write of this instance; values may still change."""
+
+    def before_create(self) -> Awaitable[None] | None:
+        """Hook: runs before a new instance is first written, after ``before_save``."""
+
+    def after_create(self) -> Awaitable[None] | None:
+        """Hook: runs after the row is inserted, before ``after_save``."""
+
+    def after_save(self) -> Awaitable[None] | None:
+        """Hook: runs after the row is written, inside the transaction."""
+
+    @classmethod
+    def write_hooks(cls) -> tuple[str, ...]:
+        """The hooks this model overrides, looked up on each write so a hook
+        assigned after the class was created is not missed."""
+        return tuple(
+            name for name in HOOKS if getattr(cls, name) is not getattr(Model, name)
+        )
+
+    @staticmethod
+    def hook_transaction() -> AbstractAsyncContextManager[Any]:
+        """The transaction a hooked write runs in: a savepoint when one is open.
+        When the open transaction belongs to another task (a sync handler's
+        ``run_sync`` writes from a helper task while its owner waits), that
+        transaction already rolls everything back on an error, so none is nested."""
+        database = current_database()
+        active = database.active()
+        if active is not None and asyncio.current_task() is not active.owner:
+            return contextlib.nullcontext()
+        return database.transaction()
+
+    async def run_hooks(self, *names: str) -> None:
+        """Run the overridden hooks among ``names``, ``def`` or ``async def``."""
+        overridden = type(self).write_hooks()
+        for name in names:
+            if name in overridden:
+                result = getattr(self, name)()
+                if inspect.isawaitable(result):
+                    await result
+
     async def asave(self) -> Self:
         """Insert a new instance, or update the columns changed since it was
         loaded. Typed: ``Post(title="x", ...)`` is checked by the type checker."""
-        cls = type(self)
-        stored = self.__dict__.get(SNAPSHOT)
-        if stored is None:
+        return await self.save_with(None)
+
+    async def save_with(self, scope: QuerySet[Any] | None) -> Self:
+        """``asave``; with ``scope`` the UPDATE carries that query's conditions, so a
+        row that left the scope since it was read is refused (``Model.NotFound``)
+        instead of written."""
+        if self.is_new:
             return await self.insert()
+        if not type(self).write_hooks():
+            if await self.write_update(scope):
+                self.remember()
+            return self
+        async with self.hook_transaction():
+            await self.run_hooks("before_save")
+            if await self.write_update(scope):
+                await self.run_hooks("after_save")
+            self.remember()
+        return self
+
+    async def aupdate_within(self, scope: QuerySet[Any], /, **values: Any) -> Self:
+        """``assign`` then a save whose UPDATE carries ``scope``'s conditions (the
+        generated CRUD update uses it so ownership and visibility hold at write
+        time). A failed write leaves the instance as it was."""
+        before = {c: getattr(self, c) for c in type(self).__columns__}
+        try:
+            return await self.assign(**values).save_with(scope)
+        except BaseException:
+            for name, value in before.items():
+                setattr(self, name, value)
+            raise
+
+    async def write_update(self, scope: QuerySet[Any] | None = None) -> bool:
+        """Write the changed columns and load the stored row, without taking a
+        new snapshot; ``False`` when nothing changed."""
+        cls = type(self)
+        stored = self.__dict__[SNAPSHOT]
         key = cls.__primary_key__
         if getattr(self, key) != stored[key]:
             raise FieldError(f"{cls.__name__}: the primary key cannot be changed")
@@ -971,15 +1096,33 @@ class Model:
             for c in cls.__columns__
             if c != key and getattr(self, c) != stored[c]
         }
-        if changed:
-            updated = await cls.aupdate(**{key: stored[key]}, **changed)
-            self.refresh(updated)
-        return self
+        if not changed:
+            return False
+        if scope is None:
+            self.load_stored(await cls.aupdate(**{key: stored[key]}, **changed))
+            return True
+        rows = await scope.aupdate(changed)
+        if not rows:
+            raise cls.NotFound(f"{cls.__name__} not found")
+        self.load_stored(rows[0])
+        return True
 
     async def insert(self, *, returning: bool = True) -> Self:
         """Insert this instance and load the stored row into it. With
         ``returning=False`` nothing is read back: the instance keeps the values
         it sent (every column is sent, defaults and factories applied)."""
+        if not type(self).write_hooks():
+            await self.write_insert(returning)
+            self.remember()
+            return self
+        async with self.hook_transaction():
+            await self.run_hooks("before_save", "before_create")
+            await self.write_insert(returning)
+            await self.run_hooks("after_create", "after_save")
+            self.remember()
+        return self
+
+    async def write_insert(self, returning: bool) -> None:
         cls = type(self).concrete()
         assignments = [(c, getattr(self, c)) for c in cls.__columns__]
         cls.validate_values(dict(assignments))
@@ -994,19 +1137,16 @@ class Model:
         )
         if not returning:
             await database.execute(sql, *params)
-            self.remember()
-            return self
+            return
         key = cls.__primary_key__
         # The Hinoki primary key is materialized before the write, so the
         # MySQL family can read the row back by it.
         rows = await written_rows(cls, sql, params, [(key, "eq", [getattr(self, key)])])
-        self.refresh(cls.from_row(rows[0]))
-        return self
+        self.load_stored(cls.from_row(rows[0]))
 
-    def refresh(self, stored: Model) -> None:
+    def load_stored(self, stored: Model) -> None:
         for column in type(self).__columns__:
             setattr(self, column, getattr(stored, column))
-        self.remember()
 
     def save(self) -> Self:
         return run_sync(self.asave())
