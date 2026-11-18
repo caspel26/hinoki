@@ -29,8 +29,8 @@ def matching(entry: ModelAdmin[Any], query: QuerySet[Any], text: str) -> QuerySe
 def apply_state(
     entry: ModelAdmin[Any], query: QuerySet[Any], state: ListState
 ) -> QuerySet[Any]:
-    if 0 < state.view <= len(entry.tabs):
-        query = query.filter(**dict(entry.tabs[state.view - 1].filters))
+    if 0 < state.view <= len(entry.tab_list):
+        query = query.filter(**dict(entry.tab_list[state.view - 1].filters))
     if state.q and entry.search:
         query = matching(entry, query, state.q)
     columns = set(entry.model.__columns__) & set(entry.shown_columns())
@@ -158,9 +158,9 @@ def pagination_for(site: Site, slug: str, page: int, per_page: int, total: int) 
 
 
 def tab_bar(site: Site, slug: str, entry: ModelAdmin[Any]) -> Raw:
-    if not entry.tabs:
+    if not entry.tab_list:
         return Raw("")
-    labels = ["All", *[tab.label for tab in entry.tabs]]
+    labels = ["All", *[tab.label for tab in entry.tab_list]]
     t = site.admin.templates
     return Raw(
         "".join(
