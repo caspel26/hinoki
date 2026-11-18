@@ -147,6 +147,44 @@ app_settings = BlogSettings.load()          # reads BLOG_* and .env
 
 `dev` and `serve` are conveniences. The application is a plain ASGI app, so `granian --interface asgi --factory blog.main:create_app` (or another ASGI server) works too; run that command from `examples/` with the locked environment active. The `server` group is ignored, because only `hinoki serve` applies it.
 
+## Metrics and tracing
+
+Hinoki ships no metrics registry, exporter or tracing integration, and no health route besides the optional [startup probe](#optional-startup-probe). On an ASGI server the application is a plain ASGI callable, so wrap it with the instrumentation you already use, or with a few lines of your own:
+
+```python
+import time
+
+
+class Timing:
+    """Report each request's method, status and duration to ``record``."""
+
+    def __init__(self, app, record):
+        self.app, self.record = app, record
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        started, status = time.monotonic(), None
+
+        async def watch(message):
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = message["status"]
+            await send(message)
+
+        try:
+            await self.app(scope, receive, watch)
+        finally:  # status stays None when the request was aborted before a response began
+            self.record(scope["method"], status, time.monotonic() - started)
+
+app = Timing(create_app(), record=my_metrics.observe)   # run this with Granian or any ASGI server
+```
+
+What this measures is the time from the ASGI call to the last byte handed to the server, not what a client perceives. Keep method and status as labels; do **not** label by `scope["path"]` (it holds ids and has unbounded cardinality), the request ID (it is for correlating logs: `logging.include_request_id` adds it to each Hinoki log line) or the caller. Hinoki does not currently expose the matched route template to a wrapper, so per-route metrics need an application-level counter inside the handler or a gap report so a hook can be designed.
+
+The Rust server (`--server rust`) has no ASGI boundary, so this wrapper does not apply to it and it has no instrumentation seam today. Use the server's own limits and the request log of your proxy, or serve with Granian when you need to wrap the application.
+
 ## WSGI
 
 ASGI is the intended way to serve Hinoki. When a deployment can only run WSGI, wrap the application:
