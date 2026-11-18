@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
 import operator
 import re
@@ -31,6 +32,14 @@ BOUNDS = (
     ("gt", "greater than", operator.gt),
     ("lt", "less than", operator.lt),
 )
+
+
+def wire_bounded(ftype: FieldType) -> FieldType:
+    """``ftype`` with its wire-input default bound as its ``max_length``."""
+    if ftype.info.max_length is not None or ftype.input_max_length is None:
+        return ftype
+    info = dataclasses.replace(ftype.info, max_length=ftype.input_max_length)
+    return dataclasses.replace(ftype, info=info)
 
 
 class TooManyErrors(Exception):
@@ -174,12 +183,12 @@ class Validator:
                 self.fail(path, "type", "object keys must be strings")
         if len(self.errors) > before:
             return INVALID
-        if self.length(ftype, data, path) is INVALID:
+        if self.length(wire_bounded(ftype), data, path) is INVALID:
             return INVALID
         values = {}
         for key, item in data.items():
             where = join(path, key[:MAX_KEY_ECHO])
-            if self.key(ftype.key, key, where) is not INVALID:
+            if self.key(wire_bounded(ftype.key), key, where) is not INVALID:
                 values[key] = self.check(ftype.item, item, where)
         return INVALID if len(self.errors) > before else values
 

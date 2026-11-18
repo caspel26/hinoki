@@ -2834,11 +2834,33 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
         "points",
     ];
 
+    /// Values a `dict` field of [`MAPPING`] accepts or nearly accepts.
+    const MAP_VALUES: [&str; 12] = [
+        "{}",
+        "{\"a\": \"x\"}",
+        "{\"a\": \"x\", \"bb\": \"yy\"}",
+        "{\"__proto__\": \"z\"}",
+        "{\"a\": 1}",
+        "{\"abcde\": \"x\"}",
+        "{\"ab\": {\"x\": 1}}",
+        "{\"ab\": {\"x\": 1, \"y\": 2}, \"cd\": {\"x\": -3}}",
+        "{\"A\": {\"x\": 1}}",
+        "{\"r\": [1, 2], \"n\": null}",
+        "{\"r\": [\"1\"]}",
+        "{\"a\": \"x\", \"a\": \"yy\"}",
+    ];
+
+    const MAP_KEYS: [&str; 4] = ["labels", "labels", "points", "grid"];
+
     fn random_body(draw: &mut Draw) -> String {
+        random_body_of(draw, &KEYS, &VALUES)
+    }
+
+    fn random_body_of(draw: &mut Draw, keys: &[&str], values: &[&str]) -> String {
         let members: Vec<String> = (0..draw.next(7))
             .map(|_| {
-                let key = KEYS[draw.next(KEYS.len())];
-                let value = VALUES[draw.next(VALUES.len())];
+                let key = keys[draw.next(keys.len())];
+                let value = values[draw.next(values.len())];
                 format!("\"{key}\": {value}")
             })
             .collect();
@@ -2864,6 +2886,83 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
                 }
                 assert!(same > 450, "{same} of 600 compared");
             }
+        });
+    }
+
+    /// Whether a native result holds a non-empty accepted `labels` map.
+    fn accepted_map(value: Option<&Validated>) -> bool {
+        let Some(Validated::Object(fields)) = value else {
+            return false;
+        };
+        fields.iter().any(|(name, item)| {
+            name == "labels" && matches!(item, Validated::Object(entries) if !entries.is_empty())
+        })
+    }
+
+    #[test]
+    fn random_mapping_documents_never_disagree_and_are_often_accepted() {
+        Python::initialize();
+        Python::attach(|py| {
+            let mut draw = Draw(0x2545_F491_4F6C_DD1D);
+            let compiled = compile(py, MAPPING);
+            let native = compiled.native().unwrap();
+            // Junk values are drawn by `random_documents_never_disagree`; these
+            // stay close to valid so accepted maps are reached too.
+            let values: Vec<&str> = MAP_VALUES.iter().chain(&VALUES[..4]).copied().collect();
+            let sets = option_sets();
+            let (mut same, mut accepted) = (0, 0);
+            for round in 0..600 {
+                let body = random_body_of(&mut draw, &MAP_KEYS, &values);
+                let options = &sets[round % sets.len()];
+                if compare_text(py, &compiled, &body, options) == Verdict::Same {
+                    same += 1;
+                }
+                let document = decode_json_document(body.as_bytes()).unwrap();
+                if let Ok((value, _)) = native.validate(&document.root, options) {
+                    accepted += usize::from(accepted_map(value.as_ref()));
+                }
+            }
+            assert!(same > 450, "{same} of 600 compared");
+            assert!(accepted > 10, "{accepted} accepted non-empty maps");
+        });
+    }
+
+    const BOUNDED: &str = r#"[(Made, [
+        ("caps", "caps", node("dict", item=node("int"), key=node("str", input_max_length=3),
+                              input_max_length=2), True),
+        ("open", "open", node("dict", nullable=True, item=node("int"), key=node("str", max_length=5,
+                              input_max_length=3), max_length=4, input_max_length=1), False),
+    ], True)]"#;
+
+    #[test]
+    fn wire_input_bounds_apply_only_when_asked_on_both_paths() {
+        Python::initialize();
+        Python::attach(|py| {
+            let compiled = compile(py, BOUNDED);
+            let bodies = [
+                r#"{"caps": {"a": 1, "b": 2}}"#,
+                r#"{"caps": {"a": 1, "b": 2, "c": 3}}"#,
+                r#"{"caps": {"abcd": 1}}"#,
+                r#"{"caps": {}, "open": {"abcd": 1, "b": 2, "c": 3, "d": 4}}"#,
+                r#"{"caps": {}, "open": {"abcdef": 1, "b": 2, "c": 3, "d": 4, "e": 5}}"#,
+            ];
+            let mut wire = options(true, false, &[]);
+            wire.input_bounds = true;
+            let sets = [options(true, false, &[]), wire];
+            let same = compare_all(py, &compiled, &bodies, &sets);
+            assert_eq!(same, bodies.len() * sets.len());
+            let native = compiled.native().unwrap();
+            let problems = |text: &str, options: &Options| {
+                let document = decode_json_document(text.as_bytes()).unwrap();
+                native.validate(&document.root, options).unwrap().1
+            };
+            assert!(problems(bodies[1], &sets[0]).is_empty());
+            assert_eq!(problems(bodies[1], &sets[1])[0].1, "max_length");
+            assert_eq!(problems(bodies[2], &sets[1])[0].1, "key_max_length");
+            // An explicit max_length wins over the wire-input bound.
+            assert!(problems(bodies[3], &sets[1]).is_empty());
+            let codes: Vec<&str> = problems(bodies[4], &sets[0]).iter().map(|p| p.1).collect();
+            assert_eq!(codes, ["max_length"]);
         });
     }
 }

@@ -19,6 +19,7 @@ from hinoki import (
     field_normalize,
     http,
 )
+from hinoki import schema as schema_module
 from hinoki.errors import RegistrationError, ValidationError
 from hinoki.fieldtypes import MAX_MAPPING_ITEMS, MAX_MAPPING_KEY_LENGTH
 from hinoki.orm import Model, field
@@ -92,8 +93,10 @@ def test_dict_fields_register_with_a_value_type_and_bounded_keys() -> None:
     assert ftype.item.info.max_length == 10
     assert ftype.key is not None
     assert ftype.key.kind == "str"
-    assert ftype.key.info.max_length == MAX_MAPPING_KEY_LENGTH
-    assert ftype.info.max_length == MAX_MAPPING_ITEMS
+    assert ftype.key.info.max_length is None
+    assert ftype.key.input_max_length == MAX_MAPPING_KEY_LENGTH
+    assert ftype.info.max_length is None
+    assert ftype.input_max_length == MAX_MAPPING_ITEMS
     keyed = Keyed.fields()["codes"].ftype.key
     assert keyed is not None
     assert keyed.info.constraints() == {
@@ -197,6 +200,30 @@ def test_the_framework_bounds_items_and_key_length_by_default() -> None:
     ]
     edge = "é" * MAX_MAPPING_KEY_LENGTH
     assert Labels.validate({"labels": {edge: "v"}}).labels == {edge: "v"}
+
+
+def test_the_default_bounds_apply_to_wire_input_only() -> None:
+    many = {f"{'k' * 300}{index}": "v" for index in range(MAX_MAPPING_ITEMS + 1)}
+    assert Labels(labels=many).labels == many
+    assert Labels.from_model(SimpleNamespace(labels=many)).labels == many
+
+
+def test_explicit_bounds_apply_everywhere() -> None:
+    with pytest.raises(ValidationError):
+        Bounded(tags={"a": 1, "b": 2, "c": 3})
+    with pytest.raises(ValidationError):
+        Bounded.from_model(SimpleNamespace(tags={"a": 1, "b": 2, "c": 3}))
+
+
+def test_fields_derived_from_a_model_have_no_default_bounds() -> None:
+    derived = SettingsOut.fields()["payload"].ftype
+    assert derived.input_max_length is None
+    assert derived.key is not None
+    assert derived.key.kind == "str"
+    assert derived.key.input_max_length is None
+    many = {f"{'k' * 300}{index}": index for index in range(MAX_MAPPING_ITEMS + 1)}
+    made = SettingsOut.validate({"id": 1, "payload": many})
+    assert made.to_dict()["payload"] == many
 
 
 def test_declared_key_constraints_are_enforced() -> None:
@@ -352,8 +379,7 @@ def test_openapi_describes_values_keys_and_item_limits() -> None:
     assert schemas["Labels"]["properties"]["labels"] == {
         "type": "object",
         "additionalProperties": {"type": "string", "maxLength": 10},
-        "propertyNames": {"type": "string", "maxLength": MAX_MAPPING_KEY_LENGTH},
-        "maxProperties": MAX_MAPPING_ITEMS,
+        "propertyNames": {"type": "string"},
     }
     rich = schemas["Rich"]["properties"]
     assert rich["points"]["additionalProperties"] == {
@@ -484,3 +510,96 @@ def test_from_model_normalizes_beside_dict_fields() -> None:
     with pytest.raises(ValidationError) as caught:
         Titled.from_model(SimpleNamespace(title=" a ", meta="n"))
     assert [(d.path, d.code) for d in caught.value.details] == [("meta", "type")]
+
+
+class Grid(Schema):
+    rows: list[list[Point]]
+
+
+def test_checks_run_inside_nested_lists() -> None:
+    # Before dict fields, the checks of a list nested in a list were skipped.
+    assert problems(Grid, {"rows": [[{"x": 1}], [{"x": 2}, {"x": 13}]]}) == [
+        ("rows[1][1].x", "unlucky", "13 is not allowed"),
+    ]
+
+
+class CheckedNumbers(Schema):
+    numbers: list[int]
+    labels: dict[str, int] = Field(default_factory=dict)
+    point: Point | None = None
+
+
+def test_scalar_containers_are_not_walked_for_checks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    walk = schema_module.value_check_problems
+
+    def counted(*args: Any) -> Any:
+        calls.append("walk")
+        return walk(*args)
+
+    monkeypatch.setattr(schema_module, "value_check_problems", counted)
+    data = {"numbers": list(range(1000)), "labels": {f"k{i}": i for i in range(500)}}
+    CheckedNumbers.validate({**data, "point": {"x": 1}})
+    assert len(calls) <= len(CheckedNumbers.fields())
+
+
+class Documents(Model, table="mapping_documents"):
+    id: int = field(primary_key=True)
+    entries: list[dict[str, int]]
+    nested: list[list[dict[str, str]]] | None = None
+
+
+def test_model_columns_holding_dicts_stay_json() -> None:
+    assert Documents.__field_types__["entries"].kind == "json"
+    assert Documents.__field_types__["nested"].kind == "json"
+    assert Documents.__field_types__["nested"].nullable
+
+
+@pytest.mark.parametrize(
+    "annotation",
+    [
+        dict[Annotated[str, Field(min_length=300)], int],
+        dict[Annotated[str, Field(min_length=5, max_length=4)], int],
+        Annotated[dict[str, int], Field(min_length=2000)],
+        Annotated[dict[str, int], Field(min_length=3, max_length=2)],
+    ],
+)
+def test_impossible_dict_limits_fail_at_class_creation(annotation: Any) -> None:
+    with pytest.raises(RegistrationError, match=r"min_length .* exceeds"):
+        type("Bad", (Schema,), {"__annotations__": {"value": annotation}})
+
+
+def test_keys_that_are_not_valid_text_are_type_problems() -> None:
+    assert problems(Labels, {"labels": {"\ud800": "x", "ok": "y"}}) == [
+        ("labels", "type", "object keys must be valid Unicode text"),
+    ]
+    with pytest.raises(ValidationError) as caught:
+        Labels(labels={"\ud800": "x"})
+    assert [(d.path, d.code) for d in caught.value.details] == [("labels", "type")]
+
+
+class OddKey(str):
+    __slots__ = ()
+
+    def __hash__(self) -> int:
+        return 7
+
+    def __eq__(self, other: object) -> bool:
+        return False
+
+
+def test_every_entry_is_validated_once_whatever_its_key_type() -> None:
+    made = Labels.validate({"labels": {OddKey("a"): "x"}})
+    assert [(str(k), v) for k, v in made.labels.items()] == [("a", "x")]
+    assert problems(Labels, {"labels": {OddKey("a"): 1}}) == [
+        ("labels.a", "type", "expected a string"),
+    ]
+
+
+def test_from_model_copies_the_row_dict() -> None:
+    meta = {"n": 1}
+    made = Titled.from_model(SimpleNamespace(title="a", meta=meta))
+    assert made.meta == meta
+    assert made.meta is not meta
