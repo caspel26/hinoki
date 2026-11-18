@@ -1,7 +1,7 @@
 """The blog's settings: the framework's built-in groups plus its own fields.
 
 BLOG_DATABASE__URL=postgres://...     optional; defaults to local SQLite
-BLOG_SECURITY__SECRET=...             required by the admin, 32+ bytes
+BLOG_ADMIN__SECRET=...             required by the admin, 32+ bytes
 BLOG_JWT_SECRET=...                   optional: switches on /auth/login
 BLOG_ADMIN_THEME=studio|console|paper|bento
 BLOG_EXECUTION__SYNC_WORKERS=16       any built-in group: execution, lifecycle,
