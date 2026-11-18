@@ -14,6 +14,8 @@ fn validation_template_requires_the_framework_error_shape() {
 
 #[test]
 fn metadata_rejects_empty_or_duplicate_column_names() {
+    let no_defaults: Vec<(String, String, String)> = Vec::new();
+    let no_columns: Vec<String> = Vec::new();
     assert!(validate_metadata(
         "list",
         &["id".to_owned()],
@@ -21,10 +23,12 @@ fn metadata_rejects_empty_or_duplicate_column_names() {
         20,
         100,
         &[("id".to_owned(), "uuid".to_owned(), false)],
-        &[],
-        &[],
-        &[],
-        &[]
+        &no_defaults,
+        &no_defaults,
+        &no_defaults,
+        &no_columns,
+        &no_columns,
+        None,
     )
     .is_ok());
     assert!(validate_metadata(
@@ -34,10 +38,12 @@ fn metadata_rejects_empty_or_duplicate_column_names() {
         20,
         100,
         &[],
-        &[],
-        &[],
-        &[],
-        &[]
+        &no_defaults,
+        &no_defaults,
+        &no_defaults,
+        &no_columns,
+        &no_columns,
+        None,
     )
     .is_err());
     assert!(validate_metadata(
@@ -47,10 +53,12 @@ fn metadata_rejects_empty_or_duplicate_column_names() {
         0,
         100,
         &[],
-        &[],
-        &[],
-        &[],
-        &[],
+        &no_defaults,
+        &no_defaults,
+        &no_defaults,
+        &no_columns,
+        &no_columns,
+        None,
     )
     .is_err());
 }
