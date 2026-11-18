@@ -120,6 +120,15 @@ class TextParser(Parser):
             raise InvalidBody("invalid_text", "the body is not valid UTF-8") from None
 
 
+class BytesParser(Parser):
+    """``application/octet-stream`` bodies as the raw ``bytes``, unchanged."""
+
+    media_type = "application/octet-stream"
+
+    def parse(self, raw: bytes, content_type: str) -> Parsed:  # noqa: ARG002
+        return Parsed(bytes(raw))
+
+
 def group(pairs: Sequence[tuple[str, str]]) -> dict[str, list[str]]:
     fields: dict[str, list[str]] = {}
     for name, value in pairs:
@@ -197,6 +206,21 @@ class MultiPartParser(Parser):
 
 
 DEFAULT_PARSERS: tuple[Parser, ...] = (JSONParser(),)
+_PLAIN_PARSER_STATE: dict[type[Parser], set[str]] = {
+    JSONParser: set(),
+    TextParser: set(),
+    BytesParser: set(),
+    FormParser: {"max_fields"},
+}
+
+
+def is_native_parser(parser: Parser) -> bool:
+    """Whether this is exactly a built-in parser with only its documented
+    options, so the native handler lane may call it without a ``Request``."""
+    state = _PLAIN_PARSER_STATE.get(type(parser))
+    return state is not None and set(vars(parser)) == state
+
+
 # Selected for an action that binds an uploaded file and whose parsers nobody chose.
 UPLOAD_PARSERS: tuple[Parser, ...] = (MultiPartParser(),)
 

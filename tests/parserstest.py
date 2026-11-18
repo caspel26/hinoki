@@ -6,6 +6,7 @@ import pytest
 from openapi_spec_validator import validate
 
 from hinoki import (
+    BytesParser,
     FormParser,
     Hinoki,
     JSONParser,
@@ -221,3 +222,26 @@ def test_parser_lists_are_checked_at_declaration(parsers: list[Parser]) -> None:
 def test_multipart_limits_must_be_positive() -> None:
     with pytest.raises(ValueError, match="positive"):
         MultiPartParser(max_parts=0)
+
+
+async def test_bytes_parser_hands_over_the_raw_body() -> None:
+    @http.post("/blob", parsers=[BytesParser()])
+    async def blob(request: Request) -> dict[str, object]:
+        data = request.data
+        assert isinstance(data, bytes)
+        return {"size": len(data), "type": type(data).__name__}
+
+    client = Client(Hinoki(include=[blob]).asgi())
+    await client.lifespan_event("startup")
+    reply = await client.request(
+        "POST",
+        "/blob",
+        headers={"content-type": "application/octet-stream"},
+        body=b"\x00\xff\x10",
+    )
+    assert (reply.status, reply.body) == (200, {"size": 3, "type": "bytes"})
+    wrong = await client.request(
+        "POST", "/blob", headers={"content-type": "text/plain"}, body=b"x"
+    )
+    assert wrong.status == 415
+    await client.lifespan_event("shutdown")
