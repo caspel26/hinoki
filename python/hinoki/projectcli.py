@@ -169,32 +169,103 @@ def _remove_app_package(
 
 
 def _append_app(path: Path, original: bytes, name: str, package: str) -> None:
+    module = f"{package}.apps.{name}"
+    _append_block(
+        path,
+        original,
+        _app_block(
+            name,
+            models=f"{module}.models",
+            migrations=f"{module}.migrations",
+            routes=f"{module}.routes:routes",
+            prefix=f"/{name}",
+            requires=(),
+        ),
+    )
+
+
+def _app_block(
+    name: str,
+    *,
+    models: str,
+    migrations: str,
+    routes: str,
+    prefix: str,
+    requires: tuple[str, ...],
+) -> str:
+    lines = [
+        "[[apps]]",
+        f"name = {json.dumps(name)}",
+        f"models = {json.dumps(models)}",
+        f"migrations = {json.dumps(migrations)}",
+    ]
+    if routes:
+        lines.append(f"routes = {json.dumps(routes)}")
+    if prefix:
+        lines.append(f"prefix = {json.dumps(prefix)}")
+    lines.append(f"requires = {json.dumps(list(requires))}")
+    return "\n".join(lines) + "\n"
+
+
+def _append_block(path: Path, original: bytes, block: str) -> None:
+    """Append an ``[[apps]]`` block, validating the whole manifest before it
+    replaces the file."""
     text = original.decode("utf-8")
     separator = "" if not text or text.endswith("\n\n") else "\n"
-    module = f"{package}.apps.{name}"
-    block = (
-        f"{separator}[[apps]]\n"
-        f'name = "{name}"\n'
-        f'models = "{module}.models"\n'
-        f'migrations = "{module}.migrations"\n'
-        f'routes = "{module}.routes:routes"\n'
-        f'prefix = "/{name}"\n'
-        "requires = []\n"
-    )
     mode = stat.S_IMODE(path.stat().st_mode)
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=".hinoki-", suffix=".toml", dir=path.parent
     )
     try:
         with os.fdopen(descriptor, "wb") as temporary:
-            temporary.write(original + block.encode("utf-8"))
+            temporary.write(original + (separator + block).encode("utf-8"))
             temporary.flush()
             os.fsync(temporary.fileno())
             os.fchmod(temporary.fileno(), mode)
+        load_manifest(Path(temporary_name))
         os.replace(temporary_name, path)
-    except OSError:
+    except (OSError, ProjectError):
         Path(temporary_name).unlink(missing_ok=True)
         raise
+
+
+def register_app(
+    name: str,
+    *,
+    models: str,
+    migrations: str = "",
+    routes: str = "",
+    prefix: str = "",
+    requires: tuple[str, ...] = (),
+    start: Path | None = None,
+) -> Path:
+    """Register an existing package as an app without creating any file."""
+    _validate_app_name(name)
+    manifest_path = find_manifest(start)
+    with _manifest_lock(manifest_path):
+        manifest = load_manifest(manifest_path)
+        _check_duplicate_app(manifest, name)
+        block = _app_block(
+            name,
+            models=models,
+            migrations=migrations or _sibling_package(models, "migrations"),
+            routes=routes,
+            prefix=prefix,
+            requires=requires,
+        )
+        try:
+            _append_block(manifest.path, manifest.path.read_bytes(), block)
+        except OSError as error:
+            raise ProjectError(f"could not register app {name!r}: {error}") from None
+    return manifest.path
+
+
+def _sibling_package(models: str, leaf: str) -> str:
+    """``pkg.apps.x.models`` -> ``pkg.apps.x.<leaf>``; a bare module has no parent."""
+    parent, dot, _ = models.rpartition(".")
+    if not dot:
+        raise ProjectError("pass --migrations: the models module has no parent package")
+    return f"{parent}.{leaf}"
 
 
 def add_arguments(commands: _SubParsersAction[ArgumentParser]) -> None:
@@ -205,6 +276,19 @@ def add_arguments(commands: _SubParsersAction[ArgumentParser]) -> None:
     listing.add_argument("--format", choices=("text", "json"), default="text")
     create = actions.add_parser("create", help="create a modular app")
     create.add_argument("name")
+    add = actions.add_parser("add", help="register an existing package as an app")
+    add.add_argument("name")
+    add.add_argument("--models", required=True, help="dotted models module")
+    add.add_argument(
+        "--migrations",
+        default="",
+        help="dotted migrations package (default: next to the models module)",
+    )
+    add.add_argument("--routes", default="", help="module:attribute of the routes")
+    add.add_argument("--prefix", default="", help="mount prefix (default: /NAME)")
+    add.add_argument(
+        "--requires", default="", help="comma-separated apps this one depends on"
+    )
 
 
 def list_apps(args: Namespace) -> int:
@@ -259,9 +343,25 @@ def run(args: Namespace) -> int:
     if args.app_action == "list":
         return list_apps(args)
     try:
+        if args.app_action == "add":
+            return add_app(args)
         created = create_app(args.name)
     except (ProjectError, OSError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     print(f"created app {args.name} at {created}")
+    return 0
+
+
+def add_app(args: Namespace) -> int:
+    """Register an existing package; the error handling lives in ``run``."""
+    path = register_app(
+        args.name,
+        models=args.models,
+        migrations=args.migrations,
+        routes=args.routes,
+        prefix=args.prefix,
+        requires=tuple(item for item in args.requires.split(",") if item),
+    )
+    print(f"registered app {args.name} in {path}")
     return 0
