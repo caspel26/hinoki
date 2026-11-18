@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 
 import pytest
 
-from hinoki import Hinoki
+from hinoki import Access, Hinoki
 from hinoki.admin import Admin
 from hinoki.admin.users import (
     AdminAccounts,
@@ -16,8 +16,10 @@ from hinoki.admin.users import (
     AdminUser,
     migrations_path,
 )
+from hinoki.auth import BaseAuth
 from hinoki.crypto import PasswordHasher
 from hinoki.db import Database, DatabaseModule
+from hinoki.errors import RegistrationError
 from hinoki.orm import Model, migrator, pk, use_database
 from hinoki.settings import AdminSettings, AppSettings, Secret
 from hinoki.testing import ASGIClient, Response
@@ -25,6 +27,11 @@ from hinoki.testing import ASGIClient, Response
 PASSWORD = "correct horse battery"  # noqa: S105 - a fixture, not a credential
 OTHER = "another long password"
 FORM = {"content-type": "application/x-www-form-urlencoded"}
+
+
+class Nobody(BaseAuth[str]):
+    async def authenticate(self, credentials: object) -> None:
+        return None
 
 
 class UiNote(Model, table="ui_notes"):
@@ -387,3 +394,84 @@ async def test_renaming_a_user_normalises_the_name_and_keeps_the_account(
     assert reply.status == 303
     assert (await AdminUser.aget(id=bob.id)).username == "robert"
     assert await service.verify("robert", PASSWORD) is not None
+
+
+def test_the_admin_account_tables_cannot_be_registered_as_plain_models() -> None:
+    from hinoki.admin.users.models import AdminGrant, AdminSession  # noqa: PLC0415
+
+    site = Admin(users=accounts(), secret="s" * 40)
+
+    for model in (AdminUser, AdminSession, AdminGrant):
+        with pytest.raises(RegistrationError, match="managed by the Users section"):
+            site.register(model)
+    # an own site with its own identity is not affected
+    plain = Admin(access=Access(auth=Nobody()), secret="s" * 40)
+    plain.register(AdminUser)
+
+
+async def test_the_last_active_superuser_cannot_be_demoted_deleted_or_deactivated(
+    world: tuple[ASGIClient, Database],
+) -> None:
+    client, _ = world
+    service = accounts()
+    first = await service.create_user("root", PASSWORD, superuser=True)
+    second = await service.create_user("second", PASSWORD, superuser=True)
+    root = await sign_in(client, "root")
+    page = f"/admin/users/{second.id}"
+
+    demote = await post(
+        client, page, root, page, ("username", "second"), ("is_active", "on")
+    )
+    assert demote.status == 303  # one superuser (root) remains
+    await AdminUser.aupdate(id=second.id, is_superuser=True, returning=False)
+
+    other = await sign_in(client, "second")
+    # deactivating root is fine while another superuser exists; the last one stays
+    first_page = f"/admin/users/{first.id}"
+    one = await post(
+        client,
+        first_page,
+        other,
+        first_page,
+        ("username", "root"),
+        ("is_superuser", "on"),
+    )
+    assert one.status == 303 and (await AdminUser.aget(id=first.id)).is_active is False
+    self_page = f"/admin/users/{second.id}"
+    refused = await post(
+        client, self_page, other, self_page, ("username", "second"), ("is_active", "on")
+    )
+    assert refused.status == 422  # you cannot demote yourself
+    assert await AdminUser.filter(is_superuser=True, is_active=True).acount() == 1
+
+
+def test_a_user_repr_never_carries_the_password_hash() -> None:
+    user = AdminUser(username="ada", password_hash="$argon2id$secret-hash")  # noqa: S106 - a fixture
+
+    assert "secret-hash" not in repr(user) and "ada" in repr(user)
+
+
+async def test_users_forms_hash_before_the_write_and_hold_no_route_connection() -> None:
+    site = Admin(users=accounts(), secret="s" * 40)
+    app = Hinoki(include=[site])
+    routes = {(r.method, r.path): r for r in app.routes}
+
+    assert routes[("POST", "/admin/{model}/add")].transaction is False
+    assert routes[("POST", "/admin/{model}/{key}")].transaction is False
+    assert routes[("POST", "/admin/{model}/bulk")].transaction is True
+
+
+async def test_the_guard_refuses_a_write_that_would_leave_no_active_superuser(
+    world: tuple[ASGIClient, Database],
+) -> None:
+    from hinoki.admin.users import AdminUserError  # noqa: PLC0415 - only this test
+    from hinoki.admin.users.useradmin import UserAdmin  # noqa: PLC0415
+
+    _ = world
+    only = await accounts().create_user("only", PASSWORD, superuser=True)
+    await UserAdmin.keep_a_superuser()  # one active superuser: fine
+
+    await accounts().set_active(only, False)  # what two racing admins could leave
+
+    with pytest.raises(AdminUserError, match="at least one active superuser"):
+        await UserAdmin.keep_a_superuser()
