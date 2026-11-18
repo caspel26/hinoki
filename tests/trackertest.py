@@ -125,7 +125,7 @@ def test_the_tracker_keeps_its_layering_promises(
         "tracker",
     ]
     assert main(argv) == 0
-    assert "0 violated" in capsys.readouterr().out
+    assert "13 rule(s): 0 violated, 0 unverifiable" in capsys.readouterr().out
 
 
 def test_local_settings_default_to_sqlite_without_opening_a_connection(
