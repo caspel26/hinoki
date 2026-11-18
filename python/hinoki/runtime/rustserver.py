@@ -37,7 +37,9 @@ from urllib.parse import unquote
 from hinoki import core
 from hinoki.db import Database
 from hinoki.errors import InvalidBody
+from hinoki.runtime.binding import BODY_METHODS
 from hinoki.runtime.listener import inherited_address, open_listener
+from hinoki.runtime.pipeline import NativeBody
 from hinoki.runtime.responses import HTTPError, Response
 from hinoki.runtime.servercore import build_server_core
 from hinoki.serve import load_target, settings_of
@@ -398,6 +400,9 @@ class RustWorker:
                 request.request_id,
                 request.native_args,
                 request.native_error,
+                NativeBody(RustBody(request), request.headers)
+                if request.method in BODY_METHODS
+                else None,
             ), True
         failure = request._take_native_failure()
         if failure is not None:
