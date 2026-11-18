@@ -659,6 +659,24 @@
 <td>The server secret (32+ bytes, from the environment or <code>*_FILE</code>) that keys the admin's CSRF tokens; an admin without its own <code>secret=</code> needs it</td>
 </tr>
 <tr>
+<td><code>admin</code></td>
+<td><code>session_hours</code></td>
+<td><code>12</code></td>
+<td><code>1</code> to <code>720</code>; a signed-in admin session ends this long after sign-in, whatever else happens</td>
+</tr>
+<tr>
+<td><code>admin</code></td>
+<td><code>idle_minutes</code></td>
+<td><code>120</code></td>
+<td><code>1</code> to <code>session_hours * 60</code>; ... or this long after its last request</td>
+</tr>
+<tr>
+<td><code>admin</code></td>
+<td><code>min_password_length</code></td>
+<td><code>12</code></td>
+<td><code>8</code> to <code>128</code>; the shortest password the admin's own users may have</td>
+</tr>
+<tr>
 <td><code>security</code></td>
 <td><code>redirect_https</code></td>
 <td><code>false</code></td>
@@ -976,7 +994,7 @@ BLOG_JWT_SECRET               file         ***
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.20</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 11:14:53 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 11:30:15 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>17 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
