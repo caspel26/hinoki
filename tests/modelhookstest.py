@@ -1,5 +1,6 @@
 """Model lifecycle hooks, instance state and ``after_commit``."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -77,13 +78,13 @@ async def rows(database: Database) -> list[dict[str, Any]]:
 
 
 def test_only_overridden_hooks_are_recorded() -> None:
-    assert Entry.__write_hooks__ == (
+    assert Entry.write_hooks() == (
         "before_save",
         "before_create",
         "after_create",
         "after_save",
     )
-    assert Plain.__write_hooks__ == ()
+    assert Plain.write_hooks() == ()
 
 
 async def test_create_runs_hooks_in_order_with_state(database: Database) -> None:
@@ -227,16 +228,58 @@ async def test_after_commit_outside_a_transaction_is_an_error(
 
 
 async def test_models_without_hooks_write_without_a_transaction(
-    database: Database,
+    database: Database, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    opened: list[str] = []
+    real = Database.transaction
+
+    def counting(self: Database) -> Any:
+        opened.append("transaction")
+        return real(self)
+
+    monkeypatch.setattr(Database, "transaction", counting)
+
     plain = await Plain.acreate(id=1, title="x")
     plain.title = "y"
     await plain.asave()
+    await Entry.acreate(id=1, title="hooked")
 
-    assert database.active() is None
+    assert opened == ["transaction"]  # only the hooked model opened one
     assert [dict(r) for r in await database.fetch("SELECT * FROM hook_plain")] == [
         {"id": 1, "title": "y"}
     ]
+
+
+async def test_a_hook_assigned_after_the_class_exists_still_runs(
+    database: Database,
+) -> None:
+    class Late(Model, table="hook_late"):
+        id: int = pk()
+        title: str
+
+    await database.execute(
+        "CREATE TABLE hook_late (id integer PRIMARY KEY, title text NOT NULL)"
+    )
+
+    def shout(self: Late) -> None:
+        self.title = self.title.upper()
+
+    assert Late.write_hooks() == ()
+    Late.before_save = shout  # type: ignore[method-assign, assignment]
+
+    assert Late.write_hooks() == ("before_save",)
+    assert (await Late.acreate(id=1, title="quiet")).title == "QUIET"
+
+
+async def test_hooked_writes_from_a_sync_handler_helper_task(
+    database: Database,
+) -> None:
+    """``run_sync`` writes from a task other than the transaction's owner."""
+    async with database.transaction():
+        task = asyncio.create_task(Entry.acreate(id=7, title="from a helper"))
+        created = await task
+    assert created.slug == "from-a-helper"
+    assert [r["id"] for r in await rows(database)] == [7]
 
 
 async def test_bulk_updates_run_no_hooks(database: Database) -> None:
