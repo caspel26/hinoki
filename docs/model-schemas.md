@@ -101,13 +101,14 @@ The declared Schema decides what is sent for these results:
 | a `Model` row that fails the Schema's constraints | `500 internal_error` with the request id; the `ValidationError` is logged as the cause and not sent to the client |
 | a `Model` of another class than the Schema's source model | `500 internal_error` |
 | a list or `Page` of `Model` rows | `500 internal_error`; convert explicitly with `from_models()` |
-| a `dict` or other plain value | sent unchanged |
+| a `dict` or other plain value | `500 internal_error`; sent unchanged only with `validate_response=False` |
 
-!!! warning "Plain values are not validated"
-    A returned `dict` (or any other non-Schema, non-Model value) is serialized
-    as it is, even with extra keys. The annotation describes the OpenAPI document
-    only; return a Schema instance or a Model when the declared shape must be
-    enforced.
+!!! note "Plain values are checked"
+    A returned `dict` (or any other non-Schema, non-Model value) where the
+    annotation names a `Schema` is a `500 internal_error`: the annotation is
+    enforced at runtime (see [the response check](endpoints.md#the-response-is-checked-against-the-annotation)).
+    Return a Schema instance or a Model; declare the action with
+    `validate_response=False` only to send a value as it is.
 
 A row that fails the Schema's constraints is the server's fault (for example a
 stored value longer than the Schema allows), so it is never reported as a

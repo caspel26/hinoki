@@ -328,6 +328,22 @@ Use `--path` or `--method` to narrow it, and `--format json` for scripts. The li
 
 Return a value matching the declared response type, or return `Response` when the handler needs to set an explicit status, headers or body. Declare expected `APIError` subclasses in `errors=(...)`; their status, stable code and message feed the OpenAPI document and strict test client.
 
+### The response is checked against the annotation
+
+Every action's return value is checked against its return annotation, and the annotation itself is checked when the app starts. There is nothing to switch on.
+
+```python
+@http.get("/notes/{note_id}")
+async def detail(note_id: int) -> NoteOut:
+    return {"id": note_id}          # a dict is not a NoteOut: 500 internal_error
+```
+
+- **At startup.** An annotation that cannot be checked stops the app with a `RegistrationError` that names the action: no annotation, `Any`, `object`, `set[...]`, a plain class, or `Response` inside a collection. Annotate a concrete type, or declare the action with `validate_response=False` to skip the check for that action.
+- **At runtime.** A result that does not match is a `500 internal_error`, because the fault is the server's, not the client's. With `debug=True` (development) the answer names the action, the type it returned and the annotation it broke, for example `detail returned a dict that does not match its return annotation NoteOut`. Without debug the body is generic. The log and the answer never contain the value itself. With `transaction=True` the check runs inside the transaction, so a mismatch rolls the write back.
+- **What is accepted.** A `Schema` class, a `Model` class (projected through the declared `Schema` when there is one), `list[...]`, `dict[str, ...]` and `Page[...]` of these, `str`, `int`, `float`, `bool` (a `bool` is not an `int`), `bytes`, `datetime`, `date`, `UUID`, `Decimal`, `None`, plain `dict` and `list`, `Any` or `object` as an item type, and unions of these. `Annotated[...]` is unwrapped. The check never coerces.
+- **`Response`.** `-> Response` and `NoteOut | Response` are accepted: a returned `Response` carries its own status, headers and body and is not checked. Actions with a bodyless status (`204`, `304`) are not checked.
+- **What it does not check.** A `Schema` instance is valid by construction, so the check is about the shape of the result, not the field values. A custom renderer or a `dump()` override can still change the bytes afterwards. The check is one type test per request; no performance figure is claimed.
+
 Use `Response` from `hinoki` or `hinoki.http` for explicit status, headers or body. It is also available from `hinoki.http.response`. The former `Reply` name and `hinoki.reply` module are deprecated aliases kept for one compatibility cycle: `from hinoki import Reply` and `import hinoki.reply` still work, refer to the same `Response` class and emit `DeprecationWarning`. Replace their imports, annotations and constructors with `Response`.
 
 Paginated actions declare a pagination policy. See [pagination](pagination.md) for the query parameters and response envelope.

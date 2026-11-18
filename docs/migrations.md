@@ -7,7 +7,7 @@ related:
 
 # Migrations
 
-Hinoki compares each registered app's models with that app's migration state recorded in files. It can write a migration plan, but never applies schema changes when an application starts. `hinoki new` creates an explicit `hinoki.toml`; `hinoki app create NAME` adds another app and its migration package.
+Hinoki compares each registered app's models with that app's migration state recorded in files. It can write a migration plan, but never applies schema changes when an application starts. `hinoki new` creates an explicit `hinoki.toml`; `hinoki app create NAME` adds another app and its migration package, and `hinoki app add NAME --models MODULE` registers a package that already exists.
 
 ## Create a migration
 

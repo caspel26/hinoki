@@ -142,7 +142,7 @@ def who(request: Request) -> Public:
     return Private(name="a", password_hash="secret")  # noqa: S106
 
 
-@http.get("/mystery")
+@http.get("/mystery", validate_response=False)
 def mystery(request: Request):  # type: ignore[no-untyped-def]
     return {}
 
