@@ -163,3 +163,57 @@ def test_missing_admin_tables_point_to_the_registration_commands(
 
     assert main(["admin", "create-superuser", "ada", "--password-stdin"]) == 1
     assert "hinoki app add admin" in capsys.readouterr().err
+
+
+def test_a_refused_connection_is_not_reported_as_missing_tables(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HINOKI_DATABASE_URL", "postgres://u:secret-pw@127.0.0.1:1/none")
+    stdin(monkeypatch, PASSWORD + "\n")
+
+    code = main(["admin", "create-superuser", "ada", "--password-stdin"])
+
+    err = capsys.readouterr().err
+    assert code == 1 and "cannot reach the database" in err
+    assert "secret-pw" not in err and "hinoki app add" not in err
+
+
+def test_an_endless_line_on_stdin_is_refused_without_reading_it_all(
+    url: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stdin(monkeypatch, "x" * 100_000)
+
+    assert main(["admin", "create-superuser", "ada", "--password-stdin"]) == 2
+    assert "too long" in capsys.readouterr().err and stored(url) == []
+
+
+def test_the_flag_on_a_terminal_still_prompts_without_echo(
+    url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    answers = iter([PASSWORD, PASSWORD])
+    monkeypatch.setattr("sys.stdin", Terminal())
+    monkeypatch.setattr("getpass.getpass", lambda _prompt="": next(answers))
+
+    assert main(["admin", "create-superuser", "ada", "--password-stdin"]) == 0
+    assert stored(url) == [("ada", True, 0)]
+
+
+@pytest.mark.parametrize("error", [EOFError, KeyboardInterrupt])
+def test_ctrl_d_and_ctrl_c_at_the_prompt_exit_cleanly(
+    url: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error: type[BaseException],
+) -> None:
+    def interrupted(_prompt: str = "") -> str:
+        raise error
+
+    monkeypatch.setattr("sys.stdin", Terminal())
+    monkeypatch.setattr("getpass.getpass", interrupted)
+
+    assert main(["admin", "create-superuser", "ada"]) == 2
+    assert (
+        "cancelled" in capsys.readouterr().err
+        and "Traceback" not in capsys.readouterr().err
+    )

@@ -20,6 +20,7 @@ from hinoki.orm import use_database
 from hinoki.project import ProjectError, find_manifest_or_none, load_manifest
 from hinoki.projectmigrations import URL_VARIABLE, migration_database_url
 
+MAX_LINE = 1100  # characters read as a password; more is refused, not buffered
 APPLY_HINT = (
     "the admin tables are missing or unreadable; register and apply them with "
     "`hinoki app add admin --models hinoki.admin.users.models --migrations "
@@ -52,8 +53,11 @@ def add_arguments(commands: _SubParsersAction[ArgumentParser]) -> None:
 
 def read_password(args: Namespace) -> str:
     """The password from stdin or a no-echo prompt (twice, to catch a typo)."""
-    if args.password_stdin:
-        return sys.stdin.readline().rstrip("\r\n")
+    if args.password_stdin and not sys.stdin.isatty():
+        line = sys.stdin.readline(MAX_LINE)
+        if len(line) >= MAX_LINE and not line.endswith("\n"):
+            raise AdminUserError("The password is too long.")
+        return line.rstrip("\r\n")
     if not sys.stdin.isatty():
         raise AdminUserError("There is no terminal to ask on; use --password-stdin.")
     first = getpass.getpass("Password: ")
@@ -81,12 +85,30 @@ ACTIONS = {"create-superuser": create_superuser, "set-password": set_password}
 
 
 async def run_action(args: Namespace, url: str) -> str:
-    database = await Database.connect(url, max_size=2)
+    try:
+        database = await Database.connect(url, max_size=2)
+    except DatabaseError:
+        raise CannotConnectError from None
     try:
         with use_database(database):
             return await ACTIONS[args.admin_action](AdminAccounts(), args)
     finally:
         database.close()
+
+
+class CannotConnectError(Exception):
+    """The database could not be reached or refused the credentials."""
+
+
+def explain(error: BaseException) -> tuple[str, int]:
+    """The message and exit status for an error the command reports."""
+    if isinstance(error, CannotConnectError):
+        return "cannot reach the database with that URL", 1
+    if isinstance(error, DatabaseError):
+        return APPLY_HINT, 1
+    if isinstance(error, EOFError | KeyboardInterrupt):
+        return "cancelled", 2
+    return str(error), 2
 
 
 def run(args: Namespace) -> int:
@@ -95,12 +117,17 @@ def run(args: Namespace) -> int:
         path = find_manifest_or_none()
         url = migration_database_url(args, load_manifest(path) if path else None)
         message = asyncio.run(run_action(args, url))
-    except (AdminUserError, ProjectError) as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 2
-    except DatabaseError:
-        print(f"error: {APPLY_HINT}", file=sys.stderr)
-        return 1
+    except (
+        AdminUserError,
+        ProjectError,
+        CannotConnectError,
+        DatabaseError,
+        EOFError,
+        KeyboardInterrupt,
+    ) as error:
+        text, code = explain(error)
+        print(f"error: {text}", file=sys.stderr)
+        return code
     print(message)
     return 0
 
