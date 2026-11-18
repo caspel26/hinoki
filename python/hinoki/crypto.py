@@ -171,6 +171,9 @@ class JWTKey:
         return (self.kid, self.algorithm, self.material(), self.public)
 
 
+MAX_LEEWAY = 120  # seconds; the Rust verifier enforces the same bound
+
+
 def check_key_set(keys: Sequence[JWTKey]) -> None:
     """Fail when the provider is built, not on the first request."""
     if not keys:
@@ -211,6 +214,10 @@ class JWTAuth[T](BearerAuth[T]):
 
     def __init__(self) -> None:
         check_key_set(self.keys)
+        if not 0 <= self.leeway <= MAX_LEEWAY:
+            raise ValueError(
+                f"leeway must be between 0 and {MAX_LEEWAY} seconds, not {self.leeway}"
+            )
 
     def openapi_scheme(self) -> dict[str, object] | None:
         return {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
