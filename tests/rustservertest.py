@@ -95,7 +95,7 @@ async def sync_awaitable_result() -> dict[str, str]:
     return {"request_id": request_id.get() or "missing"}
 
 
-@http.get("/context-sync-awaitable")
+@http.get("/context-sync-awaitable", validate_response=False)
 def context_sync_awaitable() -> object:
     return sync_awaitable_result()
 
@@ -171,7 +171,7 @@ def observe_default_kwargs(handler: Any) -> Any:
     return wrapper
 
 
-@http.get("/native/default-query")
+@http.get("/native/default-query", validate_response=False)
 @observe_default_kwargs
 async def native_default_query(view: str = DEFAULT_VIEW, *, term: str) -> object:
     raise AssertionError("the observing wrapper should replace this body")
@@ -182,7 +182,7 @@ def native_default_query_sync(view: str = DEFAULT_VIEW) -> dict[str, object]:
     return {"same_default": view is DEFAULT_VIEW, "view": view}
 
 
-@http.get("/native/sync-late-awaitable")
+@http.get("/native/sync-late-awaitable", validate_response=False)
 def native_sync_late_awaitable() -> object:
     PROBE.sync_entered.set()
     PROBE.sync_gate.wait(2)

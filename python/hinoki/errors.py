@@ -170,6 +170,30 @@ class Conflict(APIError):
     message = "The request conflicts with the current state."
 
 
+MAX_RETRY_AFTER = 86_400  # seconds: a day is the longest wait a client is told
+
+
+class TooManyRequests(APIError):
+    """The one error a ``rate_limit`` policy may raise to refuse a request.
+
+    ``retry_after`` is a whole number of seconds from 1 to 86,400, sent as
+    ``Retry-After``; anything else is refused when the error is created."""
+
+    status = HTTPStatus.TOO_MANY_REQUESTS
+    code = "rate_limited"
+    message = "Too many requests."
+
+    def __init__(
+        self, retry_after: int, message: str | None = None, *, code: str | None = None
+    ) -> None:
+        if type(retry_after) is not int or not 1 <= retry_after <= MAX_RETRY_AFTER:
+            raise ValueError(
+                f"retry_after must be whole seconds from 1 to {MAX_RETRY_AFTER}"
+            )
+        super().__init__(message, code=code, headers={"retry-after": str(retry_after)})
+        self.retry_after = retry_after
+
+
 Handler = Callable[[Any], APIError | Awaitable[APIError]]
 
 
