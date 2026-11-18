@@ -454,7 +454,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
     <span class="o">...</span>
 </code></pre></div>
 <h2 id="current-limits">Current limits<a class="headerlink" href="#current-limits" title="Permanent link">&para;</a></h2>
-<p>Per-action <code>tags</code>, <code>deprecated</code>, a caller-supplied <code>operation_id</code> and <code>include_in_schema</code> controls are not implemented. Response bodies are generated from annotations; runtime response validation against those annotations is not implemented. See <a href="../status/">project status</a> for other API boundaries.</p>
+<p>Per-action <code>tags</code>, <code>deprecated</code>, a caller-supplied <code>operation_id</code> and <code>include_in_schema</code> controls are not implemented. Response bodies are generated from annotations; every action's return value is checked against its annotation at runtime, and an annotation that cannot be checked stops the app at startup (<a href="../endpoints/#the-response-is-checked-against-the-annotation">details</a>). See <a href="../status/">project status</a> for other API boundaries.</p>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
@@ -484,7 +484,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.12</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 12:43:37 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 10:52:07 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/openapi.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -248,7 +248,7 @@
 </code></pre></div>
 <p>Building <code>Hinoki(...)</code> declares and opens nothing, so importing the module is safe. Use a factory (<code>def create_app(...) -&gt; Hinoki</code>, target <code>module:create_app</code>) when constructing the application needs arguments or conditions, such as the Blog's optional accounts or the Tracker's per-test database; inside a factory, register handlers with the same call after the app exists (<code>app.error_handler(Kind)(handler)</code>). The <code>[[apps]]</code> of <code>hinoki.toml</code> are something else: model and migration packages of the project, not further <code>Hinoki</code> objects.</p>
 <h2 id="one-request">One request<a class="headerlink" href="#one-request" title="Permanent link">&para;</a></h2>
-<p>The server passes an ASGI request through the Python adapter, the compiled router and binding layer. Hinoki validates inputs, resolves authentication and access, runs the handler, then encodes and renders its response. Runtime response values are not validated against their return annotations. For a transactional action, commit happens after successful response encoding and rendering; failures roll back before HTTP error translation. The ASGI boundary still crosses Python objects; the runtime is not an all-Rust server.</p>
+<p>The server passes an ASGI request through the Python adapter, the compiled router and binding layer. Hinoki validates inputs, resolves authentication and access, runs the handler, then encodes and renders its response. The return value is checked against the action's return annotation (see <a href="../endpoints/#the-response-is-checked-against-the-annotation">the response check</a>); a mismatch is a <code>500</code>. For a transactional action, commit happens after successful response encoding and rendering; failures roll back before HTTP error translation. The ASGI boundary still crosses Python objects; the runtime is not an all-Rust server.</p>
 <h2 id="worker-resources">Worker resources<a class="headerlink" href="#worker-resources" title="Permanent link">&para;</a></h2>
 <p>Each server worker owns its module lifespan and database pool. Startup creates resources; shutdown closes them. A pool is not opened at import or shared across workers. Scripts outside the server manage their own short-lived connections.</p>
 <h2 id="optional-rules">Optional rules<a class="headerlink" href="#optional-rules" title="Permanent link">&para;</a></h2>
@@ -284,7 +284,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.1</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 03:08:24 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 10:52:07 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/concepts.md">Edit on GitHub</a></dd></div>
         </dl>

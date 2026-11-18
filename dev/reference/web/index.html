@@ -2181,6 +2181,29 @@ accepts, including lists and other mounts; prefixes join outside in.</p>
 
 
 
+<h3 id="hinoki.routing.Route.validate_response" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">validate_response</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.routing.Route.validate_response" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">validate_response</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="hinoki.routing.Route.is_async" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">is_async</span>
 
@@ -2245,6 +2268,7 @@ accepts, including lists and other mounts; prefixes join outside in.</p>
     <span class="n">parsers</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Parser</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_PARSERS</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Renderer</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_RENDERERS</span><span class="p">,</span>
     <span class="n">errors</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">validate_response</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
@@ -2286,6 +2310,7 @@ the <a href="../crud/">CRUD API reference</a>.</p>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">validate_response</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RouteDeclaration</span>
 </code></pre></div>
 
@@ -2319,6 +2344,7 @@ MCP tool description then show.</p>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">validate_response</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RouteDeclaration</span>
 </code></pre></div>
 
@@ -2352,6 +2378,7 @@ MCP tool description then show.</p>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">validate_response</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RouteDeclaration</span>
 </code></pre></div>
 
@@ -2385,6 +2412,7 @@ MCP tool description then show.</p>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">validate_response</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RouteDeclaration</span>
 </code></pre></div>
 
@@ -2418,6 +2446,7 @@ MCP tool description then show.</p>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">validate_response</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RouteDeclaration</span>
 </code></pre></div>
 
@@ -2451,6 +2480,7 @@ MCP tool description then show.</p>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">validate_response</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RouteDeclaration</span>
 </code></pre></div>
 
@@ -3653,7 +3683,7 @@ override them, which is how a handler answers with a status of its own:
           </li><li><a href="#hinoki.routing.Includable">Includable</a></li><li><a href="#hinoki.routing.Mount">Mount</a>
             <ul><li><a href="#hinoki.routing.Mount.prefix">prefix</a></li><li><a href="#hinoki.routing.Mount.items">items</a></li><li><a href="#hinoki.routing.Mount.__init__">__init__</a></li></ul>
           </li><li><a href="#hinoki.routing.Route">Route</a>
-            <ul><li><a href="#hinoki.routing.Route.method">method</a></li><li><a href="#hinoki.routing.Route.path">path</a></li><li><a href="#hinoki.routing.Route.handler">handler</a></li><li><a href="#hinoki.routing.Route.status">status</a></li><li><a href="#hinoki.routing.Route.access">access</a></li><li><a href="#hinoki.routing.Route.transaction">transaction</a></li><li><a href="#hinoki.routing.Route.owner">owner</a></li><li><a href="#hinoki.routing.Route.pagination">pagination</a></li><li><a href="#hinoki.routing.Route.replaces">replaces</a></li><li><a href="#hinoki.routing.Route.parsers">parsers</a></li><li><a href="#hinoki.routing.Route.renderers">renderers</a></li><li><a href="#hinoki.routing.Route.errors">errors</a></li><li><a href="#hinoki.routing.Route.is_async">is_async</a></li><li><a href="#hinoki.routing.Route.name">name</a></li><li><a href="#hinoki.routing.Route.__init__">__init__</a></li></ul>
+            <ul><li><a href="#hinoki.routing.Route.method">method</a></li><li><a href="#hinoki.routing.Route.path">path</a></li><li><a href="#hinoki.routing.Route.handler">handler</a></li><li><a href="#hinoki.routing.Route.status">status</a></li><li><a href="#hinoki.routing.Route.access">access</a></li><li><a href="#hinoki.routing.Route.transaction">transaction</a></li><li><a href="#hinoki.routing.Route.owner">owner</a></li><li><a href="#hinoki.routing.Route.pagination">pagination</a></li><li><a href="#hinoki.routing.Route.replaces">replaces</a></li><li><a href="#hinoki.routing.Route.parsers">parsers</a></li><li><a href="#hinoki.routing.Route.renderers">renderers</a></li><li><a href="#hinoki.routing.Route.errors">errors</a></li><li><a href="#hinoki.routing.Route.validate_response">validate_response</a></li><li><a href="#hinoki.routing.Route.is_async">is_async</a></li><li><a href="#hinoki.routing.Route.name">name</a></li><li><a href="#hinoki.routing.Route.__init__">__init__</a></li></ul>
           </li><li><a href="#http-method-decorators">HTTP method decorators</a></li><li><a href="#hinoki.http.get">get</a></li><li><a href="#hinoki.http.post">post</a></li><li><a href="#hinoki.http.put">put</a></li><li><a href="#hinoki.http.patch">patch</a></li><li><a href="#hinoki.http.delete">delete</a></li><li><a href="#hinoki.http.query">query</a></li><li><a href="#request-response-and-errors">Request, response and errors</a></li><li><a href="#hinoki.http.request.Request">Request</a>
             <ul><li><a href="#hinoki.http.request.Request.__slots__">__slots__</a></li><li><a href="#hinoki.http.request.Request.method">method</a></li><li><a href="#hinoki.http.request.Request.path">path</a></li><li><a href="#hinoki.http.request.Request.scheme">scheme</a></li><li><a href="#hinoki.http.request.Request.host">host</a></li><li><a href="#hinoki.http.request.Request.client">client</a></li><li><a href="#hinoki.http.request.Request.headers">headers</a></li><li><a href="#hinoki.http.request.Request.GET">GET</a></li><li><a href="#hinoki.http.request.Request.COOKIES">COOKIES</a></li><li><a href="#hinoki.http.request.Request.body">body</a></li><li><a href="#hinoki.http.request.Request.path_params">path_params</a></li><li><a href="#hinoki.http.request.Request.user">user</a></li><li><a href="#hinoki.http.request.Request.request_id">request_id</a></li><li><a href="#hinoki.http.request.Request.parsers">parsers</a></li><li><a href="#hinoki.http.request.Request.cached">cached</a></li><li><a href="#hinoki.http.request.Request.content_type">content_type</a></li><li><a href="#hinoki.http.request.Request.data">data</a></li><li><a href="#hinoki.http.request.Request.POST">POST</a></li><li><a href="#hinoki.http.request.Request.FILES">FILES</a></li><li><a href="#hinoki.http.request.Request.__init__">__init__</a></li><li><a href="#hinoki.http.request.Request.parsed">parsed</a></li><li><a href="#hinoki.http.request.Request.accepts_form">accepts_form</a></li></ul>
           </li><li><a href="#hinoki.http.response.Response">Response</a>

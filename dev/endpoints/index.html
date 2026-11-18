@@ -660,6 +660,19 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
 <p>Use <code>--path</code> or <code>--method</code> to narrow it, and <code>--format json</code> for scripts. The list is sorted by path.</p>
 <h2 id="responses-errors-and-pagination">Responses, errors and pagination<a class="headerlink" href="#responses-errors-and-pagination" title="Permanent link">&para;</a></h2>
 <p>Return a value matching the declared response type, or return <code>Response</code> when the handler needs to set an explicit status, headers or body. Declare expected <code>APIError</code> subclasses in <code>errors=(...)</code>; their status, stable code and message feed the OpenAPI document and strict test client.</p>
+<h3 id="the-response-is-checked-against-the-annotation">The response is checked against the annotation<a class="headerlink" href="#the-response-is-checked-against-the-annotation" title="Permanent link">&para;</a></h3>
+<p>Every action's return value is checked against its return annotation, and the annotation itself is checked when the app starts. There is nothing to switch on.</p>
+<div class="highlight"><pre><span></span><code><span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/notes/</span><span class="si">{note_id}</span><span class="s2">"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">detail</span><span class="p">(</span><span class="n">note_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NoteOut</span><span class="p">:</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="n">note_id</span><span class="p">}</span>          <span class="c1"># a dict is not a NoteOut: 500 internal_error</span>
+</code></pre></div>
+<ul>
+<li><strong>At startup.</strong> An annotation that cannot be checked stops the app with a <code>RegistrationError</code> that names the action: no annotation, <code>Any</code>, <code>object</code>, <code>set[...]</code>, a plain class, or <code>Response</code> inside a collection. Annotate a concrete type, or declare the action with <code>validate_response=False</code> to skip the check for that action.</li>
+<li><strong>At runtime.</strong> A result that does not match is a <code>500 internal_error</code>, because the fault is the server's, not the client's. With <code>debug=True</code> (development) the answer names the action, the type it returned and the annotation it broke, for example <code>detail returned a dict that does not match its return annotation NoteOut</code>. Without debug the body is generic. The log and the answer never contain the value itself. With <code>transaction=True</code> the check runs inside the transaction, so a mismatch rolls the write back.</li>
+<li><strong>What is accepted.</strong> A <code>Schema</code> class, a <code>Model</code> class (projected through the declared <code>Schema</code> when there is one), <code>list[...]</code>, <code>dict[str, ...]</code> and <code>Page[...]</code> of these, <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code> (a <code>bool</code> is not an <code>int</code>), <code>bytes</code>, <code>datetime</code>, <code>date</code>, <code>UUID</code>, <code>Decimal</code>, <code>None</code>, plain <code>dict</code> and <code>list</code>, <code>Any</code> or <code>object</code> as an item type, and unions of these. <code>Annotated[...]</code> is unwrapped. The check never coerces.</li>
+<li><strong><code>Response</code>.</strong> <code>-&gt; Response</code> and <code>NoteOut | Response</code> are accepted: a returned <code>Response</code> carries its own status, headers and body and is not checked. Actions with a bodyless status (<code>204</code>, <code>304</code>) are not checked.</li>
+<li><strong>What it does not check.</strong> A <code>Schema</code> instance is valid by construction, so the check is about the shape of the result, not the field values. A custom renderer or a <code>dump()</code> override can still change the bytes afterwards. The check is one type test per request; no performance figure is claimed.</li>
+</ul>
 <p>Use <code>Response</code> from <code>hinoki</code> or <code>hinoki.http</code> for explicit status, headers or body. It is also available from <code>hinoki.http.response</code>. The former <code>Reply</code> name and <code>hinoki.reply</code> module are deprecated aliases kept for one compatibility cycle: <code>from hinoki import Reply</code> and <code>import hinoki.reply</code> still work, refer to the same <code>Response</code> class and emit <code>DeprecationWarning</code>. Replace their imports, annotations and constructors with <code>Response</code>.</p>
 <p>Paginated actions declare a pagination policy. See <a href="../pagination/">pagination</a> for the query parameters and response envelope.</p>
 <p>See <a href="../authentication/">authentication</a>, <a href="../codecs/">parsers and renderers</a>, and <a href="../errors/">error handling</a>.</p>
@@ -700,15 +713,17 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#declare-an-action">Declare an action</a></li><li><a href="#read-with-a-body-httpquery">Read with a body: @http.query</a></li><li><a href="#bind-request-values">Bind request values</a></li><li><a href="#upload-files">Upload files</a></li><li><a href="#group-related-paths">Group related paths</a></li><li><a href="#organising-a-large-application">Organising a large application</a></li><li><a href="#responses-errors-and-pagination">Responses, errors and pagination</a></li><li><a href="#migrating-from-the-top-level-decorators">Migrating from the top-level decorators</a></li></ul>
+            <ul><li><a href="#declare-an-action">Declare an action</a></li><li><a href="#read-with-a-body-httpquery">Read with a body: @http.query</a></li><li><a href="#bind-request-values">Bind request values</a></li><li><a href="#upload-files">Upload files</a></li><li><a href="#group-related-paths">Group related paths</a></li><li><a href="#organising-a-large-application">Organising a large application</a></li><li><a href="#responses-errors-and-pagination">Responses, errors and pagination</a>
+            <ul><li><a href="#the-response-is-checked-against-the-annotation">The response is checked against the annotation</a></li></ul>
+          </li><li><a href="#migrating-from-the-top-level-decorators">Migrating from the top-level decorators</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.10</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 03:05:52 UTC">November 18, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>10 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 10:52:07 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>12 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -488,7 +488,7 @@
     <span class="k">return</span> <span class="n">data</span>
 </code></pre></div>
 <p><code>PetRequest.validate({"pet": {"type": "cat", "name": "Mugi"}})</code> returns a <code>PetRequest</code> whose <code>pet</code> is a <code>Cat</code>; manual construction takes an already validated variant instance, such as <code>PetRequest(pet=Dog(kind="dog", walks=2))</code>. A dict is not coerced into a variant. <code>list[Pet]</code>, nested Schema fields, nullable unions and <code>Unset</code> use the same discriminator rules. Unknown tags produce a field error at the tag's wire path without echoing the submitted value. The handler is not called for an invalid body, whether it is synchronous or asynchronous.</p>
-<p>Each variant's tag field is required and cannot have a default. Tags must be unique strings, variants must be distinct Schema classes, and variant classes cannot override <code>dump()</code> because the override could remove or change the tag on the wire. Plain unions without <code>Field(discriminator=...)</code>, <code>Literal</code>, non-Schema variants, and unions directly in handler body or return annotations are not supported; wrap the union in a Schema for route input and output. This does not add runtime response validation.</p>
+<p>Each variant's tag field is required and cannot have a default. Tags must be unique strings, variants must be distinct Schema classes, and variant classes cannot override <code>dump()</code> because the override could remove or change the tag on the wire. Plain unions without <code>Field(discriminator=...)</code>, <code>Literal</code>, non-Schema variants, and unions directly in handler body or return annotations are not supported; wrap the union in a Schema for route input and output. The runtime check of return values is separate and applies to every action.</p>
 <h2 id="projection-options-on-dump">Projection options on <code>dump()</code><a class="headerlink" href="#projection-options-on-dump" title="Permanent link">&para;</a></h2>
 <p>Use <code>dump()</code> when application code needs a JSON-compatible projection of a Schema. <code>include</code> and <code>exclude</code> accept Python field names and apply to the top-level fields only; exclusion wins if a field appears in both. There are no dotted paths or nested selection maps. Nested Schemas and supported lists are converted recursively, with <code>by_alias</code> applied at every Schema level.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
@@ -583,7 +583,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 21:10:30 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 10:52:07 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>8 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>

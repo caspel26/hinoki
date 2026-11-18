@@ -526,16 +526,17 @@ directly returned <code>Model</code> with that Schema's <code>from_model()</code
 </tr>
 <tr>
 <td>a <code>dict</code> or other plain value</td>
-<td>sent unchanged</td>
+<td><code>500 internal_error</code>; sent unchanged only with <code>validate_response=False</code></td>
 </tr>
 </tbody>
 </table>
-<div class="admonition warning">
-<p class="admonition-title">Plain values are not validated</p>
-<p>A returned <code>dict</code> (or any other non-Schema, non-Model value) is serialized
-as it is, even with extra keys. The annotation describes the OpenAPI document
-only; return a Schema instance or a Model when the declared shape must be
-enforced.</p>
+<div class="admonition note">
+<p class="admonition-title">Plain values are checked</p>
+<p>A returned <code>dict</code> (or any other non-Schema, non-Model value) where the
+annotation names a <code>Schema</code> is a <code>500 internal_error</code>: the annotation is
+enforced at runtime (see <a href="../endpoints/#the-response-is-checked-against-the-annotation">the response check</a>).
+Return a Schema instance or a Model; declare the action with
+<code>validate_response=False</code> only to send a value as it is.</p>
 </div>
 <p>A row that fails the Schema's constraints is the server's fault (for example a
 stored value longer than the Schema allows), so it is never reported as a
@@ -605,7 +606,7 @@ the Schema body when they need static checking.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.5</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 21:10:30 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 10:52:07 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-schemas.md">Edit on GitHub</a></dd></div>
         </dl>
