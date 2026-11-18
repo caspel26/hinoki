@@ -400,8 +400,9 @@ class RustWorker:
                 request.request_id,
                 request.native_args,
                 request.native_error,
-                NativeBody(RustBody(request), request.headers)
+                NativeBody(RustBody(request), request.headers, request.query)
                 if request.method in BODY_METHODS
+                or self.pipeline.bindings[action].route.access is not None
                 else None,
             ), True
         failure = request._take_native_failure()
