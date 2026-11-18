@@ -79,8 +79,10 @@ jobs:
         run: uv run --locked complexipy . --failed
       - name: Types and typing fixtures
         run: uv run --locked mypy
+      - name: Build the test-only SQL trace extension
+        run: uv run --with maturin maturin develop --manifest-path crates/bindings/Cargo.toml --features sql-trace
       - name: Tests
-        run: uv run --locked pytest --cov --cov-report=xml
+        run: uv run --no-sync --locked pytest --cov --cov-report=xml
       - name: Save coverage report
         if: matrix.python == '3.13'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

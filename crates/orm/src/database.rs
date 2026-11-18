@@ -2,6 +2,8 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+#[cfg(feature = "sql-trace")]
+use std::sync::Mutex;
 use std::time::Duration;
 
 use deadpool_postgres::{Config, Object, PoolConfig, Runtime, SslMode, Timeouts};
@@ -18,9 +20,48 @@ use crate::value::Value;
 /// One result row: column names with decoded values, in column order.
 pub type Row = Vec<(String, Value)>;
 
+#[cfg(feature = "sql-trace")]
+#[derive(Clone, Debug, PartialEq)]
+pub struct SqlTraceEntry {
+    pub kind: String,
+    pub sql: String,
+    pub values: Vec<Value>,
+}
+
+#[cfg(feature = "sql-trace")]
+#[derive(Clone, Default)]
+struct SqlTrace(Arc<Mutex<Vec<SqlTraceEntry>>>);
+
+#[cfg(feature = "sql-trace")]
+impl SqlTrace {
+    fn record(&self, kind: &str, sql: &str, values: &[Value]) {
+        self.0
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .push(SqlTraceEntry {
+                kind: kind.to_owned(),
+                sql: sql.to_owned(),
+                values: values.to_vec(),
+            });
+    }
+
+    fn clear(&self) {
+        self.0
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+    }
+
+    fn take(&self) -> Vec<SqlTraceEntry> {
+        std::mem::take(&mut *self.0.lock().unwrap_or_else(|error| error.into_inner()))
+    }
+}
+
 #[derive(Clone)]
 pub struct Database {
     backend: DatabaseBackend,
+    #[cfg(feature = "sql-trace")]
+    trace: SqlTrace,
 }
 
 #[derive(Clone)]
@@ -253,6 +294,8 @@ impl Database {
             let path = connect_path(url)?;
             return Ok(Self {
                 backend: DatabaseBackend::Sqlite(SqlitePool::open(&path, max_size, wait)?),
+                #[cfg(feature = "sql-trace")]
+                trace: SqlTrace::default(),
             });
         }
         if url.starts_with("mysql://") || url.starts_with("mariadb://") {
@@ -266,6 +309,8 @@ impl Database {
                     pool: MysqlPool::connect(&driver_url, max_size, wait)?,
                     dialect,
                 },
+                #[cfg(feature = "sql-trace")]
+                trace: SqlTrace::default(),
             });
         }
         check_postgres_scheme(url)?;
@@ -296,6 +341,8 @@ impl Database {
         .map_err(|_| DbError::new(ErrorKind::Connect, "invalid database configuration"))?;
         Ok(Self {
             backend: DatabaseBackend::Postgres { pool, tls },
+            #[cfg(feature = "sql-trace")]
+            trace: SqlTrace::default(),
         })
     }
 
@@ -324,6 +371,8 @@ impl Database {
     }
 
     pub async fn fetch(&self, sql: &str, values: &[Value]) -> Result<Vec<Row>, DbError> {
+        #[cfg(feature = "sql-trace")]
+        self.trace.record("fetch", sql, values);
         if let DatabaseBackend::Sqlite(sqlite) = &self.backend {
             return sqlite.acquire().await?.fetch(sql, values).await;
         }
@@ -342,6 +391,8 @@ impl Database {
     }
 
     pub async fn execute(&self, sql: &str, values: &[Value]) -> Result<u64, DbError> {
+        #[cfg(feature = "sql-trace")]
+        self.trace.record("execute", sql, values);
         if let DatabaseBackend::Sqlite(sqlite) = &self.backend {
             return sqlite.acquire().await?.execute(sql, values).await;
         }
@@ -366,12 +417,24 @@ impl Database {
         if let DatabaseBackend::Sqlite(sqlite) = &self.backend {
             let mut lease = sqlite.acquire().await?;
             lease.begin("BEGIN IMMEDIATE").await?;
-            return Ok(Transaction::new_sqlite(lease));
+            #[cfg(feature = "sql-trace")]
+            self.trace.record("boundary", "BEGIN IMMEDIATE", &[]);
+            return Ok(Transaction::new_sqlite(
+                lease,
+                #[cfg(feature = "sql-trace")]
+                self.trace.clone(),
+            ));
         }
         if let DatabaseBackend::Mysql { pool: mysql, .. } = &self.backend {
             let mut lease = mysql.acquire().await?;
             lease.begin().await?;
-            return Ok(Transaction::new_mysql(lease));
+            #[cfg(feature = "sql-trace")]
+            self.trace.record("boundary", "BEGIN", &[]);
+            return Ok(Transaction::new_mysql(
+                lease,
+                #[cfg(feature = "sql-trace")]
+                self.trace.clone(),
+            ));
         }
         let lease = self.acquire().await?;
         lease
@@ -380,7 +443,14 @@ impl Database {
             .await
             .map_err(|e| DbError::from_driver(&e))?;
         let (conn, tls) = lease.into_inner();
-        Ok(Transaction::new(conn, tls))
+        #[cfg(feature = "sql-trace")]
+        self.trace.record("boundary", "BEGIN", &[]);
+        Ok(Transaction::new(
+            conn,
+            tls,
+            #[cfg(feature = "sql-trace")]
+            self.trace.clone(),
+        ))
     }
 
     pub async fn begin_migration(&self) -> Result<Transaction, DbError> {
@@ -423,6 +493,16 @@ impl Database {
             }
         }
     }
+
+    #[cfg(feature = "sql-trace")]
+    pub fn clear_sql_trace(&self) {
+        self.trace.clear();
+    }
+
+    #[cfg(feature = "sql-trace")]
+    pub fn take_sql_trace(&self) -> Vec<SqlTraceEntry> {
+        self.trace.take()
+    }
 }
 
 /// Marks a statement as in flight; if it is dropped before completing, the
@@ -455,6 +535,8 @@ pub struct Transaction {
     /// A statement was abandoned mid-flight.
     poisoned: AtomicBool,
     mysql_migration_lock: bool,
+    #[cfg(feature = "sql-trace")]
+    trace: SqlTrace,
 }
 
 enum TransactionBackend {
@@ -471,7 +553,11 @@ enum TransactionBackend {
 }
 
 impl Transaction {
-    fn new(conn: Object, tls: Option<MakeRustlsConnect>) -> Self {
+    fn new(
+        conn: Object,
+        tls: Option<MakeRustlsConnect>,
+        #[cfg(feature = "sql-trace")] trace: SqlTrace,
+    ) -> Self {
         Self {
             backend: TransactionBackend::Postgres {
                 conn: Some(conn),
@@ -480,10 +566,12 @@ impl Transaction {
             failed: AtomicBool::new(false),
             poisoned: AtomicBool::new(false),
             mysql_migration_lock: false,
+            #[cfg(feature = "sql-trace")]
+            trace,
         }
     }
 
-    fn new_sqlite(sqlite: SqliteLease) -> Self {
+    fn new_sqlite(sqlite: SqliteLease, #[cfg(feature = "sql-trace")] trace: SqlTrace) -> Self {
         Self {
             backend: TransactionBackend::Sqlite {
                 primary: sqlite,
@@ -492,15 +580,19 @@ impl Transaction {
             failed: AtomicBool::new(false),
             poisoned: AtomicBool::new(false),
             mysql_migration_lock: false,
+            #[cfg(feature = "sql-trace")]
+            trace,
         }
     }
 
-    fn new_mysql(mysql: MysqlLease) -> Self {
+    fn new_mysql(mysql: MysqlLease, #[cfg(feature = "sql-trace")] trace: SqlTrace) -> Self {
         Self {
             backend: TransactionBackend::Mysql(Arc::new(tokio::sync::Mutex::new(mysql))),
             failed: AtomicBool::new(false),
             poisoned: AtomicBool::new(false),
             mysql_migration_lock: false,
+            #[cfg(feature = "sql-trace")]
+            trace,
         }
     }
 
@@ -513,6 +605,8 @@ impl Transaction {
             failed: AtomicBool::new(false),
             poisoned: AtomicBool::new(false),
             mysql_migration_lock: false,
+            #[cfg(feature = "sql-trace")]
+            trace: SqlTrace::default(),
         }
     }
 
@@ -585,6 +679,8 @@ impl Transaction {
     }
 
     pub async fn fetch(&self, sql: &str, values: &[Value]) -> Result<Vec<Row>, DbError> {
+        #[cfg(feature = "sql-trace")]
+        self.trace.record("fetch", sql, values);
         match &self.backend {
             TransactionBackend::Sqlite { primary, .. } => {
                 let outcome = primary.fetch(sql, values).await;
@@ -617,6 +713,8 @@ impl Transaction {
     }
 
     pub async fn execute(&self, sql: &str, values: &[Value]) -> Result<u64, DbError> {
+        #[cfg(feature = "sql-trace")]
+        self.trace.record("execute", sql, values);
         match &self.backend {
             TransactionBackend::Sqlite { primary, .. } => {
                 let outcome = primary.execute(sql, values).await;
@@ -678,6 +776,8 @@ impl Transaction {
     }
 
     async fn finish(&mut self, statement: &str) -> Result<(), DbError> {
+        #[cfg(feature = "sql-trace")]
+        self.trace.record("boundary", statement, &[]);
         match &mut self.backend {
             TransactionBackend::Sqlite { primary, reserved } => {
                 // Transactional leases are discarded by Drop unless commit/rollback
