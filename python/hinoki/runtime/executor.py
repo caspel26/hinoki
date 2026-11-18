@@ -191,8 +191,8 @@ class SyncExecutor:
         handed = context.Handoff()
         scope.run(self._attach, loop, handed)
         call = functools.partial(scope.run, fn, *args, **kwargs)
-        self.in_flight += 1
         future: asyncio.Future[R] = loop.create_future()
+        self.in_flight += 1
         try:
             pool.submit((call, loop, future, self._finish))
         except RuntimeError as exc:
