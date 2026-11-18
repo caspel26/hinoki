@@ -472,6 +472,7 @@ index; see <a href="../getting-started/">installation</a> for setup.</p>
 </tbody>
 </table>
 <p><code>dev</code> always runs one worker with reload. The settings command shows what is in effect: <code>hinoki settings blog.settings:BlogSettings</code>.</p>
+<p>Before serving a deployment, narrow <a href="../settings/#allowed_hosts"><code>allowed_hosts</code></a> to the names it answers to (<code>BLOG_ALLOWED_HOSTS=app.example.com</code>). While it is the default <code>*</code> and <code>debug</code> is off, each worker logs <code>allowed_hosts is '*' and debug is off: ...</code> at startup, on Granian, the Rust server, WSGI and other ASGI servers alike.</p>
 <h2 id="the-rust-server">The Rust server<a class="headerlink" href="#the-rust-server" title="Permanent link">&para;</a></h2>
 <p><code>hinoki serve --server rust</code> (or <code>server.server = "rust"</code>) runs the application on a second server that is part of Hinoki's native extension. Granian stays the default and <code>--server granian</code> always selects it; nothing changes for an app that does not opt in.</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>rust
@@ -649,7 +650,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 16:32:07 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 17:11:07 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>19 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>

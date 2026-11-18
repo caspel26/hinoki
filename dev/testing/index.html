@@ -429,7 +429,7 @@
         <span class="s2">"/health"</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="p">[(</span><span class="s2">"X-Trace"</span><span class="p">,</span> <span class="s2">"first"</span><span class="p">),</span> <span class="p">(</span><span class="s2">"X-Trace"</span><span class="p">,</span> <span class="s2">"second"</span><span class="p">)]</span>
     <span class="p">)</span>
 </code></pre></div>
-<p>The default remains no <code>Host</code> header. Set <code>headers={"host": "other.example.com"}</code> on a call to override the client's host.</p>
+<p>The default remains no <code>Host</code> header. Set <code>headers={"host": "other.example.com"}</code> on a call to override the client's host. Because the clients run in-process, they do not log the startup warning about the default <code>allowed_hosts = *</code> that a served worker logs (<a href="../settings/#allowed_hosts">settings</a>).</p>
 <p><code>SyncClient</code> is available for synchronous test functions. It runs the app's lifespan and refuses unsafe nested use from a running event loop.</p>
 <p>For deterministic time, <code>ManualClock</code> is a thread-safe callable clock. It accepts and returns timezone-aware instants normalized to UTC; <code>advance(seconds=...)</code> and <code>set(datetime)</code> control its value. A naive datetime raises <code>ValueError</code>. Pass it to <code>app.now(clock)</code> or other code that accepts a <code>Clock</code>.</p>
 <h2 id="test-the-layers-separately">Test the layers separately<a class="headerlink" href="#test-the-layers-separately" title="Permanent link">&para;</a></h2>
@@ -475,7 +475,7 @@ cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.22</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 13:06:27 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 17:11:07 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/testing.md">Edit on GitHub</a></dd></div>
         </dl>
