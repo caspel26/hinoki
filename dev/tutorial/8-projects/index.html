@@ -276,10 +276,10 @@ uv<span class="w"> </span>sync
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>billing<span class="w"> </span>--dry-run
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>billing
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>status
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>billing<span class="w"> </span><span class="m">0001</span>-create-table-invoices
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>billing<span class="w"> </span><span class="m">0001</span>-create-table-billing-invoices
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
 </code></pre></div>
-<p>Hinoki assigns the next migration number and derives a stable slug from the first schema change, such as <code>create-table-invoices</code>. You can optionally override just the slug with <code>--name add-invoice-table</code>. Review the generated SQL and state file before applying it. With no database URL configured, <code>status</code> and <code>apply</code> initialize the local SQLite database at <code>.hinoki/local.sqlite3</code>. Set <code>HINOKI_DATABASE_URL</code> to target another supported backend. Migrations are explicit commands and never run automatically when the app starts.</p>
+<p>Hinoki assigns the next migration number and derives a stable slug from the first schema change, such as <code>create-table-billing-invoices</code> (the table is <code>billing_invoices</code>: the app, then the model). You can optionally override just the slug with <code>--name add-invoice-table</code>. Review the generated SQL and state file before applying it. With no database URL configured, <code>status</code> and <code>apply</code> initialize the local SQLite database at <code>.hinoki/local.sqlite3</code>. Set <code>HINOKI_DATABASE_URL</code> to target another supported backend. Migrations are explicit commands and never run automatically when the app starts.</p>
 <p>See <a href="../../migrations/">project migrations</a> for dependency ordering, destructive changes and existing projects that still use explicit <code>--models</code> and <code>--dir</code> targets.</p>
         
       </article>
@@ -305,7 +305,7 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.9</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:20:26 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:44:51 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/8-projects.md">Edit on GitHub</a></dd></div>
         </dl>

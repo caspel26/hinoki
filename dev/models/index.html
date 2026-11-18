@@ -413,23 +413,31 @@
     <span class="n">done</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
 </code></pre></div>
-<p>For a fresh model, Hinoki derives a plural snake-case table name and human
-display names from the class: <code>Member</code> becomes <code>members</code>, <code>Member</code> and
-<code>Members</code>; <code>UserProfile</code> becomes <code>user_profiles</code>, <code>User profile</code> and
-<code>User profiles</code>. <code>@db.table(...)</code> or the compatible <code>table=</code> class keyword,
-along with <code>label=</code> and <code>plural=</code>, provide optional overrides. Keep an explicit
+<p>For a fresh model, Hinoki derives the table name as <code>&lt;app&gt;_&lt;models&gt;</code> and human
+display names from the class. The app is the package that holds the model's
+<code>models</code> module: <code>shop.apps.billing.models</code> is <code>billing</code>, <code>shop.models</code> and
+<code>shop.models.invoice</code> are <code>shop</code>; a module without a <code>models</code> segment uses its own
+last name. The model part is the class name in snake case and plural, so
+<code>Invoice</code> in <code>billing</code> becomes <code>billing_invoices</code> and <code>LineItem</code> becomes
+<code>billing_line_items</code>. Display names are <code>Invoice</code> and <code>Invoices</code>; <code>UserProfile</code>
+becomes <code>User profile</code> and <code>User profiles</code>. The class keyword <code>app="billing"</code> replaces the
+app part (lowercase letters, digits and underscores). <code>@db.table(...)</code> or the
+compatible <code>table=</code> class keyword, along with <code>label=</code> and <code>plural=</code>, provide
+optional overrides, and an explicit table name is never prefixed. Keep an explicit
 table name when it pins an existing migration history or when
 the physical table needs another name. This matters when renaming a Python
-class: changing an implicit table name is planned as a table drop/create and
-is protected by the destructive-migration guard, not treated as a data-safe
-rename. Irregular or localized plurals such as <code>Person</code>/<code>People</code> should set
-the table name and <code>plural=</code> explicitly. The fallback inflection is deterministic,
-small and English-oriented; it does not guess irregular nouns. It splits
-underscores and CamelCase into words, lowercases them for the table, and applies
-these suffixes to the final word: consonant plus <code>y</code> becomes <code>ies</code>; <code>s</code>, <code>x</code>,
+class or moving its module: changing an implicit table name is planned as a table
+drop/create and is protected by the destructive-migration guard, not treated as a
+data-safe rename. A project whose tables were created under the earlier default (the
+plural class name without the app) pins them with <code>@db.table("old_name")</code> before planning again.
+The optional <code>HNK-DB-001</code> rule (<code>Models.require_explicit_table</code>) can require every
+model to pin its table. Irregular or localized plurals such as <code>Person</code>/<code>People</code>
+should set the table name and <code>plural=</code> explicitly. The fallback inflection is deterministic, small and English-oriented, and does not guess
+irregular nouns. It splits underscores and CamelCase into words and applies these
+suffixes to the final word of the table and display names: consonant plus <code>y</code> becomes <code>ies</code>; <code>s</code>, <code>x</code>,
 <code>z</code>, <code>ch</code> and <code>sh</code> take <code>es</code>; other words take <code>s</code>. Display labels retain
 uppercase acronyms (<code>APIKey</code> becomes <code>API key</code> / <code>API keys</code>). Thus <code>Person</code>
-defaults to <code>persons</code>, and <code>Analysis</code> to <code>analysises</code>; provide explicit values
+defaults to <code>persons</code> (<code>Persons</code>), and <code>Analysis</code> to <code>analysises</code>; provide explicit values
 when those mechanical defaults are not right. Generated identifiers must be
 portable ASCII SQL names of at most 63 characters. Names beginning with
 SQLite's reserved <code>sqlite_</code> prefix and Hinoki's <code>hinoki_migrations</code> ledger name
@@ -669,8 +677,8 @@ set <code>deletable = True</code>; protect generated writes with <code>access = 
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 20:38:10 UTC">November 17, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>11 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:44:51 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>12 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

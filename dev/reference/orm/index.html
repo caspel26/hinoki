@@ -277,7 +277,7 @@
         <p class="kicker" data-search-exclude>5.5 · Reference</p>
         <h1 id="models-and-queries">Models and queries<a class="headerlink" href="#models-and-queries" title="Permanent link">&para;</a></h1>
 <p>Concrete models may omit <code>@db.table(...)</code> (or the compatible <code>table=</code> class
-keyword) to derive a plural snake-case table name;
+keyword) to derive the table name <code>&lt;app&gt;_&lt;models&gt;</code> from the model's package and class name;
 <code>label=</code> and <code>plural=</code> override humanized display names. Explicit table names
 remain the safe choice for migration-backed histories and stable physical names.</p>
 
@@ -864,6 +864,7 @@ remain the safe choice for migration-backed histories and stable physical names.
     <span class="n">label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">plural</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">abstract</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">app</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
@@ -3921,7 +3922,7 @@ articles: ClassVar[Related[list[Article]]]
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.5</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 19:11:19 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:44:51 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/orm.md">Edit on GitHub</a></dd></div>
         </dl>

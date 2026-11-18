@@ -287,7 +287,8 @@ the example's checked-in migration history. New models can omit <code>table=</co
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
     <span class="n">reference</span><span class="p">:</span> <span class="nb">str</span>
 </code></pre></div>
-<p>That declaration derives the table <code>invoices</code>, the singular display name
+<p>Placed in a <code>billing</code> package's <code>models</code> module, that declaration derives the table
+<code>billing_invoices</code> (<code>&lt;app&gt;_&lt;models&gt;</code>), the singular display name
 <code>Invoice</code> and the plural <code>Invoices</code>. <code>label=</code> and <code>plural=</code> override the
 display names; set <code>table=</code> explicitly for irregular/localized names and to
 keep a physical table stable when a Python class is renamed. The fallback
@@ -334,7 +335,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.2</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:30:43 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:44:51 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/1-models.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -425,7 +425,12 @@
 <tr>
 <td>table</td>
 <td><code>@db.table("saved_links")</code> or <code>table="saved_links"</code> (optional)</td>
-<td>overrides the default plural snake-case table name derived from the class; the two forms may be combined only with the same name</td>
+<td>overrides the default <code>&lt;app&gt;_&lt;models&gt;</code> table name derived from the class and its module; the two forms may be combined only with the same name</td>
+</tr>
+<tr>
+<td>app</td>
+<td><code>app="billing"</code> (optional class keyword)</td>
+<td>replaces the app part of the derived <code>&lt;app&gt;_&lt;models&gt;</code> table name; ignored when the table is named explicitly</td>
 </tr>
 <tr>
 <td>labels</td>
@@ -490,7 +495,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.6</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 20:38:10 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:44:51 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-options.md">Edit on GitHub</a></dd></div>
         </dl>
