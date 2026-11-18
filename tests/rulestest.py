@@ -406,6 +406,42 @@ def test_require_string_limits_flags_unbounded_request_text() -> None:
     assert RuleSet(Schemas.require_string_limits()).run(project(Posts)) == []
 
 
+class ListsIn(Schema):
+    tags: list[str]
+    bounded: list[Annotated[str, Field(max_length=10)]]
+    nested: list[list[str]]
+
+
+@http.post("/limits/lists")
+def lists(request: Request, body: ListsIn) -> dict[str, str]:
+    return {}
+
+
+def test_require_string_limits_looks_inside_lists() -> None:
+    found = RuleSet(Schemas.require_string_limits()).run(project(lists))
+    assert sorted(d.subject.rsplit(".", 1)[1] for d in found) == ["nested", "tags"]
+
+
+def test_require_atomic_with_different_exceptions_are_different_rules() -> None:
+    RuleSet(
+        Transactions.require_atomic(except_=["*.a"]),
+        Transactions.require_atomic(except_=["*.b"]),
+    )
+    with pytest.raises(ValueError, match="listed twice"):
+        RuleSet(Transactions.require_atomic(), Transactions.require_atomic())
+
+
+def test_require_atomic_match_limits_the_actions_checked() -> None:
+    assert (
+        RuleSet(Transactions.require_atomic(match="other.*"))
+        .run(project(Posts))[0]
+        .status.value
+        == "unverifiable"
+    )
+    found = RuleSet(Transactions.require_atomic(match="tests.*")).run(project(Posts))
+    assert {d.rule_id for d in found} == {"HNK-TXN-001"}
+
+
 class RulesParent(Model, table="rules_parents"):
     id: int = field(primary_key=True)
 
