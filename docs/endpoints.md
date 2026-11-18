@@ -232,7 +232,9 @@ Give each feature one module that owns its routes and exports them as a list, wi
 
 ```python
 # tasks/routes.py (paths are relative: "/" and "/{task_id}")
-routes = [tasks_group, TaskReports, export_tasks]
+from hinoki import Includable
+
+routes: list[Includable] = [tasks_group, TaskReports, export_tasks]
 
 # main.py
 from hinoki import Hinoki, Mount
@@ -306,7 +308,7 @@ when a new version is needed. Feature route lists and mixins can be shared
 where their behavior is genuinely the same. Route collisions are still checked
 after prefixes are composed.
 
-`include` spreads nested lists and tuples in place, so order is the order you wrote. `Mount(prefix, *items)` prepends its prefix to every route it holds; mounts nest and prefixes join from the outside in. The prefix starts with `/` and does not end with one. Items you do not mount keep their own paths, so small apps can stay a flat list. Mounting changes only the path: access, errors and transactions are unchanged, and a route that ends up at the same method and path as another still fails at declaration time. A `RouteGroup` reached twice, an item that is not an action, class or group, or a module passed instead of its list is refused and named; a module gets a hint to export a list.
+`Includable` is the type of everything `include` accepts: an `API` class, a decorated function, a `RouteGroup`, a `Mount`, an object with an `api()` method (the admin, which is included as it is) or a list or tuple of those. Annotate a feature's list with it (`routes: list[Includable]`) and the type checker rejects anything else. `include` spreads nested lists and tuples in place, so order is the order you wrote. `Mount(prefix, *items)` prepends its prefix to every route it holds; mounts nest and prefixes join from the outside in. The prefix starts with `/` and does not end with one. Items you do not mount keep their own paths, so small apps can stay a flat list. Mounting changes only the path: access, errors and transactions are unchanged, and a route that ends up at the same method and path as another still fails at declaration time. A `RouteGroup` reached twice, an item that is not an action, class or group, or a module passed instead of its list is refused and named; a module gets a hint to export a list.
 
 If a feature declares its own prefix (a `RouteGroup("/tasks")` or `API, path="/tasks"`), mounting adds to it. Pick one place for each prefix: feature-relative paths with `Mount` at the root is the layout that keeps the whole map readable in `main.py`.
 
