@@ -106,6 +106,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<schema::Compiled>()?;
     m.add_function(wrap_pyfunction!(schema::compile_schemas, m)?)?;
     m.add_function(wrap_pyfunction!(schema::check_pattern, m)?)?;
+    m.add_function(wrap_pyfunction!(schema::wire_text_of, m)?)?;
     m.add_function(wrap_pyfunction!(schema::dump_instance, m)?)?;
     m.add_function(wrap_pyfunction!(schema::serialize_instance, m)?)?;
     m.add_class::<schema::ModelPlan>()?;

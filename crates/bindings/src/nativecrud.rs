@@ -460,6 +460,7 @@ fn kind_matches(kind: &str, value: &Value) -> bool {
             | ("bool", Value::Bool(_))
             | ("uuid", Value::Uuid(_))
             | ("datetime", Value::Timestamp(_))
+            | ("bytes", Value::Bytes(_))
     )
 }
 
@@ -472,7 +473,14 @@ fn validated_value(kind: &str, value: Validated) -> Option<Value> {
         Validated::Str(value) => Value::Text(value),
         Validated::Uuid(value) => Value::Uuid(value),
         Validated::Datetime(value) => Value::Timestamp(value.to_offset(UtcOffset::UTC)),
-        Validated::NaiveDatetime(_) | Validated::List(_) | Validated::Object(_) => return None,
+        Validated::Bytes(value) => Value::Bytes(value),
+        Validated::NaiveDatetime(_)
+        | Validated::Date(_)
+        | Validated::Time(_)
+        | Validated::Duration(_)
+        | Validated::Decimal(_)
+        | Validated::List(_)
+        | Validated::Object(_) => return None,
     };
     kind_matches(kind, &value).then_some(value)
 }
