@@ -18,6 +18,7 @@ them with `uv run --project ..` to use the locked environment at the parent.
 | `hinoki new NAME` | Create a starter project with settings, rules, routes, tests and agent instructions. |
 | `hinoki app list` | List registered apps, their model and migration modules, and dependencies without importing app code or opening a database. `--format json` is machine readable. |
 | `hinoki app create NAME` | Add a registered modular app with its own models, routes and migration package. |
+| `hinoki app add NAME --models MODULE` | Register an existing package as an app in `hinoki.toml` without creating files. |
 | `hinoki doctor [TARGET]` | Summarize environment, manifest and app construction diagnostics without serving or connecting to a database. |
 | `hinoki dev TARGET` | Run an app with reload during development. |
 | `hinoki serve TARGET` | Run without reload, using the `server` settings group. |
@@ -88,6 +89,19 @@ uv run hinoki app create billing
 ```
 
 This creates `NAME/apps/billing/{models.py,routes.py,migrations/}` and registers the model, migration and routes modules in `hinoki.toml` (`routes = "NAME.apps.billing.routes:routes"`, `prefix = "/billing"`). Cross-app foreign keys require the referencing app to list the referenced app in `requires` in `hinoki.toml`; migrations are then planned/applied in dependency order. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.
+
+To register a package that already exists, name its modules. Nothing is created or imported; only `hinoki.toml` changes:
+
+```sh
+uv run hinoki app add billing --models legacy.billing.models
+uv run hinoki app add invoices \
+    --models legacy.invoices.models \
+    --migrations legacy.db.invoices \
+    --routes legacy.invoices.routes:routes --prefix /invoices \
+    --requires billing
+```
+
+`--migrations` defaults to the `migrations` package next to the models module (`legacy.billing.migrations`); a models module without a parent package needs it explicitly. `--prefix` defaults to `/NAME` once `--routes` is given. The whole manifest is validated before it is replaced, so a duplicate name, an unknown or cyclic `--requires`, or a malformed module name leaves `hinoki.toml` untouched and exits 2. Whether the modules import is checked later, when a command such as `hinoki migrations plan` loads the app.
 
 List the registered apps from the project root or any subdirectory:
 
