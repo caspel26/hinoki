@@ -517,6 +517,9 @@ AUTH_VIEWS = frozenset(
     {"login_form", "login_submit", "logout", "password_form", "password_submit"}
 )
 PUBLIC_VIEWS = ASSETS | {"login_form", "login_submit"}
+# They verify a password, which takes tens of milliseconds of hashing: they hold
+# no database connection meanwhile and are rate limited.
+HASHING_VIEWS = frozenset({"login_submit", "password_submit"})
 ROUTES: list[tuple[str, str, str, bool]] = [
     ("stylesheet", "GET", "/static/admin.css", False),
     ("script", "GET", "/static/admin.js", False),
