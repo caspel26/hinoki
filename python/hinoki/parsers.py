@@ -158,14 +158,19 @@ class FormParser(Parser):
 
 DEFAULT_XML_DEPTH = 32
 DEFAULT_XML_ELEMENTS = 10_000
+# The deepest nesting ``XMLParser`` accepts. Parsing does not recurse, but the
+# result is a nested ``dict`` that validation, ``repr`` and handler code walk
+# recursively, within Python's default recursion limit.
+MAX_XML_DEPTH = 1000
 
 
 class XMLParser(Parser):
     """``application/xml``. ``data`` is the tree under the root element: an
     element with children is a ``dict``, a repeated child name a ``list``, a
     text-only element a ``str`` and an empty one ``None``. Attributes are not
-    read. DTDs and custom entities are refused, and nesting and element count
-    are capped."""
+    read. DTDs, custom entities, characters XML 1.0 forbids and an encoding
+    other than UTF-8 are refused, and nesting (at most ``MAX_XML_DEPTH``) and
+    element count are capped."""
 
     media_type = "application/xml"
 
@@ -176,6 +181,8 @@ class XMLParser(Parser):
     ) -> None:
         if max_depth < 1 or max_elements < 1:
             raise ValueError("XML limits must be positive")
+        if max_depth > MAX_XML_DEPTH:
+            raise ValueError(f"max_depth must be at most {MAX_XML_DEPTH}")
         self.max_depth = max_depth
         self.max_elements = max_elements
 
