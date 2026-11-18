@@ -16,7 +16,9 @@ from hinoki.admin.parts import Event, Link
 from hinoki.admin.site import SECURITY_HEADERS
 from hinoki.admin.templates import Templates
 from hinoki.admin.themes import Theme
-from hinoki.admin.views import ROUTES, VIEWS
+from hinoki.admin.users.auth import BASE_PERMISSION, EVERYTHING, AdminSessionAuth
+from hinoki.admin.users.service import ACTIONS, AdminAccounts
+from hinoki.admin.views import ASSETS, AUTH_VIEWS, PUBLIC_VIEWS, ROUTES, VIEWS
 from hinoki.api import API
 from hinoki.auth import Caller
 from hinoki.errors import RegistrationError
@@ -25,9 +27,10 @@ from hinoki.orm.naming import table_names_conflict
 from hinoki.parsers import FormParser
 from hinoki.renderers import HTMLRenderer
 from hinoki.routing import Options, RouteDeclaration
+from hinoki.settings import AdminSettings
 
 SLUG = re.compile(r"[a-z0-9][a-z0-9-]*")
-RESERVED = {"static", "search"}
+RESERVED = {"static", "search", "login", "logout", "password"}
 
 
 def clone(function: Callable[..., Any], name: str) -> Callable[..., Any]:
@@ -58,7 +61,8 @@ class Admin:
     def __init__(  # noqa: PLR0913 - keyword-only site options
         self,
         *,
-        access: Access,
+        access: Access | None = None,
+        users: AdminAccounts | None = None,
         secret: str | bytes | None = None,
         prefix: str | None = None,
         theme: str | Theme = "studio",
@@ -77,7 +81,14 @@ class Admin:
     ) -> None:
         if prefix and (not prefix.startswith("/") or prefix.endswith("/")):
             raise ValueError("prefix must start with '/' and not end with '/'")
-        self.access = access
+        if access is not None and users is not None:
+            raise ValueError("pass access= (your own sign-in) or users=, not both")
+        if access is None and users is None:
+            users = AdminAccounts()  # the default: the admin's own users
+        self.users = users
+        self.access: Access = access or Access(
+            auth=AdminSessionAuth(self), permissions=[BASE_PERMISSION]
+        )
         self._csrf = Csrf(secret) if secret is not None else None
         self._prefix = prefix
         self.per_page = per_page
@@ -110,13 +121,22 @@ class Admin:
             raise RegistrationError(NO_SECRET_MESSAGE)
         return self._csrf
 
-    def bind_secret(self, secret: str | bytes | None) -> None:
-        """Use the app's ``admin.secret`` unless the admin was given its own."""
+    @property
+    def accounts(self) -> AdminAccounts:
+        if self.users is None:
+            raise RegistrationError("admin: this site has no users= accounts")
+        return self.users
+
+    def bind_settings(self, settings: AdminSettings | None) -> None:
+        """Use the app's ``admin`` settings: the secret (unless the admin was given
+        its own) and the session and password rules of its own users."""
+        if self.users is not None and settings is not None:
+            self.users.bind(settings)
         if self._csrf is not None:
             return
-        if secret is None:
+        if settings is None or settings.secret is None:
             raise RegistrationError(NO_SECRET_MESSAGE)
-        self._csrf = Csrf(secret)
+        self._csrf = Csrf(settings.secret.reveal())
 
     @property
     def prefix(self) -> str:
@@ -218,6 +238,8 @@ class Admin:
         if instance.show_count is None:
             instance.show_count = self.show_count  # type: ignore[misc]
         instance.validate_config(name)
+        if self.users is not None:
+            instance.can = granted(name, instance.can)  # type: ignore[method-assign, assignment]
         self.models[name] = instance
 
     def api(self) -> type[API]:
@@ -234,12 +256,17 @@ class Admin:
             "response_headers": SECURITY_HEADERS,
         }
         for name, method, path, write in ROUTES:
-            public = name in {"stylesheet", "script"}
+            if name in AUTH_VIEWS and self.users is None:
+                continue
+            public = name in PUBLIC_VIEWS
             options = Options(
                 access=None if public else self.access,
                 transaction=write,
                 parsers=[FormParser()] if write else None,
-                renderers=None if public else [HTMLRenderer()],
+                renderers=None if public and name in ASSETS else [HTMLRenderer()],
+                rate_limit=self.users.login_limit
+                if name == "login_submit" and self.users is not None
+                else None,
             )
             declare = RouteDeclaration(method, path, options)
             namespace[name] = declare(clone(VIEWS[name], name))
@@ -257,6 +284,23 @@ class Admin:
         """Called by ``Hinoki.include`` with the prefix of the ``Mount`` around the
         admin, so generated links, assets and the CSRF cookie path match the routes."""
         self.mount = mount
+
+
+def granted(
+    slug: str, inner: Callable[..., bool]
+) -> Callable[[Caller[Any], str, Any], bool]:
+    """``ModelAdmin.can`` limited to what the user's grants allow, whatever the
+    admin class's own ``can`` says: an override cannot widen a grant. An action
+    that is not view/add/change/delete (a bulk action) needs ``change``."""
+
+    def can(principal: Caller[Any], action: str, row: Any = None) -> bool:
+        needed = action if action in ACTIONS else "change"
+        held = principal.permissions
+        return (EVERYTHING in held or f"{slug}:{needed}" in held) and inner(
+            principal, action, row
+        )
+
+    return can
 
 
 def digest(data: bytes) -> str:

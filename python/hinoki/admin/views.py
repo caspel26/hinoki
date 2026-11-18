@@ -6,6 +6,7 @@ import typing
 from collections.abc import Callable
 from typing import Any
 
+from hinoki.admin.authviews import AUTH_VIEW_FUNCTIONS
 from hinoki.admin.components import icon_name
 from hinoki.admin.formpages import (
     FormView,
@@ -497,6 +498,7 @@ async def bulk(
 
 
 VIEWS: dict[str, Callable[..., Any]] = {
+    **AUTH_VIEW_FUNCTIONS,
     "stylesheet": stylesheet,
     "script": script,
     "index": index,
@@ -510,9 +512,19 @@ VIEWS: dict[str, Callable[..., Any]] = {
     "delete_submit": delete_submit,
     "bulk": bulk,
 }
+ASSETS = frozenset({"stylesheet", "script"})
+AUTH_VIEWS = frozenset(
+    {"login_form", "login_submit", "logout", "password_form", "password_submit"}
+)
+PUBLIC_VIEWS = ASSETS | {"login_form", "login_submit"}
 ROUTES: list[tuple[str, str, str, bool]] = [
     ("stylesheet", "GET", "/static/admin.css", False),
     ("script", "GET", "/static/admin.js", False),
+    ("login_form", "GET", "/login", False),
+    ("login_submit", "POST", "/login", True),
+    ("logout", "POST", "/logout", True),
+    ("password_form", "GET", "/password", False),
+    ("password_submit", "POST", "/password", True),
     ("index", "GET", "/", False),
     ("search", "GET", "/search", False),
     ("listing", "GET", "/{model}", False),
