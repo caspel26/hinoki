@@ -12,15 +12,22 @@ Rules are optional, typed promises about your application that a tool checks and
 
 The built-in set is intentionally small: access declarations, atomic writes, response types, model responses, pagination, permissions, request text limits, table names, foreign-key indexes, schema exposure and import direction. Add a custom `Rule` only when a project has a concrete invariant that these checks cannot express.
 
-## Enable them (the blog does)
+## Enable them (the blog and the tracker enable all of them)
 
 ```python
 # examples/blog/rules.py
 blog_rules = RuleSet(
-    Actions.require_access(match="blog.api.*", except_=PUBLIC),  # HNK-ACC-001
-    Transactions.require_atomic(),                                         # HNK-TXN-001
-    Schemas.forbid_exposure("token", "password_hash"),                     # HNK-SCH-001
-    Imports.forbid(source="blog.models", target="blog.api"),  # HNK-IMP-001
+    Actions.require_access(match="blog.*", except_=PUBLIC),            # HNK-ACC-001
+    Actions.require_permissions(match="blog.*", except_=PUBLIC),       # HNK-ACC-002
+    Actions.forbid_model_responses(match="blog.*"),                    # HNK-API-001
+    Actions.require_return_type(match="blog.*"),                       # HNK-API-002
+    Actions.require_pagination(match="blog.*"),                        # HNK-API-003
+    Transactions.require_atomic(except_=["blog.accounts.*.login"]),    # HNK-TXN-001
+    Schemas.forbid_exposure("token", "password_hash"),                 # HNK-SCH-001
+    Schemas.require_string_limits(),                                   # HNK-SCH-002
+    Models.require_explicit_table(match="blog.*"),                     # HNK-DB-001
+    Models.require_foreign_key_index(match="blog.*"),                  # HNK-DB-002
+    Imports.forbid(source="blog.models", target="blog.api"),           # HNK-IMP-001
 )
 
 # examples/blog/main.py
@@ -54,7 +61,7 @@ that directory, using the locked environment in the parent directory:
 cd examples
 uv run --project .. hinoki check blog.main:create_app \
     --rules blog.rules:blog_rules --package blog
-# 4 rule(s): 0 violated, 0 unverifiable, 0 waived        (exit 0)
+# 11 rule(s): 0 violated, 0 unverifiable, 0 waived       (exit 0)
 ```
 
 A broken promise (a deliberately bad app from the tests):

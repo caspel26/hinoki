@@ -26,3 +26,5 @@ override the slug.
 
 The example exposes `GET /notes`, `GET /notes/{note_id}`, `POST /notes` and
 `DELETE /notes/{note_id}`. It is intentionally small and has no auth or admin.
+
+Notes defines no rules on purpose: it is the smallest app, with public routes and an unpaginated list. The Blog and Tracker examples enable every built-in rule.

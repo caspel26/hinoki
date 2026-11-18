@@ -18,6 +18,7 @@ uv run --project .. hinoki migrations status
 uv run --project .. hinoki migrations plan --app blog --dry-run
 uv run --project .. hinoki migrations sql --app blog 0001-initial
 uv run --project .. hinoki migrations sql --app blog 0002-accounts
+uv run --project .. hinoki migrations sql --app blog 0003-index-blog-posts-author-id
 uv run --project .. hinoki migrations apply --app blog
 uv run --project .. hinoki dev blog.main:create_app
 ```
@@ -36,3 +37,5 @@ resettable fixture. Never use real credentials or user data with this command.
 The manifest registers Notes, Tracker and Blog as separate apps, each with its
 own models and migrations. `hinoki migrations apply` initializes all three in
 dependency order.
+
+All eleven built-in rules are on in `rules.py` (see [rules](../../docs/rules.md)); `hinoki check` exits 0, and startup refuses an app that breaks one.
