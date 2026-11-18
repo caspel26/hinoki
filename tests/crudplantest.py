@@ -1685,7 +1685,7 @@ def test_lane_c_module_globals_are_snapshotted(
         (QuerySet, "__init__"),
         (QuerySet, "compile"),
         (Model, "concrete"),
-        (Model, "refresh"),
+        (Model, "load_stored"),
         (_CrudConfigType := crud_module._CrudConfig, "values"),
     ],
 )
