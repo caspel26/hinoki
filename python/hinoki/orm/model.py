@@ -336,10 +336,21 @@ def resolve_model_field_type(
     values = {**annotated.constraints(), **meta.validation.constraints()}
     info = FieldInfo(**cast(Any, values))
     try:
-        return parse_annotation(typing.Annotated[base, info], f"{cls.__name__}.{name}")
+        parsed = parse_annotation(
+            typing.Annotated[base, info], f"{cls.__name__}.{name}"
+        )
     except RegistrationError:
         if values:
             raise
+    else:
+        if parsed.kind != "dict":
+            return parsed
+        # A dict column stays a JSON column: Model writes do not validate it as
+        # a Schema dict field would.
+        if values:
+            raise RegistrationError(
+                f"{cls.__name__}.{name}: constraints do not apply to a JSON column"
+            )
     members = (
         typing.get_args(base)
         if typing.get_origin(base) in {typing.Union, types.UnionType}

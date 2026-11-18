@@ -51,6 +51,7 @@ CONSTRAINT_KEYWORDS = {
 LENGTH_KEYWORDS = {
     "string": ("minLength", "maxLength"),
     "array": ("minItems", "maxItems"),
+    "object": ("minProperties", "maxProperties"),
 }
 VALIDATION_ERROR = "ValidationError"
 ERROR = "Error"
@@ -335,25 +336,42 @@ class OpenAPIBuilder:
             result["description"] = inspect.cleandoc(schema.__doc__).split("\n\n")[0]
         return result
 
-    def field(self, ftype: FieldType) -> dict[str, Any]:
-        if ftype.kind == "list" and ftype.item is not None:
-            base: dict[str, Any] = {"type": "array", "items": self.field(ftype.item)}
-        elif ftype.kind == "schema" and ftype.schema is not None:
-            base = self.component(ftype.schema)
-        elif ftype.kind == "union":
-            variants = [(tag, schema) for tag, schema in ftype.variants]
-            base = {
-                "oneOf": [self.component(schema) for _, schema in variants],
-                "discriminator": {
-                    "propertyName": ftype.discriminator_wire_name,
-                    "mapping": {
-                        tag: f"#/components/schemas/{schema.__name__}"
-                        for tag, schema in variants
-                    },
-                },
+    def shape(self, ftype: FieldType) -> dict[str, Any]:
+        """The JSON Schema of a field type before its constraints are added."""
+        if ftype.item is not None:
+            return self.container(ftype, ftype.item)
+        if ftype.kind == "schema" and ftype.schema is not None:
+            return self.component(ftype.schema)
+        if ftype.kind == "union":
+            return self.union(ftype)
+        return dict(KIND_SCHEMAS[ftype.kind])
+
+    def container(self, ftype: FieldType, item: FieldType) -> dict[str, Any]:
+        """A list as an array of its items; a dict as an object whose property
+        names follow the key type and whose values follow the value type."""
+        if ftype.kind == "dict" and ftype.key is not None:
+            return {
+                "type": "object",
+                "additionalProperties": self.field(item),
+                "propertyNames": self.field(ftype.key),
             }
-        else:
-            base = dict(KIND_SCHEMAS[ftype.kind])
+        return {"type": "array", "items": self.field(item)}
+
+    def union(self, ftype: FieldType) -> dict[str, Any]:
+        variants = [(tag, schema) for tag, schema in ftype.variants]
+        return {
+            "oneOf": [self.component(schema) for _, schema in variants],
+            "discriminator": {
+                "propertyName": ftype.discriminator_wire_name,
+                "mapping": {
+                    tag: f"#/components/schemas/{schema.__name__}"
+                    for tag, schema in variants
+                },
+            },
+        }
+
+    def field(self, ftype: FieldType) -> dict[str, Any]:
+        base = self.shape(ftype)
         for name, value in ftype.info.constraints().items():
             keyword = constraint_keyword(name, base)
             if keyword is not None:

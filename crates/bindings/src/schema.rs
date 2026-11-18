@@ -109,6 +109,11 @@ enum Kind<R: Rules> {
     Uuid,
     Datetime,
     List(Box<Node<R>>),
+    /// `dict[str, X]`: the key node (always a string) and the value node.
+    Map {
+        key: Box<Node<R>>,
+        value: Box<Node<R>>,
+    },
     Schema(usize),
     TaggedUnion {
         discriminator: String,
@@ -184,6 +189,7 @@ pub(crate) enum Validated {
     /// A datetime without offset (only with `allow_naive_datetime`).
     NaiveDatetime(PrimitiveDateTime),
     List(Vec<Validated>),
+    /// A schema object, or the entries of a `dict` field in input order.
     Object(Vec<(String, Validated)>),
 }
 
@@ -246,6 +252,16 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
         "list" => {
             let inner = item.ok_or_else(|| compile_error("list type without an item type"))?;
             Kind::List(Box::new(parse_node(&inner)?))
+        }
+        "dict" => {
+            let value = item.ok_or_else(|| compile_error("dict type without a value type"))?;
+            let key = constraints
+                .get_item("key")?
+                .ok_or_else(|| compile_error("dict type without a key type"))?;
+            Kind::Map {
+                key: Box::new(parse_node(&key)?),
+                value: Box::new(parse_node(&value)?),
+            }
         }
         "schema" => {
             Kind::Schema(index.ok_or_else(|| compile_error("schema type without a schema"))?)
@@ -412,6 +428,10 @@ fn lower_kind(py: Python<'_>, kind: &Kind<PyRules>) -> Result<Kind<NativeRules>,
         Kind::Uuid => Kind::Uuid,
         Kind::Datetime => Kind::Datetime,
         Kind::List(item) => Kind::List(Box::new(lower_node(py, item)?)),
+        Kind::Map { key, value } => Kind::Map {
+            key: Box::new(lower_node(py, key)?),
+            value: Box::new(lower_node(py, value)?),
+        },
         Kind::Schema(index) => Kind::Schema(*index),
         Kind::TaggedUnion {
             discriminator,
@@ -608,7 +628,7 @@ pub fn check_pattern(source: &str) -> PyResult<()> {
 fn refers_outside<R: Rules>(node: &Node<R>, known: usize) -> bool {
     match &node.kind {
         Kind::Schema(index) => *index >= known,
-        Kind::List(inner) => refers_outside(inner, known),
+        Kind::List(inner) | Kind::Map { value: inner, .. } => refers_outside(inner, known),
         Kind::TaggedUnion { variants, .. } => variants.iter().any(|(_, index)| *index >= known),
         _ => false,
     }
@@ -694,6 +714,8 @@ trait View {
         path: &str,
         construct: bool,
     ) -> Result<Self::Out, Self::Error>;
+    /// The accepted entries of a `dict` field, as a plain mapping.
+    fn close_map(&self, record: Self::Record) -> Self::Out;
     /// `Some(shown limit)` when `value` violates `limit` under `op`.
     fn limit_fails(
         &self,
@@ -868,6 +890,10 @@ impl<'py> View for PyView<'_, 'py> {
         class
             .bind(self.py)
             .call_method1("__hinoki_construct_validated__", (record, path))
+    }
+
+    fn close_map(&self, record: Self::Record) -> Self::Out {
+        record.into_any()
     }
 
     fn limit_fails(
@@ -1220,6 +1246,10 @@ impl<'v> View for JsonView<'v> {
         Ok(Validated::Object(record))
     }
 
+    fn close_map(&self, record: Vec<(String, Validated)>) -> Validated {
+        Validated::Object(record)
+    }
+
     fn limit_fails(
         &self,
         value: &Validated,
@@ -1325,6 +1355,7 @@ impl<'a, V: View> Run<'a, V> {
             Kind::Uuid => self.uuid(data, path)?,
             Kind::Datetime => self.moment(data, path)?,
             Kind::List(item) => self.sequence(node, item, data, path, depth)?,
+            Kind::Map { key, value } => self.mapping(node, key, value, data, path, depth)?,
             Kind::Schema(index) => self.schema(*index, data, path, depth)?,
             Kind::TaggedUnion {
                 discriminator,
@@ -1525,6 +1556,88 @@ impl<'a, V: View> Run<'a, V> {
         } else {
             Some(self.view.close_list(out))
         })
+    }
+
+    /// A `dict[str, X]` field: an object of string keys, its entry count
+    /// within the node's limits, each key within the key node's, each value
+    /// checked at `path.key` (the key shortened as unknown fields are).
+    fn mapping(
+        &mut self,
+        node: &Node<V::Rules>,
+        key: &Node<V::Rules>,
+        value: &Node<V::Rules>,
+        data: &V::Data,
+        path: &str,
+        depth: usize,
+    ) -> Checked<V> {
+        let Some(object) = self.view.object(data) else {
+            return self.fail(path, "type", "expected an object".to_owned());
+        };
+        let before = self.problems.len();
+        self.validate_object_key_types(&object, path)?;
+        if self.problems.len() > before {
+            return Ok(None);
+        }
+        let keys = self.view.string_keys(&object);
+        if !self.length(node, keys.len(), path, "item")? {
+            return Ok(None);
+        }
+        let mut out = self.view.new_record();
+        for entry in keys {
+            let name = self
+                .view
+                .key_text(&entry)
+                .map_err(Abort::View)?
+                .into_owned();
+            let shown: String = name.chars().take(MAX_KEY_ECHO).collect();
+            let here = join(path, &shown);
+            if !self.map_key(key, &name, &here)? {
+                continue;
+            }
+            let Some(raw) = self.view.get(&object, &name).map_err(Abort::View)? else {
+                continue;
+            };
+            if let Some(found) = self.check(value, &raw, &here, depth + 1)? {
+                self.view
+                    .set_field(&mut out, &name, found)
+                    .map_err(Abort::View)?;
+            }
+        }
+        Ok(if self.problems.len() > before {
+            None
+        } else {
+            Some(self.view.close_map(out))
+        })
+    }
+
+    /// Whether a `dict` key satisfies the key node's length and pattern;
+    /// reports the first limit it breaks at `path` otherwise.
+    fn map_key(
+        &mut self,
+        key: &Node<V::Rules>,
+        name: &str,
+        path: &str,
+    ) -> Result<bool, Abort<V::Error>> {
+        let size = i64::try_from(name.chars().count()).unwrap_or(i64::MAX);
+        let plural = |bound: i64| if bound == 1 { "" } else { "s" };
+        if let Some(least) = key.min_length.filter(|least| size < *least) {
+            let message = format!("key must have at least {least} character{}", plural(least));
+            self.fail(path, "key_min_length", message)?;
+            return Ok(false);
+        }
+        if let Some(most) = key.max_length.filter(|most| size > *most) {
+            let message = format!("key must have at most {most} character{}", plural(most));
+            self.fail(path, "key_max_length", message)?;
+            return Ok(false);
+        }
+        if let Some((source, regex)) = &key.pattern {
+            if !regex.is_match(name) {
+                let shown = self.view.pattern_shown(source).map_err(Abort::View)?;
+                self.fail(path, "key_pattern", format!("key must match {shown}"))?;
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     fn schema(&mut self, index: usize, data: &V::Data, path: &str, depth: usize) -> Checked<V> {
