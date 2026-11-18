@@ -23,7 +23,7 @@ CHECK = [
 @pytest.fixture(autouse=True)
 def environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("BLOG_DATABASE__URL", raising=False)
-    monkeypatch.setenv("BLOG_SECURITY__SECRET", SECRET)
+    monkeypatch.setenv("BLOG_ADMIN__SECRET", SECRET)
 
 
 def test_the_blog_passes_its_own_rules_from_the_command_line(
