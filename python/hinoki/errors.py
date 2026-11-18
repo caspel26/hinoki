@@ -7,10 +7,12 @@ Use it as a namespace: ``from hinoki import errors`` then ``errors.NotFound``.
 from __future__ import annotations
 
 import inspect
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import Any
+from typing import Any, cast
+
+from hinoki.core import UniqueViolation
 
 
 class RegistrationError(Exception):
@@ -165,10 +167,42 @@ class Conflict(APIError):
 
 
 Handler = Callable[[Any], APIError | Awaitable[APIError]]
+Translation = Handler | type[APIError]
+
+
+class UniqueConflict(Conflict):
+    """A unique value is already in use: the answer to a ``UniqueViolation``."""
+
+    code = "unique_conflict"
+    message = "A unique value is already in use."
 
 
 def not_found(_error: ObjectNotFound) -> APIError:
     return NotFound()
+
+
+def unique_conflict(_error: UniqueViolation) -> APIError:
+    return UniqueConflict()
+
+
+def handler_for(kind: object, translation: object) -> Handler:
+    """The handler a registration stands for, or ``TypeError`` for a bad entry.
+
+    ``translation`` is a function of the exception, or an ``APIError`` subclass
+    that is raised as it is whatever the exception says.
+    """
+    if not (isinstance(kind, type) and issubclass(kind, Exception)):
+        raise TypeError(f"{kind!r} is not an exception class")
+    if isinstance(translation, type):
+        if not issubclass(translation, APIError):
+            raise TypeError(
+                f"{translation.__name__} must be an APIError subclass or a callable"
+            )
+        answer = translation
+        return lambda _error: answer()
+    if not callable(translation):
+        raise TypeError(f"{translation!r} must be an APIError subclass or a callable")
+    return cast(Handler, translation)
 
 
 class ErrorRegistrar:
@@ -178,7 +212,7 @@ class ErrorRegistrar:
         self.registry = registry
         self.kind = kind
 
-    def __call__(self, handler: Handler) -> Handler:
+    def __call__[T: Translation](self, handler: T) -> T:
         self.registry.add(self.kind, handler)
         return handler
 
@@ -189,15 +223,24 @@ class ErrorRegistry:
     def __init__(self) -> None:
         self.handlers: dict[type[Exception], Handler] = {}
         # Built-in translations, consulted after the application's handlers.
-        self.defaults: dict[type[Exception], Handler] = {ObjectNotFound: not_found}
+        self.defaults: dict[type[Exception], Handler] = {
+            ObjectNotFound: not_found,
+            UniqueViolation: unique_conflict,
+        }
 
     def handle(self, kind: type[Exception]) -> ErrorRegistrar:
         return ErrorRegistrar(self, kind)
 
-    def add(self, kind: type[Exception], handler: Handler) -> None:
-        if kind in self.handlers:
-            raise ValueError(f"a handler for {kind.__name__} is already registered")
-        self.handlers[kind] = handler
+    def add(self, kind: type[Exception], handler: Translation) -> None:
+        self.add_all({kind: handler})
+
+    def add_all(self, translations: Mapping[type[Exception], Translation]) -> None:
+        """Register every entry or none: one bad or repeated entry changes nothing."""
+        checked = {kind: handler_for(kind, item) for kind, item in translations.items()}
+        for kind in checked:
+            if kind in self.handlers:
+                raise ValueError(f"a handler for {kind.__name__} is already registered")
+        self.handlers.update(checked)
 
     def find(self, exc: Exception) -> Handler | None:
         for table in (self.handlers, self.defaults):
