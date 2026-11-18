@@ -9,18 +9,13 @@ JWT secret is configured and builds the optional admin from settings.
 The factory builds declarations only; the pool opens in the worker's lifespan.
 """
 
-from hinoki import Hinoki, errors
-from hinoki.db import UniqueViolation
+from hinoki import Hinoki
 
 from .accounts import build_accounts
 from .adminsite import build_admin
 from .api import Posts, health
 from .rules import blog_rules
 from .settings import BlogSettings
-
-
-def unique_to_conflict(_error: UniqueViolation) -> errors.Conflict:
-    return errors.Conflict("A unique value is already in use.", code="unique_conflict")
 
 
 def create_app(
@@ -58,5 +53,4 @@ def create_app(
     if app_settings.jwt_secret:
         actions, _hasher = build_accounts(app_settings.jwt_secret.reveal())
         app.include(*actions)
-    app.errors.handle(UniqueViolation)(unique_to_conflict)
     return app
