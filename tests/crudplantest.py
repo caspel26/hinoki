@@ -147,6 +147,20 @@ def test_plan_templates_match_python_compilers_for_all_dialects() -> None:
         assert templates[dialect, "retrieve"] == by_id.compile(dialect=dialect)[0]
         assert templates[dialect, "read_back"] == by_id.compile(dialect=dialect)[0]
         assert (
+            templates[dialect, "write_read_back"]
+            == query.filter(id=UUID(int=1)).compile(dialect=dialect)[0]
+        )
+        if dialect in {"mysql", "mariadb"}:
+            assert templates[dialect, "savepoint"] == "SAVEPOINT hinoki_sp_1"
+            assert (
+                templates[dialect, "rollback_savepoint"]
+                == "ROLLBACK TO SAVEPOINT hinoki_sp_1"
+            )
+            assert (
+                templates[dialect, "release_savepoint"]
+                == "RELEASE SAVEPOINT hinoki_sp_1"
+            )
+        assert (
             templates[dialect, "create"]
             == write_statement(
                 PlanItem,
@@ -172,7 +186,11 @@ def test_plan_templates_match_python_compilers_for_all_dialects() -> None:
             templates[dialect, "delete"]
             == query.filter(id=UUID(int=1)).compile("delete", dialect=dialect)[0]
         )
-    assert plan.model_defaults() == [("id", "uuid4", None)]
+    assert plan.model_defaults() == [
+        ("id", "uuid4", None),
+        ("name", "required", None),
+        ("label", "str", "model-default"),
+    ]
     assert plan.create_defaults == [("label", "str", "schema-default")]
     assert plan.update_columns == ["name", "label"]
 
@@ -745,17 +763,30 @@ async def test_worker_attaches_and_releases_the_shared_database_clone(
 
 
 async def _crud_http_request(
-    port: int, method: str, target: str, accept: str | None = None
+    port: int,
+    method: str,
+    target: str,
+    accept: str | None = None,
+    body: bytes = b"",
+    content_type: str = "application/json",
 ) -> tuple[int, list[tuple[str, str]], bytes]:
     reader, writer = await asyncio.open_connection("127.0.0.1", port)
     accept_header = f"accept: {accept}\r\n" if accept is not None else ""
+    content_type_header = (
+        f"content-type: {content_type}\r\n"
+        if body or method in {"POST", "PATCH"}
+        else ""
+    )
     request_head = (
         f"{method} {target} HTTP/1.1\r\n"
         "host: test\r\n"
         "x-request-id: 00000000000000000000000000000001\r\n"
-        f"{accept_header}\r\n"
+        f"{content_type_header}"
+        f"content-length: {len(body)}\r\n"
+        f"{accept_header}"
+        "\r\n"
     )
-    writer.write(request_head.encode())
+    writer.write(request_head.encode() + body)
     await writer.drain()
     header_block = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 5)
     lines = header_block.decode("latin-1").split("\r\n")
@@ -838,6 +869,325 @@ async def test_native_list_retrieve_and_head_match_forced_python_lane() -> None:
                 stable_expected,
                 expected_body,
             )
+    finally:
+        await worker.stop()
+        cleanup = await Database.connect(DATABASE_URL, max_size=1, wait=1)
+        await cleanup.execute("DROP TABLE IF EXISTS crud_plan_items")
+        cleanup.close()
+
+
+async def _crud_write_sequence(
+    port: int, engine: Any
+) -> tuple[
+    list[tuple[int, list[tuple[str, str]], bytes]],
+    list[list[tuple[str, str, tuple[Any, ...]]]],
+]:
+    cases = [
+        await _traced_crud_http_request(engine, port, "POST", "/plan-items", body=b"{")
+    ]
+    cases.append(
+        await _traced_crud_http_request(engine, port, "POST", "/plan-items", body=b"{}")
+    )
+    cases.append(
+        await _traced_crud_http_request(
+            engine,
+            port,
+            "POST",
+            "/plan-items",
+            body=b'{"name":"seed"}',
+            content_type="text/plain",
+        )
+    )
+    created, created_trace = await _traced_crud_http_request(
+        engine, port, "POST", "/plan-items", body=b'{"name":"seed"}'
+    )
+    item_id = UUID(core.decode_json(created[2])["id"])
+    target = f"/plan-items/{item_id}"
+    cases.append((created, created_trace))
+    for method, path, body in (
+        ("POST", "/plan-items", b'{"name":"seed"}'),
+        ("PATCH", target, b"{}"),
+        ("PATCH", target, b'{"name":"seed"}'),
+        ("PATCH", target, b'{"name":"changed"}'),
+        ("DELETE", target, b""),
+    ):
+        cases.append(
+            await _traced_crud_http_request(engine, port, method, path, body=body)
+        )
+    return [response for response, _ in cases], [trace for _, trace in cases]
+
+
+async def _traced_crud_http_request(
+    engine: Any,
+    port: int,
+    method: str,
+    target: str,
+    body: bytes = b"",
+    content_type: str = "application/json",
+) -> tuple[
+    tuple[int, list[tuple[str, str]], bytes],
+    list[tuple[str, str, tuple[Any, ...]]],
+]:
+    engine._clear_sql_trace()
+    response = await _crud_http_request(
+        port, method, target, body=body, content_type=content_type
+    )
+    trace = [
+        (kind, sql, tuple(_mask_sql_value(value) for value in values))
+        for kind, sql, values in engine._take_sql_trace()
+    ]
+    return response, trace
+
+
+def _mask_sql_value(value: Any) -> Any:
+    return "<uuid>" if isinstance(value, UUID) else value
+
+
+def _assert_crud_responses_equal(
+    actual_results: list[tuple[int, list[tuple[str, str]], bytes]],
+    expected_results: list[tuple[int, list[tuple[str, str]], bytes]],
+) -> None:
+    for actual, expected in zip(actual_results, expected_results, strict=True):
+        stable_actual = [
+            (name, value)
+            for name, value in actual[1]
+            if name not in {"date", "x-request-id"}
+        ]
+        stable_expected = [
+            (name, value)
+            for name, value in expected[1]
+            if name not in {"date", "x-request-id"}
+        ]
+        actual_body, expected_body = actual[2], expected[2]
+        if actual_body and b'"id"' in actual_body:
+            actual_data, expected_data = map(
+                core.decode_json, (actual_body, expected_body)
+            )
+            actual_data["id"] = expected_data["id"] = "<generated>"
+            actual_body, expected_body = map(
+                core.encode_json, (actual_data, expected_data)
+            )
+        assert (actual[0], stable_actual, actual_body) == (
+            expected[0],
+            stable_expected,
+            expected_body,
+        )
+
+
+def _assert_sql_traces_equal(
+    actual_traces: list[list[tuple[str, str, tuple[Any, ...]]]],
+    expected_traces: list[list[tuple[str, str, tuple[Any, ...]]]],
+) -> None:
+    assert actual_traces == expected_traces
+
+
+@pytest.mark.skipif(
+    DATABASE_URL is None or not hasattr(core.Database, "_clear_sql_trace"),
+    reason="PostgreSQL and the private SQL trace feature are required",
+)
+async def test_native_writes_match_forced_python_lane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert DATABASE_URL is not None
+    database = await Database.connect(DATABASE_URL, max_size=2, wait=1)
+    await database.execute("DROP TABLE IF EXISTS crud_plan_items")
+    await database.execute(
+        "CREATE TABLE crud_plan_items ("
+        "id uuid PRIMARY KEY, name text NOT NULL UNIQUE, label text NOT NULL)"
+    )
+    database.close()
+    app = Hinoki(
+        settings=AppSettings(
+            server=ServerSettings(trusted_proxies=("127.0.0.1",), trust_request_id=True)
+        ),
+        include=[PlanItems],
+        modules=[DatabaseModule(DATABASE_URL)],
+    )
+    worker = RustWorker(app, "127.0.0.1", 0)
+    monkeypatch.setattr(worker, "_check_crud_snapshots", lambda: None)
+    await worker.start()
+    originals = {
+        name: getattr(PlanItems, name)
+        for name in ("perform_create", "perform_update", "perform_delete")
+    }
+    try:
+        for name in originals:
+            monkeypatch.setattr(
+                PlanItems,
+                name,
+                lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                    AssertionError("native CRUD write called a Python hook")
+                ),
+            )
+        database_context = worker.pipeline.ctx.find(Database)
+        assert database_context is not None
+        engine = database_context.engine
+        native_results, native_traces = await _crud_write_sequence(
+            worker.address[1], engine
+        )
+        assert native_results[4][0] == 409
+        worker.core._disarm_crud_plans()
+        reset = await Database.connect(DATABASE_URL, max_size=1, wait=1)
+        await reset.execute("TRUNCATE TABLE crud_plan_items")
+        reset.close()
+        for name, value in originals.items():
+            monkeypatch.setattr(PlanItems, name, value)
+        python_results, python_traces = await _crud_write_sequence(
+            worker.address[1], engine
+        )
+        _assert_crud_responses_equal(native_results, python_results)
+        _assert_sql_traces_equal(native_traces, python_traces)
+    finally:
+        await worker.stop()
+        cleanup = await Database.connect(DATABASE_URL, max_size=1, wait=1)
+        await cleanup.execute("DROP TABLE IF EXISTS crud_plan_items")
+        cleanup.close()
+
+
+@pytest.mark.skipif(
+    not hasattr(core.Database, "_clear_sql_trace"),
+    reason="the private SQL trace feature is required",
+)
+async def test_native_writes_match_forced_python_lane_on_sqlite(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'native-writes.db'}"
+    database = await Database.connect(database_url, max_size=2, wait=1)
+    await database.execute(
+        "CREATE TABLE crud_plan_items ("
+        "id UUID PRIMARY KEY, name TEXT NOT NULL UNIQUE, label TEXT NOT NULL)"
+    )
+    database.close()
+    app = Hinoki(
+        settings=AppSettings(
+            server=ServerSettings(trusted_proxies=("127.0.0.1",), trust_request_id=True)
+        ),
+        include=[PlanItems],
+        modules=[DatabaseModule(database_url)],
+    )
+    worker = RustWorker(app, "127.0.0.1", 0)
+    monkeypatch.setattr(worker, "_check_crud_snapshots", lambda: None)
+    await worker.start()
+    originals = {
+        name: getattr(PlanItems, name)
+        for name in ("perform_create", "perform_update", "perform_delete")
+    }
+    try:
+        for name in originals:
+            monkeypatch.setattr(
+                PlanItems,
+                name,
+                lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                    AssertionError("native CRUD write called a Python hook")
+                ),
+            )
+        database_context = worker.pipeline.ctx.find(Database)
+        assert database_context is not None
+        engine = database_context.engine
+        native_results, native_traces = await _crud_write_sequence(
+            worker.address[1], engine
+        )
+        assert native_results[4][0] == 409
+        worker.core._disarm_crud_plans()
+        reset = await Database.connect(database_url, max_size=1, wait=1)
+        await reset.execute("DELETE FROM crud_plan_items")
+        reset.close()
+        for name, value in originals.items():
+            monkeypatch.setattr(PlanItems, name, value)
+        python_results, python_traces = await _crud_write_sequence(
+            worker.address[1], engine
+        )
+        _assert_crud_responses_equal(native_results, python_results)
+        _assert_sql_traces_equal(native_traces, python_traces)
+    finally:
+        await worker.stop()
+
+
+@pytest.mark.skipif(DATABASE_URL is None, reason="HINOKI_TEST_DATABASE_URL is not set")
+async def test_native_write_timeout_rolls_back_before_504() -> None:
+    assert DATABASE_URL is not None
+    database = await Database.connect(DATABASE_URL, max_size=2, wait=1)
+    await database.execute("DROP TABLE IF EXISTS crud_plan_items")
+    await database.execute(
+        "CREATE TABLE crud_plan_items ("
+        "id uuid PRIMARY KEY, name text NOT NULL UNIQUE, label text NOT NULL)"
+    )
+    await database.execute(
+        "CREATE FUNCTION hinoki_slow_crud_insert() RETURNS trigger "
+        "LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(0.5); RETURN NEW; END $$"
+    )
+    await database.execute(
+        "CREATE TRIGGER hinoki_slow_crud_insert BEFORE INSERT ON crud_plan_items "
+        "FOR EACH ROW EXECUTE FUNCTION hinoki_slow_crud_insert()"
+    )
+    database.close()
+    app = Hinoki(
+        runtime=RuntimeConfig(request_timeout=0.1),
+        include=[PlanItems],
+        modules=[DatabaseModule(DATABASE_URL)],
+    )
+    worker = RustWorker(app, "127.0.0.1", 0)
+    await worker.start()
+    started = asyncio.get_running_loop().time()
+    try:
+        response = await _crud_http_request(
+            worker.address[1], "POST", "/plan-items", body=b'{"name":"timeout"}'
+        )
+        assert response[0] == 504
+        assert asyncio.get_running_loop().time() - started < 0.4
+        await asyncio.sleep(0.55)
+        inspection = await Database.connect(DATABASE_URL, max_size=1, wait=1)
+        remaining = await inspection.fetch("SELECT id FROM crud_plan_items")
+        inspection.close()
+        assert remaining == []
+    finally:
+        await worker.stop()
+        cleanup = await Database.connect(DATABASE_URL, max_size=1, wait=1)
+        await cleanup.execute("DROP TABLE IF EXISTS crud_plan_items")
+        await cleanup.execute("DROP FUNCTION IF EXISTS hinoki_slow_crud_insert()")
+        cleanup.close()
+
+
+@pytest.mark.skipif(DATABASE_URL is None, reason="HINOKI_TEST_DATABASE_URL is not set")
+async def test_native_write_survives_client_disconnect() -> None:
+    assert DATABASE_URL is not None
+    database = await Database.connect(DATABASE_URL, max_size=2, wait=1)
+    await database.execute("DROP TABLE IF EXISTS crud_plan_items")
+    await database.execute(
+        "CREATE TABLE crud_plan_items ("
+        "id uuid PRIMARY KEY, name text NOT NULL, label text NOT NULL)"
+    )
+    database.close()
+    app = Hinoki(
+        include=[PlanItems],
+        modules=[DatabaseModule(DATABASE_URL)],
+    )
+    worker = RustWorker(app, "127.0.0.1", 0)
+    await worker.start()
+    try:
+        _, writer = await asyncio.open_connection("127.0.0.1", worker.address[1])
+        writer.write(
+            b"POST /plan-items HTTP/1.1\r\n"
+            b"host: test\r\n"
+            b"content-type: application/json\r\n"
+            b"content-length: 23\r\n\r\n"
+            b'{"name":"disconnected"}'
+        )
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+
+        inspection = await Database.connect(DATABASE_URL, max_size=1, wait=1)
+        deadline = asyncio.get_running_loop().time() + 2
+        rows: list[dict[str, Any]] = []
+        while not rows and asyncio.get_running_loop().time() < deadline:
+            rows = await inspection.fetch(
+                "SELECT name FROM crud_plan_items WHERE name = $1", "disconnected"
+            )
+            if not rows:
+                await asyncio.sleep(0.02)
+        inspection.close()
+        assert rows == [{"name": "disconnected"}]
     finally:
         await worker.stop()
         cleanup = await Database.connect(DATABASE_URL, max_size=1, wait=1)
@@ -1046,6 +1396,10 @@ def test_custom_default_factory_is_rejected() -> None:
     class FactoryModel(Model, table="crud_plan_factory_items"):
         id: UUID = field(primary_key=True, default=UUID(int=3))
         name: str = field(default_factory=factory)
+
+    assert (
+        crudplan_module.model_field_default(dataclasses.fields(FactoryModel)[1]) is None
+    )
 
     class FactoryInput(Schema):
         id: UUID
