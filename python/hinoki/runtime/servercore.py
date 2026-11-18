@@ -15,7 +15,7 @@ from http import HTTPStatus
 from hinoki import core
 from hinoki.context import request_id
 from hinoki.parsers import DEFAULT_PARSERS
-from hinoki.renderers import is_default_json_renderer
+from hinoki.renderers import is_native_renderer
 from hinoki.runtime.binding import (
     BODY_METHODS,
     EMPTY,
@@ -141,9 +141,7 @@ def native_handler_eligible(binding: Binding) -> bool:
             return False
     elif route.method not in {"GET", "DELETE"} or binding.needs_body:
         return False
-    renderer_ok = len(route.renderers) == 1 and is_default_json_renderer(
-        route.renderers[0]
-    )
+    renderer_ok = all(is_native_renderer(r) for r in route.renderers)
     path_names = PATH_PARAM.findall(route.path)
     supported_inputs = all(
         (param.source in {"path", "query"} and native_input_supported(param))

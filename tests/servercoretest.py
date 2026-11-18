@@ -85,7 +85,11 @@ def native_typed(
     return {"ident": ident, "count": count, "ratio": ratio, "flag": flag}
 
 
-@http.get("/custom-renderer", renderers=[JSONRenderer(indent=2)])
+class SubclassedRenderer(JSONRenderer):
+    pass
+
+
+@http.get("/custom-renderer", renderers=[SubclassedRenderer()])
 async def custom_renderer() -> dict[str, str]:
     return {"native": "no"}
 

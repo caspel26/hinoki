@@ -193,6 +193,21 @@ def valid_xml_name(name: str) -> bool:
     return bool(_XML_NAME.match(name)) and not name.lower().startswith("xml")
 
 
+_PLAIN_RENDERER_STATE: dict[type[Renderer], set[str]] = {
+    JSONRenderer: {"indent", "sort_keys", "default"},
+    HTMLRenderer: set(),
+    TextRenderer: set(),
+    XMLRenderer: {"root", "item"},
+}
+
+
+def is_native_renderer(renderer: Renderer) -> bool:
+    """Whether this is exactly a built-in renderer with only its documented
+    options, so the native handler lane may call it without a ``Request``."""
+    state = _PLAIN_RENDERER_STATE.get(type(renderer))
+    return state is not None and set(vars(renderer)) == state
+
+
 DEFAULT_RENDERERS: tuple[Renderer, ...] = (JSONRenderer(),)
 
 
