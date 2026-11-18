@@ -256,17 +256,22 @@ class Pipeline:
     async def _respond_native_failure(
         self, action: int, rid: str, failure: core.NativeFailure
     ) -> Response:
+        if failure[0] == "timeout":
+            return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
         try:
             async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
                 try:
                     exception = self._native_failure_exception(action, failure)
                 except Exception as exc:
-                    return await error_response(exc, rid, self.app.errors, self.debug)
-                return await error_response(exception, rid, self.app.errors, self.debug)
+                    exception = exc
+                return await self._native_error_response(exception, rid)
         except TimeoutError as exc:
             if limit.expired():
                 return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
-            return await error_response(exc, rid, self.app.errors, self.debug)
+            return await self._native_error_response(exc, rid)
+
+    async def _native_error_response(self, error: Exception, rid: str) -> Response:
+        return await error_response(error, rid, self.app.errors, self.debug)
 
     async def _respond_native_rows(
         self, action: int, rid: str, fallback: core.NativeRows

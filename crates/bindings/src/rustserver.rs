@@ -21,9 +21,14 @@ use pyo3::prelude::*;
 use socket2::{Socket, Type};
 use tokio::net::TcpListener;
 use tokio::sync::{watch, Semaphore};
-use tokio::task::JoinHandle;
+use tokio::task::{AbortHandle, JoinHandle};
 
-use crate::server::{Core, Head, Outcome, ServerCore};
+use crate::crudplan::CrudPlan;
+use crate::nativecrud::NativeRead;
+use crate::server::{
+    Asked, Core, Head, NativeFailure, NativeRows, Outcome, PreparedRequest, Reply, ServerCore,
+};
+use hinoki_orm::{Database, DbError, ErrorKind as DbErrorKind};
 
 /// Answer for an internal inconsistency in the classifier (a bug, not a client error).
 fn internal_error() -> Answer {
@@ -72,6 +77,171 @@ impl CoreBackend {
                         .unwrap_or_else(|_| internal_error()),
                 }
             }
+            Outcome::NativeCrud {
+                request,
+                receiver,
+                asked,
+                plan,
+                database,
+                params,
+                query,
+            } => {
+                self.native_crud_reply(*request, receiver, asked, plan, database, params, query)
+                    .await
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn native_crud_reply(
+        &self,
+        request: PreparedRequest,
+        receiver: tokio::sync::oneshot::Receiver<Reply>,
+        asked: Asked,
+        plan: Arc<CrudPlan>,
+        database: Database,
+        params: Vec<(String, String)>,
+        query: Vec<u8>,
+    ) -> Answer {
+        let Ok(mut job_wake) = self.wake.try_clone() else {
+            let mut wake = &self.wake;
+            requeue_native(&self.core, &mut wake, request, asked.clone());
+            return receiver.await.unwrap_or_else(|_| {
+                self.core
+                    .early_reply(&asked, Early::NotReady, Vec::new())
+                    .unwrap_or_else(|_| internal_error())
+            });
+        };
+        let pending = Arc::new(Mutex::new(Some((request, asked.clone()))));
+        let job_pending = Arc::clone(&pending);
+        let core = Arc::clone(&self.core);
+        let job = async move {
+            let pending_request = job_pending
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .take();
+            let Some((request, asked)) = pending_request else {
+                return;
+            };
+            request.release_admission();
+            let result = match tokio::time::timeout(
+                core.request_timeout(),
+                crate::nativecrud::execute_read(&plan, &database, &params, &query),
+            )
+            .await
+            {
+                Ok(result) => result,
+                Err(_) => NativeRead::Timeout,
+            };
+            let fallback = match result {
+                NativeRead::Reply { status, body } => {
+                    request.respond_final(
+                        status,
+                        vec![(b"content-type".to_vec(), b"application/json".to_vec())],
+                        &body,
+                    );
+                    false
+                }
+                NativeRead::Rows(rows, page_info) => {
+                    let _ = request.set_native_rows(NativeRows { rows, page_info });
+                    true
+                }
+                NativeRead::Failure(error) => {
+                    let _ = request.set_native_failure(native_failure(error));
+                    true
+                }
+                NativeRead::NotFound => {
+                    let _ = request.set_native_failure(NativeFailure {
+                        kind: "not_found".to_owned(),
+                        message: format!("{} not found", plan.model_name),
+                        constraint: None,
+                        table: None,
+                        sqlstate: None,
+                    });
+                    true
+                }
+                NativeRead::Timeout => {
+                    let _ = request.set_native_failure(NativeFailure {
+                        kind: "timeout".to_owned(),
+                        message: "request timed out".to_owned(),
+                        constraint: None,
+                        table: None,
+                        sqlstate: None,
+                    });
+                    true
+                }
+                NativeRead::Defer => true,
+            };
+            if fallback {
+                requeue_native(&core, &mut job_wake, request, asked);
+            }
+        };
+        match self.core.native_jobs().try_spawn_with_handle(job).await {
+            Ok(handle) => {
+                let _abort_on_drop = AbortOnDrop(Some(handle));
+                let reply = receiver.await.unwrap_or_else(|_| {
+                    self.core
+                        .early_reply(&asked, Early::NotReady, Vec::new())
+                        .unwrap_or_else(|_| internal_error())
+                });
+                reply
+            }
+            Err(job) => {
+                drop(job);
+                let pending = pending
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner())
+                    .take();
+                if let Some((request, asked)) = pending {
+                    let mut wake = &self.wake;
+                    requeue_native(&self.core, &mut wake, request, asked);
+                }
+                receiver.await.unwrap_or_else(|_| {
+                    self.core
+                        .early_reply(&asked, Early::NotReady, Vec::new())
+                        .unwrap_or_else(|_| internal_error())
+                })
+            }
+        }
+    }
+}
+
+struct AbortOnDrop(Option<AbortHandle>);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        if let Some(handle) = self.0.take() {
+            handle.abort();
+        }
+    }
+}
+
+fn native_failure(error: DbError) -> NativeFailure {
+    let kind = match error.kind {
+        DbErrorKind::Unique => "unique",
+        DbErrorKind::ForeignKey => "foreign_key",
+        DbErrorKind::NotNull => "not_null",
+        DbErrorKind::Check => "check",
+        _ => "database",
+    };
+    NativeFailure {
+        kind: kind.to_owned(),
+        message: error.message,
+        constraint: error.constraint,
+        table: error.table,
+        sqlstate: error.sqlstate,
+    }
+}
+
+fn requeue_native(core: &Core, wake: &mut impl Write, request: PreparedRequest, asked: Asked) {
+    match core.requeue_native(request, asked) {
+        Ok(true) => {
+            let _ = wake.write(&[1]);
+        }
+        Ok(false) => {}
+        Err(error) => {
+            let (request, reply) = *error;
+            request.respond(reply.status, reply.headers, &reply.body);
         }
     }
 }
@@ -104,7 +274,7 @@ impl Backend for CoreBackend {
             refusal,
             body,
         };
-        match self.core.classify(head) {
+        match self.core.classify(head, true) {
             Ok(outcome) => self.reply_of(outcome).await,
             Err(_) => internal_error(),
         }
