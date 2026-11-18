@@ -1,0 +1,170 @@
+{
+  "tables": {
+    "hinoki_admin_users": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "username": {
+          "type": "varchar(150)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "references": null
+        },
+        "password_hash": {
+          "type": "varchar(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "is_active": {
+          "type": "boolean",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "is_superuser": {
+          "type": "boolean",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "last_login": {
+          "type": "timestamptz",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        }
+      },
+      "unique": [],
+      "indexes": []
+    },
+    "hinoki_admin_sessions": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "token_hash": {
+          "type": "varchar(64)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "references": null
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": {
+            "table": "hinoki_admin_users",
+            "column": "id",
+            "on_delete": "cascade"
+          }
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "expires_at": {
+          "type": "timestamptz",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "last_seen_at": {
+          "type": "timestamptz",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "user_agent": {
+          "type": "varchar(200)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        }
+      },
+      "unique": [],
+      "indexes": [
+        [
+          "user_id"
+        ]
+      ]
+    },
+    "hinoki_admin_grants": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": {
+            "table": "hinoki_admin_users",
+            "column": "id",
+            "on_delete": "cascade"
+          }
+        },
+        "model": {
+          "type": "varchar(80)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "action": {
+          "type": "varchar(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        }
+      },
+      "unique": [
+        [
+          "user_id",
+          "model",
+          "action"
+        ]
+      ],
+      "indexes": [
+        [
+          "user_id"
+        ]
+      ]
+    }
+  }
+}
