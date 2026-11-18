@@ -440,6 +440,11 @@
 <td>—</td>
 <td>Type-check and UTF-8 encode strings in Python; <code>media_type</code></td>
 </tr>
+<tr>
+<td><code>XMLRenderer</code></td>
+<td>—</td>
+<td>Writes the JSON-compatible result as UTF-8 XML in Python; <code>root</code>, <code>item</code></td>
+</tr>
 </tbody>
 </table>
 <p>Content negotiation (<code>Accept</code>, quality values, wildcards) also runs in Rust; with nothing acceptable the answer is 406 before the handler runs.</p>
@@ -456,6 +461,15 @@
 <span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/hook"</span><span class="p">,</span> <span class="n">parsers</span><span class="o">=</span><span class="p">[</span><span class="n">JSONParser</span><span class="p">(),</span> <span class="n">TextParser</span><span class="p">()])</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">hook</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>   <span class="c1"># request.data is a dict or a str</span>
 </code></pre></div>
+<h2 id="answer-xml">Answer XML<a class="headerlink" href="#answer-xml" title="Permanent link">&para;</a></h2>
+<p><code>XMLRenderer</code> renders the same JSON-compatible result a <code>JSONRenderer</code> would, as <code>application/xml; charset=utf-8</code> with an XML declaration:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">JSONRenderer</span><span class="p">,</span> <span class="n">XMLRenderer</span>
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/report"</span><span class="p">,</span> <span class="n">renderers</span><span class="o">=</span><span class="p">[</span><span class="n">JSONRenderer</span><span class="p">(),</span> <span class="n">XMLRenderer</span><span class="p">(</span><span class="n">root</span><span class="o">=</span><span class="s2">"report"</span><span class="p">)])</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">report</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"tags"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">],</span> <span class="s2">"note"</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
+</code></pre></div>
+<p><code>Accept: application/xml</code> answers <code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;report&gt;&lt;id&gt;1&lt;/id&gt;&lt;tags&gt;&lt;item&gt;a&lt;/item&gt;&lt;item&gt;b&lt;/item&gt;&lt;/tags&gt;&lt;note/&gt;&lt;/report&gt;</code>; without it the first renderer (JSON) answers. A mapping becomes child elements named by its keys, a list becomes repeated <code>item</code> elements (<code>item=</code> renames them), <code>None</code> an empty element and booleans <code>true</code>/<code>false</code>. A key that is not a valid XML name (a space, a leading digit, a name starting with <code>xml</code>) is written as <code>&lt;item key="..."&gt;</code>, escaped, instead of failing the request. Tab and line breaks are written as character references so a parser keeps them, and characters XML 1.0 cannot carry are replaced by U+FFFD. Non-finite floats are written <code>NaN</code>, <code>INF</code> and <code>-INF</code>. Nesting deeper than 200 levels (the JSON encoder's limit), an integer of more than 4300 digits or a value that is not JSON-compatible raises an error (<code>500</code>). The renderer runs in Python; an action that lists it uses the Python request pipeline rather than the native handler lane.</p>
 <h2 id="configure-the-rust-json-encoder">Configure the Rust JSON encoder<a class="headerlink" href="#configure-the-rust-json-encoder" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="n">JSONRenderer</span><span class="p">(</span><span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>                 <span class="c1"># pretty, stable output</span>
 <span class="n">JSONRenderer</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="nb">str</span><span class="p">)</span>                              <span class="c1"># Decimal, Path, ... become text</span>
@@ -493,15 +507,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#upload-files">Upload files</a></li><li><a href="#choose-them">Choose them</a></li><li><a href="#configure-the-rust-json-encoder">Configure the Rust JSON encoder</a></li><li><a href="#inherit-and-override">Inherit and override</a></li></ul>
+            <ul><li><a href="#upload-files">Upload files</a></li><li><a href="#choose-them">Choose them</a></li><li><a href="#answer-xml">Answer XML</a></li><li><a href="#configure-the-rust-json-encoder">Configure the Rust JSON encoder</a></li><li><a href="#inherit-and-override">Inherit and override</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.15</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:30:43 UTC">November 17, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 15:33:53 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/codecs.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
