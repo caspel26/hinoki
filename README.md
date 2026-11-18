@@ -46,7 +46,7 @@ uv run --project .. hinoki migrations apply --app notes
 uv run --project .. hinoki dev notes.main:app
 ```
 
-Open <http://127.0.0.1:8000/docs> to inspect the generated OpenAPI UI. The full [Quick start](docs/quick-start.md) explains migration review, requests and database selection. To scaffold a project from the checkout, run `uv run hinoki new NAME`; see [Installation](docs/getting-started.md).
+Open <http://127.0.0.1:8000/docs> to inspect the generated OpenAPI UI. The full [Quick start](docs/quick-start.md) explains migration review, requests and database selection. To scaffold a project from the checkout, run `uv run hinoki new NAME`; its routes live in `routes.py`, which `hinoki.toml` points to, so `main.py` needs no `include=`. See [Installation](docs/getting-started.md).
 
 ## What the code looks like
 
