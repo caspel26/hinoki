@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import re
 import types
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable
 from datetime import UTC, tzinfo
-from typing import Any
+from typing import Any, overload
 
 from hinoki.access import Access
 from hinoki.admin.components import Components
@@ -45,6 +45,13 @@ def clone(function: Callable[..., Any], name: str) -> Callable[..., Any]:
     return copy
 
 
+NO_SECRET_MESSAGE = (
+    "admin: no secret to sign its forms with; set `admin.secret` in the app's "  # noqa: S105
+    "settings (environment variable PREFIX_ADMIN__SECRET, at least 32 bytes) "
+    "or pass Admin(secret=...)"
+)
+
+
 class Admin:
     """The admin site: prefix, access policy, theme and registered models."""
 
@@ -52,14 +59,13 @@ class Admin:
         self,
         *,
         access: Access,
-        secret: str | bytes,
+        secret: str | bytes | None = None,
         prefix: str | None = None,
         theme: str | Theme = "studio",
         templates: str | None = None,
         site: str = "Admin",
         per_page: int = 20,
         show_count: bool = False,
-        models: Sequence[type[Model] | type[ModelAdmin[Any]]] = (),
         tagline: str = "",
         workspace: str = "Workspace",
         links: tuple[Link, ...] = (),
@@ -72,7 +78,7 @@ class Admin:
         if prefix and (not prefix.startswith("/") or prefix.endswith("/")):
             raise ValueError("prefix must start with '/' and not end with '/'")
         self.access = access
-        self.csrf = Csrf(secret)
+        self._csrf = Csrf(secret) if secret is not None else None
         self._prefix = prefix
         self.per_page = per_page
         self.show_count = show_count
@@ -97,8 +103,20 @@ class Admin:
             "admin.css": digest(self.templates.stylesheet()),
             "admin.js": digest(self.templates.script()),
         }
-        for item in models:
-            self.add(item)
+
+    @property
+    def csrf(self) -> Csrf:
+        if self._csrf is None:
+            raise RegistrationError(NO_SECRET_MESSAGE)
+        return self._csrf
+
+    def bind_secret(self, secret: str | bytes | None) -> None:
+        """Use the app's ``admin.secret`` unless the admin was given its own."""
+        if self._csrf is not None:
+            return
+        if secret is None:
+            raise RegistrationError(NO_SECRET_MESSAGE)
+        self._csrf = Csrf(secret)
 
     @property
     def prefix(self) -> str:
@@ -109,19 +127,6 @@ class Admin:
         if self._prefix is not None:
             return self._prefix
         return "" if self.mount else "/admin"
-
-    def add(self, item: type[Model] | type[ModelAdmin[Any]]) -> None:
-        """Register a model (default admin) or a ``ModelAdmin`` class that names it."""
-        if isinstance(item, type) and issubclass(item, ModelAdmin):
-            model = getattr(item, "model", None)
-            if model is None:
-                raise RegistrationError(
-                    f"admin: {item.__name__} names no model; write "
-                    f"class {item.__name__}(ModelAdmin, model=YourModel)"
-                )
-            self.register(model, item, slug=item.slug or None)
-        else:
-            self.register(item)
 
     def bind_timezone(self, timezone: tzinfo) -> None:
         """Use the including app's timezone; reject conflicting app bindings."""
@@ -135,12 +140,52 @@ class Admin:
         self.timezone = timezone
         self.parts.timezone = timezone
 
+    @overload
+    def register[A: type[ModelAdmin[Any]]](
+        self, target: A, /, *, slug: str | None = None
+    ) -> A: ...
+    @overload
     def register[M: Model](
         self,
-        model: type[M],
+        target: type[M],
         admin: type[ModelAdmin[M]] | None = None,
         *,
         slug: str | None = None,
+    ) -> type[M]: ...
+    def register(
+        self,
+        target: Any,
+        admin: Any = None,
+        *,
+        slug: str | None = None,
+    ) -> Any:
+        """Add a model to the admin and return ``target``, so it also decorates.
+
+            site = Admin(access=editors, secret=secret)
+
+            @site.register
+            class PostAdmin(ModelAdmin, model=Post): ...   # a customised admin
+
+            site.register(User)                            # the default admin
+
+        ``register(Post, PostAdmin, slug="posts")`` is the older two-argument form."""
+        if isinstance(target, type) and issubclass(target, ModelAdmin):
+            model = getattr(target, "model", None)
+            if model is None:
+                raise RegistrationError(
+                    f"admin: {target.__name__} names no model; write "
+                    f"class {target.__name__}(ModelAdmin, model=YourModel)"
+                )
+            self.attach(model, target, slug or target.slug or None)
+        else:
+            self.attach(target, admin, slug)
+        return target
+
+    def attach[M: Model](
+        self,
+        model: type[M],
+        admin: type[ModelAdmin[M]] | None,
+        slug: str | None,
     ) -> None:
         if model.__abstract__:
             raise RegistrationError(
