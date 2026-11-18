@@ -1,6 +1,6 @@
 """Startup rules: typed, deterministic, optional."""
 
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -9,15 +9,18 @@ from hinoki import (
     API,
     Access,
     Actions,
+    Field,
     Hinoki,
+    Models,
     Request,
     Schema,
     Schemas,
     Transactions,
+    db,
     http,
 )
 from hinoki.errors import RegistrationError
-from hinoki.orm import Model, field
+from hinoki.orm import Model, OnDelete, field, foreign_key
 from hinoki.pagination import Page
 from hinoki.rules import (
     Diagnostic,
@@ -336,3 +339,115 @@ def test_require_pagination_flags_get_actions_returning_plain_lists() -> None:
         == "HNK-API-003"
     )
     assert returns_plain_list(list) and not returns_plain_list(None)
+
+
+viewer_only = Access(auth=TokenAuth())
+
+
+@http.get("/perm/open", access=viewer_only)
+def any_caller(request: Request) -> dict[str, str]:
+    return {}
+
+
+@http.get("/perm/scoped", access=editor)
+def scoped(request: Request) -> dict[str, str]:
+    return {}
+
+
+def test_require_permissions_flags_policies_without_permissions() -> None:
+    rules = RuleSet(Actions.require_permissions())
+    found = rules.run(project(any_caller, scoped, health))
+    assert [d.rule_id for d in found] == ["HNK-ACC-002"]
+    assert found[0].message.startswith("GET /perm/open")
+    exempt = RuleSet(Actions.require_permissions(except_=["*.any_caller"]))
+    assert exempt.run(project(any_caller, scoped)) == []
+    scoped_only = RuleSet(Actions.require_permissions(match="*.scoped"))
+    assert scoped_only.run(project(any_caller, scoped)) == []
+
+
+class LimitedIn(Schema):
+    title: Annotated[str, Field(max_length=40)]
+    kind: Annotated[str, Field(one_of=("a", "b"))]
+    count: int = 0
+
+
+class FreeIn(Schema):
+    title: str
+    note: Annotated[str, Field(max_length=10)] = ""
+
+
+class WrapperIn(Schema):
+    inner: FreeIn
+    count: int = 0
+
+
+@http.post("/limits/ok")
+def limited(request: Request, body: LimitedIn) -> dict[str, str]:
+    return {}
+
+
+@http.post("/limits/free")
+def free_text(request: Request, body: WrapperIn) -> dict[str, str]:
+    return {}
+
+
+@http.post("/limits/free-again")
+def free_text_again(request: Request, body: FreeIn) -> dict[str, str]:
+    return {}
+
+
+def test_require_string_limits_flags_unbounded_request_text() -> None:
+    rules = RuleSet(Schemas.require_string_limits())
+    assert rules.run(project(limited)) == []
+    found = rules.run(project(free_text, free_text_again))
+    assert [d.rule_id for d in found] == ["HNK-SCH-002"]
+    assert found[0].message.startswith("FreeIn.title is read from POST /limits/")
+    assert found[0].subject.endswith("FreeIn.title")
+    assert RuleSet(Schemas.require_string_limits()).run(project(Posts)) == []
+
+
+class RulesParent(Model, table="rules_parents"):
+    id: int = field(primary_key=True)
+
+
+class RulesLoose(Model, table="rules_loose"):
+    id: int = field(primary_key=True)
+    parent_id: int = foreign_key(RulesParent, on_delete=OnDelete.RESTRICT)
+
+
+@db.indexed("parent_id")
+class RulesIndexed(Model, table="rules_indexed"):
+    id: int = field(primary_key=True)
+    parent_id: int = foreign_key(RulesParent, on_delete=OnDelete.RESTRICT)
+
+
+class RulesUnique(Model, table="rules_unique"):
+    id: int = field(primary_key=True)
+    parent_id: int = foreign_key(RulesParent, on_delete=OnDelete.RESTRICT, unique=True)
+
+
+class RulesDerived(Model):
+    id: int = field(primary_key=True)
+
+
+def test_require_explicit_table_flags_derived_names() -> None:
+    rules = RuleSet(Models.require_explicit_table(match="tests.rulestest"))
+    found = rules.run(project())
+    assert [d.rule_id for d in found] == ["HNK-DB-001"]
+    assert found[0].message.startswith("RulesDerived uses the derived table name")
+    assert found[0].location.startswith("tests/rulestest.py:")
+    nothing = RuleSet(Models.require_explicit_table(match="no.such.module")).run(
+        project()
+    )
+    assert [d.status for d in nothing] == [Status.UNVERIFIABLE]
+
+
+def test_require_foreign_key_index_flags_unindexed_references() -> None:
+    rules = RuleSet(Models.require_foreign_key_index(match="tests.rulestest"))
+    found = rules.run(project())
+    assert [d.rule_id for d in found] == ["HNK-DB-002"]
+    assert found[0].message.startswith("RulesLoose.parent_id references RulesParent")
+    nothing = RuleSet(Models.require_foreign_key_index(match="no.such.module")).run(
+        project()
+    )
+    assert [d.status for d in nothing] == [Status.UNVERIFIABLE]

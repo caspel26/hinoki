@@ -24,7 +24,7 @@ from hinoki.modules import Module, ModuleContext
 from hinoki.parsers import FormParser, JSONParser, MultiPartParser, Parser, UploadedFile
 from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer
 from hinoki.routing import Mount, Route, RouteGroup
-from hinoki.rules import Actions, Imports, Schemas, Transactions
+from hinoki.rules import Actions, Imports, Models, Schemas, Transactions
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.schema import (
     UNSET,
@@ -80,6 +80,7 @@ __all__ = [
     "Invalid",
     "JSONParser",
     "JSONRenderer",
+    "Models",
     "Module",
     "ModuleContext",
     "Mount",
