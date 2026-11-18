@@ -524,7 +524,8 @@ from subsequent list requests.</p>
 Each hook may be a normal <code>def</code> or <code>async def</code>. Sync hooks run on Hinoki's
 bounded worker executor, where synchronous ORM methods are available; async
 hooks run on the event loop and should use the async ORM methods. This applies
-to <code>get_queryset</code>, <code>written_queryset</code>, <code>to_schema</code>, and each <code>perform_*</code> hook.</p>
+to <code>get_queryset</code>, <code>written_queryset</code>, <code>to_schema</code>, <code>store</code>, <code>change</code> and
+<code>remove</code>.</p>
 <p>For a synchronous hook, use synchronous ORM methods and return the model:</p>
 <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">slug_for</span><span class="p">(</span><span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
     <span class="k">return</span> <span class="n">title</span><span class="o">.</span><span class="n">casefold</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">" "</span><span class="p">,</span> <span class="s2">"-"</span><span class="p">)</span>
@@ -536,23 +537,19 @@ to <code>get_queryset</code>, <code>written_queryset</code>, <code>to_schema</co
     <span class="n">access</span> <span class="o">=</span> <span class="n">editor</span>
     <span class="n">owner</span> <span class="o">=</span> <span class="s2">"author_id"</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">perform_create</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Post</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">store</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Post</span><span class="p">:</span>
         <span class="n">values</span><span class="p">[</span><span class="s2">"slug"</span><span class="p">]</span> <span class="o">=</span> <span class="n">slug_for</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="s2">"title"</span><span class="p">]))</span>
         <span class="k">return</span> <span class="n">Post</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="o">**</span><span class="n">values</span><span class="p">)</span>
 </code></pre></div>
 <p>An async hook uses the async ORM method:</p>
-<div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">perform_create</span><span class="p">(</span>
-    <span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Post</span><span class="p">:</span>
+<div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">store</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Post</span><span class="p">:</span>
     <span class="n">values</span><span class="p">[</span><span class="s2">"slug"</span><span class="p">]</span> <span class="o">=</span> <span class="n">slug_for</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="s2">"title"</span><span class="p">]))</span>
     <span class="k">return</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="o">**</span><span class="n">values</span><span class="p">)</span>
 </code></pre></div>
 <p>A sync override uses <code>Post.create(**values)</code>; it should not call async ORM
 methods or return an un-awaited coroutine.</p>
-<p><code>perform_update(item, scoped_queryset, values, principal)</code> and
-<code>perform_delete(item, scoped_queryset, principal)</code> receive the target and the
+<p><code>change(item, scoped_queryset, values, principal)</code> and
+<code>remove(item, scoped_queryset, principal)</code> receive the target and the
 query already limited by visibility, key and ownership. Call <code>super()</code> to keep
 the default scoped database mutation. Hooks may use transactional database
 operations; they do not run after commit, so do not send mail or publish
@@ -580,7 +577,7 @@ and incompatible derived schemas. <code>only=</code> and <code>exclude=</code> s
 subject to these same checks.</p>
 <h2 id="existing-resource-declarations">Existing <code>Resource</code> declarations<a class="headerlink" href="#existing-resource-declarations" title="Permanent link">&para;</a></h2>
 <p>Existing pre-alpha <code>Resource(...)</code> configurations remain accepted for
-compatibility. Their <code>queryset=</code> callback is not caller-aware; <code>perform_*</code>
+compatibility. Their <code>queryset=</code> callback is not caller-aware; the <code>store</code>, <code>change</code> and <code>remove</code>
 hooks are available on those API subclasses too. For response relations after
 a write that becomes hidden by the old queryset, its fallback read cannot
 preserve eager-loads. Migrate to the class declaration and override
@@ -626,7 +623,7 @@ side-effects beyond the single model mutation.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.11</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:56:56 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 09:36:22 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>

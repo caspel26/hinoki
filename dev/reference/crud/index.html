@@ -884,16 +884,16 @@ ownership, schema requirements and route replacement.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudAPI.read_written" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">read_written</span>
+<h3 id="hinoki.crud.CrudAPI.reload_written" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">reload_written</span>
 
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-async"><code>async</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudAPI.read_written" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">read_written</span><span class="p">(</span><span class="n">item_id</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+<a href="#hinoki.crud.CrudAPI.reload_written" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">reload_written</span><span class="p">(</span><span class="n">item_id</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -926,12 +926,12 @@ ownership, schema requirements and route replacement.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudAPI.validate_hook_item" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">validate_hook_item</span>
+<h3 id="hinoki.crud.CrudAPI.check_written" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">check_written</span>
 
 
-<a href="#hinoki.crud.CrudAPI.validate_hook_item" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">validate_hook_item</span><span class="p">(</span><span class="n">item</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<a href="#hinoki.crud.CrudAPI.check_written" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">check_written</span><span class="p">(</span><span class="n">item</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -944,16 +944,16 @@ ownership, schema requirements and route replacement.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudAPI.refused" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">refused</span>
+<h3 id="hinoki.crud.CrudAPI.refuse" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">refuse</span>
 
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-async"><code>async</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudAPI.refused" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">refused</span><span class="p">(</span><span class="n">item_id</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Forbidden</span>
+<a href="#hinoki.crud.CrudAPI.refuse" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">refuse</span><span class="p">(</span><span class="n">item_id</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Forbidden</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -968,12 +968,12 @@ ownership, schema requirements and route replacement.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudAPI.perform_create" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">perform_create</span>
+<h3 id="hinoki.crud.CrudAPI.store" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">store</span>
 
 
-<a href="#hinoki.crud.CrudAPI.perform_create" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">perform_create</span><span class="p">(</span>
+<a href="#hinoki.crud.CrudAPI.store" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">store</span><span class="p">(</span>
     <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Model</span> <span class="o">|</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">Model</span><span class="p">]</span>
 </code></pre></div>
@@ -988,12 +988,12 @@ ownership, schema requirements and route replacement.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudAPI.perform_update" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">perform_update</span>
+<h3 id="hinoki.crud.CrudAPI.change" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">change</span>
 
 
-<a href="#hinoki.crud.CrudAPI.perform_update" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">perform_update</span><span class="p">(</span>
+<a href="#hinoki.crud.CrudAPI.change" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">change</span><span class="p">(</span>
     <span class="n">item</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
     <span class="n">scoped</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
     <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
@@ -1011,16 +1011,16 @@ ownership, schema requirements and route replacement.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudAPI.update_item" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">update_item</span>
+<h3 id="hinoki.crud.CrudAPI.apply_change" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">apply_change</span>
 
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-async"><code>async</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudAPI.update_item" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">update_item</span><span class="p">(</span>
+<a href="#hinoki.crud.CrudAPI.apply_change" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">apply_change</span><span class="p">(</span>
     <span class="n">item</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
     <span class="n">scoped</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
     <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
@@ -1038,12 +1038,12 @@ ownership, schema requirements and route replacement.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudAPI.perform_delete" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">perform_delete</span>
+<h3 id="hinoki.crud.CrudAPI.remove" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">remove</span>
 
 
-<a href="#hinoki.crud.CrudAPI.perform_delete" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">perform_delete</span><span class="p">(</span>
+<a href="#hinoki.crud.CrudAPI.remove" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">remove</span><span class="p">(</span>
     <span class="n">item</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">scoped</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">Awaitable</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span>
 </code></pre></div>
@@ -1058,16 +1058,16 @@ ownership, schema requirements and route replacement.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudAPI.delete_items" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">delete_items</span>
+<h3 id="hinoki.crud.CrudAPI.apply_removal" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">apply_removal</span>
 
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-async"><code>async</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudAPI.delete_items" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">delete_items</span><span class="p">(</span><span class="n">scoped</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+<a href="#hinoki.crud.CrudAPI.apply_removal" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">apply_removal</span><span class="p">(</span><span class="n">scoped</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1080,16 +1080,16 @@ ownership, schema requirements and route replacement.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudAPI.invoke_hook" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">invoke_hook</span>
+<h3 id="hinoki.crud.CrudAPI.call_hook" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">call_hook</span>
 
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-async"><code>async</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudAPI.invoke_hook" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">invoke_hook</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="n">arguments</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+<a href="#hinoki.crud.CrudAPI.call_hook" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">call_hook</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="n">arguments</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1104,16 +1104,16 @@ ownership, schema requirements and route replacement.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudAPI.invoke_default_hook" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">invoke_default_hook</span>
+<h3 id="hinoki.crud.CrudAPI.call_default_hook" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">call_default_hook</span>
 
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-async"><code>async</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudAPI.invoke_default_hook" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">invoke_default_hook</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="n">arguments</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+<a href="#hinoki.crud.CrudAPI.call_default_hook" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">call_default_hook</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="n">arguments</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1126,16 +1126,16 @@ ownership, schema requirements and route replacement.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudAPI.invoke_custom_hook" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">invoke_custom_hook</span>
+<h3 id="hinoki.crud.CrudAPI.call_custom_hook" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">call_custom_hook</span>
 
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-async"><code>async</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudAPI.invoke_custom_hook" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">invoke_custom_hook</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="n">arguments</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+<a href="#hinoki.crud.CrudAPI.call_custom_hook" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">call_custom_hook</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="n">arguments</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1220,7 +1220,7 @@ ownership, schema requirements and route replacement.</p>
             <ul><li><a href="#hinoki.crud.Resource">Resource</a>
             <ul><li><a href="#hinoki.crud.Resource.queryset">queryset</a></li><li><a href="#hinoki.crud.Resource.output">output</a></li><li><a href="#hinoki.crud.Resource.__init__">__init__</a></li><li><a href="#hinoki.crud.Resource.base">base</a></li><li><a href="#hinoki.crud.Resource.present">present</a></li><li><a href="#hinoki.crud.Resource.scope">scope</a></li><li><a href="#hinoki.crud.Resource.fetch">fetch</a></li></ul>
           </li><li><a href="#hinoki.crud.CrudAPI">CrudAPI</a>
-            <ul><li><a href="#hinoki.crud.CrudAPI.model">model</a></li><li><a href="#hinoki.crud.CrudAPI.read_schema">read_schema</a></li><li><a href="#hinoki.crud.CrudAPI.create_schema">create_schema</a></li><li><a href="#hinoki.crud.CrudAPI.update_schema">update_schema</a></li><li><a href="#hinoki.crud.CrudAPI.deletable">deletable</a></li><li><a href="#hinoki.crud.CrudAPI.access">access</a></li><li><a href="#hinoki.crud.CrudAPI.read_access">read_access</a></li><li><a href="#hinoki.crud.CrudAPI.public_writes">public_writes</a></li><li><a href="#hinoki.crud.CrudAPI.owner">owner</a></li><li><a href="#hinoki.crud.CrudAPI.identity_key">identity_key</a></li><li><a href="#hinoki.crud.CrudAPI.assign">assign</a></li><li><a href="#hinoki.crud.CrudAPI.pagination">pagination</a></li><li><a href="#hinoki.crud.CrudAPI.resource">resource</a></li><li><a href="#hinoki.crud.CrudAPI.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.crud.CrudAPI.get_queryset">get_queryset</a></li><li><a href="#hinoki.crud.CrudAPI.written_queryset">written_queryset</a></li><li><a href="#hinoki.crud.CrudAPI.read_written">read_written</a></li><li><a href="#hinoki.crud.CrudAPI.to_schema">to_schema</a></li><li><a href="#hinoki.crud.CrudAPI.validate_hook_item">validate_hook_item</a></li><li><a href="#hinoki.crud.CrudAPI.refused">refused</a></li><li><a href="#hinoki.crud.CrudAPI.perform_create">perform_create</a></li><li><a href="#hinoki.crud.CrudAPI.perform_update">perform_update</a></li><li><a href="#hinoki.crud.CrudAPI.update_item">update_item</a></li><li><a href="#hinoki.crud.CrudAPI.perform_delete">perform_delete</a></li><li><a href="#hinoki.crud.CrudAPI.delete_items">delete_items</a></li><li><a href="#hinoki.crud.CrudAPI.invoke_hook">invoke_hook</a></li><li><a href="#hinoki.crud.CrudAPI.invoke_default_hook">invoke_default_hook</a></li><li><a href="#hinoki.crud.CrudAPI.invoke_custom_hook">invoke_custom_hook</a></li></ul>
+            <ul><li><a href="#hinoki.crud.CrudAPI.model">model</a></li><li><a href="#hinoki.crud.CrudAPI.read_schema">read_schema</a></li><li><a href="#hinoki.crud.CrudAPI.create_schema">create_schema</a></li><li><a href="#hinoki.crud.CrudAPI.update_schema">update_schema</a></li><li><a href="#hinoki.crud.CrudAPI.deletable">deletable</a></li><li><a href="#hinoki.crud.CrudAPI.access">access</a></li><li><a href="#hinoki.crud.CrudAPI.read_access">read_access</a></li><li><a href="#hinoki.crud.CrudAPI.public_writes">public_writes</a></li><li><a href="#hinoki.crud.CrudAPI.owner">owner</a></li><li><a href="#hinoki.crud.CrudAPI.identity_key">identity_key</a></li><li><a href="#hinoki.crud.CrudAPI.assign">assign</a></li><li><a href="#hinoki.crud.CrudAPI.pagination">pagination</a></li><li><a href="#hinoki.crud.CrudAPI.resource">resource</a></li><li><a href="#hinoki.crud.CrudAPI.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.crud.CrudAPI.get_queryset">get_queryset</a></li><li><a href="#hinoki.crud.CrudAPI.written_queryset">written_queryset</a></li><li><a href="#hinoki.crud.CrudAPI.reload_written">reload_written</a></li><li><a href="#hinoki.crud.CrudAPI.to_schema">to_schema</a></li><li><a href="#hinoki.crud.CrudAPI.check_written">check_written</a></li><li><a href="#hinoki.crud.CrudAPI.refuse">refuse</a></li><li><a href="#hinoki.crud.CrudAPI.store">store</a></li><li><a href="#hinoki.crud.CrudAPI.change">change</a></li><li><a href="#hinoki.crud.CrudAPI.apply_change">apply_change</a></li><li><a href="#hinoki.crud.CrudAPI.remove">remove</a></li><li><a href="#hinoki.crud.CrudAPI.apply_removal">apply_removal</a></li><li><a href="#hinoki.crud.CrudAPI.call_hook">call_hook</a></li><li><a href="#hinoki.crud.CrudAPI.call_default_hook">call_default_hook</a></li><li><a href="#hinoki.crud.CrudAPI.call_custom_hook">call_custom_hook</a></li></ul>
           </li><li><a href="#hinoki.crud.Crud">Crud</a></li></ul>
           
         </nav>
