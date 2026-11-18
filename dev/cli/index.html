@@ -427,6 +427,10 @@ them with <code>uv run --project ..</code> to use the locked environment at the 
 <td>Add a registered modular app with its own models, routes and migration package.</td>
 </tr>
 <tr>
+<td><code>hinoki app add NAME --models MODULE</code></td>
+<td>Register an existing package as an app in <code>hinoki.toml</code> without creating files.</td>
+</tr>
+<tr>
 <td><code>hinoki doctor [TARGET]</code></td>
 <td>Summarize environment, manifest and app construction diagnostics without serving or connecting to a database.</td>
 </tr>
@@ -536,6 +540,15 @@ Checkout paths and Git source values are escaped as TOML strings in the generate
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>create<span class="w"> </span>billing
 </code></pre></div>
 <p>This creates <code>NAME/apps/billing/{models.py,routes.py,migrations/}</code> and registers the model, migration and routes modules in <code>hinoki.toml</code> (<code>routes = "NAME.apps.billing.routes:routes"</code>, <code>prefix = "/billing"</code>). Cross-app foreign keys require the referencing app to list the referenced app in <code>requires</code> in <code>hinoki.toml</code>; migrations are then planned/applied in dependency order. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.</p>
+<p>To register a package that already exists, name its modules. Nothing is created or imported; only <code>hinoki.toml</code> changes:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>add<span class="w"> </span>billing<span class="w"> </span>--models<span class="w"> </span>legacy.billing.models
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>add<span class="w"> </span>invoices<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--models<span class="w"> </span>legacy.invoices.models<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--migrations<span class="w"> </span>legacy.db.invoices<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--routes<span class="w"> </span>legacy.invoices.routes:routes<span class="w"> </span>--prefix<span class="w"> </span>/invoices<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--requires<span class="w"> </span>billing
+</code></pre></div>
+<p><code>--migrations</code> defaults to the <code>migrations</code> package next to the models module (<code>legacy.billing.migrations</code>); a models module without a parent package needs it explicitly. <code>--prefix</code> defaults to <code>/NAME</code> once <code>--routes</code> is given. The whole manifest is validated before it is replaced, so a duplicate name, an unknown or cyclic <code>--requires</code>, or a malformed module name leaves <code>hinoki.toml</code> untouched and exits 2. Whether the modules import is checked later, when a command such as <code>hinoki migrations plan</code> loads the app.</p>
 <p>List the registered apps from the project root or any subdirectory:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>list
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>list<span class="w"> </span>--format<span class="w"> </span>json
@@ -733,7 +746,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class=
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 02:41:13 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 09:41:34 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>13 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>

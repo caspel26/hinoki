@@ -400,7 +400,7 @@
       <article class="prose" style="--sheet: '3.9'">
         <p class="kicker" data-search-exclude>3.9 · Guides</p>
         <h1 id="migrations">Migrations<a class="headerlink" href="#migrations" title="Permanent link">&para;</a></h1>
-<p>Hinoki compares each registered app's models with that app's migration state recorded in files. It can write a migration plan, but never applies schema changes when an application starts. <code>hinoki new</code> creates an explicit <code>hinoki.toml</code>; <code>hinoki app create NAME</code> adds another app and its migration package.</p>
+<p>Hinoki compares each registered app's models with that app's migration state recorded in files. It can write a migration plan, but never applies schema changes when an application starts. <code>hinoki new</code> creates an explicit <code>hinoki.toml</code>; <code>hinoki app create NAME</code> adds another app and its migration package, and <code>hinoki app add NAME --models MODULE</code> registers a package that already exists.</p>
 <h2 id="create-a-migration">Create a migration<a class="headerlink" href="#create-a-migration" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--name<span class="w"> </span>add-published
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>billing<span class="w"> </span>--name<span class="w"> </span>add-invoice-index
@@ -513,7 +513,7 @@ whether an older migration actually created its constraint.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.9</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:44:51 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 09:41:34 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/migrations.md">Edit on GitHub</a></dd></div>
         </dl>
