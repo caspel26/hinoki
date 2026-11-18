@@ -14,8 +14,10 @@ from http import HTTPStatus
 
 from hinoki import core
 from hinoki.context import request_id
+from hinoki.parsers import DEFAULT_PARSERS
 from hinoki.renderers import is_default_json_renderer
 from hinoki.runtime.binding import (
+    BODY_METHODS,
     EMPTY,
     KINDS_BY_NAME,
     PATH_PARAM,
@@ -98,6 +100,7 @@ def route_spec(
         [
             (param.source, param.name, param.default is not EMPTY, param.kind)
             for param in binding.params
+            if param.source != "body"
         ]
         if native_handler
         else []
@@ -128,16 +131,23 @@ def native_input_supported(param: Param) -> bool:
 
 
 def native_handler_eligible(binding: Binding) -> bool:
-    """Select the automatic native response path for a simple GET or DELETE."""
+    """Select the automatic native response path for a simple GET or DELETE, or
+    for a body method with one ``Schema`` body and the default JSON parser."""
     route = binding.route
-    if route.method not in {"GET", "DELETE"} or route.owner is not None:
+    if route.owner is not None:
+        return False
+    if route.method in BODY_METHODS:
+        if binding.body_param is None or route.parsers != DEFAULT_PARSERS:
+            return False
+    elif route.method not in {"GET", "DELETE"} or binding.needs_body:
         return False
     renderer_ok = len(route.renderers) == 1 and is_default_json_renderer(
         route.renderers[0]
     )
     path_names = PATH_PARAM.findall(route.path)
     supported_inputs = all(
-        param.source in {"path", "query"} and native_input_supported(param)
+        (param.source in {"path", "query"} and native_input_supported(param))
+        or param is binding.body_param
         for param in binding.params
     )
     bound_path_names = {
@@ -146,7 +156,6 @@ def native_handler_eligible(binding: Binding) -> bool:
     return bool(
         bound_path_names == set(path_names)
         and supported_inputs
-        and not binding.needs_body
         and route.access is None
         and route.rate_limit is None
         and not route.transaction
