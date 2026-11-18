@@ -16,6 +16,8 @@
       members: true
       show_if_no_docstring: true
 
+::: hinoki.routing.Includable
+
 ::: hinoki.routing.Mount
     options:
       members: true
