@@ -1,6 +1,6 @@
 # ADR 0003 — Bounded sync executor with fail-fast backpressure
 
-Status: Proposed · 2026-11-13
+Status: Accepted · 2026-11-18 (proposed 2026-11-13)
 
 **Context.** `def` handlers must not block async handlers; threads must be bounded; Python threads cannot be killed and do not give CPU parallelism.
 
@@ -14,9 +14,9 @@ Status: Proposed · 2026-11-13
 
 ## Implementation notes (2026-11-18)
 
-The ADR is still Proposed. Checked against the source (`runtime/executor.py`, `runtime/lifespan.py`, `blocking.py`):
+Checked against the source (`runtime/executor.py`, `runtime/lifespan.py`, `blocking.py`):
 
 - **Matches.** One `ThreadPoolExecutor(sync_workers)` per worker, admission of `sync_workers + sync_queue` calls, a slot released only when the thread returns, `503 overloaded` with `Retry-After` when admission fails, and sync ORM calls refused on the event-loop thread.
 - **Corrected above.** Saturation does not make the worker unready: `Lifespan.ready` depends on a completed startup and on the managed critical tasks, so a saturated worker answers `503 overloaded` per request and stays ready. Marking it unready would remove it from the load balancer exactly when it is busy.
 
-**For the owner to decide:** whether readiness should ever reflect saturation (this note recommends not), and whether the defaults need a measured change.
+**Decided (2026-11-18):** readiness does not reflect saturation; a saturated worker answers `503 overloaded` per request and stays ready. The defaults are kept until a load test shows a better balance.
