@@ -304,6 +304,24 @@ impl PyDatabase {
     fn status(&self) -> (usize, usize) {
         self.inner.status()
     }
+
+    #[cfg(feature = "sql-trace")]
+    fn _clear_sql_trace(&self) {
+        self.inner.clear_sql_trace();
+    }
+
+    #[cfg(feature = "sql-trace")]
+    fn _take_sql_trace<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let out = PyList::empty(py);
+        for entry in self.inner.take_sql_trace() {
+            let values = PyList::empty(py);
+            for value in &entry.values {
+                values.append(from_value(py, value)?)?;
+            }
+            out.append((entry.kind, entry.sql, values))?;
+        }
+        Ok(out.into_any())
+    }
 }
 
 /// A transaction owning one connection. One statement at a time: concurrent

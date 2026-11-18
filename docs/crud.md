@@ -77,6 +77,10 @@ the generated list route.
 ## Reuse and customization
 
 CRUD configuration and Python methods compose through normal inheritance.
+
+Generated create actions return `409 Conflict` when the database rejects a
+unique constraint by default. Register an error handler for the database's
+unique-violation type to choose an application-specific response.
 Subclasses inherit the model and options, override options/hooks, and can set a
 new `path=`. A model-derived schema from another model is rejected during class
 creation. Mixins can provide reusable decorated routes or hooks.
