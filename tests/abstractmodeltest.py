@@ -143,7 +143,7 @@ def test_abstract_and_table_rules_are_checked_at_declaration() -> None:
     class Neither(Keyed):
         name: str = ""
 
-    assert Neither.__table__ == "neithers"
+    assert Neither.__table__ == "abstractmodeltest_neither"
     assert Neither.__table_is_implicit__
 
     with pytest.raises(RegistrationError, match="exactly one primary_key"):
