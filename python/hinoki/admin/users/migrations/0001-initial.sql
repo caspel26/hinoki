@@ -20,7 +20,8 @@ CREATE TABLE "hinoki_admin_sessions" (
     "created_at" timestamptz NOT NULL,
     "expires_at" timestamptz NOT NULL,
     "last_seen_at" timestamptz NOT NULL,
-    "user_agent" varchar(200) NOT NULL
+    "user_agent" varchar(200) NOT NULL,
+    "fingerprint" varchar(64) NOT NULL
 );
 CREATE INDEX "ix_hinoki_admin_sessions_user_id" ON "hinoki_admin_sessions" ("user_id");
 
