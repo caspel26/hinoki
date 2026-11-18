@@ -9,12 +9,16 @@ as an authenticated MCP tool.
 ## Run locally
 
 The checked-in initial and index migrations can be applied to the default local
-SQLite database before starting the app:
+SQLite database before starting the app. Run these commands from `examples/` so
+`--project ..` selects the repository's locked Python environment:
 
 ```sh
+cd examples
+uv run --project .. hinoki app list
 uv run --project .. hinoki migrations status
 uv run --project .. hinoki migrations plan --app tracker --dry-run
 uv run --project .. hinoki migrations sql --app tracker 0001-initial
+uv run --project .. hinoki migrations sql --app tracker 0002-indexes
 uv run --project .. hinoki migrations apply --app tracker
 uv run --project .. hinoki dev tracker.app:create_app
 ```
