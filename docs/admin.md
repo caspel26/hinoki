@@ -47,6 +47,35 @@ Row visibility, field assignment and which columns are shown are decided in the 
 
 Datetime fields in the admin use the including app's `settings.timezone` (UTC when the app has no built-in settings). Forms display stored instants in that timezone and interpret edited `datetime-local` values there before saving them as UTC-aware datetimes. Times that do not exist or occur twice during a daylight-saving clock change are rejected for correction. API datetimes with offsets remain absolute instants; `utc_today()` continues to use UTC.
 
+## Who may sign in
+
+`Admin()` with no `access=` uses the admin's **own users**: accounts, a sign-in page, sessions and per-model permissions, kept in three tables of your database. Nothing is created until you ask for it, and importing Hinoki never touches a database.
+
+Register the tables as an app and apply their migration once:
+
+```sh
+uv run hinoki app add admin \
+    --models hinoki.admin.users.models --migrations hinoki.admin.users.migrations
+uv run hinoki migrations apply admin
+```
+
+The admin also needs its signing secret: `admin.secret` in the settings (`PREFIX_ADMIN__SECRET`, at least 32 bytes). The sessions and passwords follow `admin.session_hours` (12), `admin.idle_minutes` (120) and `admin.min_password_length` (12).
+
+```python
+site = Admin(site="Blog Studio")           # its own users; nothing else to pass
+site.register(PostAdmin)
+site.register(User)
+app = Hinoki(settings=BlogSettings.load(), include=[Mount("/admin", site)])
+```
+
+- **Pages.** `GET/POST /login`, `POST /logout` and `GET/POST /password` live under the admin's prefix. A visitor without a session is redirected (`303`) to the sign-in page. Every form carries a CSRF token; the sign-in form's token is bound to the browser, the others to the signed-in user.
+- **Passwords** are Argon2id hashes. Unknown usernames cost the same work as a wrong password and get the same answer, and an inactive user cannot sign in. Changing a password ends every session of the user and gives the current browser a new one.
+- **Sessions** are a random token in an `HttpOnly`, `SameSite=Lax` cookie scoped to the admin's path (`Secure` on HTTPS, or whenever `Admin(secure_cookies=True)`); the database keeps only the token's SHA-256, so a copy of the table cannot be replayed. A session ends after `session_hours`, after `idle_minutes` without a request, on sign-out, and on a password change. A new sign-in never reuses a token.
+- **Permissions** are per model and per action (`view`, `add`, `change`, `delete`; a bulk action needs `change`), stored as grants. A **superuser** holds every grant. The check is applied around each model admin's `can`, so an override of `can` can narrow what a grant allows but never widen it. A user without a grant for a model does not see it in the sidebar and gets `404` for its pages.
+- **Rate limit.** The sign-in route is protected by `LoginWindow`, a fixed window per client address (10 attempts a minute) kept in one worker's memory, so each worker counts on its own: it is a brake, not a defence, and the cost of hashing is the main one. For a shared limit pass your own policy: `AdminAccounts(login_limit=MyPolicy())` (see [rate limit an action](endpoints.md#rate-limit-an-action)).
+
+To use your own identity instead (single sign-on, an existing user table), pass `Admin(access=Access(auth=MyAuth(), permissions=[...]))`: the admin then has no sign-in pages of its own, and the permissions of your callers decide what they see through `ModelAdmin.can`, as before. `Admin(access=..., users=...)` is an error.
+
 ## What needs no configuration
 
 A model admin states only what the model does not already say. Without being declared: the label and plural come from the model, the list's order from the model's `@ordered_by`, the "last modified" line from its `@timestamps` column, text search from the first three shown text columns, and a bulk delete wherever `can(principal, "delete")` allows it (set `bulk_delete = False` to remove it). `Admin(per_page=20, show_count=False)` sets the page size and whether the sidebar shows row counts for every model, and a model admin overrides either with its own `per_page` or `show_count`. A model with no configuration at all is `site.register(Post)`.
