@@ -75,8 +75,11 @@ def check_startup_url(value: str | None) -> str | None:
 log = logging.getLogger("hinoki")
 
 
-def bind_app_timezone(item: object, timezone: tzinfo) -> None:
-    """Bind timezone-aware integrations whether included as objects or API classes."""
+def bind_app_timezone(
+    item: object, timezone: tzinfo, secret: str | None = None
+) -> None:
+    """Bind the timezone and server secret of the app to an included admin,
+    whether it is included as an object or as an API class."""
     admin = (
         item
         if callable(getattr(item, "bind_timezone", None))
@@ -85,12 +88,17 @@ def bind_app_timezone(item: object, timezone: tzinfo) -> None:
     bind_timezone = getattr(admin, "bind_timezone", None)
     if callable(bind_timezone):
         bind_timezone(timezone)
+    bind_secret = getattr(admin, "bind_secret", None)
+    if callable(bind_secret):
+        bind_secret(secret)
 
 
-def bind_app_timezones(items: Sequence[object], timezone: tzinfo) -> None:
+def bind_app_timezones(
+    items: Sequence[object], timezone: tzinfo, secret: str | None = None
+) -> None:
     """Bind integrations after the app has validated all routes."""
     for item, _prefix in flatten(items):
-        bind_app_timezone(item, timezone)
+        bind_app_timezone(item, timezone, secret)
 
 
 def check_hooks(option: str, hooks: Sequence[Hook]) -> tuple[Hook, ...]:
@@ -185,6 +193,13 @@ class Hinoki:
             caller.f_globals.get("__name__", ""), caller.f_globals.get("__file__")
         )
         return manifest.route_items() if manifest is not None else []
+
+    def admin_secret(self) -> str | None:
+        """``admin.secret`` of the app's settings, or ``None`` when unset."""
+        if not isinstance(self.settings, AppSettings):
+            return None
+        secret = self.settings.admin.secret
+        return secret.reveal() if secret is not None else None
 
     def _configure_runtime(
         self, built_in: AppSettings | None, runtime: RuntimeConfig | None
@@ -326,7 +341,7 @@ class Hinoki:
 
         bound = [rowplan.with_row_wire(binding) for binding in bound]
         staged = self._stage_router(pending)
-        bind_app_timezones(items, self._timezone)
+        bind_app_timezones(items, self._timezone, self.admin_secret())
         self._router = staged
         self._routes.extend(pending)
         self._bindings.extend(bound)
