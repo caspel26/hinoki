@@ -1,0 +1,232 @@
+{
+  "health": {
+    "rust": {
+      "status": 200,
+      "body": "{\"status\":\"ok\"}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "15",
+        "connection": "close"
+      }
+    },
+    "granian": {
+      "status": 200,
+      "body": "{\"status\":\"ok\"}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "15",
+        "connection": "close"
+      }
+    }
+  },
+  "echo_str": {
+    "rust": {
+      "status": 200,
+      "body": "{\"id\":\"abc\",\"view\":\"full\"}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "26",
+        "connection": "close"
+      }
+    },
+    "granian": {
+      "status": 200,
+      "body": "{\"id\":\"abc\",\"view\":\"full\"}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "26",
+        "connection": "close"
+      }
+    }
+  },
+  "echo_typed": {
+    "rust": {
+      "status": 200,
+      "body": "{\"id\":42,\"limit\":7,\"ratio\":2.5,\"flag\":true}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "43",
+        "connection": "close"
+      }
+    },
+    "granian": {
+      "status": 200,
+      "body": "{\"id\":42,\"limit\":7,\"ratio\":2.5,\"flag\":true}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "43",
+        "connection": "close"
+      }
+    }
+  },
+  "post_small": {
+    "rust": {
+      "status": 201,
+      "body": "{\"title\":\"Baseline\",\"size\":64,\"count\":3}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "40",
+        "connection": "close"
+      }
+    },
+    "granian": {
+      "status": 201,
+      "body": "{\"title\":\"Baseline\",\"size\":64,\"count\":3}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "40",
+        "connection": "close"
+      }
+    }
+  },
+  "post_10k": {
+    "rust": {
+      "status": 201,
+      "body": "{\"title\":\"Baseline\",\"size\":10000,\"count\":3}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "43",
+        "connection": "close"
+      }
+    },
+    "granian": {
+      "status": 201,
+      "body": "{\"title\":\"Baseline\",\"size\":10000,\"count\":3}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "43",
+        "connection": "close"
+      }
+    }
+  },
+  "post_100k": {
+    "rust": {
+      "status": 201,
+      "body": "{\"title\":\"Baseline\",\"size\":100000,\"count\":3}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "44",
+        "connection": "close"
+      }
+    },
+    "granian": {
+      "status": 201,
+      "body": "{\"title\":\"Baseline\",\"size\":100000,\"count\":3}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "44",
+        "connection": "close"
+      }
+    }
+  },
+  "patch": {
+    "rust": {
+      "status": 200,
+      "body": "{\"id\":42,\"changed\":[\"title\",\"count\"]}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "37",
+        "connection": "close"
+      }
+    },
+    "granian": {
+      "status": 200,
+      "body": "{\"id\":42,\"changed\":[\"title\",\"count\"]}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "37",
+        "connection": "close"
+      }
+    }
+  },
+  "delete": {
+    "rust": {
+      "status": 204,
+      "body": "",
+      "headers": {
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "connection": "close"
+      }
+    },
+    "granian": {
+      "status": 204,
+      "body": "",
+      "headers": {
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "connection": "close"
+      }
+    }
+  },
+  "post_tx": {
+    "rust": {
+      "status": 201,
+      "body": "{\"title\":\"Baseline\",\"size\":64,\"count\":3}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "40",
+        "connection": "close"
+      }
+    },
+    "granian": {
+      "status": 201,
+      "body": "{\"title\":\"Baseline\",\"size\":64,\"count\":3}",
+      "headers": {
+        "content-type": "application/json",
+        "x-frame-options": "SAMEORIGIN",
+        "referrer-policy": "same-origin",
+        "x-content-type-options": "nosniff",
+        "content-length": "40",
+        "connection": "close"
+      }
+    }
+  }
+}
