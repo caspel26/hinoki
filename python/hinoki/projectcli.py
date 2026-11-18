@@ -14,7 +14,13 @@ from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import BinaryIO
 
-from hinoki.project import ProjectError, ProjectManifest, find_manifest, load_manifest
+from hinoki.project import (
+    ProjectApp,
+    ProjectError,
+    ProjectManifest,
+    find_manifest,
+    load_manifest,
+)
 from hinoki.scaffold import NAME, RESERVED_NAMES
 
 
@@ -138,6 +144,11 @@ def _write_app_files(
     (app_directory / "models.py").write_text(
         '"""Models owned by this app."""\n', encoding="utf-8"
     )
+    (app_directory / "routes.py").write_text(
+        f'"""Routes of the {name} app, mounted at /{name} by hinoki.toml."""\n\n'
+        "routes: list[object] = []\n",
+        encoding="utf-8",
+    )
     migrations_directory = app_directory / "migrations"
     migrations_directory.mkdir()
     (migrations_directory / "__init__.py").write_text("", encoding="utf-8")
@@ -166,6 +177,8 @@ def _append_app(path: Path, original: bytes, name: str, package: str) -> None:
         f'name = "{name}"\n'
         f'models = "{module}.models"\n'
         f'migrations = "{module}.migrations"\n'
+        f'routes = "{module}.routes:routes"\n'
+        f'prefix = "/{name}"\n'
         "requires = []\n"
     )
     mode = stat.S_IMODE(path.stat().st_mode)
@@ -213,6 +226,8 @@ def list_apps(args: Namespace) -> int:
                 "name": app.name,
                 "models": app.models,
                 "migrations": app.migrations,
+                "routes": app.routes,
+                "prefix": app.prefix or (f"/{app.name}" if app.routes else ""),
                 "requires": list(app.requires),
             }
             for app in apps
@@ -227,9 +242,16 @@ def list_apps(args: Namespace) -> int:
             f"{app.name}\n"
             f"  models: {app.models}\n"
             f"  migrations: {app.migrations}\n"
+            f"{_routes_line(app)}"
             f"  requires: {', '.join(app.requires) or '—'}"
         )
     return 0
+
+
+def _routes_line(app: ProjectApp) -> str:
+    if not app.routes:
+        return ""
+    return f"  routes: {app.routes} at {app.prefix or f'/{app.name}'}\n"
 
 
 def run(args: Namespace) -> int:

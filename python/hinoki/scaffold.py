@@ -41,18 +41,25 @@ MAIN = '''"""The application, declared: ``uv run hinoki dev {name}.main:app``.""
 
 from hinoki import Hinoki
 
-from {name}.api import health
 from {name}.rules import project_rules
 from {name}.settings import ProjectSettings
 
+# The routes come from hinoki.toml (`routes` of the project and of each app):
+# without `include=`, this application binds them because the manifest names it.
 app = Hinoki(
     settings=ProjectSettings,  # {upper}_* variables and .env, declared on the class
     title="{title}",
     openapi_url="/openapi.json",
     docs_url="/docs",
     rules=project_rules,
-    include=[health],
 )
+'''
+
+ROUTES = '''"""The project's own routes. Apps list theirs in `apps/<name>/routes.py`."""
+
+from {name}.api import health
+
+routes = [health]
 '''
 
 SETTINGS = '''"""Typed settings. Built-in groups (execution, lifecycle, logging, docs) come from
@@ -200,7 +207,7 @@ The generated app has neither. The reference is `examples/tracker` in the framew
 2. `schemas.py`: an `In` schema without the owner, an `Out` schema.
 3. `operations.py`: plain async functions taking `owner_id` and values; row permission goes in the statement (`Model.filter(owner_id=me)`, `aupdate_where({{...}})`), so someone else's row looks missing (404).
 4. `security.py`: a `BearerAuth` that resolves a token to `Caller(id=..., user=member, permissions=...)` and an `Access(...)`.
-5. `api.py`: actions with `access=...`, `caller: Caller[Member]`, `transaction=True` on writes, `pagination=` on lists; `main.py`: `Hinoki(settings=...)`, which opens the database declared by the settings' `database` field (a URL, or `engine` with its connection fields).
+5. `api.py`: actions with `access=...`, `caller: Caller[Member]`, `transaction=True` on writes, `pagination=` on lists; `routes.py`: the list of routes that `hinoki.toml` points to (a new action is not served until it is listed there); `main.py`: `Hinoki(settings=...)`, which opens the database declared by the settings' `database` field (a URL, or `engine` with its connection fields).
 6. `hinoki migrations plan`, then review the SQL. The project manifest discovers app models and migration packages.
 7. Tests: `from hinoki.testing import ASGIClient`; `async with ASGIClient(app) as client: await client.post("/x", json={{...}}, token="...")`.
 
@@ -271,7 +278,8 @@ def files(name: str, source: str | None = None) -> dict[str, str]:
         "pyproject.toml": PYPROJECT.format(**values),
         "hinoki.toml": (
             "[project]\n"
-            f'application = "{name}.main:app"\n\n'
+            f'application = "{name}.main:app"\n'
+            f'routes = "{name}.routes:routes"\n\n'
             "[[apps]]\n"
             f'name = "{name}"\n'
             f'models = "{name}.models"\n'
@@ -286,6 +294,7 @@ def files(name: str, source: str | None = None) -> dict[str, str]:
         f"{name}/__init__.py": "",
         f"{name}/main.py": MAIN.format(**values),
         f"{name}/api.py": API.format(**values),
+        f"{name}/routes.py": ROUTES.format(**values),
         f"{name}/rules.py": RULES.format(**values),
         f"{name}/settings.py": SETTINGS.format(**values),
         f"{name}/models.py": '"""Models owned by the project app."""\n',
