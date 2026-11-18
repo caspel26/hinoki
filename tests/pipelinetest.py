@@ -128,7 +128,7 @@ async def test_native_executor_saturation_returns_service_unavailable(
 ) -> None:
     built = pipeline()
 
-    async def saturated(_binding: object, _args: object) -> Response:
+    async def saturated(_binding: object, _args: object, _native: object) -> Response:
         raise ExecutorSaturated
 
     monkeypatch.setattr(built, "_call_native", saturated)
@@ -152,7 +152,7 @@ async def test_native_internal_timeout_exception_uses_the_error_registry(
 ) -> None:
     built = pipeline()
 
-    async def timed_out(_binding: object, _args: object) -> Response:
+    async def timed_out(_binding: object, _args: object, _native: object) -> Response:
         raise TimeoutError("handler timeout")
 
     monkeypatch.setattr(built, "_call_native", timed_out)
