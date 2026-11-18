@@ -7,10 +7,17 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import Hinoki, RuntimeConfig, core, http
+from hinoki import Hinoki, RuntimeConfig, Schema, core, http
 from hinoki.http.request import Request
+from hinoki.parsers import JSONParser, TextParser
 from hinoki.renderers import JSONRenderer
-from hinoki.runtime.servercore import SENTINEL, build_server_core, early_bodies
+from hinoki.runtime.pipeline import Pipeline
+from hinoki.runtime.servercore import (
+    SENTINEL,
+    build_server_core,
+    early_bodies,
+    native_handler_eligible,
+)
 from hinoki.settings import AppSettings, CorsSettings, SecuritySettings, ServerSettings
 from tests.harness import Client, Pool
 
@@ -760,3 +767,44 @@ def test_python_paths_are_compared_decoded_and_odd_targets_go_to_python() -> Non
     server.submit("GET", "/openapi%2Ejson", b"", [])
     server.submit("GET", "/café", b"", [])
     assert [r.action for r in server.drain(10)] == [None, None]
+
+
+def test_body_methods_are_native_only_with_one_schema_body_and_default_parsers() -> (
+    None
+):
+    class Body(Schema):
+        name: str
+
+    class Narrow(JSONParser):
+        media_type = "application/vnd.api+json"
+
+    @http.post("/ok/{item}")
+    async def ok(item: int, data: Body) -> dict[str, int]:
+        return {"item": item}
+
+    @http.post("/request")
+    async def with_request(request: Request, data: Body) -> dict[str, int]:
+        return {}
+
+    @http.post("/parsers", parsers=[Narrow()])
+    async def parsers(data: Body) -> dict[str, int]:
+        return {}
+
+    @http.post("/text", parsers=[TextParser()])
+    async def text(data: Body) -> dict[str, int]:
+        return {}
+
+    @http.post("/bare")
+    async def bare() -> dict[str, int]:
+        return {}
+
+    pipeline = Pipeline(Hinoki(include=[ok, with_request, parsers, text, bare]))
+    by_path = {b.route.path: native_handler_eligible(b) for b in pipeline.bindings}
+
+    assert by_path == {
+        "/ok/{item}": True,
+        "/request": False,
+        "/parsers": False,
+        "/text": False,
+        "/bare": False,
+    }
