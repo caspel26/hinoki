@@ -823,6 +823,29 @@ fn query_values(pairs: Vec<(String, String)>) -> HashMap<String, Vec<String>> {
     values
 }
 
+enum Lookup<'a> {
+    Found(&'a String),
+    Absent,
+    Duplicate,
+}
+
+fn lookup<'a>(
+    input: &InputParam,
+    path: &'a HashMap<String, String>,
+    query: &'a HashMap<String, Vec<String>>,
+) -> Lookup<'a> {
+    let found = if input.source == "path" {
+        return path.get(&input.name).map_or(Lookup::Absent, Lookup::Found);
+    } else {
+        query.get(&input.name).map_or(&[][..], Vec::as_slice)
+    };
+    match found {
+        [] => Lookup::Absent,
+        [one] => Lookup::Found(one),
+        _ => Lookup::Duplicate,
+    }
+}
+
 fn collect_native_args(
     plan: &RoutePlan,
     path: &HashMap<String, String>,
@@ -830,46 +853,27 @@ fn collect_native_args(
 ) -> Option<(NativeArgs, NativeDetails)> {
     let mut args = Vec::new();
     let mut errors = Vec::new();
-    for InputParam {
-        source,
-        name,
-        has_default,
-        kind,
-    } in &plan.input_params
-    {
-        let value = if source == "path" {
-            path.get(name)
-        } else {
-            query.get(name).and_then(|values| match values.len() {
-                0 => None,
-                1 => values.first(),
-                _ => {
-                    errors.push((
-                        name.clone(),
-                        "duplicate".into(),
-                        "given more than once".into(),
-                    ));
-                    None
-                }
-            })
-        };
-        if let Some(value) = value {
-            match convert(*kind, value.clone()) {
+    for input in &plan.input_params {
+        let name = &input.name;
+        match lookup(input, path, query) {
+            Lookup::Found(value) => match convert(input.kind, value.clone()) {
                 Converted::Value(value) => args.push((name.clone(), value)),
                 Converted::Invalid => {
                     errors.push((name.clone(), "type".into(), "invalid value".into()));
                 }
                 Converted::Defer => return None,
-            }
-        } else if source == "query"
-            && !has_default
-            && !errors.iter().any(|(path, _, _)| path == name)
-        {
-            errors.push((
+            },
+            Lookup::Duplicate => errors.push((
+                name.clone(),
+                "duplicate".into(),
+                "given more than once".into(),
+            )),
+            Lookup::Absent if input.source == "query" && !input.has_default => errors.push((
                 name.clone(),
                 "required".into(),
                 "query parameter is required".into(),
-            ));
+            )),
+            Lookup::Absent => {}
         }
     }
     Some((args, errors))
