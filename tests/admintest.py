@@ -25,8 +25,11 @@ from hinoki.admin import (
     BulkAction,
     Fieldset,
     ModelAdmin,
+    Stat,
     Tab,
     Theme,
+    Tone,
+    action,
     csrf,
 )
 from hinoki.admin import views as admin_views
@@ -37,6 +40,7 @@ from hinoki.admin.components import (
     page_window,
     plain_text,
     sparkline,
+    tone_name,
 )
 from hinoki.admin.formpages import check_references, option_lists, render_fields
 from hinoki.admin.forms import (
@@ -607,7 +611,7 @@ def test_admin_fieldsets_without_renderable_fields_are_skipped() -> None:
     site = cast(Site, SimpleNamespace(admin=admin))
     entry = cast(
         ModelAdmin[Any],
-        SimpleNamespace(fieldsets=(Fieldset("Empty", ("not_a_field",)),)),
+        SimpleNamespace(fieldset_list=(Fieldset("Empty", ("not_a_field",)),)),
     )
     assert str(render_fields(site, entry, [], {}, {}, {})) == ""
 
@@ -948,11 +952,11 @@ def test_registration_rules() -> None:
     with pytest.raises(ValueError, match="unknown theme"):
         Admin(access=staff, secret=SECRET, theme="nope")
 
-    class Wrong(ModelAdmin[Note]):
+    class Wrong(ModelAdmin):  # type: ignore[type-arg]
         columns = ("title", "nonsense")
 
     with pytest.raises(RegistrationError, match="unknown columns"):
-        admin.register(Secret, Wrong)  # type: ignore[misc]
+        admin.register(Secret, Wrong)
     other = Admin(access=staff, secret=SECRET, dashboard=("missing",))
     with pytest.raises(RegistrationError, match="dashboard"):
         other.api()
@@ -1814,3 +1818,156 @@ async def test_the_admin_under_a_mount_builds_every_url_from_the_prefix(
         client, "/ops/admin/notes/add", {"csrf": token, "title": "mounted"}, headers
     )
     assert saved.status in {200, 302, 303}
+
+
+# --- declaration forms ---------------------------------------------------
+
+
+class DeclaredNoteAdmin(ModelAdmin, model=Note):  # type: ignore[type-arg]
+    columns = ("title", "done")
+    badges = {  # noqa: RUF012
+        "done": {True: ("Done", Tone.OK), False: ("Open", Tone.WARN, "pencil")}
+    }
+    tabs = ("done",)
+    fieldsets = {"Status": ("done",)}  # noqa: RUF012
+
+    @action(confirm="Mark these notes as done?")
+    async def mark_all_done(
+        self, rows: tuple[Note, ...], principal: Caller[Any]
+    ) -> None:
+        await Note.filter(id__in=[row.id for row in rows]).aupdate({"done": True})
+
+    @action("Reopen", confirm="Reopen the selected notes?")
+    async def reopen(self, rows: tuple[Note, ...], principal: Caller[Any]) -> None:
+        await Note.filter(id__in=[row.id for row in rows]).aupdate({"done": False})
+
+
+class OwnSlugAdmin(ModelAdmin, model=Secret):  # type: ignore[type-arg]
+    slug = "vault"
+
+
+def test_the_model_is_a_class_keyword_and_matches_the_generic() -> None:
+    assert DeclaredNoteAdmin.model is Note  # type: ignore[misc]
+
+    class Generic(ModelAdmin[Note]):
+        pass
+
+    class Both(ModelAdmin[Note], model=Note):
+        pass
+
+    assert Generic.model is Both.model is Note  # type: ignore[misc]
+    with pytest.raises(RegistrationError, match="contradicts"):
+
+        class Clash(ModelAdmin[Note], model=Secret):
+            pass
+
+
+def test_admin_models_registers_models_and_admin_classes() -> None:
+    admin = Admin(
+        access=staff, secret=SECRET, models=[Owner, DeclaredNoteAdmin, OwnSlugAdmin]
+    )
+    assert list(admin.models) == ["admin-owners", "admin-notes", "vault"]
+    assert isinstance(admin.models["admin-notes"], DeclaredNoteAdmin)
+    assert admin.models["vault"].model is Secret
+    with pytest.raises(RegistrationError, match="names no model"):
+        Admin(access=staff, secret=SECRET, models=[ModelAdmin])
+    with pytest.raises(RegistrationError, match="is for Note, not Secret"):
+        Admin(access=staff, secret=SECRET).register(Secret, DeclaredNoteAdmin)
+
+
+def test_tones_are_an_enum_and_strings_still_work() -> None:
+    assert str(Tone.OK) == "ok" and str(Tone.WARN) == "warn"
+    assert Badge("Published", Tone.OK).tone == Badge("Published", "ok").tone
+    assert Stat("Posts", 3).tone is Tone.ACCENT
+    assert tone_name(Tone.DANGER) == "danger" and tone_name("nonsense") == "neutral"
+
+
+def test_badge_tabs_and_fieldset_short_forms_are_expanded() -> None:
+    admin = Admin(access=staff, secret=SECRET, models=[DeclaredNoteAdmin])
+    entry = admin.models["admin-notes"]
+    assert entry.badges["done"][True] == Badge("Done", Tone.OK)
+    assert entry.badges["done"][False] == Badge("Open", Tone.WARN, "pencil")
+    assert [(tab.label, dict(tab.filters)) for tab in entry.tab_list] == [
+        ("Done", {"done": True}),
+        ("Open", {"done": False}),
+    ]
+    assert [(item.title, item.fields) for item in entry.fieldset_list] == [
+        ("Status", ("done",))
+    ]
+
+
+def test_tabs_by_column_need_badges_for_that_column() -> None:
+    class NoBadges(ModelAdmin, model=Note):  # type: ignore[type-arg]
+        tabs = ("done",)
+
+    with pytest.raises(RegistrationError, match="has no entry in badges"):
+        Admin(access=staff, secret=SECRET, models=[NoBadges])
+
+
+def test_action_methods_become_bulk_actions_with_derived_names() -> None:
+    admin = Admin(access=staff, secret=SECRET, models=[DeclaredNoteAdmin])
+    actions = admin.models["admin-notes"].bulk_actions
+    assert [(a.name, a.label, a.confirm) for a in actions] == [
+        (
+            "mark-all-done",
+            "Mark all done selected",
+            "Mark these notes as done?",
+        ),
+        ("reopen", "Reopen", "Reopen the selected notes?"),
+    ]
+    assert not DeclaredNoteAdmin.bulk_actions
+
+
+def test_a_mounted_admin_lives_at_the_mount_unless_it_names_a_prefix() -> None:
+    plain = Admin(access=staff, secret=SECRET, models=[Owner])
+    assert plain.prefix == "/admin"
+    app = Hinoki()
+    app.include(Mount("/ops", plain))
+    assert plain.prefix == "" and plain.base == "/ops"
+    assert {r.path for r in app.routes} >= {"/ops", "/ops/search"}
+
+    named = Admin(access=staff, secret=SECRET, prefix="/staff", models=[Owner])
+    other = Hinoki()
+    other.include(Mount("/ops", named))
+    assert named.base == "/ops/staff"
+    assert "/ops/staff/search" in {r.path for r in other.routes}
+
+    unmounted = Hinoki()
+    unmounted.include(Admin(access=staff, secret=SECRET, models=[Owner]))
+    assert "/admin/search" in {r.path for r in unmounted.routes}
+
+
+@needs_database
+async def test_an_action_method_confirms_and_runs_like_a_bulk_action(
+    pool: Pool, site: tuple[Client, Database]
+) -> None:
+    _, db = site
+    chosen = await note_id(db, "declared")
+    client = await pool.start(build(note_admin=DeclaredNoteAdmin))
+    listing = await client.request("GET", "/admin/notes", headers=STAFF)
+    assert listing.status == 200
+    assert "Done" in listing.body and "Open" in listing.body  # tabs from the badges
+    form = await client.request("GET", "/admin/notes/add", headers=STAFF)
+    assert form.status == 200 and "Status" in form.body  # the fieldset title
+    token, headers = await session(client, "/admin/notes")
+    ask = await submit(
+        client,
+        "/admin/notes/bulk",
+        {"csrf": token, "action": "mark-all-done", "ids": str(chosen)},
+        headers,
+    )
+    assert ask.status == 200 and "Mark these notes as done?" in ask.body
+    done = await submit(
+        client,
+        "/admin/notes/bulk",
+        {
+            "csrf": token,
+            "action": "mark-all-done",
+            "confirmed": "1",
+            "ids": str(chosen),
+        },
+        headers,
+    )
+    assert done.status == 303
+    rows = await db.fetch("SELECT done FROM admin_notes")
+    assert [row["done"] for row in rows] == [True]
