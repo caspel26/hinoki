@@ -9,6 +9,8 @@ result and returns bytes. Error bodies are always JSON.
 
 from __future__ import annotations
 
+import math
+import re
 from collections.abc import Callable, Sequence
 from typing import Any, ClassVar
 
@@ -16,6 +18,18 @@ from hinoki import core
 from hinoki.http.request import Request
 
 MAX_INDENT = 16
+MAX_XML_DEPTH = 200
+_XML_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]*\Z")
+_XML_ILLEGAL = re.compile("[^\t\n\r\u0020-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]")
+_XML_ESCAPES = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "\t": "&#9;",
+    "\n": "&#10;",
+    "\r": "&#13;",
+}
 
 
 class Renderer:
@@ -99,6 +113,99 @@ class TextRenderer(Renderer):
         if not isinstance(value, str):
             raise TypeError("TextRenderer needs the handler to return a str")
         return value.encode()
+
+
+def xml_text(value: str) -> str:
+    """Escaped text, safe in content and in attributes. Tab and line breaks are
+    written as references so a parser's whitespace normalization keeps them;
+    characters XML 1.0 cannot carry become U+FFFD."""
+    clean = _XML_ILLEGAL.sub("\ufffd", value)
+    return "".join(_XML_ESCAPES.get(ch, ch) for ch in clean)
+
+
+def xml_scalar(value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return xml_text(value)
+    if isinstance(value, float) and not math.isfinite(value):
+        return "NaN" if math.isnan(value) else ("INF" if value > 0 else "-INF")
+    if isinstance(value, int | float):
+        try:
+            return str(value)
+        except ValueError:
+            raise ValueError("the integer is too large to write as XML") from None
+    raise TypeError(f"XMLRenderer cannot render a {type(value).__name__}")
+
+
+class XMLRenderer(Renderer):
+    """The JSON-compatible result as XML (UTF-8, with an XML declaration).
+
+    A mapping becomes child elements named by its keys, a list becomes repeated
+    ``item`` elements, ``None`` an empty element, and ``true``/``false`` are
+    written in lower case. A key that is not a valid XML name (it has a space,
+    starts with a digit, begins with ``xml``) is written as
+    ``<item key="...">`` instead of failing. Characters XML 1.0 cannot carry
+    are replaced by U+FFFD. ``XMLRenderer(root="orders", item="order")`` renames
+    the root element and the list item.
+    """
+
+    media_type = "application/xml; charset=utf-8"
+
+    def __init__(self, root: str = "response", item: str = "item") -> None:
+        if not (valid_xml_name(root) and valid_xml_name(item)):
+            raise ValueError("root and item must be valid XML element names")
+        self.root = root
+        self.item = item
+
+    def render(self, value: object, request: Request) -> bytes:  # noqa: ARG002
+        parts = ['<?xml version="1.0" encoding="UTF-8"?>']
+        self._element(parts, self.root, "", value, 0)
+        return "".join(parts).encode()
+
+    def _element(
+        self, parts: list[str], name: str, attrs: str, value: object, depth: int
+    ) -> None:
+        if depth > MAX_XML_DEPTH:
+            raise ValueError("the value is nested too deeply for XML")
+        if value is None:
+            parts.append(f"<{name}{attrs}/>")
+            return
+        parts.append(f"<{name}{attrs}>")
+        if isinstance(value, dict):
+            for key, child in value.items():
+                tag, extra = self._tag(str(key))
+                self._element(parts, tag, extra, child, depth + 1)
+        elif isinstance(value, list | tuple):
+            for child in value:
+                self._element(parts, self.item, "", child, depth + 1)
+        else:
+            parts.append(xml_scalar(value))
+        parts.append(f"</{name}>")
+
+    def _tag(self, key: str) -> tuple[str, str]:
+        if valid_xml_name(key):
+            return key, ""
+        return self.item, f' key="{xml_text(key)}"'
+
+
+def valid_xml_name(name: str) -> bool:
+    return bool(_XML_NAME.match(name)) and not name.lower().startswith("xml")
+
+
+_PLAIN_RENDERER_STATE: dict[type[Renderer], set[str]] = {
+    JSONRenderer: {"indent", "sort_keys", "default"},
+    HTMLRenderer: set(),
+    TextRenderer: set(),
+    XMLRenderer: {"root", "item"},
+}
+
+
+def is_native_renderer(renderer: Renderer) -> bool:
+    """Whether this is exactly a built-in renderer with only its documented
+    options, so the native handler lane may call it without a ``Request``."""
+    state = _PLAIN_RENDERER_STATE.get(type(renderer))
+    return state is not None and set(vars(renderer)) == state
 
 
 DEFAULT_RENDERERS: tuple[Renderer, ...] = (JSONRenderer(),)
