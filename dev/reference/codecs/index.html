@@ -833,8 +833,10 @@ as is: escape untrusted data before putting it in.</p>
         <p>The JSON-compatible result as XML (UTF-8, with an XML declaration).</p>
 <p>A mapping becomes child elements named by its keys, a list becomes repeated
 <code>item</code> elements, <code>None</code> an empty element, and <code>true</code>/<code>false</code> are
-written in lower case. A key that is not a valid XML name (it has a space,
-starts with a digit, begins with <code>xml</code>) is written as
+written in lower case. Keys are spelled as JSON spells them (<code>None</code> as
+<code>null</code>, booleans <code>true</code>/<code>false</code>, integers in decimal) and any other
+key is refused, as JSON refuses it. A key that is not a valid XML name (it
+has a space, starts with a digit, begins with <code>xml</code>) is written as
 <code>&lt;item key="..."&gt;</code> instead of failing. Characters XML 1.0 cannot carry
 are replaced by U+FFFD. <code>XMLRenderer(root="orders", item="order")</code> renames
 the root element and the list item.</p>
