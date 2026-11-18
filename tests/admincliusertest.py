@@ -67,9 +67,7 @@ def test_the_password_is_asked_twice_without_echo_on_a_terminal(
     url: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     answers = iter([PASSWORD, PASSWORD])
-    monkeypatch.setattr(
-        "sys.stdin", type("Tty", (io.StringIO,), {"isatty": lambda self: True})()
-    )
+    monkeypatch.setattr("sys.stdin", Terminal())
     monkeypatch.setattr("getpass.getpass", lambda _prompt="": next(answers))
 
     assert main(["admin", "create-superuser", "ada"]) == 0
@@ -80,9 +78,7 @@ def test_two_different_answers_create_nothing(
     url: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     answers = iter([PASSWORD, PASSWORD + "x"])
-    monkeypatch.setattr(
-        "sys.stdin", type("Tty", (io.StringIO,), {"isatty": lambda self: True})()
-    )
+    monkeypatch.setattr("sys.stdin", Terminal())
     monkeypatch.setattr("getpass.getpass", lambda _prompt="": next(answers))
 
     assert main(["admin", "create-superuser", "ada"]) == 2
