@@ -51,6 +51,7 @@ class _CrudPlan:
     def __init__(
         self,
         action: str,
+        model_name: str,
         table: str,
         columns: list[str],
         primary_key: str,
@@ -63,6 +64,7 @@ class _CrudPlan:
         create_columns: list[str],
         update_columns: list[str],
         read_schema: CompiledSchema,
+        read_fields: list[tuple[str, str, str, bool]],
         create_schema: CompiledSchema | None = ...,
         update_schema: CompiledSchema | None = ...,
         validation_error: bytes = ...,
@@ -312,6 +314,7 @@ class ServerCore:
         request_id_prefix: str,
         limits: tuple[int, int, int, int] = ...,
         queue_capacity: int = 4096,
+        request_timeout_ms: int = 30000,
         trust_request_id: bool = False,
         python_paths: list[str] = ...,
         cors: (

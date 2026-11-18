@@ -142,6 +142,26 @@
   background: var(--hn-surface-2);
 }
 
+.hn-bench-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  color: var(--hn-text-2);
+  font-size: var(--fs-m);
+  text-decoration-color: var(--hn-brand);
+  text-underline-offset: 0.22em;
+}
+
+.hn-bench-link span {
+  color: var(--hn-brand);
+  transition: transform 180ms var(--hn-ease);
+}
+
+.hn-bench-link:hover span {
+  transform: translate(2px, -2px);
+}
+
 .hn-link {
   color: var(--hn-text);
   font-size: var(--fs-m);
@@ -618,7 +638,6 @@
 }
 
 .hn-index__card:hover .hn-index__toggle,
-.hn-index__card:focus-within .hn-index__toggle,
 .hn-index__toggle[aria-expanded="true"] {
   border-color: var(--hn-brand);
   background: var(--hn-tint-brand);
@@ -669,8 +688,6 @@
   z-index: 5;
 }
 
-.hn-index__card:hover .hn-index__pages,
-.hn-index__card:focus-within .hn-index__pages,
 .hn-index__card.is-open .hn-index__pages {
   opacity: 1;
   visibility: visible;

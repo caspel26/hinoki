@@ -165,6 +165,20 @@ async fn shutdown_waits_for_jobs_that_finish_within_the_budget() {
 }
 
 #[tokio::test]
+async fn completed_jobs_are_reaped_before_the_next_admission() {
+    let jobs = Arc::new(NativeJobs::new(1));
+    for _ in 0..3 {
+        assert!(jobs.spawn(async {}).await);
+        while jobs.in_flight() != 0 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(jobs.tracked_tasks().await, 1);
+    }
+    assert_eq!(jobs.tracked_tasks().await, 1);
+    assert_eq!(jobs.drain(Duration::from_secs(1)).await, 0);
+}
+
+#[tokio::test]
 async fn cancelling_the_drain_waiter_does_not_cancel_shutdown() {
     let jobs = Arc::new(NativeJobs::new(1));
     assert!(

@@ -1,10 +1,13 @@
-"""Generate the benchmark tables from retained oha JSON."""
+"""Generate the benchmark plots and tables from retained oha JSON."""
 
 import html
 import json
 import statistics
 import sys
 from pathlib import Path
+from typing import Any
+
+JSONData = dict[str, Any]
 
 FRAMEWORKS = {
     "hinoki": "Hinoki · Granian",
@@ -15,11 +18,11 @@ FRAMEWORKS = {
     "fastapi-granian": "FastAPI · Granian",
     "ninja-granian": "Django Ninja · Granian",
 }
-SCENARIOS = ["health", "list", "detail", "create"]
+SCENARIOS = ["list", "detail", "health", "create"]
 EXPECTED = {"health": "200", "list": "200", "detail": "200", "create": "201"}
 
 
-def load_runs(directory: Path, stack: str, scenario: str) -> list[dict]:
+def load_runs(directory: Path, stack: str, scenario: str) -> list[JSONData]:
     files = sorted(directory.glob(f"{stack}-{scenario}-*.json"))
     if not files:
         raise ValueError(f"missing raw results for {stack} / {scenario} in {directory}")
@@ -29,7 +32,7 @@ def load_runs(directory: Path, stack: str, scenario: str) -> list[dict]:
 PERCENTILES = ("p50", "p95", "p99")
 
 
-def spread(values: list[float], scale: float = 1.0) -> dict:
+def spread(values: list[float], scale: float = 1.0) -> JSONData:
     return {
         "median": statistics.median(values) * scale,
         "low": min(values) * scale,
@@ -37,7 +40,7 @@ def spread(values: list[float], scale: float = 1.0) -> dict:
     }
 
 
-def run_summary(runs: list[dict], expected_status: str) -> dict:
+def run_summary(runs: list[JSONData], expected_status: str) -> JSONData:
     """Aggregate per-run results: medians of the per-run values plus min-max."""
     rps = [float(run["summary"]["requestsPerSec"]) for run in runs]
     mean_rps = statistics.mean(rps)
@@ -70,7 +73,7 @@ def fmt_ms(value: float) -> str:
     return f"{value:,.0f}" if value >= 100 else f"{value:.1f}"
 
 
-def machine_lines(env: dict) -> list[str]:
+def machine_lines(env: JSONData) -> list[str]:
     settings = env["settings"]
     host = env.get("host", {})
     lines = [
@@ -102,7 +105,7 @@ def machine_lines(env: dict) -> list[str]:
     return [" ".join(lines[:1]), *lines[1:], ""]
 
 
-def stack_names(directory: Path, settings: dict) -> list[str]:
+def stack_names(directory: Path, settings: JSONData) -> list[str]:
     stacks = settings.get("stacks") or [
         name for name in FRAMEWORKS if any(directory.glob(f"{name}-health-*.json"))
     ]
@@ -154,11 +157,11 @@ def slug(directory: Path) -> str:
     return "-".join(directory.parts[-2:]).lower().replace("_", "-")
 
 
-def unstable(summaries: list[tuple[str, dict]]) -> bool:
+def unstable(summaries: list[tuple[str, JSONData]]) -> bool:
     return any(row["cv_pct"] and row["cv_pct"] > STABLE_CV for _, row in summaries)
 
 
-def result_row(label: str, row: dict, lead: str = "") -> str:
+def result_row(label: str, row: JSONData, lead: str = "") -> str:
     latency = row["latency_ms"]
     cv = "n/a" if row["cv_pct"] is None else f"{row['cv_pct']:.1f}%"
     return (
@@ -169,53 +172,97 @@ def result_row(label: str, row: dict, lead: str = "") -> str:
     )
 
 
-def throughput_panel(scenario: str, rows: list[tuple[str, dict]]) -> str:
-    peak = max(row["high"] for _, row in rows)
-    bars = "".join(
-        f'<div class="bench-row"><span class="bench-name">{html.escape(label)}</span>'
-        '<span class="bench-track">'
-        f'<span class="bench-bar" style="width:{row["median"] / peak * 100:.2f}%"></span>'
-        f'<span class="bench-whisker" style="left:{row["low"] / peak * 100:.2f}%;'
-        f'width:{(row["high"] - row["low"]) / peak * 100:.2f}%"></span></span>'
+def reported_scenarios(
+    directory: Path,
+) -> tuple[dict[str, list[tuple[str, JSONData]]], list[str], list[str]]:
+    env_path = directory / "environment.json"
+    if not env_path.exists():
+        raise ValueError(f"missing environment metadata in {directory}")
+    settings = json.loads(env_path.read_text())["settings"]
+    stacks = stack_names(directory, settings)
+    excluded = single_process_stacks(directory, stacks, settings["workers"])
+    stacks = [stack for stack in stacks if stack not in excluded]
+    reported = {}
+    withheld = []
+    for scenario in SCENARIOS:
+        summaries = [
+            (
+                FRAMEWORKS[stack],
+                run_summary(load_runs(directory, stack, scenario), EXPECTED[scenario]),
+            )
+            for stack in stacks
+        ]
+        if unstable(summaries):
+            withheld.append(scenario)
+        else:
+            reported[scenario] = summaries
+    return reported, withheld, excluded
+
+
+def throughput_panel(
+    scenario: str,
+    request: str,
+    description: str,
+    rows: list[tuple[str, JSONData]],
+    chart_id: str,
+) -> str:
+    rows = sorted(rows, key=lambda item: item[1]["median"], reverse=True)
+    axis_max = max((row["median"] for _, row in rows), default=1.0) or 1.0
+    chart_description = "; ".join(
+        f"{label}: median {row['median']:,.0f}, range {row['low']:,.0f} to {row['high']:,.0f} requests per second"
+        for label, row in rows
+    )
+    tracks = "".join(
+        '<div class="bench-row">'
+        f'<span class="bench-name" title="{html.escape(label)}">'
+        f"{html.escape(label.partition(' · ')[0])}</span>"
+        '<span class="bench-track" aria-hidden="true">'
+        f'<span class="bench-bar" style="width:{row["median"] / axis_max * 100:.2f}%"></span>'
+        "</span>"
         f'<span class="bench-value">{row["median"]:,.0f}</span></div>'
         for label, row in rows
     )
-    return f'<div class="bench-panel"><div class="bench-title">{scenario.title()}</div>{bars}</div>'
-
-
-def throughput_chart(reported: dict[str, list[tuple[str, dict]]], chart_id: str) -> str:
-    panels = "".join(throughput_panel(name, rows) for name, rows in reported.items())
-    description = "; ".join(
-        f"{name}: " + ", ".join(f"{label} {row['median']:,.0f}" for label, row in rows)
-        for name, rows in reported.items()
-    )
     return (
-        '<figure class="bench-figure">'
-        f'<p id="{chart_id}-desc" class="bench-sr">Median requests per second by stack, '
-        f"one panel per scenario, each with its own scale, higher is better. {html.escape(description)}.</p>"
-        f'<div class="bench-chart" role="img" aria-describedby="{chart_id}-desc">{panels}</div>'
-        "<figcaption>Median requests per second (higher is better). Each panel has its own scale from 0; "
-        "the line spans the lowest to highest run. The table below has the full numbers.</figcaption>"
-        "</figure>"
+        f'<section class="bench-scenario" aria-labelledby="{chart_id}-title">'
+        '<header class="bench-scenario__head">'
+        f'<p class="bench-scenario__kind" id="{chart_id}-kind">{html.escape(scenario.upper())}</p>'
+        f'<h3 id="{chart_id}-title">{html.escape(request)}</h3>'
+        f"<p>{html.escape(description)}</p></header>"
+        f'<p id="{chart_id}-desc" class="bench-sr">{html.escape(chart_description)}.</p>'
+        f'<div class="bench-chart" role="img" aria-labelledby="{chart_id}-kind {chart_id}-title" '
+        f'aria-describedby="{chart_id}-desc">{tracks}</div>'
+        '<div class="bench-axis" aria-hidden="true">'
+        f"<span>0</span><span>{axis_max:,.0f} requests/s</span></div>"
+        '<p class="bench-scenario__note">Bars show median requests per second; the table below gives the lowest and highest run.</p>'
+        f"{results_table(scenario, rows)}</section>"
     )
 
 
-def results_table(reported: dict[str, list[tuple[str, dict]]]) -> str:
-    rows_html = "".join(
-        result_row(
-            label,
-            row,
-            f'<th scope="rowgroup" rowspan="{len(rows)}" class="bench-group">{scenario.title()}</th>'
-            if position == 0
-            else "",
-        )
-        for scenario, rows in reported.items()
-        for position, (label, row) in enumerate(rows)
-    )
+def throughput_chart(
+    reported: dict[str, list[tuple[str, JSONData]]],
+    chart_id: str,
+) -> str:
+    rows = []
+    for scenario, request, description in SERVICE_ROWS:
+        if scenario in reported:
+            rows.append(
+                throughput_panel(
+                    scenario,
+                    request,
+                    description,
+                    reported[scenario],
+                    f"{chart_id}-{scenario}",
+                )
+            )
+    return f'<div class="bench-results">{"".join(rows)}</div>'
+
+
+def results_table(scenario: str, rows: list[tuple[str, JSONData]]) -> str:
+    rows_html = "".join(result_row(label, row) for label, row in rows)
     return (
         '<div class="benchmark-table-wrap"><table class="benchmark-table">'
-        "<caption>Median of runs, with the lowest&ndash;highest run under requests per second</caption>"
-        '<thead><tr><th scope="col">Scenario</th><th scope="col">Stack</th><th scope="col">Requests/s</th>'
+        f"<caption>{scenario.title()} results: medians and per-run range for requests per second</caption>"
+        '<thead><tr><th scope="col">Stack</th><th scope="col">Requests/s</th>'
         '<th scope="col">p50 ms</th><th scope="col">p99 ms</th><th scope="col">CV</th>'
         '<th scope="col">Unexpected</th><th scope="col">Runs</th></tr></thead>'
         f"<tbody>{rows_html}</tbody></table></div>"
@@ -223,11 +270,6 @@ def results_table(reported: dict[str, list[tuple[str, dict]]]) -> str:
 
 
 SERVICE_ROWS = (
-    (
-        "health",
-        "GET /health",
-        "Static JSON, no database: the cost of the framework alone.",
-    ),
     (
         "list",
         "GET /posts?page=1&page_size=20",
@@ -237,6 +279,11 @@ SERVICE_ROWS = (
         "detail",
         "GET /posts/{id}",
         "One published post with its author: one joined SELECT.",
+    ),
+    (
+        "health",
+        "GET /health",
+        "Static JSON, no database: a diagnostic of the framework and server path.",
     ),
     (
         "create",
@@ -288,7 +335,7 @@ SLICE_TITLES = {
 }
 READING_NOTES = (
     "**Requests per second and latency are one measurement.** Every run keeps 64 connections busy, so higher latency means fewer requests per second; the two do not confirm each other.",
-    "**Each chart panel has its own scale from 0.** The scenarios differ by orders of magnitude, so bars compare stacks inside a panel, never across panels. The line over a bar is the lowest to highest run.",
+    "**Each chart starts at 0 and shows the median requests per second.** Bars are sorted from highest to lowest within a workload and server setup. Each panel has its own scale; use the tables for exact values and the lowest-to-highest run range.",
     "**p50 and p99 are medians of per-run percentiles**, not percentiles of all requests pooled together. A range is descriptive, not a confidence interval.",
     f"**CV is the coefficient of variation of requests per second across runs.** Above {STABLE_CV}% for any stack, the scenario is not reported: the samples are too unstable to compare, and the raw files are kept.",
     "**What this does not cover:** TLS, proxies, authentication, compression, memory, cold data, larger tables or other hardware. Pool sizes are equal per process, but each library schedules work differently.",
@@ -303,7 +350,7 @@ uv run --locked python report.py results/YYYY-MM-DD/documented results/YYYY-MM-D
 ```"""
 
 
-def package_versions(env: dict) -> dict[str, str]:
+def package_versions(env: JSONData) -> dict[str, str]:
     packages = env.get("packages", [])
     if isinstance(packages, str):  # run.py stores `uv pip list` output as JSON text
         packages = json.loads(packages)
@@ -321,11 +368,9 @@ def render_mode(directory: Path) -> str:
         raise ValueError(f"missing environment metadata in {directory}")
     env = json.loads(env_path.read_text())
     settings = env["settings"]
-    stacks = stack_names(directory, settings)
-    single = single_process_stacks(directory, stacks, settings["workers"])
-    stacks = [stack for stack in stacks if stack not in single]
+    reported, withheld, excluded = reported_scenarios(directory)
     lines: list[str] = []
-    for stack in single:
+    for stack in excluded:
         lines.extend(
             [
                 f"{FRAMEWORKS[stack]} is not reported here: it was started with {settings['workers']} processes, "
@@ -334,42 +379,31 @@ def render_mode(directory: Path) -> str:
                 "",
             ]
         )
-    reported: dict[str, list[tuple[str, dict]]] = {}
-    withheld = []
-    for scenario in SCENARIOS:
-        summaries = [
-            (
-                FRAMEWORKS[stack],
-                run_summary(load_runs(directory, stack, scenario), EXPECTED[scenario]),
-            )
-            for stack in stacks
-        ]
-        if unstable(summaries):
-            withheld.append(scenario)
-        else:
-            reported[scenario] = summaries
     lines.extend(
         [
             throughput_chart(reported, f"bench-{slug(directory)}"),
-            "",
-            results_table(reported),
             "",
         ]
     )
     if withheld:
         lines.extend(
             [
-                f"Not reported: {', '.join(withheld)}. The requests-per-second CV exceeded {STABLE_CV}% for at least one stack, "
-                "so the samples are too unstable to compare; the raw results are retained.",
+                '<aside class="bench-withheld">'
+                '<p class="bench-scenario__kind">WITHHELD</p>'
+                f"<h3>{', '.join(name.title() for name in withheld)} — not compared</h3>"
+                f"<p>Not compared: requests-per-second CV exceeded {STABLE_CV}% for at least one stack. "
+                "The samples remain in the retained results.</p>"
+                f"<code>benchmarks/comparative/results/{html.escape(directory.parent.name)}/</code>"
+                "</aside>",
                 "",
             ]
         )
     lines.extend(
         [
-            "All listed stacks passed the correctness and SQL statement-count verifier before measurement. "
-            "Requests in flight when a sample ended were aborted by `oha` and are not counted as unexpected.",
+            "All listed stacks passed the response and SQL statement-count verifier before measurement. "
+            "Requests in flight at the end of a sample were aborted by `oha`; they are not counted as unexpected responses.",
             "",
-            '??? info "Environment of this run"',
+            '??? info "Run environment"',
             "",
             *(indented(line) for line in machine_lines(env)),
         ]
@@ -386,7 +420,7 @@ def service_table() -> str:
     )
 
 
-def stacks_table(env: dict) -> str:
+def stacks_table(env: JSONData) -> str:
     versions = package_versions(env)
     rows = []
     for _, label, orm, server, packages in STACK_ROWS:
@@ -402,23 +436,25 @@ def stacks_table(env: dict) -> str:
 
 def main(directories: list[Path]) -> None:
     first_env = json.loads((directories[0] / "environment.json").read_text())
+    measured_at = html.escape(first_env["date"])
+    machine = html.escape(first_env["machine"])
+    cpu = html.escape(first_env["cpu"])
+    cores = first_env["cores"]
+    concurrency = first_env["settings"]["concurrency"]
+    run_count = first_env["settings"]["runs"]
     parts = [
         "---\nstatus: implemented\n---\n",
+        f'<p class="bench-eyebrow">FIELD NOTE · {measured_at} · {machine}</p>\n',
         "# Benchmarks\n",
-        "Four frameworks serve the same small API on one machine, against the same PostgreSQL data. "
-        "This page shows what each of them did in these runs, and what the runs do not tell you.\n",
+        "## One API. Two server setups.\n",
+        "Four framework stacks served the same small API and PostgreSQL data. These measurements describe "
+        "one machine and one benchmark session; they do not rank frameworks or predict production performance.\n",
+        f'<div class="bench-run-strip"><span><b>01</b>{cpu}</span><span><b>02</b>{cores} logical CPUs</span>'
+        f"<span><b>03</b>{concurrency} concurrent requests</span><span><b>04</b>{run_count} measured runs</span></div>\n",
         '!!! warning "Read this first"\n'
-        "    One machine, one day, a small warm dataset and a loopback connection. The numbers describe these "
-        "implementations as configured here: they are not a ranking, a production-readiness claim or a statement "
-        "about other hardware. Hinoki is pre-alpha. A scenario whose samples are too unstable to compare is "
-        "listed as not reported instead of being compared.\n",
-        "## What is measured\n",
-        "One service, two tables, deterministic seed data (100 authors, 10 000 posts, 80 % published). "
-        "Before any measurement, each stack must return the same responses as an oracle that reads PostgreSQL directly, "
-        "and must issue the same number of SQL statements per request.\n",
-        service_table() + "\n",
-        stacks_table(first_env) + "\n",
+        "    Hinoki is pre-alpha. The run used one host, warm data and loopback networking. It is not a framework ranking or a production claim. Unstable samples stay visible as withheld results.\n",
         "## Results\n",
+        "Switch the server setup to compare each stack on its documented server or compare the three ASGI stacks on Granian. Each chart starts at zero and uses its own scale; read exact values and run ranges in the tables below.\n",
     ]
     for directory in directories:
         mode = json.loads((directory / "environment.json").read_text())["settings"].get(
@@ -434,6 +470,10 @@ def main(directories: list[Path]) -> None:
     )
     parts.extend(
         [
+            "## What was measured\n",
+            "One service, two tables and deterministic seed data: 100 authors and 10,000 posts, 80% published. Every stack had to match a PostgreSQL oracle and the same SQL statement count per request before measurement.\n",
+            service_table() + "\n",
+            stacks_table(first_env) + "\n",
             "## How to read the numbers\n",
             "\n".join(f"- {note}" for note in READING_NOTES) + "\n",
             "## Reproduce\n",

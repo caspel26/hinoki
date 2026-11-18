@@ -43,6 +43,8 @@ The project name is **Hinoki**. `hinoki` is the package/import/CLI identifier; e
 - Never use a catch-all commit for a multi-scope change. Before each commit, inspect the staged diff and confirm every staged file belongs to that single scope; stage files/hunks deliberately and make additional commits for the remaining scopes.
 - Keep dependent scopes in an understandable order (for example, build/dependency support, implementation, tests, then documentation). Do not squash distinct scopes together when preparing or merging a pull request.
 - Pull request descriptions remain explanatory and must not contain personal messages, internal decisions, or queue identifiers.
+- Pull requests must keep commits split by cohesive scope; never combine implementation, tests, docs, dependencies/tooling or repository policy in a catch-all commit.
+- When a pull request adds or changes code that affects end users, include a minimal code example in the pull request description showing how to use the change. Update the relevant guide/reference and checked-in example in the same work item. For changes with no user-facing code, mark the pull request template's example section as not applicable and give a short reason.
 
 Branches use `<type>/<short-kebab-case-topic>` with the same type vocabulary as scoped commits (`feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`). After a pull request is merged, delete both its local branch and its remote branch, and remove its worktree. Preserve a branch only while it contains active local-only work; an active local-only branch must not be pushed.
 
