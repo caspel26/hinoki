@@ -480,7 +480,10 @@ deliberately. Reads are public by default; <code>read_access = ...</code> protec
 Writes run in a transaction. <code>pagination</code> selects the page-number policy for
 the generated list route.</p>
 <h2 id="reuse-and-customization">Reuse and customization<a class="headerlink" href="#reuse-and-customization" title="Permanent link">&para;</a></h2>
-<p>CRUD configuration and Python methods compose through normal inheritance.
+<p>CRUD configuration and Python methods compose through normal inheritance.</p>
+<p>Generated create actions return <code>409 Conflict</code> when the database rejects a
+unique constraint by default. Register an error handler for the database's
+unique-violation type to choose an application-specific response.
 Subclasses inherit the model and options, override options/hooks, and can set a
 new <code>path=</code>. A model-derived schema from another model is rejected during class
 creation. Mixins can provide reusable decorated routes or hooks.
@@ -605,7 +608,7 @@ side-effects beyond the single model mutation.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.11</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:12:37 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
