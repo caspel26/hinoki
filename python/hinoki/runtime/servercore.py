@@ -128,9 +128,9 @@ def native_input_supported(param: Param) -> bool:
 
 
 def native_handler_eligible(binding: Binding) -> bool:
-    """Select the automatic native response path for the built-in simple GET."""
+    """Select the automatic native response path for a simple GET or DELETE."""
     route = binding.route
-    if route.method != "GET" or route.owner is not None:
+    if route.method not in {"GET", "DELETE"} or route.owner is not None:
         return False
     renderer_ok = len(route.renderers) == 1 and is_default_json_renderer(
         route.renderers[0]
