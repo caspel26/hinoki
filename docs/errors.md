@@ -67,6 +67,7 @@ def card_error(error: stripe.CardError) -> errors.APIError:
 * A handler may be `def` or `async def`. One that fails, or does not return an `APIError`, counts as "not handled" and the client receives `500 internal_error` without the exception text.
 * An exception type can be registered once, and only before the app serves (afterwards `RegistrationError`). The decorator returns the function unchanged. A class or a value that is not a function is refused with `TypeError`.
 * `app.errors.handle(Kind)` is the same call without the `app` checks.
+* With a factory (`create_app()`), call `app.error_handler(Kind)(handler)` after building the app; the decorator form needs the application at module level. See [one application object](concepts.md#one-application-object).
 
 Built in, with nothing to write: `ObjectNotFound` is answered with `404 not_found`, and a database `UniqueViolation` with `409 unique_conflict` (`errors.UniqueConflict`) without exposing the constraint name. Register your own handler to replace either.
 
