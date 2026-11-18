@@ -12,6 +12,7 @@ A **parser** turns a request body into Python data; a **renderer** turns a handl
 | `FormParser` | `application/x-www-form-urlencoded` parsing with a field cap | Builds the Python mappings; `max_fields` |
 | `MultiPartParser` | `multipart/form-data` parsing and byte/part limits | Builds `UploadedFile` and form objects; `max_parts`, `max_part_bytes` (each part, including text fields) |
 | `TextParser` | — | Decodes UTF-8 in Python; `media_type` |
+| `BytesParser` | — | Hands `request.data` the raw `bytes` of an `application/octet-stream` body |
 | `JSONRenderer` | Encodes `dict`, `list`, `Schema`, UUID, datetime and `dump()` objects | `prepare(value, request)` and `default` callbacks run in Python; `indent`, `sort_keys`, `media_type` |
 | `HTMLRenderer`, `TextRenderer` | — | Type-check and UTF-8 encode strings in Python; `media_type` |
 | `XMLRenderer` | — | Writes the JSON-compatible result as UTF-8 XML in Python; `root`, `item` |
