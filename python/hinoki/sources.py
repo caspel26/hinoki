@@ -26,3 +26,8 @@ XML = Annotated[S, TextSource("xml")]
 """``XML[Order]``: a ``Schema`` read from an ``application/xml`` body (see
 ``XMLParser``), with its text values converted to the types the ``Schema``
 declares."""
+
+Query = Annotated[S, TextSource("query")]
+"""``Query[Filters]``: a ``Schema`` read from the whole query string, with its
+text values converted to the types the ``Schema`` declares. A repeated key fills
+a ``list`` field."""

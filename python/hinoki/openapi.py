@@ -56,7 +56,7 @@ VALIDATION_ERROR = "ValidationError"
 ERROR = "Error"
 DICT_ARGS = 2
 SIMPLE_DEFAULTS = (str, int, float, bool)
-INPUTS = {"path", "query", "page"}
+INPUTS = {"path", "query", "page", "queryschema"}
 BODYLESS_STATUSES = {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}
 
 
@@ -217,6 +217,16 @@ class OpenAPIBuilder:
     def parameter(self, param: Param) -> list[dict[str, Any]]:
         if param.source == "page" and param.strategy is not None:
             return page_parameters(param.strategy)
+        if param.source == "queryschema" and param.schema is not None:
+            return [
+                {
+                    "name": spec.wire_name,
+                    "in": "query",
+                    "required": spec.required,
+                    "schema": self.field(spec.ftype),
+                }
+                for spec in param.schema.fields().values()
+            ]
         return [self.single_parameter(param)]
 
     def single_parameter(self, param: Param) -> dict[str, Any]:

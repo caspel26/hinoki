@@ -100,7 +100,7 @@ def route_spec(
         [
             (param.source, param.name, param.default is not EMPTY, param.kind)
             for param in binding.params
-            if param.source not in {"body", "principal"}
+            if param.source not in {"body", "principal", "queryschema"}
         ]
         if native_handler
         else []
@@ -137,8 +137,10 @@ def native_handler_eligible(binding: Binding) -> bool:
     if route.owner is not None:
         return False
     if route.method in BODY_METHODS:
-        if binding.body_param is None or not all(
-            is_native_parser(p) for p in route.parsers
+        if (
+            binding.body_param is None
+            or binding.query_param is not None
+            or not all(is_native_parser(p) for p in route.parsers)
         ):
             return False
     elif route.method not in {"GET", "DELETE"} or binding.needs_body:
@@ -148,6 +150,7 @@ def native_handler_eligible(binding: Binding) -> bool:
     supported_inputs = all(
         (param.source in {"path", "query"} and native_input_supported(param))
         or param is binding.body_param
+        or param is binding.query_param
         or (param.source == "principal" and param.name == binding.principal_name)
         for param in binding.params
     )
