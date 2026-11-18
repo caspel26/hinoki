@@ -10,4 +10,16 @@ Status: Proposed · 2026-11-13
 
 **Alternatives.** Reuse Granian's runtime (private, brittle); Python driver such as asyncpg (contradicts the Rust ORM requirement).
 
-**Revisit when** the spike (R7) shows the thread/latency cost is unacceptable or `--task-impl rust` offers a supported bridge.
+**Revisit when** the extra native threads per worker are measured to cost more than the isolation is worth, or when Granian offers a documented way to share its runtime.
+
+## Implementation notes (2026-11-18)
+
+The ADR is still Proposed. What the code does today, checked against the source:
+
+- **Matches the decision.** Database pools are created in the worker's lifespan (`DatabaseModule`), closed in shutdown, never at import, in a factory or before fork, and are not shared between workers. The native server keeps a non-owning handle to the worker's pool and drains its own jobs before Python closes it.
+- **Differs from the decision.** There is no `WorkerRuntime` object and no shutdown step for the runtime. The Tokio runtime used by the ORM bridge is process-wide and created on the first native database call (`crates/bindings/src/db.rs`, `ensure_runtime`). Because each worker is its own process, this is one runtime per worker in practice. Under the Rust server its thread count is `server.runtime_threads` (default 1), applied by `configure_runtime` before the first native call. On the Granian path the same setting is passed to Granian instead, and nothing calls `configure_runtime`, so the ORM runtime keeps its default of one thread there.
+
+**For the owner to decide**, not implemented here:
+
+1. *Revise the ADR to the implemented design*: a lazily created, process-wide runtime, one per worker process, sized by `server.runtime_threads`. This is the smaller change and matches how workers are started.
+2. *Change the code to the ADR*: a `WorkerRuntime` created in lifespan startup and closed in shutdown. It adds lifecycle code for a property the process boundary already gives.
