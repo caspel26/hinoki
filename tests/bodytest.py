@@ -181,7 +181,7 @@ async def test_malformed_query_string_is_a_400(pool: Pool) -> None:
 @pytest.mark.parametrize("handler", [two_bodies, get_with_body, schema_in_path])
 def test_ambiguous_schema_parameters_fail_at_include(handler: object) -> None:
     with pytest.raises(RegistrationError):
-        Hinoki().include(handler)
+        Hinoki().include(handler)  # type: ignore[arg-type]
 
 
 async def test_oversized_body_is_rejected(pool: Pool) -> None:

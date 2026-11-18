@@ -5,7 +5,7 @@ import types
 
 import pytest
 
-from hinoki import API, Hinoki, Mount, RouteGroup, http
+from hinoki import API, Hinoki, Includable, Mount, RouteGroup, http
 from hinoki.__main__ import main
 from hinoki.errors import RegistrationError
 from hinoki.http.request import Request
@@ -30,7 +30,7 @@ class Billing(API, path="/billing"):
     def create(self, request: Request) -> None: ...
 
 
-routes = [users, [health, (Billing,)]]
+routes: list[Includable] = [users, [health, (Billing,)]]
 
 
 def make_app() -> Hinoki:
