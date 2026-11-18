@@ -21,3 +21,8 @@ class TextSource:
 Form = Annotated[S, TextSource("form")]
 """``Form[Signup]``: a ``Schema`` read from a form body, with its text values
 converted to the types the ``Schema`` declares."""
+
+XML = Annotated[S, TextSource("xml")]
+"""``XML[Order]``: a ``Schema`` read from an ``application/xml`` body (see
+``XMLParser``), with its text values converted to the types the ``Schema``
+declares."""
