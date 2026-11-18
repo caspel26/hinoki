@@ -5,7 +5,8 @@ BLOG_DATABASE__URL=postgres://... uv run --project .. python -m blog.seed
 Applies the migrations and inserts three users and twelve posts. The editor's
 token is ``demo-editor-token`` (users ``ada`` and ``rae`` can also log in with
 ``demo-password-change-me`` when the app has ``BLOG_JWT_SECRET``); use it as
-the ``blog_token`` cookie for /admin or as a bearer token for the API.
+a bearer token for the API. The admin has its own sign-in: create a superuser with
+``hinoki admin create-superuser`` (see the README).
 """
 
 import asyncio
