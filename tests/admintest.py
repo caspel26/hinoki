@@ -939,14 +939,14 @@ def test_small_ui_helpers() -> None:
 def test_registration_rules() -> None:
     admin = Admin(access=staff, secret=SECRET)
     admin.register(Note)
-    for bad in (
-        dict(model=Note),
-        dict(model=Secret, slug="static"),
-        dict(model=Secret, slug="search"),
-        dict(model=Secret, slug="Bad Slug"),
+    for model, slug in (
+        (Note, None),
+        (Secret, "static"),
+        (Secret, "search"),
+        (Secret, "Bad Slug"),
     ):
         with pytest.raises(RegistrationError, match="slug"):
-            admin.register(**bad)
+            admin.register(model, slug=slug)
     with pytest.raises(ValueError, match="prefix"):
         Admin(access=staff, secret=SECRET, prefix="/admin/")
     with pytest.raises(ValueError, match="at least"):
@@ -1864,15 +1864,29 @@ def test_the_model_is_a_class_keyword_and_matches_the_generic() -> None:
             pass
 
 
-def test_admin_models_registers_models_and_admin_classes() -> None:
-    admin = Admin(
-        access=staff, secret=SECRET, models=[Owner, DeclaredNoteAdmin, OwnSlugAdmin]
-    )
+def admin_of(*items: Any, **options: Any) -> Admin:
+    """A site with each model or ModelAdmin class registered, one call each."""
+    site = Admin(access=staff, secret=SECRET, **options)
+    for item in items:
+        site.register(item)
+    return site
+
+
+def test_register_takes_models_and_admin_classes_and_decorates() -> None:
+    admin = admin_of(Owner, DeclaredNoteAdmin, OwnSlugAdmin)
     assert list(admin.models) == ["admin-owners", "admin-notes", "vault"]
     assert isinstance(admin.models["admin-notes"], DeclaredNoteAdmin)
     assert admin.models["vault"].model is Secret
     with pytest.raises(RegistrationError, match="names no model"):
-        Admin(access=staff, secret=SECRET, models=[ModelAdmin])
+        admin_of(ModelAdmin)
+    site = Admin(access=staff, secret=SECRET)
+
+    @site.register
+    class Decorated(ModelAdmin, model=Note):  # type: ignore[type-arg]
+        slug = "decorated"
+
+    assert site.models["decorated"].model is Note
+    assert issubclass(Decorated, ModelAdmin)  # the class comes back unchanged
     with pytest.raises(RegistrationError, match="is for Note, not Secret"):
         Admin(access=staff, secret=SECRET).register(Secret, DeclaredNoteAdmin)
 
@@ -1885,7 +1899,7 @@ def test_tones_are_an_enum_and_strings_still_work() -> None:
 
 
 def test_badge_tabs_and_fieldset_short_forms_are_expanded() -> None:
-    admin = Admin(access=staff, secret=SECRET, models=[DeclaredNoteAdmin])
+    admin = admin_of(DeclaredNoteAdmin)
     entry = admin.models["admin-notes"]
     assert entry.badges["done"][True] == Badge("Done", Tone.OK)
     assert entry.badges["done"][False] == Badge("Open", Tone.WARN, "pencil")
@@ -1903,11 +1917,11 @@ def test_tabs_by_column_need_badges_for_that_column() -> None:
         tabs = ("done",)
 
     with pytest.raises(RegistrationError, match="has no entry in badges"):
-        Admin(access=staff, secret=SECRET, models=[NoBadges])
+        admin_of(NoBadges)
 
 
 def test_action_methods_become_bulk_actions_with_derived_names() -> None:
-    admin = Admin(access=staff, secret=SECRET, models=[DeclaredNoteAdmin])
+    admin = admin_of(DeclaredNoteAdmin)
     actions = admin.models["admin-notes"].bulk_actions
     assert [(a.name, a.label, a.confirm) for a in actions] == [
         (
@@ -1921,21 +1935,21 @@ def test_action_methods_become_bulk_actions_with_derived_names() -> None:
 
 
 def test_a_mounted_admin_lives_at_the_mount_unless_it_names_a_prefix() -> None:
-    plain = Admin(access=staff, secret=SECRET, models=[Owner])
+    plain = admin_of(Owner)
     assert plain.prefix == "/admin"
     app = Hinoki()
     app.include(Mount("/ops", plain))
     assert plain.prefix == "" and plain.base == "/ops"
     assert {r.path for r in app.routes} >= {"/ops", "/ops/search"}
 
-    named = Admin(access=staff, secret=SECRET, prefix="/staff", models=[Owner])
+    named = admin_of(Owner, prefix="/staff")
     other = Hinoki()
     other.include(Mount("/ops", named))
     assert named.base == "/ops/staff"
     assert "/ops/staff/search" in {r.path for r in other.routes}
 
     unmounted = Hinoki()
-    unmounted.include(Admin(access=staff, secret=SECRET, models=[Owner]))
+    unmounted.include(admin_of(Owner))
     assert "/admin/search" in {r.path for r in unmounted.routes}
 
 
@@ -1994,7 +2008,7 @@ class PlainStampedAdmin(ModelAdmin, model=Stamped):  # type: ignore[type-arg]
 
 
 def test_a_model_admin_with_no_settings_gets_working_defaults() -> None:
-    admin = Admin(access=staff, secret=SECRET, models=[PlainStampedAdmin])
+    admin = admin_of(PlainStampedAdmin)
     entry = admin.models["admin-stamped"]
     assert entry.search == ("name", "note", "code")  # first three shown text columns
     assert "secret" not in entry.search and "count" not in entry.search
@@ -2025,10 +2039,10 @@ def test_search_defaults_never_reach_columns_the_list_does_not_show() -> None:
     class Narrow(ModelAdmin, model=Stamped):  # type: ignore[type-arg]
         columns = ("count", "name")
 
-    entry = Admin(access=staff, secret=SECRET, models=[Narrow]).models["admin-stamped"]
+    entry = admin_of(Narrow).models["admin-stamped"]
     assert entry.search == ("name",)
 
 
 def test_a_model_without_timestamps_has_no_modified_line() -> None:
-    entry = Admin(access=staff, secret=SECRET, models=[Owner]).models["admin-owners"]
+    entry = admin_of(Owner).models["admin-owners"]
     assert entry.modified_field == ""
