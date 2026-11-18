@@ -104,7 +104,7 @@ def signup(data: Form[Signup]) -> dict[str, int]:
     return {"age": data.age}  # name=Ada&age=36&tags=1&tags=2
 ```
 
-Before validation, text is converted to the `int`, `float` and `bool` the `Schema` declares (and a lone value of a `list` field becomes a one-item list); `Schema` and JSON stay strict. A value that does not convert, or several values for a scalar, fails with the normal `422` type error. Empty text is not turned into `None`, and nested `Schema` fields are not read from form keys. An action with a `Form[...]` parameter and no `parsers=` uses `FormParser` (add `MultiPartParser()` explicitly for multipart text fields). `Form[...]` is valid only for the `Schema` body of a POST, PUT, PATCH or QUERY action, needs a form parser, and appears in OpenAPI as `application/x-www-form-urlencoded`.
+Before validation, text is converted to the `int`, `float` and `bool` the `Schema` declares (and a lone value of a `list` field becomes a one-item list); `Schema` and JSON stay strict. A value that does not convert, or several values for a scalar, fails with the normal `422` type error. Empty text is not turned into `None`, and nested `Schema` fields are not read from form keys. An action with a `Form[...]` parameter and no `parsers=` uses `FormParser` (add `MultiPartParser()` explicitly for multipart text fields). `Form[...]` is valid only for the `Schema` body of a POST, PUT, PATCH or QUERY action, takes only form parsers (a JSON body needs a plain `Schema` parameter, so one cannot be coerced by mistake), and appears in OpenAPI as `application/x-www-form-urlencoded`.
 
 ## Upload files
 
