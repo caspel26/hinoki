@@ -93,9 +93,7 @@ class Backwards(CrudAPI, path="/backwards", resource=BACKWARDS):
 
 
 class HookedMemos(Memos, path="/hooked"):
-    async def perform_create(
-        self, values: dict[str, Any], principal: Caller[Any]
-    ) -> Any:
+    async def store(self, values: dict[str, Any], principal: Caller[Any]) -> Any:
         values["title"] = f"hook:{values['title']}"
         return await Memo.acreate(**values)
 
@@ -109,14 +107,12 @@ class PrivateMemos(Memos, path="/private"):
 
 
 class UnsafeHooks(Memos, path="/unsafe-hooks"):
-    async def perform_create(
-        self, values: dict[str, Any], principal: Caller[Any]
-    ) -> Any:
+    async def store(self, values: dict[str, Any], principal: Caller[Any]) -> Any:
         item = await Memo.acreate(**values)
         await Memo.aupdate_where({"id": item.id}, {"owner": "bob"})
         return item
 
-    async def perform_update(
+    async def change(
         self,
         item: Memo,
         scoped: QuerySet[Memo],
@@ -141,10 +137,10 @@ class SyncHooks(Memos, path="/sync-hooks"):
     def to_schema(self, item: Memo) -> MemoOut:
         return MemoOut(id=item.id, owner=item.owner, title=item.title, body=item.body)
 
-    def perform_create(self, values: dict[str, Any], principal: Caller[Any]) -> Memo:
+    def store(self, values: dict[str, Any], principal: Caller[Any]) -> Memo:
         return Memo.create(**values)
 
-    def perform_update(
+    def change(
         self,
         item: Memo,
         scoped: QuerySet[Memo],
@@ -155,7 +151,7 @@ class SyncHooks(Memos, path="/sync-hooks"):
             scoped.update(values)
         return item
 
-    def perform_delete(
+    def remove(
         self, item: Memo, scoped: QuerySet[Memo], principal: Caller[Any]
     ) -> bool:
         return scoped.delete() > 0
@@ -221,9 +217,7 @@ def test_class_configuration_composes_with_custom_routes_and_hooks() -> None:
         read_schema = MemoOut
         access = writer
 
-        async def perform_create(
-            self, values: dict[str, Any], principal: Caller[Any]
-        ) -> Any:
+        async def store(self, values: dict[str, Any], principal: Caller[Any]) -> Any:
             values["title"] = f"hook:{values['title']}"
             return await Memo.acreate(**values)
 
@@ -391,7 +385,7 @@ async def test_create_assigns_the_owner_and_reads_back(memos: Client) -> None:
 
 
 @needs_database
-async def test_perform_create_hook_runs_inside_generated_action(memos: Client) -> None:
+async def test_store_hook_runs_inside_generated_action(memos: Client) -> None:
     created = await memos.request(
         "POST", "/hooked", body(title="Hello"), content_type=JSON, headers=ANN
     )
@@ -802,8 +796,8 @@ async def test_writes_carry_the_base_query_and_report_missing_as_404(
         # Zero rows because the row vanished is a 404; because it is owned by
         # someone else (checked against a still visible row) it is a 403.
         with pytest.raises(Hidden.NotFound):
-            await SCOPED.refused(hidden)
-        assert isinstance(await SCOPED.refused(shown), Forbidden)
+            await SCOPED.refuse(hidden)
+        assert isinstance(await SCOPED.refuse(shown), Forbidden)
 
 
 def test_a_model_class_method_is_a_reusable_base_query() -> None:
