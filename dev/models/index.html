@@ -525,7 +525,7 @@ unsupported types fail during model or migration validation.</p>
         <span class="k">return</span> <span class="n">Task</span><span class="o">.</span><span class="n">active</span><span class="p">()</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">TaskAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">[</span><span class="n">Task</span><span class="p">]):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TaskAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Task</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">Task</span><span class="o">.</span><span class="n">active</span><span class="p">()</span>
 </code></pre></div>
@@ -677,7 +677,7 @@ set <code>deletable = True</code>; protect generated writes with <code>access = 
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:44:51 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 02:53:45 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>12 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
