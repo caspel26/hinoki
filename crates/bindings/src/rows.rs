@@ -68,7 +68,10 @@ impl PyRowPlan {
 }
 
 impl RowPlan {
-    fn new(columns: Vec<String>, fields: Vec<(String, String, String, bool)>) -> PyResult<Self> {
+    pub(crate) fn new(
+        columns: Vec<String>,
+        fields: Vec<(String, String, String, bool)>,
+    ) -> PyResult<Self> {
         let mut planned = Vec::with_capacity(fields.len());
         let mut names = std::collections::HashSet::with_capacity(columns.len());
         for column in &columns {
@@ -128,6 +131,12 @@ pub(crate) fn encode_page(
     output.extend_from_slice(b",\"pages\":");
     write_number(&mut output, total.div_ceil(page_size))?;
     output.push(b'}');
+    Some(output)
+}
+
+pub(crate) fn encode_item(row: &[(String, Value)], plan: &RowPlan) -> Option<Vec<u8>> {
+    let mut output = Vec::new();
+    write_row(&mut output, row, plan)?;
     Some(output)
 }
 
@@ -217,7 +226,7 @@ fn write_float(output: &mut Vec<u8>, value: f64) -> Option<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{encode_page, RowPlan};
+    use super::{encode_item, encode_page, RowPlan};
     use hinoki_orm::Value;
     use time::macros::datetime;
     use uuid::Uuid;
@@ -238,6 +247,35 @@ mod tests {
             ],
         )
         .unwrap()
+    }
+
+    #[test]
+    fn encodes_one_item_with_schema_alias_order() {
+        let plan = RowPlan::new(
+            vec!["id".to_owned(), "display_name".to_owned()],
+            vec![
+                (
+                    "display_name".to_owned(),
+                    "displayName".to_owned(),
+                    "str".to_owned(),
+                    false,
+                ),
+                ("id".to_owned(), "id".to_owned(), "int".to_owned(), false),
+            ],
+        )
+        .unwrap();
+        let row = vec![
+            ("id".to_owned(), Value::Int(9)),
+            (
+                "display_name".to_owned(),
+                Value::Text("Hinoki 🌲".to_owned()),
+            ),
+        ];
+
+        assert_eq!(
+            encode_item(&row, &plan).unwrap(),
+            r#"{"displayName":"Hinoki 🌲","id":9}"#.as_bytes()
+        );
     }
 
     fn row(name: Value, weight: Value) -> Vec<(String, Value)> {

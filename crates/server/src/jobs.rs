@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use tokio::sync::{watch, Mutex, OnceCell};
+use tokio::task::AbortHandle;
 use tokio::task::JoinSet;
 use tokio::time::timeout;
 
@@ -33,22 +34,37 @@ impl NativeJobs {
     where
         F: Future<Output = ()> + Send + 'static,
     {
+        self.try_spawn_with_handle(job).await.is_ok()
+    }
+
+    /// Start a bounded job and return a handle whose drop does not cancel it.
+    /// The caller can explicitly abort it when its client request is cancelled.
+    pub async fn try_spawn_with_handle<F>(&self, job: F) -> Result<AbortHandle, F>
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
         let Some(permit) = self.in_flight.try_acquire() else {
-            return false;
+            return Err(job);
         };
         let mut tasks = self.tasks.lock().await;
+        while tasks.try_join_next().is_some() {}
         if !self.accepting.load(Ordering::Acquire) {
-            return false;
+            return Err(job);
         }
-        tasks.spawn(async move {
+        let task = tasks.spawn(async move {
             let _permit = permit;
             job.await;
         });
-        true
+        Ok(task)
     }
 
     pub fn in_flight(&self) -> usize {
         self.in_flight.current()
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn tracked_tasks(&self) -> usize {
+        self.tasks.lock().await.len()
     }
 
     /// Stop admission, wait up to `budget`, then abort and join every survivor.
@@ -85,6 +101,7 @@ impl NativeJobs {
         if finished {
             return 0;
         }
+        while tasks.try_join_next().is_some() {}
         let aborted = tasks.len();
         tasks.abort_all();
         while tasks.join_next().await.is_some() {}
