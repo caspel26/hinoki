@@ -1028,8 +1028,11 @@ mod tests {
 
     use hinoki_orm::Value;
 
-    use super::{execute_read_with, parse_page, FetchFuture, NativeRead, ReadDatabase};
-    use crate::crudplan::CrudPlan;
+    use super::{
+        append_defaults, execute_read_with, parse_page, primary_key_value, FetchFuture, NativeRead,
+        ReadDatabase,
+    };
+    use crate::crudplan::{CrudPlan, ModelDefault, ModelDefaultValue};
 
     struct StubDatabase {
         statements: Mutex<Vec<(String, Vec<Value>)>>,
@@ -1158,5 +1161,102 @@ mod tests {
         assert_eq!(statements.len(), 1);
         assert!(statements[0].0.contains("LIMIT 2"));
         assert_eq!(statements[0].1, [Value::Int(7)]);
+    }
+
+    #[test]
+    fn integer_keys_are_taken_only_in_the_spelling_python_accepts() {
+        let plan = plan("retrieve");
+        for raw in ["5", "-5", "0005", "999999999999999999"] {
+            assert!(primary_key_value(&plan, raw).is_some(), "{raw}");
+        }
+        for raw in [
+            "+5",
+            "",
+            "-",
+            "1_0",
+            "5.0",
+            "\u{663}",
+            "1000000000000000000",
+        ] {
+            assert!(primary_key_value(&plan, raw).is_none(), "{raw}");
+        }
+    }
+
+    #[test]
+    fn uuid_keys_are_taken_only_in_the_canonical_hyphenated_spelling() {
+        let mut plan = plan("retrieve");
+        plan.model_fields[0].1 = "uuid".to_owned();
+        let canonical = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+        assert!(primary_key_value(&plan, canonical).is_some());
+        assert!(primary_key_value(&plan, &canonical.to_uppercase()).is_some());
+        for raw in [
+            "0a1b2c3d4e5f4a6b8c7d9e0f1a2b3c4d",
+            "{0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d}",
+            "urn:uuid:0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+        ] {
+            assert!(primary_key_value(&plan, raw).is_none(), "{raw}");
+        }
+    }
+
+    #[tokio::test]
+    async fn retrieve_defers_when_the_query_string_is_malformed() {
+        let database = StubDatabase {
+            statements: Mutex::new(Vec::new()),
+        };
+        let params = vec![("item_id".to_owned(), "7".to_owned())];
+        for query in [b"%FF".as_slice(), b"a=%FF", b"%C3"] {
+            let result = execute_read_with(&plan("retrieve"), &database, &params, query).await;
+            assert!(matches!(result, NativeRead::Defer), "{query:?}");
+        }
+        assert!(database.statements.lock().unwrap().is_empty());
+        let valid = execute_read_with(&plan("retrieve"), &database, &params, b"a=1").await;
+        assert!(matches!(valid, NativeRead::Reply { .. }));
+    }
+
+    #[test]
+    fn list_sql_for_a_window_is_the_compiled_statement() {
+        let plan = plan("list");
+        for (dialect, quote) in [("postgres", '"'), ("sqlite", '"'), ("mysql", '`')] {
+            let q = |name: &str| format!("{quote}{name}{quote}");
+            let expected = format!(
+                "SELECT {}, {} FROM {} ORDER BY {} ASC LIMIT 7 OFFSET 14",
+                q("id"),
+                q("name"),
+                q("items"),
+                q("id")
+            );
+            assert_eq!(plan.list_sql(dialect, 7, 14).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn a_default_that_does_not_fit_its_column_is_never_skipped() {
+        let plan = plan("create");
+        let default = |column: &str, value| ModelDefault {
+            column: column.to_owned(),
+            value,
+        };
+        let mut values = Vec::new();
+        assert!(append_defaults(
+            &mut values,
+            &[default("name", ModelDefaultValue::Str("n".to_owned()))],
+            &plan
+        ));
+        assert_eq!(values, [("name".to_owned(), Value::Text("n".to_owned()))]);
+        for (column, value) in [
+            ("name", ModelDefaultValue::Int(1)),
+            ("id", ModelDefaultValue::Float(1.0)),
+            ("id", ModelDefaultValue::Bool(true)),
+            ("missing", ModelDefaultValue::Int(1)),
+            ("id", ModelDefaultValue::Required),
+        ] {
+            let mut values = Vec::new();
+            assert!(!append_defaults(
+                &mut values,
+                &[default(column, value)],
+                &plan
+            ));
+            assert!(values.is_empty());
+        }
     }
 }
