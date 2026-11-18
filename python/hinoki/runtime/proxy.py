@@ -48,17 +48,37 @@ def effective_scope(
     proto_values = [
         value for name, value in headers if name.lower() == b"x-forwarded-proto"
     ]
-    for_values = [
-        value for name, value in headers if name.lower() == b"x-forwarded-for"
-    ]
     resolved: Scope = dict(scope)
     proto = forwarded_proto(proto_values)
     if proto is not None:
         resolved["scheme"] = proto
-    client = forwarded_address(for_values, networks, scope["client"][0])
-    if client is not None:
-        resolved["client"] = (client, 0)
+    resolved["client"] = trusted_client(scope["client"], headers, networks)
     return resolved, True
+
+
+def effective_client(
+    client: tuple[str, int] | None,
+    headers: Iterable[tuple[bytes, bytes]],
+    networks: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...],
+) -> tuple[str, int] | None:
+    """The client ``effective_scope`` would resolve for this socket peer and
+    these headers, for a transport that has no scope to copy."""
+    if client is None or not trusted_peer({"client": client}, networks):
+        return client
+    return trusted_client(client, headers, networks)
+
+
+def trusted_client(
+    peer: tuple[str, int],
+    headers: Iterable[tuple[bytes, bytes]],
+    networks: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...],
+) -> tuple[str, int]:
+    """The forwarded client of a trusted peer, or the peer on ambiguity."""
+    for_values = [
+        value for name, value in headers if name.lower() == b"x-forwarded-for"
+    ]
+    client = forwarded_address(for_values, networks, peer[0])
+    return peer if client is None else (client, 0)
 
 
 def forwarded_proto(values: list[bytes]) -> str | None:

@@ -1,10 +1,16 @@
 """XMLRenderer: structure, escaping, unusual keys, negotiation."""
 
+import json
+from datetime import UTC, datetime
+from enum import Enum
 from typing import Any
+from uuid import UUID
 
 import pytest
 
 from hinoki import Hinoki, JSONRenderer, Request, XMLRenderer, http
+from hinoki.renderers import xml_text
+from hinoki.schema import encode
 from tests.harness import Pool
 
 DECLARATION = '<?xml version="1.0" encoding="UTF-8"?>'
@@ -97,3 +103,109 @@ async def test_xml_is_negotiated(pool: Pool) -> None:
     assert json_reply.headers["content-type"].startswith("application/json")
     refused = await client.request("GET", "/report", headers={"accept": "text/csv"})
     assert refused.status == 406
+
+
+STAMP = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
+
+
+@http.get("/held", renderers=[JSONRenderer(), XMLRenderer()])
+async def held() -> dict[str, object]:
+    return {"ids": (UUID(int=1),), "at": (STAMP, [(STAMP,)])}
+
+
+async def test_a_tuple_of_uuids_and_datetimes_renders_like_json(pool: Pool) -> None:
+    app = Hinoki()
+    app.include(held)
+    client = await pool.start(app)
+    as_json = await client.request("GET", "/held")
+    as_xml = await client.request("GET", "/held", headers={"accept": "application/xml"})
+    assert (as_json.status, as_xml.status) == (200, 200)
+    uid, stamp = str(UUID(int=1)), STAMP.isoformat()
+    assert as_json.body == {"ids": [uid], "at": [stamp, [[stamp]]]}
+    assert as_xml.body == (
+        f"{DECLARATION}<response><ids><item>{uid}</item></ids><at><item>{stamp}"
+        f"</item><item><item><item>{stamp}</item></item></item></at></response>"
+    )
+
+
+def test_encode_turns_tuples_into_lists() -> None:
+    assert encode((UUID(int=1), (STAMP,))) == [str(UUID(int=1)), [STAMP.isoformat()]]
+
+
+class Shade(str, Enum):  # noqa: UP042 - its str() is not its value
+    DARK = "dark"
+
+
+def test_none_bool_and_int_keys_are_spelled_like_json() -> None:
+    value = {None: 1, True: 2, False: 3, 7: 4, "k": 5, Shade.DARK: 6}
+    assert json.loads(JSONRenderer().render(value, None)) == {  # type: ignore[arg-type]
+        "null": 1,
+        "true": 2,
+        "false": 3,
+        "7": 4,
+        "k": 5,
+        "dark": 6,
+    }
+    assert render(value) == (
+        f"{DECLARATION}<response><null>1</null><true>2</true><false>3</false>"
+        '<item key="7">4</item><k>5</k><dark>6</dark></response>'
+    )
+
+
+@pytest.mark.parametrize("key", [1.5, UUID(int=1), STAMP, (1, 2), b"x"])
+def test_keys_json_refuses_are_refused(key: object) -> None:
+    with pytest.raises(TypeError, match="keys must be str, int, bool or None"):
+        JSONRenderer().render({key: 1}, None)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="keys must be str, int, bool or None"):
+        render({key: 1})
+
+
+def legal(char: str) -> bool:
+    return (
+        char in "\t\n\r"
+        or "\u0020" <= char <= "\ud7ff"
+        or "\ue000" <= char <= "\ufffd"
+        or char >= "\U00010000"
+    )
+
+
+def reference_text(value: str) -> str:
+    """Character-by-character escaping: what ``xml_text`` must match."""
+    escapes = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "\t": "&#9;",
+        "\n": "&#10;",
+        "\r": "&#13;",
+    }
+    return "".join(escapes.get(c, c) if legal(c) else "\ufffd" for c in value)
+
+
+TRICKY = [
+    "",
+    "plain",
+    "]]>",
+    "a]]>b]]]>",
+    "<&>\"'",
+    "&amp;",
+    "\x00\x01\x08\x0b\x0c\x1f\x7f\x85",
+    "\t\n\r\r\n",
+    "\ud800\udfff\ud83d",
+    "\ufffe\uffff\ufffd",
+    "\U0001f600\U0010ffff",
+    "\ud7ff\ue000",
+    "caf\u00e9 \u65e5\u672c",
+    "<" * 100 + "&" * 100,
+]
+
+
+@pytest.mark.parametrize("text", TRICKY)
+def test_escaping_matches_the_character_rules(text: str) -> None:
+    assert xml_text(text) == reference_text(text)
+
+
+def test_text_without_special_characters_is_returned_as_is() -> None:
+    text = "nothing to escape here " * 10
+    assert xml_text(text) is text

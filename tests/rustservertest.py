@@ -37,6 +37,7 @@ from hinoki import (
     Schema,
     UploadedFile,
     XMLRenderer,
+    core,
     http,
 )
 from hinoki.context import request_id
@@ -46,7 +47,7 @@ from hinoki.http.response import Response
 from hinoki.modules import ModuleContext
 from hinoki.parsers import TextParser
 from hinoki.renderers import is_native_renderer
-from hinoki.runtime import rustserver
+from hinoki.runtime import responses, rustserver
 from hinoki.runtime.rustserver import RustWorker
 from hinoki.runtime.servercore import build_server_core
 from hinoki.settings import AppSettings, CorsSettings, FrameOptions, SecuritySettings
@@ -67,6 +68,7 @@ class Probe:
     sync_entered: threading.Event = field(default_factory=threading.Event)
     sync_gate: threading.Event = field(default_factory=threading.Event)
     native_input_calls: int = 0
+    ran: list[str] = field(default_factory=list)
     late_coroutine: Coroutine[Any, Any, dict[str, str]] | None = None
 
 
@@ -148,11 +150,13 @@ WRITERS = Access(auth=TokenAuth(), permissions=["posts:write"])
 async def native_me(
     item_id: int, who: Caller[str], limit: int = 5
 ) -> dict[str, object]:
+    PROBE.ran.append("native_me")
     return {"id": item_id, "who": who.id, "limit": limit}
 
 
 @http.post("/native/guarded", status=201, access=Access(auth=TokenAuth()))
 def native_guarded(data: Item, who: Caller[str]) -> dict[str, object]:
+    PROBE.ran.append("native_guarded")
     return {"title": data.title, "who": who.id}
 
 
@@ -215,21 +219,25 @@ class AdmitEditors:
 
 @http.get("/native/limited/{item_id}", rate_limit=RefuseAll())
 async def native_limited(item_id: int) -> dict[str, object]:
+    PROBE.ran.append("native_limited")
     return {"id": item_id}
 
 
 @http.get("/native/limited-sync/{item_id}", rate_limit=RefuseSync())
 def native_limited_sync(item_id: int) -> dict[str, object]:
+    PROBE.ran.append("native_limited_sync")
     return {"id": item_id}
 
 
 @http.post("/native/limited-body", status=201, rate_limit=RefuseAll())
 async def native_limited_body(data: Item) -> dict[str, object]:
+    PROBE.ran.append("native_limited_body")
     return {"title": data.title}
 
 
 @http.get("/native/admitted/{item_id}", access=WRITERS, rate_limit=AdmitEditors())
 async def native_admitted(item_id: int, who: Caller[str]) -> dict[str, object]:
+    PROBE.ran.append("native_admitted")
     return {"id": item_id, "who": who.id}
 
 
@@ -832,11 +840,11 @@ async def test_native_delete_matches_pipeline(
     worker = RustWorker(make_app(), "127.0.0.1", 0)
     port = await worker.start()
     try:
-        if native:
-            assert served_natively(worker, method, target, [])
-        assert_pipeline_parity(
-            await fetch(port, method, target), await pipeline_fetch(method, target)
-        )
+        lanes = record_lanes(worker)
+        received = await fetch(port, method, target)
+        # A method the route does not serve is refused before Python is asked.
+        assert lanes == ([True] if native else [])
+        assert_pipeline_parity(received, await pipeline_fetch(method, target))
     finally:
         await worker.stop()
 
@@ -882,13 +890,12 @@ async def test_native_body_handlers_match_pipeline(
     worker = RustWorker(make_app(), "127.0.0.1", 0)
     port = await worker.start()
     try:
-        assert served_natively(
-            worker, method, target.partition("?")[0], [(b"content-length", b"0")]
-        )
+        lanes = record_lanes(worker)
         length = f"content-length: {len(body)}\r\n"
+        received = await fetch(port, method, target, extra + length, body=body)
+        assert lanes == [True]
         assert_pipeline_parity(
-            await fetch(port, method, target, extra + length, body=body),
-            await pipeline_fetch(method, target, headers, body),
+            received, await pipeline_fetch(method, target, headers, body)
         )
     finally:
         await worker.stop()
@@ -968,10 +975,12 @@ async def check_native_parity(
                 headers[name] = value
         length = f"content-length: {len(body)}\r\n" if body else ""
         sent = raw + extra + length
-        assert served_natively(
-            worker, method, target.partition("?")[0], [(b"content-length", b"0")]
-        )
+        lanes = record_lanes(worker)
         received = await fetch(port, method, target, sent, body=body)
+        assert lanes == [True]
+        if received.status >= 400:
+            # A refused or invalid request never reaches the handler.
+            assert PROBE.ran == []
         if method == "POST" and "connection" in dict(received.headers):
             # The ASGI client has no connection to close; the Python lane on the
             # same socket is the reference for it.
@@ -1480,16 +1489,20 @@ async def pipeline_answer(
     return final_answer(response.status, pairs, body)
 
 
-def served_natively(
-    worker: RustWorker, method: str, target: str, headers: list[tuple[bytes, bytes]]
-) -> bool:
-    """Whether the Rust server takes the native handler path for the request."""
-    path, _, query = target.partition("?")
-    classifier = build_server_core(worker.pipeline)
-    classifier.set_ready(True)
-    classifier.submit(method, path, query.encode("ascii"), headers)
-    [prepared] = classifier.drain(1)
-    return prepared.native_handler
+def record_lanes(worker: RustWorker) -> list[bool]:
+    """Record, for every request the worker serves from now on, whether the
+    real queued request took the native handler lane."""
+    lanes: list[bool] = []
+    serve = worker._pipeline_response
+
+    async def recorded(
+        request: core.PreparedRequest,
+    ) -> tuple[responses.Response, bool]:
+        lanes.append(request.native_handler)
+        return await serve(request)
+
+    worker._pipeline_response = recorded  # type: ignore[method-assign]
+    return lanes
 
 
 @pytest.mark.parametrize(
@@ -1527,8 +1540,9 @@ async def test_native_handler_answers_carry_the_pipeline_cors_headers(
     }
     try:
         for target, status in targets.items():
-            assert served_natively(worker, method, target, headers)
+            lanes = record_lanes(worker)
             received = await fetch(port, method, target, extra=extra)
+            assert lanes == [True]
             native = final_answer(received.status, received.headers, received.body)
             assert native[0] == status
             assert native == await pipeline_answer(worker, method, target, headers)

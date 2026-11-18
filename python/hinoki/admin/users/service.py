@@ -15,9 +15,12 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from uuid import UUID
 
+from hinoki.admin.parts import Refusal
+from hinoki.admin.users.limits import LoginWindow
 from hinoki.admin.users.models import AdminGrant, AdminSession, AdminUser
 from hinoki.crypto import PasswordHasher
 from hinoki.orm.context import current_database
+from hinoki.ratelimit import RateLimitPolicy
 from hinoki.settings import AdminSettings
 from hinoki.utils import utc_now
 
@@ -27,7 +30,7 @@ MAX_PASSWORD_BYTES = 1024  # a bound before hashing: Argon2 cost grows with inpu
 TOUCH_SECONDS = 60  # last_seen is refreshed at most this often
 
 
-class AdminUserError(ValueError):
+class AdminUserError(Refusal, ValueError):
     """A username or password that the admin refuses; the message is for the person."""
 
 
@@ -40,11 +43,26 @@ class AdminAccounts:
         *,
         hasher: PasswordHasher | None = None,
         clock: Callable[[], datetime] = utc_now,
+        login_limit: RateLimitPolicy | None = None,
     ) -> None:
+        self.bound = settings is not None
         self.settings = settings or AdminSettings()
+        self.login_limit: RateLimitPolicy = login_limit or LoginWindow()
         self.hasher = hasher or PasswordHasher()
         self.clock = clock
-        self.decoy = self.hasher.hash_sync("not-the-password-of-anyone")
+        self.decoy_hash: str | None = None
+
+    def bind(self, settings: AdminSettings) -> None:
+        """Take the app's session and password rules unless given at construction."""
+        if not self.bound:
+            self.settings = settings
+
+    @property
+    def decoy(self) -> str:
+        """A hash to verify against for an unknown user, made on first use."""
+        if self.decoy_hash is None:
+            self.decoy_hash = self.hasher.hash_sync("not-the-password-of-anyone")
+        return self.decoy_hash
 
     # -- users ---------------------------------------------------------------
 
@@ -70,23 +88,35 @@ class AdminAccounts:
         *,
         superuser: bool = False,
         active: bool = True,
+        hashed: str | None = None,
     ) -> AdminUser:
+        """Create a user; ``hashed`` is a password already hashed with ``hash_password``
+        (a caller that must not hash while it holds a database connection)."""
         name = self.clean_username(username)
-        self.check_password(password)
+        if hashed is None:
+            self.check_password(password)
+            hashed = await self.hasher.hash(password)
         if await AdminUser.filter(username=name).acount():
             raise AdminUserError("That username is already taken.")
         return await AdminUser.acreate(
             username=name,
-            password_hash=await self.hasher.hash(password),
+            password_hash=hashed,
             is_superuser=superuser,
             is_active=active,
             created_at=self.clock(),
         )
 
-    async def set_password(self, user: AdminUser, password: str) -> None:
-        """Change a password and end every session of the user."""
+    async def hash_password(self, password: str) -> str:
+        """Check a password against the rules and hash it, holding no connection."""
         self.check_password(password)
-        hashed = await self.hasher.hash(password)  # no connection is held meanwhile
+        return await self.hasher.hash(password)
+
+    async def set_password(
+        self, user: AdminUser, password: str, *, hashed: str | None = None
+    ) -> None:
+        """Change a password and end every session of the user."""
+        if hashed is None:
+            hashed = await self.hash_password(password)
         async with current_database().transaction():
             user.password_hash = hashed
             await user.asave()
