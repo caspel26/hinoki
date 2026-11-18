@@ -11,6 +11,7 @@ import pytest
 from hinoki import Hinoki
 from hinoki.admin import Admin
 from hinoki.admin.users import AdminAccounts, AdminSession, AdminUser, migrations_path
+from hinoki.admin.users.limits import LoginWindow
 from hinoki.crypto import PasswordHasher
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import RegistrationError
@@ -282,12 +283,25 @@ async def test_a_superuser_holds_every_grant_even_when_the_admin_class_says_yes(
     assert (await client.get("/admin/login-notes/add", headers=headers)).status == 200
 
 
-async def test_the_sign_in_route_is_rate_limited(
-    world: tuple[ASGIClient, Database],
-) -> None:
-    client, _ = world
-    statuses = [(await sign_in(client, "ghost", "x" * 12)).status for _ in range(12)]
+async def test_the_sign_in_route_is_rate_limited(tmp_path: Path) -> None:
+    url = f"sqlite://{tmp_path / 'limited.sqlite3'}"
+    database = await Database.connect(url, max_size=2)
+    await migrator.apply(database, migrations_path(), namespace="admin")
+    weak = PasswordHasher(memory_kib=64, time_cost=1, allow_weak=True)
+    service = AdminAccounts(hasher=weak, login_limit=LoginWindow(limit=1))
+    app = Hinoki(
+        settings=AppSettings(admin=AdminSettings(secret=SECRET)),
+        include=[Admin(users=service)],
+        modules=[DatabaseModule(url, max_size=2)],
+    )
+    with use_database(database):
+        async with ASGIClient(app) as client:  # the test client has no address
+            statuses = [
+                (await sign_in(client, "ghost", "x" * 12)).status for _ in range(12)
+            ]
+    database.close()
 
+    # an unknown address gets a window UNKNOWN_FACTOR (10) times as large
     assert statuses[:10] == [401] * 10
     assert statuses[10:] == [429, 429]
 
@@ -389,3 +403,51 @@ def test_the_session_scheme_is_documented_as_a_cookie() -> None:
     scheme = Admin(secret="s" * 40).access.auth.openapi_scheme()
 
     assert scheme == {"type": "apiKey", "in": "cookie", "name": "hinoki_admin_session"}
+
+
+@pytest.mark.parametrize("name", ["view", "add", "change", "delete"])
+def test_a_bulk_action_cannot_take_a_permission_name(name: str) -> None:
+    from hinoki.admin import ModelAdmin, action  # noqa: PLC0415 - only this test
+
+    async def run(self: Any, rows: Any, principal: Any) -> None:
+        return None
+
+    run.__name__ = name
+
+    class Notes(ModelAdmin, model=LoginNote):  # type: ignore[type-arg]
+        pass
+
+    setattr(Notes, name, action()(run))
+    with pytest.raises(RegistrationError, match="reserved bulk action name"):
+        Admin(secret="s" * 40).register(Notes)
+
+
+async def test_the_sign_in_token_is_not_valid_for_a_user_named_login(
+    world: tuple[ASGIClient, Database],
+) -> None:
+    client, _ = world
+    await accounts().create_user("login", PASSWORD, superuser=True)
+    signed = await sign_in(client, "login")
+    headers = session_header(signed)
+    anonymous = token_of(await client.get("/admin/login"))  # anyone can mint this
+
+    reply = await client.post(
+        "/admin/logout",
+        body=form(csrf=anonymous),
+        headers={**FORM, "cookie": f"{headers['cookie']}; hinoki_csrf={anonymous}"},
+    )
+
+    assert reply.status == 403 and await AdminSession.all().acount() == 1
+
+
+def test_password_checks_hold_no_connection_and_are_rate_limited() -> None:
+    app = Hinoki(
+        settings=AppSettings(admin=AdminSettings(secret=SECRET)),
+        include=[Admin(users=accounts())],
+    )
+    routes = {route.path: route for route in app.routes if route.method == "POST"}
+
+    for path in ("/admin/login", "/admin/password"):
+        assert routes[path].transaction is False  # hashing waits with no connection
+        assert routes[path].rate_limit is not None
+    assert routes["/admin/logout"].transaction is True
