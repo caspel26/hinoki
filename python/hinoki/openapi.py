@@ -13,7 +13,7 @@ import re
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, get_args, get_origin
 
-from hinoki.errors import APIError, RegistrationError
+from hinoki.errors import MAX_RETRY_AFTER, APIError, RegistrationError, TooManyRequests
 from hinoki.fieldtypes import FieldType, is_union
 from hinoki.handlerhints import hints_of
 from hinoki.pagination import Page, PageNumberPagination
@@ -176,6 +176,7 @@ class OpenAPIBuilder:
             description = f"{known['description']}; {messages}" if known else messages
             responses[status] = {
                 "description": description,
+                **retry_after_header(group),
                 "content": {
                     "application/json": {
                         "schema": {
@@ -389,6 +390,21 @@ def split_docstring(handler: object) -> tuple[str, str]:
     doc = inspect.getdoc(handler) or ""
     summary, _, rest = doc.partition("\n")
     return summary.strip(), rest.strip()
+
+
+def retry_after_header(group: list[type[APIError]]) -> dict[str, Any]:
+    """``Retry-After`` as a required whole number of seconds on a rate-limit 429."""
+    if not any(issubclass(error, TooManyRequests) for error in group):
+        return {}
+    return {
+        "headers": {
+            "Retry-After": {
+                "description": "Seconds to wait before trying again.",
+                "required": True,
+                "schema": {"type": "integer", "minimum": 1, "maximum": MAX_RETRY_AFTER},
+            }
+        }
+    }
 
 
 def error_schema() -> dict[str, Any]:
