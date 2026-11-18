@@ -23,7 +23,7 @@ from hinoki.http.response import Response, set_cookie
 from hinoki.modules import Module, ModuleContext
 from hinoki.parsers import FormParser, JSONParser, MultiPartParser, Parser, UploadedFile
 from hinoki.ratelimit import RateLimitContext, RateLimitPolicy
-from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer
+from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer, XMLRenderer
 from hinoki.routing import Includable, Mount, Route, RouteGroup
 from hinoki.rules import Actions, Imports, Models, Schemas, Transactions
 from hinoki.runtime.config import RuntimeConfig
@@ -104,6 +104,7 @@ __all__ = [
     "Transactions",
     "Unset",
     "UploadedFile",
+    "XMLRenderer",
     "__version__",
     "derive",
     "errors",

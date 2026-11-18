@@ -328,7 +328,11 @@ async def test_serve_handles_pipeline_errors_head_and_native_final_responses(
     assert normal.responses == [(200, [], b"")]
 
     native = _Request(native_handler=True, action="native")
-    worker.pipeline.bindings = {"native": object()}
+    worker.pipeline.bindings = {
+        "native": SimpleNamespace(
+            route=SimpleNamespace(access=None, rate_limit=None, renderers=[])
+        )
+    }
     await worker._serve(cast(Any, native))
     assert native.responses == [(200, [], b"answer")]
 
