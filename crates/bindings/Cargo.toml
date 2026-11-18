@@ -8,6 +8,9 @@ repository.workspace = true
 rust-version.workspace = true
 publish = false
 
+[features]
+sql-trace = ["hinoki-orm/sql-trace"]
+
 [lib]
 name = "native"
 crate-type = ["cdylib", "rlib"]
