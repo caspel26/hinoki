@@ -28,7 +28,7 @@ def icon_name(name: str, fallback: str = "file-text") -> str:
 
 
 def tone_name(tone: str) -> str:
-    return tone if tone in TONES else "neutral"
+    return str(tone) if tone in TONES else "neutral"
 
 
 def initials(name: str) -> str:

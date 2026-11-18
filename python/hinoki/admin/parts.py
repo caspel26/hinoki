@@ -3,10 +3,23 @@
 from __future__ import annotations
 
 import dataclasses
+import enum
 from collections.abc import Callable, Mapping
 from typing import Any
 
-TONES = ("neutral", "accent", "ok", "warn", "danger", "info")
+
+class Tone(enum.StrEnum):
+    """The color role of a badge, stat or event."""
+
+    NEUTRAL = "neutral"
+    ACCENT = "accent"
+    OK = "ok"
+    WARN = "warn"
+    DANGER = "danger"
+    INFO = "info"
+
+
+TONES = tuple(tone.value for tone in Tone)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -14,7 +27,7 @@ class Badge:
     """A status pill. ``icon`` is a Lucide icon name; ``tone`` one of ``TONES``."""
 
     label: str
-    tone: str = "neutral"
+    tone: Tone | str = Tone.NEUTRAL
     icon: str = "circle-check"
 
 
@@ -33,7 +46,7 @@ class Stat:
     label: str
     value: int | str
     icon: str = "file-text"
-    tone: str = "accent"
+    tone: Tone | str = Tone.ACCENT
     series: tuple[float, ...] = ()
 
 
@@ -44,7 +57,7 @@ class Event:
     text: str
     when: str
     icon: str = "pencil"
-    tone: str = "accent"
+    tone: Tone | str = Tone.ACCENT
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
