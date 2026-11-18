@@ -34,7 +34,8 @@ class Bookmark(Model, label="Saved link", plural="Saved links"):
 
 | Option | Form | Effect |
 | --- | --- | --- |
-| table | `@db.table("saved_links")` or `table="saved_links"` (optional) | overrides the default plural snake-case table name derived from the class; the two forms may be combined only with the same name |
+| table | `@db.table("saved_links")` or `table="saved_links"` (optional) | overrides the default `<app>_<model>` table name derived from the class and its module; the two forms may be combined only with the same name |
+| app | `app="billing"` (optional class keyword) | replaces the app part of the derived `<app>_<model>` table name; ignored when the table is named explicitly |
 | labels | `label=`, `plural=` (optional class keywords) | override the humanized singular and plural display names derived from the class |
 | composite uniqueness | `@unique("a", "b")` | a `UNIQUE (a, b)` constraint; a single column uses `field(unique=True)` |
 | index | `field(index=True)` for one column; `@db.indexed("a", "b")` for one or more columns | a `CREATE INDEX` planned by the migration tool; adding or removing one is a non-destructive migration |
@@ -48,7 +49,7 @@ class Bookmark(Model, label="Saved link", plural="Saved links"):
 * Stacked decorators are stored in reading order (top to bottom).
 * A model inherits the options of its [abstract bases](models.md#share-fields-abstract-models-and-mixins). A decorator on the subclass replaces everything inherited for that kind of option (`@db.indexed` replaces the inherited indexes, and so on) and leaves the other kinds inherited. A `field(index=True)` index stays with its column: it is inherited while the column keeps `index=True`, and dropped when the subclass redeclares the column without it. A model that subclasses a table model does not inherit that parent's options.
 * Apply options before the model is used: the migration planner, the query layer and the admin read them from the class.
-* The fallback table/display names use a small deterministic English suffix rule, not an inflector. Use explicit values for irregular, already-plural or localized names. Pin the table name with `@db.table(...)` or `table=` when a class has an existing migration history; changing an implicit name is a guarded drop/create, not a table rename.
+* The fallback display names use a small deterministic English suffix rule, not an inflector. Use explicit values for irregular, already-plural or localized names. Pin the table name with `@db.table(...)` or `table=` when a class has an existing migration history; changing an implicit name is a guarded drop/create, not a table rename.
 * Index names are `ix_<table>_<columns>`, shortened deterministically (with a hash) past PostgreSQL's 63 bytes.
 
 Not yet: partial or expression indexes and soft delete. For timestamps, see [utilities](utilities.md); fields are declared explicitly and migrations remain visible.
