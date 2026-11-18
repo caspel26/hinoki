@@ -29,16 +29,16 @@ OWNER_GUARD_NAMES = (
     "__setattr__",
     "get_queryset",
     "to_schema",
-    "invoke_hook",
-    "invoke_default_hook",
-    "invoke_custom_hook",
+    "call_hook",
+    "call_default_hook",
+    "call_custom_hook",
 )
 OWNER_INSTANCE_NAMES = (
     "get_queryset",
     "to_schema",
-    "invoke_hook",
-    "invoke_default_hook",
-    "invoke_custom_hook",
+    "call_hook",
+    "call_default_hook",
+    "call_custom_hook",
     "resource",
     "model",
     "read_schema",
@@ -443,9 +443,9 @@ def owner_is_plain(owner: type[CrudAPI]) -> bool:
         ("__setattr__", object.__setattr__),
         ("get_queryset", CrudAPI.get_queryset),
         ("to_schema", CrudAPI.to_schema),
-        ("invoke_hook", CrudAPI.invoke_hook),
-        ("invoke_default_hook", CrudAPI.invoke_default_hook),
-        ("invoke_custom_hook", CrudAPI.invoke_custom_hook),
+        ("call_hook", CrudAPI.call_hook),
+        ("call_default_hook", CrudAPI.call_default_hook),
+        ("call_custom_hook", CrudAPI.call_custom_hook),
     )
     return all(
         inspect.getattr_static(owner, name, None) is value for name, value in expected
