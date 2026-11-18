@@ -162,6 +162,12 @@ class ModelAdmin[M: Model]:
             return created
         if not values:
             return row
+        if row.__write_hooks__:
+            # The row was loaded through this admin's queryset: save the instance
+            # so its hooks run, then check it is still visible.
+            saved = await row.aupdate_from(**values)
+            await self.ensure_visible(saved, principal)
+            return saved
         found = (
             await self.queryset(principal)
             .filter(**{key: getattr(row, key)})
