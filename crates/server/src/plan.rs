@@ -44,15 +44,48 @@ impl PartialEq for CrudPlanSlot {
 
 impl Eq for CrudPlanSlot {}
 
+/// The built-in converters a native handler input may use; each mirrors the
+/// Python converter of the same name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputKind {
+    Str,
+    Int,
+    Float,
+    Bool,
+    Uuid,
+}
+
+impl InputKind {
+    pub fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "str" => Self::Str,
+            "int" => Self::Int,
+            "float" => Self::Float,
+            "bool" => Self::Bool,
+            "uuid" => Self::Uuid,
+            _ => return None,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InputParam {
+    /// `"path"` or `"query"`.
+    pub source: String,
+    pub name: String,
+    pub has_default: bool,
+    pub kind: InputKind,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RoutePlan {
     /// Index of the action in the application's binding table.
     pub action: u32,
     pub method: String,
     pub path_params: Vec<String>,
-    /// `(source, name, has_default)` for string inputs carried by the native
-    /// handler bridge. Only query strings may have defaults.
-    pub input_params: Vec<(String, String, bool)>,
+    /// Path and query inputs carried by the native handler bridge, in the
+    /// handler's declaration order. Only query inputs may have defaults.
+    pub input_params: Vec<InputParam>,
     pub has_body: bool,
     pub has_access: bool,
     pub media_types: Vec<String>,
@@ -128,15 +161,15 @@ impl Plan {
 fn native_handler_is_valid(route: &RoutePlan) -> bool {
     let mut names = HashSet::new();
     let mut path_inputs = HashSet::new();
-    let inputs_are_supported = route.input_params.iter().all(|(source, name, defaulted)| {
-        let unique = names.insert(name);
-        if source == "path" {
-            path_inputs.insert(name);
+    let inputs_are_supported = route.input_params.iter().all(|input| {
+        let unique = names.insert(&input.name);
+        if input.source == "path" {
+            path_inputs.insert(&input.name);
         }
         unique
-            && !name.is_empty()
-            && matches!(source.as_str(), "path" | "query")
-            && (source == "query" || !defaulted)
+            && !input.name.is_empty()
+            && matches!(input.source.as_str(), "path" | "query")
+            && (input.source == "query" || !input.has_default)
     });
     let route_path_params: HashSet<_> = route.path_params.iter().collect();
     let has_supported_request_inputs = inputs_are_supported
@@ -155,6 +188,15 @@ fn native_handler_is_valid(route: &RoutePlan) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn input(source: &str, name: &str, has_default: bool, kind: InputKind) -> InputParam {
+        InputParam {
+            source: source.into(),
+            name: name.into(),
+            has_default,
+            kind,
+        }
+    }
 
     fn route(action: u32) -> RoutePlan {
         RoutePlan {
@@ -228,8 +270,8 @@ mod tests {
         let mut r = route(0);
         r.path_params = vec!["item_id".into()];
         r.input_params = vec![
-            ("path".into(), "item_id".into(), false),
-            ("query".into(), "term".into(), false),
+            input("path", "item_id", false, InputKind::Str),
+            input("query", "term", false, InputKind::Int),
         ];
         r.native_handler = true;
         assert!(Plan::new(vec![r]).is_ok());
@@ -246,7 +288,7 @@ mod tests {
         );
 
         let mut unsupported = route(1);
-        unsupported.input_params = vec![("body".into(), "payload".into(), false)];
+        unsupported.input_params = vec![input("body", "payload", false, InputKind::Str)];
         unsupported.native_handler = true;
         assert_eq!(
             Plan::new(vec![unsupported]).unwrap_err(),
@@ -257,13 +299,13 @@ mod tests {
     #[test]
     fn native_handler_accepts_defaulted_query_strings_but_not_path_defaults() {
         let mut query_default = route(0);
-        query_default.input_params = vec![("query".into(), "view".into(), true)];
+        query_default.input_params = vec![input("query", "view", true, InputKind::Str)];
         query_default.native_handler = true;
         assert!(Plan::new(vec![query_default]).is_ok());
 
         let mut path_default = route(1);
         path_default.path_params = vec!["item_id".into()];
-        path_default.input_params = vec![("path".into(), "item_id".into(), true)];
+        path_default.input_params = vec![input("path", "item_id", true, InputKind::Str)];
         path_default.native_handler = true;
         assert_eq!(
             Plan::new(vec![path_default]).unwrap_err(),
