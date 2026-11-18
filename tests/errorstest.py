@@ -5,7 +5,15 @@ import importlib
 import pytest
 
 from hinoki import Hinoki, http
-from hinoki.errors import APIError, BadRequest, Conflict, NotFound, ObjectNotFound
+from hinoki.db import UniqueViolation
+from hinoki.errors import (
+    APIError,
+    BadRequest,
+    Conflict,
+    NotFound,
+    ObjectNotFound,
+    RegistrationError,
+)
 from hinoki.http.request import Request
 from tests.harness import Pool
 
@@ -163,3 +171,105 @@ def test_errors_live_in_one_namespace_and_not_at_the_package_root() -> None:
     assert hinoki.errors.NotFound.status == 404
     with pytest.raises(ImportError):
         importlib.import_module("hinoki.httperrors")
+
+
+class QuotaConflict(Conflict):
+    code = "quota_conflict"
+    message = "Quota reached."
+
+
+@http.get("/class-quota")
+async def class_quota(request: Request) -> None:
+    raise Quota("secret quota internals")
+
+
+@http.get("/unique")
+async def unique(request: Request) -> None:
+    raise UniqueViolation("duplicate key value violates constraint posts_title_key")
+
+
+async def test_error_handler_decorates_a_function_and_returns_it(pool: Pool) -> None:
+    app = Hinoki()
+    app.include(quota)
+
+    @app.error_handler(Quota)
+    def translate(error: Quota) -> APIError:
+        return Conflict(code="quota_exceeded", message="Quota exceeded.")
+
+    assert translate(Quota()).code == "quota_exceeded"
+    reply = await (await pool.start(app)).request("GET", "/quota")
+    assert (reply.status, reply.body["error"]) == (409, "quota_exceeded")
+
+
+async def test_error_handler_accepts_an_api_error_class(pool: Pool) -> None:
+    app = Hinoki()
+    app.include(class_quota)
+    returned = app.error_handler(Quota)(QuotaConflict)
+    assert returned is QuotaConflict
+    reply = await (await pool.start(app)).request("GET", "/class-quota")
+    assert (reply.status, reply.body["error"]) == (409, "quota_conflict")
+    assert reply.body["message"] == "Quota reached."
+    assert "secret" not in str(reply.body)
+
+
+async def test_register_errors_adds_a_mapping_of_classes_and_functions(
+    pool: Pool,
+) -> None:
+    app = Hinoki()
+    app.include(class_quota, hard_quota)
+    app.register_errors({Quota: QuotaConflict, HardQuota: hard})
+    client = await pool.start(app)
+    assert (await client.request("GET", "/class-quota")).body["error"] == (
+        "quota_conflict"
+    )
+    assert (await client.request("GET", "/hard-quota")).body["error"] == "hard_quota"
+
+
+def test_register_errors_is_all_or_nothing() -> None:
+    app = Hinoki()
+    app.error_handler(Quota)(QuotaConflict)
+    with pytest.raises(ValueError, match="already registered"):
+        app.register_errors({HardQuota: hard, Quota: QuotaConflict})
+    assert HardQuota not in app.errors.handlers
+
+
+@pytest.mark.parametrize(
+    ("kind", "handler", "message"),
+    [
+        ("quota", QuotaConflict, "an exception class"),
+        (Quota, "text", "an APIError subclass or a callable"),
+        (Quota, Quota, "an APIError subclass or a callable"),
+    ],
+)
+def test_register_errors_rejects_unusable_entries(
+    kind: object, handler: object, message: str
+) -> None:
+    app = Hinoki()
+    with pytest.raises(TypeError, match=message):
+        app.register_errors({kind: handler})  # type: ignore[dict-item]
+    assert app.errors.handlers == {}
+
+
+def test_error_registration_is_refused_once_the_app_serves() -> None:
+    app = Hinoki()
+    app._adapter = object()  # type: ignore[assignment]
+    with pytest.raises(RegistrationError, match="frozen"):
+        app.error_handler(Quota)(QuotaConflict)
+    with pytest.raises(RegistrationError, match="frozen"):
+        app.register_errors({Quota: QuotaConflict})
+
+
+async def test_unique_violations_are_a_409_by_default(pool: Pool) -> None:
+    app = Hinoki()
+    app.include(unique)
+    reply = await (await pool.start(app)).request("GET", "/unique")
+    assert (reply.status, reply.body["error"]) == (409, "unique_conflict")
+    assert "posts_title_key" not in str(reply.body)
+
+
+async def test_an_application_handler_replaces_the_unique_default(pool: Pool) -> None:
+    app = Hinoki()
+    app.include(unique)
+    app.register_errors({UniqueViolation: QuotaConflict})
+    reply = await (await pool.start(app)).request("GET", "/unique")
+    assert reply.body["error"] == "quota_conflict"
