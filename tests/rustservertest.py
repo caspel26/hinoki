@@ -25,6 +25,7 @@ import pytest
 
 from hinoki import (
     Access,
+    Caller,
     Hinoki,
     MultiPartParser,
     RuntimeConfig,
@@ -129,6 +130,21 @@ async def native_item(item_id: int, data: Item, dry: bool = False) -> dict[str, 
 @http.patch("/native/items-sync/{item_id}")
 def native_item_sync(data: Item, item_id: int) -> dict[str, object]:
     return {"id": item_id, "title": data.title}
+
+
+WRITERS = Access(auth=TokenAuth(), permissions=["posts:write"])
+
+
+@http.get("/native/me/{item_id}", access=WRITERS)
+async def native_me(
+    item_id: int, who: Caller[str], limit: int = 5
+) -> dict[str, object]:
+    return {"id": item_id, "who": who.id, "limit": limit}
+
+
+@http.post("/native/guarded", status=201, access=Access(auth=TokenAuth()))
+def native_guarded(data: Item, who: Caller[str]) -> dict[str, object]:
+    return {"title": data.title, "who": who.id}
 
 
 @http.get("/native/typed/{ident}")
@@ -330,6 +346,8 @@ def make_app(**config: Any) -> Hinoki:
             native_remove_sync,
             native_item,
             native_item_sync,
+            native_me,
+            native_guarded,
             pipeline_echo,
             pipeline_integer,
             pipeline_uuid,
@@ -796,6 +814,66 @@ async def test_native_body_early_refusal_closes_like_the_pipeline() -> None:
         python = await fetch(port, "POST", "/notes", extra, body=body)
         assert native.status == python.status == 406
         assert native.header("connection") == python.header("connection")
+    finally:
+        await worker.stop()
+
+
+def bearer(token: str) -> tuple[str, dict[str, str]]:
+    return f"authorization: Bearer {token}\r\n", {"authorization": f"Bearer {token}"}
+
+
+@pytest.mark.parametrize(
+    ("method", "target", "auth", "extra", "body"),
+    [
+        ("GET", "/native/me/3?limit=9", "editor-token", "", b""),
+        ("GET", "/native/me/3", "reader-token", "", b""),
+        ("GET", "/native/me/3", "nobody", "", b""),
+        ("GET", "/native/me/3", None, "", b""),
+        ("GET", "/native/me/x?limit=y", None, "", b""),
+        ("GET", "/native/me/x?limit=y", "editor-token", "", b""),
+        ("GET", "/native/me/3", None, "accept: text/html\r\n", b""),
+        ("GET", "/native/me/3", "editor-token", "accept: text/html\r\n", b""),
+        ("GET", "/native/me/3?limit=%ff", None, "", b""),
+        ("GET", "/native/me/3?limit=%ff", "editor-token", "", b""),
+        ("GET", "/native/me/%ff", None, "", b""),
+        ("POST", "/native/guarded", "reader-token", JSON, b'{"title":"a"}'),
+        ("POST", "/native/guarded", None, JSON, b'{"title":"a"}'),
+        ("POST", "/native/guarded", None, JSON, b"{nope"),
+        ("POST", "/native/guarded", "reader-token", JSON, b"{nope"),
+        ("POST", "/native/guarded", "nobody", JSON, b'{"title":"a"}'),
+        ("POST", "/native/guarded", "reader-token", JSON, b'{"title":5}'),
+    ],
+)
+async def test_native_access_matches_pipeline(
+    method: str, target: str, auth: str | None, extra: str, body: bytes
+) -> None:
+    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        raw, headers = bearer(auth) if auth else ("", {})
+        for item in extra.strip().split("\r\n"):
+            if item:
+                name, _, value = item.partition(": ")
+                headers[name] = value
+        length = f"content-length: {len(body)}\r\n" if body else ""
+        sent = raw + extra + length
+        assert served_natively(
+            worker, method, target.partition("?")[0], [(b"content-length", b"0")]
+        )
+        received = await fetch(port, method, target, sent, body=body)
+        if method == "POST":
+            # The ASGI client has no connection to close; the Python lane on the
+            # same socket is the reference for it.
+            same = await fetch(port, method, "/secured", sent, body=body)
+            assert [v for k, v in received.headers if k == "connection"] == [
+                v for k, v in same.headers if k == "connection"
+            ]
+            received.headers[:] = [
+                (k, v) for k, v in received.headers if k != "connection"
+            ]
+        assert_pipeline_parity(
+            received, await pipeline_fetch(method, target, headers, body)
+        )
     finally:
         await worker.stop()
 
