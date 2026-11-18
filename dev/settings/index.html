@@ -653,6 +653,12 @@
 <td><code>0</code> to <code>86400</code>; how long a browser may cache a preflight</td>
 </tr>
 <tr>
+<td><code>admin</code></td>
+<td><code>secret</code></td>
+<td>unset</td>
+<td>The server secret (32+ bytes, from the environment or <code>*_FILE</code>) that keys the admin's CSRF tokens; an admin without its own <code>secret=</code> needs it</td>
+</tr>
+<tr>
 <td><code>security</code></td>
 <td><code>redirect_https</code></td>
 <td><code>false</code></td>
@@ -970,7 +976,7 @@ BLOG_JWT_SECRET               file         ***
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.20</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 20:44:23 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 11:14:53 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>17 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
