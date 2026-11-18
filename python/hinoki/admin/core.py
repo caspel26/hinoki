@@ -57,6 +57,8 @@ class Admin:
         theme: str | Theme = "studio",
         templates: str | None = None,
         site: str = "Admin",
+        per_page: int = 20,
+        show_count: bool = False,
         models: Sequence[type[Model] | type[ModelAdmin[Any]]] = (),
         tagline: str = "",
         workspace: str = "Workspace",
@@ -72,6 +74,8 @@ class Admin:
         self.access = access
         self.csrf = Csrf(secret)
         self._prefix = prefix
+        self.per_page = per_page
+        self.show_count = show_count
         self._served: str | None = None  # the prefix of the routes, once built
         self.mount = ""  # set when the admin is included under a ``Mount``
         self.site = site
@@ -164,6 +168,10 @@ class Admin:
             )
         instance = (admin or ModelAdmin)()
         instance.model = model
+        if instance.per_page is None:
+            instance.per_page = self.per_page  # type: ignore[misc]
+        if instance.show_count is None:
+            instance.show_count = self.show_count  # type: ignore[misc]
         instance.validate_config(name)
         self.models[name] = instance
 
