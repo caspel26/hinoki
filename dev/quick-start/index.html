@@ -231,8 +231,9 @@ MySQL or MariaDB instead, see <a href="../databases/">Configure a database</a>.<
 <h2 id="plan-and-apply-the-migration">Plan and apply the migration<a class="headerlink" href="#plan-and-apply-the-migration" title="Permanent link">&para;</a></h2>
 <p><code>examples/hinoki.toml</code> registers Notes, Tracker and Blog as independent apps.
 From the repository root, enter <code>examples/</code> and use the locked environment in
-the parent directory. The migration planner reads the Notes model and its
-recorded state and writes numbered SQL and state files for review:</p>
+the parent directory. On a fresh checkout, the checked-in Notes migration is
+already up to date, so planning reports <code>no changes</code>. Inspect the registered
+apps and migration SQL:</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
 uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>list
 uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>notes
@@ -286,7 +287,7 @@ curl<span class="w"> </span>http://127.0.0.1:8000/notes
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>1.2</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 13:06:27 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 00:36:43 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/quick-start.md">Edit on GitHub</a></dd></div>
         </dl>
