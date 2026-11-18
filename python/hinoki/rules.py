@@ -283,6 +283,9 @@ class RequireAccess(Rule):
             )
 
 
+OWN_TRANSACTIONS = ("hinoki.admin.",)  # framework routes that manage their own
+
+
 class RequireAtomic(Rule):
     id = "HNK-TXN-001"
     fix = (
@@ -309,6 +312,8 @@ class RequireAtomic(Rule):
         for route in project.app.routes:
             if route.method not in self.methods or matches(route, self.exceptions):
                 continue
+            if route.handler.__module__.startswith(OWN_TRANSACTIONS):
+                continue  # the admin's writes open their own short transactions
             if not route.transaction:
                 yield self.diagnostic(
                     f"{route.method} {route.path} ({route.handler.__qualname__}) "
