@@ -17,6 +17,7 @@ mod rows;
 mod rustserver;
 mod schema;
 mod server;
+mod xml;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -90,6 +91,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     rustserver::register(m)?;
     m.add_function(wrap_pyfunction!(query::compile_query, m)?)?;
     m.add_function(wrap_pyfunction!(request::parse_query_string, m)?)?;
+    m.add_function(wrap_pyfunction!(xml::parse_xml_body, m)?)?;
     m.add_function(wrap_pyfunction!(request::parse_cookie_header, m)?)?;
     m.add_function(wrap_pyfunction!(request::header_dict, m)?)?;
     m.add_function(wrap_pyfunction!(request::request_headers, m)?)?;

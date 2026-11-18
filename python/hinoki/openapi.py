@@ -144,7 +144,6 @@ class OpenAPIBuilder:
                 "content": {
                     parser.media_type: {"schema": self.component(body.schema)}
                     for parser in route.parsers
-                    if parser.forms or not body.text
                 },
             }
         operation["responses"] = self.responses(binding)

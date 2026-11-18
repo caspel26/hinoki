@@ -33,7 +33,7 @@ from hinoki.errors import (
 from hinoki.handlerhints import hints_of, signature_of
 from hinoki.http.request import Request
 from hinoki.pagination import PageNumberPagination, PageParams
-from hinoki.parsers import MultiPartParser, UploadedFile
+from hinoki.parsers import MultiPartParser, Parser, UploadedFile, XMLParser
 from hinoki.renderers import is_default_json_renderer
 from hinoki.routing import Route
 from hinoki.runtime.responsecheck import NO_ANNOTATION, Check, compile_response_check
@@ -369,23 +369,39 @@ def special_param(
     return None
 
 
+SOURCE_PARSERS = {
+    "form": "form parsers (FormParser, MultiPartParser)",
+    "xml": "XMLParser",
+}
+
+
+def accepts_source(source: TextSource, parser: Parser) -> bool:
+    return isinstance(parser, XMLParser) if source.kind == "xml" else parser.forms
+
+
 def text_body_param(
-    route: Route, parameter: inspect.Parameter, annotation: object
+    route: Route,
+    parameter: inspect.Parameter,
+    annotation: object,
+    source: TextSource,
 ) -> Param:
-    """``Form[Schema]``: the Schema read from a form, text converted first."""
+    """``Form[Schema]``/``XML[Schema]``: the Schema read from text, converted
+    to its declared types first."""
     where, name = route.name, parameter.name
     if not (isinstance(annotation, type) and issubclass(annotation, Schema)):
-        raise RegistrationError(f"{where}: Form[...] of {name!r} needs a Schema class")
+        raise RegistrationError(
+            f"{where}: {source.kind}[...] of {name!r} needs a Schema class"
+        )
     if name in PATH_PARAM.findall(route.path) or route.method not in BODY_METHODS:
         raise RegistrationError(
-            f"{where}: Form[...] parameter {name!r} must be the body of a "
+            f"{where}: {source.kind}[...] parameter {name!r} must be the body of a "
             "POST/PUT/PATCH/QUERY action, not a path or query parameter"
         )
-    if not all(parser.forms for parser in route.parsers):
+    if not all(accepts_source(source, p) for p in route.parsers):
         raise RegistrationError(
-            f"{where}: Form[...] parameters accept only form parsers "
-            "(FormParser, MultiPartParser) in the action's parsers=...; omit "
-            "parsers= to select FormParser, and use a plain Schema for JSON"
+            f"{where}: {source.kind}[...] parameters accept only "
+            f"{SOURCE_PARSERS[source.kind]} in the action's parsers=...; omit "
+            "parsers= to select the default, and use a plain Schema for JSON"
         )
     annotation.specs()  # unresolvable annotations fail now, not per request
     return Param(name, "body", schema=annotation, text=True)
@@ -407,11 +423,12 @@ def text_sources(route: Route) -> dict[str, TextSource]:
     return found
 
 
-def declares_form(route: Route) -> bool:
-    """Whether a body action binds ``Form[...]``, so it needs a form parser."""
-    return route.method in BODY_METHODS and any(
-        mark.kind == "form" for mark in text_sources(route).values()
-    )
+def declared_source(route: Route) -> TextSource | None:
+    """The text source a body action binds with ``Form[...]``/``XML[...]``, which
+    decides the parsers it needs."""
+    if route.method not in BODY_METHODS:
+        return None
+    return next(iter(text_sources(route).values()), None)
 
 
 def file_parameter(
@@ -505,7 +522,7 @@ def make_param(
     source: TextSource | None = None,
 ) -> Param:
     special = (
-        text_body_param(route, parameter, annotation)
+        text_body_param(route, parameter, annotation, source)
         if source is not None
         else special_param(route, parameter, annotation)
     )

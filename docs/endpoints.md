@@ -106,6 +106,33 @@ def signup(data: Form[Signup]) -> dict[str, int]:
 
 Before validation, text is converted to the `int`, `float` and `bool` the `Schema` declares (and a lone value of a `list` field becomes a one-item list); `Schema` and JSON stay strict. A value that does not convert, or several values for a scalar, fails with the normal `422` type error. Empty text is not turned into `None`, and nested `Schema` fields are not read from form keys. An action with a `Form[...]` parameter and no `parsers=` uses `FormParser` (add `MultiPartParser()` explicitly for multipart text fields). `Form[...]` is valid only for the `Schema` body of a POST, PUT, PATCH or QUERY action, takes only form parsers (a JSON body needs a plain `Schema` parameter, so one cannot be coerced by mistake), and appears in OpenAPI as `application/x-www-form-urlencoded`.
 
+## XML bodies
+
+`XML[...]` reads a `Schema` from an `application/xml` body the same way `Form[...]` reads a form: the elements under the root become the fields, text is converted to the declared `int`, `float` and `bool`, and the strict validation follows.
+
+```python
+from hinoki import XML, Schema, http
+
+
+class Line(Schema):
+    sku: str
+    qty: int
+
+
+class Order(Schema):
+    customer: str
+    lines: list[Line]
+
+
+@http.post("/orders")
+def create(data: XML[Order]) -> dict[str, int]:
+    return {"lines": len(data.lines)}
+    # <order><customer>Ada</customer>
+    #   <lines><sku>a</sku><qty>2</qty></lines></order>
+```
+
+A repeated element is a list (a single one still fills a `list` field), nested elements fill nested `Schema` fields, and an empty element is `None`. Attributes are not read and namespace prefixes are dropped (`<a:x>` and `<b:x>` are both `x`). Malformed XML, a DTD, a custom entity, mixed text and child elements, or exceeding `XMLParser(max_depth=..., max_elements=...)` is `400 invalid_xml`. As with `Form[...]`, the action takes only `XMLParser` (selected when `parsers=` is omitted), and the OpenAPI document lists `application/xml`.
+
 ## Upload files
 
 Bind a file by the multipart field name. An action that declares a file parameter and no `parsers=` gets `MultiPartParser()` automatically, with its default limits, unless the application's `parsers=` include one; pass `parsers=[MultiPartParser(...)]` to change them. `UploadedFile` contains the client filename, claimed content type and in-memory `bytes`; it does not save files or validate their content.

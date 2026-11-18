@@ -156,6 +156,36 @@ class FormParser(Parser):
         return Parsed({name: values[-1] for name, values in fields.items()}, fields)
 
 
+DEFAULT_XML_DEPTH = 32
+DEFAULT_XML_ELEMENTS = 10_000
+
+
+class XMLParser(Parser):
+    """``application/xml``. ``data`` is the tree under the root element: an
+    element with children is a ``dict``, a repeated child name a ``list``, a
+    text-only element a ``str`` and an empty one ``None``. Attributes are not
+    read. DTDs and custom entities are refused, and nesting and element count
+    are capped."""
+
+    media_type = "application/xml"
+
+    def __init__(
+        self,
+        max_depth: int = DEFAULT_XML_DEPTH,
+        max_elements: int = DEFAULT_XML_ELEMENTS,
+    ) -> None:
+        if max_depth < 1 or max_elements < 1:
+            raise ValueError("XML limits must be positive")
+        self.max_depth = max_depth
+        self.max_elements = max_elements
+
+    def parse(self, raw: bytes, content_type: str) -> Parsed:  # noqa: ARG002
+        try:
+            return Parsed(core.parse_xml_body(raw, self.max_depth, self.max_elements))
+        except ValueError as exc:
+            raise InvalidBody("invalid_xml", str(exc)) from None
+
+
 BOUNDARY = re.compile(r';\s*boundary=(?:"([^"]*)"|([^;\s]*))', re.IGNORECASE)
 
 
@@ -211,6 +241,7 @@ _PLAIN_PARSER_STATE: dict[type[Parser], set[str]] = {
     TextParser: set(),
     BytesParser: set(),
     FormParser: {"max_fields"},
+    XMLParser: {"max_depth", "max_elements"},
 }
 
 
@@ -221,8 +252,12 @@ def is_native_parser(parser: Parser) -> bool:
     return state is not None and set(vars(parser)) == state
 
 
-# Selected for an action that binds ``Form[...]`` and whose parsers nobody chose.
-FORM_PARSERS: tuple[Parser, ...] = (FormParser(),)
+# Selected for an action that binds ``Form[...]``/``XML[...]`` and whose parsers
+# nobody chose, by source kind.
+SOURCE_DEFAULTS: dict[str, tuple[Parser, ...]] = {
+    "form": (FormParser(),),
+    "xml": (XMLParser(),),
+}
 # Selected for an action that binds an uploaded file and whose parsers nobody chose.
 UPLOAD_PARSERS: tuple[Parser, ...] = (MultiPartParser(),)
 
