@@ -561,6 +561,53 @@ on the class; the full paths remain beside their actions. Use <code>RouteGroup</
 functions are a better fit, especially when several actions share access,
 transaction defaults, or declared errors. A group must contain at least one
 action and becomes immutable after successful inclusion.</p>
+<h2 id="function-or-class">Function or class<a class="headerlink" href="#function-or-class" title="Permanent link">&para;</a></h2>
+<p>Both forms declare the same actions with the same decorators. They differ in four ways that matter in Hinoki, and each rule below follows from one of them.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Function (with <code>RouteGroup</code>)</th>
+<th>Class (<code>API</code>, <code>CrudAPI</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Shared <code>access=</code>, <code>atomic=</code>, <code>errors=</code></td>
+<td>stated once on <code>RouteGroup(...)</code></td>
+<td>not available: an <code>API</code> class carries a path prefix only, so each action states them</td>
+</tr>
+<tr>
+<td>Rust fast path for simple public routes</td>
+<td>eligible (<a href="../serving/">serving</a>)</td>
+<td>never: a method has an owner class, so it always takes the Python lane</td>
+</tr>
+<tr>
+<td>Inheritance</td>
+<td>none: compose with decorators and groups</td>
+<td>subclasses extend a base, override an action, or drop an inherited one by redefining it without a decorator (or <code>replaces=</code>)</td>
+</tr>
+<tr>
+<td>Generated routes and write hooks</td>
+<td>no</td>
+<td><code>CrudAPI</code> only (<code>get_queryset</code>, <code>store</code>, <code>change</code>, <code>remove</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Use functions and a <code>RouteGroup</code> for ordinary endpoints.</strong> The action's shared policy sits in one place, the handlers are plain functions that a test can call, and a simple public one can be served natively. The group below states access, transactions and the errors its actions may raise once:</p>
+<div class="highlight"><pre><span></span><code><span class="n">tasks</span> <span class="o">=</span> <span class="n">RouteGroup</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">member_only</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">NotFound</span><span class="p">,))</span>
+
+<span class="nd">@tasks</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">listing</span><span class="p">(</span><span class="n">page</span><span class="p">:</span> <span class="n">PageParams</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Page</span><span class="p">[</span><span class="n">TaskOut</span><span class="p">]:</span> <span class="o">...</span>
+
+<span class="nd">@tasks</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">TaskIn</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">TaskOut</span><span class="p">:</span> <span class="o">...</span>
+</code></pre></div>
+<p><strong>Use a class when the endpoints share behaviour by inheritance</strong>: a <code>CrudAPI</code> for a model (generated routes plus the <code>store</code>/<code>change</code>/<code>remove</code> hooks), a base <code>API</code> whose actions several resources extend or override, or a resource you ship for others to include (the admin is one). A class that only groups three functions under a prefix gains nothing and loses the shared options and the native path.</p>
+<p><strong>Keep state out of the instance.</strong> An <code>API</code> instance holds no per-request state and is shared by every request of the worker. Take what you need as parameters (<code>Request</code>, <code>Caller[...]</code>, path and body values) and reach worker-owned resources through a module, never by assigning to <code>self</code>.</p>
+<p><strong>Make the handler thin.</strong> Parse and validate with a <code>Schema</code>, call a plain async function that owns the rule (the Tracker's <code>operations.py</code>), and return a <code>Schema</code>. Keep the direction of imports api → operations → models, and let <code>Imports.forbid(...)</code> in <code>rules.py</code> fail the build when it is reversed.</p>
+<p><strong>Register through one <code>routes.py</code> per feature.</strong> The module exports <code>routes: list[Includable]</code> with paths relative to the feature, and the root (or the <code>routes =</code> key of <code>hinoki.toml</code>, see below) mounts it. The whole map then reads in one place, <code>hinoki routes</code> and <code>hinoki check</code> can print and verify it, and an explicit <code>include=[...]</code> still overrides the manifest when you need it. Pick one source for each prefix: a <code>Mount</code>, or a <code>RouteGroup</code>/<code>API</code> path, not both.</p>
+<p><strong>Annotate every return type with something checkable</strong> (a <code>Schema</code>, <code>list[...]</code>, <code>Page[...]</code>, a scalar, <code>None</code>, a union, or <code>Response</code>): the annotation is checked at startup and every result is checked against it, so the OpenAPI document and the behaviour cannot drift apart. Return <code>Response</code> only for what a typed result cannot say (a redirect, headers, an unusual status), as <code>NoteOut | Response</code>.</p>
 <h2 id="organising-a-large-application">Organising a large application<a class="headerlink" href="#organising-a-large-application" title="Permanent link">&para;</a></h2>
 <p>A project created by <code>hinoki new</code> does not list its routes in <code>main.py</code>. The manifest (<code>hinoki.toml</code>) names them, and the application the manifest declares binds them when it is built without <code>include=</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="k">[project]</span>
@@ -729,7 +776,7 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#declare-an-action">Declare an action</a></li><li><a href="#read-with-a-body-httpquery">Read with a body: @http.query</a></li><li><a href="#bind-request-values">Bind request values</a></li><li><a href="#upload-files">Upload files</a></li><li><a href="#group-related-paths">Group related paths</a></li><li><a href="#organising-a-large-application">Organising a large application</a></li><li><a href="#responses-errors-and-pagination">Responses, errors and pagination</a>
+            <ul><li><a href="#declare-an-action">Declare an action</a></li><li><a href="#read-with-a-body-httpquery">Read with a body: @http.query</a></li><li><a href="#bind-request-values">Bind request values</a></li><li><a href="#upload-files">Upload files</a></li><li><a href="#group-related-paths">Group related paths</a></li><li><a href="#function-or-class">Function or class</a></li><li><a href="#organising-a-large-application">Organising a large application</a></li><li><a href="#responses-errors-and-pagination">Responses, errors and pagination</a>
             <ul><li><a href="#rate-limit-an-action">Rate limit an action</a></li><li><a href="#the-response-is-checked-against-the-annotation">The response is checked against the annotation</a></li></ul>
           </li><li><a href="#migrating-from-the-top-level-decorators">Migrating from the top-level decorators</a></li></ul>
           
@@ -738,8 +785,8 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.10</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 10:52:07 UTC">November 18, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>14 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 12:50:57 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>16 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

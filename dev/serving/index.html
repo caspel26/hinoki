@@ -566,6 +566,38 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 </code></pre></div>
 <h2 id="other-runners">Other runners<a class="headerlink" href="#other-runners" title="Permanent link">&para;</a></h2>
 <p><code>dev</code> and <code>serve</code> are conveniences. The application is a plain ASGI app, so <code>granian --interface asgi --factory blog.main:create_app</code> (or another ASGI server) works too; run that command from <code>examples/</code> with the locked environment active. The <code>server</code> group is ignored, because only <code>hinoki serve</code> applies it.</p>
+<h2 id="metrics-and-tracing">Metrics and tracing<a class="headerlink" href="#metrics-and-tracing" title="Permanent link">&para;</a></h2>
+<p>Hinoki ships no metrics registry, exporter or tracing integration, and no health route besides the optional <a href="#optional-startup-probe">startup probe</a>. On an ASGI server the application is a plain ASGI callable, so wrap it with the instrumentation you already use, or with a few lines of your own:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Timing</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Report each request's method, status and duration to ``record``."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">record</span> <span class="o">=</span> <span class="n">app</span><span class="p">,</span> <span class="n">record</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scope</span><span class="p">,</span> <span class="n">receive</span><span class="p">,</span> <span class="n">send</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">scope</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">"http"</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="p">(</span><span class="n">scope</span><span class="p">,</span> <span class="n">receive</span><span class="p">,</span> <span class="n">send</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="n">started</span><span class="p">,</span> <span class="n">status</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">(),</span> <span class="kc">None</span>
+
+        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">watch</span><span class="p">(</span><span class="n">message</span><span class="p">):</span>
+            <span class="k">nonlocal</span> <span class="n">status</span>
+            <span class="k">if</span> <span class="n">message</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"http.response.start"</span><span class="p">:</span>
+                <span class="n">status</span> <span class="o">=</span> <span class="n">message</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span>
+            <span class="k">await</span> <span class="n">send</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="p">(</span><span class="n">scope</span><span class="p">,</span> <span class="n">receive</span><span class="p">,</span> <span class="n">watch</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>  <span class="c1"># status stays None when the request was aborted before a response began</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="p">(</span><span class="n">scope</span><span class="p">[</span><span class="s2">"method"</span><span class="p">],</span> <span class="n">status</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">-</span> <span class="n">started</span><span class="p">)</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Timing</span><span class="p">(</span><span class="n">create_app</span><span class="p">(),</span> <span class="n">record</span><span class="o">=</span><span class="n">my_metrics</span><span class="o">.</span><span class="n">observe</span><span class="p">)</span>   <span class="c1"># run this with Granian or any ASGI server</span>
+</code></pre></div>
+<p>What this measures is the time from the ASGI call to the last byte handed to the server, not what a client perceives. Keep method and status as labels; do <strong>not</strong> label by <code>scope["path"]</code> (it holds ids and has unbounded cardinality), the request ID (it is for correlating logs: <code>logging.include_request_id</code> adds it to each Hinoki log line) or the caller. Hinoki does not currently expose the matched route template to a wrapper, so per-route metrics need an application-level counter inside the handler or a gap report so a hook can be designed.</p>
+<p>The Rust server (<code>--server rust</code>) has no ASGI boundary, so this wrapper does not apply to it and it has no instrumentation seam today. Use the server's own limits and the request log of your proxy, or serve with Granian when you need to wrap the application.</p>
 <h2 id="wsgi">WSGI<a class="headerlink" href="#wsgi" title="Permanent link">&para;</a></h2>
 <p>ASGI is the intended way to serve Hinoki. When a deployment can only run WSGI, wrap the application:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># wsgi.py</span>
@@ -610,15 +642,15 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
           
             <ul><li><a href="#where-host-port-and-workers-come-from">Where host, port and workers come from</a></li><li><a href="#the-rust-server">The Rust server</a>
             <ul><li><a href="#what-is-native-and-what-still-runs-in-python">What is native and what still runs in Python</a></li><li><a href="#generated-crud">Generated CRUD</a></li><li><a href="#optional-startup-probe">Optional startup probe</a></li><li><a href="#limits">Limits</a></li><li><a href="#settings-that-apply-to-one-server-only">Settings that apply to one server only</a></li><li><a href="#workers-signals-and-restarts">Workers, signals and restarts</a></li><li><a href="#hinoki-dev-server-rust">hinoki dev --server rust</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li></ul>
-          </li><li><a href="#declaring-where-settings-are-read">Declaring where settings are read</a></li><li><a href="#other-runners">Other runners</a></li><li><a href="#wsgi">WSGI</a></li></ul>
+          </li><li><a href="#declaring-where-settings-are-read">Declaring where settings are read</a></li><li><a href="#other-runners">Other runners</a></li><li><a href="#metrics-and-tracing">Metrics and tracing</a></li><li><a href="#wsgi">WSGI</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 12:16:14 UTC">November 18, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>17 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 12:57:40 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>18 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
