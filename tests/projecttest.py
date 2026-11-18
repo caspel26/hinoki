@@ -1,5 +1,6 @@
 """Project registry and modular-app commands."""
 
+import importlib
 import json
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -249,6 +250,8 @@ def test_app_list_json_has_stable_manifest_fields(
                 "name": "sample",
                 "models": "sample.models",
                 "migrations": "sample.migrations",
+                "routes": "",
+                "prefix": "",
                 "requires": [],
             }
         ]
@@ -816,3 +819,58 @@ async def test_app_migrations_with_same_filename_have_separate_sqlite_ledger_ent
         ]
     finally:
         database.close()
+
+
+def test_a_new_project_serves_its_routes_from_the_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = create("routedsample", tmp_path)
+    monkeypatch.chdir(project)
+    monkeypatch.syspath_prepend(str(project))
+    for name in [key for key in sys.modules if key.startswith("routedsample")]:
+        monkeypatch.delitem(sys.modules, name)
+    manifest = (project / "hinoki.toml").read_text(encoding="utf-8")
+    assert 'routes = "routedsample.routes:routes"' in manifest
+    assert "include=[" not in (project / "routedsample" / "main.py").read_text()
+
+    app = importlib.import_module("routedsample.main").app
+    assert [route.path for route in app.routes] == ["/health"]
+
+
+def test_app_create_registers_the_routes_of_the_new_app(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = create("billedsample", tmp_path)
+    monkeypatch.chdir(project)
+    monkeypatch.syspath_prepend(str(project))
+    for name in [key for key in sys.modules if key.startswith("billedsample")]:
+        monkeypatch.delitem(sys.modules, name)
+
+    assert main(["app", "create", "billing"]) == 0
+    routes_file = project / "billedsample" / "apps" / "billing" / "routes.py"
+    assert "routes: list[object] = []" in routes_file.read_text(encoding="utf-8")
+    manifest = (project / "hinoki.toml").read_text(encoding="utf-8")
+    assert 'routes = "billedsample.apps.billing.routes:routes"' in manifest
+    assert 'prefix = "/billing"' in manifest
+
+    routes_file.write_text(
+        "from hinoki import http\n\n\n"
+        '@http.get("/invoices")\ndef invoices() -> list[str]:\n    return []\n\n\n'
+        "routes = [invoices]\n",
+        encoding="utf-8",
+    )
+    app = importlib.import_module("billedsample.main").app
+    assert [route.path for route in app.routes] == ["/health", "/billing/invoices"]
+
+    capsys.readouterr()
+    assert main(["app", "list"]) == 0
+    listing = capsys.readouterr().out
+    assert "routes: billedsample.apps.billing.routes:routes at /billing" in listing
+    assert main(["app", "list", "--format", "json"]) == 0
+    rows = json.loads(capsys.readouterr().out)["apps"]
+    assert [(row["name"], row["prefix"]) for row in rows] == [
+        ("billedsample", ""),
+        ("billing", "/billing"),
+    ]
