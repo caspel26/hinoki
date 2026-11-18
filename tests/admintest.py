@@ -636,6 +636,7 @@ def test_admin_site_key_and_number_fallbacks(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_admin_user_card_includes_an_escaped_logout_link() -> None:
     admin = SimpleNamespace(
+        users=None,
         logout_url='/logout?next="<home>',
         templates=Templates(),
         role=lambda _principal: "Staff",
