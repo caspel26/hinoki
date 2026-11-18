@@ -15,7 +15,13 @@ from http import HTTPStatus
 from hinoki import core
 from hinoki.context import request_id
 from hinoki.renderers import is_default_json_renderer
-from hinoki.runtime.binding import EMPTY, PATH_PARAM, Binding
+from hinoki.runtime.binding import (
+    EMPTY,
+    KINDS_BY_NAME,
+    PATH_PARAM,
+    Binding,
+    Param,
+)
 from hinoki.runtime.crudplan import CrudPlanSelection, select_crud_plan
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.responses import RETRY_LATER, HTTPError
@@ -90,7 +96,7 @@ def route_spec(
     native_handler = native_handler_eligible(binding)
     native_inputs = (
         [
-            (param.source, param.name, param.default is not EMPTY)
+            (param.source, param.name, param.default is not EMPTY, param.kind)
             for param in binding.params
         ]
         if native_handler
@@ -112,6 +118,15 @@ def route_spec(
     )
 
 
+def native_input_supported(param: Param) -> bool:
+    """Whether Rust converts this input as the built-in converter does."""
+    if param.source == "path":
+        return param.default is EMPTY
+    return param.source == "query" and (
+        param.default is EMPTY or type(param.default) is KINDS_BY_NAME[param.kind]
+    )
+
+
 def native_handler_eligible(binding: Binding) -> bool:
     """Select the automatic native response path for the built-in simple GET."""
     route = binding.route
@@ -122,16 +137,7 @@ def native_handler_eligible(binding: Binding) -> bool:
     )
     path_names = PATH_PARAM.findall(route.path)
     supported_inputs = all(
-        param.source in {"path", "query"}
-        and param.kind == "str"
-        and param.convert is str
-        and (
-            (param.source == "path" and param.default is EMPTY)
-            or (
-                param.source == "query"
-                and (param.default is EMPTY or type(param.default) is str)
-            )
-        )
+        param.source in {"path", "query"} and native_input_supported(param)
         for param in binding.params
     )
     bound_path_names = {
