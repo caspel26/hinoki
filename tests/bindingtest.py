@@ -123,14 +123,14 @@ def test_signature_introspection_failure_is_a_registration_error(
     )
     app = Hinoki()
     with pytest.raises(RegistrationError, match="cannot inspect signature"):
-        app.include(http.get("/x")(lambda: None))  # type: ignore[misc]
+        app.include(http.get("/x", validate_response=False)(lambda: None))  # type: ignore[misc]
 
 
 def test_annotation_resolution_failure_is_a_registration_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     route_app = Hinoki()
-    route_app.include(http.get("/x")(lambda: None))  # type: ignore[misc]
+    route_app.include(http.get("/x", validate_response=False)(lambda: None))  # type: ignore[misc]
     monkeypatch.setattr(
         "hinoki.runtime.binding.hints_of",
         lambda _handler: (_ for _ in ()).throw(NameError("missing annotation")),

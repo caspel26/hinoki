@@ -26,10 +26,12 @@ from hinoki.db import Database
 from hinoki.docsui import CSP, Page
 from hinoki.docsui import pages as docs_pages
 from hinoki.errors import (
+    MAX_RETRY_AFTER,
     Conflict,
     ErrorDetail,
     InvalidBody,
     RegistrationError,
+    TooManyRequests,
     ValidationError,
 )
 from hinoki.http.request import Request
@@ -38,6 +40,7 @@ from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
 from hinoki.orm.model import Model
 from hinoki.pagination import Page as ResultPage
+from hinoki.ratelimit import RateLimitContext
 from hinoki.renderers import (
     JSONRenderer,
     Renderer,
@@ -51,6 +54,7 @@ from hinoki.runtime.lifespan import Lifespan
 from hinoki.runtime.origins import ALLOW_ORIGIN, CorsPolicy, HostPolicy
 from hinoki.runtime.proxy import effective_scope, inbound_request_id
 from hinoki.runtime.requests import Scope, authorize, build_request, decode_params
+from hinoki.runtime.responsecheck import ResponseContractError
 from hinoki.runtime.responses import (
     BODYLESS,
     RETRY_LATER,
@@ -64,6 +68,8 @@ from hinoki.settings import AppSettings, SecuritySettings
 
 if TYPE_CHECKING:
     from hinoki.app import Hinoki
+    from hinoki.auth import Caller
+    from hinoki.ratelimit import RateLimitPolicy
 
 log = logging.getLogger("hinoki.runtime")
 
@@ -571,6 +577,8 @@ class Pipeline:
             # Parsed once: authentication and the request share the result.
             query = parse_query(scope.get("query_string", b""))
             principal = await authorize(access, headers, query)
+        if binding.route.rate_limit is not None:
+            await self._rate_limit(binding, scope, principal)
         renderer = negotiate(headers.get("accept", ""), binding.route.renderers)
         if renderer is None:
             wanted = ", ".join(r.media_type for r in binding.route.renderers)
@@ -586,6 +594,50 @@ class Pipeline:
             scope, binding, path_params, headers, raw_body, principal, query
         )
         return await self._invoke(binding, request, renderer, binding.collect(data))
+
+    async def _rate_limit(
+        self, binding: Binding, scope: Scope, principal: object | None
+    ) -> None:
+        """Ask the route's policy before the body is read. Only the policy's own
+        ``TooManyRequests`` refuses with 429; any other failure of the policy or
+        its store fails closed with a generic 503 that names nothing."""
+        route = binding.route
+        policy = cast("RateLimitPolicy", route.rate_limit)
+        client = scope.get("client")
+        context = RateLimitContext(
+            method=route.method,
+            route=route.path,
+            client=str(client[0]) if client and client[0] else None,
+            caller=cast("Caller[Any] | None", principal),
+            lookup=self.ctx.get,
+        )
+        try:
+            if inspect.iscoroutinefunction(policy.check):
+                await policy.check(context)
+            else:
+                result = await self.executor.run(policy.check, context)
+                if inspect.isawaitable(result):
+                    await result
+        except TooManyRequests as refusal:
+            if not valid_refusal(refusal):
+                log.error(
+                    "the rate limit policy of %s %s failed", route.method, route.path
+                )
+                raise HTTPError(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    "rate_limit_unavailable",
+                    RETRY_LATER,
+                ) from None
+            raise
+        except ExecutorSaturated:
+            raise HTTPError(
+                HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
+            ) from None
+        except Exception:
+            log.error("the rate limit policy of %s %s failed", route.method, route.path)
+            raise HTTPError(
+                HTTPStatus.SERVICE_UNAVAILABLE, "rate_limit_unavailable", RETRY_LATER
+            ) from None
 
     async def _body(self, source: BodySource, declared: str) -> bytes:
         """The request body, refused before reading anything when the declared
@@ -669,6 +721,7 @@ class Pipeline:
         result = await self._handler_result(binding, request, kwargs, row_wire)
         if isinstance(result, HandlerResponse):
             return Response(result.status, result.body, result.headers)
+        enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
             result = project_response(binding.response_schema, result)
             shown = result if renderer.consumes_objects else encode(result)
@@ -686,6 +739,7 @@ class Pipeline:
         )
         if isinstance(result, HandlerResponse):
             return Response(result.status, result.body, result.headers)
+        enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
             result = project_response(binding.response_schema, result)
             body = core.encode_json(result, None, False, None)
@@ -724,6 +778,33 @@ class Pipeline:
             raise HTTPError(
                 HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
             ) from None
+
+
+def enforce_response(binding: Binding, result: object) -> None:
+    """With ``validate_response=True``, refuse a result the annotation does not
+    allow; the error names the action, never the value."""
+    check = binding.response_check
+    if check is None or binding.route.status in BODYLESS or check(result):
+        return
+    if binding.response_schema is not None and isinstance(result, Model):
+        return  # a Model is projected through the declared Schema right after
+    raise ResponseContractError(
+        f"{binding.route.name} returned a {type(result).__name__} that does not "
+        f"match its return annotation {binding.response_annotation}"
+    )
+
+
+def valid_refusal(error: TooManyRequests) -> bool:
+    """Whether a refusal carries a whole ``retry_after`` of 1..86,400 seconds and
+    the matching header (an error built without its constructor does not)."""
+    seconds = getattr(error, "retry_after", None)
+    headers = getattr(error, "headers", None)
+    return (
+        type(seconds) is int
+        and 1 <= seconds <= MAX_RETRY_AFTER
+        and isinstance(headers, dict)
+        and headers.get("retry-after") == str(seconds)
+    )
 
 
 class ResponseProjectionError(RuntimeError):

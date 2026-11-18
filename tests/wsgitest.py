@@ -154,7 +154,7 @@ class Recorder(Module):
 
 def test_startup_failure_answers_503_and_close_is_safe() -> None:
     app = Hinoki(modules=[Broken()])
-    app.include(http.get("/x")(lambda: None))  # type: ignore[misc]
+    app.include(http.get("/x", validate_response=False)(lambda: None))  # type: ignore[misc]
     adapter = WSGIAdapter(app)
     assert call(adapter, "GET", "/x")[0] == "503 Service Unavailable"
     assert call(adapter, "GET", "/x")[0] == "503 Service Unavailable"  # stays failed
@@ -164,7 +164,7 @@ def test_startup_failure_answers_503_and_close_is_safe() -> None:
 def test_module_startup_and_shutdown_run_once_around_the_requests() -> None:
     Recorder.events.clear()
     app = Hinoki(modules=[Recorder()])
-    app.include(http.get("/x")(lambda: None))  # type: ignore[misc]
+    app.include(http.get("/x", validate_response=False)(lambda: None))  # type: ignore[misc]
     adapter = WSGIAdapter(app)
     assert Recorder.events == []  # lazy: nothing starts before the first request
     call(adapter, "GET", "/x")

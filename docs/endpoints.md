@@ -328,6 +328,46 @@ Use `--path` or `--method` to narrow it, and `--format json` for scripts. The li
 
 Return a value matching the declared response type, or return `Response` when the handler needs to set an explicit status, headers or body. Declare expected `APIError` subclasses in `errors=(...)`; their status, stable code and message feed the OpenAPI document and strict test client.
 
+### Rate limit an action
+
+Hinoki ships no limiter. A route names a policy, and the application owns the rule, the key and the storage, because a counter kept in one worker's memory is wrong across workers and after a restart. The option is `rate_limit=`:
+
+```python
+class LoginLimit:
+    async def check(self, context: RateLimitContext) -> None:
+        store = context.resource(RedisStore)            # provided by a module, per worker
+        key = f"login:{context.client}"
+        if not await store.allow(key, limit=5, window=60):
+            raise errors.TooManyRequests(retry_after=60)
+
+@http.post("/auth/login", rate_limit=LoginLimit())
+async def login(data: LoginIn) -> SessionOut: ...
+```
+
+`check` is `def` or `async def` and returns to allow the request. It runs after the route is matched and the caller authenticated, and before the body is read, parsed or handled, so a refused request costs neither a body read nor a password hash. A sync `check` runs on the bounded executor, so it must use a sync client with finite timeouts (cancelling the waiter does not stop its thread); an async one runs on the event loop.
+
+`RateLimitContext` holds only `method`, `route` (the path template), `client` (the trusted client address, `None` when unknown; a forwarded address counts only from a configured trusted proxy), `caller` (the authenticated `Caller`, `None` on a public route) and `resource(kind)`, which returns the worker-owned resource that a [module](modules.md) provided, such as a Redis client or the `Database`. It carries no headers, credentials, body or query values.
+
+The refusal is `errors.TooManyRequests(retry_after)`: status 429, code `rate_limited`, and `Retry-After` set to `retry_after`, a whole number of seconds from 1 to 86,400 (anything else is refused when the error is created). The route documents it in OpenAPI by itself, with `Retry-After` as a required integer header. Only that error answers 429. Any other exception from the policy or its store, including a `TooManyRequests` that was built without its constructor, is answered `503 rate_limit_unavailable`: the request is refused rather than allowed unchecked, the answer and the log name the route and never the exception, and the application's error handlers and debug output never see it. Cancellation is not caught.
+
+A rate-limited route always takes the Python request path, not the native fast path. Limiting failed credentials of a `BearerAuth` provider belongs in that provider, because authentication runs first. The Blog example limits `/auth/login` with `limits.LoginAttempts`, a per-worker fixed window that is labelled as an example, not a production limiter.
+
+### The response is checked against the annotation
+
+Every action's return value is checked against its return annotation, and the annotation itself is checked when the app starts. There is nothing to switch on.
+
+```python
+@http.get("/notes/{note_id}")
+async def detail(note_id: int) -> NoteOut:
+    return {"id": note_id}          # a dict is not a NoteOut: 500 internal_error
+```
+
+- **At startup.** An annotation that cannot be checked stops the app with a `RegistrationError` that names the action: no annotation, `Any`, `object`, `set[...]`, a plain class, or `Response` inside a collection. Annotate a concrete type, or declare the action with `validate_response=False` to skip the check for that action.
+- **At runtime.** A result that does not match is a `500 internal_error`, because the fault is the server's, not the client's. With `debug=True` (development) the answer names the action, the type it returned and the annotation it broke, for example `detail returned a dict that does not match its return annotation NoteOut`. Without debug the body is generic. The log and the answer never contain the value itself. With `transaction=True` the check runs inside the transaction, so a mismatch rolls the write back.
+- **What is accepted.** A `Schema` class, a `Model` class (projected through the declared `Schema` when there is one), `list[...]`, `dict[str, ...]` and `Page[...]` of these, `str`, `int`, `float`, `bool` (a `bool` is not an `int`), `bytes`, `datetime`, `date`, `UUID`, `Decimal`, `None`, plain `dict` and `list`, `Any` or `object` as an item type, and unions of these. `Annotated[...]` is unwrapped. The check never coerces.
+- **`Response`.** `-> Response` and `NoteOut | Response` are accepted: a returned `Response` carries its own status, headers and body and is not checked. Actions with a bodyless status (`204`, `304`) are not checked.
+- **What it does not check.** A `Schema` instance is valid by construction, so the check is about the shape of the result, not the field values. A custom renderer or a `dump()` override can still change the bytes afterwards. The check is one type test per request; no performance figure is claimed.
+
 Use `Response` from `hinoki` or `hinoki.http` for explicit status, headers or body. It is also available from `hinoki.http.response`. The former `Reply` name and `hinoki.reply` module are deprecated aliases kept for one compatibility cycle: `from hinoki import Reply` and `import hinoki.reply` still work, refer to the same `Response` class and emit `DeprecationWarning`. Replace their imports, annotations and constructors with `Response`.
 
 Paginated actions declare a pagination policy. See [pagination](pagination.md) for the query parameters and response envelope.
