@@ -266,6 +266,9 @@ class SettingRow:
 FILE_SUFFIX = "_FILE"
 MAX_SECRET_FILE = 64 * 1024
 MIN_SECRET = 32  # bytes: the shortest server secret accepted
+MAX_SESSION_HOURS = 24 * 30
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 128
 
 
 def gather(
@@ -1171,13 +1174,26 @@ class SecuritySettings(Settings):
 
 
 class AdminSettings(Settings):
-    """The admin site: the secret that keys its CSRF tokens."""
+    """The admin site: the secret that keys its CSRF tokens and the rules of
+    its own users' sessions and passwords."""
 
     secret: Secret | None = None
+    session_hours: int = 12  # a session ends this long after sign-in, whatever else
+    idle_minutes: int = 120  # ... or this long after its last request
+    min_password_length: int = 12
 
     def validate(self) -> None:
         if self.secret is not None and len(self.secret.reveal().encode()) < MIN_SECRET:
             raise ValueError(f"secret needs at least {MIN_SECRET} bytes")
+        if not 1 <= self.session_hours <= MAX_SESSION_HOURS:
+            raise ValueError(f"session_hours must be between 1 and {MAX_SESSION_HOURS}")
+        if not 1 <= self.idle_minutes <= self.session_hours * 60:
+            raise ValueError("idle_minutes must be between 1 and session_hours * 60")
+        if not MIN_PASSWORD_LENGTH <= self.min_password_length <= MAX_PASSWORD_LENGTH:
+            raise ValueError(
+                f"min_password_length must be between {MIN_PASSWORD_LENGTH} "
+                f"and {MAX_PASSWORD_LENGTH}"
+            )
 
 
 class PaginationSettings(Settings):
