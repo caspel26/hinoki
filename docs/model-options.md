@@ -34,7 +34,8 @@ class Bookmark(Model, label="Saved link", plural="Saved links"):
 
 | Option | Form | Effect |
 | --- | --- | --- |
-| table | `@db.table("saved_links")` or `table="saved_links"` (optional) | overrides the default plural snake-case table name derived from the class; the two forms may be combined only with the same name |
+| table | `@db.table("saved_links")` or `table="saved_links"` (optional) | overrides the default `<app>_<models>` table name derived from the class and its module; the two forms may be combined only with the same name |
+| app | `app="billing"` (optional class keyword) | replaces the app part of the derived `<app>_<models>` table name; ignored when the table is named explicitly |
 | labels | `label=`, `plural=` (optional class keywords) | override the humanized singular and plural display names derived from the class |
 | composite uniqueness | `@unique("a", "b")` | a `UNIQUE (a, b)` constraint; a single column uses `field(unique=True)` |
 | index | `field(index=True)` for one column; `@db.indexed("a", "b")` for one or more columns | a `CREATE INDEX` planned by the migration tool; adding or removing one is a non-destructive migration |

@@ -1,7 +1,7 @@
 # Models and queries
 
 Concrete models may omit `@db.table(...)` (or the compatible `table=` class
-keyword) to derive a plural snake-case table name;
+keyword) to derive the table name `<app>_<models>` from the model's package and class name;
 `label=` and `plural=` override humanized display names. Explicit table names
 remain the safe choice for migration-backed histories and stable physical names.
 

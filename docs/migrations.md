@@ -51,8 +51,8 @@ generated SQL uses the selected backend's types. Existing state files that
 recorded SQLite or MySQL-specific type names are normalized when planning, so
 switching the planner's backend does not appear as a destructive type change.
 
-New `Model` classes may omit `table=`; Hinoki derives a plural snake-case table
-name from the Python class. Keep `table=` explicit for models with existing
+New `Model` classes may omit `table=`; Hinoki derives the table name `<app>_<models>`
+from the package of the model's `models` module and the Python class name. Keep `table=` explicit for models with existing
 migration history so later Python class renames do not change physical table
 identity. A changed implicit name appears as a drop/create plan and the
 destructive guard still applies. Hinoki refuses generated names reserved for
