@@ -24,7 +24,7 @@ use tokio::sync::{watch, Semaphore};
 use tokio::task::{AbortHandle, JoinHandle};
 
 use crate::crudplan::CrudPlan;
-use crate::nativecrud::NativeRead;
+use crate::nativecrud::{NativeRead, NativeWrite};
 use crate::server::{
     Asked, Core, Head, NativeFailure, NativeRows, Outcome, PreparedRequest, Reply, ServerCore,
 };
@@ -115,6 +115,7 @@ impl CoreBackend {
         let pending = Arc::new(Mutex::new(Some((request, asked.clone()))));
         let job_pending = Arc::clone(&pending);
         let core = Arc::clone(&self.core);
+        let abort_on_disconnect = !is_write_action(&plan.action);
         let job = async move {
             let pending_request = job_pending
                 .lock()
@@ -124,53 +125,30 @@ impl CoreBackend {
                 return;
             };
             request.release_admission();
-            let result = match tokio::time::timeout(
-                core.request_timeout(),
-                crate::nativecrud::execute_read(&plan, &database, &params, &query),
-            )
-            .await
-            {
-                Ok(result) => result,
-                Err(_) => NativeRead::Timeout,
-            };
-            let fallback = match result {
-                NativeRead::Reply { status, body } => {
-                    request.respond_final(
-                        status,
-                        vec![(b"content-type".to_vec(), b"application/json".to_vec())],
-                        &body,
-                    );
-                    false
-                }
-                NativeRead::Rows(rows, page_info) => {
-                    let _ = request.set_native_rows(NativeRows { rows, page_info });
-                    true
-                }
-                NativeRead::Failure(error) => {
-                    let _ = request.set_native_failure(native_failure(error));
-                    true
-                }
-                NativeRead::NotFound => {
-                    let _ = request.set_native_failure(NativeFailure {
-                        kind: "not_found".to_owned(),
-                        message: format!("{} not found", plan.model_name),
-                        constraint: None,
-                        table: None,
-                        sqlstate: None,
-                    });
-                    true
-                }
-                NativeRead::Timeout => {
-                    let _ = request.set_native_failure(NativeFailure {
-                        kind: "timeout".to_owned(),
-                        message: "request timed out".to_owned(),
-                        constraint: None,
-                        table: None,
-                        sqlstate: None,
-                    });
-                    true
-                }
-                NativeRead::Defer => true,
+            let write_action = matches!(plan.action.as_str(), "create" | "update" | "delete");
+            let fallback = if write_action {
+                let result = crate::nativecrud::execute_write(
+                    &plan,
+                    &database,
+                    &request,
+                    &params,
+                    &query,
+                    core.max_body_bytes(),
+                    core.request_timeout(),
+                )
+                .await;
+                finish_native_write(&request, result)
+            } else {
+                let result = match tokio::time::timeout(
+                    core.request_timeout(),
+                    crate::nativecrud::execute_read(&plan, &database, &params, &query),
+                )
+                .await
+                {
+                    Ok(result) => result,
+                    Err(_) => NativeRead::Timeout,
+                };
+                finish_native_read(&request, &plan, result)
             };
             if fallback {
                 requeue_native(&core, &mut job_wake, request, asked);
@@ -178,7 +156,11 @@ impl CoreBackend {
         };
         match self.core.native_jobs().try_spawn_with_handle(job).await {
             Ok(handle) => {
-                let _abort_on_drop = AbortOnDrop(Some(handle));
+                let _abort_on_drop = if abort_on_disconnect {
+                    Some(AbortOnDrop(Some(handle)))
+                } else {
+                    None
+                };
                 let reply = receiver.await.unwrap_or_else(|_| {
                     self.core
                         .early_reply(&asked, Early::NotReady, Vec::new())
@@ -203,6 +185,100 @@ impl CoreBackend {
                 })
             }
         }
+    }
+}
+
+fn is_write_action(action: &str) -> bool {
+    matches!(action, "create" | "update" | "delete")
+}
+
+fn finish_native_read(request: &PreparedRequest, plan: &CrudPlan, result: NativeRead) -> bool {
+    match result {
+        NativeRead::Reply { status, body } => {
+            request.respond_final(status, json_headers(status), &body);
+            false
+        }
+        NativeRead::Rows(rows, page_info) => {
+            let _ = request.set_native_rows(NativeRows { rows, page_info });
+            true
+        }
+        NativeRead::Failure(error) => {
+            let _ = request.set_native_failure(native_failure(error));
+            true
+        }
+        NativeRead::NotFound => {
+            let _ = request.set_native_failure(not_found_failure(plan));
+            true
+        }
+        NativeRead::Timeout => {
+            let _ = request.set_native_failure(NativeFailure {
+                kind: "timeout".to_owned(),
+                message: "request timed out".to_owned(),
+                constraint: None,
+                table: None,
+                sqlstate: None,
+            });
+            true
+        }
+        NativeRead::Defer => true,
+    }
+}
+
+fn finish_native_write(request: &PreparedRequest, result: NativeWrite) -> bool {
+    match result {
+        NativeWrite::Reply { status, body } => {
+            request.respond_final(status, json_headers(status), &body);
+            false
+        }
+        NativeWrite::Failure(error) => {
+            let _ = request.set_native_failure(native_failure(error));
+            true
+        }
+        NativeWrite::NotFound(message) => {
+            let _ = request.set_native_failure(NativeFailure {
+                kind: "not_found".to_owned(),
+                message,
+                constraint: None,
+                table: None,
+                sqlstate: None,
+            });
+            true
+        }
+        NativeWrite::Timeout => {
+            let _ = request.set_native_failure(NativeFailure {
+                kind: "timeout".to_owned(),
+                message: "request timed out".to_owned(),
+                constraint: None,
+                table: None,
+                sqlstate: None,
+            });
+            true
+        }
+        NativeWrite::Defer(body) => {
+            if body.is_some_and(|bytes| !request.buffer_native_body(bytes)) {
+                request.respond_final(500, vec![(b"content-length".to_vec(), b"0".to_vec())], &[]);
+                return false;
+            }
+            true
+        }
+    }
+}
+
+fn not_found_failure(plan: &CrudPlan) -> NativeFailure {
+    NativeFailure {
+        kind: "not_found".to_owned(),
+        message: format!("{} not found", plan.model_name),
+        constraint: None,
+        table: None,
+        sqlstate: None,
+    }
+}
+
+fn json_headers(status: u16) -> Vec<(Vec<u8>, Vec<u8>)> {
+    if status == 204 {
+        Vec::new()
+    } else {
+        vec![(b"content-type".to_vec(), b"application/json".to_vec())]
     }
 }
 

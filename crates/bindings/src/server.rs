@@ -157,6 +157,28 @@ pub struct PreparedRequest {
 }
 
 impl PreparedRequest {
+    pub(crate) fn request_id_str(&self) -> &str {
+        &self.request_id
+    }
+
+    pub(crate) fn header_value(&self, name: &[u8]) -> Option<Vec<u8>> {
+        joined_value(&self.headers, name).map(Cow::into_owned)
+    }
+
+    pub(crate) fn buffer_native_body(&self, bytes: Vec<u8>) -> bool {
+        if !self.native_body_consumed.swap(false, Ordering::AcqRel) {
+            return false;
+        }
+        let Ok(mut state) = self.body.lock() else {
+            return false;
+        };
+        if !matches!(&*state, BodyState::Taken) {
+            return false;
+        }
+        *state = BodyState::Buffered(bytes);
+        true
+    }
+
     pub(crate) fn release_admission(&self) {
         if let Ok(mut permit) = self.permit.lock() {
             permit.take();
@@ -900,6 +922,10 @@ impl Core {
         self.request_timeout
     }
 
+    pub(crate) fn max_body_bytes(&self) -> usize {
+        self.limits.max_body_bytes
+    }
+
     pub(crate) fn requeue_native(
         &self,
         request: PreparedRequest,
@@ -1623,7 +1649,12 @@ impl Core {
         if native_execution && native_crud && accepts_native_crud {
             let native_plan = action
                 .and_then(|number| self.crud_plans.get(&number))
-                .filter(|plan| matches!(plan.action.as_str(), "list" | "retrieve"));
+                .filter(|plan| {
+                    matches!(
+                        plan.action.as_str(),
+                        "list" | "retrieve" | "create" | "update" | "delete"
+                    )
+                });
             let database = self
                 .database
                 .lock()
