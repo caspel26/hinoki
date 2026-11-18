@@ -6,6 +6,7 @@ related:
   - authentication.md
   - openapi.md
   - pagination.md
+  - serving.md
 ---
 
 # Generate CRUD routes
@@ -73,6 +74,13 @@ Generated writes require `access = ...`, unless `public_writes = True` is set
 deliberately. Reads are public by default; `read_access = ...` protects them.
 Writes run in a transaction. `pagination` selects the page-number policy for
 the generated list route.
+
+On the Rust server, eligible generated routes are selected automatically and
+execute in Rust. List, retrieve, create, PATCH update and delete are eligible
+when their schemas and model are supported and the resource has no access
+policy, owner/assignment rule or custom hook. Unsupported and stale plans keep
+using the Python request lane. See [Serving](serving.md#generated-crud) for
+the runtime boundary and staleness behavior; no public switch is required.
 
 ## Reuse and customization
 

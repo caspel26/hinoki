@@ -1,0 +1,15 @@
+{
+  "model": "Phase1Post",
+  "actions": [
+    "list",
+    "retrieve",
+    "create",
+    "update"
+  ],
+  "armed": [
+    true,
+    true,
+    true,
+    true
+  ]
+}
