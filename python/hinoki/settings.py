@@ -1149,11 +1149,8 @@ class SecuritySettings(Settings):
     hsts_preload: bool = False
     frame_options: FrameOptions = FrameOptions.SAMEORIGIN
     referrer_policy: ReferrerPolicy = ReferrerPolicy.SAME_ORIGIN
-    secret: Secret | None = None  # the server secret that keys the admin's CSRF tokens
 
     def validate(self) -> None:
-        if self.secret is not None and len(self.secret.reveal().encode()) < MIN_SECRET:
-            raise ValueError(f"secret needs at least {MIN_SECRET} bytes")
         if not isinstance(self.frame_options, FrameOptions):
             raise ValueError("frame_options must be a FrameOptions value")
         if not isinstance(self.referrer_policy, ReferrerPolicy):
@@ -1171,6 +1168,16 @@ class SecuritySettings(Settings):
             raise ValueError(
                 "hsts_preload requires include_subdomains and at least 31536000 seconds"
             )
+
+
+class AdminSettings(Settings):
+    """The admin site: the secret that keys its CSRF tokens."""
+
+    secret: Secret | None = None
+
+    def validate(self) -> None:
+        if self.secret is not None and len(self.secret.reveal().encode()) < MIN_SECRET:
+            raise ValueError(f"secret needs at least {MIN_SECRET} bytes")
 
 
 class PaginationSettings(Settings):
@@ -1235,6 +1242,7 @@ class AppSettings(Settings):
     )
     cors: CorsSettings = dataclasses.field(default_factory=CorsSettings)
     security: SecuritySettings = dataclasses.field(default_factory=SecuritySettings)
+    admin: AdminSettings = dataclasses.field(default_factory=AdminSettings)
     timezone: str = "UTC"
     debug: bool = False
     allowed_hosts: tuple[str, ...] = (ANY,)

@@ -194,11 +194,11 @@ class Hinoki:
         )
         return manifest.route_items() if manifest is not None else []
 
-    def server_secret(self) -> str | None:
-        """``security.secret`` of the app's settings, or ``None`` when unset."""
+    def admin_secret(self) -> str | None:
+        """``admin.secret`` of the app's settings, or ``None`` when unset."""
         if not isinstance(self.settings, AppSettings):
             return None
-        secret = self.settings.security.secret
+        secret = self.settings.admin.secret
         return secret.reveal() if secret is not None else None
 
     def _configure_runtime(
@@ -341,7 +341,7 @@ class Hinoki:
 
         bound = [rowplan.with_row_wire(binding) for binding in bound]
         staged = self._stage_router(pending)
-        bind_app_timezones(items, self._timezone, self.server_secret())
+        bind_app_timezones(items, self._timezone, self.admin_secret())
         self._router = staged
         self._routes.extend(pending)
         self._bindings.extend(bound)
