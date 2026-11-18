@@ -952,6 +952,14 @@ class Schema:
                 _NORMALIZATION_QUEUE.reset(token)
 
     @classmethod
+    def validate_text(cls, data: object) -> Self:
+        """Like ``validate`` for data that is all text, such as form fields
+        (``{"count": ["2"]}``) or a parsed XML tree: text is first converted, in
+        Rust, to the ``int``, ``float`` and ``bool`` the fields declare. Anything
+        that does not convert is left for ``validate`` to refuse."""
+        return cls.validate(cls.native_schema().coerce_text(data))
+
+    @classmethod
     def _validate_instance(
         cls,
         instance: Schema,

@@ -27,13 +27,13 @@ class NoteOut(Schema):
     body: str
 ```
 
-* **Strict, no coercion.** `"1"` is not `1`; unknown keys are refused by default; every problem is reported with its path (capped at 50). Validation, instance construction and JSON serialisation run in Rust.
+* **Strict, no coercion.** `"1"` is not `1` (`Schema.validate_text()` and `Form[Schema]` are the explicit text-source exception, below); unknown keys are refused by default; every problem is reported with its path (capped at 50). Validation, instance construction and JSON serialisation run in Rust.
 * **Partial updates.** Declare `title: str | Unset = UNSET`: a field the client did not send stays `UNSET` and is left out of `dump()` and `to_dict()`, so `row.aupdate_from(patch)` writes only what was sent.
 * **Get data out.** `schema.to_dict()` gives Python values (UUID and datetime stay objects), `schema.dump()` the JSON-compatible form; both skip `UNSET`.
 * **From rows.** `NoteOut.from_model(row, author_name=row.author.name)` converts one row; `NoteOut.from_models(rows)` eagerly converts a synchronous iterable to a list. Relations must already be loaded (nothing fetches lazily). A derived schema keeps its selected fields. Conversion reads the expected attributes rather than checking the concrete model class; missing attributes raise `AttributeError`. Values passed as `**extra` are shared across rows.
 * **Into a row.** `await Note.acreate(data, author_id=me)` and `await row.aupdate_from(patch)`: keyword values set by the server win over the client's, and a schema can never carry the primary key.
 
-`Schema.validate(data)` reports structural problems together. Values are not coerced. Declare field constraints with `Field(...)`; use `@field_normalize` for narrow, typed string canonicalization and `@field_check`/`@object_check` for synchronous rejection checks.
+`Schema.validate(data)` reports structural problems together. Values are not coerced; for data that is all text, such as form fields, `Schema.validate_text(data)` first converts values to the `int`, `float` and `bool` fields declare (and wraps a lone value of a `list` field), in Rust, then runs the same strict `validate`. A value that does not convert is left as text and fails validation with the usual type error; `str`, `UUID` and `datetime` are checked as text. Declare field constraints with `Field(...)`; use `@field_normalize` for narrow, typed string canonicalization and `@field_check`/`@object_check` for synchronous rejection checks.
 
 ## Field types
 

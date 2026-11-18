@@ -24,10 +24,14 @@ from uuid import UUID
 import pytest
 
 from hinoki import (
+    XML,
     Access,
     Caller,
+    Form,
+    FormParser,
     Hinoki,
     HTMLRenderer,
+    JSONParser,
     JSONRenderer,
     MultiPartParser,
     RateLimitContext,
@@ -43,6 +47,7 @@ from hinoki.errors import TooManyRequests
 from hinoki.http.request import Request
 from hinoki.http.response import Response
 from hinoki.modules import ModuleContext
+from hinoki.parsers import TextParser
 from hinoki.renderers import is_native_renderer
 from hinoki.runtime import responses, rustserver
 from hinoki.runtime.rustserver import RustWorker
@@ -183,6 +188,26 @@ async def native_pretty() -> dict[str, int]:
     renderers=[XMLRenderer(), JSONRenderer()],
 )
 async def native_multi_body(data: Item) -> dict[str, object]:
+    return {"title": data.title}
+
+
+@http.post("/native/form", status=201, parsers=[JSONParser(), FormParser(max_fields=3)])
+async def native_form(data: Item) -> dict[str, object]:
+    return {"title": data.title}
+
+
+@http.post("/native/form-source", status=201)
+async def native_form_source(data: Form[Item]) -> dict[str, object]:
+    return {"title": data.title, "count": data.count}
+
+
+@http.post("/native/xml-source", status=201)
+async def native_xml_source(data: XML[Item]) -> dict[str, object]:
+    return {"title": data.title, "count": data.count}
+
+
+@http.post("/native/text", parsers=[TextParser()])
+async def native_text(data: Item) -> dict[str, object]:
     return {"title": data.title}
 
 
@@ -435,6 +460,10 @@ def make_app(**config: Any) -> Hinoki:
             native_multi,
             native_pretty,
             native_multi_body,
+            native_form,
+            native_form_source,
+            native_xml_source,
+            native_text,
             native_limited_sync,
             native_limited_body,
             native_admitted,
@@ -835,6 +864,8 @@ async def test_native_delete_matches_pipeline(
 
 
 JSON = "content-type: application/json\r\n"
+FORM = "content-type: application/x-www-form-urlencoded\r\n"
+XMLT = "content-type: application/xml\r\n"
 JSON_HEADER = {"content-type": "application/json"}
 
 
@@ -965,7 +996,7 @@ async def check_native_parity(
         if received.status >= 400:
             # A refused or invalid request never reaches the handler.
             assert PROBE.ran == []
-        if method == "POST" and received.status >= 400:
+        if method == "POST" and "connection" in dict(received.headers):
             # The ASGI client has no connection to close; the Python lane on the
             # same socket is the reference for it.
             same = await fetch(port, method, "/secured", sent, body=body)
@@ -1026,6 +1057,35 @@ async def test_native_rate_limit_matches_pipeline(
         ("GET", "/native/multi/x", "accept: text/csv\r\n", b""),
         ("GET", "/native/pretty", "", b""),
         ("POST", "/native/multi-body", JSON, b'{"title":"a"}'),
+        ("POST", "/native/form", FORM, b"title=a"),
+        ("POST", "/native/form", FORM, b"title=a&title=b&count=x"),
+        ("POST", "/native/form", FORM, b"title=a&b=1&c=2&d=3"),
+        ("POST", "/native/form", FORM, b"title=%ff"),
+        ("POST", "/native/form", JSON, b'{"title":"a"}'),
+        ("POST", "/native/form", "content-type: text/plain\r\n", b"title=a"),
+        ("POST", "/native/form-source", FORM, b"title=a&count=4"),
+        ("POST", "/native/form-source", FORM, b"title=a&count=x"),
+        ("POST", "/native/form-source", FORM, b"title=a&count=1&count=2"),
+        ("POST", "/native/form-source", FORM, b"count=3"),
+        ("POST", "/native/form-source", JSON, b'{"title":"a"}'),
+        (
+            "POST",
+            "/native/xml-source",
+            XMLT,
+            b"<i><title>t</title><count>4</count></i>",
+        ),
+        (
+            "POST",
+            "/native/xml-source",
+            XMLT,
+            b"<i><title>t</title><count>x</count></i>",
+        ),
+        ("POST", "/native/xml-source", XMLT, b"<i><count>3</count></i>"),
+        ("POST", "/native/xml-source", XMLT, b"<!DOCTYPE i><i/>"),
+        ("POST", "/native/xml-source", XMLT, b"<i><title>a"),
+        ("POST", "/native/xml-source", JSON, b'{"title":"a"}'),
+        ("POST", "/native/text", "content-type: text/plain\r\n", b"hello"),
+        ("POST", "/native/text", "content-type: text/plain\r\n", b"\xff"),
         (
             "POST",
             "/native/multi-body",

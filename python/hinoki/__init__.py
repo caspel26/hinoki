@@ -21,7 +21,15 @@ from hinoki.derive import derive
 from hinoki.http.request import Request
 from hinoki.http.response import Response, set_cookie
 from hinoki.modules import Module, ModuleContext
-from hinoki.parsers import FormParser, JSONParser, MultiPartParser, Parser, UploadedFile
+from hinoki.parsers import (
+    BytesParser,
+    FormParser,
+    JSONParser,
+    MultiPartParser,
+    Parser,
+    UploadedFile,
+    XMLParser,
+)
 from hinoki.ratelimit import RateLimitContext, RateLimitPolicy
 from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer, XMLRenderer
 from hinoki.routing import Includable, Mount, Route, RouteGroup
@@ -39,6 +47,7 @@ from hinoki.schema import (
     field_normalize,
     object_check,
 )
+from hinoki.sources import XML, Form
 
 __version__ = core_version()
 
@@ -64,15 +73,18 @@ else:
 __all__ = [
     "API",
     "UNSET",
+    "XML",
     "APIKeyAuth",
     "Access",
     "Actions",
     "BaseAuth",
     "BearerAuth",
+    "BytesParser",
     "Caller",
     "Crud",
     "CrudAPI",
     "Field",
+    "Form",
     "FormParser",
     "HTMLRenderer",
     "HeaderAuth",
@@ -104,6 +116,7 @@ __all__ = [
     "Transactions",
     "Unset",
     "UploadedFile",
+    "XMLParser",
     "XMLRenderer",
     "__version__",
     "derive",

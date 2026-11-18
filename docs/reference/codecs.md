@@ -10,6 +10,10 @@
 
 ::: hinoki.parsers.TextParser
 
+::: hinoki.parsers.BytesParser
+
+::: hinoki.parsers.XMLParser
+
 ::: hinoki.UploadedFile
 
 ::: hinoki.renderers.Renderer

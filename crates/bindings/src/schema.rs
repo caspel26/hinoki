@@ -31,6 +31,8 @@ use uuid::Uuid;
 
 use crate::request::{Json, JsonObject};
 
+mod coerce;
+
 pub type SchemaWireNames = Vec<(String, String)>;
 pub type SchemaInstanceFields = Option<(SchemaWireNames, Py<PyAny>)>;
 
@@ -1968,6 +1970,19 @@ impl NativeSchema {
 
 #[pymethods]
 impl Compiled {
+    /// The tree of a text source (form fields, query pairs, XML) with its text
+    /// leaves converted to the scalar types this schema declares, ready for the
+    /// strict `validate`. What does not convert is left for `validate` to refuse.
+    #[pyo3(signature = (data, use_aliases=true))]
+    fn coerce_text<'py>(
+        &self,
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
+        use_aliases: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        coerce::coerce_object(py, &self.definitions, self.root, data, use_aliases, 0)
+    }
+
     /// `(instance, problems)`: exactly one of them is meaningful. Problems are
     /// `(path, code, message)` tuples in the order the checks found them.
     #[pyo3(signature = (data, construct=true, use_aliases=true, allow_naive_datetime=false, skip_fields=Vec::new()))]

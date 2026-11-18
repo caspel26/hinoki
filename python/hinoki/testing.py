@@ -24,6 +24,7 @@ from types import TracebackType
 from typing import Any
 
 from hinoki.app import Hinoki
+from hinoki.runtime.asgi import IN_PROCESS
 from hinoki.utils import _read_utc
 
 HeaderInput = Mapping[str, str] | Sequence[tuple[str, str]]
@@ -112,7 +113,9 @@ class ASGIClient:
 
     async def __aenter__(self) -> ASGIClient:
         self.lifespan = asyncio.create_task(
-            self.adapter({"type": "lifespan"}, self.inbox.get, self.outbox.put)
+            self.adapter(
+                {"type": "lifespan", IN_PROCESS: True}, self.inbox.get, self.outbox.put
+            )
         )
         await self.inbox.put({"type": "lifespan.startup"})
         started = await self.outbox.get()

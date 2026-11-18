@@ -14,7 +14,7 @@ from http import HTTPStatus
 
 from hinoki import core
 from hinoki.context import request_id
-from hinoki.parsers import DEFAULT_PARSERS
+from hinoki.parsers import is_native_parser
 from hinoki.renderers import is_native_renderer
 from hinoki.runtime.binding import (
     BODY_METHODS,
@@ -132,12 +132,14 @@ def native_input_supported(param: Param) -> bool:
 
 def native_handler_eligible(binding: Binding) -> bool:
     """Select the automatic native response path for a simple GET or DELETE, or
-    for a body method with one ``Schema`` body and the default JSON parser."""
+    for a body method with one ``Schema`` body and only built-in parsers."""
     route = binding.route
     if route.owner is not None:
         return False
     if route.method in BODY_METHODS:
-        if binding.body_param is None or route.parsers != DEFAULT_PARSERS:
+        if binding.body_param is None or not all(
+            is_native_parser(p) for p in route.parsers
+        ):
             return False
     elif route.method not in {"GET", "DELETE"} or binding.needs_body:
         return False
