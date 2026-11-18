@@ -64,6 +64,9 @@ The Python and Rust suites include ORM/model tests. PostgreSQL-dependent tests
 run only with a disposable `HINOKI_TEST_DATABASE_URL`; migration conformance
 tests for MySQL and MariaDB also use `HINOKI_TEST_MYSQL_URL` and
 `HINOKI_TEST_MARIADB_URL`. CI provides disposable real-server services.
+The native CRUD differential test build enables the private `sql-trace` Cargo
+feature so it can compare SQL text, parameters and order for both request lanes;
+ordinary wheels are built without that feature.
 Generated OpenAPI is validated with `openapi-spec-validator` inside the Python
 tests. The retained [benchmark report](benchmarks.md) has reproducible
 end-to-end measurements, but benchmark runs are separate from the default CI
