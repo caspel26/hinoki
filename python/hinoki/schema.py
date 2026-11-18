@@ -290,6 +290,8 @@ def annotation_is_str(annotation: Any) -> bool:
 
 
 _MAX_INSTANCE_DEPTH = 128
+MAX_KEY_ECHO = 64
+"""Characters of a client-chosen key that an error path repeats."""
 
 
 def instance_error(path: str) -> ValidationError:
@@ -374,6 +376,10 @@ def typed_instance_value(
     elif ftype.schema is not None:
         checked = nested_instance_value(
             ftype.schema, value, use_aliases, active, depth, path
+        )
+    elif ftype.kind == "dict" and ftype.item is not None:
+        checked = mapping_instance_value(
+            ftype.item, value, use_aliases, active, depth, path
         )
     elif ftype.item is not None:
         checked = list_instance_value(
@@ -478,6 +484,39 @@ def list_instance_value(
         )
         for index, item in enumerate(value)
     ]
+
+
+def mapping_instance_value(
+    item_type: FieldType,
+    value: Any,
+    use_aliases: bool,
+    active: set[int],
+    depth: int,
+    path: str,
+) -> Any:
+    """A dict's values converted like list items; keys are left for the Rust
+    validator, which reports a key that is not a string."""
+    if not isinstance(value, dict):
+        return value
+    if depth > _MAX_INSTANCE_DEPTH:
+        raise instance_error(path)
+    return {
+        key: instance_value(
+            item_type,
+            item,
+            use_aliases=use_aliases,
+            active=active,
+            depth=depth + 1,
+            path=entry_path(path, key),
+        )
+        for key, item in value.items()
+    }
+
+
+def entry_path(path: str, key: object) -> str:
+    """The error path of one dict entry: the key, shortened as the validator
+    shortens it, as one more dotted segment."""
+    return f"{path}.{str(key)[:MAX_KEY_ECHO]}" if path else str(key)[:MAX_KEY_ECHO]
 
 
 def validate_constructed(
@@ -1254,18 +1293,27 @@ def _nested_check_problems(
     seen: set[int],
 ) -> list[ErrorDetail]:
     where = f"{path}.{name}" if path else name
+    return value_check_problems(value, where, use_aliases, seen)
+
+
+def value_check_problems(
+    value: Any, where: str, use_aliases: bool, seen: set[int]
+) -> list[ErrorDetail]:
+    """Checks of the Schema instances in one field value, through lists and
+    dicts at any depth."""
     if isinstance(value, Schema):
         return run_checks(value, where, use_aliases=use_aliases, seen=seen)
     if isinstance(value, list):
-        return [
-            problem
-            for index, item in enumerate(value)
-            if isinstance(item, Schema)
-            for problem in run_checks(
-                item, f"{where}[{index}]", use_aliases=use_aliases, seen=seen
-            )
-        ]
-    return []
+        entries = [(f"{where}[{index}]", item) for index, item in enumerate(value)]
+    elif isinstance(value, dict):
+        entries = [(entry_path(where, key), item) for key, item in value.items()]
+    else:
+        return []
+    return [
+        problem
+        for at, item in entries
+        for problem in value_check_problems(item, at, use_aliases, seen)
+    ]
 
 
 def call_check(
@@ -1383,6 +1431,8 @@ def node_of(
             queue.append(ftype.schema)
         index = index_of[ftype.schema]
     constraints = ftype.info.constraints()
+    if ftype.key is not None:
+        constraints = {**constraints, "key": node_of(ftype.key, index_of, queue)}
     if ftype.kind == "union":
         constraints = {
             **constraints,
@@ -1522,17 +1572,26 @@ def walk_model_value(
         if isinstance(value, variant):
             walk_model_schema(value, path, queue, queued, visited)
             return
-    if ftype.item is not None and isinstance(value, (list, tuple)):
-        for index, item in enumerate(value):
-            walk_model_value(
-                ftype.item, item, f"{path}[{index}]", queue, queued, visited
-            )
+    if ftype.item is None:
+        return
+    for child_path, item in container_entries(ftype, value, path):
+        walk_model_value(ftype.item, item, child_path, queue, queued, visited)
+
+
+def container_entries(ftype: FieldType, value: Any, path: str) -> list[tuple[str, Any]]:
+    """``(path, element)`` of a list or dict field value; empty for anything else."""
+    if ftype.kind == "dict" and isinstance(value, dict):
+        return [(entry_path(path, key), item) for key, item in value.items()]
+    if isinstance(value, (list, tuple)):
+        return [(f"{path}[{index}]", item) for index, item in enumerate(value)]
+    return []
 
 
 def conversion_of(ftype: FieldType) -> tuple[Any, Any]:
     """How a model attribute converts for this field (see ``from_model``)."""
-    inner = conversion_of(ftype.item) if ftype.item is not None else None
-    return (ftype.schema, inner)
+    if ftype.item is None or ftype.kind == "dict":
+        return (ftype.schema, None)  # a dict value is passed through unchanged
+    return (ftype.schema, conversion_of(ftype.item))
 
 
 def model_plan(cls: type[Schema]) -> core.ModelPlan:

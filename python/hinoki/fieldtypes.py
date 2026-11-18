@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import re
 import types
 import typing
@@ -31,12 +32,20 @@ ALLOWED_CONSTRAINTS: dict[str, frozenset[str]] = {
     "int": frozenset({"ge", "le", "gt", "lt", "one_of"}),
     "float": frozenset({"ge", "le", "gt", "lt", "one_of"}),
     "list": frozenset({"min_length", "max_length"}),
+    "dict": frozenset({"min_length", "max_length"}),
 }
+KEY_CONSTRAINTS = frozenset({"min_length", "max_length", "pattern"})
 MIN_UNION_VARIANTS = 2
 MAX_UNION_VARIANTS = 16
 MAX_DISCRIMINATOR_BYTES = 128
+DICT_ARGUMENTS = 2
 CONTROL_CHARACTER_LIMIT = 32
 DELETE_CHARACTER = 127
+MAX_MAPPING_KEY_LENGTH = 256
+"""Longest ``dict`` key (in characters) accepted unless the key type sets its own
+``max_length``: keys are client-chosen text and are never unbounded."""
+MAX_MAPPING_ITEMS = 1000
+"""Most entries a ``dict`` field accepts unless it declares ``max_length``."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +61,8 @@ class FieldType:
     discriminator: str | None = None
     discriminator_wire_name: str | None = None
     variants: tuple[tuple[str, type[Schema]], ...] = ()
+    key: FieldType | None = None
+    """The key type of a ``dict`` field (always ``str``); ``item`` is its value."""
 
 
 def is_union(annotation: object) -> bool:
@@ -342,10 +353,17 @@ def build(
     elif get_origin(base) is list:
         kind = "list"
         item = parse_annotation(get_args(base)[0], f"{where}[]")
+    elif base is dict or get_origin(base) is dict:
+        return build_mapping(base, info, nullable, allows_unset, where)
     elif isinstance(base, type) and hasattr(base, "__hinoki_schema__"):
         kind, schema = "schema", base
     else:
         raise RegistrationError(f"{where}: unsupported type {base!r}")
+    check_constraints(info, kind, where)
+    return FieldType(kind, nullable, allows_unset, info, item, schema)
+
+
+def check_constraints(info: FieldInfo, kind: str, where: str) -> None:
     if info.pattern is not None:
         check_pattern(info.pattern, where)
     check_limits(info, where)
@@ -356,4 +374,40 @@ def build(
         )
     if kind in {"str", "int", "float"}:
         check_one_of(info, kind, where)
-    return FieldType(kind, nullable, allows_unset, info, item, schema)
+
+
+def build_mapping(
+    base: Any, info: FieldInfo, nullable: bool, allows_unset: bool, where: str
+) -> FieldType:
+    """``dict[str, X]``: string keys, values of any supported type. The entry
+    count and the key length are always bounded (see ``MAX_MAPPING_ITEMS``)."""
+    arguments = get_args(base)
+    if len(arguments) != DICT_ARGUMENTS:
+        raise RegistrationError(
+            f"{where}: a dict field needs its key and value types: use dict[str, X]"
+        )
+    check_constraints(info, "dict", where)
+    key = mapping_key(arguments[0], where)
+    item = parse_annotation(arguments[1], f"{where}{{}}")
+    if info.max_length is None:
+        info = dataclasses.replace(info, max_length=MAX_MAPPING_ITEMS)
+    return FieldType("dict", nullable, allows_unset, info, item, key=key)
+
+
+def mapping_key(annotation: object, where: str) -> FieldType:
+    """The ``str`` key type of a dict, with its length bounded."""
+    base, info = split_annotated(annotation, where)
+    if base is not str:
+        raise RegistrationError(
+            f"{where}: dict keys must be str: use dict[str, X], with "
+            "Annotated[str, Field(...)] as the key type to constrain keys"
+        )
+    extra = set(info.constraints()) - KEY_CONSTRAINTS
+    if extra or info.alias is not None or info.discriminator is not None:
+        raise RegistrationError(
+            f"{where}: dict keys accept only min_length, max_length and pattern"
+        )
+    check_constraints(info, "str", f"{where} key")
+    if info.max_length is None:
+        info = dataclasses.replace(info, max_length=MAX_MAPPING_KEY_LENGTH)
+    return FieldType("str", info=info)
