@@ -265,6 +265,7 @@ class SettingRow:
 
 FILE_SUFFIX = "_FILE"
 MAX_SECRET_FILE = 64 * 1024
+MIN_SECRET = 32  # bytes: the shortest server secret accepted
 
 
 def gather(
@@ -1148,8 +1149,11 @@ class SecuritySettings(Settings):
     hsts_preload: bool = False
     frame_options: FrameOptions = FrameOptions.SAMEORIGIN
     referrer_policy: ReferrerPolicy = ReferrerPolicy.SAME_ORIGIN
+    secret: Secret | None = None  # the server secret that keys the admin's CSRF tokens
 
     def validate(self) -> None:
+        if self.secret is not None and len(self.secret.reveal().encode()) < MIN_SECRET:
+            raise ValueError(f"secret needs at least {MIN_SECRET} bytes")
         if not isinstance(self.frame_options, FrameOptions):
             raise ValueError("frame_options must be a FrameOptions value")
         if not isinstance(self.referrer_policy, ReferrerPolicy):
