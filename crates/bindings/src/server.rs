@@ -312,8 +312,9 @@ impl PreparedRequest {
                 InputValue::Float(number) => args.set_item(name, number)?,
                 InputValue::Bool(flag) => args.set_item(name, flag)?,
                 InputValue::Uuid(text) => {
-                    let uuid = py.import("uuid")?.getattr("UUID")?.call1((text,))?;
-                    args.set_item(name, uuid)?;
+                    let parsed = uuid::Uuid::parse_str(text)
+                        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+                    args.set_item(name, crate::pytypes::new_uuid(py, parsed)?)?;
                 }
             }
         }
