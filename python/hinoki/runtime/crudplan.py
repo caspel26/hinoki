@@ -98,6 +98,7 @@ MODEL_METHODS = (
     "check_field",
     "validate_values",
     "aget",
+    "all",
     "concrete",
     "refresh",
 )
@@ -985,6 +986,7 @@ def value_state(
 ) -> tuple[object, ...]:
     return (
         owner.__dict__.get("resource"),
+        tuple(getattr(owner, "response_headers", ())),
         resource.model,
         resource.read,
         resource.create,
