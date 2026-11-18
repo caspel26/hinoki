@@ -212,6 +212,7 @@ class Binding:
     is_async: bool = field(init=False, repr=False, compare=False)
     native_input_names: tuple[str, ...] = field(init=False, repr=False, compare=False)
     body_param: Param | None = field(init=False, repr=False, compare=False)
+    principal_name: str | None = field(init=False, repr=False, compare=False)
     native_defaults: tuple[tuple[str, object], ...] = field(
         init=False, repr=False, compare=False
     )
@@ -223,6 +224,10 @@ class Binding:
         )
         object.__setattr__(
             self, "native_input_names", tuple(p.name for p in self.params)
+        )
+        principals = [p.name for p in self.params if p.source == "principal"]
+        object.__setattr__(
+            self, "principal_name", principals[0] if len(principals) == 1 else None
         )
         bodies = [p for p in self.params if p.source == "body"]
         only_body = len(bodies) == 1 and not self.has_files
@@ -242,7 +247,7 @@ class Binding:
     ) -> dict[str, object]:
         """Restore omitted query defaults, and place the validated body, in
         declaration order."""
-        if not self.native_defaults and body is None:
+        if not self.native_defaults and body is None and self.principal_name is None:
             return supplied
         defaults = dict(self.native_defaults)
         if body is not None:
