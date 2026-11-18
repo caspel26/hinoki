@@ -821,8 +821,8 @@ async def test_a_schema_subclass_is_sent_as_the_declared_schema() -> None:
     assert native.body == b'{"title":"kept"}'
 
 
-async def test_a_returned_dict_is_sent_unchanged_and_unvalidated() -> None:
-    @http.get("/raw")
+async def test_a_returned_dict_is_sent_unchanged_when_validation_is_off() -> None:
+    @http.get("/raw", validate_response=False)
     def raw() -> AutomaticPostOut:
         return {"title": "t", "extra": 1}  # type: ignore[return-value]
 
