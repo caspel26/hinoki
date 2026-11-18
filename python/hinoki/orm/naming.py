@@ -119,8 +119,9 @@ def app_label(module: str) -> str:
 
 def _derived_table(class_name: str, words: list[str], app: str) -> tuple[str, str]:
     """The table name derived from the app and the plural class name
-    (``<app>_<models>``) and, when that name cannot be used, the reason. The reason is reported only
-    if no ``@db.table`` or ``table=`` replaces the name (see ``Model.check_table``)."""
+    (``<app>_<models>``) and, when that name cannot be used, the reason. The
+    reason is reported only if no ``@db.table`` or ``table=`` replaces the name
+    (see ``Model.check_table``)."""
     if not words or not app:
         return "", (
             f"{class_name}: cannot derive a table name from this class name; "
