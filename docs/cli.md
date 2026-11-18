@@ -18,6 +18,8 @@ them with `uv run --project ..` to use the locked environment at the parent.
 | `hinoki new NAME` | Create a starter project with settings, rules, routes, tests and agent instructions. |
 | `hinoki app list` | List registered apps, their model and migration modules, and dependencies without importing app code or opening a database. `--format json` is machine readable. |
 | `hinoki app create NAME` | Add a registered modular app with its own models, routes and migration package. |
+| `hinoki admin create-superuser NAME` | Create an admin user that holds every permission; the password is read without echo (or one line from stdin with `--password-stdin`). |
+| `hinoki admin set-password NAME` | Change an admin user's password and end their sessions. |
 | `hinoki app add NAME --models MODULE` | Register an existing package as an app in `hinoki.toml` without creating files. |
 | `hinoki doctor [TARGET]` | Summarize environment, manifest and app construction diagnostics without serving or connecting to a database. |
 | `hinoki dev TARGET` | Run an app with reload during development. |
@@ -111,6 +113,17 @@ uv run hinoki app list --format json
 ```
 
 The text output shows each app in dependency order with its model module, migration package, routes and prefix, and prerequisites. JSON contains the same fields under an `apps` key (`routes` and `prefix` are empty strings for an app without routes). The command only reads and validates `hinoki.toml`: it does not import app modules, connect to a database or start the app. Without a manifest, it prints an error and exits 2.
+
+### `admin`
+
+The admin's own users are managed from the admin itself, except the first one:
+
+```sh
+uv run hinoki admin create-superuser ada            # asks for the password twice, no echo
+printf '%s\n' "$ADA_PASSWORD" | uv run hinoki admin set-password ada --password-stdin
+```
+
+A password is read from a terminal prompt or, with `--password-stdin`, from one line of standard input; it is never taken from the command line, where other users of the machine could read it, and it is never printed. Without a terminal and without the flag the command stops; with the flag on a terminal it still prompts without echo, and a line longer than a password can be is refused unread. Ctrl-C or Ctrl-D at the prompt exits with status `2`, and a refused connection is reported as such (status `1`), not as missing tables. The database is `HINOKI_DATABASE_URL`, `--database`, or the project's local SQLite, as for `hinoki migrations`. The user tables must exist: register and apply them first (`hinoki app add admin ...`, `hinoki migrations apply admin`, see [who may sign in](admin.md#who-may-sign-in)); otherwise the command exits 1 and says so. Usernames are lower-cased; the shortest password is `admin.min_password_length`. Exit status is `0` on success, `2` for a refused input (a taken name, a weak or mistyped password, an unknown user).
 
 ### `dev` and `serve`
 

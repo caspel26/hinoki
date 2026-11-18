@@ -6,8 +6,16 @@ hinoki.admin.users.migrations``, then ``hinoki migrate``); importing this packag
 never touches a database.
 """
 
+from pathlib import Path
+
 from hinoki.admin.users.models import AdminGrant, AdminSession, AdminUser
 from hinoki.admin.users.service import AdminAccounts, AdminUserError
+
+
+def migrations_path() -> Path:
+    """The directory of the admin users' checked-in migrations."""
+    return Path(__file__).parent / "migrations"
+
 
 __all__ = [
     "AdminAccounts",
@@ -15,4 +23,5 @@ __all__ = [
     "AdminSession",
     "AdminUser",
     "AdminUserError",
+    "migrations_path",
 ]

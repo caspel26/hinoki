@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from hinoki import (
+    admincli,
     doctorcli,
     openapicli,
     projectcli,
@@ -49,6 +50,7 @@ def parser() -> argparse.ArgumentParser:
     openapicli.add_arguments(commands)
     versioncli.add_arguments(commands)
     projectcli.add_arguments(commands)
+    admincli.add_arguments(commands)
     doctorcli.add_arguments(commands)
     shellcli.add_arguments(commands)
     serve.add_arguments(commands)
@@ -331,6 +333,7 @@ def main(argv: list[str] | None = None) -> int:
     commands = {
         "check": run_check,
         "new": run_new,
+        "admin": admincli.run,
         "app": projectcli.run,
         "doctor": doctorcli.run_doctor,
         "mcp": run_mcp_command,

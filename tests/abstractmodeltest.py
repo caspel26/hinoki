@@ -122,7 +122,7 @@ def test_an_abstract_model_has_no_table_and_cannot_be_queried() -> None:
     with pytest.raises(ModelError, match="abstract"):
         Keyed.filter(id=uuid4())
     with pytest.raises(RegistrationError, match="abstract"):
-        Admin(access=None, secret="s" * 32).register(Tracked)  # type: ignore[arg-type]
+        Admin(secret="s" * 32).register(Tracked)
     with pytest.raises(RegistrationError, match="Tracked is abstract"):
         Resource(model=Tracked, read=TrackedRead).check()
     assert Tracked not in models_of("tests.modelmixins")

@@ -14,7 +14,7 @@ from hinoki.db import Database, DatabaseModule, UniqueViolation
 from hinoki.errors import Conflict
 from hinoki.modules import ModuleContext
 from hinoki.runtime.rustserver import RustWorker
-from tests.rustservertest import fetch, served_natively
+from tests.rustservertest import fetch, record_lanes
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(
@@ -131,8 +131,9 @@ async def test_native_transaction_commits_or_rolls_back_like_the_pipeline(
     worker = RustWorker(make_app(), "127.0.0.1", 0)
     port = await worker.start()
     try:
-        assert served_natively(worker, "POST", path, [(b"content-length", b"0")])
+        lanes = record_lanes(worker)
         reply, body = await post(port, path)
+        assert lanes == [True]
         assert reply == status
         assert "secret" not in str(body)
         assert await count(table) == rows
@@ -158,8 +159,9 @@ async def test_a_sync_delete_with_a_transaction_is_native() -> None:
     worker = RustWorker(make_app(), "127.0.0.1", 0)
     port = await worker.start()
     try:
-        assert served_natively(worker, "DELETE", "/clear/x", [])
+        lanes = record_lanes(worker)
         received = await fetch(port, "DELETE", "/clear/x")
+        assert lanes == [True]
         assert received.status == 200
     finally:
         await worker.stop()
