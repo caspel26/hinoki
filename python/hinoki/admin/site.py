@@ -11,6 +11,7 @@ from urllib.parse import quote, urlencode
 from hinoki.admin.components import initials
 from hinoki.admin.csrf import cookie_header
 from hinoki.admin.modeladmin import ModelAdmin, OutOfScope
+from hinoki.admin.parts import Refusal
 from hinoki.admin.templates import Raw, escape
 from hinoki.auth import Caller
 from hinoki.db import (
@@ -317,6 +318,8 @@ async def guarded(operation: Awaitable[Any]) -> str:
         return "That value is already in use."
     except ForeignKeyViolation:
         return "That refers to, or is used by, another row."
+    except Refusal as error:
+        return str(error)
     except OutOfScope:
         return "That change would move the row out of the rows you may manage."
     except ModelValidationError as error:

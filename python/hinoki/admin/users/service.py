@@ -15,6 +15,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from uuid import UUID
 
+from hinoki.admin.parts import Refusal
 from hinoki.admin.users.limits import LoginWindow
 from hinoki.admin.users.models import AdminGrant, AdminSession, AdminUser
 from hinoki.crypto import PasswordHasher
@@ -29,7 +30,7 @@ MAX_PASSWORD_BYTES = 1024  # a bound before hashing: Argon2 cost grows with inpu
 TOUCH_SECONDS = 60  # last_seen is refreshed at most this often
 
 
-class AdminUserError(ValueError):
+class AdminUserError(Refusal, ValueError):
     """A username or password that the admin refuses; the message is for the person."""
 
 

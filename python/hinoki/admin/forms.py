@@ -23,6 +23,7 @@ from hinoki.orm import MARK, FieldMeta, Model
 from hinoki.runtime.binding import to_float, to_int
 
 TEXTAREA_ABOVE = 200
+MAX_PASSWORD_FIELD = 1100  # the longest password the admin reads from a form
 MAX_TEXT = 100_000
 INT_MIN, INT_MAX = -(2**63), 2**63 - 1
 SIMPLE_KINDS: dict[Any, str] = {
@@ -60,6 +61,9 @@ class FormField:
     references: type[Model] | None = None
     shown_only: bool = False  # rendered disabled, never accepted
     select: bool = False  # a foreign key rendered as a select
+    virtual: bool = False  # not a column: an ``Extra`` of the model admin
+    choices: tuple[tuple[str, str], ...] = ()  # the options of a ``choices`` extra
+    note: str = ""  # help shown under the field
 
 
 def label_of(name: str) -> str:
@@ -251,6 +255,9 @@ def collect(
     for field in fields:
         if field.shown_only:
             continue
+        if field.virtual:
+            collect_extra(field, form, original, values, errors)
+            continue
         raw = form.get(field.name)
         if original is not None and unchanged(
             field, raw, original.get(field.name), zone
@@ -264,6 +271,30 @@ def collect(
             if present:
                 values[field.name] = value
     return values, errors
+
+
+def collect_extra(
+    field: FormField,
+    form: Mapping[str, str],
+    original: Mapping[str, Any] | None,
+    values: dict[str, Any],
+    errors: dict[str, str],
+) -> None:
+    """One ``Extra``: a password is left out when empty; a set of choices must
+    stay inside the offered ones, and is left out on edit when unchanged."""
+    if field.kind == "password":
+        raw = form.get(field.name, "")
+        if len(raw) > MAX_PASSWORD_FIELD:
+            errors[field.name] = "that is too long"
+        elif raw:
+            values[field.name] = raw
+        return
+    getlist = getattr(form, "getlist", None)
+    sent = frozenset(getlist(field.name) if getlist else ())
+    if not sent <= {value for value, _ in field.choices}:
+        errors[field.name] = "choose only from the options shown"
+    elif original is None or sent != frozenset(original.get(field.name, ())):
+        values[field.name] = sent
 
 
 def attributes(field: FormField, error: str | None) -> str:
@@ -301,6 +332,24 @@ def select_control(
     return Raw(f"<select {attrs}>{''.join(rows)}</select>")
 
 
+def password_control(attrs: str) -> Raw:
+    """A masked input; a password is never put back into the page."""
+    return Raw(f'<input type="password" autocomplete="new-password" {attrs}>')
+
+
+def choices_control(field: FormField, value: Any) -> Raw:
+    """A group of checkboxes sharing one name; ``value`` is the checked set."""
+    chosen = set(value) if isinstance(value, set | frozenset | list | tuple) else set()
+    name = escape(field.name)
+    boxes = "".join(
+        f'<label class="hn-check"><input type="checkbox" name="{name}" '
+        f'value="{escape(key)}"{" checked" if key in chosen else ""}> '
+        f"{escape(label)}</label>"
+        for key, label in field.choices
+    )
+    return Raw(f'<div class="hn-choices" id="f-{name}" role="group">{boxes}</div>')
+
+
 def plain_control(field: FormField, value: Any, attrs: str, zone: tzinfo) -> Raw:
     """Inputs that are not selects."""
     text = escape(input_text(value, zone))
@@ -328,6 +377,10 @@ def control(
     zone: tzinfo = UTC_ZONE,
 ) -> Raw:
     attrs = attributes(field, error)
+    if field.kind == "password":
+        return password_control(attrs)
+    if field.kind == "choices":
+        return choices_control(field, value)
     if field.select and options is not None:
         return select_control(field, value, attrs, options, zone)
     return plain_control(field, value, attrs, zone)
@@ -348,6 +401,8 @@ def render_field(
         )
     if field.shown_only:
         notes.append('<p class="hn-help">Not editable here.</p>')
+    if field.note:
+        notes.append(f'<p class="hn-help">{escape(field.note)}</p>')
     return templates.render(
         "field",
         name=field.name,

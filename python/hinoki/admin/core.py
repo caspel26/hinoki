@@ -18,6 +18,7 @@ from hinoki.admin.templates import Templates
 from hinoki.admin.themes import Theme
 from hinoki.admin.users.auth import BASE_PERMISSION, EVERYTHING, AdminSessionAuth
 from hinoki.admin.users.service import ACTIONS, AdminAccounts
+from hinoki.admin.users.useradmin import USERS_SLUG, UserAdmin
 from hinoki.admin.views import (
     ASSETS,
     AUTH_VIEWS,
@@ -70,6 +71,7 @@ class Admin:
         *,
         access: Access | None = None,
         users: AdminAccounts | None = None,
+        manage_users: bool = True,
         secret: str | bytes | None = None,
         prefix: str | None = None,
         theme: str | Theme = "studio",
@@ -117,6 +119,7 @@ class Admin:
         self.theme = self.templates.theme
         self.parts = Components(self.templates)
         self.models: dict[str, ModelAdmin[Any]] = {}
+        self.manage_users = manage_users
         self.digests = {
             "admin.css": digest(self.templates.stylesheet()),
             "admin.js": digest(self.templates.script()),
@@ -240,6 +243,7 @@ class Admin:
             )
         instance = (admin or ModelAdmin)()
         instance.model = model
+        instance.site = self
         if instance.per_page is None:
             instance.per_page = self.per_page  # type: ignore[misc]
         if instance.show_count is None:
@@ -251,6 +255,12 @@ class Admin:
 
     def api(self) -> type[API]:
         """The ``API`` class to ``include`` in the application."""
+        if (
+            self.users is not None
+            and self.manage_users
+            and USERS_SLUG not in self.models
+        ):
+            self.register(UserAdmin)  # last, after the application's own models
         for slug in self.dashboard:
             if slug not in self.models:
                 raise RegistrationError(

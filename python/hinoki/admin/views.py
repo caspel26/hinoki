@@ -11,8 +11,10 @@ from hinoki.admin.components import icon_name
 from hinoki.admin.formpages import (
     FormView,
     check_references,
+    current_values,
     form_fields,
     form_response,
+    submitted,
 )
 from hinoki.admin.forms import (
     collect,
@@ -214,7 +216,7 @@ async def add_submit(
     message = "" if errors else await guarded(entry.save(values, principal))
     if errors or message:
         view = FormView(
-            model, entry, None, fields, dict(request.POST), errors, message, 422
+            model, entry, None, fields, submitted(request, fields), errors, message, 422
         )
         return await form_response(site, view)
     return Response(
@@ -244,7 +246,7 @@ async def edit_form(
     if entry is None:
         return await site.problem(404, "Not found.")
     fields = form_fields(entry, creating=False)
-    values = {f.name: getattr(row, f.name) for f in fields}
+    values = await current_values(entry, row, fields)
     return await form_response(site, FormView(model, entry, row, fields, values))
 
 
@@ -260,14 +262,14 @@ async def edit_submit(
             403, "The form expired or is invalid. Reload and try again."
         )
     fields = form_fields(entry, creating=False)
-    original = {f.name: getattr(row, f.name) for f in fields}
+    original = await current_values(entry, row, fields)
     values, errors = collect(fields, request.POST, original)
     errors = errors or await check_references(site, fields, values)
     errors = errors or await entry.check(values, principal, row)
     message = "" if errors else await guarded(entry.save(values, principal, row))
     if errors or message:
         view = FormView(
-            model, entry, row, fields, dict(request.POST), errors, message, 422
+            model, entry, row, fields, submitted(request, fields), errors, message, 422
         )
         return await form_response(site, view)
     return Response(
