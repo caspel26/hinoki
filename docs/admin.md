@@ -76,7 +76,98 @@ app = Hinoki(settings=BlogSettings.load(), include=[Mount("/admin", site)])
 
 The first user is a superuser made with [`hinoki admin create-superuser`](cli.md#admin); `hinoki admin set-password` resets a password from a shell.
 
+### The Users section
+
+A superuser sees a **Users** section in the sidebar and manages everyone else there: create a user (username and password), choose which models and actions the user may use, rename, deactivate, change a password or delete. The first superuser comes from the command line (`hinoki admin create-superuser`), every other user from this section.
+
+- Only a **superuser** can open it. A user who could edit users could grant itself every permission, so no grant opens this section.
+- The permission checkboxes list `view`, `add`, `change` and `delete` for each registered model except the users themselves; a superuser holds all of them whatever is checked.
+- Leaving the password empty on edit keeps it. Typing one changes it and signs the user out everywhere. A password is never written back into the page.
+- Deactivating a user ends their sessions. You cannot deactivate yourself, remove your own superuser status or delete yourself, so the admin cannot lock itself out.
+- Deleting removes the user's sessions and grants too.
+
+`Admin(users=AdminAccounts(), manage_users=False)` leaves the section out, for a site that creates its users another way.
+
 To use your own identity instead (single sign-on, an existing user table), pass `Admin(access=Access(auth=MyAuth(), permissions=[...]))`: the admin then has no sign-in pages of its own, and the permissions of your callers decide what they see through `ModelAdmin.can`, as before. `Admin(access=..., users=...)` is an error.
+
+## Overriding behaviour
+
+A `ModelAdmin` states what the model does not already say, and its methods are the places to change behaviour. Each one below is called by the framework; override what you need and call `super()` for the rest.
+
+```python
+class PostAdmin(ModelAdmin, model=Post):
+    # who sees which rows: part of every list, lookup, update and delete statement
+    def queryset(self, principal):
+        return Post.filter(author_id=principal.user.id).select_related("author")
+
+    # a rule per action or row; with the admin's own users it can narrow a grant,
+    # never widen it
+    def can(self, principal, action, row=None):
+        if action == "delete" and row is not None and row.published:
+            return False                       # published posts are never deleted here
+        return super().can(principal, action, row)
+
+    # what a list cell shows: a Badge or an Avatar for something richer than text
+    def display(self, row, column):
+        return Avatar(row.author.name) if column == "author_id" else super().display(row, column)
+
+    # cross-field validation before anything is written: {field: message} refuses
+    async def check(self, values, principal, row):
+        if values.get("published") and not (values.get("title") or (row and row.title)):
+            return {"title": "A published post needs a title."}
+        return {}
+
+    # the single places that write: run a domain command instead of a raw write
+    async def save(self, values, principal, row=None):
+        post = await super().save(values, principal, row)
+        await audit("post.saved", post.id, principal.id)
+        return post
+
+    async def remove(self, row, principal):
+        if await has_comments(row):
+            raise Refusal("Delete the comments first.")   # shown on the page
+        await super().remove(row, principal)
+```
+
+`Refusal` (from `hinoki.admin`) raised inside `save` or `remove` rolls the write back and shows its message to the person instead of an error page.
+
+### Fields that are not columns
+
+`extra_fields` (or an `extras()` method, when the choices depend on what is registered) adds form fields that are not columns of the model. `Extra("password", "Password", "password")` is a masked input that is never filled in again; `Extra("tags", "Tags", "choices", choices=(("a", "A"), ("b", "B")))` is a group of checkboxes whose submitted value is a `frozenset` of the checked values. They reach `check` and `save` next to the model's columns, so `save` must take them out before writing the row, and `extra_initial(row)` returns what they show on the edit form. The Users section is built this way (`hinoki.admin.users.useradmin`).
+
+### Replace the HTML or the stylesheet
+
+`Admin(templates="admin_ui")` reads `admin_ui/components/NAME.html` before the built-in component of the same name (`shell`, `sidebar`, `table`, `form`, `field`, `auth` for the sign-in page...), and appends `admin_ui/admin.css` after the theme, so an application can override anything last. A component keeps its `{{ value }}` (escaped) and `{{{ raw }}}` placeholders; copy the built-in file from the package as the starting point.
+
+```css
+/* admin_ui/admin.css */
+.hn-auth-card { border-radius: 0; }
+.hn-nav-item[aria-current="page"] { font-weight: 800; }
+```
+
+### A custom theme
+
+A `Theme` is a set of `--hn-*` design tokens for the light and dark schemes, plus where the edit form opens (`edit`: `"drawer"` or `"page"`), a `layout` (`"sidebar"`, `"topbar"`, `"index"`, `"rail"`) and a `list_style` (`"table"`, `"rows"`, `"cards"`). Every token must be given; the easiest start is to copy a built-in theme and change what you want, then pass it as `Admin(theme=...)`:
+
+```python
+import dataclasses
+
+from hinoki.admin import THEMES, Admin
+
+studio = THEMES["studio"]
+forest = dataclasses.replace(
+    studio,
+    name="forest",
+    label="Forest",
+    light={**studio.light, "accent": "#1f6f50", "accent-hover": "#17543c", "bg": "#f6f8f5"},
+    dark={**studio.dark, "accent": "#5cc79b", "accent-hover": "#7ad6b0", "bg": "#0f1a14"},
+    layout="topbar",
+    extra_css=".hn-brand-text strong { letter-spacing: .04em; }",
+)
+site = Admin(theme=forest)
+```
+
+A theme with a missing token, an unknown layout or a bad name is refused when the `Admin` is created, not on a half-styled page. `extra_css` is appended after the tokens; `default_mode="dark"` makes the theme dark until the user switches.
 
 ## What needs no configuration
 
