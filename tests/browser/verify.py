@@ -5,9 +5,11 @@ and Playwright, which is deliberately not a project dependency.
 
     cd examples
     BLOG_DATABASE__URL=postgres://.../demo uv run --project .. python -m blog.seed
+    BLOG_DATABASE__URL=... uv run --project .. hinoki admin create-superuser demo
     BLOG_DATABASE__URL=... uv run --project .. granian --interface asgi \
         --factory blog.main:create_app --port 8765 &
     cd ..
+    BLOG_ADMIN_USER=demo BLOG_ADMIN_PASSWORD=... \
     uvx --from playwright python tests/browser/verify.py \
         --base http://127.0.0.1:8765 --out docs/screenshots
 
@@ -23,6 +25,7 @@ visible. Screenshots (Chromium only) go to --out. Exit status is 1 on any failur
 """
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -30,7 +33,8 @@ from typing import Any
 
 from playwright.sync_api import Browser, BrowserContext, Page, expect, sync_playwright
 
-TOKEN = "demo-editor-token"
+USER = os.environ.get("BLOG_ADMIN_USER", "demo")
+PASSWORD = os.environ.get("BLOG_ADMIN_PASSWORD", "")
 VIEWPORTS = {
     "desktop": (1440, 900),
     "phone": (390, 844),
@@ -55,10 +59,13 @@ def context(
         viewport={"width": size[0], "height": size[1]},
         color_scheme=scheme,  # type: ignore[arg-type]
     )
-    host = base.split("//", 1)[1].split(":", maxsplit=1)[0]
-    ctx.add_cookies(
-        [{"name": "blog_token", "value": TOKEN, "domain": host, "path": "/"}]
-    )
+    page = ctx.new_page()  # sign in through the real form; the cookie stays in ctx
+    page.goto(f"{base}/admin/login")
+    page.fill("#f-username", USER)
+    page.fill("#f-password", PASSWORD)
+    page.click("button[type=submit]")
+    page.wait_for_url(f"{base}/admin*")
+    page.close()
     return ctx
 
 

@@ -40,7 +40,7 @@ async def hook(request: Request) -> None: ...   # request.data is a dict or a st
 
 ## Answer XML
 
-`XMLRenderer` renders the same JSON-compatible result a `JSONRenderer` would, as `application/xml; charset=utf-8` with an XML declaration:
+`XMLRenderer` renders the handler's result in its JSON-compatible form, as `application/xml; charset=utf-8` with an XML declaration. That is the data a default `JSONRenderer()` writes: a `Schema` or `dump()` object becomes its mapping, a UUID or datetime its text, and a tuple a list, at any depth. A `JSONRenderer`'s own options (`default`, `prepare`, `sort_keys`) do not apply to it:
 
 ```python
 from hinoki import JSONRenderer, XMLRenderer
@@ -50,7 +50,7 @@ async def report() -> dict[str, object]:
     return {"id": 1, "tags": ["a", "b"], "note": None}
 ```
 
-`Accept: application/xml` answers `<?xml version="1.0" encoding="UTF-8"?><report><id>1</id><tags><item>a</item><item>b</item></tags><note/></report>`; without it the first renderer (JSON) answers. A mapping becomes child elements named by its keys, a list becomes repeated `item` elements (`item=` renames them), `None` an empty element and booleans `true`/`false`. A key that is not a valid XML name (a space, a leading digit, a name starting with `xml`) is written as `<item key="...">`, escaped, instead of failing the request. Tab and line breaks are written as character references so a parser keeps them, and characters XML 1.0 cannot carry are replaced by U+FFFD. Non-finite floats are written `NaN`, `INF` and `-INF`. Nesting deeper than 200 levels (the JSON encoder's limit), an integer of more than 4300 digits or a value that is not JSON-compatible raises an error (`500`). The renderer runs in Python, but it never reads the request, so an action that lists it stays on the native handler lane.
+`Accept: application/xml` answers `<?xml version="1.0" encoding="UTF-8"?><report><id>1</id><tags><item>a</item><item>b</item></tags><note/></report>`; without it the first renderer (JSON) answers. A mapping becomes child elements named by its keys, a list becomes repeated `item` elements (`item=` renames them), `None` an empty element and booleans `true`/`false`. Keys are spelled as the JSON encoder spells them: a string as is, an integer in decimal, `None` as `null` and booleans as `true`/`false`; any other key (a float, a UUID, a tuple) raises an error (`500`), as it does for JSON. A key that is not a valid XML name (a space, a leading digit, a name starting with `xml`, so also an integer key) is written as `<item key="...">`, escaped, instead of failing the request. Tab and line breaks are written as character references so a parser keeps them, and characters XML 1.0 cannot carry are replaced by U+FFFD. Non-finite floats, which JSON refuses, are written `NaN`, `INF` and `-INF`. Nesting deeper than 200 levels (the JSON encoder's limit), an integer of more than 4300 digits or a value that is not JSON-compatible raises an error (`500`). The renderer runs in Python, but it never reads the request, so an action that lists it stays on the native handler lane.
 
 ## Configure the Rust JSON encoder
 
