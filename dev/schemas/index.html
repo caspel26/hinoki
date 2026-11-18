@@ -417,13 +417,13 @@
     <span class="n">body</span><span class="p">:</span> <span class="nb">str</span>
 </code></pre></div>
 <ul>
-<li><strong>Strict, no coercion.</strong> <code>"1"</code> is not <code>1</code>; unknown keys are refused by default; every problem is reported with its path (capped at 50). Validation, instance construction and JSON serialisation run in Rust.</li>
+<li><strong>Strict, no coercion.</strong> <code>"1"</code> is not <code>1</code> (<code>Schema.validate_text()</code> and <code>Form[Schema]</code> are the explicit text-source exception, below); unknown keys are refused by default; every problem is reported with its path (capped at 50). Validation, instance construction and JSON serialisation run in Rust.</li>
 <li><strong>Partial updates.</strong> Declare <code>title: str | Unset = UNSET</code>: a field the client did not send stays <code>UNSET</code> and is left out of <code>dump()</code> and <code>to_dict()</code>, so <code>row.aupdate_from(patch)</code> writes only what was sent.</li>
 <li><strong>Get data out.</strong> <code>schema.to_dict()</code> gives Python values (UUID and datetime stay objects), <code>schema.dump()</code> the JSON-compatible form; both skip <code>UNSET</code>.</li>
 <li><strong>From rows.</strong> <code>NoteOut.from_model(row, author_name=row.author.name)</code> converts one row; <code>NoteOut.from_models(rows)</code> eagerly converts a synchronous iterable to a list. Relations must already be loaded (nothing fetches lazily). A derived schema keeps its selected fields. Conversion reads the expected attributes rather than checking the concrete model class; missing attributes raise <code>AttributeError</code>. Values passed as <code>**extra</code> are shared across rows.</li>
 <li><strong>Into a row.</strong> <code>await Note.acreate(data, author_id=me)</code> and <code>await row.aupdate_from(patch)</code>: keyword values set by the server win over the client's, and a schema can never carry the primary key.</li>
 </ul>
-<p><code>Schema.validate(data)</code> reports structural problems together. Values are not coerced. Declare field constraints with <code>Field(...)</code>; use <code>@field_normalize</code> for narrow, typed string canonicalization and <code>@field_check</code>/<code>@object_check</code> for synchronous rejection checks.</p>
+<p><code>Schema.validate(data)</code> reports structural problems together. Values are not coerced; for data that is all text, such as form fields, <code>Schema.validate_text(data)</code> first converts values to the <code>int</code>, <code>float</code> and <code>bool</code> fields declare (and wraps a lone value of a <code>list</code> field), in Rust, then runs the same strict <code>validate</code>. A value that does not convert is left as text and fails validation with the usual type error; <code>str</code>, <code>UUID</code> and <code>datetime</code> are checked as text. Declare field constraints with <code>Field(...)</code>; use <code>@field_normalize</code> for narrow, typed string canonicalization and <code>@field_check</code>/<code>@object_check</code> for synchronous rejection checks.</p>
 <h2 id="wire-aliases">Wire aliases<a class="headerlink" href="#wire-aliases" title="Permanent link">&para;</a></h2>
 <p>Use <code>Field(alias=...)</code> when the public JSON name should differ from the Python attribute. The alias is the only accepted input key; sending both names is an error. <code>dump()</code> writes aliases, including in nested schemas and lists, while <code>to_dict()</code> keeps Python attribute names. Validation errors and OpenAPI properties use the wire names. A custom check's default field path is translated to its alias; an explicit <code>Invalid(path=...)</code> is already a wire path.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
@@ -583,7 +583,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 10:52:07 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 18:07:34 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>8 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
