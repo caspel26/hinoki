@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Annotated, Any
 from uuid import UUID
 
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import Field, Hinoki, Invalid, Schema, Schemas, field_check, http
+from hinoki import (
+    Field,
+    Hinoki,
+    Invalid,
+    Schema,
+    Schemas,
+    field_check,
+    field_normalize,
+    http,
+)
 from hinoki.errors import RegistrationError, ValidationError
 from hinoki.fieldtypes import MAX_MAPPING_ITEMS, MAX_MAPPING_KEY_LENGTH
 from hinoki.orm import Model, field
@@ -426,3 +436,37 @@ async def test_the_native_lane_validates_and_encodes_dicts_like_the_python_lane(
                 assert got.json()["details"] == expected.body["details"]
     assert native[0].body == b'{"labels":{"b":"3","a":"1"}}'
     assert native[1].status == 422
+
+
+class Tree(Schema):
+    kids: dict[str, Tree] = Field(default_factory=dict)
+
+
+def test_construction_refuses_a_non_dict_and_bounds_depth() -> None:
+    with pytest.raises(ValidationError) as caught:
+        Labels(labels=["a"])  # type: ignore[arg-type]
+    assert [(d.path, d.code) for d in caught.value.details] == [("labels", "type")]
+    tree = Tree()
+    for _ in range(63):  # two levels each: the Schema and its dict
+        tree = Tree(kids={"k": tree})
+    with pytest.raises(ValidationError) as caught:
+        Tree(kids={"k": tree})
+    assert [d.code for d in caught.value.details] == ["depth"]
+    assert caught.value.details[0].path.endswith("k.kids")
+
+
+class Titled(Schema):
+    title: str
+    meta: dict[str, int]
+
+    @field_normalize("title")
+    def strip_title(self, value: str) -> str:
+        return value.strip()
+
+
+def test_from_model_normalizes_beside_dict_fields() -> None:
+    made = Titled.from_model(SimpleNamespace(title=" a ", meta={"n": 1}))
+    assert (made.title, made.meta) == ("a", {"n": 1})
+    with pytest.raises(ValidationError) as caught:
+        Titled.from_model(SimpleNamespace(title=" a ", meta="n"))
+    assert [(d.path, d.code) for d in caught.value.details] == [("meta", "type")]
