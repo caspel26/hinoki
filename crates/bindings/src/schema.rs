@@ -23,6 +23,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use pyo3::basic::CompareOp;
+use pyo3::exceptions::PyUnicodeEncodeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 use regex::Regex;
@@ -41,6 +42,9 @@ const MAX_KEY_ECHO: usize = 64;
 const MAX_DEPTH: usize = 128;
 
 pub(crate) type Problem = (String, &'static str, String);
+/// The entries of a `dict` input: each key as text (`None` when it is not
+/// valid Unicode) and its value.
+type Entries<D> = Vec<(Option<String>, D)>;
 type FieldTable<'py> = Vec<(String, String, Bound<'py, PyAny>, bool)>;
 
 /// What the constraints of a compiled schema are made of.
@@ -109,6 +113,11 @@ enum Kind<R: Rules> {
     Uuid,
     Datetime,
     List(Box<Node<R>>),
+    /// `dict[str, X]`: the key node (always a string) and the value node.
+    Map {
+        key: Box<Node<R>>,
+        value: Box<Node<R>>,
+    },
     Schema(usize),
     TaggedUnion {
         discriminator: String,
@@ -122,6 +131,9 @@ struct Node<R: Rules> {
     nullable: bool,
     min_length: Option<i64>,
     max_length: Option<i64>,
+    /// The framework bound used on wire input when `max_length` is unset (the
+    /// entries of a dict, the characters of its keys).
+    input_max_length: Option<i64>,
     pattern: Option<(R::Pattern, Regex)>,
     ge: Option<R::Limit>,
     le: Option<R::Limit>,
@@ -166,6 +178,8 @@ pub(crate) struct Options {
     pub(crate) use_aliases: bool,
     pub(crate) allow_naive_datetime: bool,
     pub(crate) skip_fields: HashSet<String>,
+    /// Wire input: the default bounds of dict fields apply.
+    pub(crate) input_bounds: bool,
 }
 
 /// A value the GIL-free path accepted: what the Python path returns with
@@ -184,6 +198,7 @@ pub(crate) enum Validated {
     /// A datetime without offset (only with `allow_naive_datetime`).
     NaiveDatetime(PrimitiveDateTime),
     List(Vec<Validated>),
+    /// A schema object, or the entries of a `dict` field in input order.
     Object(Vec<(String, Validated)>),
 }
 
@@ -247,6 +262,16 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
             let inner = item.ok_or_else(|| compile_error("list type without an item type"))?;
             Kind::List(Box::new(parse_node(&inner)?))
         }
+        "dict" => {
+            let value = item.ok_or_else(|| compile_error("dict type without a value type"))?;
+            let key = constraints
+                .get_item("key")?
+                .ok_or_else(|| compile_error("dict type without a key type"))?;
+            Kind::Map {
+                key: Box::new(parse_node(&key)?),
+                value: Box::new(parse_node(&value)?),
+            }
+        }
         "schema" => {
             Kind::Schema(index.ok_or_else(|| compile_error("schema type without a schema"))?)
         }
@@ -276,6 +301,7 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
         nullable,
         min_length: optional_int(&constraints, "min_length")?,
         max_length: optional_int(&constraints, "max_length")?,
+        input_max_length: optional_int(&constraints, "input_max_length")?,
         pattern,
         ge: optional_object(&constraints, "ge")?,
         le: optional_object(&constraints, "le")?,
@@ -412,6 +438,10 @@ fn lower_kind(py: Python<'_>, kind: &Kind<PyRules>) -> Result<Kind<NativeRules>,
         Kind::Uuid => Kind::Uuid,
         Kind::Datetime => Kind::Datetime,
         Kind::List(item) => Kind::List(Box::new(lower_node(py, item)?)),
+        Kind::Map { key, value } => Kind::Map {
+            key: Box::new(lower_node(py, key)?),
+            value: Box::new(lower_node(py, value)?),
+        },
         Kind::Schema(index) => Kind::Schema(*index),
         Kind::TaggedUnion {
             discriminator,
@@ -452,6 +482,7 @@ fn lower_node(py: Python<'_>, node: &Node<PyRules>) -> Result<Node<NativeRules>,
         nullable: node.nullable,
         min_length: node.min_length,
         max_length: node.max_length,
+        input_max_length: node.input_max_length,
         pattern,
         ge: limit(&node.ge)?,
         le: limit(&node.le)?,
@@ -608,7 +639,7 @@ pub fn check_pattern(source: &str) -> PyResult<()> {
 fn refers_outside<R: Rules>(node: &Node<R>, known: usize) -> bool {
     match &node.kind {
         Kind::Schema(index) => *index >= known,
-        Kind::List(inner) => refers_outside(inner, known),
+        Kind::List(inner) | Kind::Map { value: inner, .. } => refers_outside(inner, known),
         Kind::TaggedUnion { variants, .. } => variants.iter().any(|(_, index)| *index >= known),
         _ => false,
     }
@@ -677,6 +708,9 @@ trait View {
     fn object(&self, data: &Self::Data) -> Option<Self::Object>;
     fn non_string_keys(&self, object: &Self::Object) -> usize;
     fn string_keys(&self, object: &Self::Object) -> Vec<Self::Key>;
+    /// The entries of an object whose keys are all strings, in order, each
+    /// key as text or `None` when it is not valid Unicode (a lone surrogate).
+    fn entries(&self, object: &Self::Object) -> Result<Entries<Self::Data>, Self::Error>;
     fn key_text<'k>(&self, key: &'k Self::Key) -> Result<Cow<'k, str>, Self::Error>;
     fn contains(&self, object: &Self::Object, key: &str) -> Result<bool, Self::Error>;
     fn get(&self, object: &Self::Object, key: &str) -> Result<Option<Self::Data>, Self::Error>;
@@ -694,6 +728,8 @@ trait View {
         path: &str,
         construct: bool,
     ) -> Result<Self::Out, Self::Error>;
+    /// The accepted entries of a `dict` field, as a plain mapping.
+    fn close_map(&self, record: Self::Record) -> Self::Out;
     /// `Some(shown limit)` when `value` violates `limit` under `op`.
     fn limit_fails(
         &self,
@@ -839,6 +875,22 @@ impl<'py> View for PyView<'_, 'py> {
         key.to_cow()
     }
 
+    fn entries(&self, object: &Self::Object) -> PyResult<Entries<Self::Data>> {
+        let mut found = Vec::with_capacity(object.len());
+        for (key, value) in object.iter() {
+            let Ok(text) = key.cast::<PyString>() else {
+                continue;
+            };
+            let text = match text.to_cow() {
+                Ok(text) => Some(text.into_owned()),
+                Err(err) if err.is_instance_of::<PyUnicodeEncodeError>(self.py) => None,
+                Err(err) => return Err(err),
+            };
+            found.push((text, value));
+        }
+        Ok(found)
+    }
+
     fn contains(&self, object: &Self::Object, key: &str) -> PyResult<bool> {
         object.contains(key)
     }
@@ -868,6 +920,10 @@ impl<'py> View for PyView<'_, 'py> {
         class
             .bind(self.py)
             .call_method1("__hinoki_construct_validated__", (record, path))
+    }
+
+    fn close_map(&self, record: Self::Record) -> Self::Out {
+        record.into_any()
     }
 
     fn limit_fails(
@@ -1188,6 +1244,13 @@ impl<'v> View for JsonView<'v> {
         Ok(Cow::Borrowed(key))
     }
 
+    fn entries(&self, object: &&'v JsonObject) -> Result<Entries<&'v Json>, Defer> {
+        Ok(object
+            .iter()
+            .map(|(key, value)| (Some(key.to_owned()), value))
+            .collect())
+    }
+
     fn contains(&self, object: &&'v JsonObject, key: &str) -> Result<bool, Defer> {
         Ok(object.contains(key))
     }
@@ -1218,6 +1281,10 @@ impl<'v> View for JsonView<'v> {
         _construct: bool,
     ) -> Result<Validated, Defer> {
         Ok(Validated::Object(record))
+    }
+
+    fn close_map(&self, record: Vec<(String, Validated)>) -> Validated {
+        Validated::Object(record)
     }
 
     fn limit_fails(
@@ -1325,6 +1392,7 @@ impl<'a, V: View> Run<'a, V> {
             Kind::Uuid => self.uuid(data, path)?,
             Kind::Datetime => self.moment(data, path)?,
             Kind::List(item) => self.sequence(node, item, data, path, depth)?,
+            Kind::Map { key, value } => self.mapping(node, key, value, data, path, depth)?,
             Kind::Schema(index) => self.schema(*index, data, path, depth)?,
             Kind::TaggedUnion {
                 discriminator,
@@ -1360,6 +1428,15 @@ impl<'a, V: View> Run<'a, V> {
         self.fail(path, "one_of", format!("must be one of {shown}"))
     }
 
+    /// The `max_length` of `node`, or its wire-input bound on wire input.
+    fn most(&self, node: &Node<V::Rules>) -> Option<i64> {
+        node.max_length.or(if self.options.input_bounds {
+            node.input_max_length
+        } else {
+            None
+        })
+    }
+
     fn length(
         &mut self,
         node: &Node<V::Rules>,
@@ -1379,7 +1456,7 @@ impl<'a, V: View> Run<'a, V> {
                 return Ok(false);
             }
         }
-        if let Some(most) = node.max_length {
+        if let Some(most) = self.most(node) {
             if size > most {
                 let unit = if most == 1 {
                     unit.to_owned()
@@ -1525,6 +1602,85 @@ impl<'a, V: View> Run<'a, V> {
         } else {
             Some(self.view.close_list(out))
         })
+    }
+
+    /// A `dict[str, X]` field: an object of string keys, its entry count
+    /// within the node's limits, each key within the key node's, each value
+    /// checked at `path.key` (the key shortened as unknown fields are).
+    fn mapping(
+        &mut self,
+        node: &Node<V::Rules>,
+        key: &Node<V::Rules>,
+        value: &Node<V::Rules>,
+        data: &V::Data,
+        path: &str,
+        depth: usize,
+    ) -> Checked<V> {
+        let Some(object) = self.view.object(data) else {
+            return self.fail(path, "type", "expected an object".to_owned());
+        };
+        let before = self.problems.len();
+        self.validate_object_key_types(&object, path)?;
+        if self.problems.len() > before {
+            return Ok(None);
+        }
+        let entries = self.view.entries(&object).map_err(Abort::View)?;
+        if !self.length(node, entries.len(), path, "item")? {
+            return Ok(None);
+        }
+        let mut out = self.view.new_record();
+        for (name, raw) in entries {
+            let Some(name) = name else {
+                let message = "object keys must be valid Unicode text".to_owned();
+                self.fail(path, "type", message)?;
+                continue;
+            };
+            let shown: String = name.chars().take(MAX_KEY_ECHO).collect();
+            let here = join(path, &shown);
+            if !self.map_key(key, &name, &here)? {
+                continue;
+            }
+            if let Some(found) = self.check(value, &raw, &here, depth + 1)? {
+                self.view
+                    .set_field(&mut out, &name, found)
+                    .map_err(Abort::View)?;
+            }
+        }
+        Ok(if self.problems.len() > before {
+            None
+        } else {
+            Some(self.view.close_map(out))
+        })
+    }
+
+    /// Whether a `dict` key satisfies the key node's length and pattern;
+    /// reports the first limit it breaks at `path` otherwise.
+    fn map_key(
+        &mut self,
+        key: &Node<V::Rules>,
+        name: &str,
+        path: &str,
+    ) -> Result<bool, Abort<V::Error>> {
+        let size = i64::try_from(name.chars().count()).unwrap_or(i64::MAX);
+        let plural = |bound: i64| if bound == 1 { "" } else { "s" };
+        if let Some(least) = key.min_length.filter(|least| size < *least) {
+            let message = format!("key must have at least {least} character{}", plural(least));
+            self.fail(path, "key_min_length", message)?;
+            return Ok(false);
+        }
+        if let Some(most) = self.most(key).filter(|most| size > *most) {
+            let message = format!("key must have at most {most} character{}", plural(most));
+            self.fail(path, "key_max_length", message)?;
+            return Ok(false);
+        }
+        if let Some((source, regex)) = &key.pattern {
+            if !regex.is_match(name) {
+                let shown = self.view.pattern_shown(source).map_err(Abort::View)?;
+                self.fail(path, "key_pattern", format!("key must match {shown}"))?;
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     fn schema(&mut self, index: usize, data: &V::Data, path: &str, depth: usize) -> Checked<V> {
@@ -1872,7 +2028,13 @@ impl Compiled {
 
     /// `(instance, problems)`: exactly one of them is meaningful. Problems are
     /// `(path, code, message)` tuples in the order the checks found them.
-    #[pyo3(signature = (data, construct=true, use_aliases=true, allow_naive_datetime=false, skip_fields=Vec::new()))]
+    /// `input_bounds` (default: `construct`) applies the wire-input bounds of
+    /// dict fields; construction and model conversion leave it off.
+    #[pyo3(signature = (data, construct=true, use_aliases=true, allow_naive_datetime=false, skip_fields=Vec::new(), input_bounds=None))]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the keyword arguments of the Python method"
+    )]
     fn validate<'py>(
         &self,
         py: Python<'py>,
@@ -1881,12 +2043,14 @@ impl Compiled {
         use_aliases: bool,
         allow_naive_datetime: bool,
         skip_fields: Vec<String>,
+        input_bounds: Option<bool>,
     ) -> PyResult<(Option<Bound<'py, PyAny>>, Vec<Problem>)> {
         let options = Options {
             construct,
             use_aliases,
             allow_naive_datetime,
             skip_fields: skip_fields.into_iter().collect(),
+            input_bounds: input_bounds.unwrap_or(construct),
         };
         let view = PyView {
             py,
@@ -2015,6 +2179,18 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
         (Made, [("kind", "type", node("str"), True), ("good", "good", node("bool"), False)], False),
     ]"#;
 
+    const MAPPING: &str = r#"[
+        (Made, [
+            ("labels", "labels", node("dict", item=node("str", max_length=3),
+                                      key=node("str", max_length=4), max_length=3), True),
+            ("points", "points", node("dict", item=node("schema", index=1),
+                                      key=node("str", min_length=2, max_length=256, pattern="[a-z]+")), False),
+            ("grid", "grid", node("dict", nullable=True, item=node("list", nullable=True, item=node("int")),
+                                  key=node("str", max_length=256), min_length=1), False),
+        ], True),
+        (Made, [("x", "x", node("int"), True), ("y", "y", node("int", ge=0), False)], True),
+    ]"#;
+
     const CHAIN: &str = r#"[(Made, [
         ("next", "next", node("schema", nullable=True, index=0), False),
         ("n", "n", node("int"), False),
@@ -2052,6 +2228,7 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
             use_aliases,
             allow_naive_datetime,
             skip_fields: skip.iter().map(|name| (*name).to_owned()).collect(),
+            input_bounds: false,
         }
     }
 
@@ -2150,6 +2327,7 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
                 options.use_aliases,
                 options.allow_naive_datetime,
                 skip,
+                Some(options.input_bounds),
             )
             .unwrap();
         let schema = compiled.native().expect("the schema lowers");
@@ -2382,6 +2560,40 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
     }
 
     #[test]
+    fn mappings_report_the_same_problems_and_values() {
+        Python::initialize();
+        Python::attach(|py| {
+            let compiled = compile(py, MAPPING);
+            let long_key = "k".repeat(70);
+            let long = format!(
+                r#"{{"labels": {{"{long_key}": "x"}}, "points": {{"{long_key}": {{"x": 1}}}}}}"#
+            );
+            let bodies = [
+                r#"{"labels": {"b": "x", "a": "yy"}}"#,
+                r#"{"labels": {"b": "x", "a": "yy", "b": "z"}}"#,
+                r#"{"labels": {}}"#,
+                r#"{"labels": {"a": "x", "b": "x", "c": "x", "d": "x"}}"#,
+                r#"{"labels": {"a": 1, "b": "toolong", "c": null}}"#,
+                r#"{"labels": {"abcde": "x", "__proto__": "y"}}"#,
+                r#"{"labels": [], "points": "x", "grid": 3}"#,
+                r#"{"labels": {"a": "x"}, "points": {"ab": {"x": 1}, "a": {"x": 2}, "AB": {"x": 3}}}"#,
+                r#"{"labels": {"a": "x"}, "points": {"ab": {"y": -1, "z": 1}, "cd": 5}}"#,
+                r#"{"labels": {"a": "x"}, "grid": null}"#,
+                r#"{"labels": {"a": "x"}, "grid": {}}"#,
+                r#"{"labels": {"a": "x"}, "grid": {"r": [1, "2"], "n": null, "e": []}}"#,
+                r#"{"labels": {"é": "é"}, "grid": {"r": [99999999999999999999]}}"#,
+                long.as_str(),
+            ];
+            let same = compare_all(py, &compiled, &bodies, &option_sets());
+            // Only the integer outside i64 inside `grid` defers.
+            assert_eq!(
+                same,
+                bodies.len() * option_sets().len() - option_sets().len()
+            );
+        });
+    }
+
+    #[test]
     fn the_error_cap_and_the_depth_limit_are_shared() {
         Python::initialize();
         Python::attach(|py| {
@@ -2463,6 +2675,8 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
                 r#"node("int", one_of=(None,))"#,
                 r#"node("uuid", one_of=("12345678-1234-5678-1234-567812345678",))"#,
                 r#"node("list", item=node("int", ge=decimal.Decimal(1)))"#,
+                r#"node("dict", item=node("int", ge=decimal.Decimal(1)), key=node("str"))"#,
+                r#"node("dict", item=node("int"), key=node("str", pattern=Text("a+")))"#,
             ] {
                 let table = format!(r#"[(Made, [("f", "f", {constraint}, True)], False)]"#);
                 assert!(compile(py, &table).native().is_none(), "{constraint}");
@@ -2583,7 +2797,7 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
         "\"\\u00e9\\ud83d\\ude00\"",
     ];
 
-    const KEYS: [&str; 32] = [
+    const KEYS: [&str; 34] = [
         "name",
         "count",
         "ratio",
@@ -2616,13 +2830,37 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
         "type",
         "extra",
         "é",
+        "labels",
+        "points",
     ];
 
+    /// Values a `dict` field of [`MAPPING`] accepts or nearly accepts.
+    const MAP_VALUES: [&str; 12] = [
+        "{}",
+        "{\"a\": \"x\"}",
+        "{\"a\": \"x\", \"bb\": \"yy\"}",
+        "{\"__proto__\": \"z\"}",
+        "{\"a\": 1}",
+        "{\"abcde\": \"x\"}",
+        "{\"ab\": {\"x\": 1}}",
+        "{\"ab\": {\"x\": 1, \"y\": 2}, \"cd\": {\"x\": -3}}",
+        "{\"A\": {\"x\": 1}}",
+        "{\"r\": [1, 2], \"n\": null}",
+        "{\"r\": [\"1\"]}",
+        "{\"a\": \"x\", \"a\": \"yy\"}",
+    ];
+
+    const MAP_KEYS: [&str; 4] = ["labels", "labels", "points", "grid"];
+
     fn random_body(draw: &mut Draw) -> String {
+        random_body_of(draw, &KEYS, &VALUES)
+    }
+
+    fn random_body_of(draw: &mut Draw, keys: &[&str], values: &[&str]) -> String {
         let members: Vec<String> = (0..draw.next(7))
             .map(|_| {
-                let key = KEYS[draw.next(KEYS.len())];
-                let value = VALUES[draw.next(VALUES.len())];
+                let key = keys[draw.next(keys.len())];
+                let value = values[draw.next(values.len())];
                 format!("\"{key}\": {value}")
             })
             .collect();
@@ -2634,7 +2872,7 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
         Python::initialize();
         Python::attach(|py| {
             let mut draw = Draw(0x9E37_79B9_7F4A_7C15);
-            for definitions in [SCALARS, ALIASES, NESTED, UNION, CHAIN] {
+            for definitions in [SCALARS, ALIASES, NESTED, UNION, MAPPING, CHAIN] {
                 let compiled = compile(py, definitions);
                 let mut same = 0;
                 let sets = option_sets();
@@ -2648,6 +2886,83 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
                 }
                 assert!(same > 450, "{same} of 600 compared");
             }
+        });
+    }
+
+    /// Whether a native result holds a non-empty accepted `labels` map.
+    fn accepted_map(value: Option<&Validated>) -> bool {
+        let Some(Validated::Object(fields)) = value else {
+            return false;
+        };
+        fields.iter().any(|(name, item)| {
+            name == "labels" && matches!(item, Validated::Object(entries) if !entries.is_empty())
+        })
+    }
+
+    #[test]
+    fn random_mapping_documents_never_disagree_and_are_often_accepted() {
+        Python::initialize();
+        Python::attach(|py| {
+            let mut draw = Draw(0x2545_F491_4F6C_DD1D);
+            let compiled = compile(py, MAPPING);
+            let native = compiled.native().unwrap();
+            // Junk values are drawn by `random_documents_never_disagree`; these
+            // stay close to valid so accepted maps are reached too.
+            let values: Vec<&str> = MAP_VALUES.iter().chain(&VALUES[..4]).copied().collect();
+            let sets = option_sets();
+            let (mut same, mut accepted) = (0, 0);
+            for round in 0..600 {
+                let body = random_body_of(&mut draw, &MAP_KEYS, &values);
+                let options = &sets[round % sets.len()];
+                if compare_text(py, &compiled, &body, options) == Verdict::Same {
+                    same += 1;
+                }
+                let document = decode_json_document(body.as_bytes()).unwrap();
+                if let Ok((value, _)) = native.validate(&document.root, options) {
+                    accepted += usize::from(accepted_map(value.as_ref()));
+                }
+            }
+            assert!(same > 450, "{same} of 600 compared");
+            assert!(accepted > 10, "{accepted} accepted non-empty maps");
+        });
+    }
+
+    const BOUNDED: &str = r#"[(Made, [
+        ("caps", "caps", node("dict", item=node("int"), key=node("str", input_max_length=3),
+                              input_max_length=2), True),
+        ("open", "open", node("dict", nullable=True, item=node("int"), key=node("str", max_length=5,
+                              input_max_length=3), max_length=4, input_max_length=1), False),
+    ], True)]"#;
+
+    #[test]
+    fn wire_input_bounds_apply_only_when_asked_on_both_paths() {
+        Python::initialize();
+        Python::attach(|py| {
+            let compiled = compile(py, BOUNDED);
+            let bodies = [
+                r#"{"caps": {"a": 1, "b": 2}}"#,
+                r#"{"caps": {"a": 1, "b": 2, "c": 3}}"#,
+                r#"{"caps": {"abcd": 1}}"#,
+                r#"{"caps": {}, "open": {"abcd": 1, "b": 2, "c": 3, "d": 4}}"#,
+                r#"{"caps": {}, "open": {"abcdef": 1, "b": 2, "c": 3, "d": 4, "e": 5}}"#,
+            ];
+            let mut wire = options(true, false, &[]);
+            wire.input_bounds = true;
+            let sets = [options(true, false, &[]), wire];
+            let same = compare_all(py, &compiled, &bodies, &sets);
+            assert_eq!(same, bodies.len() * sets.len());
+            let native = compiled.native().unwrap();
+            let problems = |text: &str, options: &Options| {
+                let document = decode_json_document(text.as_bytes()).unwrap();
+                native.validate(&document.root, options).unwrap().1
+            };
+            assert!(problems(bodies[1], &sets[0]).is_empty());
+            assert_eq!(problems(bodies[1], &sets[1])[0].1, "max_length");
+            assert_eq!(problems(bodies[2], &sets[1])[0].1, "key_max_length");
+            // An explicit max_length wins over the wire-input bound.
+            assert!(problems(bodies[3], &sets[1]).is_empty());
+            let codes: Vec<&str> = problems(bodies[4], &sets[0]).iter().map(|p| p.1).collect();
+            assert_eq!(codes, ["max_length"]);
         });
     }
 }
@@ -2968,21 +3283,25 @@ pub fn serialize_instance<'py>(
 }
 
 /// How one model attribute converts for a schema field: a nested model becomes
-/// `schema.from_model(value)`, a list or tuple maps its items through `item`,
+/// `schema.from_model(value)`, a list or tuple maps its items through `item`
+/// into a new list, a dict (for a `dict` field) its values into a new dict,
 /// anything else passes through unchanged.
 struct Conversion {
     schema: Option<Py<PyAny>>,
     item: Option<Box<Conversion>>,
+    mapping: bool,
 }
 
 fn parse_conversion(raw: &Bound<'_, PyAny>) -> PyResult<Conversion> {
-    let (schema, item): (Option<Py<PyAny>>, Option<Bound<'_, PyAny>>) = raw.extract()?;
+    let (schema, item, mapping): (Option<Py<PyAny>>, Option<Bound<'_, PyAny>>, bool) =
+        raw.extract()?;
     Ok(Conversion {
         schema,
         item: match item {
             Some(inner) => Some(Box::new(parse_conversion(&inner)?)),
             None => None,
         },
+        mapping,
     })
 }
 
@@ -3118,6 +3437,9 @@ fn convert_attribute<'py>(
         }
     }
     if let Some(inner) = &conversion.item {
+        if conversion.mapping {
+            return convert_mapping(value, inner);
+        }
         if value.is_instance_of::<PyList>() || value.is_instance_of::<pyo3::types::PyTuple>() {
             let out = PyList::empty(value.py());
             for element in value.try_iter()? {
@@ -3127,4 +3449,20 @@ fn convert_attribute<'py>(
         }
     }
     Ok(value.clone())
+}
+
+/// A dict attribute copied with its values converted; anything else is left for
+/// validation to report.
+fn convert_mapping<'py>(
+    value: &Bound<'py, PyAny>,
+    inner: &Conversion,
+) -> PyResult<Bound<'py, PyAny>> {
+    let Ok(dict) = value.cast::<PyDict>() else {
+        return Ok(value.clone());
+    };
+    let out = PyDict::new(value.py());
+    for (key, element) in dict.iter() {
+        out.set_item(key, convert_attribute(&element, inner)?)?;
+    }
+    Ok(out.into_any())
 }

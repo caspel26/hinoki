@@ -290,6 +290,8 @@ def annotation_is_str(annotation: Any) -> bool:
 
 
 _MAX_INSTANCE_DEPTH = 128
+MAX_KEY_ECHO = 64
+"""Characters of a client-chosen key that an error path repeats."""
 
 
 def instance_error(path: str) -> ValidationError:
@@ -374,6 +376,10 @@ def typed_instance_value(
     elif ftype.schema is not None:
         checked = nested_instance_value(
             ftype.schema, value, use_aliases, active, depth, path
+        )
+    elif ftype.kind == "dict" and ftype.item is not None:
+        checked = mapping_instance_value(
+            ftype.item, value, use_aliases, active, depth, path
         )
     elif ftype.item is not None:
         checked = list_instance_value(
@@ -478,6 +484,39 @@ def list_instance_value(
         )
         for index, item in enumerate(value)
     ]
+
+
+def mapping_instance_value(
+    item_type: FieldType,
+    value: Any,
+    use_aliases: bool,
+    active: set[int],
+    depth: int,
+    path: str,
+) -> Any:
+    """A dict's values converted like list items; keys are left for the Rust
+    validator, which reports a key that is not a string."""
+    if not isinstance(value, dict):
+        return value
+    if depth > _MAX_INSTANCE_DEPTH:
+        raise instance_error(path)
+    return {
+        key: instance_value(
+            item_type,
+            item,
+            use_aliases=use_aliases,
+            active=active,
+            depth=depth + 1,
+            path=entry_path(path, key),
+        )
+        for key, item in value.items()
+    }
+
+
+def entry_path(path: str, key: object) -> str:
+    """The error path of one dict entry: the key, shortened as the validator
+    shortens it, as one more dotted segment."""
+    return f"{path}.{str(key)[:MAX_KEY_ECHO]}" if path else str(key)[:MAX_KEY_ECHO]
 
 
 def validate_constructed(
@@ -831,12 +870,17 @@ class Schema:
             raise RegistrationError(f"{cls.__name__}: {exc}") from exc
         specs: dict[str, FieldSpec] = {}
         assigned_info = cls.__dict__.get("__assigned_field_info__", {})
+        derived = model_fields(cls)
         for item in dataclasses.fields(cast(Any, cls)):
             assigned = assigned_info.get(item.name)
             annotation = hints[item.name]
             if isinstance(assigned, FieldInfo) and assigned.discriminator is not None:
                 annotation = Annotated[annotation, assigned]
-            ftype = parse_annotation(annotation, f"{cls.__name__}.{item.name}")
+            ftype = parse_annotation(
+                annotation,
+                f"{cls.__name__}.{item.name}",
+                input_bounds=item.name not in derived,
+            )
             alias = merge_alias(
                 cls.__name__,
                 item.name,
@@ -1222,6 +1266,7 @@ def nested_instance_checks(
         field_name = spec.wire_name if use_aliases else name
         problems.extend(
             _nested_check_problems(
+                spec.ftype,
                 getattr(instance, name),
                 field_name,
                 path,
@@ -1254,6 +1299,7 @@ def check_wire_name(
 
 
 def _nested_check_problems(
+    ftype: FieldType,
     value: Any,
     name: str,
     path: str,
@@ -1261,19 +1307,34 @@ def _nested_check_problems(
     use_aliases: bool,
     seen: set[int],
 ) -> list[ErrorDetail]:
+    if not holds_schema(ftype):
+        return []  # list[int], dict[str, str]...: nothing to check, nothing walked
     where = f"{path}.{name}" if path else name
+    return value_check_problems(ftype, value, where, use_aliases, seen)
+
+
+def holds_schema(ftype: FieldType) -> bool:
+    """Whether a value of this type can contain a Schema instance."""
+    if ftype.schema is not None or ftype.variants:
+        return True
+    return ftype.item is not None and holds_schema(ftype.item)
+
+
+def value_check_problems(
+    ftype: FieldType, value: Any, where: str, use_aliases: bool, seen: set[int]
+) -> list[ErrorDetail]:
+    """Checks of the Schema instances in one field value, through lists and
+    dicts at any depth; ``ftype`` can hold a Schema."""
     if isinstance(value, Schema):
         return run_checks(value, where, use_aliases=use_aliases, seen=seen)
-    if isinstance(value, list):
-        return [
-            problem
-            for index, item in enumerate(value)
-            if isinstance(item, Schema)
-            for problem in run_checks(
-                item, f"{where}[{index}]", use_aliases=use_aliases, seen=seen
-            )
-        ]
-    return []
+    item = ftype.item
+    if item is None:
+        return []
+    return [
+        problem
+        for at, element in container_entries(ftype, value, where)
+        for problem in value_check_problems(item, element, at, use_aliases, seen)
+    ]
 
 
 def call_check(
@@ -1309,7 +1370,7 @@ SOURCE_SKIP = frozenset(
     {
         "__dict__", "__weakref__", "__annotations__", "__annotate__",
         "__annotate_func__", "__annotations_cache__", "__source__",
-        "__derivation__", "__derived_model__",
+        "__derivation__", "__derived_model__", "__model_fields__",
         _SUPPLIED_FIELDS, _TRACKS_SUPPLIED_FIELDS,
     }
 )  # fmt: skip
@@ -1355,8 +1416,21 @@ def derive_from_model(
             if item.default is not dataclasses.MISSING:
                 defaults[name] = item.default
     cls.__annotations__ = {**derived, **own}
+    cls.__model_fields__ = frozenset(derived)  # type: ignore[attr-defined]
     for name, value in defaults.items():
         setattr(cls, name, value)
+
+
+def model_fields(cls: type) -> frozenset[str]:
+    """Fields a class or its bases took from a model column: they hold stored
+    values, so the default wire-input bounds of dict fields do not apply."""
+    decided: set[str] = set()
+    found: set[str] = set()
+    for klass in cls.__mro__:
+        own = set(inspect.get_annotations(klass)) - decided
+        found |= own & klass.__dict__.get("__model_fields__", frozenset())
+        decided |= own
+    return frozenset(found)
 
 
 def reject_unselected_inheritance(
@@ -1391,6 +1465,10 @@ def node_of(
             queue.append(ftype.schema)
         index = index_of[ftype.schema]
     constraints = ftype.info.constraints()
+    if ftype.input_max_length is not None:
+        constraints = {**constraints, "input_max_length": ftype.input_max_length}
+    if ftype.key is not None:
+        constraints = {**constraints, "key": node_of(ftype.key, index_of, queue)}
     if ftype.kind == "union":
         constraints = {
             **constraints,
@@ -1530,17 +1608,26 @@ def walk_model_value(
         if isinstance(value, variant):
             walk_model_schema(value, path, queue, queued, visited)
             return
-    if ftype.item is not None and isinstance(value, (list, tuple)):
-        for index, item in enumerate(value):
-            walk_model_value(
-                ftype.item, item, f"{path}[{index}]", queue, queued, visited
-            )
+    if ftype.item is None:
+        return
+    for child_path, item in container_entries(ftype, value, path):
+        walk_model_value(ftype.item, item, child_path, queue, queued, visited)
 
 
-def conversion_of(ftype: FieldType) -> tuple[Any, Any]:
-    """How a model attribute converts for this field (see ``from_model``)."""
+def container_entries(ftype: FieldType, value: Any, path: str) -> list[tuple[str, Any]]:
+    """``(path, element)`` of a list or dict field value; empty for anything else."""
+    if ftype.kind == "dict" and isinstance(value, dict):
+        return [(entry_path(path, key), item) for key, item in value.items()]
+    if isinstance(value, (list, tuple)):
+        return [(f"{path}[{index}]", item) for index, item in enumerate(value)]
+    return []
+
+
+def conversion_of(ftype: FieldType) -> tuple[Any, Any, bool]:
+    """How a model attribute converts for this field (see ``from_model``):
+    ``(schema, item conversion, is a dict)``. Lists and dicts are copied."""
     inner = conversion_of(ftype.item) if ftype.item is not None else None
-    return (ftype.schema, inner)
+    return (ftype.schema, inner, ftype.kind == "dict")
 
 
 def model_plan(cls: type[Schema]) -> core.ModelPlan:

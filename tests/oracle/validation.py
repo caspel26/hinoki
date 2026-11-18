@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
 import operator
 import re
@@ -33,6 +34,14 @@ BOUNDS = (
 )
 
 
+def wire_bounded(ftype: FieldType) -> FieldType:
+    """``ftype`` with its wire-input default bound as its ``max_length``."""
+    if ftype.info.max_length is not None or ftype.input_max_length is None:
+        return ftype
+    info = dataclasses.replace(ftype.info, max_length=ftype.input_max_length)
+    return dataclasses.replace(ftype, info=info)
+
+
 class TooManyErrors(Exception):
     """Validation stopped early: more than ``MAX_ERRORS`` problems."""
 
@@ -58,6 +67,7 @@ class Validator:
             "uuid": self.uuid,
             "datetime": self.moment,
             "list": self.sequence,
+            "dict": self.mapping,
             "schema": self.schema,
         }
 
@@ -161,6 +171,48 @@ class Validator:
         before = len(self.errors)
         items = [self.check(ftype.item, v, f"{path}[{i}]") for i, v in enumerate(data)]
         return INVALID if len(self.errors) > before else items
+
+    def mapping(self, ftype: FieldType, data: Any, path: str) -> object:
+        if not isinstance(data, dict):
+            return self.fail(path, "type", "expected an object")
+        if ftype.item is None or ftype.key is None:
+            raise TypeError("dict type without a key or value type")
+        before = len(self.errors)
+        for key in data:
+            if not isinstance(key, str):
+                self.fail(path, "type", "object keys must be strings")
+        if len(self.errors) > before:
+            return INVALID
+        if self.length(wire_bounded(ftype), data, path) is INVALID:
+            return INVALID
+        values = {}
+        for key, item in data.items():
+            where = join(path, key[:MAX_KEY_ECHO])
+            if self.key(wire_bounded(ftype.key), key, where) is not INVALID:
+                values[key] = self.check(ftype.item, item, where)
+        return INVALID if len(self.errors) > before else values
+
+    def key(self, ftype: FieldType, key: str, path: str) -> object:
+        info = ftype.info
+        if info.min_length is not None and len(key) < info.min_length:
+            bound = info.min_length
+            plural = "" if bound == 1 else "s"
+            return self.fail(
+                path,
+                "key_min_length",
+                f"key must have at least {bound} character{plural}",
+            )
+        if info.max_length is not None and len(key) > info.max_length:
+            bound = info.max_length
+            plural = "" if bound == 1 else "s"
+            return self.fail(
+                path,
+                "key_max_length",
+                f"key must have at most {bound} character{plural}",
+            )
+        if info.pattern is not None and not re.fullmatch(info.pattern, key):
+            return self.fail(path, "key_pattern", f"key must match {info.pattern!r}")
+        return key
 
     def schema(self, ftype: FieldType, data: Any, path: str) -> object:
         if ftype.schema is None:

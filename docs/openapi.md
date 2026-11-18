@@ -55,6 +55,8 @@ Tools that only read the standard method fields do not see these operations: Swa
 * `access=...` adds a security requirement when its authentication provider supplies an OpenAPI scheme. Authentication responses are included in the operation.
 * Admin HTML routes marked `hide_from_docs` are omitted.
 
+A `dict[str, X]` field becomes `type: object` with `additionalProperties` (the value schema), `propertyNames` (the key schema) and `minProperties`/`maxProperties` from its declared entry limits. The framework bounds on client input (1000 entries, 256-character keys) are not part of the document because components describe responses too; see [dictionary fields](schemas.md#dictionary-fields).
+
 Discriminated unions declared as `Schema` fields become OpenAPI `oneOf` schemas with a `discriminator` and explicit tag-to-component mapping. Variant tag fields appear as required string enums; the runtime uses the same tags to select exactly one branch. List items, nested fields and nullable unions retain that structure. For route input and response documentation, put the union inside a wrapper `Schema`; bare union return annotations are rejected instead of producing an incomplete schema. As elsewhere, the response annotation does not cause runtime response validation.
 
 ```yaml

@@ -42,8 +42,8 @@ app = Hinoki(..., rules=blog_rules)   # startup rules fail the app if a promise 
 | `HNK-API-001` | `Actions.forbid_model_responses(match, except_)` | startup | no action returns a `Model` (or a list/page of them): responses are `Schema` classes |
 | `HNK-API-002` | `Actions.require_return_type(match, except_)` | startup | every matching action annotates a concrete return type (not missing, `Any` or `object`; `None` is fine for a 204) |
 | `HNK-API-003` | `Actions.require_pagination(match, except_)` | startup | a `GET` action never returns a plain `list[...]` (alone or in a union): it returns a `Page` |
-| `HNK-SCH-001` | `Schemas.forbid_exposure(*fields)` | startup | named fields never appear in a response `Schema`, nested or in a subclass |
-| `HNK-SCH-002` | `Schemas.require_string_limits()` | startup | every text field of a request `Schema` (nested ones included, and the elements of a `list[str]`) has `max_length` or `one_of` |
+| `HNK-SCH-001` | `Schemas.forbid_exposure(*fields)` | startup | named fields never appear in a response `Schema`, nested or in a subclass; dict keys are runtime data and are not checked |
+| `HNK-SCH-002` | `Schemas.require_string_limits()` | startup | every text field of a request `Schema` (nested ones included), and every text element of a list or value of a `dict[str, ...]` field, has `max_length` or `one_of`; dict keys from clients are bounded by the validator |
 | `HNK-DB-001` | `Models.require_explicit_table(match)` | startup | models whose module matches `match` pin their table with `@db.table(...)` or `table=`; a rename of the class then cannot change the physical table |
 | `HNK-DB-002` | `Models.require_foreign_key_index(match)` | startup | every foreign-key column of a matching model leads an index, a primary key or a unique constraint |
 | `HNK-IMP-001` | `Imports.forbid(source, target)` | static | modules under `source` never import `target` (read from the source files; dynamic imports are reported, not ignored) |

@@ -35,6 +35,57 @@ class NoteOut(Schema):
 
 `Schema.validate(data)` reports structural problems together. Values are not coerced; for data that is all text, such as form fields, `Schema.validate_text(data)` first converts values to the `int`, `float` and `bool` fields declare (and wraps a lone value of a `list` field), in Rust, then runs the same strict `validate`. A value that does not convert is left as text and fails validation with the usual type error; `str`, `UUID` and `datetime` are checked as text. Declare field constraints with `Field(...)`; use `@field_normalize` for narrow, typed string canonicalization and `@field_check`/`@object_check` for synchronous rejection checks.
 
+## Field types
+
+A field is annotated with `str`, `int`, `float`, `bool`, `UUID`, `datetime`, a nested `Schema`, `list[X]`, `dict[str, X]` or a [discriminated union](#discriminated-unions), optionally `| None` (accepts `null`) and `| Unset` (may be left out of a partial update), and optionally wrapped in `Annotated[..., Field(...)]`. `X` can be any of these, so `list[dict[str, int]]` and `dict[str, list[Point]]` work. Anything else (`set`, `tuple`, `bytes`, `Any`, plain unions, `dict[int, X]`) raises `RegistrationError` when the class is created.
+
+### Dictionary fields
+
+Use `dict[str, X]` for an object whose keys the client chooses, such as labels, per-locale texts or settings by name:
+
+```python
+from typing import Annotated
+
+from hinoki import Field, Schema
+
+
+class Point(Schema):
+    x: int
+    y: int = 0
+
+
+Locale = Annotated[str, Field(min_length=2, max_length=5, pattern=r"[a-z]{2}(-[A-Z]{2})?")]
+
+
+class Place(Schema):
+    labels: Annotated[dict[str, Annotated[str, Field(max_length=40)]], Field(max_length=20)]
+    names: dict[Locale, Annotated[str, Field(max_length=80)]] = Field(default_factory=dict)
+    points: dict[str, Point] = Field(default_factory=dict)
+
+
+place = Place.validate({"labels": {"kind": "park"}, "points": {"gate": {"x": 1}}})
+assert place.points == {"gate": Point(x=1)}
+assert place.dump() == {
+    "labels": {"kind": "park"},
+    "names": {},
+    "points": {"gate": {"x": 1, "y": 0}},
+}
+```
+
+* **Keys are strings.** `dict[int, X]`, `dict[UUID, X]` and a bare `dict` are refused at class creation with a message that names `dict[str, X]`. Every key is an ordinary string: `"__proto__"` or `"constructor"` has no special meaning.
+* **Values** follow the value type, with its own `Field(...)` constraints, nested `Schema`s, lists, unions and `None` when the value type allows it. A whole `dict[...] | None` field accepts `null`.
+* **Error paths** add the key as one more dotted segment, as list items add `[index]`: `labels.kind`, `points.gate.x`, `scores.math[1]`. A key longer than 64 characters is shortened to its first 64 in the path, as unknown field names are. The codes and messages are those of the value type.
+* **Entry count.** `Field(min_length=..., max_length=...)` on the dict counts entries, exactly like a list: `at least 1 item`, `at most 20 items`. A `min_length` above the maximum in force is refused at class creation.
+* **Key constraints.** Annotate the key type to constrain keys: `dict[Annotated[str, Field(...)], X]` accepts `min_length`, `max_length`, `pattern` and `format=`. A key that breaks one of these is reported once at its path with `key_min_length`, `key_max_length` or `key_pattern` (for example `key must have at most 5 characters`), and its value is not checked. A key that is not valid Unicode text (a lone surrogate in a Python string) is reported as `type` at the field path.
+* **Client input is always bounded.** On wire input (`Schema.validate(...)` and request bodies), a dict without `max_length` accepts at most 1000 entries (`hinoki.fieldtypes.MAX_MAPPING_ITEMS`) and a key without its own `max_length` at most 256 characters (`hinoki.fieldtypes.MAX_MAPPING_KEY_LENGTH`). A declared `max_length` replaces these bounds. They do not apply to values the server builds: direct construction, `from_model()` and response projections accept larger stored dicts, and fields derived from a model column never get them. Declared limits apply everywhere.
+* **Order and duplicates.** Entries keep the order the client sent through `validate()`, `dump()`, `to_dict()` and the JSON response. A key repeated in a JSON body behaves as in any JSON object: the last value wins and the key keeps its first position.
+* **Construction.** `Place(points={"gate": Point(x=1)})` validates the dict like any field; a nested value must already be a `Schema` instance and a non-string key is reported as `object keys must be strings`. `@field_check` and `@object_check` of nested values run with the same key paths. `from_model()` copies a row's dict, as it copies lists.
+* **OpenAPI** describes the field as `type: object` with `additionalProperties` set to the value schema, `propertyNames` set to the key schema and `minProperties`/`maxProperties` from declared entry limits. The wire-input bounds above are not written into the document, because the same component also describes responses, which they do not limit.
+
+A text value without a limit is reported by the `HNK-SCH-002` rule like a text field (see [rules](rules.md)). `HNK-SCH-001` (`Schemas.forbid_exposure`) checks field names only: the keys of a dict are runtime data, so a forbidden name used as a key is not detected. A `Model` column that holds a dict, directly or in list items, stays a JSON column: model writes do not apply these checks, and constraints on such a column are refused. A `Schema` derived from that model gets a `dict[str, X]` field validated as described here, without the wire-input bounds.
+
+Checks of `Schema` values run through lists and dicts at any depth. A `list[list[Point]]` field runs `Point`'s `@field_check` and `@object_check` for each inner item (`rows[1][0].x`); earlier versions skipped the checks of lists nested in lists.
+
 ## Wire aliases
 
 Use `Field(alias=...)` when the public JSON name should differ from the Python attribute. The alias is the only accepted input key; sending both names is an error. `dump()` writes aliases, including in nested schemas and lists, while `to_dict()` keeps Python attribute names. Validation errors and OpenAPI properties use the wire names. A custom check's default field path is translated to its alias; an explicit `Invalid(path=...)` is already a wire path.

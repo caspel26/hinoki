@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import re
 import types
 import typing
@@ -31,12 +32,21 @@ ALLOWED_CONSTRAINTS: dict[str, frozenset[str]] = {
     "int": frozenset({"ge", "le", "gt", "lt", "one_of"}),
     "float": frozenset({"ge", "le", "gt", "lt", "one_of"}),
     "list": frozenset({"min_length", "max_length"}),
+    "dict": frozenset({"min_length", "max_length"}),
 }
+KEY_CONSTRAINTS = frozenset({"min_length", "max_length", "pattern"})
 MIN_UNION_VARIANTS = 2
 MAX_UNION_VARIANTS = 16
 MAX_DISCRIMINATOR_BYTES = 128
+DICT_ARGUMENTS = 2
 CONTROL_CHARACTER_LIMIT = 32
 DELETE_CHARACTER = 127
+MAX_MAPPING_KEY_LENGTH = 256
+"""Longest ``dict`` key (in characters) accepted from wire input unless the key
+type sets its own ``max_length``: keys are client-chosen text."""
+MAX_MAPPING_ITEMS = 1000
+"""Most entries a ``dict`` field accepts from wire input unless it declares
+``max_length``."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +62,13 @@ class FieldType:
     discriminator: str | None = None
     discriminator_wire_name: str | None = None
     variants: tuple[tuple[str, type[Schema]], ...] = ()
+    key: FieldType | None = None
+    """The key type of a ``dict`` field (always ``str``); ``item`` is its value."""
+    input_max_length: int | None = None
+    """A framework bound applied to wire input only (``Schema.validate`` and
+    request bodies) when no ``max_length`` is declared: the entries of a dict
+    field, the characters of its keys. Stored rows and server-built values are
+    not held to it."""
 
 
 def is_union(annotation: object) -> bool:
@@ -169,8 +186,12 @@ def check_one_of(info: FieldInfo, kind: str, where: str) -> None:
         )
 
 
-def parse_annotation(annotation: object, where: str) -> FieldType:
-    """Turn an annotation into a ``FieldType`` or fail with a clear error."""
+def parse_annotation(
+    annotation: object, where: str, *, input_bounds: bool = True
+) -> FieldType:
+    """Turn an annotation into a ``FieldType`` or fail with a clear error.
+    ``input_bounds=False`` (a field derived from a model column) leaves out the
+    default wire-input bounds of dict fields."""
     base, info = split_annotated(annotation, where)
     nullable = allows_unset = False
     if is_union(base):
@@ -201,7 +222,7 @@ def parse_annotation(annotation: object, where: str) -> FieldType:
         raise RegistrationError(
             f"{where}: discriminator is only valid on a union of Schema variants"
         )
-    return build(base, info, nullable, allows_unset, where)
+    return build(base, info, nullable, allows_unset, where, input_bounds)
 
 
 def build_tagged_union(
@@ -333,7 +354,12 @@ def invalid_discriminator_field(
 
 
 def build(
-    base: Any, info: FieldInfo, nullable: bool, allows_unset: bool, where: str
+    base: Any,
+    info: FieldInfo,
+    nullable: bool,
+    allows_unset: bool,
+    where: str,
+    input_bounds: bool = True,
 ) -> FieldType:
     item: FieldType | None = None
     schema: type[Schema] | None = None
@@ -341,11 +367,23 @@ def build(
         kind = SCALARS[base]
     elif get_origin(base) is list:
         kind = "list"
-        item = parse_annotation(get_args(base)[0], f"{where}[]")
+        item = parse_annotation(
+            get_args(base)[0], f"{where}[]", input_bounds=input_bounds
+        )
+    elif base is dict or get_origin(base) is dict:
+        mapping = build_mapping(base, info, where, input_bounds)
+        return dataclasses.replace(
+            mapping, nullable=nullable, allows_unset=allows_unset
+        )
     elif isinstance(base, type) and hasattr(base, "__hinoki_schema__"):
         kind, schema = "schema", base
     else:
         raise RegistrationError(f"{where}: unsupported type {base!r}")
+    check_constraints(info, kind, where)
+    return FieldType(kind, nullable, allows_unset, info, item, schema)
+
+
+def check_constraints(info: FieldInfo, kind: str, where: str) -> None:
     if info.pattern is not None:
         check_pattern(info.pattern, where)
     check_limits(info, where)
@@ -356,4 +394,52 @@ def build(
         )
     if kind in {"str", "int", "float"}:
         check_one_of(info, kind, where)
-    return FieldType(kind, nullable, allows_unset, info, item, schema)
+
+
+def build_mapping(
+    base: Any, info: FieldInfo, where: str, input_bounds: bool
+) -> FieldType:
+    """``dict[str, X]``: string keys, values of any supported type. Unless it is
+    derived from a model column, wire input is held to a default entry count
+    and key length (see ``MAX_MAPPING_ITEMS``)."""
+    arguments = get_args(base)
+    if len(arguments) != DICT_ARGUMENTS:
+        raise RegistrationError(
+            f"{where}: a dict field needs its key and value types: use dict[str, X]"
+        )
+    check_constraints(info, "dict", where)
+    key = mapping_key(arguments[0], where, input_bounds)
+    item = parse_annotation(arguments[1], f"{where}{{}}", input_bounds=input_bounds)
+    default = MAX_MAPPING_ITEMS if input_bounds and info.max_length is None else None
+    check_reachable(info, default, where)
+    return FieldType("dict", info=info, item=item, key=key, input_max_length=default)
+
+
+def check_reachable(info: FieldInfo, default: int | None, where: str) -> None:
+    """Refuse a ``min_length`` that no value can meet under the bound in force."""
+    bound = info.max_length if info.max_length is not None else default
+    if info.min_length is not None and bound is not None and info.min_length > bound:
+        raise RegistrationError(
+            f"{where}: min_length {info.min_length} exceeds the maximum {bound}"
+        )
+
+
+def mapping_key(annotation: object, where: str, input_bounds: bool) -> FieldType:
+    """The ``str`` key type of a dict, bounded on wire input by default."""
+    base, info = split_annotated(annotation, where)
+    if base is not str:
+        raise RegistrationError(
+            f"{where}: dict keys must be str: use dict[str, X], with "
+            "Annotated[str, Field(...)] as the key type to constrain keys"
+        )
+    extra = set(info.constraints()) - KEY_CONSTRAINTS
+    if extra or info.alias is not None or info.discriminator is not None:
+        raise RegistrationError(
+            f"{where}: dict keys accept only min_length, max_length and pattern"
+        )
+    check_constraints(info, "str", f"{where} key")
+    default = (
+        MAX_MAPPING_KEY_LENGTH if input_bounds and info.max_length is None else None
+    )
+    check_reachable(info, default, f"{where} key")
+    return FieldType("str", info=info, input_max_length=default)
