@@ -26,42 +26,49 @@ async def complete(task_id: UUID) -> TaskOutput:
 
 An action may declare several errors. The runtime maps a declared `APIError` to its status and response body. Unexpected exceptions remain server errors; do not expose exception text to clients.
 
-## Errors that are not `APIError`
+## Your own errors need no registration
 
-An exception from the database, a library or your own domain layer is not an HTTP error, so the client would receive `500 internal_error`. Register how to answer it on the app. The value is an `APIError` subclass, or a function of the exception when the answer depends on it:
+Every `APIError` subclass answers by itself with its `status`, `code` and `message`. Pick the base class whose status you want and `raise` it:
+
+| Base class | Status | Use it for |
+| --- | --- | --- |
+| `errors.BadRequest` | 400 | a malformed or refused request |
+| `errors.Unauthorized` | 401 | the caller is not authenticated |
+| `errors.Forbidden` | 403 | the caller may not do this |
+| `errors.NotFound` | 404 | the resource does not exist |
+| `errors.Conflict` | 409 | the request contradicts the current state (a duplicate, already done) |
+| `errors.APIError` | the `status` you set | anything else |
 
 ```python
-class CardDeclined(errors.Conflict):
-    code = "card_declined"
-    message = "The card was declined."
+class PaymentDeclined(errors.BadRequest):        # answers 400 on its own
+    code = "payment_declined"
+    message = "The payment was declined."
 
-app = Hinoki(include=[...])
-
-@app.error_handler(PaymentDeclined)           # a decorator: the class is returned unchanged
-class _(CardDeclined): ...
-
-app.error_handler(PaymentDeclined)(CardDeclined)       # the same, without a new class
-app.register_errors({PaymentDeclined: CardDeclined})   # several at once
-
-@app.error_handler(QuotaExceeded)             # a function when the answer depends on the exception
-def quota(error: QuotaExceeded) -> errors.Conflict:
-    return errors.Conflict(f"Limit is {error.limit}.", code="quota_exceeded")
+class QuotaExceeded(errors.APIError):            # any other status
+    status = 429
+    code = "quota_exceeded"
 ```
 
-| Case | What you write | Registration |
-| --- | --- | --- |
-| A business rule that is already an HTTP error | a subclass of `errors.Conflict`, `errors.NotFound`, ... and `raise` it | none: the runtime answers with its status and `code` |
-| An exception from outside or from your domain layer | `app.error_handler(Kind)` or `app.register_errors({...})` | on the app |
-| The answer depends on the exception | a function passed to `app.error_handler(Kind)` | on the app |
+Declare them on the action with `errors=(PaymentDeclined,)` for the contract (OpenAPI, MCP, `strict_errors`). Nothing else is needed.
 
-Rules that apply to every registration:
+## Exceptions you cannot change
+
+A library or the database raises its own exception, which is not an HTTP error, and the client would receive `500 internal_error`. Answer it with a function on the app, as FastAPI does. The function receives the exception and returns the `APIError` to send; an instance can set its own `status`:
+
+```python
+app = Hinoki(include=[...])
+
+@app.error_handler(stripe.CardError)
+def card_error(error: stripe.CardError) -> errors.APIError:
+    return errors.APIError(error.user_message, status=402, code="card_declined")
+```
 
 * The most specific class wins: a handler for `HardQuota` is used before one for its base `Quota`. Application handlers are consulted before the built-in ones.
 * A handler may be `def` or `async def`. One that fails, or does not return an `APIError`, counts as "not handled" and the client receives `500 internal_error` without the exception text.
-* An exception type can be registered once; `register_errors` registers all entries or none. Registering on an application that is already serving raises `RegistrationError`.
-* `errors=(...)` on an action is only the declared contract (OpenAPI, MCP, `strict_errors`); it takes `APIError` subclasses, never plain exceptions.
+* An exception type can be registered once, and only before the app serves (afterwards `RegistrationError`). The decorator returns the function unchanged. A class or a value that is not a function is refused with `TypeError`.
+* `app.errors.handle(Kind)` is the same call without the `app` checks.
 
-Built in: `ObjectNotFound` is answered with `404 not_found`, and a database `UniqueViolation` with `409 unique_conflict` (`errors.UniqueConflict`) without exposing the constraint name. Register your own to replace either.
+Built in, with nothing to write: `ObjectNotFound` is answered with `404 not_found`, and a database `UniqueViolation` with `409 unique_conflict` (`errors.UniqueConflict`) without exposing the constraint name. Register your own handler to replace either.
 
 ## Validation and binding errors
 
