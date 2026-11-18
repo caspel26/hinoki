@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from hinoki.admin.components import page_window
 from hinoki.admin.forms import (
@@ -183,7 +183,7 @@ async def list_panel(
     query = apply_state(entry, entry.queryset(site.principal), state)
     from hinoki.pagination import PageParams  # noqa: PLC0415 - only here
 
-    found = await query.apaginate(PageParams(state.page, entry.per_page))
+    found = await query.apaginate(PageParams(state.page, cast(int, entry.per_page)))
     bulk_delete = entry.bulk_delete and entry.can(site.principal, "delete")
     actions = tuple(
         action

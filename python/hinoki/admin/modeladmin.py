@@ -85,9 +85,9 @@ class ModelAdmin[M: Model]:
     fieldsets: ClassVar[tuple[Fieldset, ...] | Mapping[str, tuple[str, ...]]] = ()
     modified_field: ClassVar[str] = ""
     modified_label: ClassVar[str] = "Last modified"
-    per_page: ClassVar[int] = 20
-    show_count: ClassVar[bool] = False
-    bulk_delete: ClassVar[bool] = False
+    per_page: ClassVar[int | None] = None  # the site's ``per_page`` when unset
+    show_count: ClassVar[bool | None] = None  # the site's ``show_count`` when unset
+    bulk_delete: ClassVar[bool] = True  # offered where ``can(principal, "delete")``
     bulk_actions: ClassVar[tuple[BulkAction[Any], ...]] = ()
 
     def __init_subclass__(cls, model: type[M] | None = None, **kwargs: Any) -> None:
@@ -197,11 +197,26 @@ class ModelAdmin[M: Model]:
         visible = [c for c in self.model.__columns__ if c not in self.exclude]
         return tuple(visible[:6])
 
+    def default_search(self) -> tuple[str, ...]:
+        """The first three shown text columns: what a search box is expected to
+        look in, without ever reaching a column the list does not show."""
+        kinds = self.model.__field_types__
+        return tuple(
+            name
+            for name in self.shown_columns()
+            if name in kinds and kinds[name].kind == "str"
+        )[:3]
+
     def skipped(self) -> frozenset[str]:
         return frozenset(self.exclude) | frozenset(self.assign)
 
     def normalize(self, slug: str) -> None:
-        """Expand the short forms of ``badges``, ``tabs`` and ``fieldsets``."""
+        """Fill the defaults the model implies and expand the short forms of
+        ``badges``, ``tabs`` and ``fieldsets``."""
+        if not self.search:
+            self.search = self.default_search()  # type: ignore[misc]
+        if not self.modified_field and self.model.__updated_at__:
+            self.modified_field = self.model.__updated_at__  # type: ignore[misc]
         badges = {
             column: {
                 value: item if isinstance(item, Badge) else Badge(*item)
