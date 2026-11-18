@@ -51,6 +51,7 @@ class Route:
     parsers: tuple[Parser, ...] = DEFAULT_PARSERS
     renderers: tuple[Renderer, ...] = DEFAULT_RENDERERS
     errors: tuple[type[APIError], ...] = ()
+    validate_response: bool = False
 
     @property
     def is_async(self) -> bool:
@@ -73,6 +74,7 @@ class Options:
     parsers: Sequence[Parser] | None = None
     renderers: Sequence[Renderer] | None = None
     errors: Sequence[type[APIError]] = ()
+    validate_response: bool = False
 
 
 class RouteDeclaration:
@@ -115,6 +117,7 @@ class RouteDeclaration:
                 else check_renderers(options.renderers)
             ),
             errors=check_errors(options.errors),
+            validate_response=options.validate_response,
         )
         setattr(fn, ROUTE_ATTR, route)
         return fn
@@ -144,12 +147,21 @@ def get(
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
+    validate_response: bool = False,
 ) -> RouteDeclaration:
     """Declare a GET action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
     MCP tool description then show."""
     options = Options(
-        status, access, transaction, pagination, replaces, parsers, renderers, errors
+        status,
+        access,
+        transaction,
+        pagination,
+        replaces,
+        parsers,
+        renderers,
+        errors,
+        validate_response,
     )
     return RouteDeclaration("GET", path, options)
 
@@ -165,12 +177,21 @@ def post(
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
+    validate_response: bool = False,
 ) -> RouteDeclaration:
     """Declare a POST action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
     MCP tool description then show."""
     options = Options(
-        status, access, transaction, pagination, replaces, parsers, renderers, errors
+        status,
+        access,
+        transaction,
+        pagination,
+        replaces,
+        parsers,
+        renderers,
+        errors,
+        validate_response,
     )
     return RouteDeclaration("POST", path, options)
 
@@ -186,12 +207,21 @@ def put(
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
+    validate_response: bool = False,
 ) -> RouteDeclaration:
     """Declare a PUT action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
     MCP tool description then show."""
     options = Options(
-        status, access, transaction, pagination, replaces, parsers, renderers, errors
+        status,
+        access,
+        transaction,
+        pagination,
+        replaces,
+        parsers,
+        renderers,
+        errors,
+        validate_response,
     )
     return RouteDeclaration("PUT", path, options)
 
@@ -207,12 +237,21 @@ def patch(
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
+    validate_response: bool = False,
 ) -> RouteDeclaration:
     """Declare a PATCH action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
     MCP tool description then show."""
     options = Options(
-        status, access, transaction, pagination, replaces, parsers, renderers, errors
+        status,
+        access,
+        transaction,
+        pagination,
+        replaces,
+        parsers,
+        renderers,
+        errors,
+        validate_response,
     )
     return RouteDeclaration("PATCH", path, options)
 
@@ -228,12 +267,21 @@ def delete(
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
+    validate_response: bool = False,
 ) -> RouteDeclaration:
     """Declare a DELETE action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
     MCP tool description then show."""
     options = Options(
-        status, access, transaction, pagination, replaces, parsers, renderers, errors
+        status,
+        access,
+        transaction,
+        pagination,
+        replaces,
+        parsers,
+        renderers,
+        errors,
+        validate_response,
     )
     return RouteDeclaration("DELETE", path, options)
 
@@ -249,6 +297,7 @@ def query(
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
+    validate_response: bool = False,
 ) -> RouteDeclaration:
     """Declare a QUERY action: a safe, idempotent request that carries a body
     (a search too large or too structured for a query string). It binds its
@@ -257,7 +306,15 @@ def query(
     action may raise; each carries its own status and code, which OpenAPI and the
     MCP tool description then show."""
     options = Options(
-        status, access, transaction, pagination, replaces, parsers, renderers, errors
+        status,
+        access,
+        transaction,
+        pagination,
+        replaces,
+        parsers,
+        renderers,
+        errors,
+        validate_response,
     )
     return RouteDeclaration("QUERY", path, options)
 
@@ -365,6 +422,7 @@ class RouteGroup:
             parsers=options.pop("parsers", None),
             renderers=options.pop("renderers", None),
             errors=(*self.errors, *own_errors),
+            validate_response=options.pop("validate_response", False),
         )
         if options:
             raise TypeError(f"unknown action options {sorted(options)}")

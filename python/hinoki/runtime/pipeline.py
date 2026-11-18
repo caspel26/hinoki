@@ -51,6 +51,7 @@ from hinoki.runtime.lifespan import Lifespan
 from hinoki.runtime.origins import ALLOW_ORIGIN, CorsPolicy, HostPolicy
 from hinoki.runtime.proxy import effective_scope, inbound_request_id
 from hinoki.runtime.requests import Scope, authorize, build_request, decode_params
+from hinoki.runtime.responsecheck import ResponseContractError
 from hinoki.runtime.responses import (
     BODYLESS,
     RETRY_LATER,
@@ -671,6 +672,8 @@ class Pipeline:
             return Response(result.status, result.body, result.headers)
         if result is not None and route.status not in BODYLESS:
             result = project_response(binding.response_schema, result)
+        enforce_response(binding, result)
+        if result is not None and route.status not in BODYLESS:
             shown = result if renderer.consumes_objects else encode(result)
             body = renderer.render(shown, request)
             many = len(route.renderers) > 1
@@ -688,6 +691,8 @@ class Pipeline:
             return Response(result.status, result.body, result.headers)
         if result is not None and route.status not in BODYLESS:
             result = project_response(binding.response_schema, result)
+        enforce_response(binding, result)
+        if result is not None and route.status not in BODYLESS:
             body = core.encode_json(result, None, False, None)
             return Response.rendered(route.status, body, "application/json", False)
         if route.status == HTTPStatus.OK:
@@ -724,6 +729,18 @@ class Pipeline:
             raise HTTPError(
                 HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
             ) from None
+
+
+def enforce_response(binding: Binding, result: object) -> None:
+    """With ``validate_response=True``, refuse a result the annotation does not
+    allow; the error names the action, never the value."""
+    check = binding.response_check
+    if check is None or binding.route.status in BODYLESS or check(result):
+        return
+    raise ResponseContractError(
+        f"{binding.route.name} returned a {type(result).__name__} that does not "
+        "match its return annotation"
+    )
 
 
 class ResponseProjectionError(RuntimeError):

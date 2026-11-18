@@ -35,6 +35,7 @@ from hinoki.http.request import Request
 from hinoki.pagination import PageNumberPagination, PageParams
 from hinoki.parsers import MultiPartParser, UploadedFile
 from hinoki.routing import Route
+from hinoki.runtime.responsecheck import Check, compile_response_check
 from hinoki.schema import Schema
 
 if typing.TYPE_CHECKING:
@@ -203,6 +204,7 @@ class Binding:
     takes_request: bool = True  # False: the action did not declare `Request`
     needs_body: bool = False  # a parameter binds the body; decided once in `bind`
     response_schema: type[Schema] | None = None
+    response_check: Check | None = field(default=None, repr=False, compare=False)
     row_wire: RowWireSelection | None = field(default=None, repr=False, compare=False)
     is_async: bool = field(init=False, repr=False, compare=False)
     native_input_names: tuple[str, ...] = field(init=False, repr=False, compare=False)
@@ -508,4 +510,11 @@ def bind(route: Route) -> Binding:
         and response is not Schema
         else None
     )
-    return Binding(route, params, takes_request, needs_body, response_schema)
+    response_check = (
+        compile_response_check(route.name, hints.get("return"))
+        if route.validate_response
+        else None
+    )
+    return Binding(
+        route, params, takes_request, needs_body, response_schema, response_check
+    )
