@@ -462,6 +462,22 @@
     <span class="k">return</span> <span class="n">TaskView</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">task_id</span><span class="p">,</span> <span class="n">locale</span><span class="o">=</span><span class="n">locale</span><span class="p">)</span>
 </code></pre></div>
 <p>Request path, query and body values are validated before the handler runs; a Schema body uses <code>Schema.validate()</code> and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper Schema field (<code>Annotated[Cat | Dog, Field(discriminator="kind")]</code>); bare union body parameters are not supported. Hinoki does not coerce input values into different types, with one explicit exception: a <code>Form[Schema]</code> body (<a href="#form-bodies">text sources</a>). Return annotations describe OpenAPI and output serialization. When the annotation is one concrete Schema (also inside <code>Annotated[...]</code>), a directly returned Model is projected through that Schema, and an instance of a subclass is sent with only the declared Schema's fields; a row that fails the Schema's constraints is a <code>500 internal_error</code>, not a client error. Other response values, such as a returned <code>dict</code>, are sent unchanged and are not validated at runtime (<a href="../model-schemas/#return-a-model-from-a-schema-annotated-handler">details</a>). Use a wrapper Schema for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.</p>
+<h2 id="query-strings-as-a-schema">Query strings as a Schema<a class="headerlink" href="#query-strings-as-a-schema" title="Permanent link">&para;</a></h2>
+<p><code>Query[...]</code> reads a whole query string into a <code>Schema</code>, for any method, so a filter set can be declared and reused once:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Query</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Search</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">term</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">ids</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/items"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="n">filters</span><span class="p">:</span> <span class="n">Query</span><span class="p">[</span><span class="n">Search</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"limit"</span><span class="p">:</span> <span class="n">filters</span><span class="o">.</span><span class="n">limit</span><span class="p">}</span>  <span class="c1"># /items?term=a&amp;limit=5&amp;ids=1&amp;ids=2</span>
+</code></pre></div>
+<p>Text is converted to the <code>int</code>, <code>float</code> and <code>bool</code> the <code>Schema</code> declares before the strict validation (a repeated key fills a <code>list</code> field, a single one still does). A value that does not convert, a repeated key for a scalar, a missing required field and an unknown key (by default) are <code>422</code> errors, reported with the parameter name as prefix. The <code>Schema</code> owns the whole query string, so the action takes no other query or page parameters, at most one <code>Query[...]</code>, and it cannot be a path parameter. OpenAPI lists one query parameter per field.</p>
 <h2 id="form-bodies">Form bodies<a class="headerlink" href="#form-bodies" title="Permanent link">&para;</a></h2>
 <p>A plain <code>Schema</code> parameter is a strict JSON body. Wrap it in <code>Form[...]</code> to read the same <code>Schema</code> from a form, whose values are all text:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Form</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
@@ -814,7 +830,7 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#declare-an-action">Declare an action</a></li><li><a href="#read-with-a-body-httpquery">Read with a body: @http.query</a></li><li><a href="#bind-request-values">Bind request values</a></li><li><a href="#form-bodies">Form bodies</a></li><li><a href="#xml-bodies">XML bodies</a></li><li><a href="#upload-files">Upload files</a></li><li><a href="#group-related-paths">Group related paths</a></li><li><a href="#function-or-class">Function or class</a></li><li><a href="#organising-a-large-application">Organising a large application</a></li><li><a href="#responses-errors-and-pagination">Responses, errors and pagination</a>
+            <ul><li><a href="#declare-an-action">Declare an action</a></li><li><a href="#read-with-a-body-httpquery">Read with a body: @http.query</a></li><li><a href="#bind-request-values">Bind request values</a></li><li><a href="#query-strings-as-a-schema">Query strings as a Schema</a></li><li><a href="#form-bodies">Form bodies</a></li><li><a href="#xml-bodies">XML bodies</a></li><li><a href="#upload-files">Upload files</a></li><li><a href="#group-related-paths">Group related paths</a></li><li><a href="#function-or-class">Function or class</a></li><li><a href="#organising-a-large-application">Organising a large application</a></li><li><a href="#responses-errors-and-pagination">Responses, errors and pagination</a>
             <ul><li><a href="#rate-limit-an-action">Rate limit an action</a></li><li><a href="#the-response-is-checked-against-the-annotation">The response is checked against the annotation</a></li></ul>
           </li><li><a href="#migrating-from-the-top-level-decorators">Migrating from the top-level decorators</a></li></ul>
           
@@ -823,8 +839,8 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.10</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 18:41:28 UTC">November 18, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>17 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 19:30:45 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>18 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
