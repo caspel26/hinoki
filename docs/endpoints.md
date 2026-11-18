@@ -204,6 +204,23 @@ action and becomes immutable after successful inclusion.
 
 ## Organising a large application
 
+A project created by `hinoki new` does not list its routes in `main.py`. The manifest (`hinoki.toml`) names them, and the application the manifest declares binds them when it is built without `include=`:
+
+```toml
+[project]
+application = "notes.main:app"
+routes = "notes.routes:routes"          # the project's own routes (a list)
+
+[[apps]]
+name = "billing"
+models = "notes.apps.billing.models"
+migrations = "notes.apps.billing.migrations"
+routes = "notes.apps.billing.routes:routes"   # mounted under prefix
+prefix = "/billing"                     # optional: "/<name>" when omitted
+```
+
+The project's routes come first, then each app's, in dependency order, each app under its prefix. Three rules keep this free of surprises: only the module named by `project.application` binds the manifest (a `Hinoki()` in a test or script next to the project stays empty); a `Hinoki(include=[...])` you write yourself wins and the manifest is ignored (`include=[]` is an explicit empty list); and `app.include(...)` still adds routes by hand, for example a feature that only exists when a setting is on. A route module that cannot be imported, or whose `routes` is not a list, fails when the application is built. Projects without these keys behave as before.
+
 When the ordinary list/retrieve/create/update/delete routes fit a model,
 `CrudAPI` can generate them from a model and schemas declared on one API class.
 Mount that class once in `Hinoki`; generated and handwritten decorated actions

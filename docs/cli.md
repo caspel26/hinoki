@@ -15,9 +15,9 @@ them with `uv run --project ..` to use the locked environment at the parent.
 
 | Command | Purpose |
 | --- | --- |
-| `hinoki new NAME` | Create a starter project with settings, rules, tests and agent instructions. |
+| `hinoki new NAME` | Create a starter project with settings, rules, routes, tests and agent instructions. |
 | `hinoki app list` | List registered apps, their model and migration modules, and dependencies without importing app code or opening a database. `--format json` is machine readable. |
-| `hinoki app create NAME` | Add a registered modular app with its own models and migration package. |
+| `hinoki app create NAME` | Add a registered modular app with its own models, routes and migration package. |
 | `hinoki doctor [TARGET]` | Summarize environment, manifest and app construction diagnostics without serving or connecting to a database. |
 | `hinoki dev TARGET` | Run an app with reload during development. |
 | `hinoki serve TARGET` | Run without reload, using the `server` settings group. |
@@ -87,7 +87,7 @@ The generated `hinoki.toml` registers the default app and its models and migrati
 uv run hinoki app create billing
 ```
 
-This creates `NAME/apps/billing/{models.py,migrations/}` and registers both dotted module paths. Cross-app foreign keys require the referencing app to list the referenced app in `requires` in `hinoki.toml`; migrations are then planned/applied in dependency order. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.
+This creates `NAME/apps/billing/{models.py,routes.py,migrations/}` and registers the model, migration and routes modules in `hinoki.toml` (`routes = "NAME.apps.billing.routes:routes"`, `prefix = "/billing"`). Cross-app foreign keys require the referencing app to list the referenced app in `requires` in `hinoki.toml`; migrations are then planned/applied in dependency order. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.
 
 List the registered apps from the project root or any subdirectory:
 
@@ -96,7 +96,7 @@ uv run hinoki app list
 uv run hinoki app list --format json
 ```
 
-The text output shows each app in dependency order with its model module, migration package and prerequisites. JSON contains the same fields under an `apps` key. The command only reads and validates `hinoki.toml`: it does not import app modules, connect to a database or start the app. Without a manifest, it prints an error and exits 2.
+The text output shows each app in dependency order with its model module, migration package, routes and prefix, and prerequisites. JSON contains the same fields under an `apps` key (`routes` and `prefix` are empty strings for an app without routes). The command only reads and validates `hinoki.toml`: it does not import app modules, connect to a database or start the app. Without a manifest, it prints an error and exits 2.
 
 ### `dev` and `serve`
 
