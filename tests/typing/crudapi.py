@@ -30,7 +30,7 @@ class Posts(CrudAPI, model=Post, path="/posts"):
         del principal
         return Post.all()
 
-    async def perform_create(
+    async def store(
         self, values: dict[str, Any], principal: Caller[Any] | None
     ) -> Post:
         del principal
