@@ -91,7 +91,7 @@ def describe_action(route: Route) -> dict[str, Any]:
         "path": route.path,
         "status": route.status,
         "access": describe_access(route),
-        "transaction": route.transaction,
+        "atomic": route.atomic,
         "pagination": route.pagination is not None,
         "parsers": [p.media_type for p in route.parsers],
         "renderers": [r.media_type for r in route.renderers],
@@ -282,7 +282,7 @@ def tool_propose_model(_project: DevProject, args: dict[str, Any]) -> dict[str, 
 
 TOOLS: dict[str, tuple[str, dict[str, Any], Callable[..., dict[str, Any]]]] = {
     "inspect_project": (
-        "Actions (method, path, access, transaction, parsers, renderers, location), "
+        "Actions (method, path, access, atomic, parsers, renderers, location), "
         "models if configured, and the number of enabled rules.",
         {"type": "object", "properties": {}},
         tool_inspect_project,

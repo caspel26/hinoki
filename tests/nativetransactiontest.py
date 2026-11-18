@@ -1,4 +1,4 @@
-"""transaction=True on the native handler lane against a disposable PostgreSQL
+"""atomic=True on the native handler lane against a disposable PostgreSQL
 (skipped without one)."""
 
 import asyncio
@@ -44,25 +44,25 @@ def database() -> Database:
     return Holder.current[-1]
 
 
-@http.post("/ok", status=201, transaction=True)
+@http.post("/ok", status=201, atomic=True)
 async def create_ok(data: Item) -> dict[str, str]:
     await database().execute(INSERT, data.name)
     return {"name": data.name}
 
 
-@http.post("/crash", transaction=True)
+@http.post("/crash", atomic=True)
 async def create_then_crash(data: Item) -> dict[str, str]:
     await database().execute(INSERT, data.name)
     raise RuntimeError("secret failure")
 
 
-@http.post("/conflict", transaction=True)
+@http.post("/conflict", atomic=True)
 async def create_then_conflict(data: Item) -> dict[str, str]:
     await database().execute(INSERT, data.name)
     raise Conflict("Already there.", code="already_there")
 
 
-@http.post("/swallow", transaction=True)
+@http.post("/swallow", atomic=True)
 async def swallow(data: Item) -> dict[str, str]:
     """Catches a constraint error and returns normally: the commit must fail."""
     await database().execute(INSERT, data.name)
@@ -71,14 +71,14 @@ async def swallow(data: Item) -> dict[str, str]:
     return {"name": data.name}
 
 
-@http.post("/slow", transaction=True)
+@http.post("/slow", atomic=True)
 async def slow(data: Item) -> dict[str, str]:
     await database().execute(INSERT, data.name)
     await database().fetch("SELECT pg_sleep(5)")
     return {}
 
 
-@http.delete("/clear/{name}", transaction=True)
+@http.delete("/clear/{name}", atomic=True)
 def clear(name: str) -> dict[str, str]:
     return {"name": name}
 

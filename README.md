@@ -71,7 +71,7 @@ class NoteOut(Schema):
     body: str
 
 
-@http.post("/notes", status=201, transaction=True)
+@http.post("/notes", status=201, atomic=True)
 async def create(data: NoteIn) -> NoteOut:
     return await Note.acreate(data)  # type: ignore[return-value]
 ```

@@ -653,12 +653,12 @@ async def test_admin_guarded_writes_summarize_validation_and_database_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     @asynccontextmanager
-    async def transaction() -> AsyncIterator[None]:
+    async def atomic() -> AsyncIterator[None]:
         yield
 
     monkeypatch.setattr(
         "hinoki.admin.site.current_database",
-        lambda: SimpleNamespace(transaction=transaction),
+        lambda: SimpleNamespace(atomic=atomic),
     )
 
     async def invalid() -> None:
@@ -1547,7 +1547,7 @@ async def test_custom_bulk_action_holds_row_lock_through_the_handler(
 
     async def change_permission_field() -> None:
         nonlocal writer_pid
-        async with writer.transaction():
+        async with writer.atomic():
             row = await writer.fetch_one("SELECT pg_backend_pid() AS pid")
             assert row is not None
             writer_pid = int(row["pid"])

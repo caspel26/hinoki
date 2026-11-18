@@ -24,9 +24,9 @@ from hinoki.context import Handoff
 from hinoki.crypto import JWTAuth, JWTKey, check_key_set
 from hinoki.db import (
     ActiveTransaction,
+    AtomicScope,
     Database,
     DatabaseError,
-    TransactionScope,
     current,
 )
 from hinoki.errors import InvalidBody, RegistrationError
@@ -186,7 +186,7 @@ def test_command_module_resolution_deduplicates_transitive_requirements() -> Non
 
 
 def test_unentered_database_transaction_scope_rejects_exit() -> None:
-    scope = TransactionScope(Database(object()))  # type: ignore[arg-type]
+    scope = AtomicScope(Database(object()))  # type: ignore[arg-type]
 
     async def exercise() -> None:
         with pytest.raises(RuntimeError, match="was not entered"):

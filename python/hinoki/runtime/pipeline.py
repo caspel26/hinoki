@@ -200,7 +200,7 @@ class Pipeline:
             for secure in (True, False)
         }
         self.executor = SyncExecutor(app.runtime.sync_workers, app.runtime.sync_queue)
-        needs_database = any(b.route.transaction for b in self.bindings)
+        needs_database = any(b.route.atomic for b in self.bindings)
         self.lifespan = Lifespan(
             app.modules,
             self.ctx,
@@ -718,12 +718,12 @@ class Pipeline:
         renderer: Renderer,
         kwargs: dict[str, object],
     ) -> Response:
-        """Run the handler; with ``transaction=True`` inside a transaction that
+        """Run the handler; with ``atomic=True`` inside a transaction that
         commits only after the output is encoded, and rolls back on any error
         before it becomes an HTTP response."""
-        if not binding.route.transaction:
+        if not binding.route.atomic:
             return await self._call(binding, request, renderer, kwargs)
-        async with self.ctx.get(Database).transaction():
+        async with self.ctx.get(Database).atomic():
             return await self._call(binding, request, renderer, kwargs)
 
     async def _call(
@@ -887,10 +887,10 @@ class Pipeline:
         native: NativeBody | None = None,
     ) -> Response:
         """Run a selected no-Request JSON handler and encode through Rust; with
-        ``transaction=True`` the commit follows the encoding, as in ``_invoke``."""
-        if not binding.route.transaction:
+        ``atomic=True`` the commit follows the encoding, as in ``_invoke``."""
+        if not binding.route.atomic:
             return await self._native_result(binding, args, native)
-        async with self.ctx.get(Database).transaction():
+        async with self.ctx.get(Database).atomic():
             return await self._native_result(binding, args, native)
 
     async def _native_result(

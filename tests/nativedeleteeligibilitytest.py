@@ -42,7 +42,7 @@ async def limited(item: str) -> None:
     return None
 
 
-@http.delete("/atomic/{item}", status=204, transaction=True)
+@http.delete("/atomic/{item}", status=204, atomic=True)
 async def atomic(item: str) -> None:
     return None
 

@@ -80,7 +80,7 @@ class Posts(CrudAPI, model=Post, path="/posts"):
     @http.post(
         "/{item_id}/publish",
         access=editor,
-        transaction=True,
+        atomic=True,
         errors=(errors.Forbidden, PostAlreadyPublished),
     )
     async def publish(self, item_id: UUID, principal: Caller[User]) -> PostOut:

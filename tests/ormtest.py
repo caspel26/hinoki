@@ -296,11 +296,11 @@ async def test_constraint_errors_surface_as_typed_database_errors(db: Database) 
 @needs_database
 async def test_models_follow_the_transaction_scope(db: Database) -> None:
     with pytest.raises(RuntimeError):
-        async with db.transaction():
+        async with db.atomic():
             await Post.acreate(title="rolled back")
             raise RuntimeError
     assert await Post.all().acount() == 0
-    async with db.transaction():
+    async with db.atomic():
         await Post.acreate(title="kept")
     assert await Post.all().acount() == 1
 

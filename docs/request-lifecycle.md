@@ -6,7 +6,7 @@ The order matters because validation, access and transactions have different fai
 2. Hinoki matches the method and path.
 3. For an action with an access policy, its authentication provider resolves a caller and the policy checks permissions. The request body has not been read yet, so an unauthenticated client cannot make the server buffer it.
 4. Hinoki negotiates the response type from `Accept` (`406` when nothing fits), reads the body of `POST`/`PUT`/`PATCH`/`QUERY` requests, then binds and validates path, query, header and body values before the handler runs.
-5. For `transaction=True`, Hinoki opens a transaction before calling the handler.
+5. For `atomic=True`, Hinoki opens a transaction before calling the handler.
 6. The handler returns. Hinoki prepares the response: a configured renderer turns the value into bytes. The declared response type is not checked at runtime.
 7. The transaction commits after successful response preparation. An exception or cancellation rolls back before an HTTP error is produced.
 
