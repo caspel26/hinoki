@@ -116,6 +116,21 @@ def native_remove_sync(item_id: str, force: bool = False) -> dict[str, object]:
     return {"item_id": item_id, "force": force}
 
 
+class Item(Schema):
+    title: str
+    count: int = 1
+
+
+@http.post("/native/items/{item_id}", status=201)
+async def native_item(item_id: int, data: Item, dry: bool = False) -> dict[str, object]:
+    return {"id": item_id, "title": data.title, "count": data.count, "dry": dry}
+
+
+@http.patch("/native/items-sync/{item_id}")
+def native_item_sync(data: Item, item_id: int) -> dict[str, object]:
+    return {"id": item_id, "title": data.title}
+
+
 @http.get("/native/typed/{ident}")
 async def native_typed(
     ident: UUID, count: int, ratio: float = 1.5, flag: bool = False
@@ -313,6 +328,8 @@ def make_app(**config: Any) -> Hinoki:
             native_echo,
             native_remove,
             native_remove_sync,
+            native_item,
+            native_item_sync,
             pipeline_echo,
             pipeline_integer,
             pipeline_uuid,
@@ -533,18 +550,27 @@ async def open_connection(
 
 
 async def fetch(
-    port: int, method: str, target: str, extra: str = "", host: str = "t"
+    port: int,
+    method: str,
+    target: str,
+    extra: str = "",
+    host: str = "t",
+    body: bytes = b"",
 ) -> Received:
     reader, writer = await open_connection(port)
     head_only = method == "HEAD"
-    writer.write(f"{method} {target} HTTP/1.1\r\nhost: {host}\r\n{extra}\r\n".encode())
+    head = f"{method} {target} HTTP/1.1\r\nhost: {host}\r\n{extra}\r\n"
+    writer.write(head.encode() + body)
     received = await read_response(reader, head_only)
     writer.close()
     return received
 
 
 async def pipeline_fetch(
-    method: str, target: str, headers: dict[str, str] | None = None
+    method: str,
+    target: str,
+    headers: dict[str, str] | None = None,
+    body: bytes = b"",
 ) -> Any:
     path, _, query = target.partition("?")
     client = Client(make_app().asgi())
@@ -556,6 +582,7 @@ async def pipeline_fetch(
             query=query,
             raw_path=path.encode("ascii"),
             headers=headers,
+            body=body,
         )
     finally:
         await client.lifespan_event("shutdown")
@@ -688,6 +715,87 @@ async def test_native_delete_matches_pipeline(
         assert_pipeline_parity(
             await fetch(port, method, target), await pipeline_fetch(method, target)
         )
+    finally:
+        await worker.stop()
+
+
+JSON = "content-type: application/json\r\n"
+JSON_HEADER = {"content-type": "application/json"}
+
+
+@pytest.mark.parametrize(
+    ("method", "target", "extra", "headers", "body"),
+    [
+        ("POST", "/native/items/7?dry=true", JSON, JSON_HEADER, b'{"title":"a"}'),
+        ("POST", "/native/items/7", JSON, JSON_HEADER, b'{"title":"a","count":3}'),
+        ("PATCH", "/native/items-sync/7", JSON, JSON_HEADER, b'{"title":"a"}'),
+        (
+            "POST",
+            "/native/items/7",
+            "content-type: application/json; charset=utf-8\r\n",
+            {"content-type": "application/json; charset=utf-8"},
+            b'{"title":"a"}',
+        ),
+        ("POST", "/native/items/7", "", {}, b'{"title":"a"}'),
+        (
+            "POST",
+            "/native/items/7",
+            "content-type: text/plain\r\n",
+            {"content-type": "text/plain"},
+            b'{"title":"a"}',
+        ),
+        ("POST", "/native/items/7", JSON, JSON_HEADER, b"{nope"),
+        ("POST", "/native/items/7", JSON, JSON_HEADER, b""),
+        ("POST", "/native/items/7", JSON, JSON_HEADER, b'{"title":5}'),
+        ("POST", "/native/items/x?dry=maybe", JSON, JSON_HEADER, b'{"title":5}'),
+        ("POST", "/native/items/x", JSON, JSON_HEADER, b"{nope"),
+        ("POST", "/native/items/7?dry=%ff", JSON, JSON_HEADER, b"{nope"),
+        ("PATCH", "/native/items-sync/x", JSON, JSON_HEADER, b'{"count":"z"}'),
+    ],
+)
+async def test_native_body_handlers_match_pipeline(
+    method: str, target: str, extra: str, headers: dict[str, str], body: bytes
+) -> None:
+    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        assert served_natively(
+            worker, method, target.partition("?")[0], [(b"content-length", b"0")]
+        )
+        length = f"content-length: {len(body)}\r\n"
+        assert_pipeline_parity(
+            await fetch(port, method, target, extra + length, body=body),
+            await pipeline_fetch(method, target, headers, body),
+        )
+    finally:
+        await worker.stop()
+
+
+async def test_native_body_over_the_limit_is_refused_like_the_pipeline() -> None:
+    worker = RustWorker(make_app(max_body_bytes=16), "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        body = b'{"title":"' + b"a" * 64 + b'"}'
+        length = f"content-length: {len(body)}\r\n"
+        received = await fetch(
+            port, "POST", "/native/items/7", JSON + length, body=body
+        )
+        assert received.status == 413
+        assert received.json()["error"] == "payload_too_large"
+    finally:
+        await worker.stop()
+
+
+async def test_native_body_early_refusal_closes_like_the_pipeline() -> None:
+    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        body = b'{"title":"a"}'
+        extra = f"accept: text/html\r\n{JSON}content-length: {len(body)}\r\n"
+        native = await fetch(port, "POST", "/native/items/7", extra, body=body)
+        python = await fetch(port, "POST", "/notes", extra, body=body)
+        assert native.status == python.status == 406
+        assert native.header("connection") == python.header("connection")
     finally:
         await worker.stop()
 
