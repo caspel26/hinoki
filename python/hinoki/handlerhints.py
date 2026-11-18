@@ -33,28 +33,32 @@ def signature_of(handler: Callable[..., object]) -> inspect.Signature:
     return inspect.signature(handler)
 
 
-def hints_of(handler: Callable[..., object]) -> dict[str, Any]:
+def hints_of(
+    handler: Callable[..., object], include_extras: bool = False
+) -> dict[str, Any]:
     """``typing.get_type_hints(handler)``; raises ``NameError`` or
     ``TypeError`` when an annotation cannot be resolved."""
     try:
-        return typing.get_type_hints(handler)
+        return typing.get_type_hints(handler, include_extras=include_extras)
     except (NameError, TypeError):
         if sys.version_info >= (3, 14):
             written = annotationlib.get_annotations(
                 handler, format=annotationlib.Format.STRING
             )
-            return module_scope_hints(handler, written)
+            return module_scope_hints(handler, written, include_extras)
         raise
 
 
 def module_scope_hints(
-    handler: Callable[..., object], written: dict[str, str]
+    handler: Callable[..., object],
+    written: dict[str, str],
+    include_extras: bool = False,
 ) -> dict[str, Any]:
     """Hints from annotation source text, resolved in the module's scope."""
     carrier = Carrier()
     carrier.__annotations__ = dict(written)
     scope = getattr(inspect.unwrap(handler), "__globals__", {})
-    return typing.get_type_hints(carrier, globalns=scope)
+    return typing.get_type_hints(carrier, globalns=scope, include_extras=include_extras)
 
 
 class Carrier:

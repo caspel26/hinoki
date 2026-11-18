@@ -26,6 +26,7 @@ import pytest
 from hinoki import (
     Access,
     Caller,
+    Form,
     FormParser,
     Hinoki,
     HTMLRenderer,
@@ -192,6 +193,11 @@ async def native_multi_body(data: Item) -> dict[str, object]:
 @http.post("/native/form", status=201, parsers=[JSONParser(), FormParser(max_fields=3)])
 async def native_form(data: Item) -> dict[str, object]:
     return {"title": data.title}
+
+
+@http.post("/native/form-source", status=201)
+async def native_form_source(data: Form[Item]) -> dict[str, object]:
+    return {"title": data.title, "count": data.count}
 
 
 @http.post("/native/text", parsers=[TextParser()])
@@ -449,6 +455,7 @@ def make_app(**config: Any) -> Hinoki:
             native_pretty,
             native_multi_body,
             native_form,
+            native_form_source,
             native_text,
             native_limited_sync,
             native_limited_body,
@@ -1048,6 +1055,11 @@ async def test_native_rate_limit_matches_pipeline(
         ("POST", "/native/form", FORM, b"title=%ff"),
         ("POST", "/native/form", JSON, b'{"title":"a"}'),
         ("POST", "/native/form", "content-type: text/plain\r\n", b"title=a"),
+        ("POST", "/native/form-source", FORM, b"title=a&count=4"),
+        ("POST", "/native/form-source", FORM, b"title=a&count=x"),
+        ("POST", "/native/form-source", FORM, b"title=a&count=1&count=2"),
+        ("POST", "/native/form-source", FORM, b"count=3"),
+        ("POST", "/native/form-source", JSON, b'{"title":"a"}'),
         ("POST", "/native/text", "content-type: text/plain\r\n", b"hello"),
         ("POST", "/native/text", "content-type: text/plain\r\n", b"\xff"),
         (
