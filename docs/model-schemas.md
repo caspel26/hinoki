@@ -107,7 +107,8 @@ The declared Schema decides what is sent for these results:
     A returned `dict` (or any other non-Schema, non-Model value) is serialized
     as it is, even with extra keys. The annotation describes the OpenAPI document
     only; return a Schema instance or a Model when the declared shape must be
-    enforced.
+    enforced, or set [`validate_response=True`](endpoints.md#validate-the-response)
+    so that such a value becomes a `500`.
 
 A row that fails the Schema's constraints is the server's fault (for example a
 stored value longer than the Schema allows), so it is never reported as a
