@@ -79,7 +79,7 @@ async def sync_result() -> dict[str, str]:
     return {"request_id": request_id.get() or "missing"}
 
 
-@http.get("/sync-awaitable")
+@http.get("/sync-awaitable", validate_response=False)
 def sync_awaitable() -> object:
     return sync_result()
 
