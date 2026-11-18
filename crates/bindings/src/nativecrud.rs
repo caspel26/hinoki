@@ -242,7 +242,12 @@ fn prepare_write(
     body: Option<&[u8]>,
 ) -> Result<PreparedWrite, NativeWrite> {
     if parse_query(raw_query, 1000).is_err() {
-        return Err(http_error(request, 400, "invalid_query", None));
+        return Err(http_error(
+            request,
+            400,
+            "invalid_query",
+            Some("malformed query string"),
+        ));
     }
     match plan.action.as_str() {
         "create" => prepare_create(plan, request, body.ok_or(NativeWrite::Defer(None))?),
@@ -273,7 +278,9 @@ fn prepare_create(
     let Some(mut values) = values else {
         return Err(NativeWrite::Defer(Some(body.to_vec())));
     };
-    append_defaults(&mut values, plan.create_defaults(), plan);
+    if !append_defaults(&mut values, plan.create_defaults(), plan) {
+        return Err(NativeWrite::Defer(Some(body.to_vec())));
+    }
     order_schema_values(&mut values, schema);
     ensure_create_requirements(plan, &values, body)?;
     Ok(PreparedWrite::Create(values))
@@ -293,7 +300,9 @@ fn prepare_update(
     let Some(mut values) = validate_body(plan, schema, &json, request)? else {
         return Err(NativeWrite::Defer(Some(body.to_vec())));
     };
-    append_defaults(&mut values, plan.update_defaults(), plan);
+    if !append_defaults(&mut values, plan.update_defaults(), plan) {
+        return Err(NativeWrite::Defer(Some(body.to_vec())));
+    }
     order_schema_values(&mut values, schema);
     Ok(PreparedWrite::Update { id, values })
 }
@@ -403,15 +412,23 @@ fn ensure_create_requirements(
     Ok(())
 }
 
-fn append_defaults(values: &mut Vec<(String, Value)>, defaults: &[ModelDefault], plan: &CrudPlan) {
+/// Adds each schema default the body left out. A default whose value cannot
+/// be stored in its column is not skipped: Python decides what to store.
+fn append_defaults(
+    values: &mut Vec<(String, Value)>,
+    defaults: &[ModelDefault],
+    plan: &CrudPlan,
+) -> bool {
     for default in defaults {
         if values.iter().any(|(name, _)| name == &default.column) {
             continue;
         }
-        if let Some(value) = default_value(default, plan.model_field_kind(&default.column)) {
-            values.push((default.column.clone(), value));
-        }
+        let Some(value) = default_value(default, plan.model_field_kind(&default.column)) else {
+            return false;
+        };
+        values.push((default.column.clone(), value));
     }
+    true
 }
 
 fn default_value(default: &ModelDefault, kind: Option<&str>) -> Option<Value> {
@@ -462,12 +479,7 @@ fn validated_value(kind: &str, value: Validated) -> Option<Value> {
 fn write_path_id(plan: &CrudPlan, params: &[(String, String)]) -> Option<Value> {
     let (_, raw) = params.iter().find(|(name, _)| name == "item_id")?;
     let decoded = decode_path_parameter(raw)?;
-    match plan.model_field_kind(&plan.primary_key)? {
-        "str" => Some(Value::Text(decoded)),
-        "int" if strict_integer_path(&decoded) => decoded.parse().ok().map(Value::Int),
-        "uuid" if strict_uuid_path(&decoded) => Uuid::parse_str(&decoded).ok().map(Value::Uuid),
-        _ => None,
-    }
+    primary_key_value(plan, &decoded)
 }
 
 fn strict_integer_path(value: &str) -> bool {
@@ -876,7 +888,7 @@ async fn execute_read_with<D: ReadDatabase>(
 ) -> NativeRead {
     match plan.action.as_str() {
         "list" => execute_list(plan, database, raw_query).await,
-        "retrieve" => execute_retrieve(plan, database, path_params).await,
+        "retrieve" => execute_retrieve(plan, database, path_params, raw_query).await,
         _ => NativeRead::Defer,
     }
 }
@@ -927,7 +939,11 @@ async fn execute_retrieve<D: ReadDatabase>(
     plan: &CrudPlan,
     database: &D,
     path_params: &[(String, String)],
+    raw_query: &[u8],
 ) -> NativeRead {
+    if parse_query(raw_query, 1000).is_err() {
+        return NativeRead::Defer;
+    }
     let Some((_, raw_id)) = path_params.iter().find(|(name, _)| name == "item_id") else {
         return NativeRead::Defer;
     };
@@ -957,17 +973,14 @@ async fn execute_retrieve<D: ReadDatabase>(
     }
 }
 
+/// The key exactly as Python's path conversion reads it. Any other spelling
+/// (a sign, a braced or unhyphenated UUID, more digits than fit) is left to
+/// Python, which answers it.
 fn primary_key_value(plan: &CrudPlan, raw: &str) -> Option<Value> {
-    match plan
-        .model_fields
-        .iter()
-        .find(|(name, _, _)| name == &plan.primary_key)?
-        .1
-        .as_str()
-    {
+    match plan.model_field_kind(&plan.primary_key)? {
         "str" => Some(Value::Text(raw.to_owned())),
-        "int" => raw.parse().ok().map(Value::Int),
-        "uuid" => uuid::Uuid::parse_str(raw).ok().map(Value::Uuid),
+        "int" if strict_integer_path(raw) => raw.parse().ok().map(Value::Int),
+        "uuid" if strict_uuid_path(raw) => Uuid::parse_str(raw).ok().map(Value::Uuid),
         _ => None,
     }
 }
@@ -1015,8 +1028,11 @@ mod tests {
 
     use hinoki_orm::Value;
 
-    use super::{execute_read_with, parse_page, FetchFuture, NativeRead, ReadDatabase};
-    use crate::crudplan::CrudPlan;
+    use super::{
+        append_defaults, execute_read_with, parse_page, primary_key_value, FetchFuture, NativeRead,
+        ReadDatabase,
+    };
+    use crate::crudplan::{CrudPlan, ModelDefault, ModelDefaultValue};
 
     struct StubDatabase {
         statements: Mutex<Vec<(String, Vec<Value>)>>,
@@ -1145,5 +1161,102 @@ mod tests {
         assert_eq!(statements.len(), 1);
         assert!(statements[0].0.contains("LIMIT 2"));
         assert_eq!(statements[0].1, [Value::Int(7)]);
+    }
+
+    #[test]
+    fn integer_keys_are_taken_only_in_the_spelling_python_accepts() {
+        let plan = plan("retrieve");
+        for raw in ["5", "-5", "0005", "999999999999999999"] {
+            assert!(primary_key_value(&plan, raw).is_some(), "{raw}");
+        }
+        for raw in [
+            "+5",
+            "",
+            "-",
+            "1_0",
+            "5.0",
+            "\u{663}",
+            "1000000000000000000",
+        ] {
+            assert!(primary_key_value(&plan, raw).is_none(), "{raw}");
+        }
+    }
+
+    #[test]
+    fn uuid_keys_are_taken_only_in_the_canonical_hyphenated_spelling() {
+        let mut plan = plan("retrieve");
+        plan.model_fields[0].1 = "uuid".to_owned();
+        let canonical = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+        assert!(primary_key_value(&plan, canonical).is_some());
+        assert!(primary_key_value(&plan, &canonical.to_uppercase()).is_some());
+        for raw in [
+            "0a1b2c3d4e5f4a6b8c7d9e0f1a2b3c4d",
+            "{0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d}",
+            "urn:uuid:0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+        ] {
+            assert!(primary_key_value(&plan, raw).is_none(), "{raw}");
+        }
+    }
+
+    #[tokio::test]
+    async fn retrieve_defers_when_the_query_string_is_malformed() {
+        let database = StubDatabase {
+            statements: Mutex::new(Vec::new()),
+        };
+        let params = vec![("item_id".to_owned(), "7".to_owned())];
+        for query in [b"%FF".as_slice(), b"a=%FF", b"%C3"] {
+            let result = execute_read_with(&plan("retrieve"), &database, &params, query).await;
+            assert!(matches!(result, NativeRead::Defer), "{query:?}");
+        }
+        assert!(database.statements.lock().unwrap().is_empty());
+        let valid = execute_read_with(&plan("retrieve"), &database, &params, b"a=1").await;
+        assert!(matches!(valid, NativeRead::Reply { .. }));
+    }
+
+    #[test]
+    fn list_sql_for_a_window_is_the_compiled_statement() {
+        let plan = plan("list");
+        for (dialect, quote) in [("postgres", '"'), ("sqlite", '"'), ("mysql", '`')] {
+            let q = |name: &str| format!("{quote}{name}{quote}");
+            let expected = format!(
+                "SELECT {}, {} FROM {} ORDER BY {} ASC LIMIT 7 OFFSET 14",
+                q("id"),
+                q("name"),
+                q("items"),
+                q("id")
+            );
+            assert_eq!(plan.list_sql(dialect, 7, 14).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn a_default_that_does_not_fit_its_column_is_never_skipped() {
+        let plan = plan("create");
+        let default = |column: &str, value| ModelDefault {
+            column: column.to_owned(),
+            value,
+        };
+        let mut values = Vec::new();
+        assert!(append_defaults(
+            &mut values,
+            &[default("name", ModelDefaultValue::Str("n".to_owned()))],
+            &plan
+        ));
+        assert_eq!(values, [("name".to_owned(), Value::Text("n".to_owned()))]);
+        for (column, value) in [
+            ("name", ModelDefaultValue::Int(1)),
+            ("id", ModelDefaultValue::Float(1.0)),
+            ("id", ModelDefaultValue::Bool(true)),
+            ("missing", ModelDefaultValue::Int(1)),
+            ("id", ModelDefaultValue::Required),
+        ] {
+            let mut values = Vec::new();
+            assert!(!append_defaults(
+                &mut values,
+                &[default(column, value)],
+                &plan
+            ));
+            assert!(values.is_empty());
+        }
     }
 }

@@ -172,6 +172,12 @@ impl PyCrudPlan {
             .collect()
     }
 
+    /// The list statement for any page window, for differential tests.
+    #[pyo3(name = "list_sql")]
+    fn py_list_sql(&self, dialect: &str, page_size: u64, offset: u64) -> PyResult<String> {
+        self.inner.list_sql(dialect, page_size, offset)
+    }
+
     /// Compiled SQL as `(dialect, kind, sql)` tuples for differential tests.
     fn templates(&self) -> Vec<(String, String, String)> {
         let mut found = Vec::new();

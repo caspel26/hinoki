@@ -66,7 +66,11 @@ tests for MySQL and MariaDB also use `HINOKI_TEST_MYSQL_URL` and
 `HINOKI_TEST_MARIADB_URL`. CI provides disposable real-server services.
 The native CRUD differential test build enables the private `sql-trace` Cargo
 feature so it can compare SQL text, parameters and order for both request lanes;
-ordinary wheels are built without that feature.
+ordinary wheels are built without that feature. Build it into the environment
+with `uv run --no-sync --with "maturin>=1.9.4,<2" maturin develop --manifest-path crates/bindings/Cargo.toml --features sql-trace`.
+Without it those tests skip; set `HINOKI_REQUIRE_SQL_TRACE=1` (CI does) to make
+a missing trace build fail them instead. The CI Rust job also runs
+`cargo clippy -p hinoki-bindings --all-targets --features sql-trace -- -D warnings`.
 Generated OpenAPI is validated with `openapi-spec-validator` inside the Python
 tests. The retained [benchmark report](benchmarks.md) has reproducible
 end-to-end measurements, but benchmark runs are separate from the default CI
