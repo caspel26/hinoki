@@ -22,3 +22,13 @@ If the handler raises, response encoding/rendering fails, the request times out,
 Nested `db.transaction()` scopes in the same owning task use savepoints. A child task cannot share its parent's active transaction. Raw database operations are async-only; see [sync and async](sync-async.md).
 
 For a function route group, `RouteGroup(..., atomic=True)` makes write methods transactional by default. An individual action can opt out explicitly with `transaction=False`.
+
+## After-commit callbacks
+
+`db.after_commit(callback)` registers a sync or async callable without arguments to run after the outermost transaction commits, which is where email, queue publishing and cache invalidation belong. Callbacks run in registration order; a rollback of the transaction, or of the savepoint scope that registered them, drops them, and an exception in one is logged without undoing the commit. Calling it outside a transaction raises `DatabaseError`. Model hooks register through `self.after_commit(callback)`; see [lifecycle hooks](models.md#lifecycle-hooks-and-instance-state).
+
+```python
+async with db.transaction():
+    order = await Order.acreate(data)
+    db.after_commit(lambda: publish("order.created", order.id))
+```
