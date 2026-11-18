@@ -1,9 +1,0 @@
-{
-  "GET /health": "native handler lane",
-  "GET /echo-str/{item_id}": "native handler lane",
-  "GET /echo/{item_id}": "python",
-  "POST /items": "python",
-  "PATCH /items/{item_id}": "python",
-  "DELETE /items/{item_id}": "python",
-  "POST /items-tx": "python"
-}
