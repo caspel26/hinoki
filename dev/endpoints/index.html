@@ -550,6 +550,19 @@ functions are a better fit, especially when several actions share access,
 transaction defaults, or declared errors. A group must contain at least one
 action and becomes immutable after successful inclusion.</p>
 <h2 id="organising-a-large-application">Organising a large application<a class="headerlink" href="#organising-a-large-application" title="Permanent link">&para;</a></h2>
+<p>A project created by <code>hinoki new</code> does not list its routes in <code>main.py</code>. The manifest (<code>hinoki.toml</code>) names them, and the application the manifest declares binds them when it is built without <code>include=</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="k">[project]</span>
+<span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.main:app"</span>
+<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.routes:routes"</span><span class="w">          </span><span class="c1"># the project's own routes (a list)</span>
+
+<span class="k">[[apps]]</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"billing"</span>
+<span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.billing.models"</span>
+<span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.billing.migrations"</span>
+<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.billing.routes:routes"</span><span class="w">   </span><span class="c1"># mounted under prefix</span>
+<span class="n">prefix</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"/billing"</span><span class="w">                     </span><span class="c1"># optional: "/&lt;name&gt;" when omitted</span>
+</code></pre></div>
+<p>The project's routes come first, then each app's, in dependency order, each app under its prefix. Three rules keep this free of surprises: only the module named by <code>project.application</code> binds the manifest (a <code>Hinoki()</code> in a test or script next to the project stays empty); a <code>Hinoki(include=[...])</code> you write yourself wins and the manifest is ignored (<code>include=[]</code> is an explicit empty list); and <code>app.include(...)</code> still adds routes by hand, for example a feature that only exists when a setting is on. A route module that cannot be imported, or whose <code>routes</code> is not a list, fails when the application is built. Projects without these keys behave as before.</p>
 <p>When the ordinary list/retrieve/create/update/delete routes fit a model,
 <code>CrudAPI</code> can generate them from a model and schemas declared on one API class.
 Mount that class once in <code>Hinoki</code>; generated and handwritten decorated actions
@@ -680,8 +693,8 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.10</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 21:10:30 UTC">November 17, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>9 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 02:41:13 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>10 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

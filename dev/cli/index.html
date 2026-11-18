@@ -404,7 +404,7 @@ them with <code>uv run --project ..</code> to use the locked environment at the 
 <tbody>
 <tr>
 <td><code>hinoki new NAME</code></td>
-<td>Create a starter project with settings, rules, tests and agent instructions.</td>
+<td>Create a starter project with settings, rules, routes, tests and agent instructions.</td>
 </tr>
 <tr>
 <td><code>hinoki app list</code></td>
@@ -412,7 +412,7 @@ them with <code>uv run --project ..</code> to use the locked environment at the 
 </tr>
 <tr>
 <td><code>hinoki app create NAME</code></td>
-<td>Add a registered modular app with its own models and migration package.</td>
+<td>Add a registered modular app with its own models, routes and migration package.</td>
 </tr>
 <tr>
 <td><code>hinoki doctor [TARGET]</code></td>
@@ -523,12 +523,12 @@ Checkout paths and Git source values are escaped as TOML strings in the generate
 <p>The generated <code>hinoki.toml</code> registers the default app and its models and migrations. Add modules without moving files by creating another app:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>create<span class="w"> </span>billing
 </code></pre></div>
-<p>This creates <code>NAME/apps/billing/{models.py,migrations/}</code> and registers both dotted module paths. Cross-app foreign keys require the referencing app to list the referenced app in <code>requires</code> in <code>hinoki.toml</code>; migrations are then planned/applied in dependency order. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.</p>
+<p>This creates <code>NAME/apps/billing/{models.py,routes.py,migrations/}</code> and registers the model, migration and routes modules in <code>hinoki.toml</code> (<code>routes = "NAME.apps.billing.routes:routes"</code>, <code>prefix = "/billing"</code>). Cross-app foreign keys require the referencing app to list the referenced app in <code>requires</code> in <code>hinoki.toml</code>; migrations are then planned/applied in dependency order. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.</p>
 <p>List the registered apps from the project root or any subdirectory:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>list
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>list<span class="w"> </span>--format<span class="w"> </span>json
 </code></pre></div>
-<p>The text output shows each app in dependency order with its model module, migration package and prerequisites. JSON contains the same fields under an <code>apps</code> key. The command only reads and validates <code>hinoki.toml</code>: it does not import app modules, connect to a database or start the app. Without a manifest, it prints an error and exits 2.</p>
+<p>The text output shows each app in dependency order with its model module, migration package, routes and prefix, and prerequisites. JSON contains the same fields under an <code>apps</code> key (<code>routes</code> and <code>prefix</code> are empty strings for an app without routes). The command only reads and validates <code>hinoki.toml</code>: it does not import app modules, connect to a database or start the app. Without a manifest, it prints an error and exits 2.</p>
 <h3 id="dev-and-serve"><code>dev</code> and <code>serve</code><a class="headerlink" href="#dev-and-serve" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>dev<span class="w"> </span>notes.main:app<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">8000</span>
 hinoki<span class="w"> </span>serve<span class="w"> </span>notes.main:app<span class="w"> </span>--workers<span class="w"> </span><span class="m">4</span>
@@ -721,7 +721,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class=
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 10:36:20 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 02:41:13 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>13 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -257,11 +257,11 @@
 <span class="nb">cd</span><span class="w"> </span>notes
 uv<span class="w"> </span>sync
 </code></pre></div>
-<p>The generated manifest registers <code>notes.models</code> and <code>notes.migrations</code>. The scaffold also includes a health endpoint, typed settings, rules, a test, and agent instructions. Hinoki does not scan installed packages for apps.</p>
+<p>The generated manifest registers <code>notes.models</code> and <code>notes.migrations</code>. The scaffold also includes a health endpoint, typed settings, rules, a test, and agent instructions. The manifest also names the project's list of routes (<code>routes = "notes.routes:routes"</code>): <code>main.py</code> has no <code>include=</code>, because the application that <code>hinoki.toml</code> names binds those routes itself. Hinoki does not scan installed packages for apps.</p>
 <p>Add an independently organized app:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>create<span class="w"> </span>billing
 </code></pre></div>
-<p>This creates <code>notes/apps/billing/models.py</code> and <code>notes/apps/billing/migrations/</code>, then adds the module paths to <code>hinoki.toml</code>. If billing references a model from another app, add that app to billing's <code>requires</code> list so Hinoki can validate and order migrations.</p>
+<p>This creates <code>notes/apps/billing/models.py</code>, <code>notes/apps/billing/routes.py</code> (an empty <code>routes</code> list) and <code>notes/apps/billing/migrations/</code>, then adds the module paths to <code>hinoki.toml</code>, including <code>routes</code> and <code>prefix = "/billing"</code>: whatever you list in <code>billing/routes.py</code> is served under <code>/billing</code>. If billing references a model from another app, add that app to billing's <code>requires</code> list so Hinoki can validate and order migrations.</p>
 <p>Add a model to the generated <code>notes/apps/billing/models.py</code> (or the app's declared models module):</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
 
@@ -305,8 +305,8 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.9</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:44:51 UTC">November 18, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 02:41:13 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/8-projects.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
