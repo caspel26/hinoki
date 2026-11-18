@@ -10,7 +10,7 @@ A **parser** turns a request body into Python data; a **renderer** turns a handl
 | --- | --- | --- |
 | `JSONParser` | Strict JSON decoding (no NaN, no lone surrogates, depth limit) | `prepare(data)` hook and `media_type` |
 | `Form[Schema]` marker | A `Schema` read from form text, converted per field | Rust conversion, then strict `Schema` validation |
-| `XMLParser` | `application/xml` into a tree (children → `dict`, repeated name → `list`, text → `str`, empty → `None`); no DTDs or custom entities, depth and element caps | Rust; `max_depth`, `max_elements`; attributes are not read |
+| `XMLParser` | `application/xml` into a tree (children → `dict`, repeated name → `list`, text → `str`, empty → `None`), parsed with the GIL released; no DTDs, custom entities, characters XML 1.0 forbids or encodings other than UTF-8; depth and element caps | Rust; `max_depth` (default 32, at most `MAX_XML_DEPTH` = 1000, larger raises `ValueError`), `max_elements` (default 10,000); attributes are not read |
 | `XML[Schema]` marker | A `Schema` read from an XML body, converted per field | Rust conversion, then strict `Schema` validation |
 | `Query[Schema]` marker | A `Schema` read from the query string, converted per field | Rust conversion, then strict `Schema` validation |
 | `FormParser` | `application/x-www-form-urlencoded` parsing with a field cap | Builds the Python mappings; `max_fields` |

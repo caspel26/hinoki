@@ -152,7 +152,7 @@ def create(data: XML[Order]) -> dict[str, int]:
     #   <lines><sku>a</sku><qty>2</qty></lines></order>
 ```
 
-A repeated element is a list (a single one still fills a `list` field), nested elements fill nested `Schema` fields, and an empty element is `None`. Attributes are not read and namespace prefixes are dropped (`<a:x>` and `<b:x>` are both `x`). Malformed XML, a DTD, a custom entity, mixed text and child elements, or exceeding `XMLParser(max_depth=..., max_elements=...)` is `400 invalid_xml`. As with `Form[...]`, the action takes only `XMLParser` (selected when `parsers=` is omitted), and the OpenAPI document lists `application/xml`.
+A repeated element is a list (a single one still fills a `list` field), nested elements fill nested `Schema` fields, and an empty element is `None`. Attributes are not read and namespace prefixes are dropped (`<a:x>` and `<b:x>` are both `x`). Malformed XML, a DTD, a custom entity, mixed text and child elements, a character XML 1.0 forbids (a control character other than tab, carriage return and line feed, written directly or as `&#1;`), an `encoding` declaration other than UTF-8, or exceeding `XMLParser(max_depth=..., max_elements=...)` is `400 invalid_xml`. `max_depth` defaults to 32 and may be raised to at most 1000 (`hinoki.parsers.MAX_XML_DEPTH`); a larger value raises `ValueError` when the parser is created. As with `Form[...]`, the action takes only `XMLParser` (selected when `parsers=` is omitted), and the OpenAPI document lists `application/xml`.
 
 ## Upload files
 
