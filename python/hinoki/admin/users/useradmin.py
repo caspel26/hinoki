@@ -19,6 +19,7 @@ from hinoki.auth import Caller
 from hinoki.orm.context import current_database
 
 USERS_SLUG = "users"
+ADMIN_TABLES = frozenset({AdminUser, AdminSession, AdminGrant})  # never delegated
 KEEP_NOTE = "Leave empty to keep the current password. Changing it signs the user out."
 
 
@@ -60,7 +61,7 @@ class UserAdmin(ModelAdmin[AdminUser], model=AdminUser):
         choices = tuple(
             (f"{slug}:{action}", f"{entry.plural()}: {action}")
             for slug, entry in self.site.models.items()
-            if slug != USERS_SLUG
+            if entry.model not in ADMIN_TABLES
             for action in ACTIONS
         )
         return (
@@ -90,6 +91,10 @@ class UserAdmin(ModelAdmin[AdminUser], model=AdminUser):
             errors["username"] = "That username is already taken."
         if row is not None and row.id == principal.user.id:
             errors.update(self.check_self(values))
+        if not errors and "password" in values:
+            # Hash here, outside the write's transaction: no connection is held
+            # while Argon2 runs, and ``save`` receives the finished hash.
+            values["hashed"] = await self.accounts.hasher.hash(values.pop("password"))
         return errors
 
     def check_texts(self, values: dict[str, Any]) -> dict[str, str]:
@@ -124,22 +129,24 @@ class UserAdmin(ModelAdmin[AdminUser], model=AdminUser):
         row: AdminUser | None = None,
     ) -> AdminUser:
         accounts = self.accounts
-        password = values.pop("password", None)
+        hashed = values.pop("hashed", None)
         grants = values.pop("grants", None)
         async with current_database().transaction():
             if row is None:
                 user = await accounts.create_user(
                     values["username"],
-                    password,
+                    "",
                     superuser=bool(values.get("is_superuser", False)),
                     active=bool(values.get("is_active", True)),
+                    hashed=hashed,
                 )
             else:
                 user = await self.update(row, values)
-            if password and row is not None:
-                await accounts.set_password(user, password)
+            if hashed and row is not None:
+                await accounts.set_password(user, "", hashed=hashed)
             if grants is not None:
                 await accounts.set_grants(user, parse_grants(grants))
+            await self.keep_a_superuser()
         return user
 
     async def update(self, row: AdminUser, values: dict[str, Any]) -> AdminUser:
@@ -152,6 +159,12 @@ class UserAdmin(ModelAdmin[AdminUser], model=AdminUser):
             await row.asave()
         return row
 
+    @staticmethod
+    async def keep_a_superuser() -> None:
+        """Inside the write's transaction: some active superuser must remain."""
+        if not await AdminUser.filter(is_superuser=True, is_active=True).acount():
+            raise AdminUserError("There must be at least one active superuser.")
+
     async def remove(self, row: AdminUser, principal: Caller[Any]) -> None:
         if row.id == principal.user.id:
             raise AdminUserError("You cannot delete yourself.")
@@ -159,6 +172,7 @@ class UserAdmin(ModelAdmin[AdminUser], model=AdminUser):
             await AdminSession.filter(user_id=row.id).adelete()
             await AdminGrant.filter(user_id=row.id).adelete()
             await AdminUser.filter(id=row.id).adelete()
+            await self.keep_a_superuser()
 
 
 def parse_grants(chosen: frozenset[str]) -> frozenset[tuple[str, str]]:

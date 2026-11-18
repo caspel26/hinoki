@@ -88,23 +88,35 @@ class AdminAccounts:
         *,
         superuser: bool = False,
         active: bool = True,
+        hashed: str | None = None,
     ) -> AdminUser:
+        """Create a user; ``hashed`` is a password already hashed with ``hash_password``
+        (a caller that must not hash while it holds a database connection)."""
         name = self.clean_username(username)
-        self.check_password(password)
+        if hashed is None:
+            self.check_password(password)
+            hashed = await self.hasher.hash(password)
         if await AdminUser.filter(username=name).acount():
             raise AdminUserError("That username is already taken.")
         return await AdminUser.acreate(
             username=name,
-            password_hash=await self.hasher.hash(password),
+            password_hash=hashed,
             is_superuser=superuser,
             is_active=active,
             created_at=self.clock(),
         )
 
-    async def set_password(self, user: AdminUser, password: str) -> None:
-        """Change a password and end every session of the user."""
+    async def hash_password(self, password: str) -> str:
+        """Check a password against the rules and hash it, holding no connection."""
         self.check_password(password)
-        hashed = await self.hasher.hash(password)  # no connection is held meanwhile
+        return await self.hasher.hash(password)
+
+    async def set_password(
+        self, user: AdminUser, password: str, *, hashed: str | None = None
+    ) -> None:
+        """Change a password and end every session of the user."""
+        if hashed is None:
+            hashed = await self.hash_password(password)
         async with current_database().transaction():
             user.password_hash = hashed
             await user.asave()
