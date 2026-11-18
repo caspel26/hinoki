@@ -7,6 +7,13 @@ A POST is accepted only when the field equals the cookie, the MAC verifies for
 the *current* subject, and the browser's ``Origin`` / ``Sec-Fetch-Site`` (when
 sent) say the request came from this site. A token invented by an attacker, for
 example through a cookie set from a sibling subdomain, fails the MAC.
+
+Before sign-in the subject is the constant ``!sign-in``, so the MAC proves only that
+the server issued the token, not whose browser it was issued to: anyone can fetch a
+valid pair from the sign-in page. What stops a forged sign-in is that the request must
+also carry the matching cookie, which ``SameSite=Strict`` keeps cross-site pages from
+sending, and the ``Origin`` / ``Sec-Fetch-Site`` check. The worst a forged sign-in
+can do is sign the victim in as the attacker (login CSRF).
 """
 
 from __future__ import annotations
