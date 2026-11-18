@@ -453,6 +453,11 @@
 <td>the request contradicts the current state (a duplicate, already done)</td>
 </tr>
 <tr>
+<td><code>errors.TooManyRequests</code></td>
+<td>429</td>
+<td>a route's <a href="../endpoints/#rate-limit-an-action">rate limit policy</a> refused the request; <code>retry_after</code> seconds are sent as <code>Retry-After</code></td>
+</tr>
+<tr>
 <td><code>errors.APIError</code></td>
 <td>the <code>status</code> you set</td>
 <td>anything else</td>
@@ -516,7 +521,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.13</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 03:08:24 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 10:27:45 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/errors.md">Edit on GitHub</a></dd></div>
         </dl>
