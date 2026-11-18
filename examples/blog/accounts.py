@@ -5,8 +5,9 @@ lived JWT; ``GET /auth/me`` shows who a token belongs to. The opaque
 ``blog_token`` of the demo data keeps working for the posts API and the admin.
 
 Built by a factory so that nothing (hash pool, keys) exists at import time.
-Not included, on purpose: login rate limiting and refresh tokens. Put a limiter
-in front of ``/auth/login`` before exposing it.
+Login is rate limited per client address by ``limits.LoginAttempts``, a policy of
+this example (one worker's memory: see its docstring). Not included, on purpose:
+refresh tokens.
 """
 
 from collections.abc import Callable, Sequence
@@ -16,6 +17,7 @@ from uuid import UUID
 from hinoki import Access, Caller, Field, Schema, errors, http
 from hinoki.crypto import JWTAuth, JWTKey, PasswordHasher
 
+from .limits import LoginAttempts
 from .models import User
 from .security import WRITE
 
@@ -68,7 +70,7 @@ def build_accounts(secret: str) -> tuple[list[Callable[..., Any]], PasswordHashe
     sessions = Sessions()
     signed_in = Access(auth=sessions)
 
-    @http.post("/auth/login")
+    @http.post("/auth/login", rate_limit=LoginAttempts())
     async def login(data: LoginIn) -> SessionOut:
         """Exchange a username and password for a short-lived bearer token."""
         user = await User.aget_or_none(username=data.username)
