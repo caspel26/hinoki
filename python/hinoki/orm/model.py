@@ -8,6 +8,7 @@ docs/typing.md) until generated stubs exist.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import copy
 import dataclasses
 import datetime
@@ -18,6 +19,7 @@ import sys
 import types
 import typing
 from collections.abc import Awaitable, Callable, Sequence
+from contextlib import AbstractAsyncContextManager
 from decimal import Decimal
 from typing import (
     TYPE_CHECKING,
@@ -534,7 +536,6 @@ class Model:
     __updated_at__: ClassVar[str | None] = None
     __clock__: ClassVar[Clock] = utc_now
     __abstract__: ClassVar[bool] = False
-    __write_hooks__: ClassVar[tuple[str, ...]] = ()
     __inherited_options__: ClassVar[frozenset[str]] = frozenset()
     NotFound: ClassVar[type[ObjectNotFound]] = ObjectNotFound
 
@@ -571,9 +572,6 @@ class Model:
         if len(keys) > 1 or (not abstract and not keys):
             raise RegistrationError(f"{cls.__name__}: exactly one primary_key field")
         cls.__abstract__ = abstract
-        cls.__write_hooks__ = tuple(
-            name for name in HOOKS if getattr(cls, name) is not getattr(Model, name)
-        )
         cls.__table__ = table
         cls.__columns__ = tuple(f.name for f in fields)
         annotations = {
@@ -1022,9 +1020,29 @@ class Model:
     def after_save(self) -> Awaitable[None] | None:
         """Hook: runs after the row is written, inside the transaction."""
 
+    @classmethod
+    def write_hooks(cls) -> tuple[str, ...]:
+        """The hooks this model overrides, looked up on each write so a hook
+        assigned after the class was created is not missed."""
+        return tuple(
+            name for name in HOOKS if getattr(cls, name) is not getattr(Model, name)
+        )
+
+    @staticmethod
+    def hook_transaction() -> AbstractAsyncContextManager[Any]:
+        """The transaction a hooked write runs in: a savepoint when one is open.
+        When the open transaction belongs to another task (a sync handler's
+        ``run_sync`` writes from a helper task while its owner waits), that
+        transaction already rolls everything back on an error, so none is nested."""
+        database = current_database()
+        active = database.active()
+        if active is not None and asyncio.current_task() is not active.owner:
+            return contextlib.nullcontext()
+        return database.transaction()
+
     async def run_hooks(self, *names: str) -> None:
         """Run the overridden hooks among ``names``, ``def`` or ``async def``."""
-        overridden = type(self).__write_hooks__
+        overridden = type(self).write_hooks()
         for name in names:
             if name in overridden:
                 result = getattr(self, name)()
@@ -1034,20 +1052,38 @@ class Model:
     async def asave(self) -> Self:
         """Insert a new instance, or update the columns changed since it was
         loaded. Typed: ``Post(title="x", ...)`` is checked by the type checker."""
+        return await self.save_with(None)
+
+    async def save_with(self, scope: QuerySet[Any] | None) -> Self:
+        """``asave``; with ``scope`` the UPDATE carries that query's conditions, so a
+        row that left the scope since it was read is refused (``Model.NotFound``)
+        instead of written."""
         if self.is_new:
             return await self.insert()
-        if not type(self).__write_hooks__:
-            if await self.write_update():
+        if not type(self).write_hooks():
+            if await self.write_update(scope):
                 self.remember()
             return self
-        async with current_database().transaction():
+        async with self.hook_transaction():
             await self.run_hooks("before_save")
-            if await self.write_update():
+            if await self.write_update(scope):
                 await self.run_hooks("after_save")
             self.remember()
         return self
 
-    async def write_update(self) -> bool:
+    async def aupdate_within(self, scope: QuerySet[Any], /, **values: Any) -> Self:
+        """``assign`` then a save whose UPDATE carries ``scope``'s conditions (the
+        generated CRUD update uses it so ownership and visibility hold at write
+        time). A failed write leaves the instance as it was."""
+        before = {c: getattr(self, c) for c in type(self).__columns__}
+        try:
+            return await self.assign(**values).save_with(scope)
+        except BaseException:
+            for name, value in before.items():
+                setattr(self, name, value)
+            raise
+
+    async def write_update(self, scope: QuerySet[Any] | None = None) -> bool:
         """Write the changed columns and load the stored row, without taking a
         new snapshot; ``False`` when nothing changed."""
         cls = type(self)
@@ -1062,18 +1098,24 @@ class Model:
         }
         if not changed:
             return False
-        self.load_stored(await cls.aupdate(**{key: stored[key]}, **changed))
+        if scope is None:
+            self.load_stored(await cls.aupdate(**{key: stored[key]}, **changed))
+            return True
+        rows = await scope.aupdate(changed)
+        if not rows:
+            raise cls.NotFound(f"{cls.__name__} not found")
+        self.load_stored(rows[0])
         return True
 
     async def insert(self, *, returning: bool = True) -> Self:
         """Insert this instance and load the stored row into it. With
         ``returning=False`` nothing is read back: the instance keeps the values
         it sent (every column is sent, defaults and factories applied)."""
-        if not type(self).__write_hooks__:
+        if not type(self).write_hooks():
             await self.write_insert(returning)
             self.remember()
             return self
-        async with current_database().transaction():
+        async with self.hook_transaction():
             await self.run_hooks("before_save", "before_create")
             await self.write_insert(returning)
             await self.run_hooks("after_create", "after_save")
