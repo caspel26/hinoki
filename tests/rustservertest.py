@@ -106,6 +106,16 @@ async def native_echo(item_id: str, term: str) -> dict[str, str]:
     return {"item_id": item_id, "term": term}
 
 
+@http.delete("/native/remove/{item_id}", status=204)
+async def native_remove(item_id: int) -> None:
+    return None
+
+
+@http.delete("/native/remove-sync/{item_id}")
+def native_remove_sync(item_id: str, force: bool = False) -> dict[str, object]:
+    return {"item_id": item_id, "force": force}
+
+
 @http.get("/native/typed/{ident}")
 async def native_typed(
     ident: UUID, count: int, ratio: float = 1.5, flag: bool = False
@@ -301,6 +311,8 @@ def make_app(**config: Any) -> Hinoki:
             context_sync,
             context_sync_awaitable,
             native_echo,
+            native_remove,
+            native_remove_sync,
             pipeline_echo,
             pipeline_integer,
             pipeline_uuid,
@@ -648,6 +660,34 @@ async def test_native_string_inputs_match_pipeline_and_head() -> None:
         assert head.status == get.status == 200
         assert head.body == b""
         assert head.header("content-length") == get.header("content-length")
+    finally:
+        await worker.stop()
+
+
+@pytest.mark.parametrize(
+    ("method", "target", "native"),
+    [
+        ("DELETE", "/native/remove/7", True),
+        ("DELETE", "/native/remove/x", True),
+        ("DELETE", "/native/remove/7?extra=1", True),
+        ("DELETE", "/native/remove-sync/a%2Fb?force=1", True),
+        ("DELETE", "/native/remove-sync/a?force=maybe", True),
+        ("DELETE", "/native/remove-sync/a?force=1&force=0", True),
+        ("GET", "/native/remove/7", False),
+        ("HEAD", "/native/remove-sync/a", False),
+    ],
+)
+async def test_native_delete_matches_pipeline(
+    method: str, target: str, native: bool
+) -> None:
+    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        if native:
+            assert served_natively(worker, method, target, [])
+        assert_pipeline_parity(
+            await fetch(port, method, target), await pipeline_fetch(method, target)
+        )
     finally:
         await worker.stop()
 
