@@ -51,7 +51,7 @@ async with ASGIClient(create_app(), host="api.example.com") as client:
     )
 ```
 
-The default remains no `Host` header. Set `headers={"host": "other.example.com"}` on a call to override the client's host.
+The default remains no `Host` header. Set `headers={"host": "other.example.com"}` on a call to override the client's host. Because the clients run in-process, they do not log the startup warning about the default `allowed_hosts = *` that a served worker logs ([settings](settings.md#allowed_hosts)).
 
 `SyncClient` is available for synchronous test functions. It runs the app's lifespan and refuses unsafe nested use from a running event loop.
 
