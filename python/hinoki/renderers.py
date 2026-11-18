@@ -21,15 +21,18 @@ MAX_INDENT = 16
 MAX_XML_DEPTH = 200
 _XML_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]*\Z")
 _XML_ILLEGAL = re.compile("[^\t\n\r\u0020-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]")
-_XML_ESCAPES = {
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "\t": "&#9;",
-    "\n": "&#10;",
-    "\r": "&#13;",
-}
+# Applied in order, "&" first so no reference is escaped twice.
+_XML_ESCAPES = (
+    ("&", "&amp;"),
+    ("<", "&lt;"),
+    (">", "&gt;"),
+    ('"', "&quot;"),
+    ("\t", "&#9;"),
+    ("\n", "&#10;"),
+    ("\r", "&#13;"),
+)
+_XML_SPECIAL = re.compile('[&<>"\t\n\r]')
+_XML_KEY_ERROR = "keys must be str, int, bool or None"
 
 
 class Renderer:
@@ -120,7 +123,26 @@ def xml_text(value: str) -> str:
     written as references so a parser's whitespace normalization keeps them;
     characters XML 1.0 cannot carry become U+FFFD."""
     clean = _XML_ILLEGAL.sub("\ufffd", value)
-    return "".join(_XML_ESCAPES.get(ch, ch) for ch in clean)
+    if _XML_SPECIAL.search(clean) is None:
+        return clean
+    for special, reference in _XML_ESCAPES:
+        clean = clean.replace(special, reference)
+    return clean
+
+
+def xml_key(key: object) -> str:
+    """The text of a mapping key, spelled as the JSON encoder spells it: a
+    ``str`` as is, ``None`` as ``null``, a ``bool`` as ``true``/``false`` and an
+    ``int`` in decimal. Any other key is refused, as JSON refuses it."""
+    if isinstance(key, str):
+        return str.__str__(key)
+    if key is None:
+        return "null"
+    if isinstance(key, bool):
+        return "true" if key else "false"
+    if isinstance(key, int):
+        return int.__repr__(key)
+    raise TypeError(_XML_KEY_ERROR)
 
 
 def xml_scalar(value: object) -> str:
@@ -143,8 +165,10 @@ class XMLRenderer(Renderer):
 
     A mapping becomes child elements named by its keys, a list becomes repeated
     ``item`` elements, ``None`` an empty element, and ``true``/``false`` are
-    written in lower case. A key that is not a valid XML name (it has a space,
-    starts with a digit, begins with ``xml``) is written as
+    written in lower case. Keys are spelled as JSON spells them (``None`` as
+    ``null``, booleans ``true``/``false``, integers in decimal) and any other
+    key is refused, as JSON refuses it. A key that is not a valid XML name (it
+    has a space, starts with a digit, begins with ``xml``) is written as
     ``<item key="...">`` instead of failing. Characters XML 1.0 cannot carry
     are replaced by U+FFFD. ``XMLRenderer(root="orders", item="order")`` renames
     the root element and the list item.
@@ -174,7 +198,7 @@ class XMLRenderer(Renderer):
         parts.append(f"<{name}{attrs}>")
         if isinstance(value, dict):
             for key, child in value.items():
-                tag, extra = self._tag(str(key))
+                tag, extra = self._tag(xml_key(key))
                 self._element(parts, tag, extra, child, depth + 1)
         elif isinstance(value, list | tuple):
             for child in value:
