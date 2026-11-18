@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import ClassVar
 from uuid import UUID, uuid4
 
+from hinoki import db
 from hinoki.orm import Model, OnDelete, field, foreign_key
 from hinoki.orm.relations import Related
 from hinoki.utils import utc_now
@@ -19,6 +20,7 @@ class User(Model, table="blog_users"):
     posts: ClassVar["Related[list[Post]]"]
 
 
+@db.indexed("author_id")  # a foreign key is always indexed (HNK-DB-002)
 class Post(Model, table="blog_posts"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     author_id: UUID = foreign_key(
