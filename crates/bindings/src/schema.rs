@@ -62,8 +62,26 @@ pub(crate) trait Rules {
 /// The Python objects `hinoki.schema` declared.
 pub(crate) struct PyRules;
 
+/// A schema class and, when its instances can be built without running the
+/// Python constructor, how to build them.
+pub(crate) struct PyClass {
+    object: Py<PyAny>,
+    direct: Option<Direct>,
+}
+
+/// Instances of a class with the generated constructor, no `__post_init__`, no
+/// custom `__new__` and no normalizers: a record holding every field is already
+/// final, so the instance is allocated and filled here.
+pub(crate) struct Direct {
+    /// The number of fields: a record shorter than that leaves defaults to fill.
+    fields: usize,
+    /// The tracking value for `__hinoki_supplied_fields__` (every field name),
+    /// or `None` when the class does not track it.
+    supplied: Option<Py<PyAny>>,
+}
+
 impl Rules for PyRules {
-    type Class = Py<PyAny>;
+    type Class = PyClass;
     type Pattern = Py<PyAny>;
     type Limit = Py<PyAny>;
     type Choices = Vec<Py<PyAny>>;
@@ -341,6 +359,7 @@ fn required_variants(constraints: &Bound<'_, PyDict>) -> PyResult<Vec<(String, u
 /// `(class, [(name, wire_name, node, required), ...], forbid_extra)`; nested
 /// schemas refer to a definition by index.
 #[pyfunction]
+#[pyo3(signature = (definitions, root, uuid_class, from_iso, unset, direct=None))]
 pub fn compile_schemas(
     py: Python<'_>,
     definitions: Vec<(Py<PyAny>, FieldTable<'_>, bool)>,
@@ -348,9 +367,18 @@ pub fn compile_schemas(
     uuid_class: Py<PyAny>,
     from_iso: Py<PyAny>,
     unset: Py<PyAny>,
+    direct: Option<Vec<(usize, Option<Py<PyAny>>)>>,
 ) -> PyResult<Compiled> {
+    let mut direct = direct.unwrap_or_default();
     let mut built = Vec::with_capacity(definitions.len());
-    for (class, fields, forbid_extra) in definitions {
+    for (position, (class, fields, forbid_extra)) in definitions.into_iter().enumerate() {
+        let direct = direct
+            .iter()
+            .position(|(index, _)| *index == position)
+            .map(|at| Direct {
+                fields: fields.len(),
+                supplied: direct.swap_remove(at).1,
+            });
         let mut parsed = Vec::with_capacity(fields.len());
         for (name, wire_name, node, required) in fields {
             parsed.push(Field {
@@ -361,7 +389,10 @@ pub fn compile_schemas(
             });
         }
         built.push(Definition {
-            class,
+            class: PyClass {
+                object: class,
+                direct,
+            },
             fields: parsed,
             forbid_extra,
         });
@@ -909,7 +940,7 @@ impl<'py> View for PyView<'_, 'py> {
 
     fn close_record(
         &self,
-        class: &Py<PyAny>,
+        class: &PyClass,
         record: Self::Record,
         path: &str,
         construct: bool,
@@ -917,9 +948,11 @@ impl<'py> View for PyView<'_, 'py> {
         if !construct {
             return Ok(record.into_any());
         }
-        class
-            .bind(self.py)
-            .call_method1("__hinoki_construct_validated__", (record, path))
+        let class_object = class.object.bind(self.py);
+        if let Some(direct) = class.direct.as_ref().filter(|d| record.len() == d.fields) {
+            return build_direct(self.py, class_object, direct, &record);
+        }
+        class_object.call_method1("__hinoki_construct_validated__", (record, path))
     }
 
     fn close_map(&self, record: Self::Record) -> Self::Out {
@@ -2061,6 +2094,24 @@ impl Compiled {
     }
 }
 
+/// `object.__new__(class)` filled from `record`, as the generated constructor
+/// would, without the Python round trip.
+fn build_direct<'py>(
+    py: Python<'py>,
+    class: &Bound<'py, PyAny>,
+    direct: &Direct,
+    record: &Bound<'py, PyDict>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let instance = py.get_type::<PyAny>().call_method1("__new__", (class,))?;
+    let attributes = instance.getattr("__dict__")?;
+    let attributes = attributes.cast::<PyDict>()?;
+    attributes.update(record.as_mapping())?;
+    if let Some(supplied) = &direct.supplied {
+        attributes.set_item("__hinoki_supplied_fields__", supplied)?;
+    }
+    Ok(instance)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2218,6 +2269,7 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
             uuid.unbind(),
             from_iso.unbind(),
             py.None(),
+            None,
         )
         .unwrap()
     }

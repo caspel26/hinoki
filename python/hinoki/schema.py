@@ -1495,7 +1495,8 @@ def compile_native(root: type[Schema]) -> core.CompiledSchema:
     """Table of every schema reachable from ``root``, compiled by the Rust core."""
     index_of: dict[type[Schema], int] = {root: 0}
     queue = [root]
-    definitions = []
+    definitions: list[Any] = []
+    direct: list[tuple[int, frozenset[str] | None]] = []
     position = 0
     while position < len(queue):
         current = queue[position]
@@ -1504,6 +1505,14 @@ def compile_native(root: type[Schema]) -> core.CompiledSchema:
             (name, spec.wire_name, node_of(spec.ftype, index_of, queue), spec.required)
             for name, spec in current.specs().items()
         ]
+        if direct_construction(current):
+            tracks = current.__dict__.get(_TRACKS_SUPPLIED_FIELDS, False)
+            direct.append(
+                (
+                    len(definitions),
+                    frozenset(current.specs()) if tracks else None,
+                )
+            )
         definitions.append(
             (
                 current,
@@ -1512,7 +1521,18 @@ def compile_native(root: type[Schema]) -> core.CompiledSchema:
             )
         )
     return core.compile_schemas(
-        definitions, 0, uuid.UUID, dt.datetime.fromisoformat, UNSET
+        definitions, 0, uuid.UUID, dt.datetime.fromisoformat, UNSET, direct
+    )
+
+
+def direct_construction(cls: type[Schema]) -> bool:
+    """Whether Rust may allocate and fill validated instances itself: the
+    generated constructor only assigns, and nothing else runs after it."""
+    return (
+        uses_generated_init(cls)
+        and not cls.__normalizers__
+        and cls.__dictoffset__ != 0
+        and hasattr(cls, _TRUSTED_CONSTRUCTOR)
     )
 
 
