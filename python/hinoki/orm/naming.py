@@ -100,18 +100,33 @@ def _resolve_display_names(
     return singular, plural_name
 
 
-def _derived_table(class_name: str, words: list[str]) -> tuple[str, str]:
-    """The table name derived from the class name and, when that name cannot
-    be used, the reason. The reason is reported only if no ``@db.table`` or
-    ``table=`` replaces the name (see ``Model.check_table``)."""
-    if not words:
+_APP_LABEL = re.compile(r"[a-z][a-z0-9_]*\Z")
+
+
+def app_label(module: str) -> str:
+    """The app a model module belongs to: the package that holds its ``models``
+    module (``shop.apps.billing.models`` is ``billing``, ``shop.models.invoice``
+    is ``shop``); without a ``models`` segment, the module's own last name."""
+    parts = [part for part in module.split(".") if part]
+    if not parts:
+        return ""
+    position = next(
+        (i for i, part in enumerate(parts) if part.lower() == "models"), None
+    )
+    chosen = parts[position - 1] if position else parts[-1]
+    return re.sub(r"\W", "_", chosen).strip("_").lower()
+
+
+def _derived_table(class_name: str, words: list[str], app: str) -> tuple[str, str]:
+    """The table name derived from the app and the class name (``<app>_<model>``)
+    and, when that name cannot be used, the reason. The reason is reported only
+    if no ``@db.table`` or ``table=`` replaces the name (see ``Model.check_table``)."""
+    if not words or not app:
         return "", (
             f"{class_name}: cannot derive a table name from this class name; "
             "name the table with @db.table(...) or table="
         )
-    table_words = [word.lower() for word in words]
-    table_words[-1] = _plural_word(table_words[-1])
-    table = "_".join(table_words)
+    table = "_".join([app, *(word.lower() for word in words)])
     return table, _derived_table_problem(class_name, table)
 
 
@@ -137,10 +152,18 @@ def resolve_model_names(
     plural: str,
     *,
     abstract: bool,
+    module: str = "",
+    app: str = "",
 ) -> tuple[str, str, str, bool, str]:
     """Return resolved names, whether the table came from the class name and,
-    for a derived table name that cannot be used, the deferred error."""
+    for a derived table name that cannot be used, the deferred error. The
+    table is ``<app>_<model>``; ``app`` overrides the app taken from ``module``."""
     _validate_options(class_name, table, label, plural)
+    if app and not _APP_LABEL.fullmatch(app):
+        raise RegistrationError(
+            f"{class_name}: app={app!r} must be lowercase letters, digits and "
+            "underscores, starting with a letter"
+        )
     if abstract and table:
         raise RegistrationError(
             f"{class_name}: an abstract model has no table; remove table=... "
@@ -152,7 +175,7 @@ def resolve_model_names(
         return "", singular, plural_name, False, ""
     if table:
         return table, singular, plural_name, False, ""
-    derived, problem = _derived_table(class_name, words)
+    derived, problem = _derived_table(class_name, words, app or app_label(module))
     return derived, singular, plural_name, True, problem
 
 

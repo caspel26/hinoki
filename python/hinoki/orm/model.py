@@ -533,11 +533,18 @@ class Model:
         label: str = "",
         plural: str = "",
         abstract: bool = False,
+        app: str = "",
         **kwargs: object,
     ) -> None:
         super().__init_subclass__(**kwargs)
         table, label, plural, implicit_table, problem = resolve_model_names(
-            cls.__name__, table, label, plural, abstract=abstract
+            cls.__name__,
+            table,
+            label,
+            plural,
+            abstract=abstract,
+            module=cls.__module__,
+            app=app,
         )
         cls.__table_is_implicit__ = implicit_table
         cls.__table_decorated__ = False
