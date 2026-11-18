@@ -324,6 +324,13 @@ def _stop_custom_awaitable(result: Any) -> None:
         close(result)
 
 
+def holds_mapping(field_type: FieldType) -> bool:
+    """Whether a field type is a dict or holds one in its list items."""
+    if field_type.kind == "dict":
+        return True
+    return field_type.item is not None and holds_mapping(field_type.item)
+
+
 def resolve_model_field_type(
     cls: type[Model], name: str, hint: object, meta: FieldMeta
 ) -> FieldType:
@@ -343,10 +350,10 @@ def resolve_model_field_type(
         if values:
             raise
     else:
-        if parsed.kind != "dict":
+        if not holds_mapping(parsed):
             return parsed
-        # A dict column stays a JSON column: Model writes do not validate it as
-        # a Schema dict field would.
+        # A column holding a dict (also inside lists) stays a JSON column: Model
+        # writes do not validate it as a Schema dict field would.
         if values:
             raise RegistrationError(
                 f"{cls.__name__}.{name}: constraints do not apply to a JSON column"
