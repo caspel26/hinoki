@@ -22,7 +22,7 @@ MAX_NAME = 200
 MAX_SECRET = 1100  # bytes of a password field read from a form
 EXPIRED = "The form expired or is invalid. Reload and try again."
 WRONG = "Wrong username or password."
-SIGN_IN = "login"  # the CSRF subject of a request that is not signed in yet
+SIGN_IN = "!sign-in"  # the CSRF subject before sign-in; no username can be this
 
 
 def field(admin: Admin, name: str, label: str, kind: str, autocomplete: str) -> Raw:

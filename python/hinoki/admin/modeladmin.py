@@ -15,6 +15,8 @@ from hinoki.errors import RegistrationError
 from hinoki.orm import Model, QuerySet
 
 _ACTION_NAME = re.compile(r"[a-z][a-z0-9-]{0,47}\Z")
+# The names the permission model uses; a bulk action cannot take one.
+RESERVED_ACTIONS = frozenset({"view", "add", "change", "delete"})
 _MAX_ACTION_LABEL = 80
 _MAX_ACTION_CONFIRMATION = 240
 
@@ -316,7 +318,7 @@ def _validate_bulk_action(action: BulkAction[Any], slug: str, names: set[str]) -
     if (
         not isinstance(action.name, str)
         or not _ACTION_NAME.fullmatch(action.name)
-        or action.name == "delete"
+        or action.name in RESERVED_ACTIONS
     ):
         raise RegistrationError(
             f"admin {slug!r}: invalid or reserved bulk action name {action.name!r}"
