@@ -77,6 +77,14 @@ async def authorize(
     return principal
 
 
+def body_value(request: Request, text: bool) -> object:
+    """What the body parameter reads: the parsed data, or for a form-sourced
+    one the text fields of a form body."""
+    if text and request.accepts_form():
+        return request.parsed().fields
+    return request.data
+
+
 def build_request(
     scope: Scope,
     binding: Binding,
@@ -125,5 +133,5 @@ def build_request(
             body = request.data
         files = {name: request.FILES.getlist(name) for name in request.FILES}
     elif binding.needs_body:
-        body = request.data
+        body = body_value(request, binding.takes_text)
     return request, RequestData(path, query, body, principal, files)

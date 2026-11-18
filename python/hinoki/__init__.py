@@ -46,6 +46,7 @@ from hinoki.schema import (
     field_normalize,
     object_check,
 )
+from hinoki.sources import Form
 
 __version__ = core_version()
 
@@ -81,6 +82,7 @@ __all__ = [
     "Crud",
     "CrudAPI",
     "Field",
+    "Form",
     "FormParser",
     "HTMLRenderer",
     "HeaderAuth",

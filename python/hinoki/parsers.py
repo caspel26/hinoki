@@ -221,6 +221,8 @@ def is_native_parser(parser: Parser) -> bool:
     return state is not None and set(vars(parser)) == state
 
 
+# Selected for an action that binds ``Form[...]`` and whose parsers nobody chose.
+FORM_PARSERS: tuple[Parser, ...] = (FormParser(),)
 # Selected for an action that binds an uploaded file and whose parsers nobody chose.
 UPLOAD_PARSERS: tuple[Parser, ...] = (MultiPartParser(),)
 
