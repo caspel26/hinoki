@@ -9,8 +9,9 @@ MySQL or MariaDB instead, see [Configure a database](databases.md).
 
 `examples/hinoki.toml` registers Notes, Tracker and Blog as independent apps.
 From the repository root, enter `examples/` and use the locked environment in
-the parent directory. The migration planner reads the Notes model and its
-recorded state and writes numbered SQL and state files for review:
+the parent directory. On a fresh checkout, the checked-in Notes migration is
+already up to date, so planning reports `no changes`. Inspect the registered
+apps and migration SQL:
 
 ```sh
 cd examples
