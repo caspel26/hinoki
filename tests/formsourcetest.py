@@ -6,7 +6,7 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import Form, Hinoki, JSONParser, Schema, http
+from hinoki import Form, FormParser, Hinoki, JSONParser, Schema, http
 from hinoki.errors import RegistrationError, ValidationError
 from tests.harness import Client, Pool
 
@@ -105,8 +105,14 @@ def test_registration_rules() -> None:
     @http.post("/j", parsers=[JSONParser()])
     def json_only(data: Form[Signup]) -> None: ...
 
-    with pytest.raises(RegistrationError, match="FormParser"):
+    with pytest.raises(RegistrationError, match="only form parsers"):
         Hinoki(include=[json_only])
+
+    @http.post("/m", parsers=[FormParser(), JSONParser()])
+    def mixed(data: Form[Signup]) -> None: ...
+
+    with pytest.raises(RegistrationError, match="only form parsers"):
+        Hinoki(include=[mixed])
 
     @http.post("/n")
     def not_schema(data: Form[int]) -> None: ...
