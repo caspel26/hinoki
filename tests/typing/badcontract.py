@@ -6,7 +6,7 @@ passes only while every line below is still flagged.
 
 from uuid import UUID
 
-from hinoki import API, http
+from hinoki import API, db, http
 from hinoki.http.request import Request
 
 
@@ -29,3 +29,18 @@ def bad_option(request: Request) -> None: ...
 
 @http.post("/x", access="admin")  # type: ignore[arg-type]
 def bad_access(request: Request) -> None: ...
+
+
+@db.atomic
+async def renamed(post_id: UUID) -> str:
+    return str(post_id)
+
+
+async def misuse_atomic() -> None:
+    await renamed("not-a-uuid")  # type: ignore[arg-type]
+    count: int = await renamed(UUID(int=1))  # type: ignore[assignment]
+    print(count)
+
+
+@db.atomic  # type: ignore[arg-type]
+def sync_atomic() -> None: ...
