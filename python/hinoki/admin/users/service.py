@@ -15,9 +15,11 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from uuid import UUID
 
+from hinoki.admin.users.limits import LoginWindow
 from hinoki.admin.users.models import AdminGrant, AdminSession, AdminUser
 from hinoki.crypto import PasswordHasher
 from hinoki.orm.context import current_database
+from hinoki.ratelimit import RateLimitPolicy
 from hinoki.settings import AdminSettings
 from hinoki.utils import utc_now
 
@@ -40,11 +42,26 @@ class AdminAccounts:
         *,
         hasher: PasswordHasher | None = None,
         clock: Callable[[], datetime] = utc_now,
+        login_limit: RateLimitPolicy | None = None,
     ) -> None:
+        self.bound = settings is not None
         self.settings = settings or AdminSettings()
+        self.login_limit: RateLimitPolicy = login_limit or LoginWindow()
         self.hasher = hasher or PasswordHasher()
         self.clock = clock
-        self.decoy = self.hasher.hash_sync("not-the-password-of-anyone")
+        self.decoy_hash: str | None = None
+
+    def bind(self, settings: AdminSettings) -> None:
+        """Take the app's session and password rules unless given at construction."""
+        if not self.bound:
+            self.settings = settings
+
+    @property
+    def decoy(self) -> str:
+        """A hash to verify against for an unknown user, made on first use."""
+        if self.decoy_hash is None:
+            self.decoy_hash = self.hasher.hash_sync("not-the-password-of-anyone")
+        return self.decoy_hash
 
     # -- users ---------------------------------------------------------------
 

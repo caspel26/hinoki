@@ -46,7 +46,13 @@ from hinoki.runtime.asgi import ASGIAdapter
 from hinoki.runtime.binding import Binding, bind, declares_upload
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.runtime.lifespan import Hook
-from hinoki.settings import AppSettings, DatabaseSettings, DocsSettings, Settings
+from hinoki.settings import (
+    AdminSettings,
+    AppSettings,
+    DatabaseSettings,
+    DocsSettings,
+    Settings,
+)
 from hinoki.utils import Clock, _read_utc, utc_now
 
 
@@ -76,7 +82,7 @@ log = logging.getLogger("hinoki")
 
 
 def bind_app_timezone(
-    item: object, timezone: tzinfo, secret: str | None = None
+    item: object, timezone: tzinfo, settings: AdminSettings | None = None
 ) -> None:
     """Bind the timezone and server secret of the app to an included admin,
     whether it is included as an object or as an API class."""
@@ -88,17 +94,17 @@ def bind_app_timezone(
     bind_timezone = getattr(admin, "bind_timezone", None)
     if callable(bind_timezone):
         bind_timezone(timezone)
-    bind_secret = getattr(admin, "bind_secret", None)
-    if callable(bind_secret):
-        bind_secret(secret)
+    bind_settings = getattr(admin, "bind_settings", None)
+    if callable(bind_settings):
+        bind_settings(settings)
 
 
 def bind_app_timezones(
-    items: Sequence[object], timezone: tzinfo, secret: str | None = None
+    items: Sequence[object], timezone: tzinfo, settings: AdminSettings | None = None
 ) -> None:
     """Bind integrations after the app has validated all routes."""
     for item, _prefix in flatten(items):
-        bind_app_timezone(item, timezone, secret)
+        bind_app_timezone(item, timezone, settings)
 
 
 def check_hooks(option: str, hooks: Sequence[Hook]) -> tuple[Hook, ...]:
@@ -194,12 +200,9 @@ class Hinoki:
         )
         return manifest.route_items() if manifest is not None else []
 
-    def admin_secret(self) -> str | None:
-        """``admin.secret`` of the app's settings, or ``None`` when unset."""
-        if not isinstance(self.settings, AppSettings):
-            return None
-        secret = self.settings.admin.secret
-        return secret.reveal() if secret is not None else None
+    def admin_settings(self) -> AdminSettings | None:
+        """The app's ``admin`` settings group, or ``None`` without built-in settings."""
+        return self.settings.admin if isinstance(self.settings, AppSettings) else None
 
     def _configure_runtime(
         self, built_in: AppSettings | None, runtime: RuntimeConfig | None
@@ -341,7 +344,7 @@ class Hinoki:
 
         bound = [rowplan.with_row_wire(binding) for binding in bound]
         staged = self._stage_router(pending)
-        bind_app_timezones(items, self._timezone, self.admin_secret())
+        bind_app_timezones(items, self._timezone, self.admin_settings())
         self._router = staged
         self._routes.extend(pending)
         self._bindings.extend(bound)

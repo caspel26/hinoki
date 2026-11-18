@@ -37,7 +37,12 @@ SECURITY_HEADERS = (
     ("cache-control", "no-store"),
     ("referrer-policy", "same-origin"),
 )
-NOTICES = {"created": "Created.", "saved": "Saved.", "deleted": "Deleted."}
+NOTICES = {
+    "created": "Created.",
+    "saved": "Saved.",
+    "deleted": "Deleted.",
+    "password": "Password changed.",
+}
 MAX_PAGE = 1_000_000
 MAX_QUERY = 200
 INT_MIN, INT_MAX = -(2**63), 2**63 - 1
@@ -153,7 +158,19 @@ class Site:
     def user_card(self) -> Raw:
         name = principal_name(self.principal)
         action = Raw("")
-        if self.admin.logout_url:
+        if self.admin.users is not None:
+            base = escape(self.admin.base)
+            action = Raw(
+                f'<a class="hn-iconbtn" href="{base}/password" '
+                'aria-label="Change password"><svg class="hn-icon" aria-hidden="true">'
+                '<use href="#i-settings"/></svg></a>'
+                f'<form method="post" action="{base}/logout">'
+                f'<input type="hidden" name="csrf" value="{escape(self.token)}">'
+                '<button class="hn-iconbtn" type="submit" aria-label="Sign out">'
+                '<svg class="hn-icon" aria-hidden="true"><use href="#i-log-out"/></svg>'
+                "</button></form>"
+            )
+        elif self.admin.logout_url:
             action = Raw(
                 f'<a class="hn-iconbtn" href="{escape(self.admin.logout_url)}" '
                 'aria-label="Sign out"><svg class="hn-icon" aria-hidden="true">'
