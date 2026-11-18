@@ -78,7 +78,7 @@ class Safe(API, path="/safe"):
 
 def project(*items: object) -> Project:
     app = Hinoki()
-    app.include(*items)
+    app.include(*items)  # type: ignore[arg-type]
     return Project(app)
 
 

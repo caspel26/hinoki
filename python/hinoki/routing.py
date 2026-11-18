@@ -13,7 +13,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
-from typing import Any, ParamSpec, TypeVar
+from typing import TYPE_CHECKING, Any, ParamSpec, Protocol, TypeVar
 
 from hinoki.access import Access
 from hinoki.errors import APIError
@@ -21,6 +21,9 @@ from hinoki.fields import UNSET, Unset
 from hinoki.pagination import PageNumberPagination
 from hinoki.parsers import DEFAULT_PARSERS, Parser, check_parsers
 from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers
+
+if TYPE_CHECKING:
+    from hinoki.api import API
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -421,3 +424,22 @@ def route_of(obj: object) -> Route | None:
     # functools.wraps copies route metadata, but the stored declaration still
     # points at the original function. Dispatch through the final wrapper.
     return found if found.handler is obj else replace(found, handler=obj)
+
+
+class ExposesRoutes(Protocol):
+    """An object that serves its routes through ``api()``, such as the admin."""
+
+    def api(self) -> type[API]: ...
+
+
+type Includable = (
+    type[API]
+    | Callable[..., object]
+    | RouteGroup
+    | Mount
+    | ExposesRoutes
+    | Sequence[Includable]
+)
+"""What ``Hinoki(include=[...])`` and ``app.include(...)`` accept: an ``API`` class,
+a decorated function, a ``RouteGroup``, a ``Mount``, an object with ``api()`` (the
+admin) or a list or tuple of those."""

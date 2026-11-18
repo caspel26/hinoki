@@ -64,7 +64,7 @@ class WithStatic(API, path="/static"):
 )
 def test_unusable_declarations_fail_at_include(target: object) -> None:
     with pytest.raises((RegistrationError, ValueError)):
-        Hinoki().include(target)
+        Hinoki().include(target)  # type: ignore[arg-type]
 
 
 def test_override_without_decorator_drops_the_route() -> None:
@@ -123,14 +123,14 @@ def test_signature_introspection_failure_is_a_registration_error(
     )
     app = Hinoki()
     with pytest.raises(RegistrationError, match="cannot inspect signature"):
-        app.include(http.get("/x")(lambda: None))
+        app.include(http.get("/x")(lambda: None))  # type: ignore[misc]
 
 
 def test_annotation_resolution_failure_is_a_registration_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     route_app = Hinoki()
-    route_app.include(http.get("/x")(lambda: None))
+    route_app.include(http.get("/x")(lambda: None))  # type: ignore[misc]
     monkeypatch.setattr(
         "hinoki.runtime.binding.hints_of",
         lambda _handler: (_ for _ in ()).throw(NameError("missing annotation")),

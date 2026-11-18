@@ -32,7 +32,15 @@ from hinoki.parsers import (
 )
 from hinoki.project import manifest_declaring
 from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers
-from hinoki.routing import Found, MethodNotAllowed, Mount, Route, RouteGroup, route_of
+from hinoki.routing import (
+    Found,
+    Includable,
+    MethodNotAllowed,
+    Mount,
+    Route,
+    RouteGroup,
+    route_of,
+)
 from hinoki.rules import Phase, Project, RuleSet, failing
 from hinoki.runtime.asgi import ASGIAdapter
 from hinoki.runtime.binding import Binding, bind, declares_upload
@@ -129,7 +137,7 @@ class Hinoki:
         self,
         *,
         settings: object | None = None,
-        include: Sequence[object] | None = None,
+        include: Sequence[Includable] | None = None,
         modules: Sequence[Module | type[Module]] = (),
         commands: Sequence[Command | type[Command]] = (),
         on_startup: Sequence[Hook] = (),
@@ -170,7 +178,7 @@ class Hinoki:
             self.include(*include)
 
     @staticmethod
-    def _project_routes(caller: FrameType) -> list[object]:
+    def _project_routes(caller: FrameType) -> list[Includable]:
         """Without ``include=``, the routes ``hinoki.toml`` declares, when the
         manifest names the module that builds this application."""
         manifest = manifest_declaring(
@@ -301,7 +309,7 @@ class Hinoki:
         """Shutdown hooks, fixed when the application is constructed."""
         return self._on_shutdown
 
-    def include(self, *items: object) -> None:
+    def include(self, *items: Includable) -> None:
         """Register decorated functions, ``API`` subclasses and objects that expose
         an ``api()`` (the admin). Lists and tuples of those are flattened, so a
         feature package can export one ``routes`` list, and ``Mount(prefix, ...)``
