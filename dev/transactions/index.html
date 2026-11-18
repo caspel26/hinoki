@@ -410,6 +410,12 @@
 <p>If the handler raises, response encoding/rendering fails, the request times out, or the task is cancelled, the transaction rolls back before the error response is translated. A value that does not match the response annotation is rejected as a <code>500</code>, and the transaction rolled back, unless the action opts out with <code>validate_response=False</code>. Do not send email or perform another irreversible side effect inside the transaction; arrange it after the transaction commits, or use an outbox owned by the application.</p>
 <p>Nested <code>db.transaction()</code> scopes in the same owning task use savepoints. A child task cannot share its parent's active transaction. Raw database operations are async-only; see <a href="../sync-async/">sync and async</a>.</p>
 <p>For a function route group, <code>RouteGroup(..., atomic=True)</code> makes write methods transactional by default. An individual action can opt out explicitly with <code>transaction=False</code>.</p>
+<h2 id="after-commit-callbacks">After-commit callbacks<a class="headerlink" href="#after-commit-callbacks" title="Permanent link">&para;</a></h2>
+<p><code>db.after_commit(callback)</code> registers a sync or async callable without arguments to run after the outermost transaction commits, which is where email, queue publishing and cache invalidation belong. Callbacks run in registration order; a rollback of the transaction, or of the savepoint scope that registered them, drops them, and an exception in one is logged without undoing the commit. Calling it outside a transaction raises <code>DatabaseError</code>. Model hooks register through <code>self.after_commit(callback)</code>; see <a href="../models/#lifecycle-hooks-and-instance-state">lifecycle hooks</a>.</p>
+<div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">with</span> <span class="n">db</span><span class="o">.</span><span class="n">transaction</span><span class="p">():</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Order</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="n">db</span><span class="o">.</span><span class="n">after_commit</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">publish</span><span class="p">(</span><span class="s2">"order.created"</span><span class="p">,</span> <span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">))</span>
+</code></pre></div>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
@@ -432,7 +438,7 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#transactions">Transactions</a></li></ul>
+            <ul><li><a href="#after-commit-callbacks">After-commit callbacks</a></li></ul>
           
         </nav>
         

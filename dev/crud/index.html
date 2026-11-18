@@ -575,6 +575,8 @@ unsafe nullable fields, missing required create values, update schemas that
 can overwrite omitted fields, primary-key updates, unknown assigned columns,
 and incompatible derived schemas. <code>only=</code> and <code>exclude=</code> schemas remain
 subject to these same checks.</p>
+<h2 id="model-hooks-and-the-rust-server">Model hooks and the Rust server<a class="headerlink" href="#model-hooks-and-the-rust-server" title="Permanent link">&para;</a></h2>
+<p>Generated create and PATCH update write through the model, so its <a href="../models/#lifecycle-hooks-and-instance-state">lifecycle hooks</a> run: create calls <code>acreate</code>, and update saves the item with the scoped query's conditions in its UPDATE, so a row that left the caller's scope since it was read is refused (<code>403</code>/<code>404</code>) exactly as on the unhooked path. A model that defines any of <code>before_save</code>, <code>before_create</code>, <code>after_create</code> or <code>after_save</code> is not eligible for the native create and update routes, which execute without Python model code; they use the Python lane, while its list, retrieve and delete routes stay native. Deleting does not run hooks.</p>
 <h2 id="existing-resource-declarations">Existing <code>Resource</code> declarations<a class="headerlink" href="#existing-resource-declarations" title="Permanent link">&para;</a></h2>
 <p>Existing pre-alpha <code>Resource(...)</code> configurations remain accepted for
 compatibility. Their <code>queryset=</code> callback is not caller-aware; the <code>store</code>, <code>change</code> and <code>remove</code>
@@ -616,15 +618,15 @@ side-effects beyond the single model mutation.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#generated-actions">Generated actions</a></li><li><a href="#reuse-and-customization">Reuse and customization</a></li><li><a href="#security-and-validation">Security and validation</a></li><li><a href="#existing-resource-declarations">Existing Resource declarations</a></li><li><a href="#openapi-and-inspection">OpenAPI and inspection</a></li></ul>
+            <ul><li><a href="#generated-actions">Generated actions</a></li><li><a href="#reuse-and-customization">Reuse and customization</a></li><li><a href="#security-and-validation">Security and validation</a></li><li><a href="#model-hooks-and-the-rust-server">Model hooks and the Rust server</a></li><li><a href="#existing-resource-declarations">Existing Resource declarations</a></li><li><a href="#openapi-and-inspection">OpenAPI and inspection</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.11</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 09:36:22 UTC">November 18, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>5 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 11:27:22 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

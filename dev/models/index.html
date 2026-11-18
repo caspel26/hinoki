@@ -616,6 +616,69 @@ set <code>deletable = True</code>; protect generated writes with <code>access = 
 <p>The count is the number the database reports. PostgreSQL and SQLite count the rows the statement matched; MySQL and MariaDB, with the driver's default connection settings, count the rows whose values actually changed, so a row that already held the new values counts 0.</p>
 <p>The cost of the default is the data sent back. In a raw-SQL measurement on PostgreSQL 17 with 16 statements in flight, a statement returning every column of a narrow row took 83.7 µs per operation against 75.8 µs returning only the key (+10%); with a ~10 KB <code>jsonb</code> column it took 143.4 µs against 75.9 µs (+89%). This is a single-machine measurement, not a guarantee for other workloads.</p>
 <p><code>returning</code> is a keyword-only option of these methods, so a model cannot declare a field named <code>returning</code>: the class definition raises <code>RegistrationError</code> and asks for another name.</p>
+<h2 id="lifecycle-hooks-and-instance-state">Lifecycle hooks and instance state<a class="headerlink" href="#lifecycle-hooks-and-instance-state" title="Permanent link">&para;</a></h2>
+<p>A model can react to its own writes by defining <code>before_save</code>, <code>before_create</code>, <code>after_create</code> and <code>after_save</code>. Each is an ordinary method, <code>def</code> or <code>async def</code>, taking only <code>self</code>; a model that defines none pays nothing.</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Post</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">slug</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">before_save</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">was_changed</span><span class="p">(</span><span class="s2">"title"</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">slug</span> <span class="o">=</span> <span class="n">slugify</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="p">)</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">after_create</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">after_commit</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">notify_followers</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">))</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Write</th>
+<th>Order</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>insert (<code>acreate</code>, <code>insert</code>, <code>asave</code> of a new instance)</td>
+<td><code>before_save</code>, <code>before_create</code>, the write, <code>after_create</code>, <code>after_save</code></td>
+</tr>
+<tr>
+<td>update (<code>asave</code> of a loaded instance, <code>aupdate_from</code>)</td>
+<td><code>before_save</code>, the write, <code>after_save</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>before_*</code> hooks see the values about to be written and may change them; the write sees the result. <code>after_*</code> hooks run after the statement, with the stored row loaded into the instance (generated keys, database defaults, <code>@timestamps</code>). An update with no changed column after <code>before_save</code> writes nothing and skips <code>after_save</code>. To extend a hook that a base model or mixin already defines, call <code>super()</code>; a subclass method replaces the inherited one like any other override.</p>
+<p>The instance reports its own state, so a hook, or any code holding the instance, needs no event object or global context:</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>is_new</code></td>
+<td><code>True</code> until the row has been written or loaded; still <code>True</code> inside <code>before_*</code> and <code>after_*</code> of an insert</td>
+</tr>
+<tr>
+<td><code>is_dirty</code></td>
+<td><code>True</code> for a new instance, or when a column differs from the stored row</td>
+</tr>
+<tr>
+<td><code>changes</code></td>
+<td><code>{column: Change(old, new)}</code> for the columns that differ; a new instance lists every column with <code>old=UNSET</code>. Computed when read</td>
+</tr>
+<tr>
+<td><code>was_changed("title")</code></td>
+<td>whether one column differs; a name that is not a column raises <code>FieldError</code></td>
+</tr>
+</tbody>
+</table>
+<p>The stored values are taken again after the <code>after_*</code> hooks, so <code>changes</code> still shows what this write changed while they run.</p>
+<p>When any hook is defined, the write runs in a transaction (a savepoint when one is already open), so an exception in any hook rolls the write back and reaches the caller. <code>after_*</code> hooks run before the commit; the work that must happen only after it goes through <code>self.after_commit(callback)</code> (a sync or async callable without arguments). Callbacks run in registration order after the outermost transaction commits; a rollback of the transaction, or of the savepoint they were registered in, drops them, and an exception in one is logged without undoing the commit. See <a href="../transactions/#after-commit-callbacks">transactions</a>.</p>
+<p>Limits, by design: hooks belong to instances. <code>QuerySet.aupdate</code>, <code>adelete</code>, <code>Model.aupdate</code>, <code>aupdate_where</code> and raw SQL do not run them. Sync hooks run inline on the event loop, so keep them short and use <code>async def</code> for I/O. <code>is_new</code>, <code>is_dirty</code>, <code>changes</code>, <code>was_changed</code>, <code>after_commit</code> and the four hook names are reserved: a field cannot use them. A hooked write opens a savepoint inside an open transaction; from a helper task of a transaction it joins that transaction instead (this is how the sync model methods of a sync handler write), and an error still rolls the whole transaction back. A hook assigned to the class after it was created is picked up on the next write. Generated CRUD and the admin create and edit forms save through the same methods, so the hooks run there too; deleting runs none. See <a href="../crud/#model-hooks-and-the-rust-server">CRUD</a>.</p>
 <h2 id="share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins<a class="headerlink" href="#share-fields-abstract-models-and-mixins" title="Permanent link">&para;</a></h2>
 <p>Fields, options and methods that several models need can live in a base class. An <strong>abstract model</strong> has no table of its own: it is not migrated, cannot be queried or saved, and exists to be subclassed.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
@@ -682,15 +745,15 @@ set <code>deletable = True</code>; protect generated writes with <code>access = 
             <ul><li><a href="#model-field-constraints-and-validators">Model field constraints and validators</a></li></ul>
           </li><li><a href="#query-rows">Query rows</a></li><li><a href="#reusable-queries">Reusable queries</a></li><li><a href="#create-and-update">Create and update</a>
             <ul><li><a href="#writes-that-do-not-read-the-row-back">Writes that do not read the row back</a></li></ul>
-          </li><li><a href="#share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins</a></li><li><a href="#relations">Relations</a></li><li><a href="#schema-options">Schema options</a></li><li><a href="#migrations">Migrations</a></li></ul>
+          </li><li><a href="#lifecycle-hooks-and-instance-state">Lifecycle hooks and instance state</a></li><li><a href="#share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins</a></li><li><a href="#relations">Relations</a></li><li><a href="#schema-options">Schema options</a></li><li><a href="#migrations">Migrations</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 02:53:45 UTC">November 18, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>12 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 11:27:22 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>14 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
