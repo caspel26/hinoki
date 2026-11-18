@@ -6,13 +6,15 @@ Hinoki is pre-alpha. This is a short public view of the work; implementation sta
 
 - Typed Python HTTP APIs with optional architecture rules and declared errors.
 - The Rust extension currently provides path matching, selected request parsing, schema validation/serialization, cryptography, and PostgreSQL, SQLite, MySQL and MariaDB ORM execution. The ASGI adapter and application handlers run in Python. SQLite is the local-development default.
-- Sync and async handlers, settings, modules, migrations, OpenAPI, MCP tools and an optional admin with four themes.
+- Sync and async handlers, settings, modules, migrations, OpenAPI, MCP tools, model lifecycle hooks, response checks against annotations, route rate limit policies, and an optional admin with four themes and its own users.
 
 See the [documentation](https://caspel26.github.io/hinoki/) and runnable [examples](examples/) for current details. No performance claims are made without comparable retained measurements.
 
 ## Active direction
 
 - Improve the developer and documentation experience while keeping the public API small.
+- Bring `Schema` field types close to what Pydantic accepts, in this order, each step on both the Python and the Rust lane with OpenAPI, rules and documentation: `dict[str, X]`; `date`, `time`, `timedelta`, `Decimal`, `bytes`; `Enum`, `StrEnum`, `IntEnum` and `Literal`; `set`, `frozenset` and `tuple`; plain unions, `Any`, `TypedDict` and dataclass fields; more constraints (`multiple_of`, strict mode); IP addresses and networks, URLs, `SecretStr`, `Path` and a syntactic email check; validators and computed fields where the Rust lane can stay consistent.
+- One name for atomic writes: `atomic` replaces `transaction` on routes, with `db.atomic` as a decorator and a context manager for application code.
 - Validate the server integration, admin styles and generated typing contracts across real usage.
 - Publish only after the site and release process have been reviewed.
 
