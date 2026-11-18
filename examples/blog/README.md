@@ -12,7 +12,7 @@ SQLite:
 
 ```sh
 cd examples
-export BLOG_SECURITY__SECRET='a-local-development-secret-with-32-bytes'
+export BLOG_ADMIN__SECRET='a-local-development-secret-with-32-bytes'
 uv run --project .. hinoki app list
 uv run --project .. hinoki migrations status
 uv run --project .. hinoki migrations plan --app blog --dry-run

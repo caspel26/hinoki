@@ -156,7 +156,7 @@ async def recent_activity(principal: Caller[Any]) -> list[Event]:
 
 
 def build_admin(theme: str = "studio") -> Admin:
-    """The site, signed with the app's ``security.secret``; one line per model."""
+    """The site, signed with the app's ``admin.secret``; one line per model."""
     editors = Access(auth=CookieAuth(), permissions=[WRITE])
     site = Admin(
         access=editors,

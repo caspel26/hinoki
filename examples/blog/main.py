@@ -3,7 +3,7 @@
 This example uses a factory because it conditionally installs accounts when the
 JWT secret is configured and builds the optional admin from settings.
 
-    BLOG_SECURITY__SECRET=... \
+    BLOG_ADMIN__SECRET=... \
       hinoki dev blog.main:create_app
 
 The factory builds declarations only; the pool opens in the worker's lifespan.
@@ -36,7 +36,7 @@ def create_app(
         overrides["database"] = {"url": database_override}
     secret_override = overrides.pop("secret", None)
     if isinstance(secret_override, str):
-        overrides["security"] = {"secret": secret_override}
+        overrides["admin"] = {"secret": secret_override}
     app_settings = BlogSettings.load(overrides=overrides)
     app = Hinoki(
         settings=app_settings,
