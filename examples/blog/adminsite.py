@@ -155,11 +155,11 @@ async def recent_activity(principal: Caller[Any]) -> list[Event]:
     ]
 
 
-def build_admin(secret: str, theme: str = "studio") -> Admin:
+def build_admin(theme: str = "studio") -> Admin:
+    """The site, signed with the app's ``admin.secret``; one line per model."""
     editors = Access(auth=CookieAuth(), permissions=[WRITE])
-    return Admin(
+    site = Admin(
         access=editors,
-        secret=secret,
         theme=theme,
         site="Blog Studio",
         tagline="My blog",
@@ -171,5 +171,7 @@ def build_admin(secret: str, theme: str = "studio") -> Admin:
         dashboard=("posts",),
         per_page=8,
         show_count=True,
-        models=[PostAdmin, UserAdmin],
     )
+    site.register(PostAdmin)
+    site.register(UserAdmin)
+    return site
