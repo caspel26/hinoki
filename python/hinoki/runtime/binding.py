@@ -34,6 +34,7 @@ from hinoki.handlerhints import hints_of, signature_of
 from hinoki.http.request import Request
 from hinoki.pagination import PageNumberPagination, PageParams
 from hinoki.parsers import MultiPartParser, UploadedFile
+from hinoki.renderers import is_default_json_renderer
 from hinoki.routing import Route
 from hinoki.runtime.responsecheck import NO_ANNOTATION, Check, compile_response_check
 from hinoki.schema import Schema
@@ -213,6 +214,7 @@ class Binding:
     native_input_names: tuple[str, ...] = field(init=False, repr=False, compare=False)
     body_param: Param | None = field(init=False, repr=False, compare=False)
     principal_name: str | None = field(init=False, repr=False, compare=False)
+    default_json: bool = field(init=False, repr=False, compare=False)
     native_defaults: tuple[tuple[str, object], ...] = field(
         init=False, repr=False, compare=False
     )
@@ -224,6 +226,12 @@ class Binding:
         )
         object.__setattr__(
             self, "native_input_names", tuple(p.name for p in self.params)
+        )
+        renderers = self.route.renderers
+        object.__setattr__(
+            self,
+            "default_json",
+            len(renderers) == 1 and is_default_json_renderer(renderers[0]),
         )
         principals = [p.name for p in self.params if p.source == "principal"]
         object.__setattr__(
