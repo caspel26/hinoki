@@ -630,6 +630,7 @@ dependencies = [
  "hmac",
  "pyo3",
  "pyo3-async-runtimes",
+ "quick-xml",
  "regex",
  "serde",
  "serde_json",
@@ -1337,6 +1338,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.10",
+]
+
+[[package]]
+name = "quick-xml"
+version = "0.42.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41b1177fdf999d2321d3fb46ff47159d9c1fb9ad66a4879f8c50a0b504615e9b"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]
