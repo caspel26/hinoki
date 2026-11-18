@@ -5,7 +5,7 @@ from __future__ import annotations
 import dataclasses
 import inspect
 import logging
-from collections.abc import Iterator, MutableMapping, Sequence
+from collections.abc import Iterator, Mapping, MutableMapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from functools import partial
 from types import ModuleType
@@ -16,7 +16,12 @@ from hinoki.api import API
 from hinoki.core import Router
 from hinoki.db import DatabaseModule
 from hinoki.docsui import pages as docs_pages
-from hinoki.errors import ErrorRegistry, RegistrationError
+from hinoki.errors import (
+    ErrorRegistrar,
+    ErrorRegistry,
+    RegistrationError,
+    Translation,
+)
 from hinoki.fields import UNSET, Unset
 from hinoki.management import Command, _normalize_commands
 from hinoki.modules import Module, order_modules
@@ -503,6 +508,28 @@ class Hinoki:
             await send({"type": "lifespan.startup.failed", "message": str(exc)})
             return
         await adapter(scope, receive, send)
+
+    def error_handler(self, kind: type[Exception]) -> ErrorRegistrar:
+        """Decorator: answer ``kind`` with a function of the exception or with an
+        ``APIError`` subclass, and return what it decorates unchanged.
+
+            @app.error_handler(PaymentDeclined)
+            class CardDeclined(errors.Conflict):
+                code = "card_declined"
+        """
+        self._check_mutable()
+        return self.errors.handle(kind)
+
+    def register_errors(
+        self, translations: Mapping[type[Exception], Translation]
+    ) -> None:
+        """Register several translations at once, ``{PaymentDeclined: CardDeclined}``.
+
+        A value is an ``APIError`` subclass or a function of the exception. All
+        entries are registered or, if one is unusable or repeated, none.
+        """
+        self._check_mutable()
+        self.errors.add_all(translations)
 
     def _check_mutable(self) -> None:
         if self._adapter is not None:
