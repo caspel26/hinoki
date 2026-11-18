@@ -137,6 +137,7 @@ uv run --project .. hinoki migrations plan --app blog
 uv run --project .. hinoki migrations status
 uv run --project .. hinoki migrations sql --app blog 0001-initial
 uv run --project .. hinoki migrations sql --app blog 0002-accounts
+uv run --project .. hinoki migrations sql --app blog 0003-index-blog-posts-author-id
 uv run --project .. hinoki migrations apply --app blog
 ```
 
