@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import dataclasses
+import datetime as dt
 import math
 import operator
 import re
 from collections.abc import Callable
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from hinoki.errors import ErrorDetail
-from hinoki.fieldtypes import FieldType
+from hinoki.fieldtypes import FieldType, decimal_limits
 from hinoki.schemaconfig import SchemaExtra
 
 if TYPE_CHECKING:
@@ -26,6 +30,23 @@ MAX_KEY_ECHO = 64
 RFC3339 = re.compile(
     r"\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})?"
 )
+# ``[0-9]`` and ``re.ASCII``: ``\\d`` would also match other Unicode digits.
+DATE = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})", re.ASCII)
+TIME = re.compile(
+    r"([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,6}))?"
+    r"(Z|([+-])([0-9]{2}):([0-9]{2}))?",
+    re.ASCII,
+)
+DURATION = re.compile(
+    r"(-?)P(?:([0-9]+)D)?(T(?:([0-9]+)H)?(?:([0-9]+)M)?"
+    r"(?:([0-9]+)(?:\.([0-9]{1,6}))?S)?)?",
+    re.ASCII,
+)
+DECIMAL = re.compile(r"-?(0|[1-9][0-9]*)(\.[0-9]+)?", re.ASCII)
+BASE64 = re.compile(r"[A-Za-z0-9+/]*={0,2}", re.ASCII)
+MAX_CLOCK = (23, 59, 59)
+MAX_OFFSET = (23, 59)
+MICROS = 6
 BOUNDS = (
     ("ge", "greater than or equal to", operator.ge),
     ("le", "less than or equal to", operator.le),
@@ -66,6 +87,11 @@ class Validator:
             "bool": self.boolean,
             "uuid": self.uuid,
             "datetime": self.moment,
+            "date": self.day,
+            "time": self.clock,
+            "timedelta": self.duration,
+            "decimal": self.decimal,
+            "bytes": self.binary,
             "list": self.sequence,
             "dict": self.mapping,
             "schema": self.schema,
@@ -160,6 +186,98 @@ class Validator:
         if parsed.tzinfo is None:
             return self.fail(path, "datetime_tz", "datetime needs a UTC offset")
         return parsed
+
+    def day(self, _ftype: FieldType, data: Any, path: str) -> object:
+        message = "expected an ISO 8601 date string"
+        found = DATE.fullmatch(data) if isinstance(data, str) else None
+        if found is None:
+            return self.fail(path, "date", message)
+        try:
+            return dt.date(*(int(part) for part in found.groups()))
+        except ValueError:
+            return self.fail(path, "date", message)
+
+    def clock(self, _ftype: FieldType, data: Any, path: str) -> object:
+        found = TIME.fullmatch(data) if isinstance(data, str) else None
+        if found is None:
+            return self.fail(path, "time", "expected an ISO 8601 time string")
+        hour, minute, second, fraction, zone, sign, zone_h, zone_m = found.groups()
+        clock = (int(hour), int(minute), int(second))
+        offset = (int(zone_h), int(zone_m)) if sign else (0, 0)
+        if any(v > top for v, top in zip(clock, MAX_CLOCK, strict=True)) or any(
+            v > top for v, top in zip(offset, MAX_OFFSET, strict=True)
+        ):
+            return self.fail(path, "time", "expected an ISO 8601 time string")
+        if zone is None:
+            return self.fail(path, "time_tz", "time needs a UTC offset")
+        minutes = offset[0] * 60 + offset[1]
+        zone_info = dt.timezone(
+            dt.timedelta(minutes=-minutes if sign == "-" else minutes)
+        )
+        micro = int(fraction.ljust(MICROS, "0")) if fraction else 0
+        return dt.time(*clock, micro, tzinfo=zone_info)
+
+    def duration(self, _ftype: FieldType, data: Any, path: str) -> object:
+        found = DURATION.fullmatch(data) if isinstance(data, str) else None
+        if found is None:
+            return self.fail(path, "duration", "expected an ISO 8601 duration string")
+        sign, days, clock, hours, minutes, seconds, fraction = found.groups()
+        if (days is None and clock is None) or clock == "T":
+            return self.fail(path, "duration", "expected an ISO 8601 duration string")
+        parts = [int(part) if part else 0 for part in (days, hours, minutes, seconds)]
+        total = ((parts[0] * 24 + parts[1]) * 60 + parts[2]) * 60 + parts[3]
+        micros = total * 10**MICROS + (
+            int(fraction.ljust(MICROS, "0")) if fraction else 0
+        )
+        try:
+            return dt.timedelta(microseconds=-micros if sign else micros)
+        except OverflowError:
+            return self.fail(path, "duration_range", "duration is out of range")
+
+    def decimal(self, ftype: FieldType, data: Any, path: str) -> object:
+        text = str(data) if type(data) is int else data
+        if not isinstance(text, str) or DECIMAL.fullmatch(text) is None:
+            return self.fail(path, "decimal", "expected a decimal string or an integer")
+        value = Decimal(text)
+        _, digits_tuple, exponent = value.as_tuple()
+        places = -int(exponent)
+        digits = max(len(digits_tuple), places)
+        most, decimal_places, whole = decimal_limits(ftype.info)
+        for count, limit, code, unit in (
+            (digits, most, "max_digits", "digit"),
+            (places, decimal_places, "decimal_places", "decimal place"),
+            (digits - places, whole, "max_whole_digits", "digit"),
+        ):
+            if limit is not None and count > limit:
+                plural = "" if limit == 1 else "s"
+                after = (
+                    " before the decimal point" if code == "max_whole_digits" else ""
+                )
+                return self.fail(path, code, f"at most {limit} {unit}{plural}{after}")
+        return self.bounds(ftype, value, path)
+
+    def binary(self, ftype: FieldType, data: Any, path: str) -> object:
+        found = BASE64.fullmatch(data) if isinstance(data, str) else None
+        raw = None
+        if found is not None and len(data) % 4 == 0:
+            try:
+                raw = base64.b64decode(data, validate=True)
+            except binascii.Error:
+                raw = None
+        if raw is None or base64.b64encode(raw).decode("ascii") != data:
+            return self.fail(path, "bytes", "expected a base64 string")
+        info, size = wire_bounded(ftype).info, len(raw)
+        if info.min_length is not None and size < info.min_length:
+            plural = "" if info.min_length == 1 else "s"
+            return self.fail(
+                path, "min_length", f"at least {info.min_length} byte{plural}"
+            )
+        if info.max_length is not None and size > info.max_length:
+            plural = "" if info.max_length == 1 else "s"
+            return self.fail(
+                path, "max_length", f"at most {info.max_length} byte{plural}"
+            )
+        return raw
 
     def sequence(self, ftype: FieldType, data: Any, path: str) -> object:
         if not isinstance(data, list):

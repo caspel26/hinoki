@@ -1,6 +1,8 @@
 """Valid schema usage: must type-check cleanly under mypy --strict."""
 
+import datetime as dt
 from collections.abc import Iterable
+from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
@@ -37,6 +39,20 @@ class PostPatch(Schema):
 class PostOut(Schema):
     id: UUID
     title: str
+
+
+class Invoice(Schema):
+    total: Annotated[
+        Decimal, Field(ge=Decimal("0.01"), lt=10_000, max_digits=8, decimal_places=2)
+    ]
+    due: dt.date
+    grace: dt.timedelta = dt.timedelta(days=3)
+    scan: Annotated[bytes, Field(max_length=1024)] = b""
+
+
+def invoice_total() -> Decimal:
+    invoice = Invoice(total=Decimal("9.99"), due=dt.date(2026, 12, 1))
+    return invoice.total
 
 
 class VendorWebhook(Schema, config=SchemaConfig(extra=SchemaExtra.IGNORE)):
