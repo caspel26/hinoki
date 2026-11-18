@@ -174,7 +174,7 @@ async def test_list_rows_selects_python_fallback_or_row_wire(
     class APIStub:
         resource = Memos.resource
 
-        async def invoke_hook(self, _name: str, _principal: Any) -> Query:
+        async def call_hook(self, _name: str, _principal: Any) -> Query:
             return query
 
     class Selection:
@@ -227,7 +227,7 @@ async def test_schema_items_gathers_async_hooks() -> None:
             await asyncio.sleep(0)
             return str(row)
 
-        async def invoke_hook(self, _name: str, row: Any) -> str:
+        async def call_hook(self, _name: str, row: Any) -> str:
             return await self.to_schema(row)
 
     assert await crud.schema_items(AsyncSchemaHook(), [1, 2]) == ["1", "2"]  # type: ignore[arg-type]
@@ -243,13 +243,13 @@ async def test_generated_create_and_update_reject_hooks_that_change_owned_values
     class BadCreate:
         resource = Memos.resource
 
-        async def invoke_hook(
+        async def call_hook(
             self, name: str, values: dict[str, Any], _principal: Any
         ) -> Any:
-            assert name == "perform_create"
+            assert name == "store"
             return Memo(id=uuid4(), owner="bob", title=values["title"], body="")
 
-        def validate_hook_item(self, item: Any) -> None:
+        def check_written(self, item: Any) -> None:
             if not isinstance(item, Memo):
                 raise RegistrationError("wrong model")
 
@@ -273,12 +273,12 @@ async def test_generated_create_and_update_reject_hooks_that_change_owned_values
     class BadUpdate:
         resource = Memos.resource
 
-        async def invoke_hook(self, name: str, *_args: Any) -> Any:
+        async def call_hook(self, name: str, *_args: Any) -> Any:
             if name == "get_queryset":
                 return Query()
             return Memo(id=key, owner="bob", title="changed", body="")
 
-        def validate_hook_item(self, item: Any) -> None:
+        def check_written(self, item: Any) -> None:
             if not isinstance(item, Memo):
                 raise RegistrationError("wrong model")
 
@@ -307,14 +307,14 @@ async def test_generated_update_rejects_hook_returning_different_primary_key() -
     class BadUpdate:
         resource = Memos.resource
 
-        async def invoke_hook(self, name: str, *_args: Any) -> Any:
+        async def call_hook(self, name: str, *_args: Any) -> Any:
             return (
                 Query()
                 if name == "get_queryset"
                 else Memo(id=uuid4(), owner="ann", title="changed", body="")
             )
 
-        def validate_hook_item(self, item: Any) -> None:
+        def check_written(self, item: Any) -> None:
             if not isinstance(item, Memo):
                 raise RegistrationError("wrong model")
 
@@ -342,10 +342,10 @@ async def test_generated_delete_race_rechecks_row_and_owner() -> None:
     class DeleteRace:
         resource = Memos.resource
 
-        async def invoke_hook(self, name: str, *_args: Any) -> Any:
-            return False if name == "perform_delete" else Query()
+        async def call_hook(self, name: str, *_args: Any) -> Any:
+            return False if name == "remove" else Query()
 
-        async def refused(self, _item_id: Any, _principal: Any) -> Forbidden:
+        async def refuse(self, _item_id: Any, _principal: Any) -> Forbidden:
             return Forbidden("The item could not be changed.")
 
     with pytest.raises(Forbidden, match="could not be changed"):
@@ -363,7 +363,7 @@ async def test_crud_hook_type_and_legacy_readback_boundaries(
 ) -> None:
     api = Memos()
     with pytest.raises(RegistrationError, match="must return Memo"):
-        api.validate_hook_item(object())
+        api.check_written(object())
 
     class MissingQuery:
         def filter(self, **_conditions: Any) -> MissingQuery:
@@ -375,14 +375,14 @@ async def test_crud_hook_type_and_legacy_readback_boundaries(
     async def missing_hook(_name: str, *_args: Any) -> MissingQuery:
         return MissingQuery()
 
-    monkeypatch.setattr(api, "invoke_hook", missing_hook)
+    monkeypatch.setattr(api, "call_hook", missing_hook)
     with pytest.raises(Memo.NotFound):
-        await api.read_written(uuid4(), Caller(id="ann", user="ann"))
+        await api.reload_written(uuid4(), Caller(id="ann", user="ann"))
 
     class LegacyFallback:
         resource = crud.Resource(model=Memo, read=MemoOut)
 
-        async def invoke_hook(self, _name: str, *_args: Any) -> MissingQuery:
+        async def call_hook(self, _name: str, *_args: Any) -> MissingQuery:
             return MissingQuery()
 
     key = uuid4()
@@ -393,7 +393,7 @@ async def test_crud_hook_type_and_legacy_readback_boundaries(
 
     monkeypatch.setattr(Memo, "aget", get_legacy)
     assert (
-        await crud.CrudAPI.read_written(
+        await crud.CrudAPI.reload_written(
             cast(CrudAPI, LegacyFallback()), key, Caller(id="ann", user="ann")
         )
         is row
@@ -414,17 +414,17 @@ async def test_refused_update_and_owner_race_messages() -> None:
     class APIWithQuery:
         resource = Memos.resource
 
-        async def invoke_hook(self, _name: str, *_args: Any) -> Query:
+        async def call_hook(self, _name: str, *_args: Any) -> Query:
             return Query()
 
     api = cast(CrudAPI, APIWithQuery())
-    owner_refused = await crud.CrudAPI.refused(
+    owner_refused = await crud.CrudAPI.refuse(
         api, item.id, Caller(id="ann", user="ann")
     )
     assert str(owner_refused) == "You cannot change this item."
 
     item.owner = "ann"
-    normal_refused = await crud.CrudAPI.refused(
+    normal_refused = await crud.CrudAPI.refuse(
         api, item.id, Caller(id="ann", user="ann")
     )
     assert str(normal_refused) == "The item could not be changed."
@@ -434,11 +434,11 @@ async def test_refused_update_and_owner_race_messages() -> None:
             return 0
 
     class UpdateAPI:
-        async def refused(self, _item_id: Any, _principal: Any) -> Forbidden:
+        async def refuse(self, _item_id: Any, _principal: Any) -> Forbidden:
             return Forbidden("The item could not be changed.")
 
     with pytest.raises(Forbidden, match="could not be changed"):
-        await crud.CrudAPI.update_item(
+        await crud.CrudAPI.apply_change(
             cast(CrudAPI, UpdateAPI()),
             item,
             cast(Any, FailedUpdate()),
@@ -457,14 +457,14 @@ async def test_sync_custom_hook_requires_request_runner_and_awaits_handoff() -> 
 
     api = SyncHook()
     with pytest.raises(RuntimeError, match="running Hinoki request"):
-        await api.invoke_custom_hook("to_schema", "value")
+        await api.call_custom_hook("to_schema", "value")
 
     async def runner(hook: Any, *args: Any) -> Any:
         return hook(*args)
 
     token = sync_runner.set(runner)
     try:
-        assert await api.invoke_custom_hook("to_schema", "value") == "value"
+        assert await api.call_custom_hook("to_schema", "value") == "value"
     finally:
         sync_runner.reset(token)
 

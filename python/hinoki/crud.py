@@ -223,7 +223,7 @@ class _CrudConfig:
         if self.owner and getattr(row, self.owner) != self.owner_of(principal):
             raise Forbidden("You cannot change this item.")
 
-    async def refused(self, key: Any) -> Forbidden:
+    async def refuse(self, key: Any) -> Forbidden:
         """A write matched no row: 404 if the row is gone or hidden by now,
         otherwise the owner changed under the caller."""
         await self.fetch(key)
@@ -263,13 +263,13 @@ async def list_rows(
     _row_plan: RowWireSelection | None = None,
 ) -> Any:
     if _row_plan is not None and _row_plan.valid_for(self):
-        query = await self.invoke_hook("get_queryset", principal)
+        query = await self.call_hook("get_queryset", principal)
         if not _row_plan.valid_query(query):
             return await python_list_rows(self, query, page)
         if not query.order:
             query = query.order_by(self.resource.model.__primary_key__)
         return await wire_list_rows(self, query, page, _row_plan)
-    query = await self.invoke_hook("get_queryset", principal)
+    query = await self.call_hook("get_queryset", principal)
     return await python_list_rows(self, query, page)
 
 
@@ -317,10 +317,10 @@ async def wire_list_rows(
 async def schema_items(self: CrudAPI, rows: list[Any]) -> list[Any]:
     if inspect.iscoroutinefunction(self.to_schema):
         items = await asyncio.gather(
-            *(self.invoke_hook("to_schema", row) for row in rows)
+            *(self.call_hook("to_schema", row) for row in rows)
         )
     else:
-        items = [await self.invoke_hook("to_schema", row) for row in rows]
+        items = [await self.call_hook("to_schema", row) for row in rows]
     return list(items)
 
 
@@ -328,9 +328,9 @@ async def retrieve_row(
     self: CrudAPI, request: Request, item_id: Any, principal: Any = None
 ) -> Any:
     resource = self.resource
-    query = await self.invoke_hook("get_queryset", principal)
+    query = await self.call_hook("get_queryset", principal)
     item = await query.filter(**{resource.model.__primary_key__: item_id}).aget()
-    return await self.invoke_hook("to_schema", item)
+    return await self.call_hook("to_schema", item)
 
 
 async def create_row(
@@ -346,22 +346,22 @@ async def create_row(
             else derive(principal.user)
         )
     values.update(assigned_values)
-    created = await self.invoke_hook("perform_create", values, principal)
-    self.validate_hook_item(created)
+    created = await self.call_hook("store", values, principal)
+    self.check_written(created)
     if any(getattr(created, key) != value for key, value in assigned_values.items()):
-        raise RegistrationError("perform_create changed a server-assigned field")
+        raise RegistrationError("store changed a server-assigned field")
     key = getattr(created, created.__primary_key__)
-    item = await self.read_written(key, principal)
+    item = await self.reload_written(key, principal)
     if any(getattr(item, name) != value for name, value in assigned_values.items()):
-        raise RegistrationError("perform_create changed a server-assigned field")
-    return await self.invoke_hook("to_schema", item)
+        raise RegistrationError("store changed a server-assigned field")
+    return await self.call_hook("to_schema", item)
 
 
 async def update_row(
     self: CrudAPI, request: Request, item_id: Any, data: Any, principal: Any = None
 ) -> Any:
     resource = self.resource
-    query = await self.invoke_hook("get_queryset", principal)
+    query = await self.call_hook("get_queryset", principal)
     try:
         visible = await query.filter(**{resource.model.__primary_key__: item_id}).aget()
     except resource.model.NotFound:
@@ -376,26 +376,26 @@ async def update_row(
         scoped = scoped.filter(**{resource.owner: resource.owner_of(principal)})
     item = visible
     assigned_before = {name: getattr(item, name) for name in resource.assigned()}
-    updated = await self.invoke_hook("perform_update", item, scoped, values, principal)
-    self.validate_hook_item(updated)
+    updated = await self.call_hook("change", item, scoped, values, principal)
+    self.check_written(updated)
     if getattr(updated, resource.model.__primary_key__) != item_id:
-        raise RegistrationError("perform_update returned a different item")
+        raise RegistrationError("change returned a different item")
     if any(getattr(updated, name) != value for name, value in assigned_before.items()):
-        raise RegistrationError("perform_update changed a server-assigned field")
-    persisted = await self.read_written(item_id, principal)
-    self.validate_hook_item(persisted)
+        raise RegistrationError("change changed a server-assigned field")
+    persisted = await self.reload_written(item_id, principal)
+    self.check_written(persisted)
     if any(
         getattr(persisted, name) != value for name, value in assigned_before.items()
     ):
-        raise RegistrationError("perform_update changed a server-assigned field")
-    return await self.invoke_hook("to_schema", persisted)
+        raise RegistrationError("change changed a server-assigned field")
+    return await self.call_hook("to_schema", persisted)
 
 
 async def delete_row(
     self: CrudAPI, request: Request, item_id: Any, principal: Any = None
 ) -> None:
     resource = self.resource
-    query = await self.invoke_hook("get_queryset", principal)
+    query = await self.call_hook("get_queryset", principal)
     visible = await query.filter(**{resource.model.__primary_key__: item_id}).aget()
     if resource.owner and getattr(visible, resource.owner) != resource.owner_of(
         principal
@@ -405,8 +405,8 @@ async def delete_row(
     if resource.owner:
         scoped = scoped.filter(**{resource.owner: resource.owner_of(principal)})
     item = visible
-    if not await self.invoke_hook("perform_delete", item, scoped, principal):
-        raise await self.refused(item_id, principal)
+    if not await self.call_hook("remove", item, scoped, principal):
+        raise await self.refuse(item_id, principal)
 
 
 def specialize(
@@ -513,11 +513,11 @@ class CrudAPI(API):
             return self.resource.base()
         return self.resource.model.all()
 
-    async def read_written(self, item_id: Any, principal: Any) -> Any:
+    async def reload_written(self, item_id: Any, principal: Any) -> Any:
         """Read back a write, retaining legacy eager-load and hidden-row behavior."""
         key = self.resource.model.__primary_key__
         try:
-            query = await self.invoke_hook("written_queryset", principal)
+            query = await self.call_hook("written_queryset", principal)
             return await query.filter(**{key: item_id}).aget()
         except self.resource.model.NotFound:
             if not isinstance(self.resource, Resource):
@@ -531,17 +531,17 @@ class CrudAPI(API):
             **{name: getattr(item, name) for name in self.resource.read.specs()}
         )
 
-    def validate_hook_item(self, item: Any) -> None:
+    def check_written(self, item: Any) -> None:
         if not isinstance(item, self.resource.model):
             raise RegistrationError(
                 f"CRUD hook must return {self.resource.model.__name__}, got "
                 f"{type(item).__name__}"
             )
 
-    async def refused(self, item_id: Any, principal: Any) -> Forbidden:
+    async def refuse(self, item_id: Any, principal: Any) -> Forbidden:
         """Preserve hidden-row 404s and owner-change 403s after a race."""
         resource = self.resource
-        query = await self.invoke_hook("get_queryset", principal)
+        query = await self.call_hook("get_queryset", principal)
         item = await query.filter(**{resource.model.__primary_key__: item_id}).aget()
         if resource.owner and getattr(item, resource.owner) != resource.owner_of(
             principal
@@ -549,43 +549,43 @@ class CrudAPI(API):
             return Forbidden("You cannot change this item.")
         return Forbidden("The item could not be changed.")
 
-    def perform_create(
+    def store(
         self,
         values: dict[str, Any],
         principal: Any,  # noqa: ARG002
     ) -> Model | Awaitable[Model]:
         return self.resource.model.acreate(**values)
 
-    def perform_update(
+    def change(
         self, item: Any, scoped: QuerySet[Any], values: dict[str, Any], principal: Any
     ) -> Any | Awaitable[Any]:
-        return self.update_item(item, scoped, values, principal)
+        return self.apply_change(item, scoped, values, principal)
 
-    async def update_item(
+    async def apply_change(
         self, item: Any, scoped: QuerySet[Any], values: dict[str, Any], principal: Any
     ) -> Any:
         if values and not await scoped.aupdate(values):
-            raise await self.refused(getattr(item, item.__primary_key__), principal)
+            raise await self.refuse(getattr(item, item.__primary_key__), principal)
         return item
 
-    def perform_delete(
+    def remove(
         self,
         item: Any,  # noqa: ARG002
         scoped: QuerySet[Any],
         principal: Any,  # noqa: ARG002
     ) -> bool | Awaitable[bool]:
-        return self.delete_items(scoped)
+        return self.apply_removal(scoped)
 
-    async def delete_items(self, scoped: QuerySet[Any]) -> bool:
+    async def apply_removal(self, scoped: QuerySet[Any]) -> bool:
         return bool(await scoped.adelete())
 
-    async def invoke_hook(self, name: str, *arguments: Any) -> Any:
+    async def call_hook(self, name: str, *arguments: Any) -> Any:
         """Run overrides as async, or on the bounded executor when sync."""
         if getattr(type(self), name) is getattr(CrudAPI, name):
-            return await self.invoke_default_hook(name, *arguments)
-        return await self.invoke_custom_hook(name, *arguments)
+            return await self.call_default_hook(name, *arguments)
+        return await self.call_custom_hook(name, *arguments)
 
-    async def invoke_default_hook(self, name: str, *arguments: Any) -> Any:
+    async def call_default_hook(self, name: str, *arguments: Any) -> Any:
         result = getattr(self, name)(*arguments)
         if name not in {"get_queryset", "written_queryset"} and inspect.isawaitable(
             result
@@ -593,7 +593,7 @@ class CrudAPI(API):
             return await result
         return result
 
-    async def invoke_custom_hook(self, name: str, *arguments: Any) -> Any:
+    async def call_custom_hook(self, name: str, *arguments: Any) -> Any:
         hook = getattr(self, name)
         if inspect.iscoroutinefunction(hook):
             return await hook(*arguments)

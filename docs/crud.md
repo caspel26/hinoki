@@ -114,7 +114,8 @@ Generated write routes call these overridable hooks inside their transaction.
 Each hook may be a normal `def` or `async def`. Sync hooks run on Hinoki's
 bounded worker executor, where synchronous ORM methods are available; async
 hooks run on the event loop and should use the async ORM methods. This applies
-to `get_queryset`, `written_queryset`, `to_schema`, and each `perform_*` hook.
+to `get_queryset`, `written_queryset`, `to_schema`, `store`, `change` and
+`remove`.
 
 For a synchronous hook, use synchronous ORM methods and return the model:
 
@@ -129,9 +130,7 @@ class Posts(CrudAPI, model=Post, path="/posts"):
     access = editor
     owner = "author_id"
 
-    def perform_create(
-        self, values: dict[str, Any], principal: Caller[Any]
-    ) -> Post:
+    def store(self, values: dict[str, Any], principal: Caller[Any]) -> Post:
         values["slug"] = slug_for(str(values["title"]))
         return Post.create(**values)
 ```
@@ -139,9 +138,7 @@ class Posts(CrudAPI, model=Post, path="/posts"):
 An async hook uses the async ORM method:
 
 ```python
-async def perform_create(
-    self, values: dict[str, Any], principal: Caller[Any]
-) -> Post:
+async def store(self, values: dict[str, Any], principal: Caller[Any]) -> Post:
     values["slug"] = slug_for(str(values["title"]))
     return await Post.acreate(**values)
 ```
@@ -149,8 +146,8 @@ async def perform_create(
 A sync override uses `Post.create(**values)`; it should not call async ORM
 methods or return an un-awaited coroutine.
 
-`perform_update(item, scoped_queryset, values, principal)` and
-`perform_delete(item, scoped_queryset, principal)` receive the target and the
+`change(item, scoped_queryset, values, principal)` and
+`remove(item, scoped_queryset, principal)` receive the target and the
 query already limited by visibility, key and ownership. Call `super()` to keep
 the default scoped database mutation. Hooks may use transactional database
 operations; they do not run after commit, so do not send mail or publish
@@ -184,7 +181,7 @@ subject to these same checks.
 ## Existing `Resource` declarations
 
 Existing pre-alpha `Resource(...)` configurations remain accepted for
-compatibility. Their `queryset=` callback is not caller-aware; `perform_*`
+compatibility. Their `queryset=` callback is not caller-aware; the `store`, `change` and `remove`
 hooks are available on those API subclasses too. For response relations after
 a write that becomes hidden by the old queryset, its fallback read cannot
 preserve eager-loads. Migrate to the class declaration and override
