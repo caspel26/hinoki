@@ -10,6 +10,7 @@ from django_bolt import BoltAPI
 from django_bolt.exceptions import HTTPException
 
 from benchapp.models import Author, Post
+from benchapp.phase1 import register_phase1
 
 api = BoltAPI()
 
@@ -104,3 +105,6 @@ async def create(data: PostIn) -> PostOut:
     )
     post.author = await Author.objects.aget(id=post.author_id)
     return out(post)
+
+
+register_phase1(api)

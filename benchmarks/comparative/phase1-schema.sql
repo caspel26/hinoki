@@ -1,0 +1,7 @@
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
+CREATE TABLE IF NOT EXISTS phase1_posts (
+    id UUID PRIMARY KEY,
+    title VARCHAR(120) NOT NULL,
+    body TEXT NOT NULL
+);
