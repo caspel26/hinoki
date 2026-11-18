@@ -35,7 +35,7 @@ from hinoki.http.request import Request
 from hinoki.pagination import PageNumberPagination, PageParams
 from hinoki.parsers import MultiPartParser, UploadedFile
 from hinoki.routing import Route
-from hinoki.runtime.responsecheck import Check, compile_response_check
+from hinoki.runtime.responsecheck import NO_ANNOTATION, Check, compile_response_check
 from hinoki.schema import Schema
 
 if typing.TYPE_CHECKING:
@@ -205,6 +205,7 @@ class Binding:
     needs_body: bool = False  # a parameter binds the body; decided once in `bind`
     response_schema: type[Schema] | None = None
     response_check: Check | None = field(default=None, repr=False, compare=False)
+    response_annotation: str = field(default="", repr=False, compare=False)
     row_wire: RowWireSelection | None = field(default=None, repr=False, compare=False)
     is_async: bool = field(init=False, repr=False, compare=False)
     native_input_names: tuple[str, ...] = field(init=False, repr=False, compare=False)
@@ -471,6 +472,13 @@ def split_request(
     return takes, rest
 
 
+def describe_annotation(annotation: object) -> str:
+    """The return annotation as written, for error messages."""
+    if annotation is NO_ANNOTATION:
+        return "(none)"
+    return getattr(annotation, "__name__", None) or str(annotation)
+
+
 def bind(route: Route) -> Binding:
     parameters = handler_parameters(route)
     check_owner(route)
@@ -511,10 +519,16 @@ def bind(route: Route) -> Binding:
         else None
     )
     response_check = (
-        compile_response_check(route.name, hints.get("return"))
+        compile_response_check(route.name, hints.get("return", NO_ANNOTATION))
         if route.validate_response
         else None
     )
     return Binding(
-        route, params, takes_request, needs_body, response_schema, response_check
+        route,
+        params,
+        takes_request,
+        needs_body,
+        response_schema,
+        response_check,
+        describe_annotation(hints.get("return", NO_ANNOTATION)),
     )

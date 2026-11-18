@@ -670,10 +670,9 @@ class Pipeline:
         result = await self._handler_result(binding, request, kwargs, row_wire)
         if isinstance(result, HandlerResponse):
             return Response(result.status, result.body, result.headers)
-        if result is not None and route.status not in BODYLESS:
-            result = project_response(binding.response_schema, result)
         enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
+            result = project_response(binding.response_schema, result)
             shown = result if renderer.consumes_objects else encode(result)
             body = renderer.render(shown, request)
             many = len(route.renderers) > 1
@@ -689,10 +688,9 @@ class Pipeline:
         )
         if isinstance(result, HandlerResponse):
             return Response(result.status, result.body, result.headers)
-        if result is not None and route.status not in BODYLESS:
-            result = project_response(binding.response_schema, result)
         enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
+            result = project_response(binding.response_schema, result)
             body = core.encode_json(result, None, False, None)
             return Response.rendered(route.status, body, "application/json", False)
         if route.status == HTTPStatus.OK:
@@ -737,9 +735,11 @@ def enforce_response(binding: Binding, result: object) -> None:
     check = binding.response_check
     if check is None or binding.route.status in BODYLESS or check(result):
         return
+    if binding.response_schema is not None and isinstance(result, Model):
+        return  # a Model is projected through the declared Schema right after
     raise ResponseContractError(
         f"{binding.route.name} returned a {type(result).__name__} that does not "
-        "match its return annotation"
+        f"match its return annotation {binding.response_annotation}"
     )
 
 
