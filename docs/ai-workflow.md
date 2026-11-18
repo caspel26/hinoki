@@ -16,7 +16,7 @@ uv run hinoki new shop --dir ~/projects     # lower-case letters and digits only
 cd ~/projects/shop && uv sync && uv run pytest
 ```
 
-The generated project contains a health route, **rules that are already on** (`HNK-ACC-001` actions name an access policy, `HNK-TXN-001` writes use a transaction, `HNK-SCH-001` fields such as `password_hash` never appear in a response schema), `AGENTS.md` (commands, conventions, and where the agent's authority ends), `CLAUDE.md` (a pointer to it), `.mcp.json` (starts the read-only development MCP) and `hinoki-rules.toml` (the owner's exceptions). The project's own tests pass and `hinoki check` exits 0; the test suite of this repository generates a project and runs both on every change.
+The generated project contains a health route, **rules that are already on** (`HNK-ACC-001` actions name an access policy and `HNK-ACC-002` a permission, `HNK-API-001` and `HNK-API-002` responses are concrete `Schema` types, `HNK-API-003` lists are paginated, `HNK-TXN-001` writes use a transaction, `HNK-SCH-001` fields such as `password_hash` never appear in a response schema, `HNK-SCH-002` request text has a length limit); the two model rules `HNK-DB-001` and `HNK-DB-002` are written in `rules.py` as comments to turn on with your first model, because a model rule that matches no model fails the check, `AGENTS.md` (commands, conventions, and where the agent's authority ends), `CLAUDE.md` (a pointer to it), `.mcp.json` (starts the read-only development MCP) and `hinoki-rules.toml` (the owner's exceptions). The project's own tests pass and `hinoki check` exits 0; the test suite of this repository generates a project and runs both on every change.
 
 ## 2. What the agent gets
 
