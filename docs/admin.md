@@ -6,39 +6,44 @@ status: implemented
 
 The optional `hinoki.admin` module gives staff a list, search, create, edit, bulk delete and a dashboard for your models, with the same access policies and CSRF protection as the rest of the app. It is included in the framework package; nothing is mounted unless you ask, and importing it never touches a database.
 
-The following excerpt follows the [Blog admin module](https://github.com/caspel26/hinoki/blob/main/examples/blog/adminsite.py). The `PostAdmin` class configures the model; `build_admin()` creates the cookie-authenticated `editors` policy, registers the class and returns the `Admin`. The app factory mounts that API. The snippet shows the relevant imports and function context; consult the linked module for the complete cookie-auth implementation.
+The following excerpt follows the [Blog admin module](https://github.com/caspel26/hinoki/blob/main/examples/blog/adminsite.py). `PostAdmin` names its model once and configures how it is shown; `build_admin()` creates the cookie-authenticated `editors` policy and the `Admin` that lists the model admins; the app includes the admin under a `Mount`. The snippet shows the relevant imports and function context; consult the linked module for the complete cookie-auth implementation.
 
 ```python
 from blog.adminsite import CookieAuth
-from blog.models import Post
+from blog.models import Post, User
 from blog.security import WRITE
-from hinoki import Access
-from hinoki.admin import Admin, ModelAdmin, Badge, Tab, Fieldset
+from hinoki import Access, Mount
+from hinoki.admin import Admin, ModelAdmin, Tone, action
 
-class PostAdmin(ModelAdmin[Post]):
-    label = "Posts"
+class PostAdmin(ModelAdmin, model=Post):
     columns = ("title", "published", "author_id", "created_at")
     search = ("title",)
-    ordering = ("-created_at", "-id")
-    bulk_delete = True
     readonly = ("created_at",)
     assign = {"author_id": lambda principal: principal.user.id}   # set by the server
-    badges = {"published": {True: Badge("Published", "ok"), False: Badge("Draft", "warn")}}
-    tabs = (Tab("Published", {"published": True}), Tab("Drafts", {"published": False}))
-    fieldsets = (Fieldset("Organization", ("author_id", "published")),)
+    badges = {"published": {True: ("Published", Tone.OK), False: ("Draft", Tone.WARN)}}
+    tabs = ("published",)                       # one tab for each badge: Published | Draft
+    fieldsets = {"Organization": ("author_id", "published")}
+
+    @action(confirm="Publish the selected posts?")
+    async def publish(self, posts, principal):
+        await Post.filter(id__in=[p.id for p in posts]).aupdate({"published": True})
 
 def build_admin(secret: str, theme: str = "studio") -> Admin:
     editors = Access(auth=CookieAuth(), permissions=[WRITE])
-    admin = Admin(
+    return Admin(
         access=editors,
         secret=secret,
-        prefix="/admin",
         theme=theme,
         site="Blog Studio",
+        models=[PostAdmin, User],               # a ModelAdmin class, or a model for the default admin
     )
-    admin.register(Post, PostAdmin, slug="posts")
-    return admin
+
+app = Hinoki(include=[Mount("/admin", build_admin(secret))])
 ```
+
+A model admin names its model with the class keyword `model=` (`ModelAdmin[Post]` still works; naming two different models is a `RegistrationError`). `Admin(models=[...])` takes model classes, which get the default admin, and `ModelAdmin` classes. The slug of a model is its table name with dashes, or the class attribute `slug = "posts"`. `Admin.register(Post, PostAdmin, slug="posts")` remains available.
+
+Short forms: a badge is `Badge(label, tone, icon)` or the tuple `(label, tone)` / `(label, tone, icon)`; `tabs = ("published",)` makes one tab for each value that `badges` names for that column, labelled with the badge; `fieldsets` may be a dictionary of title to field names. `Tone` (`NEUTRAL`, `ACCENT`, `OK`, `WARN`, `DANGER`, `INFO`) is the color role of badges, stats and events; the matching strings are still accepted.
 
 `search` names the columns the list's search box and the global search look in: a row matches when any of them contains the typed text, compared case-insensitively as text (so a number or date column matches on its printed form). Without `search` the box is inert.
 
@@ -48,31 +53,24 @@ Datetime fields in the admin use the including app's `settings.timezone` (UTC wh
 
 ## Bulk actions
 
-Add an async handler and declare it with `BulkAction` on the model admin. The list shows its action button after rows are selected:
+Add an async method to the model admin and mark it with `@action`. The list shows its action button after rows are selected:
 
 ```python
 from typing import Any
 
 from hinoki import Caller
-from hinoki.admin import BulkAction, ModelAdmin
+from hinoki.admin import ModelAdmin, action
 
 
-async def publish(posts: tuple[Post, ...], _principal: Caller[Any]) -> None:
-    await Post.filter(id__in=[post.id for post in posts]).aupdate(
-        {"published": True}
-    )
-
-
-class PostAdmin(ModelAdmin[Post]):
-    bulk_actions = (
-        BulkAction(
-            name="publish",
-            label="Publish selected",
-            confirm="Publish the selected posts?",
-            handler=publish,
-        ),
-    )
+class PostAdmin(ModelAdmin, model=Post):
+    @action(confirm="Publish the selected posts?")
+    async def publish(self, posts: tuple[Post, ...], principal: Caller[Any]) -> None:
+        await Post.filter(id__in=[post.id for post in posts]).aupdate(
+            {"published": True}
+        )
 ```
+
+`@action` takes an optional label and `confirm`; the name is the method's with `_` written as `-`, and the label defaults to "Publish selected". The earlier form, a `BulkAction(name=..., label=..., confirm=..., handler=...)` in `bulk_actions`, still works.
 
 The action name is also the permission checked by `ModelAdmin.can(principal, name, row)`. Hinoki checks model access before showing the button and checks every selected row against the scoped queryset and row permission both before confirmation and before execution. The confirmation includes the selected row count. If any selected row is unavailable or denied, the whole action is refused. The handler receives only the selected rows and the caller. During execution, Hinoki locks the selected model rows until the action transaction finishes, so another transaction cannot change their row-level authorization fields between the check and the handler's writes. Handlers should still apply their domain conditions to writes, especially when those conditions involve related records or external state.
 
@@ -115,4 +113,4 @@ Pick one with `Admin(theme="bento")`, or build your own: a `Theme` is a set of `
 
 ## Mounting under a prefix
 
-`Admin(prefix="/admin")` sets the admin's own path. The admin can also be included under a `Mount` (`Hinoki(include=[Mount("/ops", admin.api())])`): its links, assets and the CSRF cookie path then use `/ops/admin`, so the pages work at the mounted address.
+Include the admin under a `Mount` to choose where it lives: `Hinoki(include=[Mount("/ops", admin)])` serves it at `/ops`, and its links, assets and the CSRF cookie path use that address. Without a `Mount` the admin is at `/admin`. `Admin(prefix="/staff")` adds a path of its own after the mount (`/ops/staff`). Including `admin.api()` instead keeps the prefix it was built with.
