@@ -6,6 +6,8 @@ from typing import Any
 import pytest
 
 from hinoki import Hinoki, Request, http
+from hinoki.db import UniqueViolation
+from hinoki.errors import Conflict
 from hinoki.runtime.executor import ExecutorSaturated
 from hinoki.runtime.pipeline import Pipeline, native_input_exception
 from hinoki.runtime.responses import Response
@@ -54,6 +56,14 @@ def pipeline() -> Pipeline:
     built = Pipeline(app)
     built.lifespan._started = True  # serve without the lifespan protocol
     return built
+
+
+def test_pipeline_maps_an_unhandled_unique_violation_to_conflict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipeline = Pipeline(Hinoki())
+    monkeypatch.delitem(pipeline.app.errors.defaults, UniqueViolation)
+    assert isinstance(pipeline._default_error(UniqueViolation("duplicate")), Conflict)
 
 
 def header_map(headers: list[tuple[bytes, bytes]]) -> dict[bytes, bytes]:
