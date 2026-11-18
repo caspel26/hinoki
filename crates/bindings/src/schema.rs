@@ -25,7 +25,7 @@ use std::sync::Arc;
 use pyo3::basic::CompareOp;
 use pyo3::exceptions::PyUnicodeEncodeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
+use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString};
 use regex::Regex;
 use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
 use uuid::Uuid;
@@ -33,6 +33,11 @@ use uuid::Uuid;
 use crate::request::{Json, JsonObject};
 
 mod coerce;
+mod scalars;
+
+pub(crate) use scalars::wire_text;
+pub use scalars::wire_text_of;
+use scalars::{ClockTime, DecimalNumber, Duration, DurationError};
 
 pub type SchemaWireNames = Vec<(String, String)>;
 pub type SchemaInstanceFields = Option<(SchemaWireNames, Py<PyAny>)>;
@@ -40,6 +45,8 @@ pub type SchemaInstanceFields = Option<(SchemaWireNames, Py<PyAny>)>;
 const MAX_ERRORS: usize = 50;
 const MAX_KEY_ECHO: usize = 64;
 const MAX_DEPTH: usize = 128;
+/// The digits a `Decimal` field accepts unless it declares `max_digits`.
+const MAX_DECIMAL_DIGITS: i64 = 64;
 
 pub(crate) type Problem = (String, &'static str, String);
 /// The entries of a `dict` input: each key as text (`None` when it is not
@@ -106,8 +113,14 @@ pub(crate) enum Number {
 
 /// A lowered bound and its Python `str()`.
 pub(crate) struct NativeLimit {
-    value: Number,
+    value: LimitValue,
     shown: String,
+}
+
+/// A bound of a number field, or of a `Decimal` field (compared exactly).
+enum LimitValue {
+    Number(Number),
+    Decimal(DecimalNumber),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -130,6 +143,11 @@ enum Kind<R: Rules> {
     Bool,
     Uuid,
     Datetime,
+    Date,
+    Time,
+    Timedelta,
+    Decimal,
+    Bytes,
     List(Box<Node<R>>),
     /// `dict[str, X]`: the key node (always a string) and the value node.
     Map {
@@ -158,6 +176,9 @@ struct Node<R: Rules> {
     gt: Option<R::Limit>,
     lt: Option<R::Limit>,
     one_of: Option<R::Choices>,
+    /// `Decimal` only: the digit counts the written value may have.
+    max_digits: Option<i64>,
+    decimal_places: Option<i64>,
 }
 
 struct Field<R: Rules> {
@@ -215,6 +236,12 @@ pub(crate) enum Validated {
     Datetime(OffsetDateTime),
     /// A datetime without offset (only with `allow_naive_datetime`).
     NaiveDatetime(PrimitiveDateTime),
+    Date(Date),
+    Time(ClockTime),
+    Duration(Duration),
+    /// The decimal text as written (its scale is part of the value).
+    Decimal(String),
+    Bytes(Vec<u8>),
     List(Vec<Validated>),
     /// A schema object, or the entries of a `dict` field in input order.
     Object(Vec<(String, Validated)>),
@@ -276,6 +303,11 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
         "bool" => Kind::Bool,
         "uuid" => Kind::Uuid,
         "datetime" => Kind::Datetime,
+        "date" => Kind::Date,
+        "time" => Kind::Time,
+        "timedelta" => Kind::Timedelta,
+        "decimal" => Kind::Decimal,
+        "bytes" => Kind::Bytes,
         "list" => {
             let inner = item.ok_or_else(|| compile_error("list type without an item type"))?;
             Kind::List(Box::new(parse_node(&inner)?))
@@ -326,6 +358,8 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
         gt: optional_object(&constraints, "gt")?,
         lt: optional_object(&constraints, "lt")?,
         one_of: optional_choices(&constraints)?,
+        max_digits: optional_int(&constraints, "max_digits")?,
+        decimal_places: optional_int(&constraints, "decimal_places")?,
     })
 }
 
@@ -468,6 +502,11 @@ fn lower_kind(py: Python<'_>, kind: &Kind<PyRules>) -> Result<Kind<NativeRules>,
         Kind::Bool => Kind::Bool,
         Kind::Uuid => Kind::Uuid,
         Kind::Datetime => Kind::Datetime,
+        Kind::Date => Kind::Date,
+        Kind::Time => Kind::Time,
+        Kind::Timedelta => Kind::Timedelta,
+        Kind::Decimal => Kind::Decimal,
+        Kind::Bytes => Kind::Bytes,
         Kind::List(item) => Kind::List(Box::new(lower_node(py, item)?)),
         Kind::Map { key, value } => Kind::Map {
             key: Box::new(lower_node(py, key)?),
@@ -491,7 +530,8 @@ fn lower_node(py: Python<'_>, node: &Node<PyRules>) -> Result<Node<NativeRules>,
     let scalar = matches!(kind, Kind::Str | Kind::Int | Kind::Float | Kind::Bool);
     // Only strings consult `pattern` and only numbers their bounds; a
     // constraint the walk never reads needs no Rust equivalent.
-    let numeric = matches!(kind, Kind::Int | Kind::Float);
+    let numeric = matches!(kind, Kind::Int | Kind::Float | Kind::Decimal);
+    let decimal = matches!(kind, Kind::Decimal);
     let pattern = match &node.pattern {
         Some((source, regex)) if matches!(kind, Kind::Str) => {
             Some((lower_pattern(source.bind(py))?, regex.clone()))
@@ -499,6 +539,7 @@ fn lower_node(py: Python<'_>, node: &Node<PyRules>) -> Result<Node<NativeRules>,
         _ => None,
     };
     let limit = |limit: &Option<Py<PyAny>>| match limit {
+        Some(limit) if decimal => lower_decimal_limit(py, limit).map(Some),
         Some(limit) if numeric => lower_limit(py, limit).map(Some),
         _ => Ok(None),
     };
@@ -520,6 +561,8 @@ fn lower_node(py: Python<'_>, node: &Node<PyRules>) -> Result<Node<NativeRules>,
         gt: limit(&node.gt)?,
         lt: limit(&node.lt)?,
         one_of,
+        max_digits: node.max_digits,
+        decimal_places: node.decimal_places,
     })
 }
 
@@ -551,9 +594,53 @@ fn exact_number(value: &Bound<'_, PyAny>) -> Result<Number, Unlowerable> {
 
 fn lower_limit(py: Python<'_>, limit: &Py<PyAny>) -> Result<NativeLimit, Unlowerable> {
     let limit = limit.bind(py);
-    let value = exact_number(limit)?;
+    let value = LimitValue::Number(exact_number(limit)?);
     let shown = limit.str().map_err(|_| Unlowerable)?.to_string();
     Ok(NativeLimit { value, shown })
+}
+
+/// Digits past which a `Decimal` bound is left to Python's own comparison
+/// rather than written out.
+const MAX_LOWERED_DECIMAL_DIGITS: i64 = 1100;
+
+/// A `Decimal` field's bound: an exact `int`, or an exact finite `Decimal`
+/// of moderate size, written out in fixed-point.
+fn lower_decimal_limit(py: Python<'_>, limit: &Py<PyAny>) -> Result<NativeLimit, Unlowerable> {
+    let limit = limit.bind(py);
+    let shown = limit.str().map_err(|_| Unlowerable)?.to_string();
+    let text: String = if limit.is_exact_instance_of::<PyInt>() {
+        shown.clone()
+    } else if limit
+        .get_type()
+        .is(crate::pytypes::decimal_class(py).map_err(|_| Unlowerable)?)
+    {
+        let adjusted: i64 = limit
+            .call_method0("adjusted")
+            .and_then(|v| v.extract())
+            .map_err(|_| Unlowerable)?;
+        if adjusted.abs() > MAX_LOWERED_DECIMAL_DIGITS {
+            return Err(Unlowerable);
+        }
+        let exponent: i64 = limit
+            .call_method0("as_tuple")
+            .and_then(|t| t.getattr("exponent"))
+            .and_then(|v| v.extract())
+            .map_err(|_| Unlowerable)?;
+        if exponent.abs() > MAX_LOWERED_DECIMAL_DIGITS {
+            return Err(Unlowerable);
+        }
+        limit
+            .call_method1("__format__", ("f",))
+            .and_then(|v| v.extract())
+            .map_err(|_| Unlowerable)?
+    } else {
+        return Err(Unlowerable);
+    };
+    let value = DecimalNumber::parse(&text).ok_or(Unlowerable)?;
+    Ok(NativeLimit {
+        value: LimitValue::Decimal(value),
+        shown,
+    })
 }
 
 fn exact_choice(value: &Bound<'_, PyAny>) -> Result<Choice, Unlowerable> {
@@ -730,6 +817,12 @@ trait View {
         data: &Self::Data,
         text: &str,
     ) -> Result<Option<(Self::Out, bool)>, Self::Error>;
+    /// The text of a decimal input: a string as it is, an integer in
+    /// decimal; `None` for anything else. An integer too long for Python to
+    /// print gives a text past every digit limit.
+    fn decimal_text(&self, data: &Self::Data) -> Result<Option<String>, Self::Error>;
+    /// The value of a text the walk has validated as `wire`.
+    fn wire(&self, wire: Wire, text: &str) -> Result<Self::Out, Self::Error>;
     fn list(&self, data: &Self::Data) -> Option<Self::List>;
     fn list_len(&self, list: &Self::List) -> usize;
     fn items(list: &Self::List) -> impl Iterator<Item = Self::Data>;
@@ -778,6 +871,15 @@ trait View {
         &self,
         pattern: &<Self::Rules as Rules>::Pattern,
     ) -> Result<String, Self::Error>;
+}
+
+/// A text the walk has checked as one of the scalar wire forms.
+enum Wire {
+    Date(Date),
+    Time(ClockTime),
+    Duration(Duration),
+    Decimal,
+    Bytes(Vec<u8>),
 }
 
 /// Reads Python objects and builds the Python result (`CompiledSchema.validate`).
@@ -856,6 +958,35 @@ impl<'py> View for PyView<'_, 'py> {
         };
         let naive = parsed.getattr("tzinfo")?.is_none();
         Ok(Some((parsed, naive)))
+    }
+
+    fn decimal_text(&self, data: &Self::Data) -> PyResult<Option<String>> {
+        if let Ok(text) = data.cast::<PyString>() {
+            return Ok(Some(text.to_cow()?.into_owned()));
+        }
+        if !data.is_exact_instance_of::<PyInt>() {
+            return Ok(None);
+        }
+        match data.str() {
+            Ok(text) => Ok(Some(text.to_string())),
+            Err(err) if err.is_instance_of::<pyo3::exceptions::PyValueError>(self.py) => {
+                Ok(Some("9".repeat(scalars::DECIMAL_DIGITS_CEILING + 1)))
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    fn wire(&self, wire: Wire, text: &str) -> PyResult<Self::Out> {
+        let py = self.py;
+        match wire {
+            Wire::Date(_) => crate::pytypes::date_class(py)?.call_method1("fromisoformat", (text,)),
+            Wire::Time(_) => crate::pytypes::time_class(py)?.call_method1("fromisoformat", (text,)),
+            Wire::Duration(span) => {
+                crate::pytypes::timedelta_class(py)?.call1((span.days, span.seconds, span.micros))
+            }
+            Wire::Decimal => crate::pytypes::decimal_class(py)?.call1((text,)),
+            Wire::Bytes(raw) => Ok(PyBytes::new(py, &raw).into_any()),
+        }
     }
 
     fn list(&self, data: &Self::Data) -> Option<Self::List> {
@@ -1230,6 +1361,25 @@ impl<'v> View for JsonView<'v> {
         native_datetime(text).map(Some)
     }
 
+    fn decimal_text(&self, data: &Self::Data) -> Result<Option<String>, Defer> {
+        match data {
+            Json::Str(text) => Ok(Some(text.clone())),
+            Json::Int(int) => Ok(Some(int.to_string())),
+            Json::BigInt(_) => Err(BIG_INTEGER),
+            _ => Ok(None),
+        }
+    }
+
+    fn wire(&self, wire: Wire, text: &str) -> Result<Validated, Defer> {
+        Ok(match wire {
+            Wire::Date(day) => Validated::Date(day),
+            Wire::Time(clock) => Validated::Time(clock),
+            Wire::Duration(span) => Validated::Duration(span),
+            Wire::Decimal => Validated::Decimal(text.to_owned()),
+            Wire::Bytes(raw) => Validated::Bytes(raw),
+        })
+    }
+
     fn list(&self, data: &Self::Data) -> Option<&'v [Json]> {
         match data {
             Json::List(items) => Some(items.as_slice()),
@@ -1326,8 +1476,18 @@ impl<'v> View for JsonView<'v> {
         limit: &NativeLimit,
         op: CompareOp,
     ) -> Result<Option<String>, Defer> {
-        let number = Number::of(value).ok_or(Defer("bound on a non-number"))?;
-        if holds(op, compare_numbers(number, limit.value)) {
+        let order = match (value, &limit.value) {
+            (Validated::Decimal(text), LimitValue::Decimal(bound)) => {
+                let number = DecimalNumber::parse(text).ok_or(Defer("decimal bound"))?;
+                Some(number.cmp(bound))
+            }
+            (_, LimitValue::Number(bound)) => {
+                let number = Number::of(value).ok_or(Defer("bound on a non-number"))?;
+                compare_numbers(number, *bound)
+            }
+            _ => return Err(Defer("bound on a non-number")),
+        };
+        if holds(op, order) {
             return Ok(None);
         }
         Ok(Some(limit.shown.clone()))
@@ -1424,6 +1584,11 @@ impl<'a, V: View> Run<'a, V> {
             Kind::Bool => self.boolean(data, path)?,
             Kind::Uuid => self.uuid(data, path)?,
             Kind::Datetime => self.moment(data, path)?,
+            Kind::Date => self.day(data, path)?,
+            Kind::Time => self.clock(data, path)?,
+            Kind::Timedelta => self.duration(data, path)?,
+            Kind::Decimal => self.decimal(node, data, path)?,
+            Kind::Bytes => self.binary(node, data, path)?,
             Kind::List(item) => self.sequence(node, item, data, path, depth)?,
             Kind::Map { key, value } => self.mapping(node, key, value, data, path, depth)?,
             Kind::Schema(index) => self.schema(*index, data, path, depth)?,
@@ -1606,6 +1771,136 @@ impl<'a, V: View> Run<'a, V> {
             );
         }
         Ok(Some(parsed))
+    }
+
+    fn day(&mut self, data: &V::Data, path: &str) -> Checked<V> {
+        let text = self.plain_text(data);
+        let parsed = text
+            .as_deref()
+            .and_then(|text| scalars::parse_date(text).map(|day| (day, text)));
+        let Some((day, text)) = parsed else {
+            let message = "expected an ISO 8601 date string";
+            return self.fail(path, "date", message.to_owned());
+        };
+        Ok(Some(
+            self.view.wire(Wire::Date(day), text).map_err(Abort::View)?,
+        ))
+    }
+
+    fn clock(&mut self, data: &V::Data, path: &str) -> Checked<V> {
+        let text = self.plain_text(data);
+        let parsed = text
+            .as_deref()
+            .and_then(|text| scalars::parse_time(text).map(|clock| (clock, text)));
+        let Some((clock, text)) = parsed else {
+            let message = "expected an ISO 8601 time string";
+            return self.fail(path, "time", message.to_owned());
+        };
+        if clock.offset.is_none() && !self.options.allow_naive_datetime {
+            return self.fail(path, "time_tz", "time needs a UTC offset".to_owned());
+        }
+        Ok(Some(
+            self.view
+                .wire(Wire::Time(clock), text)
+                .map_err(Abort::View)?,
+        ))
+    }
+
+    fn duration(&mut self, data: &V::Data, path: &str) -> Checked<V> {
+        let text = self.plain_text(data);
+        let parsed = text
+            .as_deref()
+            .map(|text| scalars::parse_duration(text).map(|span| (span, text)));
+        match parsed {
+            Some(Ok((span, text))) => Ok(Some(
+                self.view
+                    .wire(Wire::Duration(span), text)
+                    .map_err(Abort::View)?,
+            )),
+            Some(Err(DurationError::Range)) => self.fail(
+                path,
+                "duration_range",
+                "duration is out of range".to_owned(),
+            ),
+            _ => {
+                let message = "expected an ISO 8601 duration string";
+                self.fail(path, "duration", message.to_owned())
+            }
+        }
+    }
+
+    fn decimal(&mut self, node: &Node<V::Rules>, data: &V::Data, path: &str) -> Checked<V> {
+        let text = self.view.decimal_text(data).map_err(Abort::View)?;
+        let parsed = text
+            .as_deref()
+            .and_then(|text| scalars::decimal_shape(text).map(|shape| (shape, text)));
+        let Some((shape, text)) = parsed else {
+            let message = "expected a decimal string or an integer";
+            return self.fail(path, "decimal", message.to_owned());
+        };
+        if !self.decimal_digits(node, shape, path)? {
+            return Ok(None);
+        }
+        let value = self.view.wire(Wire::Decimal, text).map_err(Abort::View)?;
+        self.bounds(node, value, path)
+    }
+
+    /// Whether a decimal has no more digits, decimal places and whole digits
+    /// than the node allows; reports the first limit it breaks at `path`.
+    fn decimal_digits(
+        &mut self,
+        node: &Node<V::Rules>,
+        shape: scalars::DecimalShape,
+        path: &str,
+    ) -> Result<bool, Abort<V::Error>> {
+        let most = node.max_digits.unwrap_or(MAX_DECIMAL_DIGITS);
+        let whole = node.decimal_places.map(|places| most - places);
+        let tests = [
+            (shape.digits, Some(most), "max_digits", "digit", ""),
+            (
+                shape.places,
+                node.decimal_places,
+                "decimal_places",
+                "decimal place",
+                "",
+            ),
+            (
+                shape.digits.saturating_sub(shape.places),
+                whole,
+                "max_whole_digits",
+                "digit",
+                " before the decimal point",
+            ),
+        ];
+        for (count, limit, code, unit, after) in tests {
+            let count = i64::try_from(count).unwrap_or(i64::MAX);
+            let Some(limit) = limit.filter(|limit| count > *limit) else {
+                continue;
+            };
+            let plural = if limit == 1 { "" } else { "s" };
+            let message = format!("at most {limit} {unit}{plural}{after}");
+            self.fail(path, code, message)?;
+            return Ok(false);
+        }
+        Ok(true)
+    }
+
+    fn binary(&mut self, node: &Node<V::Rules>, data: &V::Data, path: &str) -> Checked<V> {
+        let text = self.plain_text(data);
+        let decoded = text
+            .as_deref()
+            .and_then(|text| scalars::decode_base64(text).map(|raw| (raw, text)));
+        let Some((raw, text)) = decoded else {
+            return self.fail(path, "bytes", "expected a base64 string".to_owned());
+        };
+        if !self.length(node, raw.len(), path, "byte")? {
+            return Ok(None);
+        }
+        Ok(Some(
+            self.view
+                .wire(Wire::Bytes(raw), text)
+                .map_err(Abort::View)?,
+        ))
     }
 
     fn sequence(
@@ -2336,6 +2631,11 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
                     .call(moment(local), Some(&keywords))
                     .unwrap()
             }
+            Validated::Date(_)
+            | Validated::Time(_)
+            | Validated::Duration(_)
+            | Validated::Decimal(_)
+            | Validated::Bytes(_) => python_wire_value(py, value),
             Validated::List(items) => {
                 let list = PyList::empty(py);
                 for item in items {
@@ -2350,6 +2650,59 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
                 }
                 dict.into_any()
             }
+        }
+    }
+
+    /// The Python object for a date, time, duration, decimal or bytes value.
+    fn python_wire_value<'py>(py: Python<'py>, value: &Validated) -> Bound<'py, PyAny> {
+        let datetime = py.import("datetime").unwrap();
+        match value {
+            Validated::Date(day) => datetime
+                .getattr("date")
+                .unwrap()
+                .call1((day.year(), u8::from(day.month()), day.day()))
+                .unwrap(),
+            Validated::Time(clock) => {
+                let zone = clock.offset.map_or_else(
+                    || py.None().into_bound(py),
+                    |seconds| {
+                        let delta = datetime
+                            .getattr("timedelta")
+                            .unwrap()
+                            .call1((0, seconds))
+                            .unwrap();
+                        datetime
+                            .getattr("timezone")
+                            .unwrap()
+                            .call1((delta,))
+                            .unwrap()
+                    },
+                );
+                let keywords = PyDict::new(py);
+                keywords.set_item("tzinfo", zone).unwrap();
+                datetime
+                    .getattr("time")
+                    .unwrap()
+                    .call(
+                        (clock.hour, clock.minute, clock.second, clock.micro),
+                        Some(&keywords),
+                    )
+                    .unwrap()
+            }
+            Validated::Duration(span) => datetime
+                .getattr("timedelta")
+                .unwrap()
+                .call1((span.days, span.seconds, span.micros))
+                .unwrap(),
+            Validated::Decimal(text) => py
+                .import("decimal")
+                .unwrap()
+                .getattr("Decimal")
+                .unwrap()
+                .call1((text,))
+                .unwrap(),
+            Validated::Bytes(raw) => PyBytes::new(py, raw).into_any(),
+            _ => unreachable!("not a wire value"),
         }
     }
 
@@ -3183,6 +3536,9 @@ fn convert_json_object<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, Py
         .is(crate::pytypes::datetime_class(value.py())?)
     {
         return value.call_method0("isoformat");
+    }
+    if let Some(text) = wire_text(value)? {
+        return Ok(pyo3::types::PyString::new(value.py(), &text).into_any());
     }
     if value.hasattr("dump")? {
         return value.call_method0("dump");

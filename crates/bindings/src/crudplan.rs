@@ -631,7 +631,7 @@ fn validate_column_subset(
 }
 
 fn validate_model_fields(fields: &[(String, String, bool)], columns: &[String]) -> PyResult<()> {
-    let supported = ["str", "int", "float", "bool", "uuid", "datetime"];
+    let supported = ["str", "int", "float", "bool", "uuid", "datetime", "bytes"];
     let names: std::collections::HashSet<_> = fields.iter().map(|(name, _, _)| name).collect();
     if fields.len() != columns.len()
         || names.len() != fields.len()
