@@ -75,9 +75,11 @@ from hinoki.orm import (
     current_database,
     field,
     foreign_key,
+    timestamps,
     use_database,
 )
 from hinoki.settings import AppSettings
+from hinoki.utils import utc_now
 from tests.harness import Client, Pool
 from tests.providers import TokenAuth
 
@@ -1971,3 +1973,62 @@ async def test_an_action_method_confirms_and_runs_like_a_bulk_action(
     assert done.status == 303
     rows = await db.fetch("SELECT done FROM admin_notes")
     assert [row["done"] for row in rows] == [True]
+
+
+# --- automatic defaults --------------------------------------------------
+
+
+@timestamps()
+class Stamped(Model, table="admin_stamped"):
+    id: int = field(primary_key=True)
+    name: str = field(max_length=20)
+    note: str = ""
+    code: str = field(default="x", max_length=5)
+    secret: str = ""
+    count: int = 0
+    updated_at: datetime.datetime = field(default_factory=utc_now)
+
+
+class PlainStampedAdmin(ModelAdmin, model=Stamped):  # type: ignore[type-arg]
+    exclude = ("secret",)
+
+
+def test_a_model_admin_with_no_settings_gets_working_defaults() -> None:
+    admin = Admin(access=staff, secret=SECRET, models=[PlainStampedAdmin])
+    entry = admin.models["admin-stamped"]
+    assert entry.search == ("name", "note", "code")  # first three shown text columns
+    assert "secret" not in entry.search and "count" not in entry.search
+    assert entry.modified_field == "updated_at"
+    assert (entry.per_page, entry.show_count, entry.bulk_delete) == (20, False, True)
+
+
+def test_explicit_settings_win_over_the_defaults() -> None:
+    class Own(ModelAdmin, model=Stamped):  # type: ignore[type-arg]
+        search = ("note",)
+        modified_field = "name"
+        per_page = 5
+        show_count = True
+        bulk_delete = False
+
+    site = Admin(access=staff, secret=SECRET, per_page=50, show_count=True)
+    site.register(Stamped, Own)
+    entry = site.models["admin-stamped"]
+    assert (entry.search, entry.modified_field) == (("note",), "name")
+    assert (entry.per_page, entry.show_count, entry.bulk_delete) == (5, True, False)
+    inherited = Admin(access=staff, secret=SECRET, per_page=50, show_count=True)
+    inherited.register(Stamped)
+    assert (inherited.models["admin-stamped"].per_page, True) == (50, True)
+    assert inherited.models["admin-stamped"].show_count is True
+
+
+def test_search_defaults_never_reach_columns_the_list_does_not_show() -> None:
+    class Narrow(ModelAdmin, model=Stamped):  # type: ignore[type-arg]
+        columns = ("count", "name")
+
+    entry = Admin(access=staff, secret=SECRET, models=[Narrow]).models["admin-stamped"]
+    assert entry.search == ("name",)
+
+
+def test_a_model_without_timestamps_has_no_modified_line() -> None:
+    entry = Admin(access=staff, secret=SECRET, models=[Owner]).models["admin-owners"]
+    assert entry.modified_field == ""
