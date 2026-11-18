@@ -328,7 +328,11 @@ tests for MySQL and MariaDB also use <code>HINOKI_TEST_MYSQL_URL</code> and
 <code>HINOKI_TEST_MARIADB_URL</code>. CI provides disposable real-server services.
 The native CRUD differential test build enables the private <code>sql-trace</code> Cargo
 feature so it can compare SQL text, parameters and order for both request lanes;
-ordinary wheels are built without that feature.
+ordinary wheels are built without that feature. Build it into the environment
+with <code>uv run --no-sync --with "maturin&gt;=1.9.4,&lt;2" maturin develop --manifest-path crates/bindings/Cargo.toml --features sql-trace</code>.
+Without it those tests skip; set <code>HINOKI_REQUIRE_SQL_TRACE=1</code> (CI does) to make
+a missing trace build fail them instead. The CI Rust job also runs
+<code>cargo clippy -p hinoki-bindings --all-targets --features sql-trace -- -D warnings</code>.
 Generated OpenAPI is validated with <code>openapi-spec-validator</code> inside the Python
 tests. The retained <a href="../benchmarks/">benchmark report</a> has reproducible
 end-to-end measurements, but benchmark runs are separate from the default CI
@@ -423,7 +427,7 @@ test gate.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>6.6</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:12:37 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 02:16:13 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/toolchain.md">Edit on GitHub</a></dd></div>
         </dl>
