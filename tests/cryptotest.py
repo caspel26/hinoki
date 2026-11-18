@@ -273,9 +273,20 @@ async def test_duplicate_header_and_claim_keys_are_refused() -> None:
     )
 
 
-async def test_leeway_is_capped_and_audience_lists_work() -> None:
+def test_a_leeway_beyond_the_bound_is_refused_when_the_provider_is_built() -> None:
+    for leeway in (-1, 121, 10_000):
+
+        class Slack(Tokens):
+            pass
+
+        Slack.leeway = leeway
+        with pytest.raises(ValueError, match="leeway must be between 0 and 120"):
+            Slack()
+
+
+async def test_leeway_and_audience_lists_work() -> None:
     class Slack(Tokens):
-        leeway = 10_000  # capped at 120 seconds
+        leeway = 120
 
     expired = oracle_hs256({**GOOD, "exp": 800, "aud": ["x", "blog"]}, kid="k1")
     assert not await verdict(expired, Slack())
