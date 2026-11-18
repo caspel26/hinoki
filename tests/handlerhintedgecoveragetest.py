@@ -83,7 +83,7 @@ def test_pre_314_hint_resolution_preserves_original_resolution_error(
     def endpoint(value: Any) -> None:
         return None
 
-    def unresolved(_handler: Any) -> dict[str, Any]:
+    def unresolved(_handler: Any, **_options: Any) -> dict[str, Any]:
         raise NameError("unknown annotation")
 
     monkeypatch.setitem(

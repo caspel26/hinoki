@@ -83,7 +83,28 @@ async def get_task(request: Request, task_id: UUID) -> TaskView:
     return TaskView(id=task_id, locale=locale)
 ```
 
-Request path, query and body values are validated before the handler runs; a Schema body uses `Schema.validate()` and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper Schema field (`Annotated[Cat | Dog, Field(discriminator="kind")]`); bare union body parameters are not supported. Hinoki does not coerce input values into different types. Return annotations describe OpenAPI and output serialization. When the annotation is one concrete Schema (also inside `Annotated[...]`), a directly returned Model is projected through that Schema, and an instance of a subclass is sent with only the declared Schema's fields; a row that fails the Schema's constraints is a `500 internal_error`, not a client error. Other response values, such as a returned `dict`, are sent unchanged and are not validated at runtime ([details](model-schemas.md#return-a-model-from-a-schema-annotated-handler)). Use a wrapper Schema for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.
+Request path, query and body values are validated before the handler runs; a Schema body uses `Schema.validate()` and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper Schema field (`Annotated[Cat | Dog, Field(discriminator="kind")]`); bare union body parameters are not supported. Hinoki does not coerce input values into different types, with one explicit exception: a `Form[Schema]` body ([text sources](#form-bodies)). Return annotations describe OpenAPI and output serialization. When the annotation is one concrete Schema (also inside `Annotated[...]`), a directly returned Model is projected through that Schema, and an instance of a subclass is sent with only the declared Schema's fields; a row that fails the Schema's constraints is a `500 internal_error`, not a client error. Other response values, such as a returned `dict`, are sent unchanged and are not validated at runtime ([details](model-schemas.md#return-a-model-from-a-schema-annotated-handler)). Use a wrapper Schema for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.
+
+## Form bodies
+
+A plain `Schema` parameter is a strict JSON body. Wrap it in `Form[...]` to read the same `Schema` from a form, whose values are all text:
+
+```python
+from hinoki import Form, Schema, http
+
+
+class Signup(Schema):
+    name: str
+    age: int
+    tags: list[int] = []
+
+
+@http.post("/signup")
+def signup(data: Form[Signup]) -> dict[str, int]:
+    return {"age": data.age}  # name=Ada&age=36&tags=1&tags=2
+```
+
+Before validation, text is converted to the `int`, `float` and `bool` the `Schema` declares (and a lone value of a `list` field becomes a one-item list); `Schema` and JSON stay strict. A value that does not convert, or several values for a scalar, fails with the normal `422` type error. Empty text is not turned into `None`, and nested `Schema` fields are not read from form keys. An action with a `Form[...]` parameter and no `parsers=` uses `FormParser` (add `MultiPartParser()` explicitly for multipart text fields). `Form[...]` is valid only for the `Schema` body of a POST, PUT, PATCH or QUERY action, takes only form parsers (a JSON body needs a plain `Schema` parameter, so one cannot be coerced by mistake), and appears in OpenAPI as `application/x-www-form-urlencoded`.
 
 ## Upload files
 
