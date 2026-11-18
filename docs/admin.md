@@ -27,21 +27,17 @@ class PostAdmin(ModelAdmin, model=Post):
     async def publish(self, posts, principal):
         await Post.filter(id__in=[p.id for p in posts]).aupdate({"published": True})
 
-def build_admin(secret: str, theme: str = "studio") -> Admin:
+def build_admin(theme: str = "studio") -> Admin:
     editors = Access(auth=CookieAuth(), permissions=[WRITE])
-    return Admin(
-        access=editors,
-        secret=secret,
-        theme=theme,
-        site="Blog Studio",
-        per_page=8,
-        models=[PostAdmin, User],               # a ModelAdmin class, or a model for the default admin
-    )
+    site = Admin(access=editors, theme=theme, site="Blog Studio", per_page=8)
+    site.register(PostAdmin)                    # a customised admin ...
+    site.register(User)                         # ... or a model, for the default admin
+    return site
 
-app = Hinoki(include=[Mount("/admin", build_admin(secret))])
+app = Hinoki(settings=BlogSettings.load(), include=[Mount("/admin", build_admin())])
 ```
 
-A model admin names its model with the class keyword `model=` (`ModelAdmin[Post]` still works; naming two different models is a `RegistrationError`). `Admin(models=[...])` takes model classes, which get the default admin, and `ModelAdmin` classes. The slug of a model is its table name with dashes, or the class attribute `slug = "posts"`. `Admin.register(Post, PostAdmin, slug="posts")` remains available.
+A model admin names its model with the class keyword `model=` (`ModelAdmin[Post]` still works; naming two different models is a `RegistrationError`). `site.register(...)` takes a `ModelAdmin` class, which names its model, or a model class, which gets the default admin; it returns what it was given, so `@site.register` also works as a class decorator. The site signs its forms with `security.secret` from the app's settings (`PREFIX_SECURITY__SECRET`, at least 32 bytes); `Admin(secret=...)` overrides it for one site, and an admin with neither stops the app at startup. The slug of a model is its table name with dashes, or the class attribute `slug = "posts"`. `site.register(Post, PostAdmin, slug="posts")` remains available.
 
 Short forms: a badge is `Badge(label, tone, icon)` or the tuple `(label, tone)` / `(label, tone, icon)`; `tabs = ("published",)` makes one tab for each value that `badges` names for that column, labelled with the badge; `fieldsets` may be a dictionary of title to field names. `Tone` (`NEUTRAL`, `ACCENT`, `OK`, `WARN`, `DANGER`, `INFO`) is the color role of badges, stats and events; the matching strings are still accepted.
 
@@ -53,7 +49,7 @@ Datetime fields in the admin use the including app's `settings.timezone` (UTC wh
 
 ## What needs no configuration
 
-A model admin states only what the model does not already say. Without being declared: the label and plural come from the model, the list's order from the model's `@ordered_by`, the "last modified" line from its `@timestamps` column, text search from the first three shown text columns, and a bulk delete wherever `can(principal, "delete")` allows it (set `bulk_delete = False` to remove it). `Admin(per_page=20, show_count=False)` sets the page size and whether the sidebar shows row counts for every model, and a model admin overrides either with its own `per_page` or `show_count`. A model with no configuration at all is `Admin(models=[Post])`.
+A model admin states only what the model does not already say. Without being declared: the label and plural come from the model, the list's order from the model's `@ordered_by`, the "last modified" line from its `@timestamps` column, text search from the first three shown text columns, and a bulk delete wherever `can(principal, "delete")` allows it (set `bulk_delete = False` to remove it). `Admin(per_page=20, show_count=False)` sets the page size and whether the sidebar shows row counts for every model, and a model admin overrides either with its own `per_page` or `show_count`. A model with no configuration at all is `site.register(Post)`.
 
 ## Bulk actions
 
