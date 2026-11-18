@@ -6,6 +6,8 @@ from typing import Any
 
 import pytest
 
+from hinoki.admin.modeladmin import ModelAdmin
+from hinoki.auth import Caller
 from hinoki.db import Database, DatabaseError
 from hinoki.errors import FieldError
 from hinoki.fields import UNSET
@@ -244,3 +246,24 @@ async def test_bulk_updates_run_no_hooks(database: Database) -> None:
     await Entry.filter(id=1).aupdate({"title": "Bulk"})
 
     assert LOG == []
+
+
+async def test_the_admin_save_runs_the_hooks_on_create_and_update(
+    database: Database,
+) -> None:
+    class EntryAdmin(ModelAdmin[Entry]):
+        pass
+
+    admin = EntryAdmin()
+    admin.model = Entry
+    principal = Caller(id="admin", user="admin")
+
+    created = await admin.save({"id": 1, "title": "Made In Admin"}, principal)
+    assert created.slug == "made-in-admin"
+    LOG.clear()
+
+    saved = await admin.save({"title": "Edited"}, principal, created)
+
+    assert saved.slug == "edited"
+    assert LOG == ["before_save new=False", "after_save changes=['slug', 'title']"]
+    assert (await rows(database))[0]["slug"] == "edited"
