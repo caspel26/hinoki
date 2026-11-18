@@ -427,6 +427,14 @@ them with <code>uv run --project ..</code> to use the locked environment at the 
 <td>Add a registered modular app with its own models, routes and migration package.</td>
 </tr>
 <tr>
+<td><code>hinoki admin create-superuser NAME</code></td>
+<td>Create an admin user that holds every permission; the password is read without echo (or one line from stdin with <code>--password-stdin</code>).</td>
+</tr>
+<tr>
+<td><code>hinoki admin set-password NAME</code></td>
+<td>Change an admin user's password and end their sessions.</td>
+</tr>
+<tr>
 <td><code>hinoki app add NAME --models MODULE</code></td>
 <td>Register an existing package as an app in <code>hinoki.toml</code> without creating files.</td>
 </tr>
@@ -554,6 +562,12 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>list<span class="w"> </span>--format<span class="w"> </span>json
 </code></pre></div>
 <p>The text output shows each app in dependency order with its model module, migration package, routes and prefix, and prerequisites. JSON contains the same fields under an <code>apps</code> key (<code>routes</code> and <code>prefix</code> are empty strings for an app without routes). The command only reads and validates <code>hinoki.toml</code>: it does not import app modules, connect to a database or start the app. Without a manifest, it prints an error and exits 2.</p>
+<h3 id="admin"><code>admin</code><a class="headerlink" href="#admin" title="Permanent link">&para;</a></h3>
+<p>The admin's own users are managed from the admin itself, except the first one:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span class="w"> </span>ada<span class="w">            </span><span class="c1"># asks for the password twice, no echo</span>
+<span class="nb">printf</span><span class="w"> </span><span class="s1">'%s\n'</span><span class="w"> </span><span class="s2">"</span><span class="nv">$ADA_PASSWORD</span><span class="s2">"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>admin<span class="w"> </span>set-password<span class="w"> </span>ada<span class="w"> </span>--password-stdin
+</code></pre></div>
+<p>A password is read from a terminal prompt or, with <code>--password-stdin</code>, from one line of standard input; it is never taken from the command line, where other users of the machine could read it, and it is never printed. Without a terminal and without the flag the command stops; with the flag on a terminal it still prompts without echo, and a line longer than a password can be is refused unread. Ctrl-C or Ctrl-D at the prompt exits with status <code>2</code>, and a refused connection is reported as such (status <code>1</code>), not as missing tables. The database is <code>HINOKI_DATABASE_URL</code>, <code>--database</code>, or the project's local SQLite, as for <code>hinoki migrations</code>. The user tables must exist: register and apply them first (<code>hinoki app add admin ...</code>, <code>hinoki migrations apply admin</code>, see <a href="../admin/#who-may-sign-in">who may sign in</a>); otherwise the command exits 1 and says so. Usernames are lower-cased; the shortest password is <code>admin.min_password_length</code>. Exit status is <code>0</code> on success, <code>2</code> for a refused input (a taken name, a weak or mistyped password, an unknown user).</p>
 <h3 id="dev-and-serve"><code>dev</code> and <code>serve</code><a class="headerlink" href="#dev-and-serve" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>dev<span class="w"> </span>notes.main:app<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">8000</span>
 hinoki<span class="w"> </span>serve<span class="w"> </span>notes.main:app<span class="w"> </span>--workers<span class="w"> </span><span class="m">4</span>
@@ -738,7 +752,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class=
           
           
             <ul><li><a href="#commands-and-options">Commands and options</a>
-            <ul><li><a href="#doctor">doctor</a></li><li><a href="#new">new</a></li><li><a href="#app">app</a></li><li><a href="#dev-and-serve">dev and serve</a></li><li><a href="#check">check</a></li><li><a href="#openapi">openapi</a></li><li><a href="#version">version</a></li><li><a href="#settings">settings</a></li><li><a href="#manage">manage</a></li><li><a href="#shell">shell</a></li><li><a href="#migrations">migrations</a></li><li><a href="#mcp">mcp</a></li></ul>
+            <ul><li><a href="#doctor">doctor</a></li><li><a href="#new">new</a></li><li><a href="#app">app</a></li><li><a href="#admin">admin</a></li><li><a href="#dev-and-serve">dev and serve</a></li><li><a href="#check">check</a></li><li><a href="#openapi">openapi</a></li><li><a href="#version">version</a></li><li><a href="#settings">settings</a></li><li><a href="#manage">manage</a></li><li><a href="#shell">shell</a></li><li><a href="#migrations">migrations</a></li><li><a href="#mcp">mcp</a></li></ul>
           </li><li><a href="#import-target-examples">Import target examples</a></li></ul>
           
         </nav>
@@ -746,8 +760,8 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class=
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 09:41:34 UTC">November 18, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>13 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 12:42:07 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>15 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

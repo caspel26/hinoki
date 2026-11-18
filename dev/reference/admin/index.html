@@ -317,6 +317,28 @@
 
 
 
+<h3 id="hinoki.admin.Admin.users" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">users</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.admin.Admin.users" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">users</span> <span class="o">=</span> <span class="n">users</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="hinoki.admin.Admin.access" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">access</span>
 
@@ -326,7 +348,10 @@
   </span>
 
 <a href="#hinoki.admin.Admin.access" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">access</span> <span class="o">=</span> <span class="n">access</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">=</span> <span class="n">access</span> <span class="ow">or</span> <span class="n">Access</span><span class="p">(</span>
+    <span class="n">auth</span><span class="o">=</span><span class="n">AdminSessionAuth</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span>
+    <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">BASE_PERMISSION</span><span class="p">],</span>
+<span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -801,6 +826,28 @@
 
 
 
+<h3 id="hinoki.admin.Admin.manage_users" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">manage_users</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.admin.Admin.manage_users" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">manage_users</span> <span class="o">=</span> <span class="n">manage_users</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="hinoki.admin.Admin.digests" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">digests</span>
 
@@ -836,6 +883,28 @@
 
 <a href="#hinoki.admin.Admin.csrf" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">csrf</span><span class="p">:</span> <span class="n">Csrf</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.admin.Admin.accounts" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">accounts</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.admin.Admin.accounts" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">accounts</span><span class="p">:</span> <span class="n">AdminAccounts</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -906,7 +975,9 @@ mounted and names no prefix, <code>/admin</code> when it is included as it is.</
 <a href="#hinoki.admin.Admin.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span>
     <span class="o">*</span><span class="p">,</span>
-    <span class="n">access</span><span class="p">:</span> <span class="n">Access</span><span class="p">,</span>
+    <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">users</span><span class="p">:</span> <span class="n">AdminAccounts</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">manage_users</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">secret</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">theme</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Theme</span> <span class="o">=</span> <span class="s2">"studio"</span><span class="p">,</span>
@@ -938,17 +1009,18 @@ mounted and names no prefix, <code>/admin</code> when it is included as it is.</
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.admin.Admin.bind_secret" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">bind_secret</span>
+<h3 id="hinoki.admin.Admin.bind_settings" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">bind_settings</span>
 
 
-<a href="#hinoki.admin.Admin.bind_secret" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">bind_secret</span><span class="p">(</span><span class="n">secret</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<a href="#hinoki.admin.Admin.bind_settings" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">bind_settings</span><span class="p">(</span><span class="n">settings</span><span class="p">:</span> <span class="n">AdminSettings</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Use the app's <code>admin.secret</code> unless the admin was given its own.</p>
+        <p>Use the app's <code>admin</code> settings: the secret (unless the admin was given
+its own) and the session and password rules of its own users.</p>
 
 
     </div>
@@ -1020,6 +1092,30 @@ site.register(User)                            # the default admin
 <div class="doc doc-object doc-function">
 
 
+<h3 id="hinoki.admin.Admin.refuse_own_tables" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">refuse_own_tables</span>
+
+
+<a href="#hinoki.admin.Admin.refuse_own_tables" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">refuse_own_tables</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">],</span> <span class="n">admin</span><span class="p">:</span> <span class="nb">object</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The admin's own account tables are managed by the Users section only: a
+plain model admin would show the password hash and let a grant holder edit
+who is a superuser.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="hinoki.admin.Admin.admin" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">admin</span>
 
@@ -1070,6 +1166,27 @@ is a <code>RegistrationError</code>.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="hinoki.admin.Admin.holds_no_connection" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">holds_no_connection</span>
+
+
+<a href="#hinoki.admin.Admin.holds_no_connection" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">holds_no_connection</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Routes that may hash a password take no route-wide transaction, so no
+connection waits on Argon2; their writes open their own, short one.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="hinoki.admin.Admin.api" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">api</span>
 
@@ -1081,6 +1198,65 @@ is a <code>RegistrationError</code>.</p>
     <div class="doc doc-contents ">
 
         <p>The <code>API</code> class to <code>include</code> in the application.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.admin.Admin.add_user_admin" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">add_user_admin</span>
+
+
+<a href="#hinoki.admin.Admin.add_user_admin" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">add_user_admin</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Register the Users section last, after the application's own models.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.admin.Admin.check_dashboard" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">check_dashboard</span>
+
+
+<a href="#hinoki.admin.Admin.check_dashboard" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">check_dashboard</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.admin.Admin.route_options" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">route_options</span>
+
+
+<a href="#hinoki.admin.Admin.route_options" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">route_options</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">write</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Options</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The options of one admin view: public views name no access policy, and
+the views that hash a password take the sign-in rate limit.</p>
 
 
     </div>
@@ -1589,6 +1765,51 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
 
 
 
+<h3 id="hinoki.admin.ModelAdmin.extra_fields" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">extra_fields</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.admin.ModelAdmin.extra_fields" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">extra_fields</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Extra</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.admin.ModelAdmin.site" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">site</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.admin.ModelAdmin.site" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">site</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="hinoki.admin.ModelAdmin.tab_list" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">tab_list</span>
 
@@ -1664,6 +1885,50 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
 </code></pre></div>
 
     <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.admin.ModelAdmin.extras" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">extras</span>
+
+
+<a href="#hinoki.admin.ModelAdmin.extras" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">extras</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Extra</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The form fields that are not columns (<code>extra_fields</code> by default).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.admin.ModelAdmin.extra_initial" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">extra_initial</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.admin.ModelAdmin.extra_initial" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">extra_initial</span><span class="p">(</span><span class="n">row</span><span class="p">:</span> <span class="n">M</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>What the extra fields show for <code>row</code> on the edit form.</p>
 
 
     </div>
@@ -2357,6 +2622,92 @@ an explicit <code>data-mode</code> and the theme's default mode.</p>
 
 
 
+<h2 id="hinoki.admin.Extra" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.admin.Extra</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.admin.Extra" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A form field that is not a column of the model.</p>
+<p><code>kind</code> is <code>"password"</code> (a masked input that is never filled in again) or
+<code>"choices"</code> (a set of checkboxes: <code>choices</code> are <code>(value, label)</code> pairs
+and the submitted value is a <code>frozenset</code> of the checked ones). The values
+reach <code>ModelAdmin.check</code> and <code>save</code> next to the model's own columns.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.admin.Refusal" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.admin.Refusal</span>
+
+
+<a href="#hinoki.admin.Refusal" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="Exception">Exception</span></code></p>
+
+
+
+        <p>A write the admin refuses with a message meant for the person: raised from
+<code>save</code> or <code>remove</code>, it is shown on the form and rolls the write back.</p>
+
+
+
+
+
+
+
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
 <h2 id="hinoki.admin.Event" class="doc doc-heading">
             <span class="doc doc-object-name doc-class-name">hinoki.admin.Event</span>
 
@@ -2545,19 +2896,19 @@ sparkline; without data there is no chart.</p>
           
           
             <ul><li><a href="#hinoki.admin.Admin">Admin</a>
-            <ul><li><a href="#hinoki.admin.Admin.access">access</a></li><li><a href="#hinoki.admin.Admin._csrf">_csrf</a></li><li><a href="#hinoki.admin.Admin._prefix">_prefix</a></li><li><a href="#hinoki.admin.Admin.per_page">per_page</a></li><li><a href="#hinoki.admin.Admin.show_count">show_count</a></li><li><a href="#hinoki.admin.Admin._served">_served</a></li><li><a href="#hinoki.admin.Admin.mount">mount</a></li><li><a href="#hinoki.admin.Admin.site">site</a></li><li><a href="#hinoki.admin.Admin.tagline">tagline</a></li><li><a href="#hinoki.admin.Admin.workspace">workspace</a></li><li><a href="#hinoki.admin.Admin.links">links</a></li><li><a href="#hinoki.admin.Admin.logout_url">logout_url</a></li><li><a href="#hinoki.admin.Admin.role">role</a></li><li><a href="#hinoki.admin.Admin.activity">activity</a></li><li><a href="#hinoki.admin.Admin.dashboard">dashboard</a></li><li><a href="#hinoki.admin.Admin.secure_cookies">secure_cookies</a></li><li><a href="#hinoki.admin.Admin.timezone">timezone</a></li><li><a href="#hinoki.admin.Admin._bound_timezone">_bound_timezone</a></li><li><a href="#hinoki.admin.Admin.templates">templates</a></li><li><a href="#hinoki.admin.Admin.theme">theme</a></li><li><a href="#hinoki.admin.Admin.parts">parts</a></li><li><a href="#hinoki.admin.Admin.models">models</a></li><li><a href="#hinoki.admin.Admin.digests">digests</a></li><li><a href="#hinoki.admin.Admin.csrf">csrf</a></li><li><a href="#hinoki.admin.Admin.prefix">prefix</a></li><li><a href="#hinoki.admin.Admin.base">base</a></li><li><a href="#hinoki.admin.Admin.__init__">__init__</a></li><li><a href="#hinoki.admin.Admin.bind_secret">bind_secret</a></li><li><a href="#hinoki.admin.Admin.bind_timezone">bind_timezone</a></li><li><a href="#hinoki.admin.Admin.register">register</a></li><li><a href="#hinoki.admin.Admin.admin">admin</a></li><li><a href="#hinoki.admin.Admin.attach">attach</a></li><li><a href="#hinoki.admin.Admin.api">api</a></li><li><a href="#hinoki.admin.Admin.bind_mount">bind_mount</a></li></ul>
+            <ul><li><a href="#hinoki.admin.Admin.users">users</a></li><li><a href="#hinoki.admin.Admin.access">access</a></li><li><a href="#hinoki.admin.Admin._csrf">_csrf</a></li><li><a href="#hinoki.admin.Admin._prefix">_prefix</a></li><li><a href="#hinoki.admin.Admin.per_page">per_page</a></li><li><a href="#hinoki.admin.Admin.show_count">show_count</a></li><li><a href="#hinoki.admin.Admin._served">_served</a></li><li><a href="#hinoki.admin.Admin.mount">mount</a></li><li><a href="#hinoki.admin.Admin.site">site</a></li><li><a href="#hinoki.admin.Admin.tagline">tagline</a></li><li><a href="#hinoki.admin.Admin.workspace">workspace</a></li><li><a href="#hinoki.admin.Admin.links">links</a></li><li><a href="#hinoki.admin.Admin.logout_url">logout_url</a></li><li><a href="#hinoki.admin.Admin.role">role</a></li><li><a href="#hinoki.admin.Admin.activity">activity</a></li><li><a href="#hinoki.admin.Admin.dashboard">dashboard</a></li><li><a href="#hinoki.admin.Admin.secure_cookies">secure_cookies</a></li><li><a href="#hinoki.admin.Admin.timezone">timezone</a></li><li><a href="#hinoki.admin.Admin._bound_timezone">_bound_timezone</a></li><li><a href="#hinoki.admin.Admin.templates">templates</a></li><li><a href="#hinoki.admin.Admin.theme">theme</a></li><li><a href="#hinoki.admin.Admin.parts">parts</a></li><li><a href="#hinoki.admin.Admin.models">models</a></li><li><a href="#hinoki.admin.Admin.manage_users">manage_users</a></li><li><a href="#hinoki.admin.Admin.digests">digests</a></li><li><a href="#hinoki.admin.Admin.csrf">csrf</a></li><li><a href="#hinoki.admin.Admin.accounts">accounts</a></li><li><a href="#hinoki.admin.Admin.prefix">prefix</a></li><li><a href="#hinoki.admin.Admin.base">base</a></li><li><a href="#hinoki.admin.Admin.__init__">__init__</a></li><li><a href="#hinoki.admin.Admin.bind_settings">bind_settings</a></li><li><a href="#hinoki.admin.Admin.bind_timezone">bind_timezone</a></li><li><a href="#hinoki.admin.Admin.register">register</a></li><li><a href="#hinoki.admin.Admin.refuse_own_tables">refuse_own_tables</a></li><li><a href="#hinoki.admin.Admin.admin">admin</a></li><li><a href="#hinoki.admin.Admin.attach">attach</a></li><li><a href="#hinoki.admin.Admin.holds_no_connection">holds_no_connection</a></li><li><a href="#hinoki.admin.Admin.api">api</a></li><li><a href="#hinoki.admin.Admin.add_user_admin">add_user_admin</a></li><li><a href="#hinoki.admin.Admin.check_dashboard">check_dashboard</a></li><li><a href="#hinoki.admin.Admin.route_options">route_options</a></li><li><a href="#hinoki.admin.Admin.bind_mount">bind_mount</a></li></ul>
           </li><li><a href="#hinoki.admin.ModelAdmin">ModelAdmin</a>
-            <ul><li><a href="#hinoki.admin.ModelAdmin.model">model</a></li><li><a href="#hinoki.admin.ModelAdmin.slug">slug</a></li><li><a href="#hinoki.admin.ModelAdmin.label">label</a></li><li><a href="#hinoki.admin.ModelAdmin.icon">icon</a></li><li><a href="#hinoki.admin.ModelAdmin.columns">columns</a></li><li><a href="#hinoki.admin.ModelAdmin.search">search</a></li><li><a href="#hinoki.admin.ModelAdmin.ordering">ordering</a></li><li><a href="#hinoki.admin.ModelAdmin.exclude">exclude</a></li><li><a href="#hinoki.admin.ModelAdmin.readonly">readonly</a></li><li><a href="#hinoki.admin.ModelAdmin.assign">assign</a></li><li><a href="#hinoki.admin.ModelAdmin.badges">badges</a></li><li><a href="#hinoki.admin.ModelAdmin.tabs">tabs</a></li><li><a href="#hinoki.admin.ModelAdmin.fieldsets">fieldsets</a></li><li><a href="#hinoki.admin.ModelAdmin.modified_field">modified_field</a></li><li><a href="#hinoki.admin.ModelAdmin.modified_label">modified_label</a></li><li><a href="#hinoki.admin.ModelAdmin.per_page">per_page</a></li><li><a href="#hinoki.admin.ModelAdmin.show_count">show_count</a></li><li><a href="#hinoki.admin.ModelAdmin.bulk_delete">bulk_delete</a></li><li><a href="#hinoki.admin.ModelAdmin.bulk_actions">bulk_actions</a></li><li><a href="#hinoki.admin.ModelAdmin.tab_list">tab_list</a></li><li><a href="#hinoki.admin.ModelAdmin.fieldset_list">fieldset_list</a></li><li><a href="#hinoki.admin.ModelAdmin.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.admin.ModelAdmin.__init__">__init__</a></li><li><a href="#hinoki.admin.ModelAdmin.queryset">queryset</a></li><li><a href="#hinoki.admin.ModelAdmin.can">can</a></li><li><a href="#hinoki.admin.ModelAdmin.title_of">title_of</a></li><li><a href="#hinoki.admin.ModelAdmin.display">display</a></li><li><a href="#hinoki.admin.ModelAdmin.stats">stats</a></li><li><a href="#hinoki.admin.ModelAdmin.check">check</a></li><li><a href="#hinoki.admin.ModelAdmin.save">save</a></li><li><a href="#hinoki.admin.ModelAdmin.remove">remove</a></li><li><a href="#hinoki.admin.ModelAdmin.ensure_visible">ensure_visible</a></li><li><a href="#hinoki.admin.ModelAdmin.plural">plural</a></li><li><a href="#hinoki.admin.ModelAdmin.shown_columns">shown_columns</a></li><li><a href="#hinoki.admin.ModelAdmin.default_search">default_search</a></li><li><a href="#hinoki.admin.ModelAdmin.skipped">skipped</a></li><li><a href="#hinoki.admin.ModelAdmin.normalize">normalize</a></li><li><a href="#hinoki.admin.ModelAdmin.validate_config">validate_config</a></li><li><a href="#hinoki.admin.ModelAdmin._validate_bulk_actions">_validate_bulk_actions</a></li></ul>
+            <ul><li><a href="#hinoki.admin.ModelAdmin.model">model</a></li><li><a href="#hinoki.admin.ModelAdmin.slug">slug</a></li><li><a href="#hinoki.admin.ModelAdmin.label">label</a></li><li><a href="#hinoki.admin.ModelAdmin.icon">icon</a></li><li><a href="#hinoki.admin.ModelAdmin.columns">columns</a></li><li><a href="#hinoki.admin.ModelAdmin.search">search</a></li><li><a href="#hinoki.admin.ModelAdmin.ordering">ordering</a></li><li><a href="#hinoki.admin.ModelAdmin.exclude">exclude</a></li><li><a href="#hinoki.admin.ModelAdmin.readonly">readonly</a></li><li><a href="#hinoki.admin.ModelAdmin.assign">assign</a></li><li><a href="#hinoki.admin.ModelAdmin.badges">badges</a></li><li><a href="#hinoki.admin.ModelAdmin.tabs">tabs</a></li><li><a href="#hinoki.admin.ModelAdmin.fieldsets">fieldsets</a></li><li><a href="#hinoki.admin.ModelAdmin.modified_field">modified_field</a></li><li><a href="#hinoki.admin.ModelAdmin.modified_label">modified_label</a></li><li><a href="#hinoki.admin.ModelAdmin.per_page">per_page</a></li><li><a href="#hinoki.admin.ModelAdmin.show_count">show_count</a></li><li><a href="#hinoki.admin.ModelAdmin.bulk_delete">bulk_delete</a></li><li><a href="#hinoki.admin.ModelAdmin.bulk_actions">bulk_actions</a></li><li><a href="#hinoki.admin.ModelAdmin.extra_fields">extra_fields</a></li><li><a href="#hinoki.admin.ModelAdmin.site">site</a></li><li><a href="#hinoki.admin.ModelAdmin.tab_list">tab_list</a></li><li><a href="#hinoki.admin.ModelAdmin.fieldset_list">fieldset_list</a></li><li><a href="#hinoki.admin.ModelAdmin.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.admin.ModelAdmin.__init__">__init__</a></li><li><a href="#hinoki.admin.ModelAdmin.extras">extras</a></li><li><a href="#hinoki.admin.ModelAdmin.extra_initial">extra_initial</a></li><li><a href="#hinoki.admin.ModelAdmin.queryset">queryset</a></li><li><a href="#hinoki.admin.ModelAdmin.can">can</a></li><li><a href="#hinoki.admin.ModelAdmin.title_of">title_of</a></li><li><a href="#hinoki.admin.ModelAdmin.display">display</a></li><li><a href="#hinoki.admin.ModelAdmin.stats">stats</a></li><li><a href="#hinoki.admin.ModelAdmin.check">check</a></li><li><a href="#hinoki.admin.ModelAdmin.save">save</a></li><li><a href="#hinoki.admin.ModelAdmin.remove">remove</a></li><li><a href="#hinoki.admin.ModelAdmin.ensure_visible">ensure_visible</a></li><li><a href="#hinoki.admin.ModelAdmin.plural">plural</a></li><li><a href="#hinoki.admin.ModelAdmin.shown_columns">shown_columns</a></li><li><a href="#hinoki.admin.ModelAdmin.default_search">default_search</a></li><li><a href="#hinoki.admin.ModelAdmin.skipped">skipped</a></li><li><a href="#hinoki.admin.ModelAdmin.normalize">normalize</a></li><li><a href="#hinoki.admin.ModelAdmin.validate_config">validate_config</a></li><li><a href="#hinoki.admin.ModelAdmin._validate_bulk_actions">_validate_bulk_actions</a></li></ul>
           </li><li><a href="#hinoki.admin.BulkAction">BulkAction</a></li><li><a href="#hinoki.admin.Theme">Theme</a>
             <ul><li><a href="#hinoki.admin.Theme.check">check</a></li><li><a href="#hinoki.admin.Theme.tokens_css">tokens_css</a></li></ul>
-          </li><li><a href="#hinoki.admin.Avatar">Avatar</a></li><li><a href="#hinoki.admin.Badge">Badge</a></li><li><a href="#hinoki.admin.Tab">Tab</a></li><li><a href="#hinoki.admin.Fieldset">Fieldset</a></li><li><a href="#hinoki.admin.Event">Event</a></li><li><a href="#hinoki.admin.Link">Link</a></li><li><a href="#hinoki.admin.Stat">Stat</a></li><li><a href="#hinoki.admin.THEMES">THEMES</a></li></ul>
+          </li><li><a href="#hinoki.admin.Avatar">Avatar</a></li><li><a href="#hinoki.admin.Badge">Badge</a></li><li><a href="#hinoki.admin.Tab">Tab</a></li><li><a href="#hinoki.admin.Fieldset">Fieldset</a></li><li><a href="#hinoki.admin.Extra">Extra</a></li><li><a href="#hinoki.admin.Refusal">Refusal</a></li><li><a href="#hinoki.admin.Event">Event</a></li><li><a href="#hinoki.admin.Link">Link</a></li><li><a href="#hinoki.admin.Stat">Stat</a></li><li><a href="#hinoki.admin.THEMES">THEMES</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.13</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 05:49:45 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 12:32:45 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/admin.md">Edit on GitHub</a></dd></div>
         </dl>
