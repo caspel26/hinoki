@@ -7,7 +7,7 @@ Use it as a namespace: ``from hinoki import errors`` then ``errors.NotFound``.
 from __future__ import annotations
 
 import inspect
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from http import HTTPStatus
 from typing import Any, cast
@@ -114,7 +114,9 @@ class APIError(Exception):
     """An error with a public HTTP representation.
 
     Subclasses set ``status``, ``code`` and ``message``; an instance may
-    override them. ``details`` is public data, never internal state.
+    override them, which is how a handler answers with a status of its own:
+    ``APIError("Card declined", status=402, code="card_declined")``.
+    ``details`` is public data, never internal state.
     """
 
     status: int = HTTPStatus.INTERNAL_SERVER_ERROR
@@ -126,11 +128,13 @@ class APIError(Exception):
         message: str | None = None,
         *,
         code: str | None = None,
+        status: int | None = None,
         details: list[dict[str, Any]] | None = None,
         headers: dict[str, str] | None = None,
     ) -> None:
         super().__init__(message or self.message)
         self.message = message or type(self).message
+        self.status = status or type(self).status
         self.code = code or type(self).code
         self.details = details
         self.headers = headers or {}
@@ -167,7 +171,6 @@ class Conflict(APIError):
 
 
 Handler = Callable[[Any], APIError | Awaitable[APIError]]
-Translation = Handler | type[APIError]
 
 
 class UniqueConflict(Conflict):
@@ -185,24 +188,13 @@ def unique_conflict(_error: UniqueViolation) -> APIError:
     return UniqueConflict()
 
 
-def handler_for(kind: object, translation: object) -> Handler:
-    """The handler a registration stands for, or ``TypeError`` for a bad entry.
-
-    ``translation`` is a function of the exception, or an ``APIError`` subclass
-    that is raised as it is whatever the exception says.
-    """
+def checked_handler(kind: object, handler: object) -> Handler:
+    """``handler`` if a function can answer ``kind``, else ``TypeError``."""
     if not (isinstance(kind, type) and issubclass(kind, Exception)):
         raise TypeError(f"{kind!r} is not an exception class")
-    if isinstance(translation, type):
-        if not issubclass(translation, APIError):
-            raise TypeError(
-                f"{translation.__name__} must be an APIError subclass or a callable"
-            )
-        answer = translation
-        return lambda _error: answer()
-    if not callable(translation):
-        raise TypeError(f"{translation!r} must be an APIError subclass or a callable")
-    return cast(Handler, translation)
+    if isinstance(handler, type) or not callable(handler):
+        raise TypeError(f"{handler!r} must be a function of the exception")
+    return cast(Handler, handler)
 
 
 class ErrorRegistrar:
@@ -212,7 +204,7 @@ class ErrorRegistrar:
         self.registry = registry
         self.kind = kind
 
-    def __call__[T: Translation](self, handler: T) -> T:
+    def __call__[T: Handler](self, handler: T) -> T:
         self.registry.add(self.kind, handler)
         return handler
 
@@ -231,16 +223,11 @@ class ErrorRegistry:
     def handle(self, kind: type[Exception]) -> ErrorRegistrar:
         return ErrorRegistrar(self, kind)
 
-    def add(self, kind: type[Exception], handler: Translation) -> None:
-        self.add_all({kind: handler})
-
-    def add_all(self, translations: Mapping[type[Exception], Translation]) -> None:
-        """Register every entry or none: one bad or repeated entry changes nothing."""
-        checked = {kind: handler_for(kind, item) for kind, item in translations.items()}
-        for kind in checked:
-            if kind in self.handlers:
-                raise ValueError(f"a handler for {kind.__name__} is already registered")
-        self.handlers.update(checked)
+    def add(self, kind: type[Exception], handler: Handler) -> None:
+        checked = checked_handler(kind, handler)
+        if kind in self.handlers:
+            raise ValueError(f"a handler for {kind.__name__} is already registered")
+        self.handlers[kind] = checked
 
     def find(self, exc: Exception) -> Handler | None:
         for table in (self.handlers, self.defaults):
