@@ -11,9 +11,11 @@ from hinoki import Access, BearerAuth, Caller, Hinoki, Request, Response, errors
 from hinoki.__main__ import main
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.runtime.origins import HostPolicy, host_name
+from hinoki.scenario import build_scope, drive
 from hinoki.settings import AppSettings, ServerSettings, SettingsError
-from hinoki.testing import ASGIClient
+from hinoki.testing import ASGIClient, SyncClient
 from hinoki.wsgi import WSGIAdapter
+from tests.harness import Client
 
 APP = "https://app.example.com"
 
@@ -669,3 +671,72 @@ def test_the_settings_command_lists_the_new_keys(
     out = capsys.readouterr().out
     assert "APP_DEBUG" in out and "APP_ALLOWED_HOSTS" in out
     assert "APP_CORS__ORIGINS" in out and APP in out
+
+
+def host_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "hinoki.runtime" and "allowed_hosts" in record.getMessage()
+    ]
+
+
+async def served_startup(app: Hinoki) -> None:
+    """Start and stop the app the way a server does: a plain lifespan scope."""
+    client = Client(app.asgi())
+    assert await client.lifespan_event("startup") == "lifespan.startup.complete"
+    assert await client.lifespan_event("shutdown") == "lifespan.shutdown.complete"
+
+
+async def test_a_served_app_with_any_host_and_debug_off_warns_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="hinoki.runtime"):
+        await served_startup(app_of())
+    [warning] = host_warnings(caplog)
+    assert "allowed_hosts is '*'" in warning
+    assert "Host header" in warning and "password-reset" in warning
+    assert 'allowed_hosts=("app.example.com",)' in warning
+    assert '".example.com"' in warning
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"APP_DEBUG": "true"},
+        {"APP_ALLOWED_HOSTS": "app.example.com"},
+        {"APP_ALLOWED_HOSTS": "app.example.com, .example.org"},
+        {"APP_ALLOWED_HOSTS": ".example.com"},
+    ],
+)
+async def test_debug_or_named_hosts_do_not_warn(
+    env: dict[str, str], caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="hinoki.runtime"):
+        await served_startup(app_of(**env))
+    assert host_warnings(caplog) == []
+
+
+def test_the_wsgi_adapter_warns_like_a_server(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    adapter = WSGIAdapter(app_of())
+    with caplog.at_level(logging.WARNING, logger="hinoki.runtime"):
+        try:
+            assert wsgi_get(adapter)[0] == "200 OK"
+        finally:
+            adapter.close()
+    assert len(host_warnings(caplog)) == 1
+
+
+async def test_the_in_process_drivers_do_not_warn(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="hinoki.runtime"):
+        async with ASGIClient(app_of()) as client:
+            assert (await client.get("/ping")).status == 200
+        with SyncClient(app_of()) as sync:
+            assert sync.get("/ping").status == 200
+        scope = build_scope("GET", "/ping", None, None, "read")
+        assert (await drive(app_of(), scope, b""))["status"] == 200
+    assert host_warnings(caplog) == []
