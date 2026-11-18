@@ -51,7 +51,9 @@ async def test_adapter_applies_logging_and_reports_startup_failure(
         raise StartupError("database", ValueError("unavailable"))
 
     adapter.pipeline = SimpleNamespace(
-        logging=SimpleNamespace(apply=lambda: applied.append(True)), debug=True
+        logging=SimpleNamespace(apply=lambda: applied.append(True)),
+        debug=True,
+        app=SimpleNamespace(settings=None),
     )
     adapter.lifespan = SimpleNamespace(startup=startup)
     sent: list[dict[str, str]] = []

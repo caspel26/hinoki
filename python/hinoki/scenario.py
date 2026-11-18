@@ -15,6 +15,7 @@ import json
 from typing import Any
 
 from hinoki.app import Hinoki
+from hinoki.runtime.asgi import IN_PROCESS
 
 SAFE = frozenset({"GET", "HEAD", "OPTIONS", "QUERY"})
 METHODS = SAFE | {"POST", "PUT", "PATCH", "DELETE"}
@@ -103,7 +104,9 @@ async def drive(app: Hinoki, scope: dict[str, Any], body: bytes) -> dict[str, An
     adapter = app.asgi()
     inbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     outbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-    lifespan = asyncio.create_task(adapter({"type": "lifespan"}, inbox.get, outbox.put))
+    lifespan = asyncio.create_task(
+        adapter({"type": "lifespan", IN_PROCESS: True}, inbox.get, outbox.put)
+    )
     started = False
     try:
         await inbox.put({"type": "lifespan.startup"})
