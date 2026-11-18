@@ -39,6 +39,14 @@ CATALOG: dict[str, tuple[str, str]] = {
         "A unique value is already in use (HTTP 409): the default answer to a database `UniqueViolation`.",
         "Choose another value; to change the answer, register your own with `app.error_handler(UniqueViolation)`.",
     ),
+    "rate_limited": (
+        "The route's rate limit policy refused the request (HTTP 429); `Retry-After` says how many seconds to wait.",
+        "Wait the number of seconds in `Retry-After` and retry; to change who is limited and how much, change the policy named by `rate_limit=` on the route.",
+    ),
+    "rate_limit_unavailable": (
+        "The route's rate limit policy, or the store behind it, failed (HTTP 503): the request was refused rather than allowed unchecked.",
+        "Retry later; the server log names the route. Fix the policy or its store, and give any external client a finite timeout.",
+    ),
     "required": (
         "A required field is missing.",
         "Send the field, or give it a default in the schema.",

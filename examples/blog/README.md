@@ -12,7 +12,7 @@ SQLite:
 
 ```sh
 cd examples
-export BLOG_ADMIN_SECRET='a-local-development-secret-with-32-bytes'
+export BLOG_ADMIN__SECRET='a-local-development-secret-with-32-bytes'
 uv run --project .. hinoki app list
 uv run --project .. hinoki migrations status
 uv run --project .. hinoki migrations plan --app blog --dry-run
@@ -39,3 +39,5 @@ own models and migrations. `hinoki migrations apply` initializes all three in
 dependency order.
 
 All eleven built-in rules are on in `rules.py` (see [rules](../../docs/rules.md)); `hinoki check` exits 0, and startup refuses an app that breaks one.
+
+`POST /auth/login` is rate limited by `limits.LoginAttempts`, an example policy (a fixed window per client address in one worker's memory); see [rate limit an action](../../docs/endpoints.md#rate-limit-an-action).

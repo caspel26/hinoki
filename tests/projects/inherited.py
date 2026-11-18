@@ -7,7 +7,7 @@ class Base(API):
     @http.delete("/{item_id}")
     def remove(self, request: Request, item_id: int) -> None: ...
 
-    @http.get("/open")
+    @http.get("/open", validate_response=False)
     def untyped(self, request: Request):  # type: ignore[no-untyped-def]
         return {}
 
