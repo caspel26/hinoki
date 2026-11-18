@@ -85,6 +85,27 @@ async def get_task(request: Request, task_id: UUID) -> TaskView:
 
 Request path, query and body values are validated before the handler runs; a Schema body uses `Schema.validate()` and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper Schema field (`Annotated[Cat | Dog, Field(discriminator="kind")]`); bare union body parameters are not supported. Hinoki does not coerce input values into different types, with one explicit exception: a `Form[Schema]` body ([text sources](#form-bodies)). Return annotations describe OpenAPI and output serialization. When the annotation is one concrete Schema (also inside `Annotated[...]`), a directly returned Model is projected through that Schema, and an instance of a subclass is sent with only the declared Schema's fields; a row that fails the Schema's constraints is a `500 internal_error`, not a client error. Other response values, such as a returned `dict`, are sent unchanged and are not validated at runtime ([details](model-schemas.md#return-a-model-from-a-schema-annotated-handler)). Use a wrapper Schema for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.
 
+## Query strings as a Schema
+
+`Query[...]` reads a whole query string into a `Schema`, for any method, so a filter set can be declared and reused once:
+
+```python
+from hinoki import Query, Schema, http
+
+
+class Search(Schema):
+    term: str
+    limit: int = 10
+    ids: list[int] = []
+
+
+@http.get("/items")
+def search(filters: Query[Search]) -> dict[str, int]:
+    return {"limit": filters.limit}  # /items?term=a&limit=5&ids=1&ids=2
+```
+
+Text is converted to the `int`, `float` and `bool` the `Schema` declares before the strict validation (a repeated key fills a `list` field, a single one still does). A value that does not convert, a repeated key for a scalar, a missing required field and an unknown key (by default) are `422` errors, reported with the parameter name as prefix. The `Schema` owns the whole query string, so the action takes no other query or page parameters, at most one `Query[...]`, and it cannot be a path parameter. OpenAPI lists one query parameter per field.
+
 ## Form bodies
 
 A plain `Schema` parameter is a strict JSON body. Wrap it in `Form[...]` to read the same `Schema` from a form, whose values are all text:
