@@ -46,8 +46,8 @@ def clone(function: Callable[..., Any], name: str) -> Callable[..., Any]:
 
 
 NO_SECRET_MESSAGE = (
-    "admin: no secret to sign its forms with; set `security.secret` in the app's "  # noqa: S105
-    "settings (environment variable PREFIX_SECURITY__SECRET, at least 32 bytes) "
+    "admin: no secret to sign its forms with; set `admin.secret` in the app's "  # noqa: S105
+    "settings (environment variable PREFIX_ADMIN__SECRET, at least 32 bytes) "
     "or pass Admin(secret=...)"
 )
 
@@ -111,7 +111,7 @@ class Admin:
         return self._csrf
 
     def bind_secret(self, secret: str | bytes | None) -> None:
-        """Use the app's ``security.secret`` unless the admin was given its own."""
+        """Use the app's ``admin.secret`` unless the admin was given its own."""
         if self._csrf is not None:
             return
         if secret is None:
