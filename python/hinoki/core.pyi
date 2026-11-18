@@ -303,7 +303,7 @@ RouteSpec = tuple[
     list[tuple[str, str]],
     bool,
     bool,
-    tuple[bool, list[tuple[str, str, bool]]],
+    tuple[bool, list[tuple[str, str, bool, str]]],
     _CrudPlan | None,
 ]
 

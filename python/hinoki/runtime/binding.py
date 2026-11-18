@@ -91,6 +91,8 @@ KINDS: dict[object, str] = {
     UUID: "uuid",
 }
 
+KINDS_BY_NAME = {kind: annotation for annotation, kind in KINDS.items()}
+
 CONVERTERS: dict[object, Callable[[str], object]] = {
     str: str,
     int: to_int,
@@ -227,12 +229,12 @@ class Binding:
             tuple(
                 (p.name, p.default)
                 for p in self.params
-                if p.source == "query" and p.convert is str and type(p.default) is str
+                if p.source == "query" and type(p.default) is KINDS_BY_NAME.get(p.kind)
             ),
         )
 
     def complete_native_args(self, supplied: dict[str, object]) -> dict[str, object]:
-        """Restore omitted exact-string query defaults in declaration order."""
+        """Restore omitted query defaults in declaration order."""
         if not self.native_defaults:
             return supplied
         defaults = dict(self.native_defaults)
