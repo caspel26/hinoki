@@ -1,7 +1,0 @@
-pid pgid cputime command
-49781 49781   0:00.08 /Library/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -m granian --interface asgi --workers 4 --port 8801 --no-log hinoki_app:app
-49782 49781   0:00.02 /Library/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -c from multiprocessing.resource_tracker import main;main(16)
-49783 49781   6:40.31 /Library/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=17, pipe_handle=19) --multiprocessing-fork
-49784 49781  10:27.76 /Library/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=17, pipe_handle=21) --multiprocessing-fork
-49785 49781   9:55.71 /Library/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=17, pipe_handle=23) --multiprocessing-fork
-49786 49781  10:25.25 /Library/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=17, pipe_handle=25) --multiprocessing-fork

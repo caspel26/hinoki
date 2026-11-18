@@ -1,6 +1,7 @@
 # Benchmarks
 
 Measured results only; nothing here is a performance claim about Hinoki as a whole.
+The raw result files of the micro-benchmarks below were removed from the repository; only the data rendered on the documentation site is retained (see git history for the rest).
 
 ## `routerbench.py` — path lookup, Python → Rust
 
@@ -43,7 +44,7 @@ merge: across seven samples, medians were 8.59 µs Python / 7.26 µs Rust for
 JSON decode (1.18x), 10.26 / 10.06 µs for JSON encode (1.02x), and 6.56 / 1.23
 µs for query parsing (5.35x). These are isolated function calls, not complete
 request-path results. The machine-readable samples are in
-[`request-codecs-before-rust.json`](results/request-codecs-before-rust.json).
+`request-codecs-before-rust.json`.
 
 ### ASGI request-path baseline
 
@@ -54,7 +55,7 @@ work beyond the auth callback and trivial handler. Five blocks of seven
 samples × 20,000 requests on a release-profile extension produced a median of
 block medians of 57.125 µs/request (CV across the five blocks: 0.8%). This is a
 local regression baseline, not a public serving-throughput claim. See
-[`request-path-before-rust.json`](results/request-path-before-rust.json).
+`request-path-before-rust.json`.
 
 A cProfile map of the same scenario attributed much of its Python time to
 authentication hook calls and `inspect.iscoroutinefunction`, followed by
@@ -73,7 +74,7 @@ On the protected-GET microbenchmark, the prototype's five-block median was
 regression detector and inside observed variation, so the prototype was
 discarded and no extra Rust routing work was merged. The experiment's samples
 are retained in
-[`request-path-rust-decode-prototype.json`](results/request-path-rust-decode-prototype.json).
+`request-path-rust-decode-prototype.json`.
 
 Observations (2026-11-13, one 8-core Linux laptop, Python 3.14.8, debug-profile extension; a release-profile build gave the same numbers within noise):
 
@@ -125,7 +126,7 @@ PYTHONPATH=. uv run --locked python benchmarks/schemabench.py
 
 Observation (2026-11-13, one 8-core Linux laptop, Python 3.14, debug-profile extension): Python ≈ 34.8 µs, Rust ≈ 17.1 µs per call, **2.0× faster** (CV 3–4 %). Instance construction (calling the dataclass constructors) and datetime/UUID object creation still happen through Python, which bounds the gain. Serialising the same post to JSON bytes (`encode_json` on the instance against `json.dumps(encode(instance))`): ≈ 31.6 µs against ≈ 14.8 µs, **2.1× faster**. Not end to end: no HTTP, binding or I/O.
 
-Control run for the Schema alias change (2026-11-16, Linux, Python 3.13.18): five invocations of the existing non-aliased workload gave Rust validation medians of 19.16 µs before and 19.58 µs after; Rust encoding was 14.46 µs before and 14.62 µs after. These changes (about 2.2% and 1.1%) are below the 15% investigation threshold. This did not measure aliased fields and makes no performance claim about them. Per-invocation results and variation are in [`schema-aliases-control-2026-11-16.json`](results/schema-aliases-control-2026-11-16.json).
+Control run for the Schema alias change (2026-11-16, Linux, Python 3.13.18): five invocations of the existing non-aliased workload gave Rust validation medians of 19.16 µs before and 19.58 µs after; Rust encoding was 14.46 µs before and 14.62 µs after. These changes (about 2.2% and 1.1%) are below the 15% investigation threshold. This did not measure aliased fields and makes no performance claim about them. Per-invocation results and variation are in `schema-aliases-control-2026-11-16.json`.
 
 ## `frommodelbench.py` — `Schema.from_model`, Rust plan vs the former Python loop
 
@@ -155,7 +156,7 @@ Pre-Stage-0 baseline (2026-11-14, Python 3.13.18, Arch Linux x86_64, Rust extens
 | Update with a filter and `RETURNING` | 1.972 µs | 1.9% |
 | Delete with a filter | 4.784 µs | 2.0% |
 
-Raw samples and environment metadata are retained in [`results/orm-compile-postgres-before-stage0.json`](results/orm-compile-postgres-before-stage0.json). These are compiler-only values; they do not predict database latency or SQLite performance.
+Raw samples and environment metadata are retained in `results/orm-compile-postgres-before-stage0.json`. These are compiler-only values; they do not predict database latency or SQLite performance.
 
 ## `comparative/` — one service on four frameworks
 
@@ -221,13 +222,13 @@ container for the run and remove only that task's container afterward.
 
 ### Request-size limit check
 
-For the query/header byte limits, five alternating baseline/candidate runs of the existing protected-GET microbenchmark were collected on 2026-11-15 (Python 3.13.18, debug-profile extension). The baseline is `f334e0c`; each run executes 7 samples × 20,000 in-process requests after warm-up. Baseline medians were 48.386, 47.976, 47.945, 47.629 and 46.950 µs; candidate medians were 48.990, 51.299, 49.774, 50.148 and 49.264 µs. The group medians are 47.945 µs and 49.774 µs (+3.8%). Within-run CV was 2.6–2.9% for baseline and 2.7–4.3% for the candidate. This is below the 15% regression detector threshold and is the measured cost of checking the default bounds. This in-process result has no server, network or database and does not predict end-to-end throughput. Raw data: [`protected-get-request-limits.json`](results/protected-get-request-limits.json).
+For the query/header byte limits, five alternating baseline/candidate runs of the existing protected-GET microbenchmark were collected on 2026-11-15 (Python 3.13.18, debug-profile extension). The baseline is `f334e0c`; each run executes 7 samples × 20,000 in-process requests after warm-up. Baseline medians were 48.386, 47.976, 47.945, 47.629 and 46.950 µs; candidate medians were 48.990, 51.299, 49.774, 50.148 and 49.264 µs. The group medians are 47.945 µs and 49.774 µs (+3.8%). Within-run CV was 2.6–2.9% for baseline and 2.7–4.3% for the candidate. This is below the 15% regression detector threshold and is the measured cost of checking the default bounds. This in-process result has no server, network or database and does not predict end-to-end throughput. Raw data: `protected-get-request-limits.json`.
 
 ### 2026-11-15 — application-wide response security headers
 
 Five alternating runs of `protectedgetbench.py` compared the main baseline (`a79cbad`) with the response security policy implementation (`3d1eb7a`). Each run reports the median of seven samples × 20,000 requests after one warm-up. Median of run medians: 51.408 µs baseline and 53.804 µs candidate (+4.66%); paired changes ranged from +2.08% to +7.27%. The within-group coefficients of variation were 2.29–4.00% baseline and 2.64–3.37% candidate. This is below the 15% detector threshold.
 
-The added work builds and appends three application-wide security headers to each response. This measures only the in-process ASGI path; no server, network or database is involved, and host load was not isolated. It is a regression check, not an end-to-end or throughput claim. Raw samples and environment metadata are in [`security-response-policy.json`](results/security-response-policy.json).
+The added work builds and appends three application-wide security headers to each response. This measures only the in-process ASGI path; no server, network or database is involved, and host load was not isolated. It is a regression check, not an end-to-end or throughput claim. Raw samples and environment metadata are in `security-response-policy.json`.
 
 ## `comparative/profile_request.py` — where one request's time goes
 
@@ -379,8 +380,8 @@ Granian, so each number is the request path around the handler. Two suites:
 Each run first checks that both stacks return the same status and body for every
 scenario, records which lane the Rust server uses per route (`lanes.json`), then
 alternates five pairs per scenario and waits for the one-minute load to be at most
-1.0 before each sample. The first baseline is retained in
-`comparative/results/2026-11-18/request-path-baseline/` with its `REPORT.md`.
+1.0 before each sample. The first baseline was recorded on 2026-11-18; its raw data is no longer
+retained in the repository (see git history).
 
 ```sh
 cd benchmarks/comparative
