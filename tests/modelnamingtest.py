@@ -80,34 +80,36 @@ def test_model_names_use_frozen_snake_case_and_suffix_rules() -> None:
         id: int = field(primary_key=True)
 
     assert (Invoice.__table__, Invoice.__label__, Invoice.__plural__) == (
-        "modelnamingtest_invoice",
+        "modelnamingtest_invoices",
         "Invoice",
         "Invoices",
     )
     assert (UserProfile.__table__, UserProfile.__label__, UserProfile.__plural__) == (
-        "modelnamingtest_user_profile",
+        "modelnamingtest_user_profiles",
         "User profile",
         "User profiles",
     )
     assert (APIKey.__table__, APIKey.__label__, APIKey.__plural__) == (
-        "modelnamingtest_api_key",
+        "modelnamingtest_api_keys",
         "API key",
         "API keys",
     )
-    assert Category.__table__ == "modelnamingtest_category"
+    assert Category.__table__ == "modelnamingtest_categories"
     assert Category.__plural__ == "Categories"
-    assert Address.__table__ == "modelnamingtest_address"
-    assert Status.__table__ == "modelnamingtest_status"
-    assert Person.__table__ == "modelnamingtest_person"
+    assert Address.__table__ == "modelnamingtest_addresses"
+    assert Status.__table__ == "modelnamingtest_statuses"
+    assert Person.__table__ == "modelnamingtest_persons"
     assert Person.__plural__ == "Persons"
-    assert Analysis.__table__ == "modelnamingtest_analysis"
+    assert Analysis.__table__ == "modelnamingtest_analysises"
     assert Analysis.__plural__ == "Analysises"
-    assert Users.__table__ == "modelnamingtest_users" and Users.__plural__ == "Userses"
-    assert Version2.__table__ == "modelnamingtest_version2"
-    assert Box.__table__ == "modelnamingtest_box" and Box.__plural__ == "Boxes"
-    assert Brush.__table__ == "modelnamingtest_brush"
-    assert Quiz.__table__ == "modelnamingtest_quiz"
-    assert Match.__table__ == "modelnamingtest_match"
+    assert (
+        Users.__table__ == "modelnamingtest_userses" and Users.__plural__ == "Userses"
+    )
+    assert Version2.__table__ == "modelnamingtest_version2s"
+    assert Box.__table__ == "modelnamingtest_boxes" and Box.__plural__ == "Boxes"
+    assert Brush.__table__ == "modelnamingtest_brushes"
+    assert Quiz.__table__ == "modelnamingtest_quizes"
+    assert Match.__table__ == "modelnamingtest_matches"
 
 
 def test_explicit_table_and_display_overrides_are_independent() -> None:
@@ -142,7 +144,7 @@ def test_non_word_class_name_accepts_complete_explicit_names() -> None:
 
 
 @pytest.mark.parametrize(
-    ("app", "model_name"), [("sqlite", "Cache"), ("hinoki", "Migrations")]
+    ("app", "model_name"), [("sqlite", "Cache"), ("hinoki", "Migration")]
 )
 def test_unsafe_implicit_table_names_fail_when_the_model_is_used(
     app: str, model_name: str
@@ -188,7 +190,7 @@ def test_name_length_and_control_characters_are_rejected() -> None:
 def test_unusable_derived_table_is_refused_as_a_foreign_key_target() -> None:
     Unsafe = declare_model("Cache", app="sqlite")
 
-    with pytest.raises(RegistrationError, match="derived table 'sqlite_cache'"):
+    with pytest.raises(RegistrationError, match="derived table 'sqlite_caches'"):
 
         class CacheEntry(Model):
             id: int = pk()
@@ -258,13 +260,13 @@ def test_empty_table_sentinel_and_abstract_inheritance_reset_provenance() -> Non
         pass
 
     assert ExplicitParent.__table_is_implicit__ is False
-    assert InferredChild.__table__ == "modelnamingtest_inferred_child"
+    assert InferredChild.__table__ == "modelnamingtest_inferred_childs"
     assert InferredChild.__table_is_implicit__ is True
     assert ExplicitChild.__table_is_implicit__ is False
     assert AbstractBase.__table__ == AbstractChild.__table__ == ""
     assert AbstractBase.__table_is_implicit__ is False
     assert AbstractChild.__table_is_implicit__ is False
-    assert ConcreteChild.__table__ == "modelnamingtest_concrete_child"
+    assert ConcreteChild.__table__ == "modelnamingtest_concrete_childs"
     assert ConcreteChild.__table_is_implicit__ is True
     assert "__table_is_implicit__" not in {
         item.name for item in dataclasses.fields(InferredChild)
@@ -276,19 +278,19 @@ def test_table_state_rejects_duplicate_and_ambiguous_owners() -> None:
     class Invoice(Model):
         id: int = field(primary_key=True)
 
-    class ExplicitInvoice(Model, table="modelnamingtest_invoice"):
+    class ExplicitInvoice(Model, table="modelnamingtest_invoices"):
         id: int = field(primary_key=True)
 
-    class MixedCase(Model, table="Modelnamingtest_Invoice"):
+    class MixedCase(Model, table="Modelnamingtest_Invoices"):
         id: int = field(primary_key=True)
 
     with pytest.raises(MigrationError, match="both claim"):
         state_of([Invoice, ExplicitInvoice])
     with pytest.raises(MigrationError, match="both claim"):
         state_of([Invoice, MixedCase])
-    assert set(state_of([Invoice, Invoice])["tables"]) == {"modelnamingtest_invoice"}
+    assert set(state_of([Invoice, Invoice])["tables"]) == {"modelnamingtest_invoices"}
     assert set(state_of([Invoice], reference_models=[Invoice])["tables"]) == {
-        "modelnamingtest_invoice"
+        "modelnamingtest_invoices"
     }
 
 
@@ -344,7 +346,7 @@ def test_project_rejects_shared_model_ownership_and_ledger(
     with pytest.raises(ProjectError, match="migration ledger"):
         manifest.all_models()
 
-    Derived = declare_model("Migrations", app="hinoki")
+    Derived = declare_model("Migration", app="hinoki")
     monkeypatch.setattr(ProjectManifest, "models", lambda _self, _app: [Derived])
     with pytest.raises(ProjectError, match="derived table 'hinoki_migrations'"):
         manifest.all_models()
@@ -356,7 +358,7 @@ def test_admin_table_ownership_is_separate_from_slug_and_same_model_aliases_work
     class Invoice(Model):
         id: int = field(primary_key=True)
 
-    class ExplicitInvoice(Model, table="Modelnamingtest_Invoice"):
+    class ExplicitInvoice(Model, table="Modelnamingtest_Invoices"):
         id: int = field(primary_key=True)
 
     admin = Admin(access=None, secret="s" * 32)  # type: ignore[arg-type]
@@ -411,12 +413,12 @@ def test_the_app_of_a_model_comes_from_the_package_of_its_models_module(
     assert app_label(module) == app
 
 
-def test_implicit_table_is_the_app_and_the_singular_model_name() -> None:
+def test_implicit_table_is_the_app_and_the_plural_model_name() -> None:
     Invoice = declare_model("Invoice", app="billing")
     LineItem = declare_model("LineItem", app="billing")
 
-    assert Invoice.__table__ == "billing_invoice"
-    assert LineItem.__table__ == "billing_line_item"
+    assert Invoice.__table__ == "billing_invoices"
+    assert LineItem.__table__ == "billing_line_items"
     assert (Invoice.__table_is_implicit__, LineItem.__table_is_implicit__) == (
         True,
         True,
