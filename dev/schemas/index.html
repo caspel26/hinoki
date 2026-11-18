@@ -425,7 +425,89 @@
 </ul>
 <p><code>Schema.validate(data)</code> reports structural problems together. Values are not coerced; for data that is all text, such as form fields, <code>Schema.validate_text(data)</code> first converts values to the <code>int</code>, <code>float</code> and <code>bool</code> fields declare (and wraps a lone value of a <code>list</code> field), in Rust, then runs the same strict <code>validate</code>. A value that does not convert is left as text and fails validation with the usual type error; <code>str</code>, <code>UUID</code> and <code>datetime</code> are checked as text. Declare field constraints with <code>Field(...)</code>; use <code>@field_normalize</code> for narrow, typed string canonicalization and <code>@field_check</code>/<code>@object_check</code> for synchronous rejection checks.</p>
 <h2 id="field-types">Field types<a class="headerlink" href="#field-types" title="Permanent link">&para;</a></h2>
-<p>A field is annotated with <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>, <code>UUID</code>, <code>datetime</code>, a nested <code>Schema</code>, <code>list[X]</code>, <code>dict[str, X]</code> or a <a href="#discriminated-unions">discriminated union</a>, optionally <code>| None</code> (accepts <code>null</code>) and <code>| Unset</code> (may be left out of a partial update), and optionally wrapped in <code>Annotated[..., Field(...)]</code>. <code>X</code> can be any of these, so <code>list[dict[str, int]]</code> and <code>dict[str, list[Point]]</code> work. Anything else (<code>set</code>, <code>tuple</code>, <code>bytes</code>, <code>Any</code>, plain unions, <code>dict[int, X]</code>) raises <code>RegistrationError</code> when the class is created.</p>
+<p>A field is annotated with <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>, <code>UUID</code>, <code>datetime</code>, <code>date</code>, <code>time</code>, <code>timedelta</code>, <code>Decimal</code>, <code>bytes</code>, a nested <code>Schema</code>, <code>list[X]</code>, <code>dict[str, X]</code> or a <a href="#discriminated-unions">discriminated union</a>, optionally <code>| None</code> (accepts <code>null</code>) and <code>| Unset</code> (may be left out of a partial update), and optionally wrapped in <code>Annotated[..., Field(...)]</code>. <code>X</code> can be any of these, so <code>list[dict[str, int]]</code> and <code>dict[str, list[Point]]</code> work. Anything else (<code>set</code>, <code>tuple</code>, <code>bytearray</code>, <code>Any</code>, plain unions, <code>dict[int, X]</code>) raises <code>RegistrationError</code> when the class is created.</p>
+<h3 id="dates-durations-decimals-and-bytes">Dates, durations, decimals and bytes<a class="headerlink" href="#dates-durations-decimals-and-bytes" title="Permanent link">&para;</a></h3>
+<p><code>date</code>, <code>time</code>, <code>timedelta</code>, <code>Decimal</code> and <code>bytes</code> travel as JSON strings and are validated identically by the Python and the Rust lane:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">dt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">decimal</span><span class="w"> </span><span class="kn">import</span> <span class="n">Decimal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Schema</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Booking</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">day</span><span class="p">:</span> <span class="n">dt</span><span class="o">.</span><span class="n">date</span>
+    <span class="n">opens</span><span class="p">:</span> <span class="n">dt</span><span class="o">.</span><span class="n">time</span>
+    <span class="n">length</span><span class="p">:</span> <span class="n">dt</span><span class="o">.</span><span class="n">timedelta</span>
+    <span class="n">price</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="n">Decimal</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">max_digits</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">decimal_places</span><span class="o">=</span><span class="mi">2</span><span class="p">)]</span>
+    <span class="n">receipt</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">bytes</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">1024</span><span class="p">)]</span>
+
+
+<span class="n">booking</span> <span class="o">=</span> <span class="n">Booking</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">"day"</span><span class="p">:</span> <span class="s2">"2026-03-14"</span><span class="p">,</span>
+        <span class="s2">"opens"</span><span class="p">:</span> <span class="s2">"09:30:00+01:00"</span><span class="p">,</span>
+        <span class="s2">"length"</span><span class="p">:</span> <span class="s2">"PT1H30M"</span><span class="p">,</span>
+        <span class="s2">"price"</span><span class="p">:</span> <span class="s2">"19.90"</span><span class="p">,</span>
+        <span class="s2">"receipt"</span><span class="p">:</span> <span class="s2">"aGVsbG8="</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">booking</span><span class="o">.</span><span class="n">length</span> <span class="o">==</span> <span class="n">dt</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">hours</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">minutes</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">booking</span><span class="o">.</span><span class="n">price</span> <span class="o">==</span> <span class="n">Decimal</span><span class="p">(</span><span class="s2">"19.90"</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">booking</span><span class="o">.</span><span class="n">receipt</span> <span class="o">==</span> <span class="sa">b</span><span class="s2">"hello"</span>
+<span class="k">assert</span> <span class="n">booking</span><span class="o">.</span><span class="n">dump</span><span class="p">()[</span><span class="s2">"price"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"19.90"</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Accepted input</th>
+<th>Output</th>
+<th>Error code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>date</code></td>
+<td><code>YYYY-MM-DD</code>, a real calendar date in years 0001–9999, ASCII digits</td>
+<td>the same text</td>
+<td><code>date</code></td>
+</tr>
+<tr>
+<td><code>time</code></td>
+<td><code>HH:MM:SS[.f…f]</code> with 1 to 6 fraction digits and a <code>Z</code> or <code>±HH:MM</code> offset</td>
+<td><code>isoformat()</code></td>
+<td><code>time</code>; <code>time_tz</code> when the offset is missing</td>
+</tr>
+<tr>
+<td><code>timedelta</code></td>
+<td>ISO 8601 <code>[-]P[nD][T[nH][nM][n[.f…f]S]]</code>; years, months and weeks are refused</td>
+<td><code>PT1H30M</code>, <code>P1DT2S</code>, <code>-PT0.5S</code></td>
+<td><code>duration</code>; <code>duration_range</code> outside <code>timedelta</code>'s range</td>
+</tr>
+<tr>
+<td><code>Decimal</code></td>
+<td>a string <code>-?(0\|[1-9][0-9]*)(\.[0-9]+)?</code> or an integer; floats, booleans, exponents, <code>NaN</code> and infinities are refused</td>
+<td>a fixed-point string that keeps the scale (<code>"0.10"</code>)</td>
+<td><code>decimal</code></td>
+</tr>
+<tr>
+<td><code>bytes</code></td>
+<td>standard padded base64 (<code>+</code>, <code>/</code>, <code>=</code>); no whitespace or URL-safe alphabet</td>
+<td>padded base64</td>
+<td><code>bytes</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>A time needs an offset</strong> on the wire, as a <code>datetime</code> does; a time without one is reported as <code>time_tz</code>. Fields derived from a <code>Model</code> through <code>from_model()</code> accept naive times, as they accept naive datetimes. A <code>date</code> field refuses a <code>datetime</code>.</li>
+<li><strong><code>Decimal</code> is exact.</strong> Bounds <code>ge</code>, <code>le</code>, <code>gt</code> and <code>lt</code> (an <code>int</code> or <code>Decimal</code>, never a float) compare exactly. <code>max_digits</code> (default 64, at most 1000) counts all digits, <code>decimal_places</code> the digits after the point, and when <code>decimal_places</code> is declared the digits before the point are limited to <code>max_digits - decimal_places</code>. The codes are <code>max_digits</code>, <code>decimal_places</code> and <code>max_whole_digits</code>; the checks run in that order, then the bounds. A <code>decimal_places</code> above <code>max_digits</code> is refused at class creation.</li>
+<li><strong><code>bytes</code> size.</strong> <code>min_length</code> and <code>max_length</code> count decoded bytes (<code>at most 1024 bytes</code>). Client input without a <code>max_length</code> is limited to 65536 decoded bytes (<code>hinoki.fieldtypes.MAX_BYTES_LENGTH</code>); a declared <code>max_length</code> replaces the limit. Fields derived from a <code>Model</code> column never get it. <code>pattern</code> and <code>format=</code> do not apply to <code>bytes</code>.</li>
+<li><strong>Text sources.</strong> Form, query and XML values use the same text forms, so <code>validate_text</code> needs no conversion for these types.</li>
+<li><strong>Models.</strong> A <code>bytes</code> column stores as <code>BYTEA</code> on PostgreSQL and a blob on SQLite, and native CRUD serialises it as base64. Constraints on a <code>bytes</code> model column are refused. The ORM stores only <code>bytes</code> among these types; <code>date</code>, <code>time</code>, <code>timedelta</code> and <code>Decimal</code> are not model column types yet.</li>
+<li><strong>OpenAPI</strong> documents <code>date</code> as <code>format: date</code>, <code>time</code> as <code>format: time</code>, <code>timedelta</code> as <code>format: duration</code>, <code>Decimal</code> as a <code>string</code> with <code>format: decimal</code> and a <code>pattern</code>, and <code>bytes</code> as <code>format: byte</code> with <code>contentEncoding: base64</code>. Decimal bounds appear as <code>minimum</code>/<code>maximum</code> numbers.</li>
+<li><strong>Output.</strong> The JSON encoder writes these values only inside <code>Schema</code> instances; a bare <code>Decimal</code> or <code>bytes</code> in a plain dictionary is still a <code>TypeError</code>, so a handler that returns one must return a <code>Schema</code> or supply a <code>default=</code> hook. A <code>Decimal</code> that is <code>NaN</code>, infinite or has more than 1000 digits raises <code>ValueError</code>.</li>
+</ul>
 <h3 id="dictionary-fields">Dictionary fields<a class="headerlink" href="#dictionary-fields" title="Permanent link">&para;</a></h3>
 <p>Use <code>dict[str, X]</code> for an object whose keys the client chooses, such as labels, per-locale texts or settings by name:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
@@ -621,7 +703,7 @@
           
           
             <ul><li><a href="#field-types">Field types</a>
-            <ul><li><a href="#dictionary-fields">Dictionary fields</a></li></ul>
+            <ul><li><a href="#dates-durations-decimals-and-bytes">Dates, durations, decimals and bytes</a></li><li><a href="#dictionary-fields">Dictionary fields</a></li></ul>
           </li><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#class-configuration">Class configuration</a></li><li><a href="#discriminated-unions">Discriminated unions</a></li><li><a href="#projection-options-on-dump">Projection options on dump()</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
           
         </nav>
@@ -629,8 +711,8 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 21:24:23 UTC">November 18, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>11 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 23:07:50 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>14 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

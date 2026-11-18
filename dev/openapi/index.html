@@ -433,6 +433,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <li>Admin HTML routes marked <code>hide_from_docs</code> are omitted.</li>
 </ul>
 <p>A <code>dict[str, X]</code> field becomes <code>type: object</code> with <code>additionalProperties</code> (the value schema), <code>propertyNames</code> (the key schema) and <code>minProperties</code>/<code>maxProperties</code> from its declared entry limits. The framework bounds on client input (1000 entries, 256-character keys) are not part of the document because components describe responses too; see <a href="../schemas/#dictionary-fields">dictionary fields</a>.</p>
+<p><code>date</code>, <code>time</code> and <code>timedelta</code> fields become <code>type: string</code> with <code>format: date</code>, <code>time</code> and <code>duration</code>. A <code>Decimal</code> field becomes <code>type: string</code>, <code>format: decimal</code> and a <code>pattern</code> for its text form, with <code>ge</code>/<code>le</code>/<code>gt</code>/<code>lt</code> as <code>minimum</code>/<code>maximum</code>/<code>exclusiveMinimum</code>/<code>exclusiveMaximum</code>; <code>max_digits</code> and <code>decimal_places</code> are not written. A <code>bytes</code> field becomes <code>type: string</code>, <code>format: byte</code> and <code>contentEncoding: base64</code>, and its decoded-size limits are not written either, since they count bytes rather than characters. See <a href="../schemas/#dates-durations-decimals-and-bytes">dates, durations, decimals and bytes</a>.</p>
 <p>Discriminated unions declared as <code>Schema</code> fields become OpenAPI <code>oneOf</code> schemas with a <code>discriminator</code> and explicit tag-to-component mapping. Variant tag fields appear as required string enums; the runtime uses the same tags to select exactly one branch. List items, nested fields and nullable unions retain that structure. For route input and response documentation, put the union inside a wrapper <code>Schema</code>; bare union return annotations are rejected instead of producing an incomplete schema. As elsewhere, the response annotation does not cause runtime response validation.</p>
 <div class="highlight"><pre><span></span><code><span class="nt">oneOf</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">$ref</span><span class="p">:</span><span class="w"> </span><span class="s">"#/components/schemas/Cat"</span>
@@ -485,8 +486,8 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.12</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 21:24:23 UTC">November 18, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 23:07:50 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/openapi.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
