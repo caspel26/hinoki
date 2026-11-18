@@ -37,6 +37,9 @@ from phase1_orientation import (
 
 HERE = Path(__file__).parent
 DB = os.environ.get("P2BENCH_DATABASE_URL", "")
+# "handlers" measures the JSON request path; "sources" the text sources and renderers.
+SUITE = os.environ.get("PHASE2_SUITE", "handlers")
+APP_MODULE = "phase2_hinoki" if SUITE == "handlers" else "phase2_sources_hinoki"
 WORKERS = 4
 POOL = 10
 CONCURRENCY = 64
@@ -46,8 +49,15 @@ STACKS = ("rust", "granian")
 SMALL = {"title": "Baseline", "body": "x" * 64, "count": 3}
 BIG_10K = {"title": "Baseline", "body": "x" * 10_000, "count": 3}
 BIG_100K = {"title": "Baseline", "body": "x" * 100_000, "count": 3}
-# name -> (method, path, JSON body or None, expected status)
-SCENARIOS: dict[str, tuple[str, str, dict[str, Any] | None, int]] = {
+FORM = ("application/x-www-form-urlencoded", b"title=Baseline&count=3&flag=true")
+XML = (
+    "application/xml",
+    b"<item><title>Baseline</title><count>3</count><flag>true</flag></item>",
+)
+# name -> (method, path, body, expected status); a body is a JSON value, a
+# (content type, bytes) pair, or None
+Body = dict[str, Any] | tuple[str, bytes] | None
+HANDLER_SCENARIOS: dict[str, tuple[str, str, Body, int]] = {
     "health": ("GET", "/health", None, 200),
     "echo_str": ("GET", "/echo-str/abc?view=full", None, 200),
     "echo_typed": ("GET", "/echo/42?limit=7&ratio=2.5&flag=true", None, 200),
@@ -58,6 +68,24 @@ SCENARIOS: dict[str, tuple[str, str, dict[str, Any] | None, int]] = {
     "delete": ("DELETE", "/items/42", None, 204),
     "post_tx": ("POST", "/items-tx", SMALL, 201),
 }
+SOURCE_SCENARIOS: dict[str, tuple[str, str, Body, int]] = {
+    "health": ("GET", "/health", None, 200),
+    "form": ("POST", "/form", FORM, 201),
+    "xml": ("POST", "/xml", XML, 201),
+    "query": ("GET", "/query?term=baseline&limit=7&flag=true", None, 200),
+    "html": ("GET", "/render/html", None, 200),
+    "xml_render": ("GET", "/render/xml", None, 200),
+    "request": ("GET", "/request-param", None, 200),
+}
+SCENARIOS = HANDLER_SCENARIOS if SUITE == "handlers" else SOURCE_SCENARIOS
+
+
+def encoded(body: Body) -> tuple[bytes, str] | None:
+    if body is None:
+        return None
+    if isinstance(body, tuple):
+        return body[1], body[0]
+    return json.dumps(body).encode(), "application/json"
 
 
 def server_command(stack: str, port: int) -> list[str]:
@@ -66,7 +94,7 @@ def server_command(stack: str, port: int) -> list[str]:
         "-m",
         "hinoki",
         "serve",
-        "phase2_hinoki:app",
+        f"{APP_MODULE}:app",
         "--server",
         stack,
         "--workers",
@@ -84,10 +112,11 @@ def call(
     base: str, scenario: str, timeout: float = 5.0
 ) -> tuple[int, bytes, dict[str, str]]:
     method, path, body, _ = SCENARIOS[scenario]
-    data = json.dumps(body).encode() if body is not None else None
+    payload = encoded(body)
+    data = payload[0] if payload else None
     headers = {"accept-encoding": "identity"}
-    if data is not None:
-        headers["content-type"] = "application/json"
+    if payload:
+        headers["content-type"] = payload[1]
     req = urllib.request.Request(base + path, data=data, method=method, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as response:
@@ -135,10 +164,11 @@ def oha(scenario: str, base: str, seconds: int, output: Path | None) -> dict[str
     ]  # fmt: skip
     if platform.system() == "Linux":
         command = ["taskset", "-c", LOAD_CPUS, *command]
-    if body is not None:
-        body_path = Path(os.environ["TMPDIR"]) / f"phase2-{scenario}.json"
-        body_path.write_text(json.dumps(body))
-        command.extend(["-H", "content-type: application/json", "-D", str(body_path)])
+    payload = encoded(body)
+    if payload:
+        body_path = Path(os.environ["TMPDIR"]) / f"phase2-{scenario}.body"
+        body_path.write_bytes(payload[0])
+        command.extend(["-H", f"content-type: {payload[1]}", "-D", str(body_path)])
     data = json.loads(execute([*command, base + path], cwd=HERE).stdout)
     if output is not None:
         output.write_text(json.dumps(data, indent=2) + "\n")
@@ -179,7 +209,7 @@ def lanes(output: Path) -> dict[str, str]:
     os.environ["PHASE2_DATABASE__URL"] = DB
 
     async def inspect_worker() -> dict[str, str]:
-        from phase2_hinoki import app
+        app = importlib.import_module(APP_MODULE).app
 
         from hinoki.runtime.rustserver import RustWorker
         from hinoki.runtime.servercore import native_handler_eligible
@@ -294,6 +324,7 @@ def metadata(args: argparse.Namespace) -> dict[str, Any]:
         "oha": execute(["oha", "--version"]).stdout.strip(),
         "loadavg_before_run": os.getloadavg(),
         "settings": {
+            "suite": SUITE,
             "scenarios": list(SCENARIOS),
             "stacks": list(STACKS),
             "pairs": args.pairs,
@@ -323,7 +354,7 @@ def arguments() -> argparse.Namespace:
 
 def run() -> None:
     args = arguments()
-    if not DB:
+    if SUITE == "handlers" and not DB:
         raise SystemExit("set P2BENCH_DATABASE_URL to a disposable PostgreSQL URL")
     args.out.mkdir(parents=True, exist_ok=True)
     verify(args.out)
