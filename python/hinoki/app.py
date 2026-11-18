@@ -25,6 +25,7 @@ from hinoki.openapi import OpenAPIBuilder
 from hinoki.pagination import DEFAULT_MAX_PAGE_SIZE, DEFAULT_PAGE_SIZE
 from hinoki.parsers import (
     DEFAULT_PARSERS,
+    FORM_PARSERS,
     UPLOAD_PARSERS,
     MultiPartParser,
     Parser,
@@ -43,7 +44,7 @@ from hinoki.routing import (
 )
 from hinoki.rules import Phase, Project, RuleSet, failing
 from hinoki.runtime.asgi import ASGIAdapter
-from hinoki.runtime.binding import Binding, bind, declares_upload
+from hinoki.runtime.binding import Binding, bind, declares_form, declares_upload
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.runtime.lifespan import Hook
 from hinoki.settings import (
@@ -432,6 +433,8 @@ class Hinoki:
         has_multipart = any(isinstance(item, MultiPartParser) for item in parsers)
         if not has_multipart and declares_upload(route):
             return UPLOAD_PARSERS
+        if declares_form(route) and not any(p.forms for p in parsers):
+            return FORM_PARSERS
         return parsers
 
     def with_defaults(self, route: Route) -> Route:

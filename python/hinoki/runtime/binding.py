@@ -38,6 +38,7 @@ from hinoki.renderers import is_default_json_renderer
 from hinoki.routing import Route
 from hinoki.runtime.responsecheck import NO_ANNOTATION, Check, compile_response_check
 from hinoki.schema import Schema
+from hinoki.sources import TextSource
 
 if typing.TYPE_CHECKING:
     from hinoki.runtime.rowplan import RowWireSelection
@@ -138,6 +139,7 @@ class Param:
     kind: str = "str"
     strategy: PageNumberPagination | None = None
     file_mode: str = ""
+    text: bool = False  # a Schema read from a text source, converted before checking
 
     def extract(self, request: RequestData) -> object:
         """Value for this parameter, from the part of the request it belongs to."""
@@ -174,6 +176,8 @@ class Param:
     def from_body(self, request: RequestData) -> object:
         assert self.schema is not None  # noqa: S101 - set for body params
         try:
+            if self.text:
+                return self.schema.validate_text(request.body)
             return self.schema.validate(request.body)
         except ValidationError as exc:
             prefixed = [
@@ -266,6 +270,10 @@ class Binding:
         }
 
     @property
+    def takes_text(self) -> bool:
+        return any(param.text for param in self.params)
+
+    @property
     def has_files(self) -> bool:
         return any(param.source == "file" for param in self.params)
 
@@ -330,7 +338,9 @@ def is_principal(annotation: object) -> bool:
 
 
 def special_param(
-    route: Route, parameter: inspect.Parameter, annotation: object
+    route: Route,
+    parameter: inspect.Parameter,
+    annotation: object,
 ) -> Param | None:
     """Parameters that are not plain request values: page, principal, body."""
     name, where = parameter.name, route.name
@@ -357,6 +367,50 @@ def special_param(
         annotation.specs()  # unresolvable annotations fail now, not per request
         return Param(name, "body", schema=annotation)
     return None
+
+
+def text_body_param(
+    route: Route, parameter: inspect.Parameter, annotation: object
+) -> Param:
+    """``Form[Schema]``: the Schema read from a form, text converted first."""
+    where, name = route.name, parameter.name
+    if not (isinstance(annotation, type) and issubclass(annotation, Schema)):
+        raise RegistrationError(f"{where}: Form[...] of {name!r} needs a Schema class")
+    if name in PATH_PARAM.findall(route.path) or route.method not in BODY_METHODS:
+        raise RegistrationError(
+            f"{where}: Form[...] parameter {name!r} must be the body of a "
+            "POST/PUT/PATCH/QUERY action, not a path or query parameter"
+        )
+    if not any(parser.forms for parser in route.parsers):
+        raise RegistrationError(
+            f"{where}: Form[...] parameters need FormParser or MultiPartParser in "
+            "the action's parsers=...; add one, or omit parsers= to select them"
+        )
+    annotation.specs()  # unresolvable annotations fail now, not per request
+    return Param(name, "body", schema=annotation, text=True)
+
+
+def text_sources(route: Route) -> dict[str, TextSource]:
+    """Parameters annotated with a text-source marker, by name. Annotations that
+    cannot be resolved answer nothing here; ``bind`` reports them."""
+    try:
+        hints = hints_of(route.handler, include_extras=True)
+    except (NameError, TypeError):
+        return {}
+    found: dict[str, TextSource] = {}
+    for name, hint in hints.items():
+        if typing.get_origin(hint) is typing.Annotated:
+            marks = [m for m in hint.__metadata__ if isinstance(m, TextSource)]
+            if marks:
+                found[name] = marks[0]
+    return found
+
+
+def declares_form(route: Route) -> bool:
+    """Whether a body action binds ``Form[...]``, so it needs a form parser."""
+    return route.method in BODY_METHODS and any(
+        mark.kind == "form" for mark in text_sources(route).values()
+    )
 
 
 def file_parameter(
@@ -443,8 +497,17 @@ def check_file_parameter(route: Route, parameter: inspect.Parameter, mode: str) 
         )
 
 
-def make_param(route: Route, parameter: inspect.Parameter, annotation: object) -> Param:
-    special = special_param(route, parameter, annotation)
+def make_param(
+    route: Route,
+    parameter: inspect.Parameter,
+    annotation: object,
+    source: TextSource | None = None,
+) -> Param:
+    special = (
+        text_body_param(route, parameter, annotation)
+        if source is not None
+        else special_param(route, parameter, annotation)
+    )
     if special is not None:
         return special
     upload = file_parameter(route, parameter, annotation)
@@ -520,7 +583,10 @@ def bind(route: Route) -> Binding:
             f"{route.name}: path parameters not accepted by the handler: "
             f"{sorted(missing)}"
         )
-    params = tuple(make_param(route, p, hints.get(p.name)) for p in parameters)
+    sources = text_sources(route)
+    params = tuple(
+        make_param(route, p, hints.get(p.name), sources.get(p.name)) for p in parameters
+    )
     if route.pagination is not None and not any(p.source == "page" for p in params):
         raise RegistrationError(
             f"{route.name}: pagination=... needs a PageParams parameter"

@@ -820,9 +820,9 @@ class Pipeline:
         if input_error is not None and not invalid:
             raise native_input_exception(input_error)
         content_type = headers.get("content-type", "")
-        parsed = choose(binding.route.parsers, media_type(content_type)).parse(
-            raw, content_type
-        )
+        parser = choose(binding.route.parsers, media_type(content_type))
+        parsed = parser.parse(raw, content_type)
+        tree = parsed.fields if param.text and parser.forms else parsed.data
         errors = (
             [ErrorDetail(*item) for item in input_error[3]]
             if invalid and input_error
@@ -830,7 +830,7 @@ class Pipeline:
         )
         value: object = None
         try:
-            value = param.from_body(RequestData(body=parsed.data))
+            value = param.from_body(RequestData(body=tree))
         except ValidationError as exc:
             errors.extend(exc.details)
         if errors:
