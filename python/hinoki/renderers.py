@@ -21,15 +21,17 @@ MAX_INDENT = 16
 MAX_XML_DEPTH = 200
 _XML_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]*\Z")
 _XML_ILLEGAL = re.compile("[^\t\n\r\u0020-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]")
-_XML_ESCAPES = {
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "\t": "&#9;",
-    "\n": "&#10;",
-    "\r": "&#13;",
-}
+# Applied in order, "&" first so no reference is escaped twice.
+_XML_ESCAPES = (
+    ("&", "&amp;"),
+    ("<", "&lt;"),
+    (">", "&gt;"),
+    ('"', "&quot;"),
+    ("\t", "&#9;"),
+    ("\n", "&#10;"),
+    ("\r", "&#13;"),
+)
+_XML_SPECIAL = re.compile('[&<>"\t\n\r]')
 _XML_KEY_ERROR = "keys must be str, int, bool or None"
 
 
@@ -121,7 +123,11 @@ def xml_text(value: str) -> str:
     written as references so a parser's whitespace normalization keeps them;
     characters XML 1.0 cannot carry become U+FFFD."""
     clean = _XML_ILLEGAL.sub("\ufffd", value)
-    return "".join(_XML_ESCAPES.get(ch, ch) for ch in clean)
+    if _XML_SPECIAL.search(clean) is None:
+        return clean
+    for special, reference in _XML_ESCAPES:
+        clean = clean.replace(special, reference)
+    return clean
 
 
 def xml_key(key: object) -> str:
