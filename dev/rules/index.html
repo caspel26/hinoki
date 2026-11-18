@@ -389,7 +389,7 @@
         <p class="kicker" data-search-exclude>3.17 · Guides</p>
         <h1 id="rules-architecture-you-can-check">Rules: architecture you can check<a class="headerlink" href="#rules-architecture-you-can-check" title="Permanent link">&para;</a></h1>
 <p>Rules are optional, typed promises about your application that a tool checks and that fail with a stable ID, a location and an explanation. They are not a linter for style and not an AI prompt: each rule is a Python object with deterministic behaviour. Nothing runs unless you enable rules.</p>
-<p>The built-in set is intentionally small: access declarations, atomic writes, response types, model responses, pagination, schema exposure and import direction. Add a custom <code>Rule</code> only when a project has a concrete invariant that these checks cannot express.</p>
+<p>The built-in set is intentionally small: access declarations, atomic writes, response types, model responses, pagination, permissions, request text limits, table names, foreign-key indexes, schema exposure and import direction. Add a custom <code>Rule</code> only when a project has a concrete invariant that these checks cannot express.</p>
 <h2 id="enable-them-the-blog-does">Enable them (the blog does)<a class="headerlink" href="#enable-them-the-blog-does" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="c1"># examples/blog/rules.py</span>
 <span class="n">blog_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
@@ -417,6 +417,12 @@
 <td><code>Actions.require_access(match, except_)</code></td>
 <td>startup</td>
 <td>every matching action names an <code>Access</code> policy (public by default is the common hole)</td>
+</tr>
+<tr>
+<td><code>HNK-ACC-002</code></td>
+<td><code>Actions.require_permissions(match, except_)</code></td>
+<td>startup</td>
+<td>an action that names an <code>Access</code> policy names at least one permission, so "any authenticated caller" is never implicit</td>
 </tr>
 <tr>
 <td><code>HNK-TXN-001</code></td>
@@ -449,6 +455,24 @@
 <td>named fields never appear in a response <code>Schema</code>, nested or in a subclass</td>
 </tr>
 <tr>
+<td><code>HNK-SCH-002</code></td>
+<td><code>Schemas.require_string_limits()</code></td>
+<td>startup</td>
+<td>every text field of a request <code>Schema</code> (nested ones included) has <code>max_length</code> or <code>one_of</code></td>
+</tr>
+<tr>
+<td><code>HNK-DB-001</code></td>
+<td><code>Models.require_explicit_table(match)</code></td>
+<td>startup</td>
+<td>models whose module matches <code>match</code> pin their table with <code>@db.table(...)</code> or <code>table=</code>; a rename of the class then cannot change the physical table</td>
+</tr>
+<tr>
+<td><code>HNK-DB-002</code></td>
+<td><code>Models.require_foreign_key_index(match)</code></td>
+<td>startup</td>
+<td>every foreign-key column of a matching model leads an index, a primary key or a unique constraint</td>
+</tr>
+<tr>
 <td><code>HNK-IMP-001</code></td>
 <td><code>Imports.forbid(source, target)</code></td>
 <td>static</td>
@@ -456,7 +480,8 @@
 </tr>
 </tbody>
 </table>
-<p><code>match</code> and <code>except_</code> patterns use <code>fnmatch</code> on the action's full qualified name (<code>pkg.api.Posts.create</code>, named after the class it is mounted on). A bare name such as <code>health</code> matches nothing: write <code>*.health</code>.</p>
+<p>The model rules take <code>match</code> as an <code>fnmatch</code> pattern on the model's module (<code>blog.*</code>); a pattern that matches no model is reported as unverifiable.</p>
+<p><code>match</code> and <code>except_</code> patterns on action rules use <code>fnmatch</code> on the action's full qualified name (<code>pkg.api.Posts.create</code>, named after the class it is mounted on). A bare name such as <code>health</code> matches nothing: write <code>*.health</code>.</p>
 <h2 id="run-them">Run them<a class="headerlink" href="#run-them" title="Permanent link">&para;</a></h2>
 <p>The Blog target is part of the checked-in project in <code>examples/</code>. Run this from
 that directory, using the locked environment in the parent directory:</p>
@@ -528,8 +553,8 @@ shop/models.py:11: HNK-IMP-001 [violated] shop.models imports shop.api, which is
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.17</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 23:28:22 UTC">November 17, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>4 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 23:31:38 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/rules.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
