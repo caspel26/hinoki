@@ -37,6 +37,7 @@ Every `APIError` subclass answers by itself with its `status`, `code` and `messa
 | `errors.Forbidden` | 403 | the caller may not do this |
 | `errors.NotFound` | 404 | the resource does not exist |
 | `errors.Conflict` | 409 | the request contradicts the current state (a duplicate, already done) |
+| `errors.TooManyRequests` | 429 | a route's [rate limit policy](endpoints.md#rate-limit-an-action) refused the request; `retry_after` seconds are sent as `Retry-After` |
 | `errors.APIError` | the `status` you set | anything else |
 
 ```python
