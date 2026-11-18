@@ -66,17 +66,18 @@ async def in_group(item: str) -> None:
     return None
 
 
-def test_a_plain_delete_is_native_and_every_guarded_shape_is_not() -> None:
+def test_only_plain_and_transactional_deletes_are_native() -> None:
     found = eligible(plain, guarded, limited, atomic, with_request, Things, group)
 
     assert found["/plain/{item}"] is True
-    assert [path for path, native in found.items() if native] == ["/plain/{item}"]
+    native = [path for path, flag in found.items() if flag]
+    assert native == ["/plain/{item}", "/atomic/{item}", "/group/{item}"]
 
 
 @pytest.mark.parametrize(
     "route",
-    [guarded, limited, atomic, with_request],
-    ids=["access", "rate_limit", "transaction", "request"],
+    [guarded, limited, with_request],
+    ids=["access", "rate_limit", "request"],
 )
 def test_each_guard_alone_keeps_a_delete_on_the_python_path(
     route: Callable[..., Any],
