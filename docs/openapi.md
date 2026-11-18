@@ -86,4 +86,4 @@ async def get_task(task_id: UUID) -> TaskOutput:
 
 ## Current limits
 
-Per-action `tags`, `deprecated`, a caller-supplied `operation_id` and `include_in_schema` controls are not implemented. Response bodies are generated from annotations; runtime response validation against those annotations is opt-in per action with [`validate_response=True`](endpoints.md#validate-the-response) and is off otherwise. See [project status](status.md) for other API boundaries.
+Per-action `tags`, `deprecated`, a caller-supplied `operation_id` and `include_in_schema` controls are not implemented. Response bodies are generated from annotations; every action's return value is checked against its annotation at runtime, and an annotation that cannot be checked stops the app at startup ([details](endpoints.md#the-response-is-checked-against-the-annotation)). See [project status](status.md) for other API boundaries.
