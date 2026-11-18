@@ -114,13 +114,13 @@ class Lifespan:
         return running_loop is self._loop
 
     def _check_database(self) -> None:
-        """Actions with ``transaction=True`` need a provided ``Database``."""
+        """Actions with ``atomic=True`` need a provided ``Database``."""
         if self.needs_database:
             try:
                 self.ctx.get(Database)
             except LookupError:
                 raise RuntimeError(
-                    "an action uses transaction=True but no module provided a Database"
+                    "an action uses atomic=True but no module provided a Database"
                 ) from None
 
     async def shutdown(self) -> None:

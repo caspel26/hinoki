@@ -6,7 +6,7 @@ validated when the ``Response`` is built, so a bad header fails in the handler
 (a 500 with a request id) instead of corrupting the response.
 
 An answer that signals failure should be an exception, not a ``Response``: a
-``transaction=True`` action commits when the handler returns, whatever the
+``atomic=True`` action commits when the handler returns, whatever the
 status of the ``Response``.
 """
 

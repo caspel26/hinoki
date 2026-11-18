@@ -26,9 +26,9 @@ The server returns each result as JSON in `structuredContent` and in a text cont
 
 | Tool | Input | Result |
 | --- | --- | --- |
-| `inspect_project` | `{}` | App title/version, registered actions, selected model metadata, and enabled rule count. Models are included only when supplied with `--models`. |
+| `inspect_project` | `{}` | App title/version, registered actions (each with `id`, `method`, `path`, `status`, `access`, `atomic`, `pagination`, `parsers`, `renderers` and `location`), selected model metadata, and enabled rule count. Models are included only when supplied with `--models`. |
 | `list_rules` | `{}` | Enabled rules and read-only waiver entries, including their file path, target, reason, owner and expiry. |
-| `explain_action` | `{"action": "module.function"}` | Action signature and docstring, access and transaction declarations, generated OpenAPI operation, and diagnostics for the action. The action may also be named by class method or bare handler name when unique. |
+| `explain_action` | `{"action": "module.function"}` | Action signature and docstring, access and `atomic` declarations, generated OpenAPI operation, and diagnostics for the action. The action may also be named by class method or bare handler name when unique. |
 | `explain_error` | `{"code": "validation_error"}` | Meaning and fix for a framework error code, HTTP error code or rule ID. |
 | `propose_model` | `{"name": "Article", "fields": [...]}` | Suggested model, input/patch/output schemas and CRUD action source text. The returned text is not written to a file. Fields support `str`, `int`, `float`, `bool`, `uuid` and `datetime`, with optional `nullable`, `unique` and `max_length`. |
 | `check_project` | `{}` or `{"phase": "static"}` | Enabled rule diagnostics with waivers applied, plus `ok` and `failing`. `phase` accepts `startup` or `static`. Effectful checks are excluded. |

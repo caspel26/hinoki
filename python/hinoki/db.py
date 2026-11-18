@@ -1,10 +1,14 @@
 """Database access: pooled, typed, with transactions bound to the task context.
 
 ``Database`` wraps the native engine. Create it inside a worker (a module
-lifespan), never at import. Inside ``async with db.transaction():`` every
-``db.fetch``/``db.execute`` of that task uses the transaction's connection;
-nested scopes become savepoints; leaving the scope commits, or rolls back on
-any exception (including cancellation and timeouts).
+lifespan), never at import. Inside ``async with database.atomic():`` every
+``fetch``/``execute`` of that task uses the transaction's connection; nested
+scopes become savepoints; leaving the scope commits, or rolls back on any
+exception (including cancellation and timeouts).
+
+``db.atomic`` opens the same scope on the current database (the one a request
+or ``use_database`` made active): ``async with db.atomic():`` for a block, or
+``@db.atomic`` / ``@db.atomic()`` on an ``async def`` for a whole call.
 
 The namespace also carries the model declaration decorators, so a models
 module reads ``from hinoki import db`` and then ``@db.table("posts")``,
@@ -16,13 +20,14 @@ access.
 from __future__ import annotations
 
 import asyncio
+import functools
 import inspect
 import logging
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Coroutine
 from contextlib import asynccontextmanager
 from contextvars import ContextVar, Token
 from types import TracebackType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, overload
 
 from hinoki import core
 from hinoki.core import (
@@ -39,12 +44,14 @@ if TYPE_CHECKING:
     from hinoki.orm.options import indexed, ordered_by, table
 
 __all__ = [
+    "Atomic",
     "CheckViolation",
     "Database",
     "DatabaseError",
     "ForeignKeyViolation",
     "NotNullViolation",
     "UniqueViolation",
+    "atomic",
     "indexed",
     "ordered_by",
     "table",
@@ -114,7 +121,7 @@ class Database:
         if found.finished:
             raise DatabaseError(
                 "the transaction has ended; a task that outlives its "
-                "transaction scope cannot use the database"
+                "atomic scope cannot use the database"
             )
         return found
 
@@ -155,8 +162,10 @@ class Database:
         target = active.native if active else self.engine
         return await target.execute(sql, list(params))
 
-    def transaction(self) -> TransactionScope:
-        return TransactionScope(self)
+    def atomic(self) -> AtomicScope:
+        """``async with database.atomic():`` — commit on success, roll back on
+        any exception; inside an open scope of the same task, a savepoint."""
+        return AtomicScope(self)
 
     def after_commit(self, callback: Callable[[], object]) -> None:
         """Run ``callback`` (sync or async) after the outermost transaction
@@ -168,9 +177,9 @@ class Database:
             raise DatabaseError("after_commit needs an active transaction")
         active.commit_callbacks.append(callback)
 
-    def migration(self) -> TransactionScope:
+    def migration(self) -> AtomicScope:
         """An exclusive migration transaction with backend locking semantics."""
-        return TransactionScope(self, migration=True)
+        return AtomicScope(self, migration=True)
 
     def close(self) -> None:
         self.engine.close()
@@ -180,8 +189,8 @@ class Database:
         return self.engine.status()
 
 
-class TransactionScope:
-    """``async with db.transaction():`` — commit, rollback or savepoint."""
+class AtomicScope:
+    """``async with database.atomic():`` — commit, rollback or savepoint."""
 
     def __init__(self, database: Database, *, migration: bool = False) -> None:
         self.database = database
@@ -191,7 +200,7 @@ class TransactionScope:
         self.savepoint: str | None = None
         self.callback_mark = 0
 
-    async def __aenter__(self) -> TransactionScope:
+    async def __aenter__(self) -> AtomicScope:
         parent = self.database.active()
         if parent is None:
             native_tx = (
@@ -204,7 +213,7 @@ class TransactionScope:
             return self
         if asyncio.current_task() is not parent.owner:
             raise DatabaseError(
-                "nested transaction scopes (savepoints) must be opened by the "
+                "nested atomic scopes (savepoints) must be opened by the "
                 "task that owns the transaction"
             )
         if self.migration:
@@ -223,7 +232,7 @@ class TransactionScope:
     ) -> None:
         state = self.state
         if state is None:
-            raise RuntimeError("transaction scope was not entered")
+            raise RuntimeError("atomic scope was not entered")
         if self.savepoint is not None:
             await self.leave_savepoint(state, exc is None)
             return
@@ -265,10 +274,81 @@ class TransactionScope:
             log.exception("rollback failed; the connection will be discarded")
 
 
+class Atomic:
+    """``db.atomic()``: an atomic scope on the current database, as a block or
+    as a decorator.
+
+    ``async with db.atomic():`` opens ``current_database().atomic()`` when the
+    block is entered. Decorating an ``async def`` opens a fresh scope for every
+    call: returning commits, an exception rolls back, and a call made inside an
+    already atomic scope becomes a savepoint.
+    """
+
+    def __init__(self) -> None:
+        self.scopes: list[AtomicScope] = []
+
+    async def __aenter__(self) -> AtomicScope:
+        scope = current_scope()
+        await scope.__aenter__()
+        self.scopes.append(scope)
+        return scope
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        if not self.scopes:
+            raise RuntimeError("atomic scope was not entered")
+        await self.scopes.pop().__aexit__(exc_type, exc, tb)
+
+    def __call__[**P, R](
+        self, func: Callable[P, Coroutine[Any, Any, R]]
+    ) -> Callable[P, Coroutine[Any, Any, R]]:
+        if not inspect.iscoroutinefunction(func):
+            raise TypeError(
+                f"db.atomic wraps coroutine functions only; "
+                f"{getattr(func, '__qualname__', func)!r} is not an async def"
+            )
+
+        @functools.wraps(func)
+        async def atomic_call(*args: P.args, **kwargs: P.kwargs) -> R:
+            async with current_scope():
+                return await func(*args, **kwargs)
+
+        return atomic_call
+
+
+def current_scope() -> AtomicScope:
+    """A new atomic scope on the database that is current for this task."""
+    # hinoki.orm.context imports this module; importing it at the top would be
+    # circular, and using hinoki.db must not load the ORM.
+    from hinoki.orm.context import current_database  # noqa: PLC0415
+
+    return current_database().atomic()
+
+
+@overload
+def atomic[**P, R](
+    func: Callable[P, Coroutine[Any, Any, R]], /
+) -> Callable[P, Coroutine[Any, Any, R]]: ...
+@overload
+def atomic() -> Atomic: ...
+def atomic[**P, R](
+    func: Callable[P, Coroutine[Any, Any, R]] | None = None, /
+) -> Atomic | Callable[P, Coroutine[Any, Any, R]]:
+    """``async with db.atomic():``, ``@db.atomic`` or ``@db.atomic()``: run a
+    block or a coroutine function atomically on the current database."""
+    if func is None:
+        return Atomic()
+    return Atomic()(func)
+
+
 class DatabaseModule(Module):
     """Opens a ``Database`` for the worker and provides it to other modules.
 
-    ``app.install(DatabaseModule(url))``; actions with ``transaction=True``
+    ``app.install(DatabaseModule(url))``; actions with ``atomic=True``
     and other modules obtain it with ``ctx.get(Database)``. The pool is
     created in the worker's lifespan and closed when it ends.
     """

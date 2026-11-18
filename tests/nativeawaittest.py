@@ -50,14 +50,14 @@ async def test_cancelled_call_leaves_the_pool_usable(tmp_path: Path) -> None:
 
 
 async def fail_in_transaction(db: Database) -> None:
-    async with db.transaction():
+    async with db.atomic():
         await db.execute("insert into t (v) values (?)", "gone")
         raise RuntimeError
 
 
 async def test_transaction_commit_and_rollback(tmp_path: Path) -> None:
     db = await open_db(tmp_path)
-    async with db.transaction():
+    async with db.atomic():
         await db.execute("insert into t (v) values (?)", "kept")
     with pytest.raises(RuntimeError):
         await fail_in_transaction(db)

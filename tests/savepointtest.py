@@ -50,7 +50,7 @@ async def database(request: pytest.FixtureRequest) -> AsyncIterator[Database]:
 
 async def nested(db: Database, sql: str, fail: bool = False) -> None:
     """Run ``sql`` in a nested transaction, which fails afterwards when asked."""
-    async with db.transaction():
+    async with db.atomic():
         await db.execute(sql)
         if fail:
             raise ZeroDivisionError
@@ -64,9 +64,9 @@ async def names(db: Database) -> list[str]:
 async def test_a_nested_transaction_that_succeeds_commits_with_the_outer_one(
     database: Database,
 ) -> None:
-    async with database.transaction():
+    async with database.atomic():
         await database.execute(f"INSERT INTO {TABLE} VALUES (1, 'outer')")  # noqa: S608
-        async with database.transaction():
+        async with database.atomic():
             await database.execute(f"INSERT INTO {TABLE} VALUES (2, 'inner')")  # noqa: S608
     assert await names(database) == ["outer", "inner"]
 
@@ -74,7 +74,7 @@ async def test_a_nested_transaction_that_succeeds_commits_with_the_outer_one(
 async def test_a_failed_nested_transaction_rolls_back_only_itself(
     database: Database,
 ) -> None:
-    async with database.transaction():
+    async with database.atomic():
         await database.execute(f"INSERT INTO {TABLE} VALUES (1, 'outer')")  # noqa: S608
         with pytest.raises(ZeroDivisionError):
             await nested(database, f"INSERT INTO {TABLE} VALUES (2, 'inner')", True)  # noqa: S608
@@ -85,7 +85,7 @@ async def test_a_failed_nested_transaction_rolls_back_only_itself(
 async def test_a_constraint_error_leaves_the_transaction_usable(
     database: Database,
 ) -> None:
-    async with database.transaction():
+    async with database.atomic():
         await database.execute(f"INSERT INTO {TABLE} VALUES (1, 'first')")  # noqa: S608
         with pytest.raises(UniqueViolation):
             await nested(database, f"INSERT INTO {TABLE} VALUES (1, 'again')")  # noqa: S608
@@ -96,7 +96,7 @@ async def test_a_constraint_error_leaves_the_transaction_usable(
 async def test_a_statement_without_values_may_be_a_savepoint(
     database: Database,
 ) -> None:
-    async with database.transaction():
+    async with database.atomic():
         await database.execute(f"INSERT INTO {TABLE} VALUES (1, 'kept')")  # noqa: S608
         await database.execute("SAVEPOINT manual_sp")
         await database.execute(f"INSERT INTO {TABLE} VALUES (2, 'undone')")  # noqa: S608

@@ -114,7 +114,7 @@ def route_spec(
         [renderer.media_type for renderer in route.renderers],
         int(route.status),
         [(str(k), str(v)) for k, v in getattr(owner, "response_headers", ())],
-        route.transaction,
+        route.atomic,
         binding.takes_request,
         (native_handler, native_inputs),
         crud_plan,

@@ -117,7 +117,7 @@ class AdminAccounts:
         """Change a password and end every session of the user."""
         if hashed is None:
             hashed = await self.hash_password(password)
-        async with current_database().transaction():
+        async with current_database().atomic():
             user.password_hash = hashed
             await user.asave()
             await self.revoke_sessions(user)
@@ -125,7 +125,7 @@ class AdminAccounts:
     async def set_active(self, user: AdminUser, active: bool) -> None:
         """Activate or deactivate a user. Deactivating also ends every session, so
         reactivating never brings an old one back."""
-        async with current_database().transaction():
+        async with current_database().atomic():
             user.is_active = active
             await user.asave()
             if not active:
@@ -159,7 +159,7 @@ class AdminAccounts:
         bound to the password the user has now, so a later password change ends it."""
         token = secrets.token_urlsafe(32)
         now = self.clock()
-        async with current_database().transaction():
+        async with current_database().atomic():
             await AdminSession.acreate(
                 token_hash=self.digest(token),
                 user_id=user.id,
@@ -228,7 +228,7 @@ class AdminAccounts:
         for _model, action in grants:
             if action not in ACTIONS:
                 raise AdminUserError(f"Unknown permission {action!r}.")
-        async with current_database().transaction():
+        async with current_database().atomic():
             await AdminGrant.filter(user_id=user.id).adelete()
             for model, action in sorted(grants):
                 await AdminGrant.acreate(user_id=user.id, model=model, action=action)

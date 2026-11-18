@@ -344,7 +344,7 @@ class Admin:
         limited = name in HASHING_VIEWS and self.users is not None
         return Options(
             access=None if public else self.access,
-            transaction=write and not self.holds_no_connection(name),
+            atomic=write and not self.holds_no_connection(name),
             parsers=[FormParser()] if write else None,
             renderers=None if public and name in ASSETS else [HTMLRenderer()],
             rate_limit=self.users.login_limit if limited and self.users else None,

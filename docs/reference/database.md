@@ -58,6 +58,12 @@ operations may need backend-specific SQL.
       members: true
       show_if_no_docstring: true
 
+::: hinoki.db.atomic
+
+::: hinoki.db.Atomic
+    options:
+      members: true
+
 ::: hinoki.db.DatabaseModule
     options:
       members: true

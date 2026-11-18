@@ -270,7 +270,7 @@ async def test_a_mismatch_in_a_transaction_rolls_the_write_back(
         "CREATE TABLE validated_rows (id integer PRIMARY KEY, title text NOT NULL)"
     )
 
-    @http.post("/rows", transaction=True)
+    @http.post("/rows", atomic=True)
     async def create() -> NoteOut:
         await Row.acreate(id=1, title="written")
         return {"id": 1, "title": "written"}  # type: ignore[return-value]

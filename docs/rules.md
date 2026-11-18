@@ -38,7 +38,7 @@ app = Hinoki(..., rules=blog_rules)   # startup rules fail the app if a promise 
 | --- | --- | --- | --- |
 | `HNK-ACC-001` | `Actions.require_access(match, except_)` | startup | every matching action names an `Access` policy (public by default is the common hole) |
 | `HNK-ACC-002` | `Actions.require_permissions(match, except_)` | startup | an action that names an `Access` policy names at least one permission, so "any authenticated caller" is never implicit |
-| `HNK-TXN-001` | `Transactions.require_atomic(methods, match, except_)` | startup | state-changing actions use `transaction=True` (the admin's own routes are not checked: they open their own short transactions, so that no connection waits while a password is hashed) |
+| `HNK-TXN-001` | `Transactions.require_atomic(methods, match, except_)` | startup | state-changing actions use `atomic=True` (the admin's own routes are not checked: they open their own short transactions, so that no connection waits while a password is hashed) |
 | `HNK-API-001` | `Actions.forbid_model_responses(match, except_)` | startup | no action returns a `Model` (or a list/page of them): responses are `Schema` classes |
 | `HNK-API-002` | `Actions.require_return_type(match, except_)` | startup | every matching action annotates a concrete return type (not missing, `Any` or `object`; `None` is fine for a 204) |
 | `HNK-API-003` | `Actions.require_pagination(match, except_)` | startup | a `GET` action never returns a plain `list[...]` (alone or in a union): it returns a `Page` |
@@ -69,7 +69,7 @@ A broken promise (a deliberately bad app from the tests):
 ```text
 tests/projects/rulesapp.py:7: HNK-ACC-001 [violated] GET /health (health) declares no access policy
 tests/projects/rulesapp.py:12: HNK-ACC-001 [violated] POST /items (create) declares no access policy
-tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does not declare transaction=True
+tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does not declare atomic=True
 2 rule(s): 3 violated, 0 unverifiable, 0 waived        (exit 1)
 ```
 

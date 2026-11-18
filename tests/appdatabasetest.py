@@ -53,7 +53,7 @@ class Count(Schema):
     count: int
 
 
-@http.post("/visits", status=201, transaction=True)
+@http.post("/visits", status=201, atomic=True)
 async def visit() -> Count:
     database = current_database()
     await database.execute("INSERT INTO visits DEFAULT VALUES")

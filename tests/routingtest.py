@@ -47,7 +47,7 @@ class Posts(API, path="/posts"):
     def retrieve(self, request: Request, post_id: int) -> int:
         return post_id
 
-    @http.post("/{post_id}/publish", status=202, access=editor, transaction=True)
+    @http.post("/{post_id}/publish", status=202, access=editor, atomic=True)
     async def publish(self, request: Request, post_id: int) -> int:
         return post_id
 
@@ -123,7 +123,7 @@ def test_resolves_function_and_class_actions() -> None:
     assert found is not None
     publish = found[0]
     assert publish.is_async
-    assert publish.transaction
+    assert publish.atomic
     assert publish.status == 202
     assert publish.access is editor
     assert editor.permissions == frozenset({"posts:write"})
@@ -253,7 +253,7 @@ def test_route_group_is_includable_with_shared_options_once() -> None:
     @group.post("/{item_id}/go", status=201, errors=(NotFound,))
     async def go(item_id: int) -> None: ...
 
-    @group.put("/open", access=None, transaction=False)
+    @group.put("/open", access=None, atomic=False)
     async def open_door() -> None: ...
 
     app = Hinoki()
@@ -265,12 +265,12 @@ def test_route_group_is_includable_with_shared_options_once() -> None:
         ("PUT", "/things/open"),
     }
     assert routes[("GET", "/things")].access is guard
-    assert routes[("GET", "/things")].transaction is False  # reads are not wrapped
+    assert routes[("GET", "/things")].atomic is False  # reads are not wrapped
     post_route = routes[("POST", "/things/{item_id}/go")]
-    assert post_route.transaction is True and post_route.status == 201
+    assert post_route.atomic is True and post_route.status == 201
     assert post_route.errors == (Forbidden, NotFound)
     public = routes[("PUT", "/things/open")]
-    assert public.access is None and public.transaction is False
+    assert public.access is None and public.atomic is False
     with pytest.raises(ValueError, match="prefix"):
         RouteGroup("things")
     with pytest.raises(TypeError, match="unknown action options"):
@@ -293,7 +293,7 @@ def test_route_group_patch_declaration_and_path_validation() -> None:
 
     routes = Hinoki(include=[group]).routes
     route = routes[0]
-    assert (route.method, route.path, route.transaction) == (
+    assert (route.method, route.path, route.atomic) == (
         "PATCH",
         "/items/{item_id}",
         True,
