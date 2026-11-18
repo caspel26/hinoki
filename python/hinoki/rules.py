@@ -300,17 +300,26 @@ class RequireAtomic(Rule):
     def __init__(
         self,
         methods: Iterable[str] = ("POST", "PUT", "PATCH", "DELETE"),
+        match: str = "*",
         except_: Iterable[str] = (),
     ) -> None:
         self.methods = frozenset(m.upper() for m in methods)
+        self.match = match
         self.exceptions = tuple(except_)
 
     def summary(self) -> str:
-        return f"Transactions.require_atomic(methods={sorted(self.methods)})"
+        return (
+            f"Transactions.require_atomic(methods={sorted(self.methods)}, "
+            f"match={self.match!r}, except_={list(self.exceptions)})"
+        )
 
     def check(self, project: Project) -> Iterator[Diagnostic]:
+        hit = 0
         for route in project.app.routes:
-            if route.method not in self.methods or matches(route, self.exceptions):
+            if route.method not in self.methods or not matches(route, [self.match]):
+                continue
+            hit += 1
+            if matches(route, self.exceptions):
                 continue
             if route.handler.__module__.startswith(OWN_TRANSACTIONS):
                 continue  # the admin's writes open their own short transactions
@@ -321,6 +330,14 @@ class RequireAtomic(Rule):
                     where(route.handler),
                     subject=qualified(route),
                 )
+        if self.match != "*" and hit == 0:
+            yield self.diagnostic(
+                f"match={self.match!r} names no state-changing action, so nothing "
+                "was checked",
+                self.id,
+                Status.UNVERIFIABLE,
+                "",
+            )
 
 
 def is_open(annotation: object) -> bool:
@@ -567,6 +584,15 @@ def is_bounded_text(field_type: Any) -> bool:
     return "max_length" in constraints or "one_of" in constraints
 
 
+def has_unbounded_text(field_type: Any) -> bool:
+    """A text value without a limit: the field itself, or the elements of a list
+    (through nested lists), each of which a client may send at any length."""
+    if field_type.kind == "str":
+        return not is_bounded_text(field_type)
+    item = field_type.item
+    return item is not None and has_unbounded_text(item)
+
+
 class RequireStringLimits(Rule):
     id = "HNK-SCH-002"
     fix = "bound the field: Annotated[str, Field(max_length=...)] or one_of=..."
@@ -586,7 +612,7 @@ class RequireStringLimits(Rule):
                     continue
                 seen.add(schema)
                 for name, spec in sorted(schema.specs().items()):
-                    if spec.ftype.kind == "str" and not is_bounded_text(spec.ftype):
+                    if has_unbounded_text(spec.ftype):
                         yield self.diagnostic(
                             f"{schema.__name__}.{name} is read from "
                             f"{route.method} {route.path} without a max_length",
