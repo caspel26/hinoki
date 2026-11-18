@@ -131,7 +131,7 @@ def create(data: XML[Order]) -> dict[str, int]:
     #   <lines><sku>a</sku><qty>2</qty></lines></order>
 ```
 
-A repeated element is a list (a single one still fills a `list` field), nested elements fill nested `Schema` fields, and an empty element is `None`. Attributes are not read. Malformed XML, a DTD, a custom entity, mixed text and child elements, or exceeding `XMLParser(max_depth=..., max_elements=...)` is `400 invalid_xml`. As with `Form[...]`, the action takes only `XMLParser` (selected when `parsers=` is omitted), and the OpenAPI document lists `application/xml`.
+A repeated element is a list (a single one still fills a `list` field), nested elements fill nested `Schema` fields, and an empty element is `None`. Attributes are not read and namespace prefixes are dropped (`<a:x>` and `<b:x>` are both `x`). Malformed XML, a DTD, a custom entity, mixed text and child elements, or exceeding `XMLParser(max_depth=..., max_elements=...)` is `400 invalid_xml`. As with `Form[...]`, the action takes only `XMLParser` (selected when `parsers=` is omitted), and the OpenAPI document lists `application/xml`.
 
 ## Upload files
 
