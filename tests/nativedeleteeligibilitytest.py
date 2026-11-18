@@ -71,13 +71,18 @@ def test_only_plain_and_transactional_deletes_are_native() -> None:
 
     assert found["/plain/{item}"] is True
     native = [path for path, flag in found.items() if flag]
-    assert native == ["/plain/{item}", "/atomic/{item}", "/group/{item}"]
+    assert native == [
+        "/plain/{item}",
+        "/guarded/{item}",
+        "/atomic/{item}",
+        "/group/{item}",
+    ]
 
 
 @pytest.mark.parametrize(
     "route",
-    [guarded, limited, with_request],
-    ids=["access", "rate_limit", "request"],
+    [limited, with_request],
+    ids=["rate_limit", "request"],
 )
 def test_each_guard_alone_keeps_a_delete_on_the_python_path(
     route: Callable[..., Any],
