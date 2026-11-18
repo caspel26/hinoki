@@ -48,82 +48,104 @@ fn entity(name: &str) -> Option<&'static str> {
     }
 }
 
+struct Builder {
+    stack: Vec<Frame>,
+    root: Option<Value>,
+    elements: usize,
+    max_depth: usize,
+    max_elements: usize,
+}
+
+impl Builder {
+    fn start(&mut self, name: &str) -> Result<(), PyErr> {
+        self.elements += 1;
+        if self.elements > self.max_elements {
+            return fail("too many elements");
+        }
+        if self.stack.len() >= self.max_depth || (self.stack.is_empty() && self.root.is_some()) {
+            return fail("XML is nested too deeply or has several roots");
+        }
+        self.stack.push(Frame {
+            name: name.to_owned(),
+            children: Vec::new(),
+            text: String::new(),
+        });
+        Ok(())
+    }
+
+    fn end(&mut self) -> Result<(), PyErr> {
+        let frame = self
+            .stack
+            .pop()
+            .ok_or_else(|| PyValueError::new_err("malformed XML"))?;
+        let name = frame.name.clone();
+        let value = finish(frame)?;
+        match self.stack.last_mut() {
+            Some(parent) => parent.children.push((name, value)),
+            None => self.root = Some(value),
+        }
+        Ok(())
+    }
+
+    fn text(&mut self, piece: &str) -> Result<(), PyErr> {
+        match self.stack.last_mut() {
+            Some(frame) => frame.text.push_str(piece),
+            None if !piece.trim().is_empty() => return fail("text outside the root"),
+            None => {}
+        }
+        Ok(())
+    }
+
+    fn reference(&mut self, name: &str, as_char: Option<char>) -> Result<(), PyErr> {
+        let Some(frame) = self.stack.last_mut() else {
+            return fail("entity outside the root");
+        };
+        if let Some(found) = as_char {
+            frame.text.push(found);
+        } else if let Some(text) = entity(name) {
+            frame.text.push_str(text);
+        } else {
+            return fail("custom entities are not supported");
+        }
+        Ok(())
+    }
+
+    fn finished(self) -> Result<Value, PyErr> {
+        match (self.stack.is_empty(), self.root) {
+            (true, Some(value)) => Ok(value),
+            _ => fail("malformed XML"),
+        }
+    }
+}
+
 fn parse(raw: &[u8], max_depth: usize, max_elements: usize) -> Result<Value, PyErr> {
     let mut reader = Reader::from_reader(raw);
     let config = reader.config_mut();
     config.expand_empty_elements = true;
     config.check_end_names = true;
-    let mut stack: Vec<Frame> = Vec::new();
-    let mut root: Option<Value> = None;
-    let mut elements = 0usize;
+    let mut builder = Builder {
+        stack: Vec::new(),
+        root: None,
+        elements: 0,
+        max_depth,
+        max_elements,
+    };
     loop {
         let event = reader
             .read_event()
             .map_err(|_| PyValueError::new_err("malformed XML"))?;
         match event {
-            Event::Start(start) => {
-                elements += 1;
-                if elements > max_elements {
-                    return fail("too many elements");
-                }
-                if stack.len() >= max_depth || (stack.is_empty() && root.is_some()) {
-                    return fail("XML is nested too deeply or has several roots");
-                }
-                let name = start.local_name().into_inner().to_owned();
-                stack.push(Frame {
-                    name,
-                    children: Vec::new(),
-                    text: String::new(),
-                });
-            }
-            Event::End(_) => {
-                let frame = stack
-                    .pop()
-                    .ok_or_else(|| PyValueError::new_err("malformed XML"))?;
-                let name = frame.name.clone();
-                let value = finish(frame)?;
-                match stack.last_mut() {
-                    Some(parent) => parent.children.push((name, value)),
-                    None => root = Some(value),
-                }
-            }
-            Event::Text(text) => {
-                let piece = text.xml10_content();
-                match stack.last_mut() {
-                    Some(frame) => frame.text.push_str(&piece),
-                    None if !piece.trim().is_empty() => return fail("text outside the root"),
-                    None => {}
-                }
-            }
-            Event::CData(data) => {
-                let piece = data.xml10_content();
-                match stack.last_mut() {
-                    Some(frame) => frame.text.push_str(&piece),
-                    None => return fail("text outside the root"),
-                }
-            }
+            Event::Start(start) => builder.start(start.local_name().into_inner())?,
+            Event::End(_) => builder.end()?,
+            Event::Text(text) => builder.text(&text.xml10_content())?,
+            Event::CData(data) => builder.text(&data.xml10_content())?,
             Event::GeneralRef(reference) => {
-                let frame = stack
-                    .last_mut()
-                    .ok_or_else(|| PyValueError::new_err("entity outside the root"))?;
-                if let Ok(Some(found)) = reference.resolve_char_ref() {
-                    frame.text.push(found);
-                } else {
-                    let name: &str = &reference;
-                    match entity(name) {
-                        Some(text) => frame.text.push_str(text),
-                        None => return fail("custom entities are not supported"),
-                    }
-                }
+                builder.reference(&reference, reference.resolve_char_ref().ok().flatten())?
             }
             Event::DocType(_) => return fail("DTDs are not supported"),
-            Event::Eof => break,
+            Event::Eof => return builder.finished(),
             _ => {}
         }
-    }
-    match (stack.is_empty(), root) {
-        (true, Some(value)) => Ok(value),
-        _ => fail("malformed XML"),
     }
 }
 
