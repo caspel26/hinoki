@@ -25,3 +25,13 @@ class Post(models.Model):
     class Meta:
         managed = False
         db_table = "posts"
+
+
+class Phase1Post(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    title = models.CharField(max_length=120)
+    body = models.TextField()
+
+    class Meta:
+        managed = False
+        db_table = "phase1_posts"
