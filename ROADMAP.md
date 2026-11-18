@@ -6,7 +6,7 @@ Hinoki is pre-alpha. This is a short public view of the work; implementation sta
 
 - Typed Python HTTP APIs with optional architecture rules and declared errors.
 - The Rust extension currently provides path matching, selected request parsing, schema validation/serialization, cryptography, and PostgreSQL, SQLite, MySQL and MariaDB ORM execution. The ASGI adapter and application handlers run in Python. SQLite is the local-development default.
-- Sync and async handlers, settings, modules, migrations, OpenAPI, MCP tools and an optional admin with four themes.
+- Sync and async handlers, settings, modules, migrations, OpenAPI, MCP tools, model lifecycle hooks, response checks against annotations, route rate limit policies, and an optional admin with four themes and its own users.
 
 See the [documentation](https://caspel26.github.io/hinoki/) and runnable [examples](examples/) for current details. No performance claims are made without comparable retained measurements.
 
