@@ -18,7 +18,7 @@ from hinoki.admin.templates import Templates
 from hinoki.admin.themes import Theme
 from hinoki.admin.users.auth import BASE_PERMISSION, EVERYTHING, AdminSessionAuth
 from hinoki.admin.users.service import ACTIONS, AdminAccounts
-from hinoki.admin.users.useradmin import USERS_SLUG, UserAdmin
+from hinoki.admin.users.useradmin import ADMIN_TABLES, UserAdmin
 from hinoki.admin.views import (
     ASSETS,
     AUTH_VIEWS,
@@ -211,6 +211,17 @@ class Admin:
             self.attach(target, admin, slug)
         return target
 
+    def refuse_own_tables(self, model: type[Model], admin: object) -> None:
+        """The admin's own account tables are managed by the Users section only: a
+        plain model admin would show the password hash and let a grant holder edit
+        who is a superuser."""
+        plain = not (isinstance(admin, type) and issubclass(admin, UserAdmin))
+        if self.users is not None and model in ADMIN_TABLES and plain:
+            raise RegistrationError(
+                f"admin: {model.__name__} holds the admin's own accounts; it is "
+                "managed by the Users section, not registered as a model"
+            )
+
     def attach[M: Model](
         self,
         model: type[M],
@@ -222,6 +233,7 @@ class Admin:
                 f"admin: {model.__name__} is abstract; register a model with a table"
             )
         model.check_table()
+        self.refuse_own_tables(model, admin)
         for existing in self.models.values():
             if existing.model is not model and table_names_conflict(
                 existing.model, model
@@ -253,12 +265,19 @@ class Admin:
             instance.can = granted(name, instance.can)  # type: ignore[method-assign, assignment]
         self.models[name] = instance
 
+    def holds_no_connection(self, name: str) -> bool:
+        """Routes that may hash a password take no route-wide transaction, so no
+        connection waits on Argon2; their writes open their own, short one."""
+        if name in HASHING_VIEWS:
+            return True
+        return self.users is not None and name in {"add_submit", "edit_submit"}
+
     def api(self) -> type[API]:
         """The ``API`` class to ``include`` in the application."""
         if (
             self.users is not None
             and self.manage_users
-            and USERS_SLUG not in self.models
+            and not any(isinstance(each, UserAdmin) for each in self.models.values())
         ):
             self.register(UserAdmin)  # last, after the application's own models
         for slug in self.dashboard:
@@ -278,7 +297,7 @@ class Admin:
             public = name in PUBLIC_VIEWS
             options = Options(
                 access=None if public else self.access,
-                transaction=write and name not in HASHING_VIEWS,
+                transaction=write and not self.holds_no_connection(name),
                 parsers=[FormParser()] if write else None,
                 renderers=None if public and name in ASSETS else [HTMLRenderer()],
                 rate_limit=self.users.login_limit
