@@ -100,7 +100,7 @@ def route_spec(
         [
             (param.source, param.name, param.default is not EMPTY, param.kind)
             for param in binding.params
-            if param.source != "body"
+            if param.source not in {"body", "principal"}
         ]
         if native_handler
         else []
@@ -148,6 +148,7 @@ def native_handler_eligible(binding: Binding) -> bool:
     supported_inputs = all(
         (param.source in {"path", "query"} and native_input_supported(param))
         or param is binding.body_param
+        or (param.source == "principal" and param.name == binding.principal_name)
         for param in binding.params
     )
     bound_path_names = {
@@ -156,9 +157,6 @@ def native_handler_eligible(binding: Binding) -> bool:
     return bool(
         bound_path_names == set(path_names)
         and supported_inputs
-        and route.access is None
-        and route.rate_limit is None
-        and not route.transaction
         and not binding.takes_request
         and renderer_ok
     )

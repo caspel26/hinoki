@@ -180,10 +180,9 @@ fn native_handler_is_valid(route: &RoutePlan) -> bool {
         "POST" | "PUT" | "PATCH" | "QUERY" => route.has_body,
         _ => false,
     };
-    let has_no_unsupported_inputs =
-        body_matches_method && !route.has_access && !route.takes_request;
+    let has_no_unsupported_inputs = body_matches_method && !route.takes_request;
     let uses_default_json = route.media_types.as_slice() == ["application/json"];
-    let has_no_response_hooks = route.headers.is_empty() && !route.transaction;
+    let has_no_response_hooks = route.headers.is_empty();
     has_supported_request_inputs
         && has_no_unsupported_inputs
         && uses_default_json
@@ -249,7 +248,7 @@ mod tests {
         );
         let mut invalid_native = route(4);
         invalid_native.native_handler = true;
-        invalid_native.has_access = true;
+        invalid_native.has_body = true;
         assert_eq!(
             Plan::new(vec![invalid_native]).unwrap_err(),
             PlanError::InvalidNativeHandler(4)
