@@ -81,11 +81,13 @@ MatchedRoute = tuple[int, dict[str, str] | None]
 
 
 class NativeBody(NamedTuple):
-    """What a native body-method handler reads: the body source and the raw
-    request headers."""
+    """What a native handler reads beyond Rust's prepared inputs: the body
+    source, the raw request headers and the raw query string (credentials and
+    the body of a body method)."""
 
     source: BodySource
     headers: list[tuple[bytes, bytes]]
+    query: bytes
 
 
 class BodySource(Protocol):
@@ -398,7 +400,11 @@ class Pipeline:
         response: Response
         try:
             async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
-                if body is not None:
+                if binding.route.access is not None:
+                    args = await self._native_authorize(
+                        binding, args, input_error, body
+                    )
+                if binding.body_param is not None:
                     args = await self._native_body_args(
                         binding, args, input_error, body
                     )
@@ -747,12 +753,33 @@ class Pipeline:
         no_content = route.status == HTTPStatus.OK
         return Response(HTTPStatus.NO_CONTENT if no_content else route.status)
 
+    async def _native_authorize(
+        self,
+        binding: Binding,
+        args: dict[str, object],
+        input_error: tuple[str, str, str | None, list[tuple[str, str, str]]] | None,
+        native: NativeBody | None,
+    ) -> dict[str, object]:
+        """Authenticate before anything else the request carries is judged, in
+        the order of the full pipeline: a bad path encoding and a malformed
+        query string first, then the credentials. Negotiation, body and
+        validation errors wait until the caller is known."""
+        access = binding.route.access
+        if access is None or native is None:
+            raise RuntimeError("native access route without its request data")
+        if input_error is not None and input_error[0] == "bad_path_encoding":
+            raise native_input_exception(input_error)
+        query = parse_query(native.query)
+        principal = await authorize(access, core.header_dict(native.headers), query)
+        name = binding.principal_name
+        return args if name is None else {**args, name: principal}
+
     async def _native_body_args(
         self,
         binding: Binding,
         args: dict[str, object],
         input_error: tuple[str, str, str | None, list[tuple[str, str, str]]] | None,
-        body: NativeBody,
+        body: NativeBody | None,
     ) -> dict[str, object]:
         """The handler arguments of a body method, failing in the order of the
         full pipeline: path and negotiation, body read, query syntax, body
@@ -767,6 +794,8 @@ class Pipeline:
             and input_error[0] != "invalid_query"
         ):
             raise native_input_exception(input_error)
+        if body is None:
+            raise RuntimeError("native body route without its request data")
         headers = core.header_dict(body.headers)
         raw = await self._body(body.source, headers.get("content-length", ""))
         if input_error is not None and not invalid:
