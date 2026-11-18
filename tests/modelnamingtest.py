@@ -361,12 +361,12 @@ def test_admin_table_ownership_is_separate_from_slug_and_same_model_aliases_work
     class ExplicitInvoice(Model, table="Modelnamingtest_Invoices"):
         id: int = field(primary_key=True)
 
-    admin = Admin(access=None, secret="s" * 32)  # type: ignore[arg-type]
+    admin = Admin(secret="s" * 32)
     admin.register(Invoice, slug="invoice")
     with pytest.raises(RegistrationError, match="conflicting table names"):
         admin.register(ExplicitInvoice, slug="legacy-invoice")
 
-    aliases = Admin(access=None, secret="s" * 32)  # type: ignore[arg-type]
+    aliases = Admin(secret="s" * 32)
     aliases.register(Invoice, slug="invoice")
     aliases.register(Invoice, slug="invoice-alias")
     assert set(aliases.models) == {"invoice", "invoice-alias"}
