@@ -18,3 +18,9 @@ name = "blog"
 models = "blog.models"
 migrations = "blog.migrations"
 requires = []
+
+[[apps]]
+name = "admin"
+models = "hinoki.admin.users.models"
+migrations = "hinoki.admin.users.migrations"
+requires = []

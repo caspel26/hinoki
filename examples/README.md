@@ -18,7 +18,7 @@ uv run --project .. hinoki shell
 With no database URL, migration commands and app settings use the local SQLite
 file `.hinoki/local.sqlite3` inside `examples/`. `hinoki migrations apply` initializes every
 registered app in dependency order; use `--app NAME` to limit the operation to
-one app and its prerequisites. With no `--app`, apply initializes all three
+one app and its prerequisites. With no `--app`, apply initializes all four
 registered apps in dependency order. Migration numbers and slugs are generated
 from planned schema changes. Review generated SQL and state before applying.
 
