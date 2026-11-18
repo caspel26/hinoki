@@ -85,6 +85,40 @@ CATALOG: dict[str, tuple[str, str]] = {
         "Add Z or an offset such as +01:00.",
     ),
     "finite": ("The number is out of range, NaN or infinite.", "Send a finite number."),
+    "date": ("Not an ISO 8601 date.", "Use e.g. 2026-11-13."),
+    "time": ("Not an ISO 8601 time.", "Use e.g. 09:30:00Z or 09:30:00+01:00."),
+    "time_tz": (
+        "The time has no UTC offset.",
+        "Add Z or an offset such as +01:00.",
+    ),
+    "duration": (
+        "Not an ISO 8601 duration.",
+        "Use days and a time part, e.g. P1DT2H30M or PT0.5S (no years, months or weeks).",
+    ),
+    "duration_range": (
+        "The duration is beyond what the server can represent.",
+        "Send a shorter duration.",
+    ),
+    "decimal": (
+        "Not a decimal string or an integer.",
+        'Send a string such as "12.50" or an integer; floats and exponents are refused.',
+    ),
+    "max_digits": (
+        "A decimal has more digits than the field allows.",
+        "Send fewer digits.",
+    ),
+    "decimal_places": (
+        "A decimal has more digits after the point than the field allows.",
+        "Round to the documented number of decimal places.",
+    ),
+    "max_whole_digits": (
+        "A decimal has more digits before the point than the field allows.",
+        "Send a smaller number.",
+    ),
+    "bytes": (
+        "Not standard padded base64.",
+        "Encode the value as canonical base64 (RFC 4648, with = padding).",
+    ),
     "too_many_errors": (
         "More than 50 problems; the list was cut.",
         "Fix the first ones and retry.",

@@ -350,6 +350,10 @@ def resolve_model_field_type(
         if values:
             raise
     else:
+        if parsed.kind == "bytes" and values:
+            raise RegistrationError(
+                f"{cls.__name__}.{name}: constraints do not apply to a bytes column"
+            )
         if not holds_mapping(parsed):
             return parsed
         # A column holding a dict (also inside lists) stays a JSON column: Model
