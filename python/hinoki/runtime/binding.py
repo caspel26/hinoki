@@ -381,10 +381,11 @@ def text_body_param(
             f"{where}: Form[...] parameter {name!r} must be the body of a "
             "POST/PUT/PATCH/QUERY action, not a path or query parameter"
         )
-    if not any(parser.forms for parser in route.parsers):
+    if not all(parser.forms for parser in route.parsers):
         raise RegistrationError(
-            f"{where}: Form[...] parameters need FormParser or MultiPartParser in "
-            "the action's parsers=...; add one, or omit parsers= to select them"
+            f"{where}: Form[...] parameters accept only form parsers "
+            "(FormParser, MultiPartParser) in the action's parsers=...; omit "
+            "parsers= to select FormParser, and use a plain Schema for JSON"
         )
     annotation.specs()  # unresolvable annotations fail now, not per request
     return Param(name, "body", schema=annotation, text=True)
