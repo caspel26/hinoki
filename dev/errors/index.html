@@ -469,6 +469,7 @@
 <li>A handler may be <code>def</code> or <code>async def</code>. One that fails, or does not return an <code>APIError</code>, counts as "not handled" and the client receives <code>500 internal_error</code> without the exception text.</li>
 <li>An exception type can be registered once, and only before the app serves (afterwards <code>RegistrationError</code>). The decorator returns the function unchanged. A class or a value that is not a function is refused with <code>TypeError</code>.</li>
 <li><code>app.errors.handle(Kind)</code> is the same call without the <code>app</code> checks.</li>
+<li>With a factory (<code>create_app()</code>), call <code>app.error_handler(Kind)(handler)</code> after building the app; the decorator form needs the application at module level. See <a href="../concepts/#one-application-object">one application object</a>.</li>
 </ul>
 <p>Built in, with nothing to write: <code>ObjectNotFound</code> is answered with <code>404 not_found</code>, and a database <code>UniqueViolation</code> with <code>409 unique_conflict</code> (<code>errors.UniqueConflict</code>) without exposing the constraint name. Register your own handler to replace either.</p>
 <h2 id="validation-and-binding-errors">Validation and binding errors<a class="headerlink" href="#validation-and-binding-errors" title="Permanent link">&para;</a></h2>
@@ -503,7 +504,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.13</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 02:04:05 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 03:08:24 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/errors.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -237,6 +237,16 @@
 <p><code>Model</code> describes a database row and its queries (SQLite, PostgreSQL, MySQL or MariaDB). <code>Schema</code> validates the values an endpoint accepts or returns. A response schema should expose only the fields clients are meant to see. Model-derived <code>Schema</code> classes are a convenience, not a replacement for deciding that boundary.</p>
 <h2 id="a-declaration-is-reused">A declaration is reused<a class="headerlink" href="#a-declaration-is-reused" title="Permanent link">&para;</a></h2>
 <p>An action's Python signature and decorator options describe routing, binding, access, transaction behavior, expected errors, OpenAPI and MCP metadata. A route can be included as a standalone function, grouped in an <code>API</code> resource class, or collected in an includable <code>RouteGroup</code> of functions with shared defaults.</p>
+<h2 id="one-application-object">One application object<a class="headerlink" href="#one-application-object" title="Permanent link">&para;</a></h2>
+<p>A server process serves one <code>Hinoki</code> object, the one <code>hinoki serve module:app</code> or <code>project.application</code> in <code>hinoki.toml</code> names. Declare it at module level, as the generated project does:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># blog/main.py</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">BlogSettings</span><span class="p">,</span> <span class="n">rules</span><span class="o">=</span><span class="n">blog_rules</span><span class="p">)</span>     <span class="c1"># routes come from hinoki.toml</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">error_handler</span><span class="p">(</span><span class="n">stripe</span><span class="o">.</span><span class="n">CardError</span><span class="p">)</span>                      <span class="c1"># decorators on the app</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">card_error</span><span class="p">(</span><span class="n">error</span><span class="p">:</span> <span class="n">stripe</span><span class="o">.</span><span class="n">CardError</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">errors</span><span class="o">.</span><span class="n">APIError</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">errors</span><span class="o">.</span><span class="n">APIError</span><span class="p">(</span><span class="n">error</span><span class="o">.</span><span class="n">user_message</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">402</span><span class="p">,</span> <span class="n">code</span><span class="o">=</span><span class="s2">"card_declined"</span><span class="p">)</span>
+</code></pre></div>
+<p>Building <code>Hinoki(...)</code> declares and opens nothing, so importing the module is safe. Use a factory (<code>def create_app(...) -&gt; Hinoki</code>, target <code>module:create_app</code>) when constructing the application needs arguments or conditions, such as the Blog's optional accounts or the Tracker's per-test database; inside a factory, register handlers with the same call after the app exists (<code>app.error_handler(Kind)(handler)</code>). The <code>[[apps]]</code> of <code>hinoki.toml</code> are something else: model and migration packages of the project, not further <code>Hinoki</code> objects.</p>
 <h2 id="one-request">One request<a class="headerlink" href="#one-request" title="Permanent link">&para;</a></h2>
 <p>The server passes an ASGI request through the Python adapter, the compiled router and binding layer. Hinoki validates inputs, resolves authentication and access, runs the handler, then encodes and renders its response. Runtime response values are not validated against their return annotations. For a transactional action, commit happens after successful response encoding and rendering; failures roll back before HTTP error translation. The ASGI boundary still crosses Python objects; the runtime is not an all-Rust server.</p>
 <h2 id="worker-resources">Worker resources<a class="headerlink" href="#worker-resources" title="Permanent link">&para;</a></h2>
@@ -267,15 +277,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#a-model-is-stored-data-a-schema-is-api-data">A model is stored data; a Schema is API data</a></li><li><a href="#a-declaration-is-reused">A declaration is reused</a></li><li><a href="#one-request">One request</a></li><li><a href="#worker-resources">Worker resources</a></li><li><a href="#optional-rules">Optional rules</a></li><li><a href="#where-to-continue">Where to continue</a></li></ul>
+            <ul><li><a href="#a-model-is-stored-data-a-schema-is-api-data">A model is stored data; a Schema is API data</a></li><li><a href="#a-declaration-is-reused">A declaration is reused</a></li><li><a href="#one-application-object">One application object</a></li><li><a href="#one-request">One request</a></li><li><a href="#worker-resources">Worker resources</a></li><li><a href="#optional-rules">Optional rules</a></li><li><a href="#where-to-continue">Where to continue</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.1</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 13:02:01 UTC">November 15, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 03:08:24 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/concepts.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
