@@ -404,6 +404,58 @@
     <span class="o">...</span>
 </code></pre></div>
 <p>An action may declare several errors. The runtime maps a declared <code>APIError</code> to its status and response body. Unexpected exceptions remain server errors; do not expose exception text to clients.</p>
+<h2 id="errors-that-are-not-apierror">Errors that are not <code>APIError</code><a class="headerlink" href="#errors-that-are-not-apierror" title="Permanent link">&para;</a></h2>
+<p>An exception from the database, a library or your own domain layer is not an HTTP error, so the client would receive <code>500 internal_error</code>. Register how to answer it on the app. The value is an <code>APIError</code> subclass, or a function of the exception when the answer depends on it:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">CardDeclined</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">Conflict</span><span class="p">):</span>
+    <span class="n">code</span> <span class="o">=</span> <span class="s2">"card_declined"</span>
+    <span class="n">message</span> <span class="o">=</span> <span class="s2">"The card was declined."</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">])</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">error_handler</span><span class="p">(</span><span class="n">PaymentDeclined</span><span class="p">)</span>           <span class="c1"># a decorator: the class is returned unchanged</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_</span><span class="p">(</span><span class="n">CardDeclined</span><span class="p">):</span> <span class="o">...</span>
+
+<span class="n">app</span><span class="o">.</span><span class="n">error_handler</span><span class="p">(</span><span class="n">PaymentDeclined</span><span class="p">)(</span><span class="n">CardDeclined</span><span class="p">)</span>       <span class="c1"># the same, without a new class</span>
+<span class="n">app</span><span class="o">.</span><span class="n">register_errors</span><span class="p">({</span><span class="n">PaymentDeclined</span><span class="p">:</span> <span class="n">CardDeclined</span><span class="p">})</span>   <span class="c1"># several at once</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">error_handler</span><span class="p">(</span><span class="n">QuotaExceeded</span><span class="p">)</span>             <span class="c1"># a function when the answer depends on the exception</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">quota</span><span class="p">(</span><span class="n">error</span><span class="p">:</span> <span class="n">QuotaExceeded</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">errors</span><span class="o">.</span><span class="n">Conflict</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">errors</span><span class="o">.</span><span class="n">Conflict</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Limit is </span><span class="si">{</span><span class="n">error</span><span class="o">.</span><span class="n">limit</span><span class="si">}</span><span class="s2">."</span><span class="p">,</span> <span class="n">code</span><span class="o">=</span><span class="s2">"quota_exceeded"</span><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>What you write</th>
+<th>Registration</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A business rule that is already an HTTP error</td>
+<td>a subclass of <code>errors.Conflict</code>, <code>errors.NotFound</code>, ... and <code>raise</code> it</td>
+<td>none: the runtime answers with its status and <code>code</code></td>
+</tr>
+<tr>
+<td>An exception from outside or from your domain layer</td>
+<td><code>app.error_handler(Kind)</code> or <code>app.register_errors({...})</code></td>
+<td>on the app</td>
+</tr>
+<tr>
+<td>The answer depends on the exception</td>
+<td>a function passed to <code>app.error_handler(Kind)</code></td>
+<td>on the app</td>
+</tr>
+</tbody>
+</table>
+<p>Rules that apply to every registration:</p>
+<ul>
+<li>The most specific class wins: a handler for <code>HardQuota</code> is used before one for its base <code>Quota</code>. Application handlers are consulted before the built-in ones.</li>
+<li>A handler may be <code>def</code> or <code>async def</code>. One that fails, or does not return an <code>APIError</code>, counts as "not handled" and the client receives <code>500 internal_error</code> without the exception text.</li>
+<li>An exception type can be registered once; <code>register_errors</code> registers all entries or none. Registering on an application that is already serving raises <code>RegistrationError</code>.</li>
+<li><code>errors=(...)</code> on an action is only the declared contract (OpenAPI, MCP, <code>strict_errors</code>); it takes <code>APIError</code> subclasses, never plain exceptions.</li>
+</ul>
+<p>Built in: <code>ObjectNotFound</code> is answered with <code>404 not_found</code>, and a database <code>UniqueViolation</code> with <code>409 unique_conflict</code> (<code>errors.UniqueConflict</code>) without exposing the constraint name. Register your own to replace either.</p>
 <h2 id="validation-and-binding-errors">Validation and binding errors<a class="headerlink" href="#validation-and-binding-errors" title="Permanent link">&para;</a></h2>
 <p>Input that does not match a path, query, header or body annotation fails before the handler runs. Schema validation is strict and reports field paths with <code>422</code>. Unsupported content types receive <code>415</code>; malformed supported content receives a parser error. A body larger than <code>execution.max_body_bytes</code>, or a multipart part larger than its parser's <code>max_part_bytes</code>, receives <code>413 payload_too_large</code>. Query strings over <code>execution.max_query_bytes</code> receive <code>414 uri_too_long</code>; combined headers over <code>execution.max_header_bytes</code> receive <code>431 headers_too_large</code>. A <code>Host</code> outside the <code>allowed_hosts</code> setting receives <code>400 disallowed_host</code>, and a CORS preflight from an origin outside <code>cors.origins</code> receives <code>403 cors_origin_denied</code> (<a href="../settings/#debug-allowed-hosts-and-cors">settings</a>). These are framework-level failures and do not need to be listed in the action's <code>errors=</code>.</p>
 <p>When <code>security.redirect_https</code> is enabled, a plain HTTP request receives <code>308</code> with an HTTPS <code>Location</code> before routing or body parsing. The redirect requires an explicit <code>allowed_hosts</code> list and preserves the request method and target. A target that is not a path, such as <code>OPTIONS *</code>, is not redirected. See <a href="../settings/#browser-security-headers-and-https">browser security settings</a>.</p>
@@ -429,15 +481,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#built-in-http-errors">Built-in HTTP errors</a></li><li><a href="#validation-and-binding-errors">Validation and binding errors</a></li><li><a href="#check-the-contract">Check the contract</a></li></ul>
+            <ul><li><a href="#built-in-http-errors">Built-in HTTP errors</a></li><li><a href="#errors-that-are-not-apierror">Errors that are not APIError</a></li><li><a href="#validation-and-binding-errors">Validation and binding errors</a></li><li><a href="#check-the-contract">Check the contract</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.13</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 20:44:23 UTC">November 17, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>2 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:19:14 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/errors.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
