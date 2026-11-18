@@ -254,3 +254,105 @@ pub fn parse_xml_body(
         .map_err(PyValueError::new_err)?;
     Ok(to_python(py, nodes)?.unbind())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Instant;
+
+    const ROOMY: usize = 1_000_000;
+
+    fn parsed(raw: &[u8]) -> PyResult<Py<PyAny>> {
+        Python::initialize();
+        Python::attach(|py| parse_xml_body(py, raw, 64, ROOMY))
+    }
+
+    fn deep(depth: usize, tail: &str) -> Vec<u8> {
+        ("<a>".repeat(depth) + &"</a>".repeat(depth) + tail).into_bytes()
+    }
+
+    #[test]
+    fn many_distinct_siblings_group_in_linear_time_and_first_seen_order() {
+        let count = 100_000;
+        let mut body = String::from("<r>");
+        for i in 0..count {
+            body.push_str(&format!("<n{i}>{i}</n{i}>"));
+        }
+        body.push_str("<n7>again</n7><n0/></r>");
+        let started = Instant::now();
+        let value = parsed(body.as_bytes()).expect("wide XML parses");
+        // The former linear lookup per child took minutes here; linear grouping
+        // takes well under a second even in a debug build.
+        assert!(started.elapsed().as_secs() < 20, "{:?}", started.elapsed());
+        Python::attach(|py| {
+            let tree = value.bind(py).cast::<PyDict>().expect("a dict").clone();
+            assert_eq!(tree.len(), count);
+            let keys: Vec<String> = tree.keys().extract().expect("keys");
+            assert_eq!(keys[..3], ["n0", "n1", "n2"]);
+            assert_eq!(keys[count - 1], format!("n{}", count - 1));
+            let seven: Vec<String> = tree.get_item("n7").unwrap().unwrap().extract().unwrap();
+            assert_eq!(seven, ["7", "again"]);
+            let zero: Vec<Option<String>> =
+                tree.get_item("n0").unwrap().unwrap().extract().unwrap();
+            assert_eq!(zero, [Some("0".to_owned()), None]);
+        });
+    }
+
+    #[test]
+    fn very_deep_nesting_neither_converts_nor_drops_recursively() {
+        // A test thread has a 2 MiB stack: recursive conversion or drop of this
+        // tree would overflow it.
+        Python::initialize();
+        Python::attach(|py| {
+            let value = parse_xml_body(py, &deep(200_000, ""), ROOMY, ROOMY);
+            let tree = value.expect("deep XML parses");
+            assert!(tree.bind(py).is_instance_of::<PyDict>());
+            let error = parse_xml_body(py, &deep(200_000, "<b/>"), ROOMY, ROOMY);
+            assert!(error.is_err(), "a second root after a deep one is refused");
+        });
+    }
+
+    #[test]
+    fn characters_xml_1_0_forbids_are_refused() {
+        for raw in [
+            b"<r>\x00</r>".as_slice(),
+            b"<r>\x01</r>",
+            b"<r>a\x08b</r>",
+            b"<r>\x0b</r>",
+            b"<r>\x1f</r>",
+            b"<r><![CDATA[\x01]]></r>",
+            b"<r>&#1;</r>",
+            b"<r>&#x1F;</r>",
+            b"<r>\xef\xbf\xbe</r>",
+            b"<r>&#xFFFF;</r>",
+        ] {
+            assert!(parsed(raw).is_err(), "{raw:?} should be refused");
+        }
+        let kept = parsed(b"<r><t>\t\r\n&#9;&#xA;\xc3\xa9</t></r>").expect("allowed text");
+        Python::attach(|py| {
+            let text: String = kept.bind(py).get_item("t").unwrap().extract().unwrap();
+            assert_eq!(text, "\t\n\t\n\u{e9}");
+        });
+    }
+
+    #[test]
+    fn only_a_utf8_encoding_declaration_is_accepted() {
+        for declaration in [
+            "",
+            "<?xml version='1.0'?>",
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+            "<?xml version='1.0' encoding='utf-8'?>",
+        ] {
+            let raw = format!("{declaration}<r><t>a</t></r>");
+            assert!(parsed(raw.as_bytes()).is_ok(), "{declaration} is UTF-8");
+        }
+        for declaration in [
+            "<?xml version=\"1.0\" encoding=\"UTF-16\"?>",
+            "<?xml version='1.0' encoding='ISO-8859-1'?>",
+            "<?xml version='1.0' encoding=''?>",
+        ] {
+            let raw = format!("{declaration}<r><t>a</t></r>");
+            assert!(parsed(raw.as_bytes()).is_err(), "{declaration} is refused");
+        }
+    }
+}
