@@ -2046,3 +2046,33 @@ def test_search_defaults_never_reach_columns_the_list_does_not_show() -> None:
 def test_a_model_without_timestamps_has_no_modified_line() -> None:
     entry = admin_of(Owner).models["admin-owners"]
     assert entry.modified_field == ""
+
+
+def test_site_admin_decorates_a_class_that_does_not_name_its_model() -> None:
+    site = Admin(access=staff, secret=SECRET)
+
+    @site.admin(Note)
+    class Notes(ModelAdmin):  # type: ignore[type-arg]
+        columns = ("title",)
+
+    @site.admin(Owner, slug="people")
+    class Owners(ModelAdmin):  # type: ignore[type-arg]
+        pass
+
+    assert issubclass(Notes, ModelAdmin)  # the class comes back unchanged
+    assert site.models["admin-notes"].model is Note
+    assert site.models["people"].model is Owner
+    assert isinstance(site.models["admin-notes"], Notes)
+
+
+def test_site_admin_refuses_a_class_for_another_model_or_a_non_admin() -> None:
+    site = Admin(access=staff, secret=SECRET)
+
+    class ForNote(ModelAdmin, model=Note):  # type: ignore[type-arg]
+        pass
+
+    with pytest.raises(RegistrationError, match="is for Note, not Secret"):
+        site.admin(Secret)(ForNote)
+    with pytest.raises(RegistrationError, match="decorates a ModelAdmin class"):
+        site.admin(Note)(int)  # type: ignore[type-var]
+    site.admin(Note)(ForNote)  # naming the same model twice is fine
