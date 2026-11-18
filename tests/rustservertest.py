@@ -28,12 +28,14 @@ from hinoki import (
     Caller,
     Hinoki,
     MultiPartParser,
+    RateLimitContext,
     RuntimeConfig,
     Schema,
     UploadedFile,
     http,
 )
 from hinoki.context import request_id
+from hinoki.errors import TooManyRequests
 from hinoki.http.request import Request
 from hinoki.http.response import Response
 from hinoki.modules import ModuleContext
@@ -145,6 +147,44 @@ async def native_me(
 @http.post("/native/guarded", status=201, access=Access(auth=TokenAuth()))
 def native_guarded(data: Item, who: Caller[str]) -> dict[str, object]:
     return {"title": data.title, "who": who.id}
+
+
+class RefuseAll:
+    async def check(self, context: RateLimitContext) -> None:
+        raise TooManyRequests(7)
+
+
+class RefuseSync:
+    def check(self, context: RateLimitContext) -> None:
+        raise TooManyRequests(3)
+
+
+class AdmitEditors:
+    """Admits only a caller the access policy has already named."""
+
+    async def check(self, context: RateLimitContext) -> None:
+        if context.caller is None or context.caller.id != "editor":
+            raise TooManyRequests(5)
+
+
+@http.get("/native/limited/{item_id}", rate_limit=RefuseAll())
+async def native_limited(item_id: int) -> dict[str, object]:
+    return {"id": item_id}
+
+
+@http.get("/native/limited-sync/{item_id}", rate_limit=RefuseSync())
+def native_limited_sync(item_id: int) -> dict[str, object]:
+    return {"id": item_id}
+
+
+@http.post("/native/limited-body", status=201, rate_limit=RefuseAll())
+async def native_limited_body(data: Item) -> dict[str, object]:
+    return {"title": data.title}
+
+
+@http.get("/native/admitted/{item_id}", access=WRITERS, rate_limit=AdmitEditors())
+async def native_admitted(item_id: int, who: Caller[str]) -> dict[str, object]:
+    return {"id": item_id, "who": who.id}
 
 
 @http.get("/native/typed/{ident}")
@@ -348,6 +388,10 @@ def make_app(**config: Any) -> Hinoki:
             native_item_sync,
             native_me,
             native_guarded,
+            native_limited,
+            native_limited_sync,
+            native_limited_body,
+            native_admitted,
             pipeline_echo,
             pipeline_integer,
             pipeline_uuid,
@@ -847,6 +891,12 @@ def bearer(token: str) -> tuple[str, dict[str, str]]:
 async def test_native_access_matches_pipeline(
     method: str, target: str, auth: str | None, extra: str, body: bytes
 ) -> None:
+    await check_native_parity(method, target, auth, extra, body)
+
+
+async def check_native_parity(
+    method: str, target: str, auth: str | None, extra: str, body: bytes
+) -> None:
     worker = RustWorker(make_app(), "127.0.0.1", 0)
     port = await worker.start()
     try:
@@ -876,6 +926,28 @@ async def test_native_access_matches_pipeline(
         )
     finally:
         await worker.stop()
+
+
+@pytest.mark.parametrize(
+    ("method", "target", "auth", "extra", "body"),
+    [
+        ("GET", "/native/limited/3", None, "", b""),
+        ("GET", "/native/limited/x", None, "", b""),
+        ("GET", "/native/limited/3", None, "accept: text/html\r\n", b""),
+        ("GET", "/native/limited-sync/3", None, "", b""),
+        ("POST", "/native/limited-body", None, JSON, b'{"title":"a"}'),
+        ("POST", "/native/limited-body", None, JSON, b"{nope"),
+        ("GET", "/native/admitted/3", "editor-token", "", b""),
+        ("GET", "/native/admitted/3", "reader-token", "", b""),
+        ("GET", "/native/admitted/3", None, "", b""),
+        ("GET", "/native/admitted/x", "reader-token", "", b""),
+        ("GET", "/native/admitted/3?limit=%ff", None, "", b""),
+    ],
+)
+async def test_native_rate_limit_matches_pipeline(
+    method: str, target: str, auth: str | None, extra: str, body: bytes
+) -> None:
+    await check_native_parity(method, target, auth, extra, body)
 
 
 TYPED_ID = "123e4567-E89b-12d3-a456-426614174000"
