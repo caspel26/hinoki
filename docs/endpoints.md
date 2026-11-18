@@ -328,6 +328,24 @@ Use `--path` or `--method` to narrow it, and `--format json` for scripts. The li
 
 Return a value matching the declared response type, or return `Response` when the handler needs to set an explicit status, headers or body. Declare expected `APIError` subclasses in `errors=(...)`; their status, stable code and message feed the OpenAPI document and strict test client.
 
+### Validate the response
+
+By default the return annotation describes the OpenAPI document and output serialization; a `dict` returned from an action annotated `-> NoteOut` is sent as it is. Set `validate_response=True` on an action to enforce the annotation at runtime:
+
+```python
+@http.get("/notes/{note_id}", validate_response=True)
+async def detail(note_id: int) -> NoteOut:
+    return await load_note(note_id)          # a Schema instance or a Model: fine
+
+@http.get("/notes/{note_id}/export", validate_response=True)
+async def export(note_id: int) -> NoteOut | Response:
+    return Response(303, headers={"location": f"/files/{note_id}"})   # explicit escape
+```
+
+The check is compiled when the app starts and is strict: it never coerces. It accepts a `Schema` class, `list[...]` and `Page[...]` of one, `str`, `int`, `float` or `bool` (a `bool` is not an `int`), `None`, and unions of these. `Annotated[...]` is unwrapped. A `Model` is projected through the declared `Schema` first, as without the option. A result that does not match, including `None` when the annotation does not allow it, is answered as `500 internal_error`; the log and the response name the action and the type, never the value. On an action with `transaction=True` the check runs inside the transaction, so a mismatch rolls the write back.
+
+`T | Response` lets the handler return a `Response` whose status, headers and body are its own; that branch is not checked. An action that only returns `Response`, has no annotation or `Any`, or uses a type outside the list above (such as `dict[str, int]`) fails at startup with a `RegistrationError`. Actions with a bodyless status (`204`, `304`) are not checked. A `Schema` instance is already valid by construction, so the check is about the shape of the result; a custom renderer or a `dump()` override can still change the bytes afterwards. The option adds one type check per request and no other work; no performance figure is claimed.
+
 Use `Response` from `hinoki` or `hinoki.http` for explicit status, headers or body. It is also available from `hinoki.http.response`. The former `Reply` name and `hinoki.reply` module are deprecated aliases kept for one compatibility cycle: `from hinoki import Reply` and `import hinoki.reply` still work, refer to the same `Response` class and emit `DeprecationWarning`. Replace their imports, annotations and constructors with `Response`.
 
 Paginated actions declare a pagination policy. See [pagination](pagination.md) for the query parameters and response envelope.
