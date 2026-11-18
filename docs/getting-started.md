@@ -21,6 +21,6 @@ uv sync
 uv run pytest
 ```
 
-The generated project includes a health route, a test that needs no database, a `README.md` with its commands and a development MCP configuration. Review `AGENTS.md` for its project commands and conventions. `pyproject.toml` names this repository as the source for `uv`, so it does not install the unrelated package by name; see [`hinoki new`](cli.md#new) to choose a checkout or a git revision with `--hinoki`.
+The generated project includes a health route listed in `routes.py` (the manifest points to it), a test that needs no database, a `README.md` with its commands and a development MCP configuration. Review `AGENTS.md` for its project commands and conventions. `pyproject.toml` names this repository as the source for `uv`, so it does not install the unrelated package by name; see [`hinoki new`](cli.md#new) to choose a checkout or a git revision with `--hinoki`.
 
 Continue with the [Quick start](quick-start.md) to run the Notes API, create its table with a reviewed migration and make a request.

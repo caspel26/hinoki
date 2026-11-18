@@ -12,7 +12,7 @@ cd notes
 uv sync
 ```
 
-The generated manifest registers `notes.models` and `notes.migrations`. The scaffold also includes a health endpoint, typed settings, rules, a test, and agent instructions. Hinoki does not scan installed packages for apps.
+The generated manifest registers `notes.models` and `notes.migrations`. The scaffold also includes a health endpoint, typed settings, rules, a test, and agent instructions. The manifest also names the project's list of routes (`routes = "notes.routes:routes"`): `main.py` has no `include=`, because the application that `hinoki.toml` names binds those routes itself. Hinoki does not scan installed packages for apps.
 
 Add an independently organized app:
 
@@ -20,7 +20,7 @@ Add an independently organized app:
 uv run hinoki app create billing
 ```
 
-This creates `notes/apps/billing/models.py` and `notes/apps/billing/migrations/`, then adds the module paths to `hinoki.toml`. If billing references a model from another app, add that app to billing's `requires` list so Hinoki can validate and order migrations.
+This creates `notes/apps/billing/models.py`, `notes/apps/billing/routes.py` (an empty `routes` list) and `notes/apps/billing/migrations/`, then adds the module paths to `hinoki.toml`, including `routes` and `prefix = "/billing"`: whatever you list in `billing/routes.py` is served under `/billing`. If billing references a model from another app, add that app to billing's `requires` list so Hinoki can validate and order migrations.
 
 Add a model to the generated `notes/apps/billing/models.py` (or the app's declared models module):
 
