@@ -30,6 +30,7 @@ class CompiledSchema:
         use_aliases: bool = True,
         allow_naive_datetime: bool = False,
         skip_fields: list[str] = ...,
+        input_bounds: bool | None = None,
     ) -> tuple[Any | None, list[tuple[str, str, str]]]: ...
     def coerce_text(self, data: Any, use_aliases: bool = True) -> Any: ...
 

@@ -355,6 +355,7 @@ fn validate_body(
         use_aliases: true,
         allow_naive_datetime: false,
         skip_fields: std::collections::HashSet::new(),
+        input_bounds: true,
     };
     let (validated, problems) = match schema.validate(json, &options) {
         Ok(result) => result,

@@ -587,7 +587,7 @@ def is_bounded_text(field_type: Any) -> bool:
 def has_unbounded_text(field_type: Any) -> bool:
     """A text value without a limit: the field itself, or the elements of a list
     or the values of a dict (at any depth), each of which a client may send at
-    any length. Dict keys are always bounded by the validator."""
+    any length. Dict keys from clients are bounded by the validator."""
     if field_type.kind == "str":
         return not is_bounded_text(field_type)
     item = field_type.item

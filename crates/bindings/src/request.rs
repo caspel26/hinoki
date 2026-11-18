@@ -708,7 +708,6 @@ impl JsonObject {
         self.entries.iter().map(|(key, _)| key.as_str())
     }
 
-    #[cfg(test)]
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&str, &Json)> {
         self.entries
             .iter()

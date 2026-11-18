@@ -23,6 +23,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use pyo3::basic::CompareOp;
+use pyo3::exceptions::PyUnicodeEncodeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 use regex::Regex;
@@ -41,6 +42,9 @@ const MAX_KEY_ECHO: usize = 64;
 const MAX_DEPTH: usize = 128;
 
 pub(crate) type Problem = (String, &'static str, String);
+/// The entries of a `dict` input: each key as text (`None` when it is not
+/// valid Unicode) and its value.
+type Entries<D> = Vec<(Option<String>, D)>;
 type FieldTable<'py> = Vec<(String, String, Bound<'py, PyAny>, bool)>;
 
 /// What the constraints of a compiled schema are made of.
@@ -127,6 +131,9 @@ struct Node<R: Rules> {
     nullable: bool,
     min_length: Option<i64>,
     max_length: Option<i64>,
+    /// The framework bound used on wire input when `max_length` is unset (the
+    /// entries of a dict, the characters of its keys).
+    input_max_length: Option<i64>,
     pattern: Option<(R::Pattern, Regex)>,
     ge: Option<R::Limit>,
     le: Option<R::Limit>,
@@ -171,6 +178,8 @@ pub(crate) struct Options {
     pub(crate) use_aliases: bool,
     pub(crate) allow_naive_datetime: bool,
     pub(crate) skip_fields: HashSet<String>,
+    /// Wire input: the default bounds of dict fields apply.
+    pub(crate) input_bounds: bool,
 }
 
 /// A value the GIL-free path accepted: what the Python path returns with
@@ -292,6 +301,7 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
         nullable,
         min_length: optional_int(&constraints, "min_length")?,
         max_length: optional_int(&constraints, "max_length")?,
+        input_max_length: optional_int(&constraints, "input_max_length")?,
         pattern,
         ge: optional_object(&constraints, "ge")?,
         le: optional_object(&constraints, "le")?,
@@ -472,6 +482,7 @@ fn lower_node(py: Python<'_>, node: &Node<PyRules>) -> Result<Node<NativeRules>,
         nullable: node.nullable,
         min_length: node.min_length,
         max_length: node.max_length,
+        input_max_length: node.input_max_length,
         pattern,
         ge: limit(&node.ge)?,
         le: limit(&node.le)?,
@@ -697,6 +708,9 @@ trait View {
     fn object(&self, data: &Self::Data) -> Option<Self::Object>;
     fn non_string_keys(&self, object: &Self::Object) -> usize;
     fn string_keys(&self, object: &Self::Object) -> Vec<Self::Key>;
+    /// The entries of an object whose keys are all strings, in order, each
+    /// key as text or `None` when it is not valid Unicode (a lone surrogate).
+    fn entries(&self, object: &Self::Object) -> Result<Entries<Self::Data>, Self::Error>;
     fn key_text<'k>(&self, key: &'k Self::Key) -> Result<Cow<'k, str>, Self::Error>;
     fn contains(&self, object: &Self::Object, key: &str) -> Result<bool, Self::Error>;
     fn get(&self, object: &Self::Object, key: &str) -> Result<Option<Self::Data>, Self::Error>;
@@ -859,6 +873,22 @@ impl<'py> View for PyView<'_, 'py> {
 
     fn key_text<'k>(&self, key: &'k Self::Key) -> PyResult<Cow<'k, str>> {
         key.to_cow()
+    }
+
+    fn entries(&self, object: &Self::Object) -> PyResult<Entries<Self::Data>> {
+        let mut found = Vec::with_capacity(object.len());
+        for (key, value) in object.iter() {
+            let Ok(text) = key.cast::<PyString>() else {
+                continue;
+            };
+            let text = match text.to_cow() {
+                Ok(text) => Some(text.into_owned()),
+                Err(err) if err.is_instance_of::<PyUnicodeEncodeError>(self.py) => None,
+                Err(err) => return Err(err),
+            };
+            found.push((text, value));
+        }
+        Ok(found)
     }
 
     fn contains(&self, object: &Self::Object, key: &str) -> PyResult<bool> {
@@ -1214,6 +1244,13 @@ impl<'v> View for JsonView<'v> {
         Ok(Cow::Borrowed(key))
     }
 
+    fn entries(&self, object: &&'v JsonObject) -> Result<Entries<&'v Json>, Defer> {
+        Ok(object
+            .iter()
+            .map(|(key, value)| (Some(key.to_owned()), value))
+            .collect())
+    }
+
     fn contains(&self, object: &&'v JsonObject, key: &str) -> Result<bool, Defer> {
         Ok(object.contains(key))
     }
@@ -1391,6 +1428,15 @@ impl<'a, V: View> Run<'a, V> {
         self.fail(path, "one_of", format!("must be one of {shown}"))
     }
 
+    /// The `max_length` of `node`, or its wire-input bound on wire input.
+    fn most(&self, node: &Node<V::Rules>) -> Option<i64> {
+        node.max_length.or(if self.options.input_bounds {
+            node.input_max_length
+        } else {
+            None
+        })
+    }
+
     fn length(
         &mut self,
         node: &Node<V::Rules>,
@@ -1410,7 +1456,7 @@ impl<'a, V: View> Run<'a, V> {
                 return Ok(false);
             }
         }
-        if let Some(most) = node.max_length {
+        if let Some(most) = self.most(node) {
             if size > most {
                 let unit = if most == 1 {
                     unit.to_owned()
@@ -1578,25 +1624,22 @@ impl<'a, V: View> Run<'a, V> {
         if self.problems.len() > before {
             return Ok(None);
         }
-        let keys = self.view.string_keys(&object);
-        if !self.length(node, keys.len(), path, "item")? {
+        let entries = self.view.entries(&object).map_err(Abort::View)?;
+        if !self.length(node, entries.len(), path, "item")? {
             return Ok(None);
         }
         let mut out = self.view.new_record();
-        for entry in keys {
-            let name = self
-                .view
-                .key_text(&entry)
-                .map_err(Abort::View)?
-                .into_owned();
+        for (name, raw) in entries {
+            let Some(name) = name else {
+                let message = "object keys must be valid Unicode text".to_owned();
+                self.fail(path, "type", message)?;
+                continue;
+            };
             let shown: String = name.chars().take(MAX_KEY_ECHO).collect();
             let here = join(path, &shown);
             if !self.map_key(key, &name, &here)? {
                 continue;
             }
-            let Some(raw) = self.view.get(&object, &name).map_err(Abort::View)? else {
-                continue;
-            };
             if let Some(found) = self.check(value, &raw, &here, depth + 1)? {
                 self.view
                     .set_field(&mut out, &name, found)
@@ -1625,7 +1668,7 @@ impl<'a, V: View> Run<'a, V> {
             self.fail(path, "key_min_length", message)?;
             return Ok(false);
         }
-        if let Some(most) = key.max_length.filter(|most| size > *most) {
+        if let Some(most) = self.most(key).filter(|most| size > *most) {
             let message = format!("key must have at most {most} character{}", plural(most));
             self.fail(path, "key_max_length", message)?;
             return Ok(false);
@@ -1985,7 +2028,13 @@ impl Compiled {
 
     /// `(instance, problems)`: exactly one of them is meaningful. Problems are
     /// `(path, code, message)` tuples in the order the checks found them.
-    #[pyo3(signature = (data, construct=true, use_aliases=true, allow_naive_datetime=false, skip_fields=Vec::new()))]
+    /// `input_bounds` (default: `construct`) applies the wire-input bounds of
+    /// dict fields; construction and model conversion leave it off.
+    #[pyo3(signature = (data, construct=true, use_aliases=true, allow_naive_datetime=false, skip_fields=Vec::new(), input_bounds=None))]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the keyword arguments of the Python method"
+    )]
     fn validate<'py>(
         &self,
         py: Python<'py>,
@@ -1994,12 +2043,14 @@ impl Compiled {
         use_aliases: bool,
         allow_naive_datetime: bool,
         skip_fields: Vec<String>,
+        input_bounds: Option<bool>,
     ) -> PyResult<(Option<Bound<'py, PyAny>>, Vec<Problem>)> {
         let options = Options {
             construct,
             use_aliases,
             allow_naive_datetime,
             skip_fields: skip_fields.into_iter().collect(),
+            input_bounds: input_bounds.unwrap_or(construct),
         };
         let view = PyView {
             py,
@@ -2177,6 +2228,7 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
             use_aliases,
             allow_naive_datetime,
             skip_fields: skip.iter().map(|name| (*name).to_owned()).collect(),
+            input_bounds: false,
         }
     }
 
@@ -2275,6 +2327,7 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
                 options.use_aliases,
                 options.allow_naive_datetime,
                 skip,
+                Some(options.input_bounds),
             )
             .unwrap();
         let schema = compiled.native().expect("the schema lowers");
@@ -3131,21 +3184,25 @@ pub fn serialize_instance<'py>(
 }
 
 /// How one model attribute converts for a schema field: a nested model becomes
-/// `schema.from_model(value)`, a list or tuple maps its items through `item`,
+/// `schema.from_model(value)`, a list or tuple maps its items through `item`
+/// into a new list, a dict (for a `dict` field) its values into a new dict,
 /// anything else passes through unchanged.
 struct Conversion {
     schema: Option<Py<PyAny>>,
     item: Option<Box<Conversion>>,
+    mapping: bool,
 }
 
 fn parse_conversion(raw: &Bound<'_, PyAny>) -> PyResult<Conversion> {
-    let (schema, item): (Option<Py<PyAny>>, Option<Bound<'_, PyAny>>) = raw.extract()?;
+    let (schema, item, mapping): (Option<Py<PyAny>>, Option<Bound<'_, PyAny>>, bool) =
+        raw.extract()?;
     Ok(Conversion {
         schema,
         item: match item {
             Some(inner) => Some(Box::new(parse_conversion(&inner)?)),
             None => None,
         },
+        mapping,
     })
 }
 
@@ -3281,6 +3338,9 @@ fn convert_attribute<'py>(
         }
     }
     if let Some(inner) = &conversion.item {
+        if conversion.mapping {
+            return convert_mapping(value, inner);
+        }
         if value.is_instance_of::<PyList>() || value.is_instance_of::<pyo3::types::PyTuple>() {
             let out = PyList::empty(value.py());
             for element in value.try_iter()? {
@@ -3290,4 +3350,20 @@ fn convert_attribute<'py>(
         }
     }
     Ok(value.clone())
+}
+
+/// A dict attribute copied with its values converted; anything else is left for
+/// validation to report.
+fn convert_mapping<'py>(
+    value: &Bound<'py, PyAny>,
+    inner: &Conversion,
+) -> PyResult<Bound<'py, PyAny>> {
+    let Ok(dict) = value.cast::<PyDict>() else {
+        return Ok(value.clone());
+    };
+    let out = PyDict::new(value.py());
+    for (key, element) in dict.iter() {
+        out.set_item(key, convert_attribute(&element, inner)?)?;
+    }
+    Ok(out.into_any())
 }
