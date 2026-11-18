@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import re
+import typing
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, ClassVar
@@ -28,6 +29,28 @@ class BulkAction[M: Model]:
     handler: Callable[[tuple[M, ...], Caller[Any]], Awaitable[None]]
 
 
+ACTION_MARK = "__admin_action__"
+
+
+def action[F: Callable[..., Any]](
+    label: str = "", *, confirm: str = ""
+) -> Callable[[F], F]:
+    """Declare a bulk action on a ``ModelAdmin`` method.
+
+        @action(confirm="Publish the selected posts?")
+        async def publish(self, rows, principal): ...
+
+    The name is the function's (``_`` becomes ``-``) and the permission checked
+    by ``ModelAdmin.can``; the label defaults to "Publish selected".
+    """
+
+    def mark(function: F) -> F:
+        setattr(function, ACTION_MARK, (label, confirm))
+        return function
+
+    return mark
+
+
 class OutOfScope(Exception):
     """A write would leave the rows the principal is allowed to see."""
 
@@ -48,6 +71,7 @@ class ModelAdmin[M: Model]:
     """
 
     model: type[M]
+    slug: ClassVar[str] = ""
     label: ClassVar[str] = ""
     icon: ClassVar[str] = "file-text"
     columns: ClassVar[tuple[str, ...]] = ()
@@ -56,15 +80,43 @@ class ModelAdmin[M: Model]:
     exclude: ClassVar[tuple[str, ...]] = ()
     readonly: ClassVar[tuple[str, ...]] = ()
     assign: ClassVar[Mapping[str, Callable[[Any], Any]]] = {}
-    badges: ClassVar[Mapping[str, Mapping[Any, Badge]]] = {}
-    tabs: ClassVar[tuple[Tab, ...]] = ()
-    fieldsets: ClassVar[tuple[Fieldset, ...]] = ()
+    badges: ClassVar[Mapping[str, Mapping[Any, Badge | tuple[Any, ...]]]] = {}
+    tabs: ClassVar[tuple[Tab | str, ...]] = ()
+    fieldsets: ClassVar[tuple[Fieldset, ...] | Mapping[str, tuple[str, ...]]] = ()
     modified_field: ClassVar[str] = ""
     modified_label: ClassVar[str] = "Last modified"
     per_page: ClassVar[int] = 20
     show_count: ClassVar[bool] = False
     bulk_delete: ClassVar[bool] = False
     bulk_actions: ClassVar[tuple[BulkAction[Any], ...]] = ()
+
+    def __init_subclass__(cls, model: type[M] | None = None, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        generic = generic_model(cls)
+        if model is not None and generic is not None and model is not generic:
+            raise RegistrationError(
+                f"{cls.__name__}: model={model.__name__} contradicts "
+                f"ModelAdmin[{generic.__name__}]"
+            )
+        chosen = model or generic
+        if chosen is not None:
+            cls.model = chosen  # type: ignore[assignment]
+
+    def __init__(self) -> None:
+        declared = tuple(
+            BulkAction(
+                name.replace("_", "-"),
+                label or f"{name.replace('_', ' ').capitalize()} selected",
+                confirm or f"{name.replace('_', ' ').capitalize()} the selected rows?",
+                getattr(self, name),
+            )
+            for name, (label, confirm) in declared_actions(type(self)).items()
+        )
+        declared_here = type(self).bulk_actions
+        if declared or isinstance(declared_here, tuple):
+            self.bulk_actions = (*declared_here, *declared)  # type: ignore[misc]
+        self.tab_list: tuple[Tab, ...] = ()  # set by ``normalize`` at registration
+        self.fieldset_list: tuple[Fieldset, ...] = ()
 
     def queryset(self, principal: Caller[Any]) -> QuerySet[M]:
         return self.model.all()
@@ -148,7 +200,31 @@ class ModelAdmin[M: Model]:
     def skipped(self) -> frozenset[str]:
         return frozenset(self.exclude) | frozenset(self.assign)
 
+    def normalize(self, slug: str) -> None:
+        """Expand the short forms of ``badges``, ``tabs`` and ``fieldsets``."""
+        badges = {
+            column: {
+                value: item if isinstance(item, Badge) else Badge(*item)
+                for value, item in mapping.items()
+            }
+            for column, mapping in self.badges.items()
+        }
+        self.badges = badges  # type: ignore[misc]
+        tabs: list[Tab] = []
+        for item in self.tabs:
+            tabs.extend(
+                tabs_from(slug, item, badges) if isinstance(item, str) else [item]
+            )
+        self.tab_list = tuple(tabs)
+        declared = self.fieldsets
+        self.fieldset_list = (
+            tuple(Fieldset(title, tuple(fields)) for title, fields in declared.items())
+            if isinstance(declared, Mapping)
+            else tuple(declared)
+        )
+
     def validate_config(self, slug: str) -> None:
+        self.normalize(slug)
         names = set(self.model.__columns__)
         for label, used in (
             ("columns", self.columns),
@@ -166,10 +242,10 @@ class ModelAdmin[M: Model]:
                     f"admin {slug!r}: {label} names unknown columns {unknown}"
                 )
         self._validate_bulk_actions(slug)
-        for tab in self.tabs:
+        for tab in self.tab_list:
             for column in tab.filters:
                 self.model.check_field(column.partition("__")[0])
-        for fieldset in self.fieldsets:
+        for fieldset in self.fieldset_list:
             unknown = sorted(set(fieldset.fields) - names)
             if unknown:
                 raise RegistrationError(
@@ -186,6 +262,39 @@ class ModelAdmin[M: Model]:
                     f"admin {slug!r}: bulk_actions must contain BulkAction values"
                 )
             _validate_bulk_action(action, slug, action_names)
+
+
+def generic_model(cls: type) -> type[Model] | None:
+    """The model a class names as ``ModelAdmin[Model]``, if it does."""
+    for base in getattr(cls, "__orig_bases__", ()):
+        arguments = typing.get_args(base)
+        if typing.get_origin(base) is ModelAdmin and arguments:
+            found = arguments[0]
+            if isinstance(found, type) and issubclass(found, Model):
+                return found
+    return None
+
+
+def declared_actions(cls: type) -> dict[str, tuple[str, str]]:
+    """The methods marked with ``@action``, in definition order, base classes first."""
+    found: dict[str, tuple[str, str]] = {}
+    for klass in reversed(cls.__mro__):
+        for name, value in vars(klass).items():
+            if hasattr(value, ACTION_MARK):
+                found[name] = getattr(value, ACTION_MARK)
+    return found
+
+
+def tabs_from(
+    slug: str, column: str, badges: Mapping[str, Mapping[Any, Badge]]
+) -> list[Tab]:
+    """One tab for each value that ``badges`` names for ``column``."""
+    mapping = badges.get(column)
+    if not mapping:
+        raise RegistrationError(
+            f"admin {slug!r}: tabs names {column!r}, which has no entry in badges"
+        )
+    return [Tab(badge.label, {column: value}) for value, badge in mapping.items()]
 
 
 def _validate_bulk_action(action: BulkAction[Any], slug: str, names: set[str]) -> None:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import types
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, tzinfo
 from typing import Any
 
@@ -53,10 +53,11 @@ class Admin:
         *,
         access: Access,
         secret: str | bytes,
-        prefix: str = "/admin",
+        prefix: str | None = None,
         theme: str | Theme = "studio",
         templates: str | None = None,
         site: str = "Admin",
+        models: Sequence[type[Model] | type[ModelAdmin[Any]]] = (),
         tagline: str = "",
         workspace: str = "Workspace",
         links: tuple[Link, ...] = (),
@@ -66,11 +67,12 @@ class Admin:
         dashboard: tuple[str, ...] = (),
         secure_cookies: bool | None = None,
     ) -> None:
-        if not prefix.startswith("/") or prefix.endswith("/"):
+        if prefix and (not prefix.startswith("/") or prefix.endswith("/")):
             raise ValueError("prefix must start with '/' and not end with '/'")
         self.access = access
         self.csrf = Csrf(secret)
-        self.prefix = prefix
+        self._prefix = prefix
+        self._served: str | None = None  # the prefix of the routes, once built
         self.mount = ""  # set when the admin is included under a ``Mount``
         self.site = site
         self.tagline = tagline
@@ -91,6 +93,31 @@ class Admin:
             "admin.css": digest(self.templates.stylesheet()),
             "admin.js": digest(self.templates.script()),
         }
+        for item in models:
+            self.add(item)
+
+    @property
+    def prefix(self) -> str:
+        """Where the admin lives under its ``Mount``: nothing when the admin is
+        mounted and names no prefix, ``/admin`` when it is included as it is."""
+        if self._served is not None:
+            return self._served
+        if self._prefix is not None:
+            return self._prefix
+        return "" if self.mount else "/admin"
+
+    def add(self, item: type[Model] | type[ModelAdmin[Any]]) -> None:
+        """Register a model (default admin) or a ``ModelAdmin`` class that names it."""
+        if isinstance(item, type) and issubclass(item, ModelAdmin):
+            model = getattr(item, "model", None)
+            if model is None:
+                raise RegistrationError(
+                    f"admin: {item.__name__} names no model; write "
+                    f"class {item.__name__}(ModelAdmin, model=YourModel)"
+                )
+            self.register(model, item, slug=item.slug or None)
+        else:
+            self.register(item)
 
     def bind_timezone(self, timezone: tzinfo) -> None:
         """Use the including app's timezone; reject conflicting app bindings."""
@@ -129,6 +156,12 @@ class Admin:
         name = slug or model.__table__.replace("_", "-").lower()
         if not SLUG.fullmatch(name) or name in RESERVED or name in self.models:
             raise RegistrationError(f"admin: invalid or duplicate slug {name!r}")
+        declared = getattr(admin, "model", None)
+        if declared is not None and declared is not model:
+            raise RegistrationError(
+                f"admin: {getattr(admin, '__name__', 'the admin class')} is for "
+                f"{declared.__name__}, not {model.__name__}"
+            )
         instance = (admin or ModelAdmin)()
         instance.model = model
         instance.validate_config(name)
@@ -141,6 +174,7 @@ class Admin:
                 raise RegistrationError(
                     f"admin: dashboard names unknown model {slug!r}"
                 )
+        self._served = self.prefix  # links must match the routes built below
         namespace: dict[str, Any] = {
             "admin": self,
             "hide_from_docs": True,
