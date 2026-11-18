@@ -792,7 +792,16 @@ class Pipeline:
         return binding.complete_native_args(args, (param.name, value))
 
     async def _call_native(self, binding: Binding, args: dict[str, object]) -> Response:
-        """Run a selected no-Request JSON handler and encode through Rust."""
+        """Run a selected no-Request JSON handler and encode through Rust; with
+        ``transaction=True`` the commit follows the encoding, as in ``_invoke``."""
+        if not binding.route.transaction:
+            return await self._native_result(binding, args)
+        async with self.ctx.get(Database).transaction():
+            return await self._native_result(binding, args)
+
+    async def _native_result(
+        self, binding: Binding, args: dict[str, object]
+    ) -> Response:
         route = binding.route
         result = await self._handler_result(
             binding, None, binding.complete_native_args(args)
