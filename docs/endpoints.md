@@ -202,6 +202,39 @@ functions are a better fit, especially when several actions share access,
 transaction defaults, or declared errors. A group must contain at least one
 action and becomes immutable after successful inclusion.
 
+## Function or class
+
+Both forms declare the same actions with the same decorators. They differ in four ways that matter in Hinoki, and each rule below follows from one of them.
+
+| | Function (with `RouteGroup`) | Class (`API`, `CrudAPI`) |
+| --- | --- | --- |
+| Shared `access=`, `atomic=`, `errors=` | stated once on `RouteGroup(...)` | not available: an `API` class carries a path prefix only, so each action states them |
+| Rust fast path for simple public routes | eligible ([serving](serving.md)) | never: a method has an owner class, so it always takes the Python lane |
+| Inheritance | none: compose with decorators and groups | subclasses extend a base, override an action, or drop an inherited one by redefining it without a decorator (or `replaces=`) |
+| Generated routes and write hooks | no | `CrudAPI` only (`get_queryset`, `store`, `change`, `remove`) |
+
+**Use functions and a `RouteGroup` for ordinary endpoints.** The action's shared policy sits in one place, the handlers are plain functions that a test can call, and a simple public one can be served natively. The group below states access, transactions and the errors its actions may raise once:
+
+```python
+tasks = RouteGroup("/tasks", access=member_only, atomic=True, errors=(errors.NotFound,))
+
+@tasks.get("/")
+async def listing(page: PageParams, caller: Caller[Member]) -> Page[TaskOut]: ...
+
+@tasks.post("/", status=201)
+async def create(data: TaskIn, caller: Caller[Member]) -> TaskOut: ...
+```
+
+**Use a class when the endpoints share behaviour by inheritance**: a `CrudAPI` for a model (generated routes plus the `store`/`change`/`remove` hooks), a base `API` whose actions several resources extend or override, or a resource you ship for others to include (the admin is one). A class that only groups three functions under a prefix gains nothing and loses the shared options and the native path.
+
+**Keep state out of the instance.** An `API` instance holds no per-request state and is shared by every request of the worker. Take what you need as parameters (`Request`, `Caller[...]`, path and body values) and reach worker-owned resources through a module, never by assigning to `self`.
+
+**Make the handler thin.** Parse and validate with a `Schema`, call a plain async function that owns the rule (the Tracker's `operations.py`), and return a `Schema`. Keep the direction of imports api → operations → models, and let `Imports.forbid(...)` in `rules.py` fail the build when it is reversed.
+
+**Register through one `routes.py` per feature.** The module exports `routes: list[Includable]` with paths relative to the feature, and the root (or the `routes =` key of `hinoki.toml`, see below) mounts it. The whole map then reads in one place, `hinoki routes` and `hinoki check` can print and verify it, and an explicit `include=[...]` still overrides the manifest when you need it. Pick one source for each prefix: a `Mount`, or a `RouteGroup`/`API` path, not both.
+
+**Annotate every return type with something checkable** (a `Schema`, `list[...]`, `Page[...]`, a scalar, `None`, a union, or `Response`): the annotation is checked at startup and every result is checked against it, so the OpenAPI document and the behaviour cannot drift apart. Return `Response` only for what a typed result cannot say (a redirect, headers, an unusual status), as `NoteOut | Response`.
+
 ## Organising a large application
 
 A project created by `hinoki new` does not list its routes in `main.py`. The manifest (`hinoki.toml`) names them, and the application the manifest declares binds them when it is built without `include=`:
