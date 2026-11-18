@@ -485,7 +485,7 @@ async def written_rows(
     database = current_database()
     if database.dialect not in NO_RETURNING:
         return await database.fetch(sql, *params)
-    async with database.transaction():
+    async with database.atomic():
         await database.execute(sql, *params)
         select_sql, select_params = core.compile_query(
             "select",

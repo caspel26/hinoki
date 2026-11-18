@@ -36,12 +36,12 @@ async def one(note_id: UUID) -> NoteOut:
     return await Note.aget(id=note_id)  # type: ignore[return-value]
 
 
-@http.post("/notes", status=201, transaction=True)
+@http.post("/notes", status=201, atomic=True)
 async def create(data: NoteIn) -> NoteOut:
     return await Note.acreate(data)  # type: ignore[return-value]
 
 
-@http.delete("/notes/{note_id}", status=204, transaction=True)
+@http.delete("/notes/{note_id}", status=204, atomic=True)
 async def remove(note_id: UUID) -> None:
     await Note.adelete(id=note_id)
 

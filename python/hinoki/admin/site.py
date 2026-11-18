@@ -312,7 +312,7 @@ async def guarded(operation: Awaitable[Any]) -> str:
     """Run a write in its own savepoint so a refused statement rolls back alone;
     returns a message for the form, or ``""`` on success."""
     try:
-        async with current_database().transaction():
+        async with current_database().atomic():
             await operation
     except UniqueViolation:
         return "That value is already in use."

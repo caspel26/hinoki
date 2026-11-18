@@ -742,7 +742,7 @@ def read_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any]
 
 
 def write_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any]]:
-    writes = Options(access=resource.access, transaction=True)
+    writes = Options(access=resource.access, atomic=True)
     caller = {"principal": Caller[Any]} if resource.access else {}
     found: dict[str, Callable[..., Any]] = {}
     if resource.create:

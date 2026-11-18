@@ -131,7 +131,7 @@ QUERYSET_METHODS = (
     "build",
     "load",
 )
-DATABASE_METHODS = ("fetch", "execute", "transaction", "active", "dialect")
+DATABASE_METHODS = ("fetch", "execute", "atomic", "active", "dialect")
 DATABASE_METHODS_ORIGINAL = static_state(Database, DATABASE_METHODS)
 QUERYSET_METHODS_ORIGINAL = static_state(QuerySet, QUERYSET_METHODS)
 OWNER_METHODS_ORIGINAL = static_state(CrudAPI, OWNER_METHODS)
@@ -444,7 +444,7 @@ def public_route_is_plain(
         and not resource.owner
         and not resource.assign
         and route.access is None
-        and route.transaction == (action in {"create", "update", "delete"})
+        and route.atomic == (action in {"create", "update", "delete"})
         and route_parsing_is_plain(route)
         and route_rendering_is_plain(route)
         and route_status_is_plain(route, action)
@@ -784,7 +784,7 @@ def route_snapshot(binding: Binding) -> tuple[object, ...]:
         route.handler,
         route.status,
         route.access,
-        route.transaction,
+        route.atomic,
         route.parsers,
         route.renderers,
         route.errors,

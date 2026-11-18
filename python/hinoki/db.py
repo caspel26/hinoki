@@ -1,10 +1,10 @@
 """Database access: pooled, typed, with transactions bound to the task context.
 
 ``Database`` wraps the native engine. Create it inside a worker (a module
-lifespan), never at import. Inside ``async with db.transaction():`` every
-``db.fetch``/``db.execute`` of that task uses the transaction's connection;
-nested scopes become savepoints; leaving the scope commits, or rolls back on
-any exception (including cancellation and timeouts).
+lifespan), never at import. Inside ``async with database.atomic():`` every
+``fetch``/``execute`` of that task uses the transaction's connection; nested
+scopes become savepoints; leaving the scope commits, or rolls back on any
+exception (including cancellation and timeouts).
 
 The namespace also carries the model declaration decorators, so a models
 module reads ``from hinoki import db`` and then ``@db.table("posts")``,
@@ -114,7 +114,7 @@ class Database:
         if found.finished:
             raise DatabaseError(
                 "the transaction has ended; a task that outlives its "
-                "transaction scope cannot use the database"
+                "atomic scope cannot use the database"
             )
         return found
 
@@ -155,8 +155,10 @@ class Database:
         target = active.native if active else self.engine
         return await target.execute(sql, list(params))
 
-    def transaction(self) -> TransactionScope:
-        return TransactionScope(self)
+    def atomic(self) -> AtomicScope:
+        """``async with database.atomic():`` — commit on success, roll back on
+        any exception; inside an open scope of the same task, a savepoint."""
+        return AtomicScope(self)
 
     def after_commit(self, callback: Callable[[], object]) -> None:
         """Run ``callback`` (sync or async) after the outermost transaction
@@ -168,9 +170,9 @@ class Database:
             raise DatabaseError("after_commit needs an active transaction")
         active.commit_callbacks.append(callback)
 
-    def migration(self) -> TransactionScope:
+    def migration(self) -> AtomicScope:
         """An exclusive migration transaction with backend locking semantics."""
-        return TransactionScope(self, migration=True)
+        return AtomicScope(self, migration=True)
 
     def close(self) -> None:
         self.engine.close()
@@ -180,8 +182,8 @@ class Database:
         return self.engine.status()
 
 
-class TransactionScope:
-    """``async with db.transaction():`` — commit, rollback or savepoint."""
+class AtomicScope:
+    """``async with database.atomic():`` — commit, rollback or savepoint."""
 
     def __init__(self, database: Database, *, migration: bool = False) -> None:
         self.database = database
@@ -191,7 +193,7 @@ class TransactionScope:
         self.savepoint: str | None = None
         self.callback_mark = 0
 
-    async def __aenter__(self) -> TransactionScope:
+    async def __aenter__(self) -> AtomicScope:
         parent = self.database.active()
         if parent is None:
             native_tx = (
@@ -204,7 +206,7 @@ class TransactionScope:
             return self
         if asyncio.current_task() is not parent.owner:
             raise DatabaseError(
-                "nested transaction scopes (savepoints) must be opened by the "
+                "nested atomic scopes (savepoints) must be opened by the "
                 "task that owns the transaction"
             )
         if self.migration:
@@ -223,7 +225,7 @@ class TransactionScope:
     ) -> None:
         state = self.state
         if state is None:
-            raise RuntimeError("transaction scope was not entered")
+            raise RuntimeError("atomic scope was not entered")
         if self.savepoint is not None:
             await self.leave_savepoint(state, exc is None)
             return
@@ -268,7 +270,7 @@ class TransactionScope:
 class DatabaseModule(Module):
     """Opens a ``Database`` for the worker and provides it to other modules.
 
-    ``app.install(DatabaseModule(url))``; actions with ``transaction=True``
+    ``app.install(DatabaseModule(url))``; actions with ``atomic=True``
     and other modules obtain it with ``ctx.get(Database)``. The pool is
     created in the worker's lifespan and closed when it ends.
     """

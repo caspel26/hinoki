@@ -409,7 +409,7 @@ def is_generated_list(binding: Binding, owner: type | None) -> bool:
         and getattr(handler, GENERATED, False)
         and binding.route.method == "GET"
         and binding.route.access is None
-        and not binding.route.transaction
+        and not binding.route.atomic
     )
 
 
