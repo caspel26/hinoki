@@ -35,6 +35,54 @@ class NoteOut(Schema):
 
 `Schema.validate(data)` reports structural problems together. Values are not coerced. Declare field constraints with `Field(...)`; use `@field_normalize` for narrow, typed string canonicalization and `@field_check`/`@object_check` for synchronous rejection checks.
 
+## Field types
+
+A field is annotated with `str`, `int`, `float`, `bool`, `UUID`, `datetime`, a nested `Schema`, `list[X]`, `dict[str, X]` or a [discriminated union](#discriminated-unions), optionally `| None` (accepts `null`) and `| Unset` (may be left out of a partial update), and optionally wrapped in `Annotated[..., Field(...)]`. `X` can be any of these, so `list[dict[str, int]]` and `dict[str, list[Point]]` work. Anything else (`set`, `tuple`, `bytes`, `Any`, plain unions, `dict[int, X]`) raises `RegistrationError` when the class is created.
+
+### Dictionary fields
+
+Use `dict[str, X]` for an object whose keys the client chooses, such as labels, per-locale texts or settings by name:
+
+```python
+from typing import Annotated
+
+from hinoki import Field, Schema
+
+
+class Point(Schema):
+    x: int
+    y: int = 0
+
+
+Locale = Annotated[str, Field(min_length=2, max_length=5, pattern=r"[a-z]{2}(-[A-Z]{2})?")]
+
+
+class Place(Schema):
+    labels: Annotated[dict[str, Annotated[str, Field(max_length=40)]], Field(max_length=20)]
+    names: dict[Locale, Annotated[str, Field(max_length=80)]] = Field(default_factory=dict)
+    points: dict[str, Point] = Field(default_factory=dict)
+
+
+place = Place.validate({"labels": {"kind": "park"}, "points": {"gate": {"x": 1}}})
+assert place.points == {"gate": Point(x=1)}
+assert place.dump() == {
+    "labels": {"kind": "park"},
+    "names": {},
+    "points": {"gate": {"x": 1, "y": 0}},
+}
+```
+
+* **Keys are strings.** `dict[int, X]`, `dict[UUID, X]` and a bare `dict` are refused at class creation with a message that names `dict[str, X]`. Every key is an ordinary string: `"__proto__"` or `"constructor"` has no special meaning.
+* **Values** follow the value type, with its own `Field(...)` constraints, nested `Schema`s, lists, unions and `None` when the value type allows it. A whole `dict[...] | None` field accepts `null`.
+* **Error paths** add the key as one more dotted segment, as list items add `[index]`: `labels.kind`, `points.gate.x`, `scores.math[1]`. A key longer than 64 characters is shortened to its first 64 in the path, as unknown field names are. The codes and messages are those of the value type.
+* **Entry count.** `Field(min_length=..., max_length=...)` on the dict counts entries, exactly like a list: `at least 1 item`, `at most 20 items`. Without `max_length` a dict accepts at most 1000 entries (`hinoki.fieldtypes.MAX_MAPPING_ITEMS`); set `max_length` to choose another bound.
+* **Keys are always bounded.** Without a key constraint a key may have at most 256 characters (`hinoki.fieldtypes.MAX_MAPPING_KEY_LENGTH`). To constrain keys, annotate the key type: `dict[Annotated[str, Field(...)], X]` accepts `min_length`, `max_length`, `pattern` and `format=`; a `max_length` there replaces the 256 default. A key that breaks one of these is reported once at its path with `key_min_length`, `key_max_length` or `key_pattern` (for example `key must have at most 5 characters`), and its value is not checked.
+* **Order and duplicates.** Entries keep the order the client sent through `validate()`, `dump()`, `to_dict()` and the JSON response. A key repeated in a JSON body behaves as in any JSON object: the last value wins and the key keeps its first position.
+* **Construction.** `Place(points={"gate": Point(x=1)})` validates the dict like any field; a nested value must already be a `Schema` instance and a non-string key is reported as `object keys must be strings`. `@field_check` and `@object_check` of nested values run with the same key paths.
+* **OpenAPI** describes the field as `type: object` with `additionalProperties` set to the value schema, `propertyNames` set to the key schema (with its `maxLength`) and `minProperties`/`maxProperties` from the entry limits.
+
+A text value without a limit is reported by the `HNK-SCH-002` rule like a text field (see [rules](rules.md)). A `dict[...]` column on a `Model` stays a JSON column: model writes do not apply these checks, and constraints on such a column are refused. A `Schema` derived from that model gets a `dict[str, X]` field validated as described here.
+
 ## Wire aliases
 
 Use `Field(alias=...)` when the public JSON name should differ from the Python attribute. The alias is the only accepted input key; sending both names is an error. `dump()` writes aliases, including in nested schemas and lists, while `to_dict()` keeps Python attribute names. Validation errors and OpenAPI properties use the wire names. A custom check's default field path is translated to its alias; an explicit `Invalid(path=...)` is already a wire path.
