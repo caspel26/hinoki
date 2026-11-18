@@ -277,7 +277,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 </code></pre></div>
 <p>Break one on purpose (remove <code>access=</code> from an action) and the failure names the rule and the line:</p>
 <div class="highlight"><pre><span></span><code>tests/projects/rulesapp.py:7: HNK-ACC-001 [violated] GET /health (health) declares no access policy
-tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does not declare transaction=True
+tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does not declare atomic=True
 </code></pre></div>
 <p>An exception is a <strong>waiver</strong> in <code>hinoki-rules.toml</code> with a reason, an owner and a bounded target. The owner writes waivers; tools and agents read them but never edit them to pass a check. See <a href="../../rules/">Rules</a>.</p>
 <p>Next: <a href="../6-run/">6. Run and test it</a>.</p>
@@ -305,7 +305,7 @@ tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does 
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.6</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:30:43 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 21:17:53 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/5-rules.md">Edit on GitHub</a></dd></div>
         </dl>

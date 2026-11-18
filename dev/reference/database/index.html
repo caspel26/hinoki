@@ -595,15 +595,18 @@ operations may need backend-specific SQL.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.db.Database.transaction" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">transaction</span>
+<h3 id="hinoki.db.Database.atomic" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">atomic</span>
 
 
-<a href="#hinoki.db.Database.transaction" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">transaction</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">TransactionScope</span>
+<a href="#hinoki.db.Database.atomic" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">atomic</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">AtomicScope</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
+
+        <p><code>async with database.atomic():</code> — commit on success, roll back on
+any exception; inside an open scope of the same task, a savepoint.</p>
 
 
     </div>
@@ -641,7 +644,7 @@ callback is logged and does not undo the commit.</p>
 
 
 <a href="#hinoki.db.Database.migration" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">migration</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">TransactionScope</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">migration</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">AtomicScope</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -699,6 +702,194 @@ callback is logged and does not undo the commit.</p>
 
 </div>
 
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.db.atomic" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.db.atomic</span>
+
+
+<a href="#hinoki.db.atomic" class="headerlink" title="Permanent link">&para;</a></h2>
+          <div class="doc-overloads">
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">atomic</span><span class="p">(</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="n">P</span><span class="p">,</span> <span class="n">Coroutine</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">R</span><span class="p">]],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="n">P</span><span class="p">,</span> <span class="n">Coroutine</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">R</span><span class="p">]]</span>
+</code></pre></div><div class="doc-signature highlight"><pre><span></span><code><span class="nf">atomic</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Atomic</span>
+</code></pre></div>          </div>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">atomic</span><span class="p">(</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="n">P</span><span class="p">,</span> <span class="n">Coroutine</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">R</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Atomic</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[</span><span class="n">P</span><span class="p">,</span> <span class="n">Coroutine</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">R</span><span class="p">]]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p><code>async with db.atomic():</code>, <code>@db.atomic</code> or <code>@db.atomic()</code>: run a
+block or a coroutine function atomically on the current database.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.db.Atomic" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.db.Atomic</span>
+
+
+<a href="#hinoki.db.Atomic" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p><code>db.atomic()</code>: an atomic scope on the current database, as a block or
+as a decorator.</p>
+<p><code>async with db.atomic():</code> opens <code>current_database().atomic()</code> when the
+block is entered. Decorating an <code>async def</code> opens a fresh scope for every
+call: returning commits, an exception rolls back, and a call made inside an
+already atomic scope becomes a savepoint.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.db.Atomic.scopes" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">scopes</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.db.Atomic.scopes" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">scopes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">AtomicScope</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.db.Atomic.__init__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">__init__</span>
+
+
+<a href="#hinoki.db.Atomic.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.db.Atomic.__aenter__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">__aenter__</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.db.Atomic.__aenter__" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">__aenter__</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">AtomicScope</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.db.Atomic.__aexit__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">__aexit__</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.db.Atomic.__aexit__" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">__aexit__</span><span class="p">(</span>
+    <span class="n">exc_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="ne">BaseException</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">exc</span><span class="p">:</span> <span class="ne">BaseException</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">tb</span><span class="p">:</span> <span class="n">TracebackType</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.db.Atomic.__call__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">__call__</span>
+
+
+<a href="#hinoki.db.Atomic.__call__" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">__call__</span><span class="p">(</span>
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="n">P</span><span class="p">,</span> <span class="n">Coroutine</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">R</span><span class="p">]],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="n">P</span><span class="p">,</span> <span class="n">Coroutine</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">R</span><span class="p">]]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
 <div class="doc doc-object doc-class">
 
 
@@ -717,7 +908,7 @@ callback is logged and does not undo the commit.</p>
 
 
         <p>Opens a <code>Database</code> for the worker and provides it to other modules.</p>
-<p><code>app.install(DatabaseModule(url))</code>; actions with <code>transaction=True</code>
+<p><code>app.install(DatabaseModule(url))</code>; actions with <code>atomic=True</code>
 and other modules obtain it with <code>ctx.get(Database)</code>. The pool is
 created in the worker's lifespan and closed when it ends.</p>
 
@@ -1153,7 +1344,9 @@ max_size), so <code>Hinoki(settings=..., modules=[DatabaseModule])</code> works.
           
           
             <ul><li><a href="#configure-a-backend">Configure a backend</a></li><li><a href="#backend-behavior-and-limits">Backend behavior and limits</a></li><li><a href="#hinoki.db.Database">Database</a>
-            <ul><li><a href="#hinoki.db.Database.engine">engine</a></li><li><a href="#hinoki.db.Database.dialect">dialect</a></li><li><a href="#hinoki.db.Database.__init__">__init__</a></li><li><a href="#hinoki.db.Database.connect">connect</a></li><li><a href="#hinoki.db.Database.active">active</a></li><li><a href="#hinoki.db.Database.fetch">fetch</a></li><li><a href="#hinoki.db.Database._fetch_page_wire">_fetch_page_wire</a></li><li><a href="#hinoki.db.Database.fetch_one">fetch_one</a></li><li><a href="#hinoki.db.Database.execute">execute</a></li><li><a href="#hinoki.db.Database.transaction">transaction</a></li><li><a href="#hinoki.db.Database.after_commit">after_commit</a></li><li><a href="#hinoki.db.Database.migration">migration</a></li><li><a href="#hinoki.db.Database.close">close</a></li><li><a href="#hinoki.db.Database.status">status</a></li></ul>
+            <ul><li><a href="#hinoki.db.Database.engine">engine</a></li><li><a href="#hinoki.db.Database.dialect">dialect</a></li><li><a href="#hinoki.db.Database.__init__">__init__</a></li><li><a href="#hinoki.db.Database.connect">connect</a></li><li><a href="#hinoki.db.Database.active">active</a></li><li><a href="#hinoki.db.Database.fetch">fetch</a></li><li><a href="#hinoki.db.Database._fetch_page_wire">_fetch_page_wire</a></li><li><a href="#hinoki.db.Database.fetch_one">fetch_one</a></li><li><a href="#hinoki.db.Database.execute">execute</a></li><li><a href="#hinoki.db.Database.atomic">atomic</a></li><li><a href="#hinoki.db.Database.after_commit">after_commit</a></li><li><a href="#hinoki.db.Database.migration">migration</a></li><li><a href="#hinoki.db.Database.close">close</a></li><li><a href="#hinoki.db.Database.status">status</a></li></ul>
+          </li><li><a href="#hinoki.db.atomic">atomic</a></li><li><a href="#hinoki.db.Atomic">Atomic</a>
+            <ul><li><a href="#hinoki.db.Atomic.scopes">scopes</a></li><li><a href="#hinoki.db.Atomic.__init__">__init__</a></li><li><a href="#hinoki.db.Atomic.__aenter__">__aenter__</a></li><li><a href="#hinoki.db.Atomic.__aexit__">__aexit__</a></li><li><a href="#hinoki.db.Atomic.__call__">__call__</a></li></ul>
           </li><li><a href="#hinoki.db.DatabaseModule">DatabaseModule</a>
             <ul><li><a href="#hinoki.db.DatabaseModule.name">name</a></li><li><a href="#hinoki.db.DatabaseModule.url">url</a></li><li><a href="#hinoki.db.DatabaseModule.max_size">max_size</a></li><li><a href="#hinoki.db.DatabaseModule.wait">wait</a></li><li><a href="#hinoki.db.DatabaseModule.__init__">__init__</a></li><li><a href="#hinoki.db.DatabaseModule.from_settings">from_settings</a></li><li><a href="#hinoki.db.DatabaseModule.lifespan">lifespan</a></li></ul>
           </li><li><a href="#hinoki.db.DatabaseError">DatabaseError</a></li><li><a href="#hinoki.db.UniqueViolation">UniqueViolation</a></li><li><a href="#hinoki.db.ForeignKeyViolation">ForeignKeyViolation</a></li><li><a href="#hinoki.db.NotNullViolation">NotNullViolation</a></li><li><a href="#hinoki.db.CheckViolation">CheckViolation</a></li></ul>
@@ -1163,7 +1356,7 @@ max_size), so <code>Hinoki(settings=..., modules=[DatabaseModule])</code> works.
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.8</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 17:54:14 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 21:17:53 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/database.md">Edit on GitHub</a></dd></div>
         </dl>

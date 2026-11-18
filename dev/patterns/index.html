@@ -234,7 +234,7 @@
         <h1 id="structuring-a-hinoki-application-pattern-and-best-practices">Structuring a Hinoki application: pattern and best practices<a class="headerlink" href="#structuring-a-hinoki-application-pattern-and-best-practices" title="Permanent link">&para;</a></h1>
 <p>Opinionated, with reasons. It describes how the framework's features fit together; each rule is something the framework either enforces, can check with an optional rule, or leaves to review (marked <strong>enforced</strong>, <strong>rule</strong> or <strong>convention</strong>). The reference blog (<code>examples/blog</code>) and the small notes example (<code>examples/notes</code>) show the parts; <code>examples/tracker</code> is the layered example: <code>api</code> → <code>operations</code> → <code>models</code>, row permission in the statements, the direction enforced by <code>Imports.forbid</code>, operations tested without HTTP.</p>
 <h2 id="1-three-layers-one-direction">1. Three layers, one direction<a class="headerlink" href="#1-three-layers-one-direction" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>HTTP layer      API classes / functions   shapes, status codes, access policy, transaction=True
+<div class="highlight"><pre><span></span><code>HTTP layer      API classes / functions   shapes, status codes, access policy, atomic=True
    │            (hinoki.routing, Access, Schema)
    ▼
 Operations      plain async functions     one business operation each; no Request, no HTTP types
@@ -285,7 +285,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 </tr>
 <tr>
 <td>Transactions</td>
-<td><code>transaction=True</code> on the action (writes)</td>
+<td><code>atomic=True</code> on the action (writes)</td>
 <td>Commit after the response is encoded, rollback before the error becomes HTTP. <strong>Rule:</strong> <code>Transactions.require_atomic</code></td>
 </tr>
 <tr>
@@ -335,7 +335,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 <li>Returning a <code>Model</code> or a dict built from one.</li>
 <li>For a distinct 403 response on a write that can race, make the conditional write and fallback explicit.</li>
 <li>A business rule inside an action that another entry point also needs.</li>
-<li><code>Response(4xx)</code> inside a <code>transaction=True</code> action (it commits).</li>
+<li><code>Response(4xx)</code> inside a <code>atomic=True</code> action (it commits).</li>
 <li>Client-supplied column names reaching <code>filter</code>/<code>order_by</code>.</li>
 <li>Applying migrations at startup; creating a pool at import time.</li>
 <li>A broad waiver (<code>*</code>) or editing waivers to silence a rule.</li>
@@ -375,7 +375,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.3</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 02:04:05 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 21:17:53 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/patterns.md">Edit on GitHub</a></dd></div>
         </dl>

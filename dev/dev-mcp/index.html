@@ -422,7 +422,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <tr>
 <td><code>inspect_project</code></td>
 <td><code>{}</code></td>
-<td>App title/version, registered actions, selected model metadata, and enabled rule count. Models are included only when supplied with <code>--models</code>.</td>
+<td>App title/version, registered actions (each with <code>id</code>, <code>method</code>, <code>path</code>, <code>status</code>, <code>access</code>, <code>atomic</code>, <code>pagination</code>, <code>parsers</code>, <code>renderers</code> and <code>location</code>), selected model metadata, and enabled rule count. Models are included only when supplied with <code>--models</code>.</td>
 </tr>
 <tr>
 <td><code>list_rules</code></td>
@@ -432,7 +432,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <tr>
 <td><code>explain_action</code></td>
 <td><code>{"action": "module.function"}</code></td>
-<td>Action signature and docstring, access and transaction declarations, generated OpenAPI operation, and diagnostics for the action. The action may also be named by class method or bare handler name when unique.</td>
+<td>Action signature and docstring, access and <code>atomic</code> declarations, generated OpenAPI operation, and diagnostics for the action. The action may also be named by class method or bare handler name when unique.</td>
 </tr>
 <tr>
 <td><code>explain_error</code></td>
@@ -483,7 +483,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.28</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 20:23:49 UTC">November 15, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 21:17:53 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/dev-mcp.md">Edit on GitHub</a></dd></div>
         </dl>

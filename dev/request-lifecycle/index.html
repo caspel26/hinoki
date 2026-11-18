@@ -238,7 +238,7 @@
 <li>Hinoki matches the method and path.</li>
 <li>For an action with an access policy, its authentication provider resolves a caller and the policy checks permissions. The request body has not been read yet, so an unauthenticated client cannot make the server buffer it.</li>
 <li>Hinoki negotiates the response type from <code>Accept</code> (<code>406</code> when nothing fits), reads the body of <code>POST</code>/<code>PUT</code>/<code>PATCH</code>/<code>QUERY</code> requests, then binds and validates path, query, header and body values before the handler runs.</li>
-<li>For <code>transaction=True</code>, Hinoki opens a transaction before calling the handler.</li>
+<li>For <code>atomic=True</code>, Hinoki opens a transaction before calling the handler.</li>
 <li>The handler returns. Hinoki prepares the response: a configured renderer turns the value into bytes. The declared response type is not checked at runtime.</li>
 <li>The transaction commits after successful response preparation. An exception or cancellation rolls back before an HTTP error is produced.</li>
 </ol>
@@ -270,7 +270,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.2</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:30:43 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 21:17:53 UTC">November 18, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/request-lifecycle.md">Edit on GitHub</a></dd></div>
         </dl>
