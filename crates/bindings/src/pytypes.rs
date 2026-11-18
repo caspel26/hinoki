@@ -7,6 +7,10 @@ use pyo3::types::{PyBool, PyFloat, PyInt, PyString};
 
 static UUID: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static DATETIME: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static DATE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static TIME: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static TIMEDELTA: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static DECIMAL: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static FAST_UUID: PyOnceLock<Option<FastUuid>> = PyOnceLock::new();
 
 pub fn uuid_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
@@ -15,6 +19,22 @@ pub fn uuid_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
 
 pub fn datetime_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
     DATETIME.import(py, "datetime", "datetime")
+}
+
+pub fn date_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    DATE.import(py, "datetime", "date")
+}
+
+pub fn time_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    TIME.import(py, "datetime", "time")
+}
+
+pub fn timedelta_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    TIMEDELTA.import(py, "datetime", "timedelta")
+}
+
+pub fn decimal_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    DECIMAL.import(py, "decimal", "Decimal")
 }
 
 /// `None`, `bool`, `int`, `float` and `str` of exactly these types: values that

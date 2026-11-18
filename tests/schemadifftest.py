@@ -1,8 +1,10 @@
 """The Rust validator must agree with the pure-Python oracle on every input."""
 
+import datetime as dt
 import math
 import random
 from datetime import datetime
+from decimal import Decimal
 from typing import Annotated, Any
 from uuid import UUID, uuid4
 
@@ -327,3 +329,75 @@ class Choices(Schema):
 )
 def test_one_of_agrees_with_the_oracle(data: Any) -> None:
     assert outcome(native, Choices, data) == outcome(oracle, Choices, data)
+
+
+class Wire(Schema):
+    day: dt.date
+    at: dt.time | None = None
+    wait: dt.timedelta | Unset = UNSET
+    amount: Annotated[
+        Decimal, Field(ge=Decimal("-100.5"), lt=1000, max_digits=6, decimal_places=2)
+    ] = Decimal(0)
+    loose: Decimal | None = None
+    blob: Annotated[bytes, Field(min_length=1, max_length=6)] = b"x"
+    blobs: list[bytes] = Field(default_factory=list)
+    stamps: dict[str, dt.date] = Field(default_factory=dict)
+
+
+WIRE_JUNK: list[Any] = [
+    *JUNK, "2026-11-18", "2026-02-29", "0000-01-01", "2026-11-18T00:00:00Z",
+    "09:30:00Z", "09:30:00", "24:00:00Z", "09:30:00.1234567Z", "09:30:00+24:00",
+    "P1D", "PT0.5S", "-P1DT1S", "P", "PT", "P1W", "P1000000000D", "PT1.5H",
+    "12.50", "-0", "0.001", "1e5", "NaN", "01", "1" * 70, 10**70, "999.99",
+    "-100.5", "-100.51", "1000", "AA==", "QR==", "QQ", "QUJDREVG", "QUJDREVGRw==",
+    "", "-_-_", "١", "１", "١٢",
+]  # fmt: skip
+
+
+def valid_wire(rng: random.Random) -> dict[str, Any]:
+    data: dict[str, Any] = {"day": rng.choice(["2026-11-18", "2024-02-29"])}
+    pools: dict[str, list[Any]] = {
+        "at": ["09:30:00Z", "23:59:59.5+02:00", None],
+        "wait": ["P1D", "PT0.5S", "-PT1M", "P999999999D"],
+        "amount": ["12.50", 7, "-100.5", "999.99", "0"],
+        "loose": ["123456.789", None, 10**20],
+        "blob": ["AA==", "QUJD", "QUJDREVG"],
+        "blobs": [["AA==", "QUI="], []],
+        "stamps": [{"a": "2026-01-01", "b": "2026-12-31"}, {}],
+    }
+    for key, pool in pools.items():
+        if rng.random() < 0.7:
+            data[key] = rng.choice(pool)
+    return data
+
+
+def wire_outcome(call: Any, data: object) -> tuple[str, Any]:
+    """Like ``outcome``, comparing accepted instances by ``repr`` so a decimal
+    scale (``1.50`` against ``1.5``) or a time zone cannot differ unseen."""
+    kind, value = outcome(call, Wire, data)
+    return (kind, repr(value)) if kind == "ok" else (kind, value)
+
+
+@pytest.mark.parametrize("seed", range(8))
+def test_wire_scalar_inputs_agree(seed: int) -> None:
+    rng = random.Random(900 + seed)
+    for _ in range(600):
+        data = mutate(rng, valid_wire(rng))
+        if rng.random() < 0.3:
+            data[rng.choice(list(Wire.specs()))] = rng.choice(WIRE_JUNK)
+        assert wire_outcome(native, data) == wire_outcome(oracle, data), data
+
+
+@pytest.mark.parametrize("junk", WIRE_JUNK)
+def test_every_junk_value_in_every_wire_slot_agrees(junk: Any) -> None:
+    base: dict[str, Any] = {
+        "day": "2026-11-18", "at": "09:30:00Z", "wait": "P1D", "amount": "1.50",
+        "loose": "1", "blob": "AA==", "blobs": ["AA=="], "stamps": {"a": "2026-01-01"},
+    }  # fmt: skip
+    for key in list(base):
+        data = {**base, key: junk}
+        assert wire_outcome(native, data) == wire_outcome(oracle, data), (key, junk)
+    for key in ("blobs", "stamps"):
+        inner = [junk] if key == "blobs" else {"a": junk}
+        data = {**base, key: inner}
+        assert wire_outcome(native, data) == wire_outcome(oracle, data), (key, junk)
