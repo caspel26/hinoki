@@ -34,6 +34,9 @@ class AdminSession(Model, table="hinoki_admin_sessions"):
     expires_at: datetime = field(default_factory=utc_now)
     last_seen_at: datetime = field(default_factory=utc_now)
     user_agent: str = field(default="", max_length=200)
+    # SHA-256 of the user's password hash when the session opened: a changed
+    # password, even one made while a sign-in was in flight, ends the session.
+    fingerprint: str = field(default="", max_length=64)
 
 
 @db.indexed("user_id")

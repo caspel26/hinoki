@@ -18,7 +18,14 @@ from hinoki.admin.templates import Templates
 from hinoki.admin.themes import Theme
 from hinoki.admin.users.auth import BASE_PERMISSION, EVERYTHING, AdminSessionAuth
 from hinoki.admin.users.service import ACTIONS, AdminAccounts
-from hinoki.admin.views import ASSETS, AUTH_VIEWS, PUBLIC_VIEWS, ROUTES, VIEWS
+from hinoki.admin.views import (
+    ASSETS,
+    AUTH_VIEWS,
+    HASHING_VIEWS,
+    PUBLIC_VIEWS,
+    ROUTES,
+    VIEWS,
+)
 from hinoki.api import API
 from hinoki.auth import Caller
 from hinoki.errors import RegistrationError
@@ -261,11 +268,11 @@ class Admin:
             public = name in PUBLIC_VIEWS
             options = Options(
                 access=None if public else self.access,
-                transaction=write,
+                transaction=write and name not in HASHING_VIEWS,
                 parsers=[FormParser()] if write else None,
                 renderers=None if public and name in ASSETS else [HTMLRenderer()],
                 rate_limit=self.users.login_limit
-                if name == "login_submit" and self.users is not None
+                if name in HASHING_VIEWS and self.users is not None
                 else None,
             )
             declare = RouteDeclaration(method, path, options)

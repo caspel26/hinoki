@@ -103,9 +103,20 @@ class AdminAccounts:
     async def set_password(self, user: AdminUser, password: str) -> None:
         """Change a password and end every session of the user."""
         self.check_password(password)
-        user.password_hash = await self.hasher.hash(password)
-        await user.asave()
-        await self.revoke_sessions(user)
+        hashed = await self.hasher.hash(password)  # no connection is held meanwhile
+        async with current_database().transaction():
+            user.password_hash = hashed
+            await user.asave()
+            await self.revoke_sessions(user)
+
+    async def set_active(self, user: AdminUser, active: bool) -> None:
+        """Activate or deactivate a user. Deactivating also ends every session, so
+        reactivating never brings an old one back."""
+        async with current_database().transaction():
+            user.is_active = active
+            await user.asave()
+            if not active:
+                await self.revoke_sessions(user)
 
     async def verify(self, username: str, password: str) -> AdminUser | None:
         """The active user when the password matches, else ``None``. The same work
@@ -126,20 +137,27 @@ class AdminAccounts:
     def digest(token: str) -> str:
         return hashlib.sha256(token.encode()).hexdigest()
 
+    @staticmethod
+    def fingerprint(user: AdminUser) -> str:
+        return hashlib.sha256(user.password_hash.encode()).hexdigest()
+
     async def open_session(self, user: AdminUser, user_agent: str = "") -> str:
-        """A new session for ``user``; the returned token is the cookie value."""
+        """A new session for ``user``; the returned token is the cookie value. It is
+        bound to the password the user has now, so a later password change ends it."""
         token = secrets.token_urlsafe(32)
         now = self.clock()
-        await AdminSession.acreate(
-            token_hash=self.digest(token),
-            user_id=user.id,
-            created_at=now,
-            expires_at=now + timedelta(hours=self.settings.session_hours),
-            last_seen_at=now,
-            user_agent=user_agent[:200],
-        )
-        user.last_login = now
-        await user.asave()
+        async with current_database().transaction():
+            await AdminSession.acreate(
+                token_hash=self.digest(token),
+                user_id=user.id,
+                created_at=now,
+                expires_at=now + timedelta(hours=self.settings.session_hours),
+                last_seen_at=now,
+                user_agent=user_agent[:200],
+                fingerprint=self.fingerprint(user),
+            )
+            user.last_login = now
+            await user.asave()
         return token
 
     async def user_for(self, token: str) -> AdminUser | None:
@@ -150,7 +168,9 @@ class AdminAccounts:
         if session is None or not await self.live(session):
             return None
         user = await AdminUser.aget_or_none(id=session.user_id)
-        return user if user is not None and user.is_active else None
+        if user is None or not user.is_active:
+            return None
+        return user if session.fingerprint == self.fingerprint(user) else None
 
     async def live(self, session: AdminSession) -> bool:
         """Whether the session is within both of its lifetimes; an ended one is
