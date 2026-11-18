@@ -16,7 +16,11 @@ Status: Accepted · 2026-11-18 (proposed 2026-11-13)
 
 Checked against the source (`runtime/executor.py`, `runtime/lifespan.py`, `blocking.py`):
 
-- **Matches.** One `ThreadPoolExecutor(sync_workers)` per worker, admission of `sync_workers + sync_queue` calls, a slot released only when the thread returns, `503 overloaded` with `Retry-After` when admission fails, and sync ORM calls refused on the event-loop thread.
+- **Matches.** One pool of `sync_workers` threads per worker (a `ThreadPoolExecutor` at the time; see the 2026-11-19 update), admission of `sync_workers + sync_queue` calls, a slot released only when the thread returns, `503 overloaded` with `Retry-After` when admission fails, and sync ORM calls refused on the event-loop thread.
 - **Corrected above.** Saturation does not make the worker unready: `Lifespan.ready` depends on a completed startup and on the managed critical tasks, so a saturated worker answers `503 overloaded` per request and stays ready. Marking it unready would remove it from the load balancer exactly when it is busy.
 
 **Decided (2026-11-18):** readiness does not reflect saturation; a saturated worker answers `503 overloaded` per request and stays ready. The defaults are kept until a load test shows a better balance.
+
+## Implementation update (2026-11-19)
+
+The pool is now `runtime.executor.WorkerPool`: `sync_workers` daemon threads on one queue, not a `ThreadPoolExecutor`. The decision is unchanged (same admission of `sync_workers + sync_queue`, same slot release, same 503). A call that is cancelled while still queued never runs; one cancelled while running keeps its slot until the thread returns. A finished call reaches the loop with one `call_soon_threadsafe` and no `concurrent.futures` future, which removed most of the per-call overhead of a sync handler. Workers are daemon threads, so an idle worker never holds the interpreter open; the lifespan drain still waits for running calls.
