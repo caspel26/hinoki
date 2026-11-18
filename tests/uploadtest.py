@@ -8,6 +8,7 @@ from hinoki import (
     Access,
     FormParser,
     Hinoki,
+    Includable,
     JSONParser,
     MultiPartParser,
     Request,
@@ -434,7 +435,7 @@ def test_sync_client_can_send_files() -> None:
     assert response.body["name"] == "sync.txt"
 
 
-AUTOMATIC = [auto_file, auto_batch, auto_optional, json_body]
+AUTOMATIC: list[Includable] = [auto_file, auto_batch, auto_optional, json_body]
 
 
 async def test_upload_actions_without_parsers_select_multipart_automatically() -> None:
