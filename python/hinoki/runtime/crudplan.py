@@ -558,17 +558,14 @@ def model_defaults_are_plain(model: type[Model], resource: _CrudConfig) -> bool:
 
 
 def model_default_specs(
-    model: type[Model], resource: _CrudConfig
+    model: type[Model], _resource: _CrudConfig
 ) -> list[tuple[str, str, str]] | None:
     try:
         fields = {item.name: item for item in dataclasses.fields(cast(Any, model))}
     except TypeError:
         return None
-    sent = set(resource.create.specs()) if resource.create is not None else set()
     found: list[tuple[str, str, str]] = []
     for name, item in fields.items():
-        if name in sent:
-            continue
         encoded = model_field_default(item)
         if encoded is None or not default_fits_column(model, name, encoded[0]):
             return None
@@ -867,8 +864,14 @@ def compile_selection(
         return None
     schema_args = schema_plan_args(resource)
     create_defaults = schema_default_specs(resource.create)
+    update_defaults = schema_default_specs(resource.update)
     read_fields = schema_fields(model, resource.read)
-    if schema_args is None or create_defaults is None or read_fields is None:
+    if (
+        schema_args is None
+        or create_defaults is None
+        or update_defaults is None
+        or read_fields is None
+    ):
         return None
     try:
         plan = core._CrudPlan(
@@ -883,8 +886,10 @@ def compile_selection(
             model_fields(model) or [],
             model_default_specs(model, resource) or [],
             create_defaults,
+            update_defaults,
             list(model.__columns__) if resource.create is not None else [],
             list(write_columns(model, resource, "update")),
+            model.__updated_at__,
             schema_args[0],
             read_fields,
             create_schema=schema_args[1],

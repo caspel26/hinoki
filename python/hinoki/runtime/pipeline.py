@@ -25,7 +25,13 @@ from hinoki.context import request_id
 from hinoki.db import Database
 from hinoki.docsui import CSP, Page
 from hinoki.docsui import pages as docs_pages
-from hinoki.errors import ErrorDetail, InvalidBody, RegistrationError, ValidationError
+from hinoki.errors import (
+    Conflict,
+    ErrorDetail,
+    InvalidBody,
+    RegistrationError,
+    ValidationError,
+)
 from hinoki.http.request import Request
 from hinoki.http.response import Response as HandlerResponse
 from hinoki.modules import ModuleContext
@@ -261,7 +267,9 @@ class Pipeline:
         try:
             async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
                 try:
-                    exception = self._native_failure_exception(action, failure)
+                    exception = self._default_error(
+                        self._native_failure_exception(action, failure)
+                    )
                 except Exception as exc:
                     exception = exc
                 return await self._native_error_response(exception, rid)
@@ -439,7 +447,17 @@ class Pipeline:
                 HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
             ).response
         except Exception as exc:
-            return await error_response(exc, rid, self.app.errors, self.debug)
+            return await error_response(
+                self._default_error(exc), rid, self.app.errors, self.debug
+            )
+
+    def _default_error(self, error: Exception) -> Exception:
+        if (
+            isinstance(error, core.UniqueViolation)
+            and self.app.errors.find(error) is None
+        ):
+            return Conflict()
+        return error
 
     async def _serve(
         self, scope: Scope, source: BodySource, route: MatchedRoute | None

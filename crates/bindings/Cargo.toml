@@ -8,6 +8,9 @@ repository.workspace = true
 rust-version.workspace = true
 publish = false
 
+[features]
+sql-trace = ["hinoki-orm/sql-trace"]
+
 [lib]
 name = "native"
 crate-type = ["cdylib", "rlib"]
@@ -20,7 +23,7 @@ hinoki-server = { path = "../server" }
 socket2 = { version = "0.6", features = ["all"] }
 tokio = { version = "1", features = ["net", "rt-multi-thread", "sync", "time"] }
 time = { version = "0.3", features = ["formatting", "parsing", "macros", "large-dates"] }
-uuid = "1"
+uuid = { version = "1", features = ["v4"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 argon2 = "0.6"
 getrandom = "0.4"
