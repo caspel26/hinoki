@@ -4,6 +4,7 @@ import asyncio
 import dataclasses
 import math
 import os
+import sys
 import types
 from datetime import datetime
 from pathlib import Path
@@ -49,6 +50,7 @@ from hinoki.settings import AppSettings, CorsSettings, ServerSettings
 from hinoki.utils import utc_now
 
 DATABASE_URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
+REQUIRE_SQL_TRACE = os.environ.get("HINOKI_REQUIRE_SQL_TRACE") == "1"
 
 
 class PlanItem(Model, table="crud_plan_items"):
@@ -193,6 +195,26 @@ def test_plan_templates_match_python_compilers_for_all_dialects() -> None:
     ]
     assert plan.create_defaults == [("label", "str", "schema-default")]
     assert plan.update_columns == ["name", "label"]
+
+
+def test_list_statement_for_any_window_matches_the_python_compiler() -> None:
+    pipeline = plan_pipeline()
+    build_server_core(pipeline)
+    plan = next(
+        item.plan
+        for item in pipeline.crud_plan_selections
+        if item is not None and item.action == "list"
+    )
+    for dialect in ("postgres", "sqlite", "mysql", "mariadb"):
+        for size, offset in ((7, 14), (1, 0), (100, 99_900)):
+            expected = (
+                QuerySet(PlanItem)
+                .order_by("id")
+                .limit(size)
+                .offset(offset)
+                .compile(dialect=dialect)[0]
+            )
+            assert plan.list_sql(dialect, size, offset) == expected
 
 
 def test_plan_template_error_body_is_canonical_and_self_checked() -> None:
@@ -833,6 +855,13 @@ async def test_native_list_retrieve_and_head_match_forced_python_lane() -> None:
     worker = RustWorker(app, "127.0.0.1", 0)
     await worker.start()
     try:
+        eligible = [
+            action
+            for action, selection in enumerate(worker.pipeline.crud_plan_selections)
+            if selection is not None
+        ]
+        assert eligible
+        assert all(worker.core._crud_armed(action) for action in eligible)
         targets = [
             ("GET", "/plan-items?page=1&page_size=20", None),
             ("GET", f"/plan-items/{item_id}", None),
@@ -847,6 +876,7 @@ async def test_native_list_retrieve_and_head_match_forced_python_lane() -> None:
             for method, target, accept in targets
         ]
         worker.core._disarm_crud_plans()
+        assert all(not worker.core._crud_armed(action) for action in eligible)
         python = [
             await _crud_http_request(worker.address[1], method, target, accept)
             for method, target, accept in targets
@@ -874,6 +904,32 @@ async def test_native_list_retrieve_and_head_match_forced_python_lane() -> None:
         cleanup = await Database.connect(DATABASE_URL, max_size=1, wait=1)
         await cleanup.execute("DROP TABLE IF EXISTS crud_plan_items")
         cleanup.close()
+
+
+def require_sql_trace() -> None:
+    """Skip without the private trace feature, unless CI requires it."""
+    if hasattr(core.Database, "_clear_sql_trace"):
+        return
+    message = "the private SQL trace feature is not built into this extension"
+    if REQUIRE_SQL_TRACE:
+        pytest.fail(f"HINOKI_REQUIRE_SQL_TRACE=1 but {message}")
+    pytest.skip(message)
+
+
+def test_required_sql_trace_fails_instead_of_skipping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(core, "Database", types.SimpleNamespace())
+    monkeypatch.setattr(sys.modules[__name__], "REQUIRE_SQL_TRACE", True)
+    with pytest.raises(pytest.fail.Exception, match="HINOKI_REQUIRE_SQL_TRACE=1"):
+        require_sql_trace()
+    monkeypatch.setattr(sys.modules[__name__], "REQUIRE_SQL_TRACE", False)
+    with pytest.raises(pytest.skip.Exception):
+        require_sql_trace()
+    monkeypatch.setattr(
+        core, "Database", types.SimpleNamespace(_clear_sql_trace=object())
+    )
+    require_sql_trace()
 
 
 async def _crud_write_sequence(
@@ -906,6 +962,8 @@ async def _crud_write_sequence(
     cases.append((created, created_trace))
     for method, path, body in (
         ("POST", "/plan-items", b'{"name":"seed"}'),
+        ("POST", "/plan-items?%FF=1", b'{"name":"query"}'),
+        ("DELETE", f"{target}?%FF", b""),
         ("PATCH", target, b"{}"),
         ("PATCH", target, b'{"name":"seed"}'),
         ("PATCH", target, b'{"name":"changed"}'),
@@ -981,14 +1039,12 @@ def _assert_sql_traces_equal(
     assert actual_traces == expected_traces
 
 
-@pytest.mark.skipif(
-    DATABASE_URL is None or not hasattr(core.Database, "_clear_sql_trace"),
-    reason="PostgreSQL and the private SQL trace feature are required",
-)
+@pytest.mark.skipif(DATABASE_URL is None, reason="HINOKI_TEST_DATABASE_URL is not set")
 async def test_native_writes_match_forced_python_lane(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     assert DATABASE_URL is not None
+    require_sql_trace()
     database = await Database.connect(DATABASE_URL, max_size=2, wait=1)
     await database.execute("DROP TABLE IF EXISTS crud_plan_items")
     await database.execute(
@@ -1044,13 +1100,10 @@ async def test_native_writes_match_forced_python_lane(
         cleanup.close()
 
 
-@pytest.mark.skipif(
-    not hasattr(core.Database, "_clear_sql_trace"),
-    reason="the private SQL trace feature is required",
-)
 async def test_native_writes_match_forced_python_lane_on_sqlite(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    require_sql_trace()
     database_url = f"sqlite:///{tmp_path / 'native-writes.db'}"
     database = await Database.connect(database_url, max_size=2, wait=1)
     await database.execute(

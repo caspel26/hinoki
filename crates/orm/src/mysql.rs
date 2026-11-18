@@ -45,6 +45,15 @@ impl Drop for Flight {
     }
 }
 
+impl Flight {
+    /// A request that ended with an error from the server is finished, and the
+    /// connection stays usable (a duplicate key does not abort the transaction);
+    /// any other outcome leaves the connection unusable.
+    fn settle<T>(&mut self, result: &Result<T, mysql_async::Error>) {
+        self.armed = matches!(result, Err(e) if !matches!(e, mysql_async::Error::Server(_)));
+    }
+}
+
 impl MysqlPool {
     pub(crate) fn connect(url: &str, max_size: usize, wait: Duration) -> Result<Self, DbError> {
         if max_size == 0 {
@@ -165,13 +174,14 @@ impl MysqlLease {
             interrupted: self.interrupted.clone(),
             armed: true,
         };
-        self.conn
+        let result = self
+            .conn
             .as_mut()
             .expect("lease already released")
             .query_drop(sql)
-            .await
-            .map_err(|e| error(&e, ErrorKind::Other))?;
-        flight.armed = false;
+            .await;
+        flight.settle(&result);
+        result.map_err(|e| error(&e, ErrorKind::Other))?;
         Ok(())
     }
 
@@ -189,11 +199,9 @@ impl MysqlLease {
         };
         let params = params(values)?;
         let conn = self.conn.as_mut().expect("lease already released");
-        let rows: Vec<mysql_async::Row> = conn
-            .exec(sql, params)
-            .await
-            .map_err(|e| error(&e, ErrorKind::Other))?;
-        flight.armed = false;
+        let result: Result<Vec<mysql_async::Row>, _> = conn.exec(sql, params).await;
+        flight.settle(&result);
+        let rows = result.map_err(|e| error(&e, ErrorKind::Other))?;
         rows.iter().map(decode).collect()
     }
 
@@ -211,10 +219,16 @@ impl MysqlLease {
         };
         let params = params(values)?;
         let conn = self.conn.as_mut().expect("lease already released");
-        conn.exec_drop(sql, params)
-            .await
-            .map_err(|e| error(&e, ErrorKind::Other))?;
-        flight.armed = false;
+        // MySQL does not accept SAVEPOINT, ROLLBACK TO and RELEASE in the
+        // prepared-statement protocol; a statement without values has no
+        // reason to be prepared.
+        let result = if values.is_empty() {
+            conn.query_drop(sql).await
+        } else {
+            conn.exec_drop(sql, params).await
+        };
+        flight.settle(&result);
+        result.map_err(|e| error(&e, ErrorKind::Other))?;
         Ok(conn.affected_rows())
     }
 
