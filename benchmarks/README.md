@@ -363,3 +363,32 @@ docker rm -f hinoki-rowwire-ab
 Raw Oha JSON, load averages, server logs, environment metadata and paired
 summaries are retained in the selected output directory. Interpret only the
 measured local run; do not copy these results into the comparative report.
+
+## `comparative/phase2_baseline.py` — the request path around handwritten handlers
+
+Measures a fixture app whose handlers do no work, on Hinoki's Rust server and on
+Granian, so each number is the request path around the handler. Two suites:
+
+* `handlers` (default, `phase2_hinoki.py`): GET with path and typed query
+  parameters, JSON POST at 64 B, 10 kB and 100 kB, PATCH, DELETE and a POST with
+  `transaction=True`. Needs a disposable PostgreSQL URL in `P2BENCH_DATABASE_URL`.
+* `sources` (`PHASE2_SUITE=sources`, `phase2_sources_hinoki.py`): `Form[...]`,
+  `XML[...]` and `Query[...]` inputs, the built-in HTML and XML renderers and a
+  `Request` parameter. No database.
+
+Each run first checks that both stacks return the same status and body for every
+scenario, records which lane the Rust server uses per route (`lanes.json`), then
+alternates five pairs per scenario and waits for the one-minute load to be at most
+1.0 before each sample. The first baseline is retained in
+`comparative/results/2026-11-18/request-path-baseline/` with its `REPORT.md`.
+
+```sh
+cd benchmarks/comparative
+uv sync --locked
+uv run --locked --with maturin maturin develop --release \
+  --manifest-path ../../crates/bindings/Cargo.toml
+P2BENCH_DATABASE_URL=postgresql://... \
+  uv run --locked --no-sync python phase2_baseline.py --out results/<date>/request-path
+PHASE2_SUITE=sources \
+  uv run --locked --no-sync python phase2_baseline.py --out results/<date>/text-sources
+```
