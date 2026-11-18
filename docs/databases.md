@@ -136,6 +136,7 @@ export HINOKI_DATABASE_URL="$BLOG_DATABASE__URL"
 uv run --project .. hinoki migrations plan --app blog
 uv run --project .. hinoki migrations status
 uv run --project .. hinoki migrations sql --app blog 0001-initial
+uv run --project .. hinoki migrations sql --app blog 0002-accounts
 uv run --project .. hinoki migrations apply --app blog
 ```
 
