@@ -175,7 +175,7 @@ def test_inheritance_extends_fields() -> None:
     assert Extended.validate(VALID).extra == 1
 
 
-UNSUPPORTED: list[Any] = [dict[int, int], dict, set[int], bytes, int | str]
+UNSUPPORTED: list[Any] = [dict[int, int], dict, set[int], bytearray, int | str]
 
 
 @pytest.mark.parametrize("annotation", UNSUPPORTED)
