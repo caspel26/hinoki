@@ -1,4 +1,5 @@
-"""``validate_response=True``: a return value that breaks its annotation is a 500."""
+"""Responses are validated by default: a return value that breaks its annotation is
+a 500, and an annotation that cannot be checked stops the app at startup."""
 
 import logging
 from collections.abc import Callable
@@ -31,66 +32,70 @@ class Row(Model, table="validated_rows"):
     title: str
 
 
+class Plain:
+    """Not a Schema, a Model or a scalar: nothing to check it against."""
+
+
 def note() -> NoteOut:
     return NoteOut(id=1, title="ok")
 
 
-@http.get("/good", validate_response=True)
+@http.get("/good")
 async def good() -> NoteOut:
     return note()
 
 
-@http.get("/dict", validate_response=True)
+@http.get("/dict")
 async def as_dict() -> NoteOut:
     return {"id": 1, "title": SECRET}  # type: ignore[return-value]
 
 
-@http.get("/unchecked")
+@http.get("/unchecked", validate_response=False)
 async def unchecked() -> NoteOut:
     return {"id": 1, "title": "plain"}  # type: ignore[return-value]
 
 
-@http.get("/model", validate_response=True)
+@http.get("/model")
 async def from_model() -> NoteOut:
     return Row(id=2, title="from a model")  # type: ignore[return-value]
 
 
-@http.get("/optional/{found}", validate_response=True)
+@http.get("/optional/{found}")
 async def optional(found: bool) -> NoteOut | None:
     return note() if found else None
 
 
-@http.get("/missing", validate_response=True)
+@http.get("/missing")
 async def missing() -> NoteOut:
     return None  # type: ignore[return-value]
 
 
-@http.get("/many", validate_response=True)
+@http.get("/many")
 async def many() -> list[NoteOut]:
     return [note(), note()]
 
 
-@http.get("/many-bad", validate_response=True)
+@http.get("/many-bad")
 async def many_bad() -> list[NoteOut]:
     return [note(), {"id": 2, "title": SECRET}]  # type: ignore[list-item]
 
 
-@http.get("/page", validate_response=True)
+@http.get("/page")
 async def paged() -> Page[NoteOut]:
     return Page(items=[note()], page=1, page_size=10, total=1)
 
 
-@http.get("/count", validate_response=True)
+@http.get("/count")
 async def count() -> int:
     return True
 
 
-@http.get("/escape/{use}", validate_response=True)
+@http.get("/escape/{use}")
 async def escape(use: bool) -> NoteOut | Response:
     return Response(202, b"{}") if use else note()
 
 
-@http.get("/gone", status=204, validate_response=True)
+@http.get("/gone", status=204)
 async def gone() -> NoteOut:
     return None  # type: ignore[return-value]
 
@@ -117,7 +122,7 @@ def every_route() -> Hinoki:
     )
 
 
-async def test_valid_results_pass_and_the_option_is_off_by_default(
+async def test_valid_results_pass_and_the_opt_out_skips_the_check(
     every_route: Hinoki,
 ) -> None:
     async with ASGIClient(every_route) as client:
@@ -154,56 +159,101 @@ async def test_debug_mode_still_names_no_value() -> None:
 
     assert reply.status == 500
     assert SECRET not in str(reply.body)
+    # in development the answer says which action broke which annotation
+    assert "as_dict returned a dict" in str(reply.body)
+    assert "return annotation NoteOut" in str(reply.body)
 
 
 @pytest.mark.parametrize(
     ("handler", "message"),
     [
-        ("untyped", "needs a concrete return annotation"),
-        ("anything", "needs a concrete return annotation"),
-        ("only_response", "only returns Response"),
-        ("a_dict", "cannot check the return type"),
+        ("untyped", "must name a concrete type"),
+        ("anything", "must name a concrete type"),
+        ("an_object", "must name a concrete type"),
+        ("a_set", "cannot be checked"),
+        ("a_class", "cannot be checked"),
         ("nested_response", "only be returned whole"),
     ],
 )
-def test_unsupported_annotations_fail_at_registration(
+def test_annotations_that_cannot_be_checked_stop_the_app_at_startup(
     handler: str, message: str
 ) -> None:
-    @http.get("/untyped", validate_response=True)
+    @http.get("/untyped")
     async def untyped():  # type: ignore[no-untyped-def]
         return 1
 
-    @http.get("/anything", validate_response=True)
+    @http.get("/anything")
     async def anything() -> Any:
         return 1
 
-    @http.get("/only", validate_response=True)
-    async def only_response() -> Response:
-        return Response(200, b"")
+    @http.get("/object")
+    async def an_object() -> object:
+        return 1
 
-    @http.get("/dict", validate_response=True)
-    async def a_dict() -> dict[str, int]:
-        return {}
+    @http.get("/set")
+    async def a_set() -> set[int]:
+        return set()
 
-    @http.get("/nested", validate_response=True)
+    @http.get("/class")
+    async def a_class() -> Plain:
+        return Plain()
+
+    @http.get("/nested")
     async def nested_response() -> list[NoteOut | Response]:
         return []
 
     chosen = {
         "untyped": untyped,
         "anything": anything,
-        "only_response": only_response,
-        "a_dict": a_dict,
+        "an_object": an_object,
+        "a_set": a_set,
+        "a_class": a_class,
         "nested_response": nested_response,
     }[handler]
-    with pytest.raises(RegistrationError, match=message):
+    with pytest.raises(RegistrationError, match=message) as raised:
         Hinoki(include=[chosen]).asgi()
 
+    assert "validate_response=False" in str(raised.value)  # the way out is named
 
-async def test_a_route_group_passes_the_option_through() -> None:
+
+async def test_the_opt_out_lets_an_unchecked_annotation_start() -> None:
+    @http.get("/free", validate_response=False)
+    async def free() -> set[int]:
+        return {1}
+
+    Hinoki(include=[free]).asgi()  # no RegistrationError
+
+
+async def test_response_only_none_and_collections_of_anything_are_checkable() -> None:
+    @http.get("/r")
+    async def only_response() -> Response:
+        return Response(202, b"{}")
+
+    @http.get("/n", status=202)
+    async def nothing() -> None:
+        return None
+
+    @http.get("/d")
+    async def mapping() -> dict[str, Any]:
+        return {"a": 1}
+
+    @http.get("/m")
+    async def typed_mapping() -> dict[str, int]:
+        return {"a": "no"}  # type: ignore[dict-item]
+
+    async with ASGIClient(
+        Hinoki(include=[only_response, nothing, mapping, typed_mapping])
+    ) as client:
+        assert (await client.get("/r")).status == 202
+        assert (await client.get("/n")).status == 202
+        assert (await client.get("/d")).body == {"a": 1}
+        assert (await client.get("/m")).status == 500
+
+
+async def test_a_route_group_validates_by_default_too() -> None:
     group = RouteGroup("/g")
 
-    @group.get("/bad", validate_response=True)
+    @group.get("/bad")
     async def bad() -> NoteOut:
         return {"id": 1, "title": "x"}  # type: ignore[return-value]
 
@@ -220,7 +270,7 @@ async def test_a_mismatch_in_a_transaction_rolls_the_write_back(
         "CREATE TABLE validated_rows (id integer PRIMARY KEY, title text NOT NULL)"
     )
 
-    @http.post("/rows", transaction=True, validate_response=True)
+    @http.post("/rows", transaction=True)
     async def create() -> NoteOut:
         await Row.acreate(id=1, title="written")
         return {"id": 1, "title": "written"}  # type: ignore[return-value]

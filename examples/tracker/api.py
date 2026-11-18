@@ -29,7 +29,6 @@ tasks = RouteGroup(
 @tasks.get(
     "/",
     pagination=PageNumberPagination(page_size=10, max_page_size=50),
-    validate_response=True,  # a result that is not a Page of TaskOut is a 500
 )
 async def list_tasks(page: PageParams, caller: Caller[Member]) -> Page[TaskOut]:
     """Your tasks, newest first."""
@@ -44,7 +43,6 @@ async def create_task(data: TaskIn, caller: Caller[Member]) -> TaskOut:
 @tasks.post(
     "/{task_id}/complete",
     errors=(errors.NotFound, TaskAlreadyDone),
-    validate_response=True,  # the Task is projected, then must be a TaskOut
 )
 async def complete_task(task_id: UUID, caller: Caller[Member]) -> TaskOut:
     return await operations.complete_task(caller.user.id, task_id)  # type: ignore[return-value]

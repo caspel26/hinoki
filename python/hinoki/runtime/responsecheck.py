@@ -10,18 +10,34 @@ the shape: the declared class, ``list[...]`` of it, a ``Page`` of it, a scalar,
 
 from __future__ import annotations
 
+import datetime
 import types
 import typing
 from collections.abc import Callable
+from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from hinoki.errors import RegistrationError
 from hinoki.http.response import Response
+from hinoki.orm.model import Model
 from hinoki.pagination import Page
 from hinoki.schema import Schema
 
 Check = Callable[[object], bool]
-SCALARS = (str, int, float, bool)
+SCALARS = (
+    str,
+    int,
+    float,
+    bool,
+    bytes,
+    datetime.datetime,
+    datetime.date,
+    UUID,
+    Decimal,
+)
+PAIR = 2
+NO_ANNOTATION = object()  # the action has no return annotation
 
 
 class ResponseContractError(RuntimeError):
@@ -32,20 +48,19 @@ class ResponseContractError(RuntimeError):
 
 
 def compile_response_check(name: str, annotation: object) -> Check:
-    """The check for ``annotation``; ``RegistrationError`` if it cannot be one."""
-    if annotation is Any or annotation is object or annotation is None:
+    """The check for ``annotation``; ``RegistrationError`` if it cannot be one.
+
+    ``annotation`` is ``NO_ANNOTATION`` when the action has no return annotation."""
+    if annotation is NO_ANNOTATION or annotation is Any or annotation is object:
         raise RegistrationError(
-            f"{name}: validate_response=True needs a concrete return annotation"
+            f"{name}: the return annotation must name a concrete type so the "
+            "response can be checked (a Schema, list[Schema], Page[Schema], a "
+            "scalar, dict, None or a union); annotate it, or declare the action "
+            "with validate_response=False"
         )
     arms = union_arms(annotation)
-    escape = Response in arms
     checks = [arm_check(name, arm) for arm in arms if arm is not Response]
-    if not checks:
-        raise RegistrationError(
-            f"{name}: validate_response=True cannot check a route that only "
-            "returns Response; annotate the value too, for example `Note | Response`"
-        )
-    if escape:
+    if Response in arms:
         checks.append(lambda value: isinstance(value, Response))
     return lambda value: any(check(value) for check in checks)
 
@@ -68,23 +83,42 @@ def unwrap(annotation: object) -> object:
 
 def arm_check(name: str, arm: object) -> Check:
     """One non-union arm of the annotation as a check."""
+    simple = simple_check(arm)
+    return simple if simple is not None else collection_check(name, arm)
+
+
+def simple_check(arm: object) -> Check | None:
+    """The check of a plain class, ``None`` or an accept-anything arm."""
+    if arm is Any or arm is object:
+        return lambda _value: True
     if arm is type(None):
         return lambda value: value is None
-    if isinstance(arm, type) and issubclass(arm, Schema) and arm is not Schema:
-        return lambda value: isinstance(value, arm)
+    return class_check(arm) if isinstance(arm, type) else None
+
+
+def class_check(arm: type) -> Check | None:
     if arm in SCALARS:
-        return lambda value: type(value) is arm
-    return collection_check(name, arm)
+        return lambda value: type(value) is arm  # exact: True is not an int
+    if arm in {dict, list} or issubclass(arm, Schema | Model):
+        return lambda value: isinstance(value, arm)
+    return None
 
 
 def collection_check(name: str, arm: object) -> Check:
-    """``list[X]`` or ``Page[X]`` of a checkable item type."""
+    """``list[X]``, ``dict[str, X]`` or ``Page[X]`` of a checkable item type."""
     origin = typing.get_origin(arm)
     args = typing.get_args(arm)
+    if origin is dict and len(args) == PAIR and args[0] is str:
+        values = compile_item(name, args[1])
+        return lambda value: (
+            isinstance(value, dict)
+            and all(type(key) is str and values(item) for key, item in value.items())
+        )
     if origin not in {list, Page} or len(args) != 1:
         raise RegistrationError(
-            f"{name}: validate_response=True cannot check the return type {arm!r}; "
-            "use a Schema, list[Schema], Page[Schema], a scalar, None or a union"
+            f"{name}: the return type {arm!r} cannot be checked; use a Schema, "
+            "Model, list, Page, dict[str, ...], a scalar, None or a union, or "
+            "declare the action with validate_response=False"
         )
     item = compile_item(name, args[0])
     if origin is list:
@@ -97,7 +131,8 @@ def compile_item(name: str, annotation: object) -> Check:
     arms = union_arms(annotation)
     if Response in arms:
         raise RegistrationError(
-            f"{name}: Response can only be returned whole, not inside a collection"
+            f"{name}: Response can only be returned whole, not inside a collection; "
+            "declare the action with validate_response=False to skip the check"
         )
     checks = [arm_check(name, arm) for arm in arms]
     return lambda value: any(check(value) for check in checks)

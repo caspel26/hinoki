@@ -352,23 +352,21 @@ The refusal is `errors.TooManyRequests(retry_after)`: status 429, code `rate_lim
 
 A rate-limited route always takes the Python request path, not the native fast path. Limiting failed credentials of a `BearerAuth` provider belongs in that provider, because authentication runs first. The Blog example limits `/auth/login` with `limits.LoginAttempts`, a per-worker fixed window that is labelled as an example, not a production limiter.
 
-### Validate the response
+### The response is checked against the annotation
 
-By default the return annotation describes the OpenAPI document and output serialization; a `dict` returned from an action annotated `-> NoteOut` is sent as it is. Set `validate_response=True` on an action to enforce the annotation at runtime:
+Every action's return value is checked against its return annotation, and the annotation itself is checked when the app starts. There is nothing to switch on.
 
 ```python
-@http.get("/notes/{note_id}", validate_response=True)
+@http.get("/notes/{note_id}")
 async def detail(note_id: int) -> NoteOut:
-    return await load_note(note_id)          # a Schema instance or a Model: fine
-
-@http.get("/notes/{note_id}/export", validate_response=True)
-async def export(note_id: int) -> NoteOut | Response:
-    return Response(303, headers={"location": f"/files/{note_id}"})   # explicit escape
+    return {"id": note_id}          # a dict is not a NoteOut: 500 internal_error
 ```
 
-The check is compiled when the app starts and is strict: it never coerces. It accepts a `Schema` class, `list[...]` and `Page[...]` of one, `str`, `int`, `float` or `bool` (a `bool` is not an `int`), `None`, and unions of these. `Annotated[...]` is unwrapped. A `Model` is projected through the declared `Schema` first, as without the option. A result that does not match, including `None` when the annotation does not allow it, is answered as `500 internal_error`; the log and the response name the action and the type, never the value. On an action with `transaction=True` the check runs inside the transaction, so a mismatch rolls the write back.
-
-`T | Response` lets the handler return a `Response` whose status, headers and body are its own; that branch is not checked. An action that only returns `Response`, has no annotation or `Any`, or uses a type outside the list above (such as `dict[str, int]`) fails at startup with a `RegistrationError`. Actions with a bodyless status (`204`, `304`) are not checked. A `Schema` instance is already valid by construction, so the check is about the shape of the result; a custom renderer or a `dump()` override can still change the bytes afterwards. The option adds one type check per request and no other work; no performance figure is claimed.
+- **At startup.** An annotation that cannot be checked stops the app with a `RegistrationError` that names the action: no annotation, `Any`, `object`, `set[...]`, a plain class, or `Response` inside a collection. Annotate a concrete type, or declare the action with `validate_response=False` to skip the check for that action.
+- **At runtime.** A result that does not match is a `500 internal_error`, because the fault is the server's, not the client's. With `debug=True` (development) the answer names the action, the type it returned and the annotation it broke, for example `detail returned a dict that does not match its return annotation NoteOut`. Without debug the body is generic. The log and the answer never contain the value itself. With `transaction=True` the check runs inside the transaction, so a mismatch rolls the write back.
+- **What is accepted.** A `Schema` class, a `Model` class (projected through the declared `Schema` when there is one), `list[...]`, `dict[str, ...]` and `Page[...]` of these, `str`, `int`, `float`, `bool` (a `bool` is not an `int`), `bytes`, `datetime`, `date`, `UUID`, `Decimal`, `None`, plain `dict` and `list`, `Any` or `object` as an item type, and unions of these. `Annotated[...]` is unwrapped. The check never coerces.
+- **`Response`.** `-> Response` and `NoteOut | Response` are accepted: a returned `Response` carries its own status, headers and body and is not checked. Actions with a bodyless status (`204`, `304`) are not checked.
+- **What it does not check.** A `Schema` instance is valid by construction, so the check is about the shape of the result, not the field values. A custom renderer or a `dump()` override can still change the bytes afterwards. The check is one type test per request; no performance figure is claimed.
 
 Use `Response` from `hinoki` or `hinoki.http` for explicit status, headers or body. It is also available from `hinoki.http.response`. The former `Reply` name and `hinoki.reply` module are deprecated aliases kept for one compatibility cycle: `from hinoki import Reply` and `import hinoki.reply` still work, refer to the same `Response` class and emit `DeprecationWarning`. Replace their imports, annotations and constructors with `Response`.
 
