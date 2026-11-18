@@ -174,7 +174,7 @@ async def test_a_failing_update_hook_rolls_back_and_drops_callbacks(
 
 
 async def test_callbacks_wait_for_the_outer_transaction(database: Database) -> None:
-    async with database.transaction():
+    async with database.atomic():
         await Entry.acreate(id=1, title="A")
         assert COMMITTED == []
         await Entry.acreate(id=2, title="B")
@@ -183,7 +183,7 @@ async def test_callbacks_wait_for_the_outer_transaction(database: Database) -> N
 
 async def test_an_outer_rollback_drops_callbacks(database: Database) -> None:
     async def write_then_fail() -> None:
-        async with database.transaction():
+        async with database.atomic():
             await Entry.acreate(id=1, title="A")
             raise RuntimeError("outer")
 
@@ -197,7 +197,7 @@ async def test_an_outer_rollback_drops_callbacks(database: Database) -> None:
 async def test_a_rolled_back_savepoint_drops_only_its_callbacks(
     database: Database,
 ) -> None:
-    async with database.transaction():
+    async with database.atomic():
         await Entry.acreate(id=1, title="Kept")
         with pytest.raises(RuntimeError, match="after_save"):
             await Entry.acreate(id=2, title="Lost", fail_in="after_save")
@@ -212,7 +212,7 @@ async def test_a_failing_commit_callback_is_logged_not_raised(
     def fail() -> None:
         raise RuntimeError("callback")
 
-    async with database.transaction():
+    async with database.atomic():
         database.after_commit(fail)
         database.after_commit(lambda: COMMITTED.append("second"))
 
@@ -231,20 +231,20 @@ async def test_models_without_hooks_write_without_a_transaction(
     database: Database, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     opened: list[str] = []
-    real = Database.transaction
+    real = Database.atomic
 
     def counting(self: Database) -> Any:
-        opened.append("transaction")
+        opened.append("atomic")
         return real(self)
 
-    monkeypatch.setattr(Database, "transaction", counting)
+    monkeypatch.setattr(Database, "atomic", counting)
 
     plain = await Plain.acreate(id=1, title="x")
     plain.title = "y"
     await plain.asave()
     await Entry.acreate(id=1, title="hooked")
 
-    assert opened == ["transaction"]  # only the hooked model opened one
+    assert opened == ["atomic"]  # only the hooked model opened one
     assert [dict(r) for r in await database.fetch("SELECT * FROM hook_plain")] == [
         {"id": 1, "title": "y"}
     ]
@@ -275,7 +275,7 @@ async def test_hooked_writes_from_a_sync_handler_helper_task(
     database: Database,
 ) -> None:
     """``run_sync`` writes from a task other than the transaction's owner."""
-    async with database.transaction():
+    async with database.atomic():
         task = asyncio.create_task(Entry.acreate(id=7, title="from a helper"))
         created = await task
     assert created.slug == "from-a-helper"

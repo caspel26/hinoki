@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from hinoki import API, Access, Hinoki, Permission, http
+from hinoki import API, Access, Hinoki, Permission, db, http
 from hinoki.http.request import Request
 from tests.providers import TokenAuth
 
@@ -24,9 +24,18 @@ class Posts(API, path="/posts"):
     async def retrieve(self, request: Request, post_id: UUID) -> str:
         return str(post_id)
 
-    @http.post("/", status=201, access=editor, transaction=True)
+    @http.post("/", status=201, access=editor, atomic=True)
     async def create(self, request: Request, title: str) -> int:
         return len(title)
+
+
+@db.atomic
+async def rename(post_id: UUID, title: str) -> int:
+    return len(title)
+
+
+@db.atomic()
+async def archive(post_id: UUID) -> None: ...
 
 
 async def use(posts: Posts, request: Request) -> None:
@@ -34,7 +43,12 @@ async def use(posts: Posts, request: Request) -> None:
     text: str = await posts.retrieve(request, UUID(int=1))
     size: int = await posts.create(request, "x")
     label: str = health(request)
-    print(text, size, label)
+    # db.atomic keeps the parameters and the awaited result type.
+    renamed: int = await rename(UUID(int=1), "x")
+    await archive(UUID(int=1))
+    async with db.atomic():
+        pass
+    print(text, size, label, renamed)
 
 
 def factory() -> Hinoki:

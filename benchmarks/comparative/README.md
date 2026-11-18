@@ -29,7 +29,7 @@ Each uses its own idiomatic stack, at its own recommended server:
 Every service runs 4 server processes with a pool of 10 connections per process. Responses are not cached; no framework-specific response compression or tuning beyond what is in these files. Hinoki's native extension is built with `maturin develop --release`.
 
 `create` uses per-statement autocommit in all four implementations. Hinoki leaves
-the endpoint transaction option off, SQLAlchemy uses PostgreSQL `AUTOCOMMIT`,
+the endpoint `atomic` option off, SQLAlchemy uses PostgreSQL `AUTOCOMMIT`,
 and Django keeps its default autocommit. Each request still issues one `INSERT`
 and one author `SELECT`; the response verifier checks both the SQL count and
 the stored row before measurements.

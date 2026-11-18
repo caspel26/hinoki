@@ -456,9 +456,9 @@ async def test_users_forms_hash_before_the_write_and_hold_no_route_connection() 
     app = Hinoki(include=[site])
     routes = {(r.method, r.path): r for r in app.routes}
 
-    assert routes[("POST", "/admin/{model}/add")].transaction is False
-    assert routes[("POST", "/admin/{model}/{key}")].transaction is False
-    assert routes[("POST", "/admin/{model}/bulk")].transaction is True
+    assert routes[("POST", "/admin/{model}/add")].atomic is False
+    assert routes[("POST", "/admin/{model}/{key}")].atomic is False
+    assert routes[("POST", "/admin/{model}/bulk")].atomic is True
 
 
 async def test_the_guard_refuses_a_write_that_would_leave_no_active_superuser(

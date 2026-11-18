@@ -1038,7 +1038,7 @@ class Model:
         active = database.active()
         if active is not None and asyncio.current_task() is not active.owner:
             return contextlib.nullcontext()
-        return database.transaction()
+        return database.atomic()
 
     async def run_hooks(self, *names: str) -> None:
         """Run the overridden hooks among ``names``, ``def`` or ``async def``."""

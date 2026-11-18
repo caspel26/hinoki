@@ -289,7 +289,7 @@ OWN_TRANSACTIONS = ("hinoki.admin.",)  # framework routes that manage their own
 class RequireAtomic(Rule):
     id = "HNK-TXN-001"
     fix = (
-        "add transaction=True to the action (or declare it on a "
+        "add atomic=True to the action (or declare it on a "
         "RouteGroup(..., atomic=True) group)"
     )
     explanation = (
@@ -323,10 +323,10 @@ class RequireAtomic(Rule):
                 continue
             if route.handler.__module__.startswith(OWN_TRANSACTIONS):
                 continue  # the admin's writes open their own short transactions
-            if not route.transaction:
+            if not route.atomic:
                 yield self.diagnostic(
                     f"{route.method} {route.path} ({route.handler.__qualname__}) "
-                    "does not declare transaction=True",
+                    "does not declare atomic=True",
                     where(route.handler),
                     subject=qualified(route),
                 )

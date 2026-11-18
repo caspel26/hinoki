@@ -229,8 +229,8 @@ class MySQLDouble:
         return [self.row]
 
     @asynccontextmanager
-    async def transaction(self) -> AsyncIterator[None]:
-        self.calls.append("transaction")
+    async def atomic(self) -> AsyncIterator[None]:
+        self.calls.append("atomic")
         yield
 
 
@@ -250,10 +250,10 @@ async def test_mysql_default_still_selects_the_written_rows(
     await Note.aupdate(id=mysql.row["id"], stars=1)
     kinds = [call.split(" ")[:2] for call in mysql.calls]
     assert kinds == [
-        ["transaction"],
+        ["atomic"],
         ["execute", "INSERT"],
         ["fetch", "SELECT"],
-        ["transaction"],
+        ["atomic"],
         ["execute", "UPDATE"],
         ["fetch", "SELECT"],
     ]

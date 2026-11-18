@@ -71,7 +71,7 @@ class Posts(API, path="/posts"):
 
 
 class Safe(API, path="/safe"):
-    @http.post("/", access=editor, transaction=True)
+    @http.post("/", access=editor, atomic=True)
     def create(self, request: Request) -> dict[str, str]:
         return {}
 

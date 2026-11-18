@@ -64,7 +64,7 @@ def test_a_new_unprotected_write_would_be_caught() -> None:
     chosen = [r for r in blog_rules.rules if r.id in {"HNK-ACC-001", "HNK-TXN-001"}]
     found = RuleSet(*chosen).run(Project(app))
     messages = " ".join(d.message for d in failing(found))
-    assert "DELETE /posts/purge" in messages and "transaction=True" in messages
+    assert "DELETE /posts/purge" in messages and "atomic=True" in messages
 
 
 def test_the_rule_names_are_stable_ids() -> None:

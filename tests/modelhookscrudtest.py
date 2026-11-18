@@ -194,7 +194,7 @@ async def test_a_sync_handler_can_write_a_hooked_model_in_a_transaction(
         "CREATE TABLE sync_things (id integer PRIMARY KEY, name text NOT NULL)"
     )
 
-    @http.post("/things", status=201, transaction=True)
+    @http.post("/things", status=201, atomic=True)
     def add() -> dict[str, str]:
         Thing.create(id=1, name="quiet")
         return {"ok": "yes"}

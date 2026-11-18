@@ -118,7 +118,7 @@ async def test_sqlite_maps_constraint_errors_and_rolls_back(
 
 
 async def _raise_after_update(database: Database) -> None:
-    async with database.transaction():
+    async with database.atomic():
         await database.execute(
             'UPDATE "q045_notes" SET "title" = ?1 WHERE "id" = ?2',
             "rolled back",
@@ -242,7 +242,7 @@ async def test_sqlite_pool_wait_is_bounded_and_recovers(tmp_path: Path) -> None:
     database = await Database.connect(
         f"sqlite://{tmp_path / 'bounded-pool.sqlite3'}", max_size=1, wait=0.05
     )
-    async with database.transaction():
+    async with database.atomic():
         child = asyncio.create_task(
             database.fetch_one("SELECT 1"), context=contextvars.Context()
         )

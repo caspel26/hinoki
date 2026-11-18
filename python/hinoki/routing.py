@@ -45,7 +45,7 @@ class Route:
     handler: Callable[..., object]
     status: int
     access: Access | None
-    transaction: bool
+    atomic: bool
     owner: type | None = None
     pagination: PageNumberPagination | None = None
     replaces: str = ""
@@ -70,7 +70,7 @@ class Options:
 
     status: int = 200
     access: Access | None = None
-    transaction: bool = False
+    atomic: bool = False
     pagination: PageNumberPagination | None = None
     replaces: str = ""
     parsers: Sequence[Parser] | None = None
@@ -106,7 +106,7 @@ class RouteDeclaration:
             fn,
             options.status,
             options.access,
-            options.transaction,
+            options.atomic,
             pagination=options.pagination,
             replaces=options.replaces,
             parsers=(
@@ -154,7 +154,7 @@ def get(
     *,
     status: int = 200,
     access: Access | None = None,
-    transaction: bool = False,
+    atomic: bool = False,
     pagination: PageNumberPagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
@@ -169,7 +169,7 @@ def get(
     options = Options(
         status,
         access,
-        transaction,
+        atomic,
         pagination,
         replaces,
         parsers,
@@ -186,7 +186,7 @@ def post(
     *,
     status: int = 200,
     access: Access | None = None,
-    transaction: bool = False,
+    atomic: bool = False,
     pagination: PageNumberPagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
@@ -201,7 +201,7 @@ def post(
     options = Options(
         status,
         access,
-        transaction,
+        atomic,
         pagination,
         replaces,
         parsers,
@@ -218,7 +218,7 @@ def put(
     *,
     status: int = 200,
     access: Access | None = None,
-    transaction: bool = False,
+    atomic: bool = False,
     pagination: PageNumberPagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
@@ -233,7 +233,7 @@ def put(
     options = Options(
         status,
         access,
-        transaction,
+        atomic,
         pagination,
         replaces,
         parsers,
@@ -250,7 +250,7 @@ def patch(
     *,
     status: int = 200,
     access: Access | None = None,
-    transaction: bool = False,
+    atomic: bool = False,
     pagination: PageNumberPagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
@@ -265,7 +265,7 @@ def patch(
     options = Options(
         status,
         access,
-        transaction,
+        atomic,
         pagination,
         replaces,
         parsers,
@@ -282,7 +282,7 @@ def delete(
     *,
     status: int = 200,
     access: Access | None = None,
-    transaction: bool = False,
+    atomic: bool = False,
     pagination: PageNumberPagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
@@ -297,7 +297,7 @@ def delete(
     options = Options(
         status,
         access,
-        transaction,
+        atomic,
         pagination,
         replaces,
         parsers,
@@ -314,7 +314,7 @@ def query(
     *,
     status: int = 200,
     access: Access | None = None,
-    transaction: bool = False,
+    atomic: bool = False,
     pagination: PageNumberPagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
@@ -332,7 +332,7 @@ def query(
     options = Options(
         status,
         access,
-        transaction,
+        atomic,
         pagination,
         replaces,
         parsers,
@@ -379,7 +379,7 @@ class RouteGroup:
         @tasks.get("/")                      # GET /tasks
         async def listing(...): ...
 
-        @tasks.post("/", status=201)         # POST /tasks, transaction=True
+        @tasks.post("/", status=201)         # POST /tasks, atomic=True
         async def create(...): ...
 
         @tasks.get("/health", access=None)   # public on purpose, overriding the group
@@ -387,7 +387,7 @@ class RouteGroup:
     ``prefix`` is prepended to every path (``"/"`` means the prefix itself),
     ``access`` is the default policy (pass ``access=None`` on an action to make it
     public), ``atomic=True`` makes POST/PUT/PATCH/DELETE transactional unless the
-    action says ``transaction=False``, and ``errors`` are added to each action's own.
+    action says ``atomic=False``, and ``errors`` are added to each action's own.
     The result is an ordinary action: rules, OpenAPI and the MCP see no difference.
     """
 
@@ -432,14 +432,14 @@ class RouteGroup:
             raise ValueError(f"route path must start with '/': {path!r}")
         full = (self.prefix or "/") if path == "/" else self.prefix + path
         access = options.pop("access", UNSET)
-        transaction = options.pop("transaction", None)
+        atomic = options.pop("atomic", None)
         own_errors = tuple(options.pop("errors", ()))
         chosen = Options(
             status=options.pop("status", 200),
             access=self.access if isinstance(access, Unset) else access,
-            transaction=(
-                transaction
-                if transaction is not None
+            atomic=(
+                atomic
+                if atomic is not None
                 else self.atomic and method in WRITE_METHODS
             ),
             pagination=options.pop("pagination", None),

@@ -131,7 +131,7 @@ class UserAdmin(ModelAdmin[AdminUser], model=AdminUser):
         accounts = self.accounts
         hashed = values.pop("hashed", None)
         grants = values.pop("grants", None)
-        async with current_database().transaction():
+        async with current_database().atomic():
             if row is None:
                 user = await accounts.create_user(
                     values["username"],
@@ -168,7 +168,7 @@ class UserAdmin(ModelAdmin[AdminUser], model=AdminUser):
     async def remove(self, row: AdminUser, principal: Caller[Any]) -> None:
         if row.id == principal.user.id:
             raise AdminUserError("You cannot delete yourself.")
-        async with current_database().transaction():
+        async with current_database().atomic():
             await AdminSession.filter(user_id=row.id).adelete()
             await AdminGrant.filter(user_id=row.id).adelete()
             await AdminUser.filter(id=row.id).adelete()
