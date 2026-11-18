@@ -265,6 +265,7 @@ class SettingRow:
 
 FILE_SUFFIX = "_FILE"
 MAX_SECRET_FILE = 64 * 1024
+MIN_SECRET = 32  # bytes: the shortest server secret accepted
 
 
 def gather(
@@ -1169,6 +1170,16 @@ class SecuritySettings(Settings):
             )
 
 
+class AdminSettings(Settings):
+    """The admin site: the secret that keys its CSRF tokens."""
+
+    secret: Secret | None = None
+
+    def validate(self) -> None:
+        if self.secret is not None and len(self.secret.reveal().encode()) < MIN_SECRET:
+            raise ValueError(f"secret needs at least {MIN_SECRET} bytes")
+
+
 class PaginationSettings(Settings):
     """Defaults for ``PageNumberPagination`` that an action does not set itself."""
 
@@ -1231,6 +1242,7 @@ class AppSettings(Settings):
     )
     cors: CorsSettings = dataclasses.field(default_factory=CorsSettings)
     security: SecuritySettings = dataclasses.field(default_factory=SecuritySettings)
+    admin: AdminSettings = dataclasses.field(default_factory=AdminSettings)
     timezone: str = "UTC"
     debug: bool = False
     allowed_hosts: tuple[str, ...] = (ANY,)
