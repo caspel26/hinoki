@@ -124,9 +124,14 @@ def scope_of(
 
 
 def route_guarded(binding: Binding) -> bool:
-    """Whether Python must see the credentials or the peer before the handler."""
+    """Whether Python must see the headers or the peer before the handler: for
+    credentials, the rate limit, or the ``Accept`` choice among renderers."""
     route = binding.route
-    return route.access is not None or route.rate_limit is not None
+    return (
+        route.access is not None
+        or route.rate_limit is not None
+        or len(route.renderers) > 1
+    )
 
 
 class RustWorker:
