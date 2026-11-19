@@ -27,6 +27,7 @@ from uuid import UUID
 from hinoki import core
 from hinoki.errors import RegistrationError
 from hinoki.fields import FieldInfo, SecretStr, Unset
+from hinoki.objecttypes import generated_schema, is_object_type
 
 if TYPE_CHECKING:
     from hinoki.schema import Schema
@@ -553,6 +554,8 @@ def build(
         )
     elif isinstance(base, type) and hasattr(base, "__hinoki_schema__"):
         kind, schema = "schema", base
+    elif is_object_type(base):
+        kind, schema = "schema", generated_schema(base, where)
     else:
         raise RegistrationError(f"{where}: unsupported type {base!r}")
     check_constraints(info, kind, where)
