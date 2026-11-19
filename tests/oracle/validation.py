@@ -144,6 +144,13 @@ class Validator:
     def text(self, ftype: FieldType, data: Any, path: str) -> object:
         if not isinstance(data, str):
             return self.fail(path, "type", "expected a string")
+        info = ftype.info
+        if info.strip:
+            data = data.strip()
+        if info.lower:
+            data = data.lower()
+        elif info.upper:
+            data = data.upper()
         if self.length(ftype, data, path) is INVALID:
             return INVALID
         pattern = ftype.info.pattern
