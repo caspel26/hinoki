@@ -51,6 +51,8 @@ KIND_SCHEMAS: dict[str, dict[str, Any]] = {
     "ipv6": {"type": "string", "format": "ipv6"},
     "ipv4network": {"type": "string", "format": "ipv4network"},
     "ipv6network": {"type": "string", "format": "ipv6network"},
+    "path": {"type": "string", "format": "path"},
+    "secret": {"type": "string", "format": "password", "writeOnly": True},
 }
 # Not keywords of the document: digit counts are enforced, not described, and
 # the length of a ``bytes`` field counts decoded bytes, not base64 characters.

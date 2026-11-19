@@ -139,6 +139,10 @@ CATALOG: dict[str, tuple[str, str]] = {
         "Not an IPv6 network, or it has host bits set.",
         "Send address/prefix with the host bits zero, e.g. 2001:db8::/32.",
     ),
+    "path": (
+        "Not a file system path: it is empty, holds a NUL character or is not a string.",
+        "Send a non-empty string without NUL characters.",
+    ),
     "too_many_errors": (
         "More than 50 problems; the list was cut.",
         "Fix the first ones and retry.",

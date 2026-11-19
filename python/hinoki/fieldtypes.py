@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
+from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Annotated,
@@ -25,7 +26,7 @@ from uuid import UUID
 
 from hinoki import core
 from hinoki.errors import RegistrationError
-from hinoki.fields import FieldInfo, Unset
+from hinoki.fields import FieldInfo, SecretStr, Unset
 
 if TYPE_CHECKING:
     from hinoki.schema import Schema
@@ -46,6 +47,8 @@ SCALARS: dict[type, str] = {
     IPv6Address: "ipv6",
     IPv4Network: "ipv4network",
     IPv6Network: "ipv6network",
+    Path: "path",
+    SecretStr: "secret",
     Any: "any",
     object: "any",
 }
@@ -65,8 +68,13 @@ MAX_DECIMAL_DIGITS = 64
 MAX_BYTES_LENGTH = 65536
 """Most decoded bytes a ``bytes`` field accepts from wire input unless it
 declares ``max_length``."""
+MAX_PATH_LENGTH = 4096
+"""Most characters a ``Path`` field accepts from wire input unless it declares
+``max_length``."""
 
 ALLOWED_CONSTRAINTS: dict[str, frozenset[str]] = {
+    "path": frozenset({"min_length", "max_length"}),
+    "secret": frozenset({"min_length", "max_length", "pattern"}),
     "decimal": frozenset(
         {"ge", "le", "gt", "lt", "max_digits", "decimal_places", "multiple_of"}
     ),
@@ -548,7 +556,7 @@ def build(
     else:
         raise RegistrationError(f"{where}: unsupported type {base!r}")
     check_constraints(info, kind, where)
-    default = bytes_default(info, input_bounds, where) if kind == "bytes" else None
+    default = input_default(kind, info, input_bounds, where)
     return FieldType(
         kind,
         nullable or kind == "any",
@@ -560,10 +568,19 @@ def build(
     )
 
 
-def bytes_default(info: FieldInfo, input_bounds: bool, where: str) -> int | None:
-    """The framework bound on the decoded length of wire ``bytes`` input."""
-    check_reachable(info, MAX_BYTES_LENGTH if input_bounds else None, where)
-    return MAX_BYTES_LENGTH if input_bounds and info.max_length is None else None
+INPUT_CEILINGS = {"bytes": MAX_BYTES_LENGTH, "path": MAX_PATH_LENGTH}
+
+
+def input_default(
+    kind: str, info: FieldInfo, input_bounds: bool, where: str
+) -> int | None:
+    """The framework bound on the wire length of a ``bytes`` or ``Path`` input
+    (decoded bytes, or characters), when the field sets no ``max_length``."""
+    ceiling = INPUT_CEILINGS.get(kind)
+    if ceiling is None:
+        return None
+    check_reachable(info, ceiling if input_bounds else None, where)
+    return ceiling if input_bounds and info.max_length is None else None
 
 
 INT64_MIN = -(2**63)
