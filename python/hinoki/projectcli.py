@@ -14,6 +14,8 @@ from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import BinaryIO
 
+from hinoki.appprompts import ask_app, report_app, split_requires
+from hinoki.newcli import interactive
 from hinoki.project import (
     ProjectApp,
     ProjectError,
@@ -22,17 +24,26 @@ from hinoki.project import (
     load_manifest,
 )
 from hinoki.scaffold import NAME, RESERVED_NAMES
+from hinoki.terminal import Style
 
 
-def create_app(name: str, start: Path | None = None) -> Path:
+def create_app(
+    name: str,
+    start: Path | None = None,
+    *,
+    prefix: str = "",
+    requires: tuple[str, ...] = (),
+) -> Path:
     """Create a model/migration package and append it to the project manifest."""
     _validate_app_name(name)
     manifest_path = find_manifest(start)
     with _manifest_lock(manifest_path):
-        return _create_app_locked(name, manifest_path)
+        return _create_app_locked(name, manifest_path, prefix or f"/{name}", requires)
 
 
-def _create_app_locked(name: str, manifest_path: Path) -> Path:
+def _create_app_locked(
+    name: str, manifest_path: Path, prefix: str, requires: tuple[str, ...]
+) -> Path:
     """Re-read and update the manifest while holding its process lock."""
     manifest = load_manifest(manifest_path)
     _check_duplicate_app(manifest, name)
@@ -42,7 +53,14 @@ def _create_app_locked(name: str, manifest_path: Path) -> Path:
     )
     try:
         _write_app_files(name, app_directory, apps_directory, made_apps_init)
-        _append_app(manifest.path, manifest.path.read_bytes(), name, module_name)
+        _append_app(
+            manifest.path,
+            manifest.path.read_bytes(),
+            name,
+            module_name,
+            prefix,
+            requires,
+        )
     except OSError as error:
         _remove_app_package(
             app_directory, apps_directory, made_apps_directory, made_apps_init
@@ -168,7 +186,14 @@ def _remove_app_package(
             apps_directory.rmdir()
 
 
-def _append_app(path: Path, original: bytes, name: str, package: str) -> None:
+def _append_app(
+    path: Path,
+    original: bytes,
+    name: str,
+    package: str,
+    prefix: str,
+    requires: tuple[str, ...],
+) -> None:
     module = f"{package}.apps.{name}"
     _append_block(
         path,
@@ -178,8 +203,8 @@ def _append_app(path: Path, original: bytes, name: str, package: str) -> None:
             models=f"{module}.models",
             migrations=f"{module}.migrations",
             routes=f"{module}.routes:routes",
-            prefix=f"/{name}",
-            requires=(),
+            prefix=prefix,
+            requires=requires,
         ),
     )
 
@@ -275,7 +300,14 @@ def add_arguments(commands: _SubParsersAction[ArgumentParser]) -> None:
     listing = actions.add_parser("list", help="list registered project apps")
     listing.add_argument("--format", choices=("text", "json"), default="text")
     create = actions.add_parser("create", help="create a modular app")
-    create.add_argument("name")
+    create.add_argument("name", nargs="?", help="app name (asked for in a terminal)")
+    create.add_argument("--prefix", default=None, help="mount prefix (default: /NAME)")
+    create.add_argument(
+        "--requires", default=None, help="comma-separated apps this one depends on"
+    )
+    create.add_argument(
+        "--no-input", action="store_true", help="never prompt; use the defaults"
+    )
     add = actions.add_parser("add", help="register an existing package as an app")
     add.add_argument("name")
     add.add_argument("--models", required=True, help="dotted models module")
@@ -345,11 +377,27 @@ def run(args: Namespace) -> int:
     try:
         if args.app_action == "add":
             return add_app(args)
-        created = create_app(args.name)
+        return create_command(args)
     except (ProjectError, OSError) as error:
-        print(f"error: {error}", file=sys.stderr)
+        print(Style.detect(sys.stderr).error(str(error)), file=sys.stderr)
         return 2
-    print(f"created app {args.name} at {created}")
+
+
+def create_command(args: Namespace) -> int:
+    """Ask for what the flags left unset in a terminal, then create the app."""
+    style = Style.detect()
+    if interactive(args):
+        code = ask_app(args, load_manifest(), input, style)
+        if code:
+            return code
+    if args.name is None:
+        message = "an app name is required (or run in a terminal)"
+        print(style.error(message), file=sys.stderr)
+        return 2
+    requires = split_requires(args.requires or "")
+    created = create_app(args.name, prefix=args.prefix or "", requires=requires)
+    for line in report_app(style, args.name, created, args.prefix or "", requires):
+        print(line)
     return 0
 
 
