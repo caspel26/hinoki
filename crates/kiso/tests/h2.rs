@@ -11,9 +11,9 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use h2::client::{self, SendRequest};
-use hinoki_server::tls::acceptor;
-use hinoki_server::{serve, Answer, Backend, Closed, Incoming, NativeJobs, ServerConfig};
 use http::Request;
+use kiso::tls::acceptor;
+use kiso::{serve, Answer, Backend, Closed, Incoming, NativeJobs, ServerConfig};
 use rustls::crypto::ring::default_provider;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, ServerName};

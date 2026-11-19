@@ -10,9 +10,9 @@ from hinoki import Hinoki, RouteGroup, Schema, Transactions, db, http
 from hinoki.db import Database, DatabaseModule
 from hinoki.orm import current_database, use_database
 from hinoki.rules import Project, RuleSet
-from hinoki.runtime.rustserver import RustWorker
+from hinoki.runtime.kiso import KisoWorker
 from hinoki.testing import ASGIClient
-from tests.rustservertest import fetch, record_lanes
+from tests.kisoservertest import fetch, record_lanes
 
 TABLE = "atomic_items"
 INSERT = f"INSERT INTO {TABLE} (name) VALUES (?)"  # noqa: S608
@@ -222,7 +222,7 @@ def test_the_atomic_rule_reads_the_route_option_not_the_decorator(url: str) -> N
 async def test_a_decorated_function_rolls_back_on_the_native_lane(
     database: Database, url: str
 ) -> None:
-    worker = RustWorker(app_for(url), "127.0.0.1", 0)
+    worker = KisoWorker(app_for(url), "127.0.0.1", 0)
     port = await worker.start()
     try:
         lanes = record_lanes(worker)

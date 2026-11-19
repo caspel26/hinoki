@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use hinoki_server::{serve, Answer, Backend, Closed, Incoming, ServerConfig};
+use kiso::{serve, Answer, Backend, Closed, Incoming, ServerConfig};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{watch, Notify};

@@ -1,5 +1,5 @@
-//! The socket side of the Rust server: `RustServer` binds a listener on the
-//! shared tokio runtime and serves HTTP/1.1 (and HTTP/2 over TLS) with `hinoki-server`, handing every
+//! The socket side of the Rust server: `KisoServer` binds a listener on the
+//! shared tokio runtime and serves HTTP/1.1 (and HTTP/2 over TLS) with `kiso`, handing every
 //! request the classifier does not answer to the asyncio loop.
 //!
 //! Handoff: the connection layer queues a `PreparedRequest` on the core's bounded
@@ -15,7 +15,7 @@ use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use hinoki_server::{
+use kiso::{
     serve, AccessLog, Answer, Backend, Closed, Early, Incoming, Lane, LogFilter, ServerConfig, Sink,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
@@ -480,8 +480,8 @@ fn access_style(name: Option<&str>) -> PyResult<Option<AccessLog>> {
 }
 
 /// A listening HTTP/1.1 (and, over TLS, HTTP/2) server on the shared tokio runtime.
-#[pyclass(name = "RustServer", module = "hinoki.core", frozen)]
-pub struct RustServer {
+#[pyclass(name = "KisoServer", module = "hinoki.core", frozen)]
+pub struct KisoServer {
     addr: SocketAddr,
     reader: UnixStream,
     stop: watch::Sender<bool>,
@@ -489,7 +489,7 @@ pub struct RustServer {
 }
 
 #[pymethods]
-impl RustServer {
+impl KisoServer {
     /// Serve on the listening socket `fd`, which the caller created and detached
     /// (this takes ownership of it as soon as it runs: on any error the
     /// descriptor is closed, so the caller must not use it again), or bind `host:port` (port 0 picks a free
@@ -555,7 +555,7 @@ impl RustServer {
         };
         let tls = match (tls_cert, tls_key) {
             (Some(cert), Some(key)) => Some(
-                hinoki_server::tls::acceptor(cert.as_ref(), key.as_ref(), http2)
+                kiso::tls::acceptor(cert.as_ref(), key.as_ref(), http2)
                     .map_err(|e| PyValueError::new_err(e.to_string()))?,
             ),
             (None, None) if !http2 => None,
@@ -645,6 +645,6 @@ impl RustServer {
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<RustServer>()?;
+    m.add_class::<KisoServer>()?;
     Ok(())
 }

@@ -236,19 +236,17 @@ async fn read_write_body(
         .map_err(|_| NativeWrite::Defer(None))?;
     match tokio::time::timeout_at(deadline, body.read(limit)).await {
         Ok(Ok(bytes)) => Ok(Some(bytes)),
-        Ok(Err(hinoki_server::BodyError::TooLarge)) => {
+        Ok(Err(kiso::BodyError::TooLarge)) => {
             Err(http_error(request, 413, "payload_too_large", None))
         }
-        Ok(Err(hinoki_server::BodyError::Timeout)) => {
-            Err(http_error(request, 408, "request_timeout", None))
-        }
-        Ok(Err(hinoki_server::BodyError::Malformed)) => Err(http_error(
+        Ok(Err(kiso::BodyError::Timeout)) => Err(http_error(request, 408, "request_timeout", None)),
+        Ok(Err(kiso::BodyError::Malformed)) => Err(http_error(
             request,
             400,
             "disconnected",
             Some("the request body is malformed"),
         )),
-        Ok(Err(hinoki_server::BodyError::Disconnected)) => Err(http_error(
+        Ok(Err(kiso::BodyError::Disconnected)) => Err(http_error(
             request,
             400,
             "disconnected",

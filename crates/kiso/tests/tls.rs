@@ -5,9 +5,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use hinoki_server::framing::{Framing, Guarded, Signals};
-use hinoki_server::tls::acceptor;
-use hinoki_server::{serve, Answer, Backend, Closed, Incoming, ServerConfig};
+use kiso::framing::{Framing, Guarded, Signals};
+use kiso::tls::acceptor;
+use kiso::{serve, Answer, Backend, Closed, Incoming, ServerConfig};
 use rustls::crypto::ring::default_provider;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, ServerName};
