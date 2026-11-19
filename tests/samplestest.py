@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 import pytest
 
 from hinoki import Hinoki, Schema, http
-from hinoki.samples import CannotSample, invalid_values, request_cases, sample_value
+from hinoki.ai.samples import CannotSample, invalid_values, request_cases, sample_value
 from hinoki.schema import Field
 from hinoki.testing import ASGIClient
 

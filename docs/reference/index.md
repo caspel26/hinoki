@@ -14,7 +14,7 @@ Reference for Hinoki's public Python surface. Public names are imported from `hi
 | Typed configuration | `hinoki` | [Settings](settings.md) |
 | Rules and diagnostics | `hinoki.rules` | [Rules](rules.md) |
 | Modules and runtime | `hinoki.modules` | [Runtime](runtime.md) |
-| MCP and project scaffold | `hinoki.mcpapp` / `hinoki.mcp` | [Tools](tools.md) |
+| MCP and project scaffold | `hinoki.ai.mcpapp` / `hinoki.ai.mcp` | [Tools](tools.md) |
 | Admin | `hinoki.admin` | [Admin](admin.md) |
 | Tests | `hinoki.testing` | [Testing](testing.md) |
 | Developer helpers | `hinoki.utils` | [Utilities](utilities.md) |

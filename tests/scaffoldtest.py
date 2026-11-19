@@ -15,8 +15,8 @@ import pytest
 
 from hinoki import newcli
 from hinoki.__main__ import main
-from hinoki.errorcatalog import CATALOG, explain
-from hinoki.mcp import DevProject, Server
+from hinoki.ai.errorcatalog import CATALOG, explain
+from hinoki.ai.mcp import DevProject, Server
 from hinoki.newcli import fill_from_prompts
 from hinoki.prompts import Prompter, tokens
 from hinoki.rules import RuleSet
@@ -244,6 +244,7 @@ def new_args(**overrides: Any) -> Any:
         "hinoki": None,
         "database": None,
         "agent_files": None,
+        "skills": None,
         "git": None,
         "install": None,
         "no_input": False,

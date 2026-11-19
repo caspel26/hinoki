@@ -17,9 +17,9 @@ uv run --project .. hinoki serve blog.main:create_app     # production-style: no
 
 With a declared app, settings load when the target module creates the `Hinoki` object. The database declared by the settings (or a configured `DatabaseModule`) opens that worker's pool during lifespan startup and closes it during shutdown. The pool is per worker; no database connection is opened by importing model or route modules. See [settings and database ownership](settings.md#8-database-connection-ownership).
 
-Both commands run the app under Granian unless you choose the [Rust server](#the-rust-server) with `--server rust` or `server.server`. In the Hinoki checkout,
-`uv sync --locked` installs the development environment, including Granian's
-reload support. A project created by `hinoki new` declares the server extra in
+Both commands run the app on the [Rust server](#the-rust-server) unless you choose Granian with `--server granian` or `server.server`. In the Hinoki checkout,
+`uv sync --locked` installs the development environment, including Granian and
+its reload support. A project created by `hinoki new` declares the server extra in
 its source dependency; run `uv sync` in that project. The extra includes
 Granian's reload support (`watchfiles`), which `hinoki dev` needs. If Granian
 was installed separately without `watchfiles`, `dev` reports the missing
@@ -47,7 +47,7 @@ Before serving a deployment, narrow [`allowed_hosts`](settings.md#allowed_hosts)
 
 ## The Rust server
 
-`hinoki serve --server rust` (or `server.server = "rust"`) runs the application on a second server that is part of Hinoki's native extension. Granian stays the default and `--server granian` always selects it; nothing changes for an app that does not opt in.
+`hinoki serve` and `hinoki dev` run the application on the Rust server, which is part of Hinoki's native extension, unless you choose Granian with `--server granian` or `server.server = "granian"`. Choose Granian when you need what the Rust server does not provide: the access log (`server.access_log`), an ASGI wrapper around the app (see below), or a server outside the extension.
 
 ```sh
 uv run --project .. hinoki serve blog.main:create_app --server rust

@@ -14,7 +14,7 @@ from tracker.rules import tracker_rules
 from tracker.security import member_only
 from tracker.settings import TrackerSettings
 from hinoki import Hinoki
-from hinoki.mcpapp import expose_as_mcp
+from hinoki.ai.mcpapp import expose_as_mcp
 
 
 def create_app(database_url: str | None = None) -> Hinoki:

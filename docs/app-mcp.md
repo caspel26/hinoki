@@ -10,7 +10,7 @@ related:
 `expose_as_mcp` turns selected HTTP actions into tools for an MCP client. It is opt-in and uses an explicit allowlist. A call is dispatched through the app's ASGI adapter, so the action's authentication, access policy, validation and transaction still apply.
 
 ```python
-from hinoki.mcpapp import expose_as_mcp
+from hinoki.ai.mcpapp import expose_as_mcp
 
 mcp_routes = expose_as_mcp(
     app,

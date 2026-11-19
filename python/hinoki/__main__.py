@@ -253,7 +253,7 @@ def run_new(args: argparse.Namespace) -> int:
 
 
 def run_mcp_command(args: argparse.Namespace) -> int:
-    from hinoki.mcp import run_mcp  # noqa: PLC0415 - loaded only for `mcp`
+    from hinoki.ai.mcp import run_mcp  # noqa: PLC0415 - loaded only for `mcp`
 
     return run_mcp(args)
 

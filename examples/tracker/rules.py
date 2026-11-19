@@ -12,7 +12,7 @@ tracker_rules = RuleSet(
     Actions.require_return_type(match=f"{PKG}.*"),
     Actions.require_pagination(match=f"{PKG}.*"),
     # The MCP endpoint dispatches other actions, which have their own transactions.
-    Transactions.require_atomic(except_=["hinoki.mcpapp.*"]),
+    Transactions.require_atomic(except_=["hinoki.ai.mcpapp.*"]),
     Schemas.forbid_exposure("token"),
     Schemas.require_string_limits(),
     # Tables are pinned, and a foreign key is always indexed.
