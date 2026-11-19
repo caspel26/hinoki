@@ -11,12 +11,14 @@ rows are reported as destructive and only written when explicitly allowed.
 from __future__ import annotations
 
 import dataclasses
+import enum
 import hashlib
 import inspect
 import json
 import re
 import types
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 from importlib import import_module
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from pathlib import Path
@@ -41,6 +43,10 @@ TYPES: dict[Any, str] = {
     float: "double precision",
     bool: "boolean",
     datetime: "timestamptz",
+    date: "text",
+    time: "text",
+    timedelta: "bigint",
+    Decimal: "text",
     bytes: "bytea",
     dict: "jsonb",
     list: "jsonb",
@@ -124,9 +130,18 @@ def base_type(model: type[Model], name: str, hint: Any) -> tuple[Any, bool]:
     return get_origin(rest[0]) or rest[0], len(rest) != len(args)
 
 
+def sql_type(kind: Any) -> str | None:
+    """The column type of an annotation's base type; an ``Enum`` is stored as
+    its values, ``bigint`` when they are all integers and ``text`` otherwise."""
+    if isinstance(kind, type) and issubclass(kind, enum.Enum):
+        values = [member.value for member in kind]
+        return "bigint" if values and all(type(v) is int for v in values) else "text"
+    return TYPES.get(kind)
+
+
 def column_state(model: type[Model], name: str, hint: Any, meta: FieldMeta) -> State:
     kind, nullable = base_type(model, name, hint)
-    sql = TYPES.get(kind)
+    sql = sql_type(kind)
     if sql is None:
         label = getattr(kind, "__name__", kind)
         raise MigrationError(f"{model.__name__}.{name}: no SQL type for {label}")
