@@ -123,6 +123,22 @@ CATALOG: dict[str, tuple[str, str]] = {
         "Not standard padded base64.",
         "Encode the value as canonical base64 (RFC 4648, with = padding).",
     ),
+    "ipv4": (
+        "Not an IPv4 address.",
+        "Send four dotted decimal numbers 0-255 without leading zeros, e.g. 192.168.0.1.",
+    ),
+    "ipv6": (
+        "Not an IPv6 address.",
+        "Send the standard text form, e.g. 2001:db8::1 (no zone id, no brackets).",
+    ),
+    "ipv4network": (
+        "Not an IPv4 network, or it has host bits set.",
+        "Send address/prefix with the host bits zero, e.g. 10.0.0.0/8.",
+    ),
+    "ipv6network": (
+        "Not an IPv6 network, or it has host bits set.",
+        "Send address/prefix with the host bits zero, e.g. 2001:db8::/32.",
+    ),
     "too_many_errors": (
         "More than 50 problems; the list was cut.",
         "Fix the first ones and retry.",
