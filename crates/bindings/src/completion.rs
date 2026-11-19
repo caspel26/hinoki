@@ -287,6 +287,11 @@ where
     X: FnOnce(Python<'_>, E) -> PyErr + Send + 'static,
     P: Fn(Python<'_>) -> PyErr + Send + Sync + 'static,
 {
+    if crate::driver::driving() {
+        // A Rust-driven coroutine has no loop: hand it the work itself.
+        let wait = crate::driver::NativeWait::new(fut, convert, fail);
+        return Ok(Bound::new(py, wait)?.into_any());
+    }
     let event_loop = py.import("asyncio")?.call_method0("get_running_loop")?;
     let Some(completer) = entry_for(py, &event_loop)? else {
         return pyo3_async_runtimes::tokio::future_into_py(py, async move {
