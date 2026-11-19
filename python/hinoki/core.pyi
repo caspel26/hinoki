@@ -86,6 +86,7 @@ class _CrudPlan:
         update_schema: CompiledSchema | None = ...,
         validation_error: bytes = ...,
         auth: _ClaimsAuth | None = ...,
+        owner: str | None = ...,
     ) -> None: ...
     @property
     def action(self) -> str: ...

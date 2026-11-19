@@ -10,7 +10,7 @@ import types
 import typing
 from collections.abc import Awaitable, Callable, Mapping
 from operator import attrgetter
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, NoReturn, cast
 
 from hinoki import context
 from hinoki.access import Access
@@ -42,6 +42,12 @@ class Crud(enum.StrEnum):
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"
+
+
+def caller_id(user: object) -> NoReturn:
+    """Marker for ``identity_key``: the owner value is ``Caller.id``, so the
+    caller needs no user object. It is never called."""
+    raise TypeError("caller_id is read from the Caller, not called")
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -191,7 +197,11 @@ class _CrudConfig:
     def owner_of(self, principal: Any) -> Any:
         """The caller's owner value; a caller without one may change nothing,
         or ``None`` would match every ownerless row."""
-        value = self.identity_key(principal.user)
+        value = (
+            principal.id
+            if self.identity_key is caller_id
+            else self.identity_key(principal.user)
+        )
         if value is None:
             raise Forbidden("You cannot change this item.")
         return value
