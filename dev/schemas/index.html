@@ -722,7 +722,31 @@
 <li><strong>Native lane.</strong> Checked in Rust on both lanes with the same grammar; the GIL-free lane keeps the text and builds the <code>ipaddress</code> object when a handler asks for it.</li>
 <li><strong>Models.</strong> A <code>Model</code> column of these types is stored as <code>text</code> and read back as the object; a write checks that the value is an <code>ipaddress</code> object of the right family before SQL is sent (<code>ModelValidationError</code>). See <a href="../models/">models</a>.</li>
 </ul>
-<p>Not supported yet: <code>SecretStr</code> and <code>Path</code>.</p>
+<h3 id="secretstr-and-path"><code>SecretStr</code> and <code>Path</code><a class="headerlink" href="#secretstr-and-path" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">SecretStr</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Account</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">password</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="n">SecretStr</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">8</span><span class="p">)]</span>
+    <span class="n">home</span><span class="p">:</span> <span class="n">Path</span>
+
+
+<span class="n">account</span> <span class="o">=</span> <span class="n">Account</span><span class="o">.</span><span class="n">validate</span><span class="p">({</span><span class="s2">"password"</span><span class="p">:</span> <span class="s2">"correct horse"</span><span class="p">,</span> <span class="s2">"home"</span><span class="p">:</span> <span class="s2">"/srv/ann"</span><span class="p">})</span>
+<span class="k">assert</span> <span class="n">account</span><span class="o">.</span><span class="n">password</span><span class="o">.</span><span class="n">get_secret_value</span><span class="p">()</span> <span class="o">==</span> <span class="s2">"correct horse"</span>
+<span class="k">assert</span> <span class="nb">repr</span><span class="p">(</span><span class="n">account</span><span class="o">.</span><span class="n">password</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"SecretStr('**********')"</span>
+<span class="k">assert</span> <span class="n">account</span><span class="o">.</span><span class="n">dump</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"password"</span><span class="p">:</span> <span class="s2">"**********"</span><span class="p">,</span> <span class="s2">"home"</span><span class="p">:</span> <span class="s2">"/srv/ann"</span><span class="p">}</span>
+<span class="k">assert</span> <span class="n">account</span><span class="o">.</span><span class="n">home</span> <span class="o">==</span> <span class="n">Path</span><span class="p">(</span><span class="s2">"/srv/ann"</span><span class="p">)</span>
+</code></pre></div>
+<ul>
+<li><strong><code>SecretStr</code></strong> reads a JSON string and wraps it. <code>repr</code>, <code>str</code>, <code>dump()</code> and JSON responses show <code>**********</code>; only <code>get_secret_value()</code> returns the text. Validation errors never repeat the value. <code>min_length</code>, <code>max_length</code> and <code>pattern</code> apply. Constructing with <code>Account(password=...)</code> takes a <code>SecretStr</code> only, so a plain string never ends up unmasked in an instance.</li>
+<li><strong><code>Path</code></strong> reads a non-empty JSON string without a NUL character and becomes a <code>pathlib.Path</code>. Nothing touches the file system. <code>min_length</code> and <code>max_length</code> apply; without <code>max_length</code>, wire input is capped at 4096 characters. The error code is <code>path</code>. Output is <code>str(path)</code>; constructing takes a <code>Path</code> object only (a <code>PurePath</code> is refused).</li>
+<li><strong>OpenAPI</strong> writes <code>type: string</code> with <code>format: path</code>, and for a secret <code>format: password</code> with <code>writeOnly: true</code>.</li>
+<li><strong>Lanes.</strong> Both are validated in Rust; a <code>Schema</code> using them is served by the Python lane, by design, because the GIL-free lane cannot build these objects.</li>
+<li><strong>Models.</strong> There is no <code>Model</code> column for either type yet: generating a migration for one reports <code>no SQL type</code>.</li>
+</ul>
 <h2 id="wire-aliases">Wire aliases<a class="headerlink" href="#wire-aliases" title="Permanent link">&para;</a></h2>
 <p>Use <code>Field(alias=...)</code> when the public JSON name should differ from the Python attribute. The alias is the only accepted input key; sending both names is an error. <code>dump()</code> writes aliases, including in nested schemas and lists, while <code>to_dict()</code> keeps Python attribute names. Validation errors and OpenAPI properties use the wire names. A custom check's default field path is translated to its alias; an explicit <code>Invalid(path=...)</code> is already a wire path.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
@@ -877,7 +901,7 @@
           
           
             <ul><li><a href="#field-types">Field types</a>
-            <ul><li><a href="#sets-and-tuples">Sets and tuples</a></li><li><a href="#enums-and-literals">Enums and literals</a></li><li><a href="#dates-durations-decimals-and-bytes">Dates, durations, decimals and bytes</a></li><li><a href="#multiples">Multiples</a></li><li><a href="#dictionary-fields">Dictionary fields</a></li><li><a href="#plain-unions-and-any">Plain unions and Any</a></li><li><a href="#internet-addresses-email-url-and-slug">Internet addresses, Email, Url and Slug</a></li></ul>
+            <ul><li><a href="#sets-and-tuples">Sets and tuples</a></li><li><a href="#enums-and-literals">Enums and literals</a></li><li><a href="#dates-durations-decimals-and-bytes">Dates, durations, decimals and bytes</a></li><li><a href="#multiples">Multiples</a></li><li><a href="#dictionary-fields">Dictionary fields</a></li><li><a href="#plain-unions-and-any">Plain unions and Any</a></li><li><a href="#internet-addresses-email-url-and-slug">Internet addresses, Email, Url and Slug</a></li><li><a href="#secretstr-and-path">SecretStr and Path</a></li></ul>
           </li><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#class-configuration">Class configuration</a></li><li><a href="#discriminated-unions">Discriminated unions</a></li><li><a href="#projection-options-on-dump">Projection options on dump()</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
           
         </nav>
@@ -885,8 +909,8 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 10:28:15 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>22 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 13:05:22 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>23 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
