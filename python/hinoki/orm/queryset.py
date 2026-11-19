@@ -134,6 +134,7 @@ class QuerySet[M: Model]:
         for name in names:
             column = name.removeprefix("-")
             self.model.check_field(column)
+            refuse_text_decimal(self.model, column, f"ordering by {column}")
             parsed.append((column, name.startswith("-")))
         return self.derive(order=tuple(parsed))
 
@@ -434,20 +435,31 @@ ROW_WIRE_METHODS = (
 ROW_WIRE_METHODS_ORIGINAL = tuple(getattr(QuerySet, name) for name in ROW_WIRE_METHODS)
 
 
+def refuse_text_decimal(model: type[Model], name: str, action: str) -> None:
+    """A ``Decimal`` column is stored as its text, which neither orders nor
+    compares by value (``12.3`` and ``12.30`` differ)."""
+    if model.__field_types__[name].kind == "decimal":
+        raise FieldError(
+            f"{model.__name__}.{name} is a Decimal column stored as text: {action} "
+            "is not supported; only __isnull works"
+        )
+
+
 def condition(model: type[Model], key: str, value: Any) -> tuple[str, str, list[Any]]:
     """Parse ``name``, ``name__op`` into ``(column, operator, values)``."""
     name, _, suffix = key.rpartition(SEPARATOR)
     if not name or suffix not in OPERATORS:
         name, suffix = key, "eq"
     model.check_field(name)
-    if suffix == "in":
-        return name, "in", list(value)
     if suffix == "isnull":
         return name, "isnull" if value else "notnull", []
     if value is None:
         if suffix not in {"eq", "ne"}:
             raise FieldError(f"{key} cannot compare with None")
         return name, "isnull" if suffix == "eq" else "notnull", []
+    refuse_text_decimal(model, name, f"filtering on {key}")
+    if suffix == "in":
+        return name, "in", list(value)
     return name, suffix, [value]
 
 

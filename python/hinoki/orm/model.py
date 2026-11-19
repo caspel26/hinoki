@@ -191,6 +191,80 @@ def _constraint_passes(rule: str, value: Any, bound: int | float) -> bool:
     return bool(value < bound)
 
 
+def _read_decimal(text: Any) -> Decimal:
+    if not isinstance(text, str):
+        raise TypeError("a Decimal column holds text")
+    value = Decimal(text)
+    if not value.is_finite():
+        raise ValueError("not finite")
+    return value
+
+
+def _read_duration(micros: Any) -> datetime.timedelta:
+    if not isinstance(micros, int) or isinstance(micros, bool):
+        raise TypeError("a timedelta column holds whole microseconds")
+    return datetime.timedelta(microseconds=micros)
+
+
+# Readers for the columns that store a plain type: date, time and Decimal as
+# text, timedelta as microseconds.
+STORED_READERS: dict[str, Callable[[Any], Any]] = {
+    "date": datetime.date.fromisoformat,
+    "time": datetime.time.fromisoformat,
+    "decimal": _read_decimal,
+    "timedelta": _read_duration,
+}
+READ_ERRORS = (ValueError, TypeError, ArithmeticError, OverflowError)
+
+
+def column_reader(field_type: FieldType) -> tuple[str, Callable[[Any], Any]] | None:
+    """``(label, reader)`` turning a stored value back into the annotated type
+    (an Enum member, an address, a date), or ``None`` for a column read as is."""
+    if field_type.enum_class is not None:
+        return field_type.enum_class.__name__, field_type.enum_class
+    if field_type.kind in TEXT_STORED:
+        stored = TEXT_STORED[field_type.kind]
+        return stored.__name__, stored
+    if field_type.kind in STORED_READERS:
+        return field_type.kind, STORED_READERS[field_type.kind]
+    return None
+
+
+def _time_problem(value: Any) -> str | None:
+    return "A time column does not take a timezone." if value.tzinfo else None
+
+
+def _date_problem(value: Any) -> str | None:
+    if isinstance(value, datetime.datetime):
+        return "Expected a date, not a datetime."
+    return None
+
+
+def _decimal_problem(value: Any) -> str | None:
+    return None if value.is_finite() else "A Decimal column needs a finite value."
+
+
+def _duration_problem(value: Any) -> str | None:
+    micros = (value.days * 86_400 + value.seconds) * 1_000_000 + value.microseconds
+    if -(2**63) <= micros < 2**63:
+        return None
+    return "The duration is out of range for a 64-bit column."
+
+
+STORED_PROBLEMS: dict[str, Callable[[Any], str | None]] = {
+    "date": _date_problem,
+    "time": _time_problem,
+    "decimal": _decimal_problem,
+    "timedelta": _duration_problem,
+}
+
+
+def stored_value_problem(kind: str, value: Any) -> str | None:
+    """Why a value of the right type still cannot be stored, or ``None``."""
+    check = STORED_PROBLEMS.get(kind)
+    return None if check is None else check(value)
+
+
 def _validate_field_value(
     name: str,
     value: Any,
@@ -206,7 +280,15 @@ def _validate_field_value(
             )
         )
         return
+    if field_type.enum_class is None and (
+        reason := stored_value_problem(field_type.kind, value)
+    ):
+        problems.append(ErrorDetail(name, "type", reason))
+        return
     info = field_type.info
+    if field_type.enum_class is not None:
+        # the instance check above already limits the value to the members
+        info = dataclasses.replace(info, one_of=None)
     _validate_lengths(name, value, info, problems)
     _validate_pattern(name, value, info, problems)
     _validate_bounds(name, value, info, problems)
@@ -347,7 +429,11 @@ def stays_json(parsed: FieldType, values: dict[str, Any]) -> bool:
     """Whether a parsed column annotation is stored as JSON: a dict, or a list
     of dicts, an Enum or a Literal (a plain ``one_of`` constraint is not), or a
     set or tuple."""
-    listed = parsed.info.one_of is not None and "one_of" not in values
+    listed = (
+        parsed.info.one_of is not None
+        and "one_of" not in values
+        and parsed.enum_class is None
+    )
     grouped = parsed.kind in {"tuple", "anyof", "any"} or parsed.collection is not None
     return listed or grouped or holds_mapping(parsed)
 
@@ -564,7 +650,7 @@ class Model:
     __table_problem__: ClassVar[str] = ""
     __columns__: ClassVar[tuple[str, ...]] = ()
     __json_columns__: ClassVar[tuple[str, ...]] = ()
-    __text_columns__: ClassVar[dict[str, type]] = {}
+    __column_readers__: ClassVar[dict[str, tuple[str, Callable[[Any], Any]]]] = {}
     __field_types__: ClassVar[dict[str, FieldType]] = {}
     __field_validators__: ClassVar[dict[str, tuple[Callable[..., None], ...]]] = {}
     __field_annotations__: ClassVar[dict[str, object]] = {}
@@ -633,18 +719,18 @@ class Model:
             item.name: item.metadata.get(MARK, FieldMeta()).validators
             for item in fields
         }
+        cls.__column_readers__ = {
+            name: reader
+            for name, field_type in cls.__field_types__.items()
+            if (reader := column_reader(field_type)) is not None
+        }
         cls.__field_validation_fields__ = frozenset(
             name
             for name, field_type in cls.__field_types__.items()
             if field_type.info.constraints()
             or cls.__field_validators__[name]
-            or field_type.kind in TEXT_STORED
+            or name in cls.__column_readers__
         )
-        cls.__text_columns__ = {
-            name: TEXT_STORED[field_type.kind]
-            for name, field_type in cls.__field_types__.items()
-            if field_type.kind in TEXT_STORED
-        }
         cls.__primary_key__ = keys[0] if keys else ""
         cls.check_names(cls.__columns__)
         cls.__field_indexes__ = tuple(
@@ -990,24 +1076,24 @@ class Model:
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> Self:
-        changed = {**cls._text_values(row), **cls._json_values(row)}
+        changed = {**cls._stored_values(row), **cls._json_values(row)}
         instance = cls(**({**row, **changed} if changed else row))
         instance.remember()
         return instance
 
     @classmethod
-    def _text_values(cls, row: dict[str, Any]) -> dict[str, Any]:
-        """Objects for the columns stored as text (addresses and networks)."""
+    def _stored_values(cls, row: dict[str, Any]) -> dict[str, Any]:
+        """Objects for the columns that store a plain form: addresses, dates,
+        times, durations, decimals and enum members."""
         found: dict[str, Any] = {}
-        for name, kind in cls.__text_columns__.items():
-            if not isinstance(text := row.get(name), str):
+        for name, (label, reader) in cls.__column_readers__.items():
+            if (stored := row.get(name)) is None:
                 continue
             try:
-                found[name] = kind(text)
-            except ValueError as error:
+                found[name] = reader(stored)
+            except READ_ERRORS as error:
                 raise FieldError(
-                    f"{cls.__name__}.{name}: database value is not a valid "
-                    f"{kind.__name__}"
+                    f"{cls.__name__}.{name}: database value is not a valid {label}"
                 ) from error
         return found
 
