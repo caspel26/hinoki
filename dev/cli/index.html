@@ -584,6 +584,8 @@ Checkout paths and Git source values are escaped as TOML strings in the generate
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>create<span class="w"> </span>billing
 </code></pre></div>
 <p>This creates <code>NAME/apps/billing/{models.py,routes.py,migrations/}</code> and registers the model, migration and routes modules in <code>hinoki.toml</code> (<code>routes = "NAME.apps.billing.routes:routes"</code>, <code>prefix = "/billing"</code>). Cross-app foreign keys require the referencing app to list the referenced app in <code>requires</code> in <code>hinoki.toml</code>; migrations are then planned/applied in dependency order. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.</p>
+<p>Both commands report <code>hinoki.toml</code>: <code>hinoki new</code> lists it among the generated files and <code>app create</code> says it registered the app there.</p>
+<p><code>--prefix</code> and <code>--requires</code> (comma-separated) set the mount prefix and dependencies directly. In a terminal, <code>app create</code> asks for whatever is not given — the name, the prefix (default <code>/NAME</code>) and, when other apps exist, <code>requires</code> — with the same prompts, Esc-to-cancel (exit 130, nothing created) and <code>NO_COLOR</code> handling as <code>hinoki new</code>. Without a terminal or with <code>--no-input</code> it never asks: the name is required (exit 2) and the defaults are <code>/NAME</code> and no <code>requires</code>.</p>
 <p>To register a package that already exists, name its modules. Nothing is created or imported; only <code>hinoki.toml</code> changes:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>add<span class="w"> </span>billing<span class="w"> </span>--models<span class="w"> </span>legacy.billing.models
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>add<span class="w"> </span>invoices<span class="w"> </span><span class="se">\</span>
@@ -796,8 +798,8 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class=
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 10:50:46 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>16 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 11:28:09 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>17 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
