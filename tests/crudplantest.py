@@ -2,6 +2,7 @@
 
 import asyncio
 import dataclasses
+import importlib
 import json
 import math
 import os
@@ -32,9 +33,8 @@ from hinoki import (
     core,
     http,
 )
-from hinoki import crud as crud_module
 from hinoki.__main__ import main
-from hinoki.crud import caller_id
+from hinoki.crud import caller_id, crud
 from hinoki.crypto import ClaimsJWTAuth, JWTKey
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import Conflict
@@ -56,6 +56,7 @@ from hinoki.utils import utc_now
 
 DATABASE_URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 REQUIRE_SQL_TRACE = os.environ.get("HINOKI_REQUIRE_SQL_TRACE") == "1"
+crud_module = importlib.import_module("hinoki.crud")
 
 
 class PlanItem(Model, table="crud_plan_items"):
@@ -117,6 +118,32 @@ def test_public_crud_actions_get_disarmed_plans() -> None:
     ]
     assert all(item.snapshot_valid() for item in selected)
     assert server.pending == 0
+
+
+def test_function_form_keeps_native_plan_eligibility() -> None:
+    declared = crud(
+        PlanItem,
+        path="/fn-items",
+        read=PlanItemOut,
+        create=PlanItemIn,
+        update=PlanItemPatch,
+        delete=True,
+        public_writes=True,
+    )
+    app = Hinoki(
+        include=[declared],
+        modules=[DatabaseModule("sqlite:///crud-plan-unused.sqlite3")],
+    )
+    pipeline = Pipeline(app)
+    build_server_core(pipeline)
+    selected = [item for item in pipeline.crud_plan_selections if item is not None]
+    assert [item.action for item in selected] == [
+        "list",
+        "retrieve",
+        "create",
+        "update",
+        "delete",
+    ]
 
 
 def test_unprefixed_retrieve_route_matches_its_generated_suffix() -> None:
