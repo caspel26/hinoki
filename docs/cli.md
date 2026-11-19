@@ -65,10 +65,22 @@ model-to-file drift.
 ### `new`
 
 ```sh
-hinoki new notes --dir .
+hinoki new notes --dir .      # or just `hinoki new` in a terminal for prompts
+hinoki new notes --no-input --database sqlite --git --install
 ```
 
-`NAME` is a lowercase package name containing letters and digits; it cannot be `hinoki` or a Python standard-library module name, because those names would shadow imports used by the generated project. `--dir` chooses the parent directory and defaults to the current directory. The target `PATH/NAME` must not exist or must be empty; nothing is overwritten, and nothing is installed or run.
+In a terminal, `hinoki new` with no `NAME` (or with some options missing) asks for what the flags left unset: name, parent directory, database, agent files, `git init` and `uv sync`. Pass `--no-input` (or run without a terminal, as in CI) to skip every prompt and use flags and defaults; `NAME` is then required.
+
+| Option | Effect | Default |
+| --- | --- | --- |
+| `--database none\|sqlite\|postgresql` | `sqlite` declares `database: settings.DatabaseSettings` in the project settings (local file under `.hinoki/`); `postgresql` also writes `.env.example` with a placeholder `<NAME>_DATABASE__URL` to copy to `.env` | `none` |
+| `--agent-files` / `--no-agent-files` | write or omit `AGENTS.md`, `CLAUDE.md` and `.mcp.json` | written |
+| `--git` | run `git init` in the project (no commit is made) | off (prompt default: yes) |
+| `--install` | run `uv sync` in the project | off (prompt default: yes) |
+
+`git` and `uv` run only when asked; a missing tool or a failing command prints a warning and does not undo the project. Nothing else is installed or run, and no database is created or contacted.
+
+`NAME` is a lowercase package name containing letters and digits; it cannot be `hinoki` or a Python standard-library module name, because those names would shadow imports used by the generated project. `--dir` chooses the parent directory and defaults to the current directory. The target `PATH/NAME` must not exist or must be empty; nothing is overwritten.
 
 This repository's pre-alpha Hinoki framework is not published on PyPI; the [`hinoki` name](https://pypi.org/project/hinoki/) belongs to an unrelated legacy package. The generated `pyproject.toml` therefore names this repository as the source under `[tool.uv.sources]`:
 
