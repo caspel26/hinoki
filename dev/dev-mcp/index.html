@@ -445,6 +445,11 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <td>Suggested model, input/patch/output schemas and CRUD action source text. The returned text is not written to a file. Fields support <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>, <code>uuid</code> and <code>datetime</code>, with optional <code>nullable</code>, <code>unique</code> and <code>max_length</code>.</td>
 </tr>
 <tr>
+<td><code>recent_requests</code></td>
+<td><code>{}</code> or <code>{"limit": 20, "status_min": 400, "path_contains": "/items"}</code></td>
+<td>The newest requests the development server answered, oldest first, as the JSON access fields (<code>method</code>, <code>path</code>, <code>query</code>, <code>status</code>, <code>duration_ms</code>, <code>lane</code>). They come from a file the Kiso server writes when <code>server.recent_requests</code> is set (default read path <code>.hinoki/requests.jsonl</code>, or <code>hinoki mcp --requests PATH</code>); the file keeps about the last 1 to 2 MiB and without it the result is empty with a note. <code>limit</code> is 1 to 200.</td>
+</tr>
+<tr>
 <td><code>check_project</code></td>
 <td><code>{}</code> or <code>{"phase": "static"}</code></td>
 <td>Enabled rule diagnostics with waivers applied, plus <code>ok</code> and <code>failing</code>. <code>phase</code> accepts <code>startup</code> or <code>static</code>. Effectful checks are excluded.</td>
@@ -483,7 +488,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.28</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 21:17:53 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 21:31:01 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/dev-mcp.md">Edit on GitHub</a></dd></div>
         </dl>
