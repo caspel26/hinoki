@@ -39,7 +39,7 @@ From the application's **`server` settings group** ([settings guide](settings.md
 | `server.runtime_threads` | `BLOG_SERVER__RUNTIME_THREADS` | `1` | |
 | `server.backlog` | `BLOG_SERVER__BACKLOG` | `1024` | |
 | `server.access_log` | `BLOG_SERVER__ACCESS_LOG` | unset | Unset logs in `hinoki dev` only; `true` or `false` decides for both |
-| `server.server` | `BLOG_SERVER__SERVER` | `granian` | `--server` |
+| `server.server` | `BLOG_SERVER__SERVER` | `kiso` | `--server` |
 
 `dev` always runs one worker with reload. The settings command shows what is in effect: `hinoki settings blog.settings:BlogSettings`.
 
@@ -47,12 +47,12 @@ Before serving a deployment, narrow [`allowed_hosts`](settings.md#allowed_hosts)
 
 ## The Rust server
 
-`hinoki serve` and `hinoki dev` run the application on the Rust server, which is part of Hinoki's native extension, unless you choose Granian with `--server granian` or `server.server = "granian"`. Choose Granian when you need an ASGI wrapper around the app (see below), or a server outside the extension.
+Kiso is Hinoki's own HTTP server, written in Rust on hyper, tokio and rustls. `hinoki serve` and `hinoki dev` run the application on Kiso, which is part of Hinoki's native extension, unless you choose Granian with `--server granian` or `server.server = "granian"`. Choose Granian when you need an ASGI wrapper around the app (see below), or a server outside the extension.
 
 ```sh
-uv run --project .. hinoki serve blog.main:create_app --server rust
-uv run --project .. hinoki serve blog.main:create_app --server rust --workers 4
-uv run --project .. hinoki dev   blog.main:create_app --server rust
+uv run --project .. hinoki serve blog.main:create_app --server kiso
+uv run --project .. hinoki serve blog.main:create_app --server kiso --workers 4
+uv run --project .. hinoki dev   blog.main:create_app --server kiso
 ```
 
 ```python
@@ -60,7 +60,7 @@ from hinoki import settings
 
 
 class BlogSettings(settings.AppSettings, prefix="BLOG_"):
-    server: settings.ServerSettings = settings.ServerSettings(server="rust", workers=4)
+    server: settings.ServerSettings = settings.ServerSettings(server="kiso", workers=4)
 ```
 
 ### What is native and what still runs in Python
@@ -115,7 +115,7 @@ ASGI/Granian and WSGI answer it in the Python pipeline after host, CORS and HTTP
 | `host`, `port`, `workers`, `runtime_threads`, `backlog`, `access_log`, `trusted_proxies`, `request_id_header`, `trust_request_id` | applied | applied |
 | `max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`, `native_dispatch` | applied when set | refused when set |
 
-If the native extension of a build has no Rust server, `--server rust` fails with an error that says so.
+If the native extension of a build has no Rust server, `--server kiso` fails with an error that says so.
 
 ### Workers, signals and restarts
 
@@ -127,7 +127,7 @@ With one worker `hinoki serve` runs the server in its own process. With several 
 * If the supervisor is killed without a chance to clean up, its workers notice within a second of finishing their startup and stop. The workers' copy of the listening socket is not inherited by processes a handler starts.
 * A socket that cannot be opened (address in use, a bad port or host) is reported as `error: cannot listen on HOST:PORT: ...` with exit status 2, with one worker or several.
 
-### `hinoki dev --server rust`
+### `hinoki dev --server kiso`
 
 The supervisor watches the project directory (`*.py`, `*.toml` and `.env` files; `.venv`, `.git` and caches are ignored) and, on a change, stops the worker gracefully and starts a new one on the same socket, so a client connecting during the restart waits instead of being refused. If the new code fails to import or start, the error is printed (a short `error: cannot load ...` line for a missing module or name, a traceback for other failures), `waiting for changes` follows, and the next edit starts the worker again; connections wait in the meantime. The host, port, `backlog` and the choice of server are read once when `hinoki dev` starts: change them and restart the command. The other `server` settings (limits, `trusted_proxies`, `runtime_threads`) are read again by every restarted worker. The watcher ignores `.venv` but not a virtual environment with another name, such as `venv/`: keep it outside the project directory or it triggers reloads. The first import of the target happens in the command itself, so an error there stops it with a message instead of waiting. `dev` needs `watchfiles` (the `hinoki[server]` extra) and uses one worker.
 
@@ -192,7 +192,7 @@ app = Timing(create_app(), record=my_metrics.observe)   # run this with Granian 
 
 What this measures is the time from the ASGI call to the last byte handed to the server, not what a client perceives. Keep method and status as labels; do **not** label by `scope["path"]` (it holds ids and has unbounded cardinality), the request ID (it is for correlating logs: `logging.include_request_id` adds it to each Hinoki log line) or the caller. Hinoki does not currently expose the matched route template to a wrapper, so per-route metrics need an application-level counter inside the handler or a gap report so a hook can be designed.
 
-The Rust server (`--server rust`) has no ASGI boundary, so this wrapper does not apply to it and it has no instrumentation seam today. Use the server's own limits and the request log of your proxy, or serve with Granian when you need to wrap the application.
+The Rust server (`--server kiso`) has no ASGI boundary, so this wrapper does not apply to it and it has no instrumentation seam today. Use the server's own limits and the request log of your proxy, or serve with Granian when you need to wrap the application.
 
 ## WSGI
 
