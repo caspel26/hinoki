@@ -699,6 +699,7 @@ Ctrl-D exits, Ctrl-C at the prompt exits, and Ctrl-C during a cell interrupts
 that cell. It executes Python with the current user's process privileges and
 may write to the configured database, so use a development database when
 experimenting.</p>
+<p>On a colour terminal the shell opens with the Hinoki banner (the logo as an inline image where the terminal supports it), a summary of the app title, its settings class and the loaded models, and a <code>hinoki ❯</code> prompt. <code>NO_COLOR</code>, <code>TERM=dumb</code>, <code>HINOKI_ANIMATE=0</code> and <code>HINOKI_IMAGES=0</code> behave as for <a href="#new"><code>hinoki new</code></a>; without colour the shell prints the plain greeting and Python's <code>&gt;&gt;&gt;</code> / <code>...</code> prompts.</p>
 <h3 id="migrations"><code>migrations</code><a class="headerlink" href="#migrations" title="Permanent link">&para;</a></h3>
 <p>In a project created by <code>hinoki new</code>, migration modules are read from the manifest; users do not supply model or migration paths:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--name<span class="w"> </span>add-index<span class="w"> </span>--dry-run
@@ -798,7 +799,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class=
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 11:28:09 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 12:03:15 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>17 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
