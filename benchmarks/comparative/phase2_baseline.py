@@ -37,9 +37,15 @@ from phase1_orientation import (
 
 HERE = Path(__file__).parent
 DB = os.environ.get("P2BENCH_DATABASE_URL", "")
-# "handlers" measures the JSON request path; "sources" the text sources and renderers.
+# "handlers" measures the JSON request path; "sources" the text sources and
+# renderers; "sync" the JSON request path with sync (``def``) handlers.
 SUITE = os.environ.get("PHASE2_SUITE", "handlers")
-APP_MODULE = "phase2_hinoki" if SUITE == "handlers" else "phase2_sources_hinoki"
+APP_MODULES = {
+    "handlers": "phase2_hinoki",
+    "sources": "phase2_sources_hinoki",
+    "sync": "phase2_sync_hinoki",
+}
+APP_MODULE = APP_MODULES[SUITE]
 WORKERS = 4
 POOL = 10
 CONCURRENCY = 64
@@ -77,7 +83,14 @@ SOURCE_SCENARIOS: dict[str, tuple[str, str, Body, int]] = {
     "xml_render": ("GET", "/render/xml", None, 200),
     "request": ("GET", "/request-param", None, 200),
 }
-SCENARIOS = HANDLER_SCENARIOS if SUITE == "handlers" else SOURCE_SCENARIOS
+SYNC_SCENARIOS = {
+    name: scenario for name, scenario in HANDLER_SCENARIOS.items() if name != "post_tx"
+}
+SCENARIOS = {
+    "handlers": HANDLER_SCENARIOS,
+    "sources": SOURCE_SCENARIOS,
+    "sync": SYNC_SCENARIOS,
+}[SUITE]
 
 
 def encoded(body: Body) -> tuple[bytes, str] | None:

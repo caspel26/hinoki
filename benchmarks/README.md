@@ -368,7 +368,7 @@ measured local run; do not copy these results into the comparative report.
 ## `comparative/phase2_baseline.py` — the request path around handwritten handlers
 
 Measures a fixture app whose handlers do no work, on Hinoki's Rust server and on
-Granian, so each number is the request path around the handler. Two suites:
+Granian, so each number is the request path around the handler. Three suites:
 
 * `handlers` (default, `phase2_hinoki.py`): GET with path and typed query
   parameters, JSON POST at 64 B, 10 kB and 100 kB, PATCH, DELETE and a POST with
@@ -376,6 +376,9 @@ Granian, so each number is the request path around the handler. Two suites:
 * `sources` (`PHASE2_SUITE=sources`, `phase2_sources_hinoki.py`): `Form[...]`,
   `XML[...]` and `Query[...]` inputs, the built-in HTML and XML renderers and a
   `Request` parameter. No database.
+* `sync` (`PHASE2_SUITE=sync`, `phase2_sync_hinoki.py`): the `handlers` scenarios
+  (without the transaction one) served by `def` handlers, so the difference to
+  `handlers` is the cost of the bounded sync executor. No database.
 
 Each run first checks that both stacks return the same status and body for every
 scenario, records which lane the Rust server uses per route (`lanes.json`), then
@@ -392,4 +395,6 @@ P2BENCH_DATABASE_URL=postgresql://... \
   uv run --locked --no-sync python phase2_baseline.py --out results/<date>/request-path
 PHASE2_SUITE=sources \
   uv run --locked --no-sync python phase2_baseline.py --out results/<date>/text-sources
+PHASE2_SUITE=sync \
+  uv run --locked --no-sync python phase2_baseline.py --out results/<date>/sync-handlers
 ```
