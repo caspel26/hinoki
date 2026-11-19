@@ -428,7 +428,8 @@ def is_plain_resource(resource: object, owner: type[CrudAPI]) -> TypeGuard[_Crud
         type(owner) is type
         and type(resource) is _CrudConfig
         and owner_is_plain(owner)
-        and resource.read_access is None
+        and resource.access_for("list") is None
+        and resource.access_for("retrieve") is None
         and not resource.owner
         and not resource.assign
     )
