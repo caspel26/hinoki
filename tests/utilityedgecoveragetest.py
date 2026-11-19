@@ -380,10 +380,14 @@ def test_routes_command_lists_filters_and_reports_load_errors(
     monkeypatch.setattr(
         routescli, "build_app", lambda _target: SimpleNamespace(routes=routes)
     )
-    args = argparse.Namespace(target="app:app", path="/a", method="get", format="json")
+    monkeypatch.setattr(routescli, "lanes_of", lambda _app: {})
+    args = argparse.Namespace(
+        target="app:app", path="/a", method="get", format="json", lanes=False
+    )
     assert routescli.run_routes(args) == 0
     body = json.loads(capsys.readouterr().out)
     assert [item["path"] for item in body] == ["/a"]
+    assert body[0]["lane"] == "python"
     assert body[0]["access"] == "public"
     assert body[0]["handler"].endswith(".health")
 
