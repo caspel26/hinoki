@@ -10,7 +10,7 @@ import inspect
 import typing
 import unicodedata
 import uuid
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from datetime import datetime
@@ -30,6 +30,12 @@ from typing import (
 from uuid import UUID
 
 from hinoki import core
+from hinoki.computed import (
+    COMPUTED_TABLE,
+    ComputedSpec,
+    check_wire_names,
+    collect_computed,
+)
 from hinoki.core import dump_instance
 from hinoki.errors import (
     ErrorDetail,
@@ -229,6 +235,20 @@ def validate_reserved_names(cls: type, annotations: dict[str, Any]) -> None:
         raise RegistrationError(
             f"{cls.__name__}: supplied-field tracking metadata is reserved by Hinoki"
         )
+
+
+def register_computed(cls: type[Schema], annotations: dict[str, Any]) -> None:
+    """Collect the computed fields of ``cls`` and publish them for the Rust
+    serializer (names are checked against the declared fields here, wire names
+    once the fields are built)."""
+    declared = set(annotations)
+    for base in cls.__mro__[1:]:
+        if dataclasses.is_dataclass(base):
+            declared.update(item.name for item in dataclasses.fields(base))
+    specs = collect_computed(cls, tuple(cls.__computed_specs__.values()), declared)
+    cls.__computed_specs__ = specs
+    cls.__computed_checked__ = False
+    setattr(cls, COMPUTED_TABLE, tuple((s.name, s.wire_name) for s in specs.values()))
 
 
 def resolve_schema_config(
@@ -1021,6 +1041,8 @@ class Schema:
     __derivation__: ClassVar[tuple[Any, ...] | None] = None
     __derived_model__: ClassVar[type | None] = None
     __schema_config__: ClassVar[SchemaConfig] = SchemaConfig()
+    __computed_specs__: ClassVar[dict[str, ComputedSpec]] = {}
+    __computed_checked__: ClassVar[bool] = False
 
     def __init_subclass__(
         cls,
@@ -1050,6 +1072,7 @@ class Schema:
         cls.__normalizers__ = collect_normalizers(cls)
         annotations = inspect.get_annotations(cls)
         validate_reserved_names(cls, annotations)
+        register_computed(cls, annotations)
         cls.__schema_config__ = resolved_config
         for name in annotations:
             cls.apply_default(name)
@@ -1063,6 +1086,17 @@ class Schema:
             cls.__specs__ = cls.build_specs()
         except ForwardReference:
             cls.__specs__ = None  # resolved on first use (recursive schemas)
+        else:
+            cls.computed_fields()
+
+    @classmethod
+    def computed_fields(cls) -> dict[str, ComputedSpec]:
+        """The read-only values this schema adds to its output, by name."""
+        specs = cls.__computed_specs__
+        if specs and not cls.__dict__.get("__computed_checked__"):
+            check_wire_names(cls, specs, {s.wire_name for s in cls.specs().values()})
+            cls.__computed_checked__ = True
+        return dict(specs)
 
     @classmethod
     def apply_default(cls, name: str) -> None:
@@ -1312,8 +1346,13 @@ class Schema:
         """
         if type(exclude_unset) is not bool or type(by_alias) is not bool:
             raise TypeError("exclude_unset and by_alias must be bool")
-        selected_include = normalize_selector(include, "include", self.specs())
-        selected_exclude = normalize_selector(exclude, "exclude", self.specs()) or []
+        known: dict[str, object] = (
+            {**self.specs(), **self.computed_fields()}
+            if include is not None or exclude
+            else {}
+        )
+        selected_include = normalize_selector(include, "include", known)
+        selected_exclude = normalize_selector(exclude, "exclude", known) or []
         if (
             selected_include is None
             and not selected_exclude
@@ -1331,7 +1370,7 @@ class Schema:
 
 
 def normalize_selector(
-    values: Iterable[str] | None, label: str, specs: dict[str, FieldSpec]
+    values: Iterable[str] | None, label: str, specs: Mapping[str, object]
 ) -> list[str] | None:
     """Validate one shallow Python-name field selector."""
     if values is None:
@@ -1619,6 +1658,7 @@ SOURCE_SKIP = frozenset(
         "__annotate_func__", "__annotations_cache__", "__source__",
         "__derivation__", "__derived_model__", "__model_fields__",
         _SUPPLIED_FIELDS, _TRACKS_SUPPLIED_FIELDS,
+        "__computed_specs__", "__computed_checked__", COMPUTED_TABLE,
     }
 )  # fmt: skip
 

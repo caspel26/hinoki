@@ -42,7 +42,8 @@ pub use scalars::wire_text_of;
 use scalars::{ClockTime, DecimalNumber, Duration, DurationError};
 
 pub type SchemaWireNames = Vec<(String, String)>;
-pub type SchemaInstanceFields = Option<(SchemaWireNames, Py<PyAny>)>;
+/// Wire names, the `UNSET` sentinel and how many trailing names are computed.
+pub type SchemaInstanceFields = Option<(SchemaWireNames, Py<PyAny>, usize)>;
 
 const MAX_ERRORS: usize = 50;
 const MAX_KEY_ECHO: usize = 64;
@@ -823,6 +824,7 @@ pub fn instance_fields(
     value: &Bound<'_, PyAny>,
     honour_custom_dump: bool,
     by_alias: bool,
+    with_computed: bool,
 ) -> PyResult<SchemaInstanceFields> {
     let class = value.get_type();
     if !class.hasattr("__hinoki_schema__")? {
@@ -853,7 +855,7 @@ pub fn instance_fields(
         _ => class.call_method0("native_schema")?,
     };
     let compiled: PyRef<'_, Compiled> = compiled.extract()?;
-    let names = compiled.definitions[compiled.root]
+    let mut names: SchemaWireNames = compiled.definitions[compiled.root]
         .fields
         .iter()
         .map(|field| {
@@ -867,7 +869,28 @@ pub fn instance_fields(
             )
         })
         .collect();
-    Ok(Some((names, compiled.unset.clone_ref(value.py()))))
+    let computed = if with_computed {
+        computed_names(&table, by_alias)?
+    } else {
+        Vec::new()
+    };
+    let extra = computed.len();
+    names.extend(computed);
+    Ok(Some((names, compiled.unset.clone_ref(value.py()), extra)))
+}
+
+/// The class's own `(name, wire name)` pairs for its computed fields.
+fn computed_names(table: &Bound<'_, PyAny>, by_alias: bool) -> PyResult<SchemaWireNames> {
+    let Ok(entries) = table.get_item("__hinoki_computed__") else {
+        return Ok(Vec::new());
+    };
+    let mut names = Vec::new();
+    for entry in entries.try_iter()? {
+        let (name, wire_name): (String, String) = entry?.extract()?;
+        let shown = if by_alias { wire_name } else { name.clone() };
+        names.push((name, shown));
+    }
+    Ok(names)
 }
 
 /// Compile-check a `pattern=` at registration: the Rust `regex` syntax (linear
@@ -3896,7 +3919,7 @@ fn convert<'py>(
             depth,
         );
     }
-    if instance_fields(value, false, by_alias)?.is_some() {
+    if instance_fields(value, false, by_alias, false)?.is_some() {
         return convert_schema(value, json_mode, by_alias, exclude_unset, controlled, depth);
     }
     if json_mode {
@@ -4001,7 +4024,7 @@ fn convert_schema<'py>(
     controlled: bool,
     depth: usize,
 ) -> PyResult<Bound<'py, PyAny>> {
-    if json_mode && instance_fields(value, true, by_alias)?.is_none() {
+    if json_mode && instance_fields(value, true, by_alias, false)?.is_none() {
         if controlled {
             let class_name = value.get_type().name()?.to_string();
             return Err(pyo3::exceptions::PyTypeError::new_err(format!(
@@ -4053,11 +4076,18 @@ fn dump_instance_at<'py>(
     depth: usize,
 ) -> PyResult<Bound<'py, PyDict>> {
     let py = value.py();
-    let (names, unset) = dump_schema_fields(value, &options)?;
+    let (names, unset, computed) = dump_schema_fields(value, &options)?;
     let supplied = supplied_fields(value, options.exclude_unset)?;
     let out = PyDict::new(py);
-    for (name, wire_name) in names {
-        if skip_serialized_field(py, &name, &options, supplied.as_ref())? {
+    let first_computed = names.len() - computed;
+    for (index, (name, wire_name)) in names.into_iter().enumerate() {
+        // Computed values are never "unset": only include/exclude apply.
+        let tracked = if index < first_computed {
+            supplied.as_ref()
+        } else {
+            None
+        };
+        if skip_serialized_field(py, &name, &options, tracked)? {
             continue;
         }
         let item = value.getattr(name.as_str())?;
@@ -4082,8 +4112,13 @@ fn dump_instance_at<'py>(
 fn dump_schema_fields(
     value: &Bound<'_, PyAny>,
     options: &SerializationOptions<'_>,
-) -> PyResult<(SchemaWireNames, Py<PyAny>)> {
-    if let Some(fields) = instance_fields(value, options.controlled, options.by_alias)? {
+) -> PyResult<(SchemaWireNames, Py<PyAny>, usize)> {
+    if let Some(fields) = instance_fields(
+        value,
+        options.controlled,
+        options.by_alias,
+        options.json_mode,
+    )? {
         return Ok(fields);
     }
     if options.controlled {

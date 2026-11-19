@@ -507,6 +507,7 @@ def is_plain_schema(schema: type[Schema]) -> bool:
         and not schema.__checks__
         and type(schema.__normalizers__) is tuple
         and not schema.__normalizers__
+        and not schema.__computed_specs__
         and inspect.getattr_static(schema, "__post_init__", None) is None
         and inspect.getattr_static(schema, "__new__")
         is inspect.getattr_static(object, "__new__")

@@ -347,6 +347,8 @@ class OpenAPIBuilder:
             "additionalProperties": schema.__schema_config__.extra
             is SchemaExtra.IGNORE,
         }
+        for computed in schema.computed_fields().values():
+            result["properties"][computed.wire_name] = self.computed(schema, computed)
         required = [s.wire_name for s in specs.values() if s.required]
         if required:
             result["required"] = required
@@ -360,6 +362,16 @@ class OpenAPIBuilder:
                 result["allOf"] = alias_pairs
         if schema.__doc__:
             result["description"] = inspect.cleandoc(schema.__doc__).split("\n\n")[0]
+        return result
+
+    def computed(self, schema: type[Schema], spec: Any) -> dict[str, Any]:
+        """A computed field: output only, so it is read-only and never required."""
+        result = dict(self.field(spec.field_type(schema)))
+        result["readOnly"] = True
+        if spec.description is not None:
+            result["description"] = spec.description
+        if spec.examples:
+            result["examples"] = list(spec.examples)
         return result
 
     def shape(self, ftype: FieldType) -> dict[str, Any]:
