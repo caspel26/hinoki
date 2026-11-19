@@ -62,7 +62,23 @@ async def close_project(project_id: int) -> None:
 async def reopen_project(project_id: int) -> None: ...
 ```
 
-Each call of a decorated function opens its own scope: returning commits, an exception rolls back and propagates. The wrapper keeps the function's name, docstring, signature and annotations (`functools.wraps`). `db.atomic` wraps coroutine functions only: decorating a plain `def` raises `TypeError` when the decorator is applied, because raw database operations are async-only (see [sync and async](sync-async.md)).
+Each call of a decorated function opens its own scope: returning commits, an exception rolls back and propagates. The wrapper keeps the function's name, docstring, signature and annotations (`functools.wraps`).
+
+In a sync handler, hook or helper, use the same API without `await`: `with db.atomic():` as a block, or `@db.atomic` on a plain `def`. The sync model methods (`create`, `update`, `bulk_create`, ...) inside it run in the same transaction:
+
+```python
+@db.atomic
+def close_project_sync(project_id: int) -> None:
+    Task.update_where({"project_id": project_id}, {"done": True})
+    Project.update(id=project_id, closed=True)
+
+def archive(project: Project) -> None:
+    with db.atomic():
+        project.archived = True
+        project.save()
+```
+
+The sync forms only work on a worker thread served by Hinoki, as the sync model methods do; on the event loop they raise `RuntimeError` (use `async with` there). A nested sync scope is a savepoint, like the async one. Raw `Database.execute` and `fetch` remain async-only (see [sync and async](sync-async.md)).
 
 `db.atomic()` is `current_database().atomic()` resolved when the block is entered or the function is called. When you hold a `Database` yourself (a script, a module lifespan, `ctx.get(Database)`), call `database.atomic()` directly; it behaves the same. `Database.migration()` is the separate, exclusive scope used for migrations.
 
