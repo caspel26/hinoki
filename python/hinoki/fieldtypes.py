@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from typing import (
     TYPE_CHECKING,
     Annotated,
@@ -41,8 +42,18 @@ SCALARS: dict[type, str] = {
     timedelta: "timedelta",
     Decimal: "decimal",
     bytes: "bytes",
+    IPv4Address: "ipv4",
+    IPv6Address: "ipv6",
+    IPv4Network: "ipv4network",
+    IPv6Network: "ipv6network",
     Any: "any",
     object: "any",
+}
+# The classes a Model column of these kinds holds; the database stores text.
+TEXT_STORED: dict[str, type] = {
+    kind: cls
+    for cls, kind in SCALARS.items()
+    if cls in {IPv4Address, IPv6Address, IPv4Network, IPv6Network}
 }
 
 DECIMAL_DIGITS_CEILING = 1000
