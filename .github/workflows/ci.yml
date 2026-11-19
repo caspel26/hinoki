@@ -234,10 +234,14 @@ jobs:
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      # Prebuilt, checksum-verified binaries: compiling both tools took about 4 minutes.
+      - uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2.90.6
+        with:
+          tool: cargo-audit,cargo-deny
       - name: Audit Cargo.lock against the RustSec advisory database
-        run: cargo install cargo-audit --locked && cargo audit
+        run: cargo audit
       - name: Check licences, bans and sources (deny.toml)
-        run: cargo install cargo-deny --locked && cargo deny check
+        run: cargo deny check
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
       - name: Audit uv.lock against the Python advisory database
         run: |
