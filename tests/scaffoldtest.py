@@ -243,6 +243,7 @@ def new_args(**overrides: Any) -> Any:
         "dir": None,
         "hinoki": None,
         "database": None,
+        "server": None,
         "agent_files": None,
         "skills": None,
         "git": None,
@@ -254,8 +255,8 @@ def new_args(**overrides: Any) -> Any:
 
 def test_prompts_fill_only_what_the_flags_left_unset(tmp_path: Path) -> None:
     args = new_args(name="shop", dir=str(tmp_path), database="sqlite")
-    fill_from_prompts(args, answers("n", "", "", "n"))
-    assert (args.name, args.database) == ("shop", "sqlite")
+    fill_from_prompts(args, answers("", "n", "", "", "n"))
+    assert (args.name, args.database, args.server) == ("shop", "sqlite", "kiso")
     assert (args.agent_files, args.skills, args.git, args.install) == (
         False,
         False,
@@ -269,6 +270,7 @@ def test_the_skills_question_can_be_answered_yes() -> None:
         name="shop",
         dir=".",
         database="none",
+        server="kiso",
         agent_files=True,
         git=False,
         install=False,
@@ -288,6 +290,8 @@ def test_prompts_repeat_until_the_answer_is_valid() -> None:
             "",
             "oracle",
             "sqlite",
+            "nginx",
+            "granian",
             "maybe",
             "y",
             "",
@@ -295,10 +299,11 @@ def test_prompts_repeat_until_the_answer_is_valid() -> None:
             "",
         ),
     )
-    assert (args.name, args.dir, args.database, args.agent_files) == (
+    assert (args.name, args.dir, args.database, args.server, args.agent_files) == (
         "shop",
         ".",
         "sqlite",
+        "granian",
         True,
     )
 
@@ -399,18 +404,63 @@ def test_styling_is_used_only_on_a_capable_terminal() -> None:
     assert "\u2714" not in ascii_only.ok("done")
 
 
+def test_the_server_choice_is_kiso_unless_the_project_asks_for_granian(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    kiso = create("fast", tmp_path)
+    assert not (kiso / "settings.toml").exists()
+    assert "toml=" not in (kiso / "fast/settings.py").read_text()
+    granian = create("calm", tmp_path, server="granian", database="sqlite")
+    assert (granian / "settings.toml").read_text().count('server = "granian"') == 1
+    monkeypatch.chdir(granian)
+    namespace: dict[str, Any] = {}
+    exec((granian / "calm/settings.py").read_text(), namespace)  # noqa: S102
+    loaded = namespace["ProjectSettings"].load()
+    assert loaded.server.server == "granian"
+    monkeypatch.setenv("CALM_SERVER__SERVER", "kiso")
+    assert namespace["ProjectSettings"].load().server.server == "kiso"
+
+
+def test_an_unknown_server_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(ScaffoldError, match="server must be one of kiso, granian"):
+        create("shop", tmp_path, server="uvicorn")
+    with pytest.raises(SystemExit):
+        main(
+            ["new", "shop", "--no-input", "--server", "uvicorn", "--dir", str(tmp_path)]
+        )
+    assert (
+        main(
+            ["new", "shop", "--no-input", "--server", "granian", "--dir", str(tmp_path)]
+        )
+        == 0
+    )
+    assert (tmp_path / "shop/settings.toml").is_file()
+
+
 def test_the_database_prompt_accepts_a_number_or_a_name(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     args = new_args(
-        name="shop", dir=".", agent_files=True, skills=False, git=False, install=False
+        name="shop",
+        dir=".",
+        server="kiso",
+        agent_files=True,
+        skills=False,
+        git=False,
+        install=False,
     )
     fill_from_prompts(args, answers("7", "2"))
     assert args.database == "sqlite"
     listing = capsys.readouterr().out
     assert "1) none" in listing and "3) postgresql" in listing
     args = new_args(
-        name="shop", dir=".", agent_files=True, skills=False, git=False, install=False
+        name="shop",
+        dir=".",
+        server="kiso",
+        agent_files=True,
+        skills=False,
+        git=False,
+        install=False,
     )
     fill_from_prompts(args, answers("postgresql"))
     assert args.database == "postgresql"
@@ -423,10 +473,17 @@ def keyed(text: str) -> tuple[Prompter, io.StringIO]:
 
 
 def test_key_driven_prompts_settle_into_a_summary_line() -> None:
-    prompter, out = keyed("Bad\r\x7f\x7f\x7fshop\r\r\x1b[B\x1b[B\x1b[A\rn\r\r\r\r")
+    prompter, out = keyed(
+        "Bad\r\x7f\x7f\x7fshop\r\r\x1b[B\x1b[B\x1b[A\r\x1b[B\rn\r\r\r\r"
+    )
     args = new_args()
     newcli.fill(args, prompter)
-    assert (args.name, args.dir, args.database) == ("shop", ".", "sqlite")
+    assert (args.name, args.dir, args.database, args.server) == (
+        "shop",
+        ".",
+        "sqlite",
+        "granian",
+    )
     assert (args.agent_files, args.skills, args.git, args.install) == (
         False,
         False,
