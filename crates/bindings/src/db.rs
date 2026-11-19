@@ -70,6 +70,52 @@ pub(crate) fn db_error(py: Python<'_>, err: &DbError) -> PyErr {
     }
 }
 
+const MICROS_PER_SECOND: i128 = 1_000_000;
+const MICROS_PER_DAY: i128 = 86_400 * MICROS_PER_SECOND;
+
+/// The column form of the values a `Model` column stores in a plain type: a
+/// `date` and a `Decimal` as text, a `time` as fixed-width text, a `timedelta`
+/// as whole microseconds and an `Enum` member as its value.
+fn stored_scalar(obj: &Bound<'_, PyAny>) -> PyResult<Option<Value>> {
+    let py = obj.py();
+    if obj.is_instance(crate::pytypes::date_class(py)?)? {
+        return Ok(Some(Value::Text(obj.call_method0("isoformat")?.extract()?)));
+    }
+    if obj.is_instance(crate::pytypes::time_class(py)?)? {
+        if !obj.getattr("tzinfo")?.is_none() {
+            return Err(PyValueError::new_err(
+                "time parameters must not carry a timezone",
+            ));
+        }
+        let kwargs = pyo3::types::PyDict::new(py);
+        kwargs.set_item("timespec", "microseconds")?;
+        let text = obj.call_method("isoformat", (), Some(&kwargs))?;
+        return Ok(Some(Value::Text(text.extract()?)));
+    }
+    if obj.is_instance(crate::pytypes::timedelta_class(py)?)? {
+        return duration_micros(obj).map(|micros| Some(Value::Int(micros)));
+    }
+    if obj.is_instance(crate::pytypes::decimal_class(py)?)? {
+        if !obj.call_method0("is_finite")?.extract::<bool>()? {
+            return Err(PyValueError::new_err("a Decimal parameter must be finite"));
+        }
+        return Ok(Some(Value::Text(obj.str()?.extract()?)));
+    }
+    match crate::pytypes::enum_value(obj)? {
+        Some(value) => to_value(&value).map(Some),
+        None => Ok(None),
+    }
+}
+
+fn duration_micros(obj: &Bound<'_, PyAny>) -> PyResult<i64> {
+    let days: i128 = obj.getattr("days")?.extract()?;
+    let seconds: i128 = obj.getattr("seconds")?.extract()?;
+    let micros: i128 = obj.getattr("microseconds")?.extract()?;
+    let total = days * MICROS_PER_DAY + seconds * MICROS_PER_SECOND + micros;
+    i64::try_from(total)
+        .map_err(|_| PyValueError::new_err("timedelta out of range for a 64-bit column"))
+}
+
 pub(crate) fn to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     let py = obj.py();
     if obj.is_none() {
@@ -117,6 +163,9 @@ pub(crate) fn to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
         return hinoki_orm::parse_timestamp(&text)
             .map(Value::Timestamp)
             .ok_or_else(|| PyValueError::new_err("invalid datetime parameter"));
+    }
+    if let Some(value) = stored_scalar(obj)? {
+        return Ok(value);
     }
     if obj.is_instance_of::<PyDict>() || obj.is_instance_of::<PyList>() {
         let text: String = py
