@@ -33,8 +33,10 @@ use uuid::Uuid;
 use crate::request::{Json, JsonObject};
 
 mod coerce;
+mod internet;
 mod scalars;
 
+use internet::NetKind;
 pub(crate) use scalars::wire_text;
 pub use scalars::wire_text_of;
 use scalars::{ClockTime, DecimalNumber, Duration, DurationError};
@@ -152,6 +154,8 @@ enum Kind<R: Rules> {
     Timedelta,
     Decimal,
     Bytes,
+    /// An `ipaddress` address or network, read from text.
+    Net(NetKind),
     /// `Any` / `object`: every value is accepted as it is.
     Any,
     /// A plain union: the variants in declared order, the first that accepts
@@ -203,6 +207,8 @@ struct Node<R: Rules> {
     /// `Decimal` only: the digit counts the written value may have.
     max_digits: Option<i64>,
     decimal_places: Option<i64>,
+    /// `int` and `Decimal` only: the step the value must be a multiple of.
+    multiple_of: Option<R::Limit>,
 }
 
 struct Field<R: Rules> {
@@ -266,6 +272,8 @@ pub(crate) enum Validated {
     /// The decimal text as written (its scale is part of the value).
     Decimal(String),
     Bytes(Vec<u8>),
+    /// The text as written; the kind says which `ipaddress` class it becomes.
+    Net(NetKind, String),
     List(Vec<Validated>),
     /// A schema object, or the entries of a `dict` field in input order.
     Object(Vec<(String, Validated)>),
@@ -332,6 +340,10 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
         "timedelta" => Kind::Timedelta,
         "decimal" => Kind::Decimal,
         "bytes" => Kind::Bytes,
+        "ipv4" => Kind::Net(NetKind::V4),
+        "ipv6" => Kind::Net(NetKind::V6),
+        "ipv4network" => Kind::Net(NetKind::V4Network),
+        "ipv6network" => Kind::Net(NetKind::V6Network),
         "list" => {
             let inner = item.ok_or_else(|| compile_error("list type without an item type"))?;
             Kind::List(Box::new(parse_node(&inner)?))
@@ -416,6 +428,7 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
         member: optional_object(&constraints, "enum")?,
         max_digits: optional_int(&constraints, "max_digits")?,
         decimal_places: optional_int(&constraints, "decimal_places")?,
+        multiple_of: optional_object(&constraints, "multiple_of")?,
     })
 }
 
@@ -563,6 +576,7 @@ fn lower_kind(py: Python<'_>, kind: &Kind<PyRules>) -> Result<Kind<NativeRules>,
         Kind::Timedelta => Kind::Timedelta,
         Kind::Decimal => Kind::Decimal,
         Kind::Bytes => Kind::Bytes,
+        Kind::Net(kind) => Kind::Net(*kind),
         Kind::List(item) => Kind::List(Box::new(lower_node(py, item)?)),
         Kind::Tuple(_) | Kind::Any | Kind::AnyOf(_) => return Err(Unlowerable),
         Kind::Map { key, value } => Kind::Map {
@@ -626,6 +640,7 @@ fn lower_node(py: Python<'_>, node: &Node<PyRules>) -> Result<Node<NativeRules>,
         member: None,
         max_digits: node.max_digits,
         decimal_places: node.decimal_places,
+        multiple_of: limit(&node.multiple_of)?,
     })
 }
 
@@ -927,6 +942,12 @@ trait View {
         limit: &<Self::Rules as Rules>::Limit,
         op: CompareOp,
     ) -> Result<Option<String>, Self::Error>;
+    /// `Some(shown step)` when `value` is not a multiple of `step`.
+    fn multiple_fails(
+        &self,
+        value: &Self::Out,
+        step: &<Self::Rules as Rules>::Limit,
+    ) -> Result<Option<String>, Self::Error>;
     fn is_choice(
         &self,
         value: &Self::Out,
@@ -956,6 +977,7 @@ enum Wire {
     Duration(Duration),
     Decimal,
     Bytes(Vec<u8>),
+    Net(NetKind),
 }
 
 /// Reads Python objects and builds the Python result (`CompiledSchema.validate`).
@@ -1062,6 +1084,10 @@ impl<'py> View for PyView<'_, 'py> {
             }
             Wire::Decimal => crate::pytypes::decimal_class(py)?.call1((text,)),
             Wire::Bytes(raw) => Ok(PyBytes::new(py, &raw).into_any()),
+            Wire::Net(kind) => py
+                .import("ipaddress")?
+                .getattr(kind.class_name())?
+                .call1((text,)),
         }
     }
 
@@ -1177,6 +1203,23 @@ impl<'py> View for PyView<'_, 'py> {
             return Ok(None);
         }
         Ok(Some(limit.str()?.to_string()))
+    }
+
+    fn multiple_fails(&self, value: &Self::Out, step: &Py<PyAny>) -> PyResult<Option<String>> {
+        let step = step.bind(self.py);
+        // Exact fractions: `Decimal` arithmetic would round past its precision.
+        let ratio =
+            |number: &Bound<'py, PyAny>| -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>)> {
+                number.call_method0("as_integer_ratio")?.extract()
+            };
+        let (value_n, value_d) = ratio(value)?;
+        let (step_n, step_d) = ratio(step)?;
+        let left = value_n.mul(&step_d)?;
+        let right = step_n.mul(&value_d)?;
+        if left.rem(&right)?.is_truthy()? {
+            return Ok(Some(step.str()?.to_string()));
+        }
+        Ok(None)
     }
 
     fn is_choice(&self, value: &Self::Out, choices: &Vec<Py<PyAny>>) -> PyResult<bool> {
@@ -1470,6 +1513,7 @@ impl<'v> View for JsonView<'v> {
             Wire::Duration(span) => Validated::Duration(span),
             Wire::Decimal => Validated::Decimal(text.to_owned()),
             Wire::Bytes(raw) => Validated::Bytes(raw),
+            Wire::Net(kind) => Validated::Net(kind, text.to_owned()),
         })
     }
 
@@ -1584,6 +1628,23 @@ impl<'v> View for JsonView<'v> {
             return Ok(None);
         }
         Ok(Some(limit.shown.clone()))
+    }
+
+    fn multiple_fails(
+        &self,
+        value: &Validated,
+        step: &NativeLimit,
+    ) -> Result<Option<String>, Defer> {
+        let multiple = match (value, &step.value) {
+            (Validated::Int(int), LimitValue::Number(Number::Int(step))) => {
+                int.checked_rem(*step) == Some(0)
+            }
+            (Validated::Decimal(text), LimitValue::Decimal(step)) => DecimalNumber::parse(text)
+                .and_then(|number| number.is_multiple_of(step))
+                .ok_or(Defer("multiple_of"))?,
+            _ => return Err(Defer("multiple_of")),
+        };
+        Ok((!multiple).then(|| step.shown.clone()))
     }
 
     fn is_choice(&self, value: &Validated, choices: &NativeChoices) -> Result<bool, Defer> {
@@ -1716,6 +1777,7 @@ impl<'a, V: View> Run<'a, V> {
             Kind::Timedelta => self.duration(data, path)?,
             Kind::Decimal => self.decimal(node, data, path)?,
             Kind::Bytes => self.binary(node, data, path)?,
+            Kind::Net(kind) => self.internet(*kind, data, path)?,
             Kind::List(item) => self.sequence(node, item, data, path, depth)?,
             Kind::Tuple(positions) => self.fixed(node, positions, data, path, depth)?,
             Kind::AnyOf(variants) => self.any_of(variants, data, path, depth)?,
@@ -1867,6 +1929,19 @@ impl<'a, V: View> Run<'a, V> {
                 }
             }
         }
+        if let Some(step) = &node.multiple_of {
+            let failed = self
+                .view
+                .multiple_fails(&value, step)
+                .map_err(Abort::View)?;
+            if let Some(shown) = failed {
+                return self.fail(
+                    path,
+                    "multiple_of",
+                    format!("must be a multiple of {shown}"),
+                );
+            }
+        }
         Ok(Some(value))
     }
 
@@ -1961,6 +2036,18 @@ impl<'a, V: View> Run<'a, V> {
         Ok(Some(
             self.view
                 .wire(Wire::Time(clock), text)
+                .map_err(Abort::View)?,
+        ))
+    }
+
+    fn internet(&mut self, kind: NetKind, data: &V::Data, path: &str) -> Checked<V> {
+        let text = self.plain_text(data).filter(|text| kind.accepts(text));
+        let Some(text) = text else {
+            return self.fail(path, kind.code(), kind.message().to_owned());
+        };
+        Ok(Some(
+            self.view
+                .wire(Wire::Net(kind), &text)
                 .map_err(Abort::View)?,
         ))
     }
@@ -2871,6 +2958,7 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
             | Validated::Time(_)
             | Validated::Duration(_)
             | Validated::Decimal(_)
+            | Validated::Net(..)
             | Validated::Bytes(_) => python_wire_value(py, value),
             Validated::List(items) => {
                 let list = PyList::empty(py);
@@ -2938,6 +3026,13 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
                 .call1((text,))
                 .unwrap(),
             Validated::Bytes(raw) => PyBytes::new(py, raw).into_any(),
+            Validated::Net(kind, text) => py
+                .import("ipaddress")
+                .unwrap()
+                .getattr(kind.class_name())
+                .unwrap()
+                .call1((text,))
+                .unwrap(),
             _ => unreachable!("not a wire value"),
         }
     }

@@ -27,6 +27,10 @@ CATALOG: dict[str, tuple[str, str]] = {
         "A number is not less than the schema's exclusive upper limit (`lt`).",
         "Send a value strictly less than the limit shown in the message.",
     ),
+    "multiple_of": (
+        "An `int` or `Decimal` is not a whole multiple of the schema's step (`multiple_of`).",
+        "Send a value that is a multiple of the step shown in the message.",
+    ),
     "bad_request": (
         "The request is malformed in a way no more specific code covers (HTTP 400).",
         "Read the message; correct the request.",
@@ -118,6 +122,22 @@ CATALOG: dict[str, tuple[str, str]] = {
     "bytes": (
         "Not standard padded base64.",
         "Encode the value as canonical base64 (RFC 4648, with = padding).",
+    ),
+    "ipv4": (
+        "Not an IPv4 address.",
+        "Send four dotted decimal numbers 0-255 without leading zeros, e.g. 192.168.0.1.",
+    ),
+    "ipv6": (
+        "Not an IPv6 address.",
+        "Send the standard text form, e.g. 2001:db8::1 (no zone id, no brackets).",
+    ),
+    "ipv4network": (
+        "Not an IPv4 network, or it has host bits set.",
+        "Send address/prefix with the host bits zero, e.g. 10.0.0.0/8.",
+    ),
+    "ipv6network": (
+        "Not an IPv6 network, or it has host bits set.",
+        "Send address/prefix with the host bits zero, e.g. 2001:db8::/32.",
     ),
     "too_many_errors": (
         "More than 50 problems; the list was cut.",

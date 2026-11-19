@@ -6,12 +6,14 @@ import base64
 import binascii
 import dataclasses
 import datetime as dt
+import ipaddress
 import math
 import operator
 import re
 from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
+from fractions import Fraction
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -26,6 +28,12 @@ INVALID = object()
 """Returned by checks that recorded an error."""
 
 MAX_ERRORS = 50
+NETWORK_KINDS: dict[str, tuple[Callable[[str], object], str]] = {
+    "ipv4": (ipaddress.IPv4Address, "an IPv4 address"),
+    "ipv6": (ipaddress.IPv6Address, "an IPv6 address"),
+    "ipv4network": (ipaddress.IPv4Network, "an IPv4 network with no host bits"),
+    "ipv6network": (ipaddress.IPv6Network, "an IPv6 network with no host bits"),
+}
 MAX_KEY_ECHO = 64
 RFC3339 = re.compile(
     r"\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})?"
@@ -92,6 +100,10 @@ class Validator:
             "timedelta": self.duration,
             "decimal": self.decimal,
             "bytes": self.binary,
+            "ipv4": self.internet,
+            "ipv6": self.internet,
+            "ipv4network": self.internet,
+            "ipv6network": self.internet,
             "list": self.sequence,
             "tuple": self.fixed,
             "anyof": self.anyof,
@@ -154,6 +166,9 @@ class Validator:
             limit = getattr(ftype.info, name)
             if limit is not None and not compare(data, limit):
                 return self.fail(path, name, f"must be {words} {limit}")
+        step = ftype.info.multiple_of
+        if step is not None and Fraction(data) % Fraction(step) != 0:
+            return self.fail(path, "multiple_of", f"must be a multiple of {step}")
         return data
 
     def integer(self, ftype: FieldType, data: Any, path: str) -> object:
@@ -265,6 +280,23 @@ class Validator:
                 )
                 return self.fail(path, code, f"at most {limit} {unit}{plural}{after}")
         return self.bounds(ftype, value, path)
+
+    def internet(self, ftype: FieldType, data: Any, path: str) -> object:
+        """An address or network as the standard library parses it, minus the
+        spellings Hinoki does not take: zone ids, netmask forms, anything but
+        a decimal prefix length."""
+        parse, label = NETWORK_KINDS[ftype.kind]
+        text = data if isinstance(data, str) else ""
+        _, slash, prefix = text.partition("/")
+        form_ok = "%" not in text and (
+            not slash or (prefix.isascii() and prefix.isdigit())
+        )
+        if not isinstance(data, str) or not form_ok:
+            return self.fail(path, ftype.kind, f"expected {label}")
+        try:
+            return parse(text)
+        except ValueError:
+            return self.fail(path, ftype.kind, f"expected {label}")
 
     def binary(self, ftype: FieldType, data: Any, path: str) -> object:
         found = BASE64.fullmatch(data) if isinstance(data, str) else None

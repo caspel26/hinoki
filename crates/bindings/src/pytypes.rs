@@ -38,6 +38,19 @@ pub fn decimal_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
     DECIMAL.import(py, "decimal", "Decimal")
 }
 
+static IP_ADDRESS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static IP_NETWORK: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+/// Whether `value` is any `ipaddress` address or network; the four concrete
+/// classes share these two bases.
+pub fn is_ip_object(value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let py = value.py();
+    Ok(
+        value.is_instance(IP_ADDRESS.import(py, "ipaddress", "_BaseAddress")?)?
+            || value.is_instance(IP_NETWORK.import(py, "ipaddress", "_BaseNetwork")?)?,
+    )
+}
+
 pub fn enum_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
     ENUM.import(py, "enum", "Enum")
 }

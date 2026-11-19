@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, overload
+from typing import Annotated, Any, overload
 
 
 class Unset:
@@ -42,6 +42,7 @@ class FieldInfo:
     one_of: tuple[Any, ...] | None = None
     max_digits: int | None = None
     decimal_places: int | None = None
+    multiple_of: int | Decimal | None = None
     alias: str | None = None
     discriminator: str | None = None
     default_factory: Callable[[], Any] | None = None
@@ -59,6 +60,7 @@ class FieldInfo:
             "one_of",
             "max_digits",
             "decimal_places",
+            "multiple_of",
         )
         return {n: getattr(self, n) for n in names if getattr(self, n) is not None}
 
@@ -79,6 +81,7 @@ def Field(
     one_of: Sequence[Any] | None = None,
     max_digits: int | None = None,
     decimal_places: int | None = None,
+    multiple_of: int | Decimal | None = None,
     format: str | None = None,
     discriminator: str | None = None,
 ) -> Any: ...
@@ -95,6 +98,7 @@ def Field(
     one_of: Sequence[Any] | None = None,
     max_digits: int | None = None,
     decimal_places: int | None = None,
+    multiple_of: int | Decimal | None = None,
     format: str | None = None,
     alias: str | None = None,
     discriminator: str | None = None,
@@ -131,3 +135,9 @@ def resolve_format(options: dict[str, Any]) -> dict[str, Any]:
     if options.get("pattern") is not None:
         raise ValueError("use format= or pattern=, not both")
     return {**options, "pattern": FORMATS[name]}
+
+
+# Ready-made annotations: ``email: Email`` is ``Annotated[str, Field(format="email")]``.
+Email = Annotated[str, Field(format="email")]
+Url = Annotated[str, Field(format="url")]
+Slug = Annotated[str, Field(format="slug")]

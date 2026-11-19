@@ -170,7 +170,29 @@ assert booking.dump()["price"] == "19.90"
 | `bytes` | standard padded base64 (`+`, `/`, `=`); no whitespace or URL-safe alphabet | padded base64 | `bytes` |
 
 * **A time needs an offset** on the wire, as a `datetime` does; a time without one is reported as `time_tz`. Fields derived from a `Model` through `from_model()` accept naive times, as they accept naive datetimes. A `date` field refuses a `datetime`.
-* **`Decimal` is exact.** Bounds `ge`, `le`, `gt` and `lt` (an `int` or `Decimal`, never a float) compare exactly. `max_digits` (default 64, at most 1000) counts all digits, `decimal_places` the digits after the point, and when `decimal_places` is declared the digits before the point are limited to `max_digits - decimal_places`. The codes are `max_digits`, `decimal_places` and `max_whole_digits`; the checks run in that order, then the bounds. A `decimal_places` above `max_digits` is refused at class creation.
+* **`Decimal` is exact.** Bounds `ge`, `le`, `gt` and `lt` (an `int` or `Decimal`, never a float) compare exactly. `max_digits` (default 64, at most 1000) counts all digits, `decimal_places` the digits after the point, and when `decimal_places` is declared the digits before the point are limited to `max_digits - decimal_places`. The codes are `max_digits`, `decimal_places` and `max_whole_digits`; the checks run in that order, then the bounds, then `multiple_of`. A `decimal_places` above `max_digits` is refused at class creation.
+
+### Multiples
+
+`Field(multiple_of=step)` requires an `int` or `Decimal` value to be a whole multiple of `step`. The step is a positive `int` (for `int` fields) or a positive finite `int`/`Decimal` (for `Decimal` fields) and the check is exact, however large the numbers. It runs after the bounds and fails with the code `multiple_of`. A `float` field refuses `multiple_of` at class creation because float multiples are inexact: declare a `Decimal` field instead.
+
+```python
+from decimal import Decimal
+from typing import Annotated
+
+from hinoki import Field, Schema
+
+
+class Order(Schema):
+    quantity: Annotated[int, Field(ge=0, multiple_of=5)]
+    price: Annotated[Decimal, Field(multiple_of=Decimal("0.05"), max_digits=8)]
+
+
+Order.validate({"quantity": 10, "price": "9.95"})  # accepted
+Order.validate({"quantity": 12, "price": "9.97"})  # two `multiple_of` errors
+```
+
+JSON input is already strict about types (a float is never an integer, a `Decimal` is a string); the text sources (query, form) coerce as documented above.
 * **`bytes` size.** `min_length` and `max_length` count decoded bytes (`at most 1024 bytes`). Client input without a `max_length` is limited to 65536 decoded bytes (`hinoki.fieldtypes.MAX_BYTES_LENGTH`); a declared `max_length` replaces the limit. Fields derived from a `Model` column never get it. `pattern` and `format=` do not apply to `bytes`.
 * **Text sources.** Form, query and XML values use the same text forms, so `validate_text` needs no conversion for these types.
 * **Models.** A `bytes` column stores as `BYTEA` on PostgreSQL and a blob on SQLite, and native CRUD serialises it as base64. Constraints on a `bytes` model column are refused. The ORM stores only `bytes` among these types; `date`, `time`, `timedelta` and `Decimal` are not model column types yet.
@@ -265,6 +287,46 @@ except ValidationError as error:
 * `HNK-SCH-002` checks each text variant of a union for `max_length`.
 
 Not supported yet: `TypedDict` and dataclass fields.
+
+### Internet addresses, `Email`, `Url` and `Slug`
+
+```python
+from ipaddress import IPv4Address, IPv4Network
+
+from hinoki import Email, Schema, Url
+from hinoki.errors import ValidationError
+
+
+class Allowlist(Schema):
+    owner: Email
+    homepage: Url | None = None
+    source: IPv4Address
+    subnet: IPv4Network | None = None
+
+
+rule = Allowlist.validate(
+    {"owner": "ops@example.com", "source": "10.0.0.7", "subnet": "10.0.0.0/24"}
+)
+assert rule.source == IPv4Address("10.0.0.7")
+assert rule.dump()["subnet"] == "10.0.0.0/24"
+
+try:
+    Allowlist.validate(
+        {"owner": "ops@example.com", "source": "10.0.0.7", "subnet": "10.0.0.7/24"}
+    )
+except ValidationError as error:
+    assert [(d.path, d.code) for d in error.details] == [("subnet", "ipv4network")]
+```
+
+* **Types.** `IPv4Address`, `IPv6Address`, `IPv4Network` and `IPv6Network` from `ipaddress` are read from a JSON string and become the object. The error code is `ipv4`, `ipv6`, `ipv4network` or `ipv6network`. A union such as `IPv4Address | IPv6Address` takes either family.
+* **Strict text.** Only ASCII is accepted. IPv4 refuses leading zeros; IPv6 refuses a zone id (`fe80::1%eth0`). A network needs a prefix length of plain digits within its family (no netmask form, no sign) and no host bits set (`10.0.0.7/24` is refused); a bare address is a single-host network.
+* **No constraints.** `Field(...)` options do not apply to these types and are refused when the class is created. Output is the canonical text (`dump()` and JSON responses); constructing with `Allowlist(source=...)` takes the matching `ipaddress` object only.
+* **`Email`, `Url` and `Slug`** are `Annotated[str, Field(format=...)]` shortcuts (see [validation](#built-in-and-custom-validation)). They are plain text, so they also work as `Model` columns. `Email` is a syntactic check, not a deliverability check.
+* **OpenAPI** writes `type: string` with `format: ipv4`, `ipv6`, `ipv4network` or `ipv6network`.
+* **Native lane.** Checked in Rust on both lanes with the same grammar; the GIL-free lane keeps the text and builds the `ipaddress` object when a handler asks for it.
+* **Models.** A `Model` column of these types is stored as `text` and read back as the object; a write checks that the value is an `ipaddress` object of the right family before SQL is sent (`ModelValidationError`). See [models](models.md).
+
+Not supported yet: `SecretStr` and `Path`.
 
 ## Wire aliases
 

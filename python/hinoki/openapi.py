@@ -47,11 +47,15 @@ KIND_SCHEMAS: dict[str, dict[str, Any]] = {
         "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
     },
     "bytes": {"type": "string", "format": "byte", "contentEncoding": "base64"},
+    "ipv4": {"type": "string", "format": "ipv4"},
+    "ipv6": {"type": "string", "format": "ipv6"},
+    "ipv4network": {"type": "string", "format": "ipv4network"},
+    "ipv6network": {"type": "string", "format": "ipv6network"},
 }
 # Not keywords of the document: digit counts are enforced, not described, and
 # the length of a ``bytes`` field counts decoded bytes, not base64 characters.
 UNDESCRIBED = {
-    "decimal": frozenset({"max_digits", "decimal_places"}),
+    "decimal": frozenset({"max_digits", "decimal_places", "multiple_of"}),
     "bytes": frozenset({"min_length", "max_length"}),
 }
 CONSTRAINT_KEYWORDS = {
@@ -63,6 +67,7 @@ CONSTRAINT_KEYWORDS = {
     "gt": "exclusiveMinimum",
     "lt": "exclusiveMaximum",
     "one_of": "enum",
+    "multiple_of": "multipleOf",
 }
 LENGTH_KEYWORDS = {
     "string": ("minLength", "maxLength"),
