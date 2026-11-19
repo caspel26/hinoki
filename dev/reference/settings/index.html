@@ -1569,9 +1569,13 @@ prints one line per request on either server; unset, <code>hinoki dev</code> log
 chooses how a line looks; unset, it is <code>pretty</code> on a colour terminal and
 <code>plain</code> otherwise, and setting it turns the log on unless <code>access_log</code> is
 <code>False</code>. <code>json</code> writes one object per line with an RFC 3339 UTC <code>time</code>.
+<code>access_log_skip</code> (Rust server only) lists paths the log leaves out, such
+as health checks: exact, or a prefix when the entry ends with <code>*</code>.
+<code>access_log_slow_ms</code> keeps only answers at least that slow. Both always
+keep failures (status 400 and up).
 <code>max_connections</code>, <code>header_read_timeout</code>,
 <code>body_read_timeout</code>, <code>write_timeout</code>, <code>native_dispatch</code> and
-<code>access_log_format</code> belong to
+<code>access_log_format</code>, <code>access_log_skip</code> and <code>access_log_slow_ms</code> belong to
 the Rust server (<code>None</code> keeps its default). <code>hinoki serve</code> refuses a
 setting the chosen server cannot honour. <code>tls_cert_file</code> and
 <code>tls_key_file</code> (PEM files, set together) serve HTTPS on either server;

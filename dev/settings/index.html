@@ -564,6 +564,18 @@
 </tr>
 <tr>
 <td><code>server</code></td>
+<td><code>access_log_skip</code></td>
+<td>unset</td>
+<td>Kiso only: paths the log leaves out, exact or a <code>*</code> prefix; failures are still logged</td>
+</tr>
+<tr>
+<td><code>server</code></td>
+<td><code>access_log_slow_ms</code></td>
+<td>unset</td>
+<td>Kiso only: keep only answers at least this slow (ms); failures are still logged</td>
+</tr>
+<tr>
+<td><code>server</code></td>
 <td><code>access_log_format</code></td>
 <td>unset</td>
 <td>Kiso only (Granian refuses it): <code>pretty</code>, <code>plain</code> or <code>json</code>. Unset is <code>pretty</code> on a colour terminal and <code>plain</code> otherwise</td>
@@ -1007,7 +1019,7 @@ BLOG_JWT_SECRET               file         ***
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.20</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 20:10:11 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 20:33:50 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>18 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
