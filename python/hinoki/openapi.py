@@ -51,7 +51,7 @@ KIND_SCHEMAS: dict[str, dict[str, Any]] = {
 # Not keywords of the document: digit counts are enforced, not described, and
 # the length of a ``bytes`` field counts decoded bytes, not base64 characters.
 UNDESCRIBED = {
-    "decimal": frozenset({"max_digits", "decimal_places"}),
+    "decimal": frozenset({"max_digits", "decimal_places", "multiple_of"}),
     "bytes": frozenset({"min_length", "max_length"}),
 }
 CONSTRAINT_KEYWORDS = {
@@ -63,6 +63,7 @@ CONSTRAINT_KEYWORDS = {
     "gt": "exclusiveMinimum",
     "lt": "exclusiveMaximum",
     "one_of": "enum",
+    "multiple_of": "multipleOf",
 }
 LENGTH_KEYWORDS = {
     "string": ("minLength", "maxLength"),
