@@ -283,11 +283,11 @@ ownership, schema requirements and route replacement.</p>
 <div class="doc doc-object doc-function">
 
 
-<h2 id="hinoki.crud.crud" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">hinoki.crud.crud</span>
+<h2 id="hinoki.resources.crud" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.resources.crud</span>
 
 
-<a href="#hinoki.crud.crud" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#hinoki.resources.crud" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">crud</span><span class="p">(</span>
     <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">],</span>
     <span class="o">*</span><span class="p">,</span>
@@ -324,15 +324,15 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
 
 
 
-<h2 id="hinoki.crud.CrudAccess" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">hinoki.crud.CrudAccess</span>
+<h2 id="hinoki.resources.CrudAccess" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.resources.CrudAccess</span>
 
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudAccess" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#hinoki.resources.CrudAccess" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents first">
@@ -364,7 +364,7 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
 
 
 
-<h3 id="hinoki.crud.CrudAccess.default" class="doc doc-heading">
+<h3 id="hinoki.resources.CrudAccess.default" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">default</span>
 
 
@@ -373,7 +373,7 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudAccess.default" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.resources.CrudAccess.default" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">default</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
 
@@ -387,7 +387,7 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
 
 
 
-<h3 id="hinoki.crud.CrudAccess.list" class="doc doc-heading">
+<h3 id="hinoki.resources.CrudAccess.list" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">list</span>
 
 
@@ -396,7 +396,7 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudAccess.list" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.resources.CrudAccess.list" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nb">list</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">=</span> <span class="n">UNSET</span>
 </code></pre></div>
 
@@ -410,7 +410,7 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
 
 
 
-<h3 id="hinoki.crud.CrudAccess.retrieve" class="doc doc-heading">
+<h3 id="hinoki.resources.CrudAccess.retrieve" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">retrieve</span>
 
 
@@ -419,7 +419,7 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudAccess.retrieve" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.resources.CrudAccess.retrieve" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">retrieve</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">=</span> <span class="n">UNSET</span>
 </code></pre></div>
 
@@ -433,7 +433,7 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
 
 
 
-<h3 id="hinoki.crud.CrudAccess.create" class="doc doc-heading">
+<h3 id="hinoki.resources.CrudAccess.create" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">create</span>
 
 
@@ -442,7 +442,7 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudAccess.create" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.resources.CrudAccess.create" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">create</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">=</span> <span class="n">UNSET</span>
 </code></pre></div>
 
@@ -456,7 +456,7 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
 
 
 
-<h3 id="hinoki.crud.CrudAccess.update" class="doc doc-heading">
+<h3 id="hinoki.resources.CrudAccess.update" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">update</span>
 
 
@@ -465,7 +465,7 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudAccess.update" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.resources.CrudAccess.update" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">update</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">=</span> <span class="n">UNSET</span>
 </code></pre></div>
 
@@ -479,7 +479,7 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
 
 
 
-<h3 id="hinoki.crud.CrudAccess.delete" class="doc doc-heading">
+<h3 id="hinoki.resources.CrudAccess.delete" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">delete</span>
 
 
@@ -488,7 +488,7 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudAccess.delete" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.resources.CrudAccess.delete" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">delete</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">=</span> <span class="n">UNSET</span>
 </code></pre></div>
 
@@ -504,11 +504,11 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudAccess.resolve" class="doc doc-heading">
+<h3 id="hinoki.resources.CrudAccess.resolve" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">resolve</span>
 
 
-<a href="#hinoki.crud.CrudAccess.resolve" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.resources.CrudAccess.resolve" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">resolve</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span>
 </code></pre></div>
 
@@ -531,11 +531,11 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
 
 
 
-<h2 id="hinoki.crud.CrudDeclaration" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">hinoki.crud.CrudDeclaration</span>
+<h2 id="hinoki.resources.CrudDeclaration" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.resources.CrudDeclaration</span>
 
 
-<a href="#hinoki.crud.CrudDeclaration" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#hinoki.resources.CrudDeclaration" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents first">
@@ -567,7 +567,7 @@ class that adds hooks and handwritten actions.</p>
 
 
 
-<h3 id="hinoki.crud.CrudDeclaration.config" class="doc doc-heading">
+<h3 id="hinoki.resources.CrudDeclaration.config" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">config</span>
 
 
@@ -575,7 +575,7 @@ class that adds hooks and handwritten actions.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudDeclaration.config" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.resources.CrudDeclaration.config" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
 </code></pre></div>
 
@@ -589,7 +589,7 @@ class that adds hooks and handwritten actions.</p>
 
 
 
-<h3 id="hinoki.crud.CrudDeclaration.path" class="doc doc-heading">
+<h3 id="hinoki.resources.CrudDeclaration.path" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">path</span>
 
 
@@ -597,7 +597,7 @@ class that adds hooks and handwritten actions.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudDeclaration.path" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.resources.CrudDeclaration.path" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">path</span> <span class="o">=</span> <span class="n">path</span>
 </code></pre></div>
 
@@ -611,7 +611,7 @@ class that adds hooks and handwritten actions.</p>
 
 
 
-<h3 id="hinoki.crud.CrudDeclaration.generated" class="doc doc-heading">
+<h3 id="hinoki.resources.CrudDeclaration.generated" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">generated</span>
 
 
@@ -619,7 +619,7 @@ class that adds hooks and handwritten actions.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudDeclaration.generated" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.resources.CrudDeclaration.generated" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">generated</span> <span class="o">=</span> <span class="p">[</span>
     <span class="n">name</span>
     <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">ACTIONS</span>
@@ -637,7 +637,7 @@ class that adds hooks and handwritten actions.</p>
 
 
 
-<h3 id="hinoki.crud.CrudDeclaration.built" class="doc doc-heading">
+<h3 id="hinoki.resources.CrudDeclaration.built" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">built</span>
 
 
@@ -645,7 +645,7 @@ class that adds hooks and handwritten actions.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#hinoki.crud.CrudDeclaration.built" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.resources.CrudDeclaration.built" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">built</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">CrudBase</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
 
@@ -661,11 +661,11 @@ class that adds hooks and handwritten actions.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudDeclaration.__init__" class="doc doc-heading">
+<h3 id="hinoki.resources.CrudDeclaration.__init__" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">__init__</span>
 
 
-<a href="#hinoki.crud.CrudDeclaration.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.resources.CrudDeclaration.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span><span class="n">config</span><span class="p">:</span> <span class="n">_CrudConfig</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
@@ -679,11 +679,11 @@ class that adds hooks and handwritten actions.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudDeclaration.api" class="doc doc-heading">
+<h3 id="hinoki.resources.CrudDeclaration.api" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">api</span>
 
 
-<a href="#hinoki.crud.CrudDeclaration.api" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.resources.CrudDeclaration.api" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">api</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">CrudBase</span><span class="p">]</span>
 </code></pre></div>
 
@@ -699,11 +699,11 @@ class that adds hooks and handwritten actions.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudDeclaration.__call__" class="doc doc-heading">
+<h3 id="hinoki.resources.CrudDeclaration.__call__" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">__call__</span>
 
 
-<a href="#hinoki.crud.CrudDeclaration.__call__" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.resources.CrudDeclaration.__call__" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">__call__</span><span class="p">(</span><span class="bp">cls</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">T</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">T</span><span class="p">]</span>
 </code></pre></div>
 
@@ -717,11 +717,11 @@ class that adds hooks and handwritten actions.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.crud.CrudDeclaration.build" class="doc doc-heading">
+<h3 id="hinoki.resources.CrudDeclaration.build" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">build</span>
 
 
-<a href="#hinoki.crud.CrudDeclaration.build" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#hinoki.resources.CrudDeclaration.build" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">build</span><span class="p">(</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">namespace</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">CrudBase</span><span class="p">]</span>
@@ -746,11 +746,11 @@ class that adds hooks and handwritten actions.</p>
 
 
 
-<h2 id="hinoki.crud.Crud" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">hinoki.crud.Crud</span>
+<h2 id="hinoki.resources.Crud" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.resources.Crud</span>
 
 
-<a href="#hinoki.crud.Crud" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#hinoki.resources.Crud" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents first">
@@ -806,18 +806,18 @@ class that adds hooks and handwritten actions.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#hinoki.crud.crud">crud</a></li><li><a href="#hinoki.crud.CrudAccess">CrudAccess</a>
-            <ul><li><a href="#hinoki.crud.CrudAccess.default">default</a></li><li><a href="#hinoki.crud.CrudAccess.list">list</a></li><li><a href="#hinoki.crud.CrudAccess.retrieve">retrieve</a></li><li><a href="#hinoki.crud.CrudAccess.create">create</a></li><li><a href="#hinoki.crud.CrudAccess.update">update</a></li><li><a href="#hinoki.crud.CrudAccess.delete">delete</a></li><li><a href="#hinoki.crud.CrudAccess.resolve">resolve</a></li></ul>
-          </li><li><a href="#hinoki.crud.CrudDeclaration">CrudDeclaration</a>
-            <ul><li><a href="#hinoki.crud.CrudDeclaration.config">config</a></li><li><a href="#hinoki.crud.CrudDeclaration.path">path</a></li><li><a href="#hinoki.crud.CrudDeclaration.generated">generated</a></li><li><a href="#hinoki.crud.CrudDeclaration.built">built</a></li><li><a href="#hinoki.crud.CrudDeclaration.__init__">__init__</a></li><li><a href="#hinoki.crud.CrudDeclaration.api">api</a></li><li><a href="#hinoki.crud.CrudDeclaration.__call__">__call__</a></li><li><a href="#hinoki.crud.CrudDeclaration.build">build</a></li></ul>
-          </li><li><a href="#hinoki.crud.Crud">Crud</a></li></ul>
+            <ul><li><a href="#hinoki.resources.crud">crud</a></li><li><a href="#hinoki.resources.CrudAccess">CrudAccess</a>
+            <ul><li><a href="#hinoki.resources.CrudAccess.default">default</a></li><li><a href="#hinoki.resources.CrudAccess.list">list</a></li><li><a href="#hinoki.resources.CrudAccess.retrieve">retrieve</a></li><li><a href="#hinoki.resources.CrudAccess.create">create</a></li><li><a href="#hinoki.resources.CrudAccess.update">update</a></li><li><a href="#hinoki.resources.CrudAccess.delete">delete</a></li><li><a href="#hinoki.resources.CrudAccess.resolve">resolve</a></li></ul>
+          </li><li><a href="#hinoki.resources.CrudDeclaration">CrudDeclaration</a>
+            <ul><li><a href="#hinoki.resources.CrudDeclaration.config">config</a></li><li><a href="#hinoki.resources.CrudDeclaration.path">path</a></li><li><a href="#hinoki.resources.CrudDeclaration.generated">generated</a></li><li><a href="#hinoki.resources.CrudDeclaration.built">built</a></li><li><a href="#hinoki.resources.CrudDeclaration.__init__">__init__</a></li><li><a href="#hinoki.resources.CrudDeclaration.api">api</a></li><li><a href="#hinoki.resources.CrudDeclaration.__call__">__call__</a></li><li><a href="#hinoki.resources.CrudDeclaration.build">build</a></li></ul>
+          </li><li><a href="#hinoki.resources.Crud">Crud</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.3</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 12:07:29 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 12:40:04 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/crud.md">Edit on GitHub</a></dd></div>
         </dl>
