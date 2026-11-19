@@ -61,6 +61,8 @@ A `dict[str, X]` field becomes `type: object` with `additionalProperties` (the v
 
 An `Enum` or `Literal` field becomes `type: string` or `type: integer` with an `enum` list of the values (the member values, never the names), inline in the property; a nullable one is wrapped in `anyOf` with `null`. See [enums and literals](schemas.md#enums-and-literals).
 
+A `set[X]` or `frozenset[X]` field becomes an array with `uniqueItems: true`, `tuple[X, ...]` an array of `X`, and a fixed `tuple[X, Y]` an array with `prefixItems`, `items: false` and equal `minItems`/`maxItems`. See [sets and tuples](schemas.md#sets-and-tuples).
+
 Discriminated unions declared as `Schema` fields become OpenAPI `oneOf` schemas with a `discriminator` and explicit tag-to-component mapping. Variant tag fields appear as required string enums; the runtime uses the same tags to select exactly one branch. List items, nested fields and nullable unions retain that structure. For route input and response documentation, put the union inside a wrapper `Schema`; bare union return annotations are rejected instead of producing an incomplete schema. As elsewhere, the response annotation does not cause runtime response validation.
 
 ```yaml
