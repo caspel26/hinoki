@@ -104,6 +104,9 @@ pub(crate) fn to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
             .map(Value::Uuid)
             .map_err(|e| PyValueError::new_err(e.to_string()));
     }
+    if crate::pytypes::is_ip_object(obj)? {
+        return Ok(Value::Text(obj.str()?.extract()?));
+    }
     if obj.is_instance(&py.import("datetime")?.getattr("datetime")?)? {
         if obj.getattr("tzinfo")?.is_none() {
             return Err(PyValueError::new_err(

@@ -18,6 +18,7 @@ import re
 import types
 from datetime import datetime
 from importlib import import_module
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from pathlib import Path
 from typing import Any, Union, get_args, get_origin, get_type_hints
 from uuid import UUID
@@ -43,6 +44,10 @@ TYPES: dict[Any, str] = {
     bytes: "bytea",
     dict: "jsonb",
     list: "jsonb",
+    IPv4Address: "text",
+    IPv6Address: "text",
+    IPv4Network: "text",
+    IPv6Network: "text",
 }
 SQLITE_STATE_TYPES = {
     "uuid": "UUID",

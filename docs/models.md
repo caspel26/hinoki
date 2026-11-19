@@ -116,7 +116,7 @@ Built-in checks support string/list lengths, string patterns and membership, and
 
 These checks complement, rather than replace, a `Schema` at the HTTP boundary. Schema validation can report request errors before calling an operation; Model validation also protects CLI, admin and direct ORM writes. Database constraints remain authoritative, and their enforcement varies by backend; see [Schema validation](schemas.md#built-in-and-custom-validation).
 
-Hinoki stores PostgreSQL UUID, timestamp, JSON and byte values in their native column types. SQLite stores UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string `contains` matching follows SQLite's case-folding behavior (ASCII case-insensitive).
+Hinoki stores PostgreSQL UUID, timestamp, JSON and byte values in their native column types. `ipaddress` addresses and networks (`IPv4Address`, `IPv6Address`, `IPv4Network`, `IPv6Network`) are stored as `text` and read back as the object; writes accept only an object of the annotated class. SQLite stores UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string `contains` matching follows SQLite's case-folding behavior (ASCII case-insensitive).
 
 ## Query rows
 
