@@ -299,16 +299,19 @@ def column_sql(
     dialect: str = "postgres",
     *,
     inline_references: bool = True,
+    keys: bool = True,
 ) -> str:
+    """A column definition. ``keys=False`` leaves out PRIMARY KEY, UNIQUE and
+    REFERENCES, for statements that redefine a column the table already keys."""
     parts = [quote(name, dialect), dialect_type(column["type"], dialect)]
-    if column["primary_key"]:
+    if column["primary_key"] and keys:
         parts.append("PRIMARY KEY")
-    elif not column["nullable"]:
+    elif not column["nullable"] or column["primary_key"]:
         parts.append("NOT NULL")
-    if column["unique"] and not column["primary_key"]:
+    if column["unique"] and not column["primary_key"] and keys:
         parts.append("UNIQUE")
     target = column["references"]
-    if target and inline_references:
+    if target and inline_references and keys:
         rule = ON_DELETE[target["on_delete"]]
         target_table = quote(target["table"], dialect)
         target_column = quote(target["column"], dialect)
@@ -433,7 +436,7 @@ def alter_column(
                 "write that migration by hand"
             )
     if dialect in {"mysql", "mariadb"}:
-        column = column_sql(name, new, dialect)
+        column = column_sql(name, new, dialect, keys=False)
         return [
             Operation(
                 f"change {table}.{name}",
@@ -499,10 +502,11 @@ def drop_column(table: str, name: str, dialect: str = "postgres") -> Operation:
 
 def index_changes(
     table: str, old: State, new: State, dialect: str = "postgres"
-) -> list[Operation]:
+) -> tuple[list[Operation], list[Operation]]:
+    """The index operations to run after and before the column changes."""
     before = [list(c) for c in old.get("indexes", [])]
     after = [list(c) for c in new.get("indexes", [])]
-    operations = [
+    created = [
         Operation(
             f"index {table} ({', '.join(columns)})",
             create_index_sql(table, columns, dialect),
@@ -510,7 +514,7 @@ def index_changes(
         for columns in after
         if columns not in before
     ]
-    operations.extend(
+    dropped = [
         Operation(
             f"drop index {table} ({', '.join(columns)})",
             (
@@ -524,8 +528,8 @@ def index_changes(
         )
         for columns in before
         if columns not in after
-    )
-    return operations
+    ]
+    return created, dropped
 
 
 def _sqlite_rebuild_warnings(old: State, new: State) -> list[str]:
@@ -611,7 +615,8 @@ def table_changes(table: str, old: State, new: State, dialect: str) -> list[Oper
             "unique", []
         ) != new.get("unique", []):
             return [sqlite_rebuild(table, old, new, dialect)]
-        return index_changes(table, old, new, dialect)
+        created, dropped = index_changes(table, old, new, dialect)
+        return [*dropped, *created]
     operations: list[Operation] = []
     refuse_unbounded_keys(table, new, dialect)
     if old.get("unique", []) != new.get("unique", []):
@@ -619,7 +624,8 @@ def table_changes(table: str, old: State, new: State, dialect: str) -> list[Oper
             f"{table}: changing composite unique constraints is not planned "
             "automatically; write that migration by hand"
         )
-    operations.extend(index_changes(table, old, new, dialect))
+    created, dropped = index_changes(table, old, new, dialect)
+    operations.extend(dropped)
     for name, column in new["columns"].items():
         if name not in old["columns"]:
             operations.extend(add_column(table, name, column, dialect))
@@ -627,6 +633,7 @@ def table_changes(table: str, old: State, new: State, dialect: str) -> list[Oper
             operations.extend(
                 alter_column(table, name, old["columns"][name], column, dialect)
             )
+    operations.extend(created)
     operations.extend(removed_columns(table, old, new, dialect))
     return operations
 

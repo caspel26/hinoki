@@ -427,6 +427,47 @@ def test_column_changes_cover_mysql_and_not_null_plans() -> None:
     assert "SET NOT NULL" in postgres[0].sql
 
 
+def column_state(**changes: Any) -> dict[str, Any]:
+    return {
+        "type": "text",
+        "nullable": False,
+        "primary_key": False,
+        "unique": False,
+        "references": None,
+        **changes,
+    }
+
+
+def test_new_indexes_follow_the_columns_they_use_and_old_ones_go_first() -> None:
+    id_column = column_state(type="integer", primary_key=True)
+    old = {"columns": {"id": id_column, "gone": column_state()}, "indexes": [["gone"]]}
+    new = {
+        "columns": {"id": id_column, "added": column_state(type="varchar(20)")},
+        "indexes": [["added"]],
+    }
+    for dialect in ("postgres", "mysql", "mariadb"):
+        steps = [o.description for o in table_changes("items", old, new, dialect)]
+        assert steps == [
+            "drop index items (gone)",
+            "add items.added",
+            "index items (added)",
+            "drop items.gone",
+        ]
+
+
+@pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
+@pytest.mark.parametrize("keys", [{"unique": True}, {"primary_key": True}])
+def test_mysql_family_modify_does_not_repeat_key_clauses(
+    dialect: str, keys: dict[str, bool]
+) -> None:
+    previous = column_state(nullable=True, **keys)
+    current = column_state(nullable=False, **keys)
+    (operation,) = alter_column("items", "name", previous, current, dialect)
+    assert "UNIQUE" not in operation.sql
+    assert "PRIMARY KEY" not in operation.sql
+    assert "NOT NULL" in operation.sql
+
+
 def test_sqlite_rebuild_warnings_cover_added_required_and_changed_columns() -> None:
     previous = {
         "columns": {
