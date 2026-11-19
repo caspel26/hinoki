@@ -99,6 +99,12 @@ def component_name(schema: type[Schema]) -> str:
     return re.sub(r"[^A-Za-z0-9._-]", "_", schema.__name__)
 
 
+def generated_doc(schema: type[Schema]) -> bool:
+    """True for the signature a dataclass puts in ``__doc__`` when none is written."""
+    doc = schema.__doc__ or ""
+    return doc.startswith(f"{schema.__name__}(") and "\n" not in doc
+
+
 def ref(name: str) -> dict[str, str]:
     return {"$ref": f"#/components/schemas/{name}"}
 
@@ -365,7 +371,7 @@ class OpenAPIBuilder:
             ]
             if alias_pairs:
                 result["allOf"] = alias_pairs
-        if schema.__doc__:
+        if schema.__doc__ and not generated_doc(schema):
             result["description"] = inspect.cleandoc(schema.__doc__).split("\n\n")[0]
         return result
 
