@@ -2011,6 +2011,9 @@ impl<'a, V: View> Run<'a, V> {
             return Ok(None);
         }
         let matched = self.view.text(&text).ok();
+        if matched.as_ref().is_some_and(|t| t.contains('\0')) {
+            return self.fail(path, "nul", "must not contain NUL characters".to_owned());
+        }
         if !self.pattern(node, matched, path)? {
             return Ok(None);
         }
@@ -2469,6 +2472,14 @@ impl<'a, V: View> Run<'a, V> {
         name: &str,
         path: &str,
     ) -> Result<bool, Abort<V::Error>> {
+        if name.contains('\0') {
+            self.fail(
+                path,
+                "key_nul",
+                "key must not contain NUL characters".to_owned(),
+            )?;
+            return Ok(false);
+        }
         let size = i64::try_from(name.chars().count()).unwrap_or(i64::MAX);
         let plural = |bound: i64| if bound == 1 { "" } else { "s" };
         if let Some(least) = key.min_length.filter(|least| size < *least) {

@@ -41,6 +41,7 @@ Settings types live in the `hinoki.settings` namespace: `from hinoki import sett
 | `lifecycle` | `shutdown_timeout` | `10.0` seconds | Must be positive |
 | `logging` | `level` | `info` | `debug`, `info`, `warning`, `error` or `critical` |
 | `logging` | `format` | `text` | `text` or `json` |
+| `logging` | `config` | unset | `module:attribute` of a `logging.config.dictConfig` mapping (or a function returning one) for your own loggers, handlers and formatters |
 | `logging` | `include_request_id` | `false` | Add the active request ID to Hinoki log records for request correlation |
 | `docs` | `title` | `Hinoki API` | OpenAPI info title |
 | `docs` | `version` | `0.1.0` | OpenAPI info version |
@@ -55,8 +56,9 @@ Settings types live in the `hinoki.settings` namespace: `from hinoki import sett
 | `server` | `backlog` | `1024` | Must be positive |
 | `server` | `access_log` | unset | One line per request on either server. Unset logs in `hinoki dev` only (or whenever `access_log_format` is set); `true` or `false` decides for `dev` and `serve` |
 | `server` | `access_log_skip` | unset | Kiso only: paths the log leaves out, exact or a `*` prefix; failures are still logged |
+| `server` | `recent_requests` | unset | Kiso only: file that also receives each request as a JSON line for `hinoki mcp`'s `recent_requests` tool; works with the access log off |
 | `server` | `access_log_slow_ms` | unset | Kiso only: keep only answers at least this slow (ms); failures are still logged |
-| `server` | `access_log_format` | unset | Kiso only (Granian refuses it): `pretty`, `plain` or `json`. Unset is `pretty` on a colour terminal and `plain` otherwise |
+| `server` | `access_log_format` | unset | Kiso only (Granian refuses it): `pretty`, `plain`, `json` or `logger` (route to the `hinoki.access` Python logger). Unset is `pretty` on a colour terminal and `plain` otherwise |
 | `server` | `max_connections` | unset (10000) | Rust server only: open-connection limit, `1` to `1000000`; refused under Granian |
 | `server` | `header_read_timeout` | unset (10 seconds) | Rust server only: time to receive request headers, and the keep-alive idle limit; refused under Granian |
 | `server` | `body_read_timeout` | unset (10 seconds) | Rust server only: silence allowed while a body is read (at most half of `execution.request_timeout`); refused under Granian |
@@ -105,6 +107,26 @@ class BlogSettings(settings.AppSettings):
 ```
 
 Set `logging.include_request_id=true` to add the resolved ID to Hinoki's own log records while a request is being handled. Text logs append `request_id=<id>` and JSON logs include a `request_id` field. The ID matches the response's configured request ID header. Startup and other records outside a request omit the field. This setting is off by default, and it does not change application or third-party logger handlers.
+
+### Your own loggers
+
+Declare loggers, handlers and formatters the way Django's `LOGGING` does, with a standard [`logging.config.dictConfig`](https://docs.python.org/3/library/logging.config.html#logging-config-dictschema) mapping, and point `logging.config` at it:
+
+```python
+# myapp/logs.py
+LOGGING = {
+    "version": 1,
+    "formatters": {"short": {"format": "%(levelname)s %(name)s %(message)s"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "short"}},
+    "loggers": {"orders": {"handlers": ["console"], "level": "INFO"}},
+}
+```
+
+```
+BLOG_LOGGING__CONFIG=myapp.logs:LOGGING
+```
+
+The value may also name a function that returns the mapping. It is applied when each worker starts, right after Hinoki's own `hinoki` logger setup, with `disable_existing_loggers` off unless your mapping sets it. A mapping that configures the `hinoki` logger replaces Hinoki's handler on it. A target that cannot be imported or is not a mapping raises during startup. Kiso's access log is written by the Rust server; set `server.access_log_format = "logger"` to route it through the `hinoki.access` logger.
 
 From a trusted peer, Hinoki accepts a single `X-Forwarded-Proto` value of `http` or `https` and walks a bounded `X-Forwarded-For` chain from the peer side to the first untrusted address. `Request.scheme` and `Request.client` use those validated values. Invalid, repeated or ambiguous values fall back to the socket scope. `X-Forwarded-Host` is never used: `Host`, `allowed_hosts` and generated URLs continue to use the original Host header.
 

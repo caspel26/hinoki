@@ -18,6 +18,7 @@ import hmac
 import ipaddress
 import json
 import logging
+import logging.config
 import math
 import os
 import re
@@ -34,6 +35,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from hinoki.context import request_id
 from hinoki.runtime.config import MAX_REQUEST_INPUT_BYTES, RuntimeConfig
+from hinoki.target import load_target
 
 TRUE = frozenset({"1", "true", "yes", "on"})
 FALSE = frozenset({"0", "false", "no", "off"})
@@ -58,6 +60,7 @@ KISO_ONLY = (
     "access_log_format",
     "access_log_skip",
     "access_log_slow_ms",
+    "recent_requests",
 )
 QUOTED = 2  # shortest quoted value: the two quotes
 MAX_CORS_AGE = 86400
@@ -861,12 +864,30 @@ class LoggingSettings(Settings):
     level: Literal["debug", "info", "warning", "error", "critical"] = "info"
     format: Literal["text", "json"] = "text"
     include_request_id: bool = False
+    config: str | None = None
 
     HANDLER: ClassVar[str] = "hinoki-settings"
 
+    def validate(self) -> None:
+        if self.config is not None and ":" not in self.config:
+            raise ValueError("config must be 'module:attribute'")
+
+    def custom_config(self) -> dict[str, Any] | None:
+        """The ``logging.config.dictConfig`` mapping ``config`` names (called first
+        when it is a function), with ``disable_existing_loggers`` off unless the
+        mapping says otherwise."""
+        if self.config is None:
+            return None
+        found = load_target(self.config)
+        if callable(found):
+            found = found()
+        if not isinstance(found, Mapping):
+            raise TypeError(f"{self.config} must be a logging dictConfig mapping")
+        return {"disable_existing_loggers": False, **found}
+
     def apply(self) -> None:
-        """Configure the ``hinoki`` logger tree (not the root logger); safe to
-        call again, it replaces its own handler."""
+        """Configure the ``hinoki`` logger tree (not the root logger), then apply
+        ``config`` if set; safe to call again, it replaces its own handler."""
         logger = logging.getLogger("hinoki")
         for handler in list(logger.handlers):
             if getattr(handler, "name", "") == self.HANDLER:
@@ -885,6 +906,9 @@ class LoggingSettings(Settings):
         )
         logger.addHandler(handler)
         logger.setLevel(self.level.upper())
+        custom = self.custom_config()
+        if custom is not None:
+            logging.config.dictConfig(custom)
 
 
 class DocsSettings(Settings):
@@ -1049,14 +1073,17 @@ class ServerSettings(Settings):
     ``access_log``
     prints one line per request on either server; unset, ``hinoki dev`` logs and
     ``hinoki serve`` does not, and ``True`` or ``False`` decides for both.
-    ``access_log_format`` (Rust server only: ``pretty``, ``plain`` or ``json``)
-    chooses how a line looks; unset, it is ``pretty`` on a colour terminal and
-    ``plain`` otherwise, and setting it turns the log on unless ``access_log`` is
-    ``False``. ``json`` writes one object per line with an RFC 3339 UTC ``time``.
+    ``access_log_format`` (Rust server only: ``pretty``, ``plain``, ``json`` or
+    ``logger``) chooses how a line looks; unset, it is ``pretty`` on a colour
+    terminal and ``plain`` otherwise, and setting it turns the log on unless
+    ``access_log`` is ``False``. ``json`` writes one object per line with an RFC
+    3339 UTC ``time``; ``logger`` sends each to the ``hinoki.access`` logger.
     ``access_log_skip`` (Rust server only) lists paths the log leaves out, such
     as health checks: exact, or a prefix when the entry ends with ``*``.
     ``access_log_slow_ms`` keeps only answers at least that slow. Both always
-    keep failures (status 400 and up).
+    keep failures (status 400 and up). ``recent_requests`` (Rust server only) is a
+    file that also receives each record as JSON, for ``hinoki mcp``'s
+    ``recent_requests`` tool.
     ``max_connections``, ``header_read_timeout``,
     ``body_read_timeout``, ``write_timeout``, ``native_dispatch`` and
     ``access_log_format``, ``access_log_skip`` and ``access_log_slow_ms`` belong to
@@ -1075,9 +1102,10 @@ class ServerSettings(Settings):
     runtime_threads: int = 1
     backlog: int = 1024
     access_log: bool | None = None
-    access_log_format: Literal["pretty", "plain", "json"] | None = None
+    access_log_format: Literal["pretty", "plain", "json", "logger"] | None = None
     access_log_skip: tuple[str, ...] | None = None
     access_log_slow_ms: float | None = None
+    recent_requests: str | None = None
     trusted_proxies: tuple[str, ...] = ()
     request_id_header: str = "x-request-id"
     trust_request_id: bool = False

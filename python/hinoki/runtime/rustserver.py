@@ -25,11 +25,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 import signal
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
@@ -42,6 +43,7 @@ from hinoki.runtime.binding import BODY_METHODS
 from hinoki.runtime.listener import inherited_address, open_listener
 from hinoki.runtime.nativelane import NativeLane, lane_refusal
 from hinoki.runtime.pipeline import NativeBody
+from hinoki.runtime.recent import RequestRecorder
 from hinoki.runtime.responses import HTTPError, Response
 from hinoki.runtime.servercore import build_server_core, route_guarded
 from hinoki.serve import load_target, settings_of
@@ -51,6 +53,25 @@ if TYPE_CHECKING:
     from hinoki.app import Hinoki
 
 log = logging.getLogger("hinoki.runtime")
+access_logger = logging.getLogger("hinoki.access")
+
+
+def log_access(batch: Sequence[str]) -> None:
+    """Hand Kiso's JSON access records to the ``hinoki.access`` logger (called
+    from Kiso's logging thread, a batch at a time). Each record carries its
+    fields as ``record.access`` for handlers and formatters that want them."""
+    for text in batch:
+        fields = json.loads(text)
+        access_logger.info(
+            "%s %s %s %s %.1fms",
+            fields["peer"],
+            fields["method"],
+            fields["path"],
+            fields["status"],
+            fields["duration_ms"],
+            extra={"access": fields},
+        )
+
 
 # Requests taken from the native queue per call; a short batch means it is empty.
 DRAIN_BATCH = 256
@@ -148,6 +169,7 @@ class RustWorker:
         access_log: str | None = None,
         access_log_skip: Sequence[str] | None = None,
         access_log_slow_ms: float | None = None,
+        access_log_sink: Callable[[Sequence[str]], None] | None = None,
     ) -> None:
         self.adapter = app.asgi()
         self.pipeline = self.adapter.pipeline
@@ -165,6 +187,7 @@ class RustWorker:
         self.access_log = access_log
         self.access_log_skip = access_log_skip
         self.access_log_slow_ms = access_log_slow_ms
+        self.access_log_sink = access_log_sink
         self.lane: NativeLane | None = None
         # An inherited listening descriptor (a supervisor owns the socket); the
         # native server takes it over. Without one, the worker binds itself.
@@ -234,6 +257,7 @@ class RustWorker:
                 self.access_log,
                 self.access_log_skip,
                 self.access_log_slow_ms,
+                self.access_log_sink,
             )
         except BaseException:
             self.core._disarm_crud_plans()
@@ -572,10 +596,30 @@ def access_style(settings: ServerSettings, dev: bool) -> str | None:
     default the coloured development line on a colour terminal and a plain line
     otherwise."""
     if not settings.logs_access(dev):
-        return None
+        return "logger" if settings.recent_requests else None
     if settings.access_log_format is not None:
         return settings.access_log_format
     return "pretty" if banner.wants_colour() else "plain"
+
+
+def access_sink(
+    settings: ServerSettings, dev: bool
+) -> Callable[[Sequence[str]], None] | None:
+    """What receives Kiso's JSON records besides stderr: the ``hinoki.access``
+    logger and the recent-requests file, as configured."""
+    sinks: list[Callable[[Sequence[str]], None]] = []
+    if settings.logs_access(dev) and settings.access_log_format == "logger":
+        sinks.append(log_access)
+    if settings.recent_requests:
+        sinks.append(RequestRecorder(settings.recent_requests))
+    if not sinks:
+        return None
+
+    def deliver(batch: Sequence[str]) -> None:
+        for sink in sinks:
+            sink(batch)
+
+    return deliver
 
 
 def build_worker(
@@ -608,6 +652,7 @@ def build_worker(
         access_log=access_style(settings, dev),
         access_log_skip=settings.access_log_skip,
         access_log_slow_ms=settings.access_log_slow_ms,
+        access_log_sink=access_sink(settings, dev),
         **limits,
     )
 
