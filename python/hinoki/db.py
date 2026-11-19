@@ -325,6 +325,14 @@ class AtomicScope:
             log.exception("rollback failed; the connection will be discarded")
 
 
+# The scopes ``db.atomic()`` blocks have open in this task or thread, innermost
+# last. Blocks exit in reverse order of entry, so one module-level stack serves
+# every Atomic object, including one reused by concurrent tasks.
+open_scopes: ContextVar[tuple[AtomicScope, ...]] = ContextVar(
+    "hinoki_atomic_scopes", default=()
+)
+
+
 class Atomic:
     """``db.atomic()``: an atomic scope on the current database, as a block or
     as a decorator.
@@ -336,17 +344,10 @@ class Atomic:
     already atomic scope becomes a savepoint.
     """
 
-    def __init__(self) -> None:
-        # Per task, so one object reused by concurrent tasks cannot pop
-        # another task's scope.
-        self.scopes: ContextVar[tuple[AtomicScope, ...]] = ContextVar(
-            "hinoki_atomic_scopes", default=()
-        )
-
     async def __aenter__(self) -> AtomicScope:
         scope = current_scope()
         await scope.__aenter__()
-        self.scopes.set((*self.scopes.get(), scope))
+        open_scopes.set((*open_scopes.get(), scope))
         return scope
 
     async def __aexit__(
@@ -359,7 +360,7 @@ class Atomic:
 
     def __enter__(self) -> AtomicScope:
         scope = current_scope().__enter__()
-        self.scopes.set((*self.scopes.get(), scope))
+        open_scopes.set((*open_scopes.get(), scope))
         return scope
 
     def __exit__(
@@ -372,10 +373,10 @@ class Atomic:
 
     def leave(self) -> AtomicScope:
         """Pop this task's innermost open scope."""
-        stack = self.scopes.get()
+        stack = open_scopes.get()
         if not stack:
             raise RuntimeError("atomic scope was not entered")
-        self.scopes.set(stack[:-1])
+        open_scopes.set(stack[:-1])
         return stack[-1]
 
     @overload
