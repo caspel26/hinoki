@@ -42,6 +42,7 @@ class FieldInfo:
     one_of: tuple[Any, ...] | None = None
     max_digits: int | None = None
     decimal_places: int | None = None
+    multiple_of: int | Decimal | None = None
     alias: str | None = None
     discriminator: str | None = None
     default_factory: Callable[[], Any] | None = None
@@ -59,6 +60,7 @@ class FieldInfo:
             "one_of",
             "max_digits",
             "decimal_places",
+            "multiple_of",
         )
         return {n: getattr(self, n) for n in names if getattr(self, n) is not None}
 
@@ -79,6 +81,7 @@ def Field(
     one_of: Sequence[Any] | None = None,
     max_digits: int | None = None,
     decimal_places: int | None = None,
+    multiple_of: int | Decimal | None = None,
     format: str | None = None,
     discriminator: str | None = None,
 ) -> Any: ...
@@ -95,6 +98,7 @@ def Field(
     one_of: Sequence[Any] | None = None,
     max_digits: int | None = None,
     decimal_places: int | None = None,
+    multiple_of: int | Decimal | None = None,
     format: str | None = None,
     alias: str | None = None,
     discriminator: str | None = None,
