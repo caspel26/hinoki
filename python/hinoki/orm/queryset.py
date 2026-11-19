@@ -343,7 +343,13 @@ class QuerySet[M: Model]:
         )
         if not returning:
             return await database.execute(sql, *params)
-        rows = await written_rows(self.model, sql, params, list(self.filters))
+        rows = await written_rows(
+            self.model,
+            sql,
+            params,
+            list(self.filters),
+            by_key=self.model.__primary_key__ not in values,
+        )
         return [self.model.from_row(row) for row in rows]
 
     async def adelete(self) -> int:
@@ -559,15 +565,29 @@ def write_statement(
 
 
 async def written_rows(
-    model: type[Model], sql: str, params: list[Any], filters: list[Filter]
+    model: type[Model],
+    sql: str,
+    params: list[Any],
+    filters: list[Filter],
+    *,
+    by_key: bool = False,
 ) -> list[Row]:
     """The stored rows after a write compiled by ``write_statement``. MySQL and
-    MariaDB have no RETURNING: the rows matching ``filters`` are selected on the
-    same transaction connection so the return value remains stable."""
+    MariaDB have no RETURNING: the rows are selected on the same transaction
+    connection so the return value remains stable. With ``by_key`` the matching
+    primary keys are locked before the write and read back afterwards, so rows
+    that stop matching ``filters`` because of the write are still returned."""
     database = current_database()
     if database.dialect not in NO_RETURNING:
         return await database.fetch(sql, *params)
     async with database.atomic():
+        key = model.__primary_key__
+        # A key lookup cannot leave its own filter, so it needs no pre-read.
+        if by_key and any(name != key or op != "eq" for name, op, _ in filters):
+            keys = await locked_keys(model, filters, database.dialect)
+            if not keys:
+                return []
+            filters = [(key, "in", keys)]
         await database.execute(sql, *params)
         select_sql, select_params = core.compile_query(
             "select",
@@ -577,6 +597,18 @@ async def written_rows(
             dialect=database.dialect,
         )
         return await database.fetch(select_sql, *select_params)
+
+
+async def locked_keys(
+    model: type[Model], filters: list[Filter], dialect: str
+) -> list[Any]:
+    """The primary keys ``filters`` match, locked until the transaction ends."""
+    key = model.__primary_key__
+    sql, params = core.compile_query(
+        "select", model.__table__, columns=[key], filters=filters, dialect=dialect
+    )
+    rows = await current_database().fetch(sql + " FOR UPDATE", *params)
+    return [row[key] for row in rows]
 
 
 async def fetch_in(model: type[Model], column: str, values: list[Any]) -> list[Any]:
