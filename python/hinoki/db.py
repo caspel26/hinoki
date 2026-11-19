@@ -77,13 +77,25 @@ if not TYPE_CHECKING:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
+NATIVE_OWNER = object()
+
+
+def current_owner() -> object:
+    """Who owns a transaction opened now: the running task, or, in a coroutine
+    Rust drives (which has no task), one marker; each request runs in its own
+    context, so the transaction variable never crosses requests."""
+    if core.driving():
+        return NATIVE_OWNER
+    return asyncio.current_task()
+
+
 class ActiveTransaction:
     """A native transaction, the task that owns it and its savepoint counter."""
 
     def __init__(self, database: Database, native_tx: core.Transaction) -> None:
         self.database = database
         self.native = native_tx
-        self.owner = asyncio.current_task()
+        self.owner = current_owner()
         self.savepoints = 0
         self.finished = False
         self.commit_callbacks: list[Callable[[], object]] = []
@@ -219,7 +231,7 @@ class AtomicScope:
             self.state = ActiveTransaction(self.database, native_tx)
             self.token = current.set(self.state)
             return self
-        if asyncio.current_task() is not parent.owner:
+        if current_owner() is not parent.owner:
             raise DatabaseError(
                 "nested atomic scopes (savepoints) must be opened by the "
                 "task that owns the transaction"
