@@ -377,6 +377,19 @@ assert account.home == Path("/srv/ann")
 * **Lanes.** Both are validated in Rust; a `Schema` using them is served by the Python lane, by design, because the GIL-free lane cannot build these objects.
 * **Models.** There is no `Model` column for either type yet: generating a migration for one reports `no SQL type`.
 
+## Documenting a field
+
+`Field(description=..., examples=..., deprecated=True)` documents a field in the OpenAPI document without changing how it validates. `description` is non-empty text, `examples` a non-empty sequence of JSON values and `deprecated` marks the property as deprecated. The notes are written next to the property, so a nullable field is documented as a whole and a nested `Schema` keeps its `$ref`. They combine with constraints and with `alias`.
+
+```python
+class Profile(Schema):
+    nick: Annotated[
+        str,
+        Field(max_length=20, description="Public handle.", examples=("ada", "grace")),
+    ]
+    old_nick: Annotated[str | None, Field(deprecated=True)] = None
+```
+
 ## Wire aliases
 
 Use `Field(alias=...)` when the public JSON name should differ from the Python attribute. The alias is the only accepted input key; sending both names is an error. `dump()` writes aliases, including in nested schemas and lists, while `to_dict()` keeps Python attribute names. Validation errors and OpenAPI properties use the wire names. A custom check's default field path is translated to its alias; an explicit `Invalid(path=...)` is already a wire path.
