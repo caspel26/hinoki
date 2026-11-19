@@ -78,6 +78,8 @@ In a terminal, `hinoki new` with no `NAME` (or with some options missing) asks f
 | `--git` | run `git init` in the project (no commit is made) | off (prompt default: yes) |
 | `--install` | run `uv sync` in the project | off (prompt default: yes) |
 
+The prompts are numbered lists and yes/no questions; the summary uses colour and Unicode symbols only on a capable terminal. Output that is piped, `NO_COLOR` and `TERM=dumb` give plain ASCII with no escape sequences. Ctrl-C or end of input cancels before anything is written (exit status 130).
+
 `git` and `uv` run only when asked; a missing tool or a failing command prints a warning and does not undo the project. Nothing else is installed or run, and no database is created or contacted.
 
 `NAME` is a lowercase package name containing letters and digits; it cannot be `hinoki` or a Python standard-library module name, because those names would shadow imports used by the generated project. `--dir` chooses the parent directory and defaults to the current directory. The target `PATH/NAME` must not exist or must be empty; nothing is overwritten.
