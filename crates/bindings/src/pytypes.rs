@@ -11,6 +11,7 @@ static DATE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static TIME: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static TIMEDELTA: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static DECIMAL: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static ENUM: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static FAST_UUID: PyOnceLock<Option<FastUuid>> = PyOnceLock::new();
 
 pub fn uuid_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
@@ -35,6 +36,18 @@ pub fn timedelta_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>>
 
 pub fn decimal_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
     DECIMAL.import(py, "decimal", "Decimal")
+}
+
+pub fn enum_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    ENUM.import(py, "enum", "Enum")
+}
+
+/// The value of an `enum.Enum` member, `None` for any other object.
+pub fn enum_value<'py>(value: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
+    if !value.is_instance(enum_class(value.py())?)? {
+        return Ok(None);
+    }
+    value.getattr("value").map(Some)
 }
 
 /// `None`, `bool`, `int`, `float` and `str` of exactly these types: values that

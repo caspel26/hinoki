@@ -397,8 +397,15 @@ def typed_instance_value(
     elif ftype.kind in WIRE_KINDS:
         checked = wire_instance_value(ftype.kind, value)
     else:
-        checked = value
+        checked = member_instance_value(ftype, value)
     return checked
+
+
+def member_instance_value(ftype: FieldType, value: Any) -> Any:
+    """An Enum field takes only its own members; the validator reads the value."""
+    if ftype.enum_class is None:
+        return value
+    return value.value if type(value) is ftype.enum_class else _INVALID_INSTANCE_VALUE
 
 
 WIRE_KINDS = {
@@ -1504,6 +1511,8 @@ def node_of(
         constraints = {**constraints, "input_max_length": ftype.input_max_length}
     if ftype.key is not None:
         constraints = {**constraints, "key": node_of(ftype.key, index_of, queue)}
+    if ftype.enum_class is not None:
+        constraints = {**constraints, "enum": ftype.enum_class}
     if ftype.kind == "union":
         constraints = {
             **constraints,
