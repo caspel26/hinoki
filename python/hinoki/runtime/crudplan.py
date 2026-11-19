@@ -793,6 +793,7 @@ def plain_crud_schema(schema: type[Schema], model: type[Model], role: str) -> bo
         )
         and plain_schema_setattr(schema)
         and not schema.__checks__
+        and not schema.__before__
         and not schema.__normalizers__
         and getattr(schema, "__post_init__", None) is None
         and (role != "read" or schema_fields(model, schema) is not None)
