@@ -177,6 +177,24 @@ def test_declarations_are_checked_like_the_class_form() -> None:
         simple(create=NoteIn, owner="nope")
 
 
+def test_super_works_inside_a_decorated_class() -> None:
+    @crud(Note, path="/notes", read=NoteOut, access=writer)
+    class Notes:
+        def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Note]:
+            return cast(QuerySet[Note], super().get_queryset(principal))  # type: ignore[misc]
+
+    api = cast(Any, Notes)
+    assert api().get_queryset(None) is not None
+
+
+def test_subclasses_cannot_weaken_per_action_access_with_legacy_attributes() -> None:
+    base = simple(access=CrudAccess(default=writer, list=None))
+    with pytest.raises(RegistrationError, match="per action"):
+
+        class Weak(base):  # type: ignore[misc, valid-type]
+            read_access = None
+
+
 @needs_database
 async def test_function_form_runs_against_a_database(pool: Pool) -> None:
     assert URL is not None
