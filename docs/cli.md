@@ -78,7 +78,9 @@ In a terminal, `hinoki new` with no `NAME` (or with some options missing) asks f
 | `--git` | run `git init` in the project (no commit is made) | off (prompt default: yes) |
 | `--install` | run `uv sync` in the project | off (prompt default: yes) |
 
-The prompts are numbered lists and yes/no questions; the summary uses colour and Unicode symbols only on a capable terminal. Output that is piped, `NO_COLOR` and `TERM=dumb` give plain ASCII with no escape sequences. Ctrl-C or end of input cancels before anything is written (exit status 130).
+On a colour, UTF-8 terminal (macOS and Linux) the prompts sit on a guide rail and answer to keys: type a name (backspace edits, Ctrl-U clears), move through the database list with ↑/↓ or pick it by number, and switch yes/no with ←/→ or `y`/`n`; Enter confirms. Each answered prompt collapses into one summary line. The run then lists the key files it created, times `git init` and `uv sync` (with a spinner while they run) and ends with the next commands. Ghostty, kitty, iTerm2 and WezTerm show the Hinoki logo as an inline image; other terminals show a text wordmark. Elsewhere the prompts are numbered lists and `[Y/n]` questions answered with Enter.
+
+Output that is piped, `NO_COLOR` and `TERM=dumb` give plain ASCII with no escape sequences. `HINOKI_ANIMATE=0` (or `CI`) turns off the tagline animation and the spinner; `HINOKI_IMAGES=0` (or running inside tmux/screen) uses the text wordmark. When the terminal reports a light background through `COLORFGBG`, darker shades of the same colours are used. Ctrl-C (or Esc in the key-driven prompts) or end of input cancels before anything is written (exit status 130).
 
 `git` and `uv` run only when asked; a missing tool or a failing command prints a warning and does not undo the project. Nothing else is installed or run, and no database is created or contacted.
 
