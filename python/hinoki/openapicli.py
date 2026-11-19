@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from hinoki.checkcli import USAGE_ERRORS, build_app
+from hinoki.openapidiff import breaking_changes
 
 
 def add_arguments(
@@ -22,6 +23,12 @@ def add_arguments(
     output.add_argument("--output", type=Path, help="write the document to this file")
     output.add_argument(
         "--check", type=Path, help="compare the document with this JSON file"
+    )
+    output.add_argument(
+        "--breaking-against",
+        type=Path,
+        metavar="BASELINE",
+        help="exit 1 when the document breaks clients of this earlier JSON file",
     )
 
 
@@ -58,18 +65,47 @@ def check_document(path: Path, target: str, generated: dict[str, Any]) -> int:
     return 0
 
 
+def load_json(path: Path) -> dict[str, Any] | None:
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        print(f"error: OpenAPI file {path} does not exist", file=sys.stderr)
+        return None
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        print(f"error: cannot read JSON from {path}: {exc}", file=sys.stderr)
+        return None
+    if not isinstance(loaded, dict):
+        print(f"error: {path} is not an OpenAPI object", file=sys.stderr)
+        return None
+    return loaded
+
+
+def check_breaking(path: Path, generated: dict[str, Any]) -> int:
+    baseline = load_json(path)
+    if baseline is None:
+        return 2
+    problems = breaking_changes(baseline, generated)
+    for problem in problems:
+        print(f"breaking: {problem}", file=sys.stderr)
+    return 1 if problems else 0
+
+
+def emit(args: argparse.Namespace, generated: dict[str, Any]) -> int:
+    rendered = json.dumps(generated, indent=2, sort_keys=True) + "\n"
+    if args.output is not None:
+        return write_document(args.output, rendered)
+    if args.check is not None:
+        return check_document(args.check, args.target, generated)
+    if args.breaking_against is not None:
+        return check_breaking(args.breaking_against, generated)
+    print(rendered, end="")
+    return 0
+
+
 def run_openapi(args: argparse.Namespace) -> int:
     try:
         generated = document(args.target)
     except (*USAGE_ERRORS, SystemExit) as exc:
         print(f"error: cannot load {args.target}: {exc}", file=sys.stderr)
         return 2
-
-    rendered = json.dumps(generated, indent=2, sort_keys=True) + "\n"
-    if args.output is not None:
-        return write_document(args.output, rendered)
-    if args.check is not None:
-        return check_document(args.check, args.target, generated)
-
-    print(rendered, end="")
-    return 0
+    return emit(args, generated)
