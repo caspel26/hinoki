@@ -23,7 +23,7 @@ from hinoki.runtime.recent import read_recent
 from tests.runtime.harness import fetch, free_port, wait_ready
 
 ROOT = Path(__file__).resolve().parents[2]
-TARGET = "tests.rustserverapp:app"
+TARGET = "tests.kisoserverapp:app"
 pytestmark = pytest.mark.runtime
 
 

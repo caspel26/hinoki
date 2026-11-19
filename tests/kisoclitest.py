@@ -20,8 +20,8 @@ from granian.constants import HTTPModes, SSLProtocols
 
 import hinoki.serve as serve_module
 from hinoki import Hinoki, core
+from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.listener import ListenError, inherited_address, open_listener
-from hinoki.runtime.rustserver import RustWorker
 from hinoki.runtime.supervisor import Supervisor
 from hinoki.serve import add_arguments, choose_server, granian_tls
 from hinoki.settings import (
@@ -38,7 +38,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def parsed(*argv: str) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     add_arguments(parser.add_subparsers(dest="command"))
-    return parser.parse_args(["serve", "tests.rustserverapp:app", *argv])
+    return parser.parse_args(["serve", "tests.kisoserverapp:app", *argv])
 
 
 def test_the_server_defaults_to_rust_and_the_flag_overrides_the_setting() -> None:
@@ -89,7 +89,7 @@ def test_granian_refuses_a_rust_only_setting(
 def test_a_missing_rust_server_is_an_error_not_a_fallback(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.delattr(core, "RustServer")
+    monkeypatch.delattr(core, "KisoServer")
     assert choose_server(parsed(), ServerSettings()) == 2
     assert "Kiso is not available" in capsys.readouterr().err
     assert choose_server(parsed("--server", "granian"), ServerSettings()) == "granian"
@@ -152,7 +152,7 @@ def test_http2_needs_tls() -> None:
 def test_the_native_server_refuses_http2_without_tls() -> None:
     fd = detached(socket.SOCK_STREAM, listen=True)
     with pytest.raises(ValueError, match="http2 needs TLS"):
-        core.RustServer.start(native_core(), "", 0, fd=fd, http2=True)
+        core.KisoServer.start(native_core(), "", 0, fd=fd, http2=True)
     assert not is_open(fd)
 
 
@@ -180,7 +180,7 @@ def test_granian_negotiates_http2_only_when_asked() -> None:
 
 
 def test_a_supervised_worker_ignores_a_repeated_sigterm() -> None:
-    worker = RustWorker(Hinoki(), "127.0.0.1", 0, parent=os.getpid())
+    worker = KisoWorker(Hinoki(), "127.0.0.1", 0, parent=os.getpid())
     worker._on_signal()
     worker._on_signal()  # would os._exit(1) for an unsupervised worker
     assert worker.stopping.is_set()
@@ -242,7 +242,7 @@ def test_an_inherited_descriptor_that_is_not_a_socket_is_refused() -> None:
 
 async def test_the_native_server_refuses_a_descriptor_that_is_not_a_listener() -> None:
     reader, writer = os.pipe()
-    worker = RustWorker(Hinoki(), "127.0.0.1", 0, listener_fd=reader)
+    worker = KisoWorker(Hinoki(), "127.0.0.1", 0, listener_fd=reader)
     try:
         with pytest.raises(RuntimeError, match="non-socket"):
             await worker.start()
@@ -258,9 +258,9 @@ def test_the_supervisor_process_never_starts_the_native_runtime() -> None:
         "from hinoki.runtime.listener import open_listener\n"
         "from hinoki.runtime.supervisor import Supervisor\n"
         "from hinoki.serve import built_app\n"
-        "app = built_app('tests.rustserverapp:app')\n"
+        "app = built_app('tests.kisoserverapp:app')\n"
         "sock = open_listener('127.0.0.1', 0, 8)\n"
-        "Supervisor('tests.rustserverapp:app', sock, 2, 1.0)\n"
+        "Supervisor('tests.kisoserverapp:app', sock, 2, 1.0)\n"
         "core.configure_runtime(2)\n"
         "print('runtime not started')\n"
     )
@@ -353,7 +353,7 @@ def test_run_inline_configures_runtime_before_starting_worker(
     run = Mock(return_value=0)
     monkeypatch.setattr(core, "configure_runtime", configure)
     monkeypatch.setattr(asyncio, "run", run)
-    monkeypatch.setattr("hinoki.runtime.rustserver.build_worker", lambda *_: worker)
+    monkeypatch.setattr("hinoki.runtime.kiso.build_worker", lambda *_: worker)
     assert serve_module.run_inline(app, ("127.0.0.1", 8123), settings) == 0
     configure.assert_called_once_with(3)
     run.assert_called_once_with(None)
@@ -497,7 +497,7 @@ def is_open(fd: int) -> bool:
 
 
 def native_core() -> core.ServerCore:
-    return RustWorker(Hinoki(), "127.0.0.1", 0).core
+    return KisoWorker(Hinoki(), "127.0.0.1", 0).core
 
 
 def detached(kind: int, *, listen: bool) -> int:
@@ -515,7 +515,7 @@ def test_a_descriptor_that_is_not_an_ip_stream_socket_is_refused_and_closed() ->
         os.open(os.devnull, os.O_RDONLY),  # a file some other code opened
     ):
         with pytest.raises((RuntimeError, ValueError)):
-            core.RustServer.start(native_core(), "", 0, fd=fd)
+            core.KisoServer.start(native_core(), "", 0, fd=fd)
         assert not is_open(fd)  # taken by the call, so closed with the error
 
 
@@ -523,17 +523,17 @@ def test_a_descriptor_that_is_not_an_ip_stream_socket_is_refused_and_closed() ->
 def test_a_stream_socket_that_is_not_listening_is_refused_and_closed() -> None:
     fd = detached(socket.SOCK_STREAM, listen=False)
     with pytest.raises(ValueError, match="not a listening socket"):
-        core.RustServer.start(native_core(), "", 0, fd=fd)
+        core.KisoServer.start(native_core(), "", 0, fd=fd)
     assert not is_open(fd)
 
 
 def test_a_valid_listener_is_closed_when_the_start_is_refused_for_its_limits() -> None:
     fd = detached(socket.SOCK_STREAM, listen=True)
     with pytest.raises(ValueError, match="max_connections"):
-        core.RustServer.start(native_core(), "", 0, max_connections=0, fd=fd)
+        core.KisoServer.start(native_core(), "", 0, max_connections=0, fd=fd)
     assert not is_open(fd)  # one rule: a descriptor passed in is always consumed
     with pytest.raises(ValueError, match="descriptor"):
-        core.RustServer.start(native_core(), "", 0, fd=-1)
+        core.KisoServer.start(native_core(), "", 0, fd=-1)
 
 
 def test_the_listener_helper_refuses_a_socket_that_is_not_listening() -> None:
@@ -552,7 +552,7 @@ def test_a_signal_before_the_workers_start_stops_cleanly(
     reload: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     listener = open_listener("127.0.0.1", 0, 4)
-    supervisor = Supervisor("tests.rustserverapp:app", listener, 2, 1.0, reload=reload)
+    supervisor = Supervisor("tests.kisoserverapp:app", listener, 2, 1.0, reload=reload)
     monkeypatch.setattr(signal, "signal", lambda *_: None)  # not the test's own
     supervisor.stop.set()  # the signal came during the first poll
     assert supervisor.run() == 0
@@ -638,7 +638,7 @@ def test_supervisor_builds_and_spawns_worker_command(
     assert command[:4] == [
         sys.executable,
         "-m",
-        "hinoki.runtime.rustserver",
+        "hinoki.runtime.kiso",
         "app:make",
     ]
     assert command[4:] == ["--fd", str(listener.fileno()), "--parent", str(os.getpid())]

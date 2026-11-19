@@ -12,7 +12,7 @@ import pytest
 from hinoki import API, Hinoki, Schema, core, crud
 from hinoki.db import Database, DatabaseModule
 from hinoki.orm import Model, QuerySet, field
-from hinoki.runtime.rustserver import RustWorker
+from hinoki.runtime.kiso import KisoWorker
 from hinoki.settings import AppSettings, CorsSettings, ServerSettings
 from tests.crudplantest import PlanItems
 
@@ -115,7 +115,7 @@ async def create_gadgets() -> None:
 
 
 @pytest.fixture
-async def gadget_worker() -> AsyncIterator[RustWorker]:
+async def gadget_worker() -> AsyncIterator[KisoWorker]:
     assert DATABASE_URL is not None
     await create_gadgets()
     app = Hinoki(
@@ -128,7 +128,7 @@ async def gadget_worker() -> AsyncIterator[RustWorker]:
         include=[Gadgets],
         modules=[DatabaseModule(DATABASE_URL)],
     )
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     await worker.start()
     try:
         yield worker
@@ -137,7 +137,7 @@ async def gadget_worker() -> AsyncIterator[RustWorker]:
         await run_sql([("DROP TABLE IF EXISTS crud_parity_gadgets", ())])
 
 
-def armed(worker: RustWorker) -> list[int]:
+def armed(worker: KisoWorker) -> list[int]:
     found = [
         action
         for action, selection in enumerate(worker.pipeline.crud_plan_selections)
@@ -147,11 +147,11 @@ def armed(worker: RustWorker) -> list[int]:
     return found
 
 
-def assert_armed(worker: RustWorker) -> None:
+def assert_armed(worker: KisoWorker) -> None:
     assert all(worker.core._crud_armed(action) for action in armed(worker))
 
 
-def assert_disarmed(worker: RustWorker) -> None:
+def assert_disarmed(worker: KisoWorker) -> None:
     assert all(not worker.core._crud_armed(action) for action in armed(worker))
 
 
@@ -192,13 +192,13 @@ DEFERRED_TARGETS = [
 ]
 
 
-async def answers(worker: RustWorker, targets: list[tuple[str, str, tuple]]) -> list:  # type: ignore[type-arg]
+async def answers(worker: KisoWorker, targets: list[tuple[str, str, tuple]]) -> list:  # type: ignore[type-arg]
     port = worker.address[1]
     return [stable(await request(port, *target)) for target in targets]
 
 
 async def test_native_gadget_reads_match_the_python_lane(
-    gadget_worker: RustWorker, monkeypatch: pytest.MonkeyPatch
+    gadget_worker: KisoWorker, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     worker = gadget_worker
     assert_armed(worker)
@@ -218,7 +218,7 @@ async def test_native_gadget_reads_match_the_python_lane(
 
 
 async def test_native_gadget_answers_cover_the_column_kinds(
-    gadget_worker: RustWorker, monkeypatch: pytest.MonkeyPatch
+    gadget_worker: KisoWorker, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(gadget_worker, "_check_crud_snapshots", lambda: None)
     forbid_python_reads(monkeypatch, Gadgets)
@@ -237,7 +237,7 @@ async def test_native_gadget_answers_cover_the_column_kinds(
 
 
 async def test_replacing_model_all_after_start_disarms_the_plans(
-    gadget_worker: RustWorker, monkeypatch: pytest.MonkeyPatch
+    gadget_worker: KisoWorker, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     worker = gadget_worker
     port = worker.address[1]
@@ -258,7 +258,7 @@ async def test_replacing_model_all_after_start_disarms_the_plans(
 
 
 async def test_replacing_the_base_model_all_after_start_disarms_the_plans(
-    gadget_worker: RustWorker, monkeypatch: pytest.MonkeyPatch
+    gadget_worker: KisoWorker, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def nothing(cls: type[Model]) -> QuerySet[Model]:
         return QuerySet(cls).filter(hidden=False)
@@ -269,7 +269,7 @@ async def test_replacing_the_base_model_all_after_start_disarms_the_plans(
 
 
 async def test_changing_response_headers_after_start_disarms_the_plans(
-    gadget_worker: RustWorker, monkeypatch: pytest.MonkeyPatch
+    gadget_worker: KisoWorker, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     worker = gadget_worker
     port = worker.address[1]
@@ -316,7 +316,7 @@ async def test_uuid_path_forms_match_the_python_lane(
         include=[PlanItems],
         modules=[DatabaseModule(DATABASE_URL)],
     )
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     await worker.start()
     try:
         monkeypatch.setattr(worker, "_check_crud_snapshots", lambda: None)
