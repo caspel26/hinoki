@@ -34,8 +34,15 @@ ITEM = "/{item_id}"
 GENERATED = "hinoki_generated"
 ACTIONS = ("list", "retrieve", "create", "update", "delete")
 WRITE_ACTIONS = ("create", "update", "delete")
-HOOKS = ("get_queryset", "to_schema")
-INTERNAL_HOOKS = ("store", "change", "remove", "written_queryset", "reload_written")
+HOOKS = (
+    "get_queryset",
+    "to_schema",
+    "written_queryset",
+    "store",
+    "change",
+    "remove",
+)
+INTERNAL_HOOKS = ("reload_written",)
 
 
 class Crud(enum.StrEnum):
@@ -900,8 +907,8 @@ class CrudDeclaration:
         extra = sorted(names & set(INTERNAL_HOOKS))
         if extra:
             raise RegistrationError(
-                f"{cls.__name__}: only {' and '.join(HOOKS)} are hooks; "
-                f"write {extra} as a handwritten action"
+                f"{cls.__name__}: {extra} are internal helpers, not hooks; "
+                f"the hooks are {', '.join(HOOKS)}"
             )
         skip = {"__dict__", "__weakref__"}
         built = self.build(
@@ -941,7 +948,8 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     """Declare generated CRUD for ``model``.
 
     ``app.include(crud(...))`` mounts the generated actions; ``@crud(...)`` on a
-    class adds ``get_queryset``/``to_schema`` hooks and handwritten actions.
+    class adds the hooks (``get_queryset``, ``to_schema``, ``written_queryset``,
+    ``store``, ``change``, ``remove``) and handwritten actions.
     A single ``Access`` protects every action; ``CrudAccess`` sets them apart.
     """
     unknown = sorted(set(omit) - {"list", "retrieve"})
