@@ -406,9 +406,9 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 </code></pre></div>
 <p><code>TARGET</code> is <code>module:name</code>, where <code>name</code> is an application (<code>Hinoki</code>) or a function that returns one (a factory: the usual choice, because it builds the app inside each worker). The factory builds declarations only; databases and pools open in the worker's lifespan.</p>
 <p>With a declared app, settings load when the target module creates the <code>Hinoki</code> object. The database declared by the settings (or a configured <code>DatabaseModule</code>) opens that worker's pool during lifespan startup and closes it during shutdown. The pool is per worker; no database connection is opened by importing model or route modules. See <a href="../settings/#8-database-connection-ownership">settings and database ownership</a>.</p>
-<p>Both commands run the app under Granian unless you choose the <a href="#the-rust-server">Rust server</a> with <code>--server rust</code> or <code>server.server</code>. In the Hinoki checkout,
-<code>uv sync --locked</code> installs the development environment, including Granian's
-reload support. A project created by <code>hinoki new</code> declares the server extra in
+<p>Both commands run the app on the <a href="#the-rust-server">Rust server</a> unless you choose Granian with <code>--server granian</code> or <code>server.server</code>. In the Hinoki checkout,
+<code>uv sync --locked</code> installs the development environment, including Granian and
+its reload support. A project created by <code>hinoki new</code> declares the server extra in
 its source dependency; run <code>uv sync</code> in that project. The extra includes
 Granian's reload support (<code>watchfiles</code>), which <code>hinoki dev</code> needs. If Granian
 was installed separately without <code>watchfiles</code>, <code>dev</code> reports the missing
@@ -474,7 +474,7 @@ index; see <a href="../getting-started/">installation</a> for setup.</p>
 <p><code>dev</code> always runs one worker with reload. The settings command shows what is in effect: <code>hinoki settings blog.settings:BlogSettings</code>.</p>
 <p>Before serving a deployment, narrow <a href="../settings/#allowed_hosts"><code>allowed_hosts</code></a> to the names it answers to (<code>BLOG_ALLOWED_HOSTS=app.example.com</code>). While it is the default <code>*</code> and <code>debug</code> is off, each worker logs <code>allowed_hosts is '*' and debug is off: ...</code> at startup, on Granian, the Rust server, WSGI and other ASGI servers alike.</p>
 <h2 id="the-rust-server">The Rust server<a class="headerlink" href="#the-rust-server" title="Permanent link">&para;</a></h2>
-<p><code>hinoki serve --server rust</code> (or <code>server.server = "rust"</code>) runs the application on a second server that is part of Hinoki's native extension. Granian stays the default and <code>--server granian</code> always selects it; nothing changes for an app that does not opt in.</p>
+<p><code>hinoki serve</code> and <code>hinoki dev</code> run the application on the Rust server, which is part of Hinoki's native extension, unless you choose Granian with <code>--server granian</code> or <code>server.server = "granian"</code>. Choose Granian when you need what the Rust server does not provide: the access log (<code>server.access_log</code>), an ASGI wrapper around the app (see below), or a server outside the extension.</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>rust
 uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>rust<span class="w"> </span>--workers<span class="w"> </span><span class="m">4</span>
 uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w">   </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>rust
@@ -654,8 +654,8 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 17:45:50 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>21 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 18:26:52 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>22 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

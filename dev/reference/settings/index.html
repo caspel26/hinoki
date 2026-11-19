@@ -1561,7 +1561,7 @@ call again, it replaces its own handler.</p>
 
         <p>How <code>hinoki serve</code> and <code>dev</code> run the application. <code>serve</code> applies
 these; they do nothing when another runner starts the app.</p>
-<p><code>server</code> picks Granian (the default) or the Rust server. <code>access_log</code>
+<p><code>server</code> picks the Rust server (the default) or Granian. <code>access_log</code>
 belongs to Granian; <code>max_connections</code>, <code>header_read_timeout</code>,
 <code>body_read_timeout</code>, <code>write_timeout</code> and <code>native_dispatch</code> belong to
 the Rust server (<code>None</code> keeps its default). <code>hinoki serve</code> refuses a
@@ -1604,7 +1604,7 @@ without an asyncio task; <code>False</code> keeps every handler in one.</p>
   </span>
 
 <a href="#hinoki.settings.ServerSettings.server" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">server</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'granian'</span><span class="p">,</span> <span class="s1">'rust'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'granian'</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">server</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'granian'</span><span class="p">,</span> <span class="s1">'rust'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'rust'</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">

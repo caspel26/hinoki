@@ -238,7 +238,7 @@
         <h1 id="request-lifecycle">Request lifecycle<a class="headerlink" href="#request-lifecycle" title="Permanent link">&para;</a></h1>
 <p>The order matters because validation, access and transactions have different failure behavior.</p>
 <ol>
-<li>Granian accepts the HTTP request and calls the ASGI application. (With <code>--server rust</code> the native server accepts it, answers what needs no application code and hands the rest to the same request pipeline; see <a href="../serving/#the-rust-server">serving</a>.)</li>
+<li>The Rust server accepts the HTTP request, answers what needs no application code and hands the rest to the request pipeline; see <a href="../serving/#the-rust-server">serving</a>. (With <code>--server granian</code>, Granian accepts it and calls the ASGI application, which reaches the same pipeline.)</li>
 <li>Hinoki matches the method and path.</li>
 <li>For an action with an access policy, its authentication provider resolves a caller and the policy checks permissions. The request body has not been read yet, so an unauthenticated client cannot make the server buffer it.</li>
 <li>Hinoki negotiates the response type from <code>Accept</code> (<code>406</code> when nothing fits), reads the body of <code>POST</code>/<code>PUT</code>/<code>PATCH</code>/<code>QUERY</code> requests, then binds and validates path, query, header and body values before the handler runs.</li>
@@ -274,7 +274,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.2</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 21:17:53 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 18:26:52 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/request-lifecycle.md">Edit on GitHub</a></dd></div>
         </dl>
