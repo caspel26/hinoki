@@ -490,7 +490,7 @@ pub fn headers_and_size(
     Ok((result.unbind(), size))
 }
 
-use hinoki_server::headers::is_policy;
+use kiso::headers::is_policy;
 
 /// A `(name, value)` pair of bytes; ASGI servers may send lists or tuples.
 fn byte_pair<'py>(

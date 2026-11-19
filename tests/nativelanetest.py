@@ -19,9 +19,9 @@ from hinoki.modules import ModuleContext
 from hinoki.orm import Model, field
 from hinoki.orm.options import table
 from hinoki.routescli import lanes_of
+from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.nativelane import lane_refusal, resume
-from hinoki.runtime.rustserver import RustWorker
-from tests.rustservertest import Received, fetch
+from tests.kisoservertest import Received, fetch
 
 POSTGRES = os.environ.get("HINOKI_TEST_DATABASE_URL")
 
@@ -141,7 +141,7 @@ def normalized(received: Received) -> tuple[int, list[tuple[str, str]], bytes]:
 async def serve_all(
     url: str, targets: list[str], *, native: bool
 ) -> tuple[list[Received], list[int]]:
-    worker = RustWorker(make_app(url), "127.0.0.1", 0, native_dispatch=native)
+    worker = KisoWorker(make_app(url), "127.0.0.1", 0, native_dispatch=native)
     port = await worker.start()
     started: list[int] = []
     if worker.lane is not None:
@@ -195,7 +195,7 @@ async def test_the_lane_answers_like_the_asyncio_path(url: str) -> None:
 async def test_a_driven_handler_runs_in_its_own_request_context(
     url: str,
 ) -> None:
-    worker = RustWorker(make_app(url), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(url), "127.0.0.1", 0)
     port = await worker.start()
     try:
         first, second = await asyncio.gather(
@@ -219,7 +219,7 @@ async def test_lane_refusal_names_why_a_route_stays_on_asyncio(
 
 
 async def test_the_switch_keeps_every_handler_on_asyncio(url: str) -> None:
-    worker = RustWorker(make_app(url), "127.0.0.1", 0, native_dispatch=False)
+    worker = KisoWorker(make_app(url), "127.0.0.1", 0, native_dispatch=False)
     await worker.start()
     try:
         assert worker.lane is None

@@ -12,9 +12,9 @@ from openapi_spec_validator import validate
 
 from hinoki import Field, Hinoki, Schema, http
 from hinoki.errors import RegistrationError, ValidationError
-from hinoki.runtime.rustserver import RustWorker
+from hinoki.runtime.kiso import KisoWorker
 from hinoki.testing import ASGIClient
-from tests.rustservertest import JSON, fetch
+from tests.kisoservertest import JSON, fetch
 from tests.schemadifftest import native, oracle, outcome
 from tests.xmlnativelanetest import recording
 
@@ -165,7 +165,7 @@ BODIES = [
 async def test_the_native_lane_matches_the_python_lane() -> None:
     app = Hinoki()
     app.include(json_order)
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     lanes: list[str] = []
     pipeline = worker.pipeline
     pipeline.handle_native = recording(lanes, "native", pipeline.handle_native)  # type: ignore[method-assign]

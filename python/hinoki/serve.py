@@ -112,7 +112,7 @@ def choose_server(args: argparse.Namespace, settings: ServerSettings) -> str | i
             f"{chosen} server; unset it or choose "
             f"--server {'granian' if chosen == 'kiso' else 'kiso'}"
         )
-    if chosen == "kiso" and not hasattr(core, "RustServer"):
+    if chosen == "kiso" and not hasattr(core, "KisoServer"):
         return refuse(
             "Kiso is not available in this build of the native "
             "extension; use --server granian"
@@ -135,11 +135,11 @@ def rust_refusal(args: argparse.Namespace, reload: bool) -> str | None:
 
 
 def run_inline(app: Hinoki, address: tuple[str, int], settings: ServerSettings) -> int:
-    # Imported here: rustserver imports this module for ``load_target``.
-    from hinoki.runtime import rustserver  # noqa: PLC0415
+    # Imported here: kiso imports this module for ``load_target``.
+    from hinoki.runtime import kiso  # noqa: PLC0415
 
     core.configure_runtime(settings.runtime_threads)
-    return asyncio.run(rustserver.build_worker(app, *address, settings).run())
+    return asyncio.run(kiso.build_worker(app, *address, settings).run())
 
 
 def stop_grace(app: Hinoki) -> float:

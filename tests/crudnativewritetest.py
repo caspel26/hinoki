@@ -15,7 +15,7 @@ from hinoki.db import Database, DatabaseModule
 from hinoki.fields import UNSET
 from hinoki.orm import Model, field, timestamps
 from hinoki.orm.migrations import create_table_sql, table_state
-from hinoki.runtime.rustserver import RustWorker
+from hinoki.runtime.kiso import KisoWorker
 from hinoki.settings import AppSettings, ServerSettings
 from hinoki.utils import utc_now
 
@@ -187,7 +187,7 @@ async def empty(url: str) -> None:
 @pytest.fixture(params=DATABASES)
 async def worker(
     request: pytest.FixtureRequest, tmp_path: Path
-) -> AsyncIterator[tuple[RustWorker, str]]:
+) -> AsyncIterator[tuple[KisoWorker, str]]:
     dialect, url = request.param
     url = url or f"sqlite:///{tmp_path / 'parity.db'}"
     await reset(url, dialect)
@@ -198,7 +198,7 @@ async def worker(
         include=[Parts, Scores],
         modules=[DatabaseModule(url)],
     )
-    started = RustWorker(app, "127.0.0.1", 0)
+    started = KisoWorker(app, "127.0.0.1", 0)
     await started.start()
     try:
         yield started, url
@@ -210,7 +210,7 @@ async def worker(
         cleanup.close()
 
 
-def selected(started: RustWorker, path: str) -> set[str]:
+def selected(started: KisoWorker, path: str) -> set[str]:
     return {
         selection.action
         for selection in started.pipeline.crud_plan_selections
@@ -236,13 +236,13 @@ PART_SEQUENCE = [
 ]
 
 
-async def run(started: RustWorker, sequence: list[tuple[str, str, bytes]]) -> list:  # type: ignore[type-arg]
+async def run(started: KisoWorker, sequence: list[tuple[str, str, bytes]]) -> list:  # type: ignore[type-arg]
     port = started.address[1]
     return [masked(await request(port, *step)) for step in sequence]
 
 
 async def test_int_key_timestamp_and_schema_default_writes_match_python(
-    worker: tuple[RustWorker, str], monkeypatch: pytest.MonkeyPatch
+    worker: tuple[KisoWorker, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     started, url = worker
     monkeypatch.setattr(started, "_check_crud_snapshots", lambda: None)
@@ -272,7 +272,7 @@ async def test_int_key_timestamp_and_schema_default_writes_match_python(
 
 
 async def test_schema_defaults_of_another_kind_than_the_column_match_python(
-    worker: tuple[RustWorker, str],
+    worker: tuple[KisoWorker, str],
 ) -> None:
     started, url = worker
     assert not selected(started, "/scores")

@@ -13,7 +13,7 @@ from hinoki.db import Database, DatabaseModule
 from hinoki.fieldtypes import MAX_BYTES_LENGTH
 from hinoki.orm import Model, field
 from hinoki.orm.migrations import create_table_sql, table_state
-from hinoki.runtime.rustserver import RustWorker
+from hinoki.runtime.kiso import KisoWorker
 from hinoki.settings import AppSettings, ServerSettings
 from tests.crudnativewritetest import masked, request
 
@@ -55,7 +55,7 @@ DATABASES = (
 @pytest.fixture(params=DATABASES)
 async def worker(
     request: pytest.FixtureRequest, tmp_path: Path
-) -> AsyncIterator[tuple[RustWorker, Database]]:
+) -> AsyncIterator[tuple[KisoWorker, Database]]:
     dialect, url = request.param
     url = url or f"sqlite:///{tmp_path / 'blobs.db'}"
     database = await Database.connect(url, max_size=1, wait=1)
@@ -68,7 +68,7 @@ async def worker(
         include=[Blobs],
         modules=[DatabaseModule(url)],
     )
-    started = RustWorker(app, "127.0.0.1", 0)
+    started = KisoWorker(app, "127.0.0.1", 0)
     await started.start()
     try:
         yield started, database
@@ -79,7 +79,7 @@ async def worker(
 
 
 async def test_bytes_are_written_and_read_as_base64(
-    worker: tuple[RustWorker, Database],
+    worker: tuple[KisoWorker, Database],
 ) -> None:
     started, database = worker
     port = started.address[1]
@@ -114,7 +114,7 @@ async def test_bytes_are_written_and_read_as_base64(
 
 
 async def test_a_stored_row_beyond_the_wire_default_reads_back(
-    worker: tuple[RustWorker, Database],
+    worker: tuple[KisoWorker, Database],
 ) -> None:
     started, database = worker
     big = b"\x07" * (MAX_BYTES_LENGTH + 1)

@@ -136,6 +136,8 @@ class PostAdmin(ModelAdmin, model=Post):
 
 `Admin(templates="admin_ui")` reads `admin_ui/components/NAME.html` before the built-in component of the same name (`shell`, `sidebar`, `table`, `form`, `field`, `auth` for the sign-in page...), and appends `admin_ui/admin.css` after the theme, so an application can override anything last. A component keeps its `{{ value }}` (escaped) and `{{{ raw }}}` placeholders; copy the built-in file from the package as the starting point.
 
+The overrides are checked when the `Admin` is created, so a mistake fails at startup and not on the first request: a file whose name is not a component, a placeholder the built-in component is never given (or one that changes between `{{ }}` and `{{{ }}}`) and a `form`, `table`, `confirm` or `auth` override that drops `{{ csrf }}` raise `TemplateError`. A component may leave out other placeholders.
+
 ```css
 /* admin_ui/admin.css */
 .hn-auth-card { border-radius: 0; }
