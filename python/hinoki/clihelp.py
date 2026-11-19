@@ -16,7 +16,7 @@ GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Start", ("new", "app", "dev", "serve", "shell")),
     ("Inspect", ("check", "doctor", "routes", "settings", "openapi", "version")),
     ("Data", ("migrations", "admin")),
-    ("Integrate", ("mcp", "manage", "completion")),
+    ("Integrate", ("mcp", "skills", "manage", "completion")),
 )
 INVALID_CHOICE = re.compile(r"invalid choice: '([^']*)'")
 FOOTER = "Run `hinoki COMMAND --help` for the options of one command."
