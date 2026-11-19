@@ -130,6 +130,18 @@ def native_input_supported(param: Param) -> bool:
     )
 
 
+def route_guarded(binding: Binding) -> bool:
+    """Whether Python must see the headers or the peer before the handler: for
+    credentials, the rate limit, or the ``Accept`` choice among renderers."""
+    route = binding.route
+    return (
+        route.access is not None
+        or route.rate_limit is not None
+        or binding.query_param is not None
+        or len(route.renderers) > 1
+    )
+
+
 def native_handler_eligible(binding: Binding) -> bool:
     """Select the automatic native response path for a simple GET or DELETE, or
     for a body method with one ``Schema`` body and only built-in parsers."""

@@ -37,11 +37,12 @@ from urllib.parse import unquote
 from hinoki import core
 from hinoki.db import Database
 from hinoki.errors import InvalidBody
-from hinoki.runtime.binding import BODY_METHODS, Binding
+from hinoki.runtime.binding import BODY_METHODS
 from hinoki.runtime.listener import inherited_address, open_listener
+from hinoki.runtime.nativelane import NativeLane, lane_refusal
 from hinoki.runtime.pipeline import NativeBody
 from hinoki.runtime.responses import HTTPError, Response
-from hinoki.runtime.servercore import build_server_core
+from hinoki.runtime.servercore import build_server_core, route_guarded
 from hinoki.serve import load_target, settings_of
 from hinoki.settings import RUST_ONLY, ServerSettings
 
@@ -123,18 +124,6 @@ def scope_of(
     }
 
 
-def route_guarded(binding: Binding) -> bool:
-    """Whether Python must see the headers or the peer before the handler: for
-    credentials, the rate limit, or the ``Accept`` choice among renderers."""
-    route = binding.route
-    return (
-        route.access is not None
-        or route.rate_limit is not None
-        or binding.query_param is not None
-        or len(route.renderers) > 1
-    )
-
-
 class RustWorker:
     """Runs one application on the Rust server inside the current event loop."""
 
@@ -154,6 +143,7 @@ class RustWorker:
         backlog: int = 1024,
         listener_fd: int | None = None,
         parent: int | None = None,
+        native_dispatch: bool = True,
     ) -> None:
         self.adapter = app.asgi()
         self.pipeline = self.adapter.pipeline
@@ -167,6 +157,8 @@ class RustWorker:
         self.tls_key_file = tls_key_file
         self.http2 = http2
         self.backlog = backlog
+        self.native_dispatch = native_dispatch
+        self.lane: NativeLane | None = None
         # An inherited listening descriptor (a supervisor owns the socket); the
         # native server takes it over. Without one, the worker binds itself.
         self.listener_fd = listener_fd
@@ -210,6 +202,7 @@ class RustWorker:
         runtime = self.pipeline.app.runtime
         try:
             self._activate_crud_plans()
+            self.lane = self._select_lane()
             if self.listener_fd is None:
                 # Bound only now, after the startup succeeded: a failed startup
                 # leaves nothing listening.
@@ -248,6 +241,25 @@ class RustWorker:
         self.timer = loop.call_later(HOUSEKEEPING, self._tick)
         self.core.set_ready(True)
         return server.port
+
+    def _select_lane(self) -> NativeLane | None:
+        """The native lane for the routes that prove eligible, once at startup."""
+        if not self.native_dispatch:
+            return None
+        actions = set()
+        for action, binding in enumerate(self.pipeline.bindings):
+            refusal = lane_refusal(binding)
+            if refusal is None:
+                actions.add(action)
+            log.debug(
+                "%s %s: %s",
+                binding.route.method,
+                binding.route.path,
+                "native lane" if refusal is None else f"asyncio ({refusal})",
+            )
+        if not actions:
+            return None
+        return NativeLane(self.pipeline, frozenset(actions), self.tasks, self._fail)
 
     def _activate_crud_plans(self) -> None:
         """Attach the worker-owned pool clone and arm still-valid plans."""
@@ -362,6 +374,8 @@ class RustWorker:
                 return
 
     def _spawn(self, request: core.PreparedRequest) -> None:
+        if self.lane is not None and self.lane.start(request):
+            return
         task = asyncio.create_task(self._serve(request))
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
@@ -496,8 +510,18 @@ class RustWorker:
         return aborted
 
     async def _cancel_requests(self) -> None:
-        for task in list(self.tasks):
+        unwinding: set[asyncio.Task[None]] = set()
+        if self.lane is not None:
+            self.lane.cancel_all()
+            unwinding = self.lane.unwinding
+        cancelled = self.tasks - unwinding
+        for task in list(cancelled):
             task.cancel()
+        if self.lane is not None:
+            await self.lane.drain()
+            # A step queued before shutdown can still start a translation task.
+            for task in list(self.tasks - unwinding - cancelled):
+                task.cancel()
         await asyncio.gather(*self.tasks, return_exceptions=True)
 
     def _ignore_signal(self) -> None:

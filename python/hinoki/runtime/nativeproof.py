@@ -14,8 +14,11 @@ objects when the application starts::
 
 ``Model`` must be a ``hinoki.Model`` and every link of the chain a stock
 method. Any other await, ``async with``, ``async for``, async comprehension,
-nested ``async def`` or ``yield`` means no proof. The proof assumes the ORM and
-the model classes are not replaced after startup.
+nested ``async def`` or ``yield`` means no proof, and so does a direct use of
+``asyncio`` or ``anyio`` in the handler body (``current_task`` returns nothing
+outside a task). The proof assumes the ORM and the model classes are not
+replaced after startup, and it does not look into functions the handler calls:
+their own use of the current task is outside its reach.
 """
 
 import ast
@@ -31,6 +34,8 @@ MODEL_STARTS = frozenset({"filter", "all"})
 MODEL_TERMINALS = frozenset({"aget", "aget_or_none"})
 QUERYSET_BUILDERS = frozenset({"filter", "order_by", "limit", "offset"})
 QUERYSET_TERMINALS = frozenset({"aget", "afirst", "acount", "aexists"})
+TASK_MODULES = frozenset({"asyncio", "_asyncio", "anyio"})
+TASK_APIS = frozenset({"asyncio", "anyio", "current_task", "all_tasks"})
 MISSING = object()
 UNSUPPORTED = (
     ast.AsyncWith,
@@ -130,6 +135,34 @@ def check_await(func: types.FunctionType, node: ast.Await) -> None:
     check_chain(target, links)
 
 
+def uses_task_api(node: ast.AST) -> bool:
+    if isinstance(node, ast.Name):
+        return node.id in TASK_APIS
+    return isinstance(node, ast.Attribute) and node.attr in TASK_APIS
+
+
+def names_task_api(func: types.FunctionType, node: ast.AST) -> bool:
+    """A name bound to asyncio or anyio, whatever it is called here
+    (``from asyncio import current_task as owner``)."""
+    if not isinstance(node, ast.Name):
+        return False
+    try:
+        found = resolve(func, node)
+    except ProofError:
+        return False
+    owner = found.__name__ if isinstance(found, types.ModuleType) else None
+    owner = owner or getattr(found, "__module__", None) or ""
+    return owner.split(".")[0] in TASK_MODULES
+
+
+def imports_task_api(node: ast.AST) -> bool:
+    if isinstance(node, ast.ImportFrom):
+        return (node.module or "").split(".")[0] in TASK_MODULES
+    if isinstance(node, ast.Import):
+        return any(a.name.split(".")[0] in TASK_MODULES for a in node.names)
+    return False
+
+
 def comprehension_is_async(node: ast.AST) -> bool:
     return isinstance(node, ast.comprehension) and bool(node.is_async)
 
@@ -142,6 +175,12 @@ def prove(func: Callable[..., Any]) -> None:
             continue
         if isinstance(node, UNSUPPORTED) or comprehension_is_async(node):
             raise ProofError(f"it uses {type(node).__name__}")
+        if (
+            uses_task_api(node)
+            or imports_task_api(node)
+            or names_task_api(function, node)
+        ):
+            raise ProofError("it uses asyncio directly")
         if isinstance(node, ast.Await):
             check_await(function, node)
 

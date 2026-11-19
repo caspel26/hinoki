@@ -72,7 +72,7 @@ class _NativeRun:
 def run_native(
     coro: Any,
     on_done: Callable[[Any, BaseException | None, str | None], None],
-    on_foreign: Callable[[Any, Any, Any, float | None], None],
+    on_foreign: Callable[[Any, Any, Any, float | None, str | None], None],
     ctx: Any = None,
     deadline_ms: int | None = None,
     scheduler: Callable[[Any], Any] | None = None,

@@ -50,6 +50,7 @@ RUST_ONLY = (
     "header_read_timeout",
     "body_read_timeout",
     "write_timeout",
+    "native_dispatch",
 )
 QUOTED = 2  # shortest quoted value: the two quotes
 MAX_CORS_AGE = 86400
@@ -1039,11 +1040,14 @@ class ServerSettings(Settings):
 
     ``server`` picks Granian (the default) or the Rust server. ``access_log``
     belongs to Granian; ``max_connections``, ``header_read_timeout``,
-    ``body_read_timeout`` and ``write_timeout`` belong to the Rust server
-    (``None`` keeps its default). ``hinoki serve`` refuses a setting the chosen
-    server cannot honour. ``tls_cert_file`` and ``tls_key_file`` (PEM files, set
-    together) serve HTTPS on either server; ``http2`` adds HTTP/2 to it (ALPN
-    ``h2``, TLS only, off by default).
+    ``body_read_timeout``, ``write_timeout`` and ``native_dispatch`` belong to
+    the Rust server (``None`` keeps its default). ``hinoki serve`` refuses a
+    setting the chosen server cannot honour. ``tls_cert_file`` and
+    ``tls_key_file`` (PEM files, set together) serve HTTPS on either server;
+    ``http2`` adds HTTP/2 to it (ALPN ``h2``, TLS only, off by default).
+    ``native_dispatch`` (unset means on)
+    lets the Rust server run the ``async def`` handlers it can prove safe
+    without an asyncio task; ``False`` keeps every handler in one.
     """
 
     host: str = "127.0.0.1"
@@ -1063,6 +1067,7 @@ class ServerSettings(Settings):
     tls_cert_file: str | None = None
     tls_key_file: str | None = None
     http2: bool = False
+    native_dispatch: bool | None = None
 
     def validate(self) -> None:
         if not 0 < self.port < MAX_PORT:
