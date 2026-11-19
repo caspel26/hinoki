@@ -57,5 +57,6 @@ One page for each part of an application. Start with the data and endpoint guide
 ## Where to go next
 
 - [Concepts](concepts.md): the request lifecycle, architecture patterns and the vocabulary.
+- [Own schemas and ORM](ecosystem.md): what owning `Schema` and `Model` means for other libraries, and the extension points that exist.
 - [Reference](reference/index.md): public symbols, signatures and docstrings.
 - [Status](status.md): what works today and what does not yet.
