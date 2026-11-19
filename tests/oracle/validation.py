@@ -174,6 +174,8 @@ class Validator:
             data = data.upper()
         if self.length(ftype, data, path) is INVALID:
             return INVALID
+        if "\0" in data:
+            return self.fail(path, "nul", "must not contain NUL characters")
         pattern = ftype.info.pattern
         # Length is checked first so it bounds the cost of the regex.
         if pattern is not None and not re.fullmatch(pattern, data):
@@ -414,6 +416,8 @@ class Validator:
         return INVALID if len(self.errors) > before else values
 
     def key(self, ftype: FieldType, key: str, path: str) -> object:
+        if "\0" in key:
+            return self.fail(path, "key_nul", "key must not contain NUL characters")
         info = ftype.info
         if info.min_length is not None and len(key) < info.min_length:
             bound = info.min_length
