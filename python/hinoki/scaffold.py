@@ -13,6 +13,8 @@ import re
 import sys
 from pathlib import Path
 
+from hinoki.ai.skills import skill_files
+
 NAME = re.compile(r"[a-z][a-z0-9]*")
 RESERVED_NAMES = sys.stdlib_module_names | {"hinoki"}
 
@@ -303,6 +305,7 @@ def files(
     *,
     database: str = "none",
     agent_files: bool = True,
+    skills: bool = False,
 ) -> dict[str, str]:
     """Relative path to content for a new project called ``name``."""
     if database not in DATABASES:
@@ -349,6 +352,8 @@ def files(
     if not agent_files:
         for relative in AGENT_FILES:
             contents.pop(relative)
+    if skills:
+        contents.update(skill_files(name))
     return contents
 
 
@@ -359,6 +364,7 @@ def create(
     *,
     database: str = "none",
     agent_files: bool = True,
+    skills: bool = False,
 ) -> Path:
     """Write the project into ``parent / name``; refuse a bad name or a target
     that exists and is not empty."""
@@ -372,7 +378,7 @@ def create(
     if target.exists() and any(target.iterdir()):
         raise ScaffoldError(f"{target} already exists and is not empty")
     contents = files(
-        name, source, database=database, agent_files=agent_files
+        name, source, database=database, agent_files=agent_files, skills=skills
     )  # resolve the source before writing anything
     for relative, content in contents.items():
         path = target / relative
