@@ -185,6 +185,37 @@ def run_logged(command: str, env: dict[str, str], *flags: str) -> str:
             process.stdout.close()
 
 
+@pytest.mark.parametrize(
+    ("command", "env", "present"),
+    [
+        ("serve", {}, False),
+        ("serve", {"SRV_SERVER__SERVER_TIMING": "true"}, True),
+        ("dev", {}, True),
+        ("dev", {"SRV_SERVER__SERVER_TIMING": "false"}, False),
+    ],
+)
+def test_server_timing_is_on_in_dev_and_when_asked(
+    command: str,
+    env: dict[str, str],
+    present: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    served: list[subprocess.Popen[str]],
+) -> None:
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    port = free_port()
+    server = start(
+        command, "tests.runtime.serveapp:create_app", port, "--server", "kiso"
+    )
+    served.append(server)
+    wait_ready(port, "/ping")
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/ping", timeout=10) as reply:
+        timing = reply.headers.get("server-timing")
+    assert (timing is not None) is present
+    if timing is not None:
+        assert re.fullmatch(r'kiso;dur=\d+\.\d{3};desc="(python|native)"', timing)
+
+
 def test_serve_logs_requests_only_when_the_setting_is_on() -> None:
     quiet = run_logged("serve", {}, "--workers", "1")
     assert "HTTP/1.1" not in quiet
