@@ -7,6 +7,7 @@ import weakref
 from collections.abc import Callable
 from functools import cached_property
 from types import CellType, FunctionType
+from typing import Any
 
 from hinoki.errors import RegistrationError
 from hinoki.orm import Model
@@ -100,7 +101,18 @@ def _validate_options(
 
 def rebuild[S: Schema](cls: type[S], plan: Derivation) -> type[S]:
     """Recreate a schema from its source class, keeping compiler-created cells."""
-    body = {**cls.__source__, "__derivation__": plan}
+    rebuilt = recreate(cls, {**cls.__source__, "__derivation__": plan})
+    DERIVED.add(rebuilt)
+    return rebuilt
+
+
+def recreate[S: Schema](
+    cls: type[S],
+    body: dict[str, Any],
+    bases: tuple[type, ...] | None = None,
+    name: str | None = None,
+) -> type[S]:
+    """Build ``cls`` again from ``body``, keeping its ``__class__`` cells."""
     class_cells = {
         id(cell): cell
         for value in body.values()
@@ -112,15 +124,14 @@ def rebuild[S: Schema](cls: type[S], plan: Derivation) -> type[S]:
         )
     if class_cells:
         body["__classcell__"] = next(iter(class_cells.values()))
-    rebuilt: type[S] = type.__call__(
+    created: type[S] = type.__call__(
         type,
-        cls.__name__,
-        cls.__bases__,
+        name or cls.__name__,
+        bases if bases is not None else cls.__bases__,
         body,
         config=cls.__schema_config__,
     )
-    DERIVED.add(rebuilt)
-    return rebuilt
+    return created
 
 
 def _class_cells_for(value: object, cls: type[Schema]) -> tuple[CellType, ...]:
