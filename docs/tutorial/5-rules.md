@@ -14,7 +14,7 @@ from hinoki.rules import RuleSet
 tracker_rules = RuleSet(
     Actions.require_access(match="tracker.*", except_=["tracker.api.health"]),
     Actions.forbid_model_responses(match="tracker.*"),
-    Transactions.require_atomic(except_=["hinoki.mcpapp.*"]),
+    Transactions.require_atomic(except_=["hinoki.ai.mcpapp.*"]),
     Schemas.forbid_exposure("token"),
     # api -> operations -> models, never the other way
     Imports.forbid(source="tracker.models", target="tracker.operations"),
