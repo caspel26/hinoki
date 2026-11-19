@@ -34,6 +34,8 @@ them with `uv run --project ..` to use the locked environment at the parent.
 | `hinoki shell [TARGET]` | Open an interactive Python shell with the app's modules and registered models. |
 | `hinoki mcp TARGET` | Serve project context to an MCP client over stdio. Scenario tools are off by default. |
 
+On a colour terminal, `doctor`, `check` and `routes` print a coloured report: a status glyph per check (`✔` ok, `▲` warning, `✘` failed or violated, `–` skipped) with the fix on its own line, and routes with coloured methods. When output is piped or redirected, or with `NO_COLOR` or `TERM=dumb`, the text is plain and unchanged, and `--format json` is never styled.
+
 ### `doctor`
 
 ```sh
