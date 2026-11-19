@@ -53,6 +53,7 @@ from hinoki.runtime.binding import (
 )
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.runtime.lifespan import Hook
+from hinoki.runtime.nativehandler import check_native_marker
 from hinoki.settings import (
     AdminSettings,
     AppSettings,
@@ -346,6 +347,8 @@ class Hinoki:
         pending, groups = self._collect_routes(items)
         pending = [self.with_defaults(route) for route in pending]
         bound = [bind(route) for route in pending]  # bad signatures fail here
+        for binding in bound:
+            check_native_marker(binding)
         # CRUD row plans must be scoped to this app's resolved renderers and binding.
         from hinoki.runtime import rowplan  # noqa: PLC0415 - CRUD is optional here
 

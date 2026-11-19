@@ -21,6 +21,7 @@ from hinoki.fields import Email, SecretStr, Slug, Url
 from hinoki.http.request import Request
 from hinoki.http.response import Response, set_cookie
 from hinoki.modules import Module, ModuleContext
+from hinoki.nativemark import native
 from hinoki.parsers import (
     BytesParser,
     FormParser,
@@ -131,6 +132,7 @@ __all__ = [
     "field_check",
     "field_normalize",
     "http",
+    "native",
     "object_check",
     "set_cookie",
     "settings",
