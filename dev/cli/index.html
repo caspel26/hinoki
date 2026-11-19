@@ -456,7 +456,7 @@ them with <code>uv run --project ..</code> to use the locked environment at the 
 </tr>
 <tr>
 <td><code>hinoki routes TARGET</code></td>
-<td>List every method, path, handler and access policy in path order. <code>--path</code> and <code>--method</code> filter; <code>--format json</code> is machine readable. Nothing is served.</td>
+<td>List every method, path, handler and access policy in path order. <code>--path</code> and <code>--method</code> filter; <code>--format json</code> is machine readable. <code>--lanes</code> adds, per route, whether the <a href="../serving/#generated-crud">Rust server</a> runs it natively (<code>native</code>) or through the Python pipeline (<code>python</code>) with the reason; JSON always includes <code>lane</code> and <code>lane_reason</code>. Nothing is served and no database is opened.</td>
 </tr>
 <tr>
 <td><code>hinoki openapi TARGET</code></td>
@@ -760,7 +760,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class=
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 12:42:07 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 00:56:46 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>15 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
