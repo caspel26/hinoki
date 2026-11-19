@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
+from pathlib import Path, PurePath
 from typing import (
     Annotated,
     Any,
@@ -35,7 +36,7 @@ from hinoki.errors import (
     RegistrationError,
     ValidationError,
 )
-from hinoki.fields import UNSET, Field, FieldInfo, Unset
+from hinoki.fields import MASK, UNSET, Field, FieldInfo, SecretStr, Unset
 from hinoki.fieldtypes import DECIMAL_DIGITS_CEILING, FieldType, parse_annotation
 from hinoki.schemaconfig import SchemaConfig, SchemaExtra
 
@@ -419,6 +420,8 @@ PLAIN_TYPES: dict[str, type | tuple[type, ...]] = {
     "timedelta": dt.timedelta,
     "decimal": Decimal,
     "bytes": bytes,
+    "path": Path,
+    "secret": SecretStr,
     "ipv4": IPv4Address,
     "ipv6": IPv6Address,
     "ipv4network": IPv4Network,
@@ -501,9 +504,19 @@ WIRE_KINDS = {
     "ipv6": (IPv6Address, "an IPv6 address"),
     "ipv4network": (IPv4Network, "an IPv4 network"),
     "ipv6network": (IPv6Network, "an IPv6 network"),
+    "path": (Path, "a path"),
+    "secret": (SecretStr, "a secret string"),
 }
 OVERSIZED_DECIMAL = "9" * (DECIMAL_DIGITS_CEILING + 1)
-NETWORK_KINDS = frozenset({"ipv4", "ipv6", "ipv4network", "ipv6network"})
+TEXT_READERS: dict[str, Callable[[Any], str]] = {
+    "ipv4": str,
+    "ipv6": str,
+    "ipv4network": str,
+    "ipv6network": str,
+    "path": str,
+    "secret": SecretStr.get_secret_value,
+}
+"""Kinds whose constructor value is read back as text by one plain call."""
 
 
 def wire_instance_value(kind: str, value: Any) -> Any:
@@ -515,8 +528,9 @@ def wire_instance_value(kind: str, value: Any) -> Any:
         or (kind == "bytes" and type(value) is not bytes)
     ):
         return _INVALID_INSTANCE_VALUE
-    if kind in NETWORK_KINDS:
-        return str(value)
+    reader = TEXT_READERS.get(kind)
+    if reader is not None:
+        return reader(value)
     try:
         text = core.wire_text(value)
     except ValueError:
@@ -1918,6 +1932,7 @@ ENCODERS: dict[type, Callable[[Any], Any]] = {
     IPv6Address: str,
     IPv4Network: str,
     IPv6Network: str,
+    SecretStr: lambda _secret: MASK,
 }
 
 
@@ -1972,4 +1987,6 @@ def encode(value: object) -> Any:
     if isinstance(value, list | tuple | set | frozenset | dict):
         return encode_items(value)
     encoder = ENCODERS.get(type(value))
+    if encoder is None and isinstance(value, PurePath):
+        return str(value)
     return encoder(value) if encoder else value

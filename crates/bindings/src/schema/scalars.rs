@@ -489,8 +489,17 @@ pub(crate) fn wire_text(value: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
     if crate::pytypes::is_ip_object(value)? {
         return value.str()?.extract().map(Some);
     }
+    if value.is_instance(crate::pytypes::pure_path_class(py)?)? {
+        return value.str()?.extract().map(Some);
+    }
+    if value.is_instance(crate::pytypes::secret_class(py)?)? {
+        return Ok(Some(SECRET_MASK.to_owned()));
+    }
     Ok(None)
 }
+
+/// What a `SecretStr` is written as: its value is never put on the wire.
+const SECRET_MASK: &str = "**********";
 
 /// `core.wire_text(value)`: the JSON string of a `date`, `time`, `timedelta`,
 /// `Decimal` or `bytes` value, `None` for any other value.

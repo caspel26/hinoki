@@ -141,3 +141,37 @@ def resolve_format(options: dict[str, Any]) -> dict[str, Any]:
 Email = Annotated[str, Field(format="email")]
 Url = Annotated[str, Field(format="url")]
 Slug = Annotated[str, Field(format="slug")]
+
+
+MASK = "**********"
+"""What a ``SecretStr`` shows instead of its value."""
+
+
+class SecretStr:
+    """A string that never shows itself: ``repr``, ``str``, ``dump()`` and JSON
+    responses give ``**********``; ``get_secret_value()`` returns the text."""
+
+    __slots__ = ("_value",)
+
+    def __init__(self, value: str) -> None:
+        if not isinstance(value, str):
+            raise TypeError("SecretStr takes a str")
+        self._value = value
+
+    def get_secret_value(self) -> str:
+        return self._value
+
+    def __repr__(self) -> str:
+        return f"SecretStr({MASK!r})"
+
+    def __str__(self) -> str:
+        return MASK
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, SecretStr) and self._value == other._value
+
+    def __hash__(self) -> int:
+        return hash((SecretStr, self._value))
+
+    def __len__(self) -> int:
+        return len(self._value)
