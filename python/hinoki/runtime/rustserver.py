@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 import signal
@@ -51,6 +52,25 @@ if TYPE_CHECKING:
     from hinoki.app import Hinoki
 
 log = logging.getLogger("hinoki.runtime")
+access_logger = logging.getLogger("hinoki.access")
+
+
+def log_access(batch: Sequence[str]) -> None:
+    """Hand Kiso's JSON access records to the ``hinoki.access`` logger (called
+    from Kiso's logging thread, a batch at a time). Each record carries its
+    fields as ``record.access`` for handlers and formatters that want them."""
+    for text in batch:
+        fields = json.loads(text)
+        access_logger.info(
+            "%s %s %s %s %.1fms",
+            fields["peer"],
+            fields["method"],
+            fields["path"],
+            fields["status"],
+            fields["duration_ms"],
+            extra={"access": fields},
+        )
+
 
 # Requests taken from the native queue per call; a short batch means it is empty.
 DRAIN_BATCH = 256
@@ -165,6 +185,7 @@ class RustWorker:
         self.access_log = access_log
         self.access_log_skip = access_log_skip
         self.access_log_slow_ms = access_log_slow_ms
+        self.access_log_sink = log_access if access_log == "logger" else None
         self.lane: NativeLane | None = None
         # An inherited listening descriptor (a supervisor owns the socket); the
         # native server takes it over. Without one, the worker binds itself.
@@ -234,6 +255,7 @@ class RustWorker:
                 self.access_log,
                 self.access_log_skip,
                 self.access_log_slow_ms,
+                self.access_log_sink,
             )
         except BaseException:
             self.core._disarm_crud_plans()

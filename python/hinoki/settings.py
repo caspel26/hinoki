@@ -1072,10 +1072,11 @@ class ServerSettings(Settings):
     ``access_log``
     prints one line per request on either server; unset, ``hinoki dev`` logs and
     ``hinoki serve`` does not, and ``True`` or ``False`` decides for both.
-    ``access_log_format`` (Rust server only: ``pretty``, ``plain`` or ``json``)
-    chooses how a line looks; unset, it is ``pretty`` on a colour terminal and
-    ``plain`` otherwise, and setting it turns the log on unless ``access_log`` is
-    ``False``. ``json`` writes one object per line with an RFC 3339 UTC ``time``.
+    ``access_log_format`` (Rust server only: ``pretty``, ``plain``, ``json`` or
+    ``logger``) chooses how a line looks; unset, it is ``pretty`` on a colour
+    terminal and ``plain`` otherwise, and setting it turns the log on unless
+    ``access_log`` is ``False``. ``json`` writes one object per line with an RFC
+    3339 UTC ``time``; ``logger`` sends each to the ``hinoki.access`` logger.
     ``access_log_skip`` (Rust server only) lists paths the log leaves out, such
     as health checks: exact, or a prefix when the entry ends with ``*``.
     ``access_log_slow_ms`` keeps only answers at least that slow. Both always
@@ -1098,7 +1099,7 @@ class ServerSettings(Settings):
     runtime_threads: int = 1
     backlog: int = 1024
     access_log: bool | None = None
-    access_log_format: Literal["pretty", "plain", "json"] | None = None
+    access_log_format: Literal["pretty", "plain", "json", "logger"] | None = None
     access_log_skip: tuple[str, ...] | None = None
     access_log_slow_ms: float | None = None
     trusted_proxies: tuple[str, ...] = ()
