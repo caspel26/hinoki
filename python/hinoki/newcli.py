@@ -4,10 +4,12 @@ import argparse
 import shutil
 import subprocess
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 
 from hinoki.scaffold import DATABASES, NAME, RESERVED_NAMES, ScaffoldError, create
+from hinoki.terminal import ACCENT, Style
 
 Ask = Callable[[str], str]
 
@@ -55,40 +57,54 @@ def add_arguments(new: argparse.ArgumentParser) -> None:
     )
 
 
-def ask_text(ask: Ask, question: str, default: str) -> str:
-    answer = ask(f"{question} [{default}]: ").strip()
-    return answer or default
+def ask_text(ask: Ask, style: Style, question: str, default: str) -> str:
+    return ask(style.question(question, default)).strip() or default
 
 
-def ask_choice(ask: Ask, question: str, choices: tuple[str, ...], default: str) -> str:
+CHOICE_HINTS = {
+    "none": "no database setting",
+    "sqlite": "local file in .hinoki/",
+    "postgresql": "also writes .env.example",
+}
+
+
+def ask_choice(ask: Ask, style: Style, question: str, default: str) -> str:
+    """Numbered choices; the answer is a number or the name."""
+    print(style.heading(question))
+    for index, name in enumerate(DATABASES, start=1):
+        print(style.option(index, name, CHOICE_HINTS[name], default=name == default))
     while True:
-        answer = ask_text(ask, f"{question} ({'/'.join(choices)})", default)
-        if answer in choices:
+        answer = ask_text(ask, style, "Choose", default)
+        if answer in DATABASES:
             return answer
-        print(f"choose one of: {', '.join(choices)}", file=sys.stderr)
+        if answer.isdigit() and 1 <= int(answer) <= len(DATABASES):
+            return DATABASES[int(answer) - 1]
+        print(style.warning(f"choose one of: {', '.join(DATABASES)}"), file=sys.stderr)
 
 
-def ask_yes(ask: Ask, question: str, default: bool) -> bool:
+def ask_yes(ask: Ask, style: Style, question: str, default: bool) -> bool:
     hint = "Y/n" if default else "y/N"
     while True:
-        answer = ask(f"{question} [{hint}]: ").strip().lower()
+        answer = ask(style.question(question, hint)).strip().lower()
         if not answer:
             return default
         if answer in {"y", "yes"}:
             return True
         if answer in {"n", "no"}:
             return False
-        print("answer y or n", file=sys.stderr)
+        print(style.warning("answer y or n"), file=sys.stderr)
 
 
-def ask_name(ask: Ask) -> str:
+def ask_name(ask: Ask, style: Style) -> str:
     while True:
-        name = ask_text(ask, "Project name (lower-case letters and digits)", "")
+        name = ask_text(ask, style, "Project name (lower-case letters and digits)", "")
         if NAME.fullmatch(name) and name not in RESERVED_NAMES:
             return name
         print(
-            "use lower-case letters and digits, starting with a letter; "
-            "not 'hinoki' or a standard-library module name",
+            style.warning(
+                "use lower-case letters and digits, starting with a letter; "
+                "not 'hinoki' or a standard-library module name"
+            ),
             file=sys.stderr,
         )
 
@@ -97,43 +113,71 @@ def interactive(args: argparse.Namespace) -> bool:
     return not args.no_input and sys.stdin.isatty() and sys.stdout.isatty()
 
 
-def fill_from_prompts(args: argparse.Namespace, ask: Ask) -> None:
+def fill_from_prompts(
+    args: argparse.Namespace, ask: Ask, style: Style | None = None
+) -> None:
     """Ask only for what the flags left unset."""
+    style = style or Style()
     if args.name is None:
-        args.name = ask_name(ask)
+        args.name = ask_name(ask, style)
     if args.dir is None:
-        args.dir = ask_text(ask, "Parent directory", ".")
+        args.dir = ask_text(ask, style, "Parent directory", ".")
     if args.database is None:
-        args.database = ask_choice(ask, "Database", DATABASES, "none")
+        args.database = ask_choice(ask, style, "Database", "none")
     if args.agent_files is None:
         args.agent_files = ask_yes(
-            ask, "Write agent instructions and MCP config?", True
+            ask, style, "Agent instructions and MCP config?", True
         )
     if args.git is None:
-        args.git = ask_yes(ask, "Initialize a git repository?", True)
+        args.git = ask_yes(ask, style, "Initialize a git repository?", True)
     if args.install is None:
-        args.install = ask_yes(ask, "Install dependencies now (uv sync)?", True)
+        args.install = ask_yes(ask, style, "Install dependencies (uv sync)?", True)
 
 
-def run_tool(command: list[str], cwd: Path) -> bool:
+def run_tool(command: list[str], cwd: Path, style: Style) -> bool:
     """Run one setup command; a missing tool or a failure is reported, not fatal."""
+    label = " ".join(command)
     tool = shutil.which(command[0])
     if tool is None:
-        print(f"skipped: {command[0]} is not installed", file=sys.stderr)
+        print(style.skipped(f"{command[0]} is not installed"), file=sys.stderr)
         return False
+    started = time.monotonic()
     # Fixed commands from this module; no user input reaches the argument list.
-    result = subprocess.run([tool, *command[1:]], cwd=cwd, check=False)  # noqa: S603
+    result = subprocess.run(  # noqa: S603
+        [tool, *command[1:]], cwd=cwd, check=False, capture_output=True, text=True
+    )
     if result.returncode != 0:
-        print(f"warning: `{' '.join(command)}` failed", file=sys.stderr)
-    return result.returncode == 0
+        print(style.warning(f"`{label}` failed"), file=sys.stderr)
+        print((result.stderr or result.stdout or "").strip()[-2000:], file=sys.stderr)
+        return False
+    print(style.ok(f"{label} {style.dim(f'({time.monotonic() - started:.1f}s)')}"))
+    return True
+
+
+def next_steps(style: Style, target: Path, name: str, synced: bool) -> list[str]:
+    commands = [f"cd {target}"]
+    if not synced:
+        commands.append("uv sync")
+    commands += ["uv run pytest", f"uv run hinoki dev {name}.main:app"]
+    if not style.color:
+        return [f"next: {' && '.join(commands[:-1])}"]
+    return ["", "  Next:", *(f"    {style.paint(c, ACCENT)}" for c in commands)]
 
 
 def run_new(args: argparse.Namespace, ask: Ask = input) -> int:
+    style = Style.detect()
     if interactive(args):
-        fill_from_prompts(args, ask)
+        print(style.banner("new project"))
+        try:
+            fill_from_prompts(args, ask, style)
+        except (EOFError, KeyboardInterrupt):
+            print(f"\n{style.error('cancelled; nothing was created')}", file=sys.stderr)
+            return 130
+        print()
     if args.name is None:
         print(
-            "error: a project name is required (or run in a terminal)", file=sys.stderr
+            style.error("a project name is required (or run in a terminal)"),
+            file=sys.stderr,
         )
         return 2
     try:
@@ -145,14 +189,15 @@ def run_new(args: argparse.Namespace, ask: Ask = input) -> int:
             agent_files=args.agent_files is not False,
         )
     except ScaffoldError as error:
-        print(f"error: {error}", file=sys.stderr)
+        print(style.error(str(error)), file=sys.stderr)
         return 2
-    print(f"created {target}")
+    count = sum(1 for path in target.rglob("*") if path.is_file())
+    print(style.ok(f"created {target} {style.dim(f'({count} files)')}"))
     synced = False
     if args.git:
-        run_tool(["git", "init", "-q"], target)
+        run_tool(["git", "init"], target, style)
     if args.install:
-        synced = run_tool(["uv", "sync"], target)
-    prefix = "" if synced else "uv sync && "
-    print(f"next: cd {target} && {prefix}uv run pytest")
+        synced = run_tool(["uv", "sync"], target, style)
+    for line in next_steps(style, target, args.name, synced):
+        print(line)
     return 0
