@@ -4,6 +4,7 @@ import dataclasses
 import os
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -248,3 +249,11 @@ async def test_other_value_errors_are_not_reported_as_invalid_json(
         Loose.from_row({"id": 1, "meta": "1" * 5000})
     assert not isinstance(native.value, FieldError)
     assert type(native.value) is type(python.value)
+
+
+def test_columns_that_need_a_reader_keep_the_python_path() -> None:
+    class Priced(Model, table="rows_priced"):
+        id: int = field(primary_key=True)
+        price: Decimal = Decimal(0)
+
+    assert Priced.row_plan() is None
