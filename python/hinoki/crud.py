@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import dataclasses
 import enum
 import inspect
@@ -17,7 +18,7 @@ from hinoki.access import Access
 from hinoki.api import API
 from hinoki.auth import Caller
 from hinoki.errors import Forbidden, RegistrationError
-from hinoki.fields import UNSET
+from hinoki.fields import UNSET, Unset
 from hinoki.http.request import Request
 from hinoki.http.response import Response
 from hinoki.orm import Model, QuerySet
@@ -32,6 +33,9 @@ if typing.TYPE_CHECKING:
 ITEM = "/{item_id}"
 GENERATED = "hinoki_generated"
 ACTIONS = ("list", "retrieve", "create", "update", "delete")
+WRITE_ACTIONS = ("create", "update", "delete")
+HOOKS = ("get_queryset", "to_schema")
+INTERNAL_HOOKS = ("store", "change", "remove", "written_queryset", "reload_written")
 
 
 class Crud(enum.StrEnum):
@@ -66,6 +70,18 @@ class _CrudConfig:
     identity_key: Callable[[Any], Any] = attrgetter("id")
     assign: Mapping[str, Callable[[Any], Any]] = dataclasses.field(default_factory=dict)
     pagination: PageNumberPagination = PageNumberPagination()  # noqa: RUF009
+    actions: Mapping[str, Access | None] | None = None
+    omit: frozenset[str] = frozenset()
+
+    def access_for(self, action: str) -> Access | None:
+        """The policy of one generated action: its own entry when ``crud(...)``
+        declared per-action access, else the write or read policy."""
+        if self.actions is not None:
+            return self.actions[action]
+        return self.access if action in WRITE_ACTIONS else self.read_access
+
+    def unprotected_writes(self) -> bool:
+        return any(self.access_for(a) is None for a in self.writes() or ["create"])
 
     def assigned(self) -> dict[str, Callable[[Any], Any]]:
         extra = {self.owner: self.identity_key} if self.owner else {}
@@ -86,11 +102,11 @@ class _CrudConfig:
                 f"{name} is abstract and has no table; generate CRUD for a model "
                 "that subclasses it"
             )
-        if self.writes() and self.access is None and not self.public_writes:
+        if self.writes() and self.unprotected_writes() and not self.public_writes:
             raise RegistrationError(
                 f"{name}: write actions need access=... (or public_writes=True)"
             )
-        if self.assigned() and self.access is None:
+        if self.assigned() and self.unprotected_writes():
             raise RegistrationError(f"{name}: owner/assign need an access policy")
         for column in self.assigned():
             if column not in columns:
@@ -635,7 +651,9 @@ def resolve_config(
     if resource is not None:
         config = resource_config(cls, model, resource)
     elif inherited is not None and model is None:
-        config = dataclasses.replace(inherited, **class_config_overrides(cls))
+        config = dataclasses.replace(
+            inherited, **class_config_overrides(cls, inherited)
+        )
     else:
         native = native_config(cls, model, inherited)
         if native is None:
@@ -653,7 +671,7 @@ def resource_config(
 ) -> _CrudConfig:
     if model is not None:
         raise RegistrationError("model= cannot be combined with resource=")
-    return dataclasses.replace(resource, **class_config_overrides(cls))
+    return dataclasses.replace(resource, **class_config_overrides(cls, resource))
 
 
 def native_config(
@@ -681,7 +699,9 @@ def native_config(
     )
 
 
-def class_config_overrides(cls: type[CrudAPI]) -> dict[str, Any]:
+def class_config_overrides(
+    cls: type[CrudAPI], base: _CrudConfig | None = None
+) -> dict[str, Any]:
     names = {
         "model": "model",
         "read_schema": "read",
@@ -696,11 +716,19 @@ def class_config_overrides(cls: type[CrudAPI]) -> dict[str, Any]:
         "assign": "assign",
         "pagination": "pagination",
     }
-    return {
+    found = {
         target: vars(cls)[source]
         for source, target in names.items()
         if source in vars(cls)
     }
+    if base is not None and base.actions is not None:
+        stale = sorted({"access", "read_access"} & found.keys())
+        if stale:
+            raise RegistrationError(
+                f"{cls.__name__}: {stale} cannot override a crud(...) declaration "
+                "that sets access per action; declare crud(access=...) again"
+            )
+    return found
 
 
 def item_type(model: type[Model]) -> Any:
@@ -722,9 +750,10 @@ def declare(
 
 
 def read_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any]]:
-    reads = Options(access=resource.read_access)
-    listing = dataclasses.replace(reads, pagination=resource.pagination)
     page = Page[resource.read]  # type: ignore[name-defined]
+    listed = Options(access=resource.access_for("list"))
+    listing = dataclasses.replace(listed, pagination=resource.pagination)
+    shown = Options(access=resource.access_for("retrieve"))
     return {
         "list": declare(
             list_rows,
@@ -732,7 +761,7 @@ def read_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any]
             {
                 "request": Request,
                 "page": PageParams,
-                **({"principal": Caller[Any]} if resource.read_access else {}),
+                **caller_hint(resource, "list"),
                 "return": page,
             },
             ("GET", "/", listing),
@@ -743,30 +772,39 @@ def read_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any]
             {
                 "request": Request,
                 "item_id": key,
-                **({"principal": Caller[Any]} if resource.read_access else {}),
+                **caller_hint(resource, "retrieve"),
                 "return": resource.read,
             },
-            ("GET", ITEM, reads),
+            ("GET", ITEM, shown),
         ),
     }
 
 
+def caller_hint(resource: _CrudConfig, action: str) -> dict[str, Any]:
+    return {"principal": Caller[Any]} if resource.access_for(action) else {}
+
+
 def write_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any]]:
-    writes = Options(access=resource.access, atomic=True)
-    caller = {"principal": Caller[Any]} if resource.access else {}
+    def writes(action: str, status: int | None = None) -> Options:
+        options = Options(access=resource.access_for(action), atomic=True)
+        return dataclasses.replace(options, status=status) if status else options
+
     found: dict[str, Callable[..., Any]] = {}
     if resource.create:
-        hints = {"request": Request, "data": resource.create, **caller}
-        hints["return"] = resource.read
-        route = ("POST", "/", dataclasses.replace(writes, status=201))
+        hints = {"request": Request, "data": resource.create}
+        hints |= caller_hint(resource, "create") | {"return": resource.read}
+        route = ("POST", "/", writes("create", 201))
         found["create"] = declare(create_row, "create", hints, route)
     if resource.update:
-        hints = {"request": Request, "item_id": key, "data": resource.update, **caller}
-        hints["return"] = resource.read
-        found["update"] = declare(update_row, "update", hints, ("PATCH", ITEM, writes))
+        hints = {"request": Request, "item_id": key, "data": resource.update}
+        hints |= caller_hint(resource, "update") | {"return": resource.read}
+        found["update"] = declare(
+            update_row, "update", hints, ("PATCH", ITEM, writes("update"))
+        )
     if resource.deletable:
-        hints = {"request": Request, "item_id": key, **caller, "return": type(None)}
-        route = ("DELETE", ITEM, dataclasses.replace(writes, status=204))
+        hints = {"request": Request, "item_id": key}
+        hints |= caller_hint(resource, "delete") | {"return": type(None)}
+        route = ("DELETE", ITEM, writes("delete", 204))
         found["delete"] = declare(delete_row, "delete", hints, route)
     return found
 
@@ -774,4 +812,162 @@ def write_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any
 def generate(resource: _CrudConfig) -> dict[str, Callable[..., Any]]:
     """The generated actions of ``resource``, by name."""
     key = item_type(resource.model)
-    return {**read_routes(resource, key), **write_routes(resource, key)}
+    found = {**read_routes(resource, key), **write_routes(resource, key)}
+    return {name: route for name, route in found.items() if name not in resource.omit}
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class CrudAccess:
+    """Per-action access for ``crud(access=...)``.
+
+    An action without its own entry uses ``default``; ``None`` means public.
+    """
+
+    default: Access | None = None
+    list: Access | None | Unset = UNSET
+    retrieve: Access | None | Unset = UNSET
+    create: Access | None | Unset = UNSET
+    update: Access | None | Unset = UNSET
+    delete: Access | None | Unset = UNSET
+
+    def resolve(self) -> dict[str, Access | None]:
+        found = {name: getattr(self, name) for name in ACTIONS}
+        return {
+            name: self.default if isinstance(value, Unset) else value
+            for name, value in found.items()
+        }
+
+
+def enabled(config: _CrudConfig, action: str) -> bool:
+    """Whether ``config`` generates ``action`` (reads always, writes by schema)."""
+    return {
+        "create": config.create is not None,
+        "update": config.update is not None,
+        "delete": config.deletable,
+    }.get(action, True)
+
+
+def rebind_class_cells(old: type, new: type) -> None:
+    """Point zero-argument ``super()`` and ``__class__`` in the methods at the
+    class that was built, not the decorated one that is discarded."""
+    for value in vars(old).values():
+        parts = (
+            (value.fget, value.fset, value.fdel)
+            if isinstance(value, property)
+            else (value,)
+        )
+        for part in parts:
+            function = getattr(part, "__func__", part)
+            for cell in getattr(function, "__closure__", None) or ():
+                with contextlib.suppress(ValueError):  # an empty cell
+                    if cell.cell_contents is old:
+                        cell.cell_contents = new
+
+
+class CrudDeclaration:
+    """What ``crud(...)`` returns: include it for plain CRUD, or apply it to a
+    class that adds hooks and handwritten actions."""
+
+    def __init__(self, config: _CrudConfig, path: str) -> None:
+        self.config = config
+        self.path = path
+        self.generated = [
+            name
+            for name in ACTIONS
+            if name not in config.omit and enabled(config, name)
+        ]
+        self.built: type[CrudAPI] | None = None
+
+    def api(self) -> type[CrudAPI]:
+        """The generated API class (built once)."""
+        if self.built is None:
+            name = f"{self.config.model.__name__}Crud"
+            self.built = self.build(name, {"__module__": __name__})
+        return self.built
+
+    def __call__[T: API](self, cls: type[T]) -> type[T]:
+        if cls.__bases__ != (API,):
+            raise RegistrationError(
+                f"{cls.__name__}: a crud(...) class has exactly one base, API"
+            )
+        names = set(vars(cls))
+        both = sorted(names & set(self.generated))
+        if both:
+            raise RegistrationError(
+                f"{cls.__name__}: {both} are both generated and handwritten; "
+                "omit=... the generated action or rename the handwritten one"
+            )
+        extra = sorted(names & set(INTERNAL_HOOKS))
+        if extra:
+            raise RegistrationError(
+                f"{cls.__name__}: only {' and '.join(HOOKS)} are hooks; "
+                f"write {extra} as a handwritten action"
+            )
+        skip = {"__dict__", "__weakref__"}
+        built = self.build(
+            cls.__name__, {k: v for k, v in vars(cls).items() if k not in skip}
+        )
+        rebind_class_cells(cls, built)
+        return cast(type[T], built)
+
+    def build(self, name: str, namespace: dict[str, Any]) -> type[CrudAPI]:
+        return cast(
+            type[CrudAPI],
+            types.new_class(
+                name,
+                (CrudAPI,),
+                {"path": self.path, "resource": self.config},
+                lambda body: body.update(namespace),
+            ),
+        )
+
+
+def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
+    model: type[Model],
+    *,
+    path: str,
+    read: type[Schema],
+    create: type[Schema] | None = None,
+    update: type[Schema] | None = None,
+    delete: bool = False,
+    access: Access | CrudAccess | None = None,
+    public_writes: bool = False,
+    owner: str = "",
+    identity_key: Callable[[Any], Any] = attrgetter("id"),
+    assign: Mapping[str, Callable[[Any], Any]] | None = None,
+    pagination: PageNumberPagination = PageNumberPagination(),  # noqa: B008
+    omit: tuple[str, ...] = (),
+) -> CrudDeclaration:
+    """Declare generated CRUD for ``model``.
+
+    ``app.include(crud(...))`` mounts the generated actions; ``@crud(...)`` on a
+    class adds ``get_queryset``/``to_schema`` hooks and handwritten actions.
+    A single ``Access`` protects every action; ``CrudAccess`` sets them apart.
+    """
+    unknown = sorted(set(omit) - {"list", "retrieve"})
+    if unknown:
+        raise RegistrationError(
+            f"crud(...) omit= takes 'list' or 'retrieve', not {unknown}"
+        )
+    actions = (
+        access.resolve()
+        if isinstance(access, CrudAccess)
+        else dict.fromkeys(ACTIONS, access)
+    )
+    config = _CrudConfig(
+        model=model,
+        read=read,
+        create=create,
+        update=update,
+        deletable=delete,
+        access=actions["create"],
+        read_access=actions["list"],
+        public_writes=public_writes,
+        owner=owner,
+        identity_key=identity_key,
+        assign=assign or {},
+        pagination=pagination,
+        actions=actions,
+        omit=frozenset(omit),
+    )
+    return CrudDeclaration(config, path)

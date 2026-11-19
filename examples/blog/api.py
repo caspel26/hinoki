@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from hinoki import Caller, CrudAPI, errors, http
+from hinoki import API, Caller, crud, errors, http
 from hinoki.orm import QuerySet
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 
@@ -40,27 +40,24 @@ def health() -> HealthOut:
     return HealthOut(status="ok")
 
 
-class Posts(CrudAPI, model=Post, path="/posts"):
+@crud(
+    Post,
+    path="/posts",
+    read=PostOut,
+    create=PostCreate,
+    delete=True,
+    access=editor,
+    owner="author_id",
+    omit=("list", "retrieve"),
+)
+class Posts(API):
     """Generated create and delete (owner enforced), handwritten reads."""
 
-    read_schema = PostOut
-    create_schema = PostCreate
-    deletable = True
-    access = editor
-    owner = "author_id"
-
-    def written_queryset(
-        self,
-        principal: Caller[User] | None,  # noqa: ARG002
-    ) -> QuerySet[Post]:
-        return with_author(Post.all())
-
     async def to_schema(self, post: Post) -> PostOut:
-        return to_out(post)
+        return to_out(await with_author(Post.filter(id=post.id)).aget())
 
     @http.get(
         "/",
-        replaces="list",
         pagination=PageNumberPagination(page_size=10, max_page_size=50),
     )
     async def listing(self, page: PageParams) -> Page[PostOut]:
@@ -72,7 +69,7 @@ class Posts(CrudAPI, model=Post, path="/posts"):
         )
         return found.map(to_out)
 
-    @http.get("/{item_id}", replaces="retrieve")
+    @http.get("/{item_id}")
     async def one(self, item_id: UUID) -> PostOut:
         """A published post; unpublished posts are not found."""
         return to_out(await with_author(Post.filter(id=item_id, published=True)).aget())

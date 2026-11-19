@@ -11,16 +11,12 @@ related:
 
 # Generate CRUD routes
 
-`CrudAPI` generates model-backed routes on an ordinary API class. Declare the
-model in the class header, set schemas and options as class attributes, and
-include the class once in the app. Handwritten `@http.*` methods and mixins can
-live beside the generated actions.
+`crud(...)` generates model-backed routes. Include it once in the app for plain
+CRUD, or apply it to a class when you need `get_queryset`/`to_schema` hooks
+or handwritten `@http.*` actions beside the generated ones.
 
 ```python
-from typing import Any
-
-from hinoki import Caller, CrudAPI, Hinoki, Schema, http
-from hinoki.orm import QuerySet
+from hinoki import Hinoki, Schema, crud
 
 from app.models import Post
 from app.security import editor
@@ -34,6 +30,92 @@ class PostCreate(Schema):
     title: str
     slug: str
     body: str
+
+
+posts = crud(
+    Post,
+    path="/posts",
+    read=PostOut,
+    create=PostCreate,
+    delete=True,
+    access=editor,
+    owner="author_id",
+)
+
+app = Hinoki(include=[posts])
+```
+
+Add code with the class form. The class extends `API` (its only base);
+`get_queryset(self, principal)` and
+`to_schema(self, item)` are the only hooks; anything else is a handwritten
+action:
+
+```python
+from typing import Any
+
+from hinoki import API, Caller, crud, http
+from hinoki.orm import QuerySet
+
+
+@crud(Post, path="/posts", read=PostOut, create=PostCreate, access=editor)
+class Posts(API):
+    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Post]:
+        return Post.filter(published=True).order_by("-id")
+
+    @http.get("/health")
+    async def health(self) -> dict[str, str]:
+        return {"status": "ok"}
+
+
+app = Hinoki(include=[Posts])
+```
+
+A generated action is generated **or** handwritten, never both: defining
+`list`, `retrieve`, `create`, `update` or `delete` in the class while `crud`
+generates it raises `RegistrationError` at declaration. To write list or
+retrieve yourself, pass `omit=("list",)` (or `"retrieve"`); other actions are
+generated only when you give their schema or `delete=True`. Defining `store`,
+`change`, `remove` or `written_queryset` in a `crud(...)` class is rejected the
+same way; write that behaviour as an action, or use the
+[`CrudAPI` class form](#the-crudapi-class-form) below.
+
+### Access per action
+
+`access=` takes one `Access`, which protects **every** generated action
+including reads, or `CrudAccess` to set actions apart. An action without its
+own entry uses `default`; `None` means public:
+
+```python
+from hinoki import CrudAccess
+
+posts = crud(
+    Post,
+    path="/posts",
+    read=PostOut,
+    create=PostCreate,
+    delete=True,
+    access=CrudAccess(default=editor, list=None, delete=admin),
+)
+```
+
+Here list is public, retrieve and create need `editor`, delete needs `admin`.
+Unknown action names raise `TypeError`. Writes with no policy still need
+`public_writes=True`.
+
+## The `CrudAPI` class form
+
+`CrudAPI` generates model-backed routes on an ordinary API class. It remains
+supported and is the form that exposes the `store`, `change`, `remove` and
+`written_queryset` hooks. Declare the model in the class header, set schemas
+and options as class attributes, and include the class once in the app.
+Handwritten `@http.*` methods and mixins can live beside the generated
+actions.
+
+```python
+from typing import Any
+
+from hinoki import Caller, CrudAPI, Hinoki, http
+from hinoki.orm import QuerySet
 
 
 class Posts(CrudAPI, model=Post, path="/posts"):
@@ -57,6 +139,11 @@ The generated actions are ordinary API routes, visible to OpenAPI, the
 `hinoki routes` command and the route registry. The class is mounted once; no import-time or
 global auto-registration occurs. A model's read schema and write schemas must
 match its fields. See [Schemas](schemas.md) for model-derived schemas.
+
+The sections below describe the class attributes (`read_schema`,
+`create_schema`, `access`, `owner`, ...); each has a `crud(...)` keyword
+(`read`, `create`, `update`, `delete`, `access`, `owner`, `identity_key`,
+`assign`, `pagination`, `public_writes`).
 
 ## Generated actions
 

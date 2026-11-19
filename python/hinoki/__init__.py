@@ -16,7 +16,7 @@ from hinoki.auth import (
     Permission,
 )
 from hinoki.core import core_version
-from hinoki.crud import Crud, CrudAPI
+from hinoki.crud import Crud, CrudAccess, CrudAPI, crud
 from hinoki.derive import derive
 from hinoki.fields import Email, Slug, Url
 from hinoki.http.request import Request
@@ -84,6 +84,7 @@ __all__ = [
     "Caller",
     "Crud",
     "CrudAPI",
+    "CrudAccess",
     "Email",
     "Field",
     "Form",
@@ -124,6 +125,7 @@ __all__ = [
     "XMLParser",
     "XMLRenderer",
     "__version__",
+    "crud",
     "derive",
     "errors",
     "field_check",
