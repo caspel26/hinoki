@@ -280,7 +280,7 @@ Both forms declare the same actions with the same decorators. They differ in fou
 | Shared `access=`, `atomic=`, `errors=` | stated once on `RouteGroup(...)` | not available: an `API` class carries a path prefix only, so each action states them |
 | Rust fast path for simple public routes | eligible ([serving](serving.md)) | never: a method has an owner class, so it always takes the Python lane |
 | Inheritance | none: compose with decorators and groups | subclasses extend a base, override an action, or drop an inherited one by redefining it without a decorator (or `replaces=`) |
-| Generated routes and write hooks | no | `CrudAPI` only (`get_queryset`, `store`, `change`, `remove`) |
+| Generated routes and write hooks | no | `crud(...)` or `CrudAPI` (`get_queryset`, `to_schema`; `CrudAPI` also `store`, `change`, `remove`) |
 
 **Use functions and a `RouteGroup` for ordinary endpoints.** The action's shared policy sits in one place, the handlers are plain functions that a test can call, and a simple public one can be served natively. The group below states access, transactions and the errors its actions may raise once:
 
@@ -294,7 +294,7 @@ async def listing(page: PageParams, caller: Caller[Member]) -> Page[TaskOut]: ..
 async def create(data: TaskIn, caller: Caller[Member]) -> TaskOut: ...
 ```
 
-**Use a class when the endpoints share behaviour by inheritance**: a `CrudAPI` for a model (generated routes plus the `store`/`change`/`remove` hooks), a base `API` whose actions several resources extend or override, or a resource you ship for others to include (the admin is one). A class that only groups three functions under a prefix gains nothing and loses the shared options and the native path.
+**Use a class when the endpoints share behaviour by inheritance**: a `crud(...)` or `CrudAPI` class for a model (generated routes plus hooks), a base `API` whose actions several resources extend or override, or a resource you ship for others to include (the admin is one). A class that only groups three functions under a prefix gains nothing and loses the shared options and the native path.
 
 **Keep state out of the instance.** An `API` instance holds no per-request state and is shared by every request of the worker. Take what you need as parameters (`Request`, `Caller[...]`, path and body values) and reach worker-owned resources through a module, never by assigning to `self`.
 
@@ -324,9 +324,9 @@ prefix = "/billing"                     # optional: "/<name>" when omitted
 The project's routes come first, then each app's, in dependency order, each app under its prefix. Three rules keep this free of surprises: only the module named by `project.application` binds the manifest (a `Hinoki()` in a test or script next to the project stays empty); a `Hinoki(include=[...])` you write yourself wins and the manifest is ignored (`include=[]` is an explicit empty list); and `app.include(...)` still adds routes by hand, for example a feature that only exists when a setting is on. A route module that cannot be imported, or whose `routes` is not a list, fails when the application is built. Projects without these keys behave as before.
 
 When the ordinary list/retrieve/create/update/delete routes fit a model,
-`CrudAPI` can generate them from a model and schemas declared on one API class.
-Mount that class once in `Hinoki`; generated and handwritten decorated actions
-can share it. Start with
+`crud(...)` can generate them from a model and schemas.
+Include the result once in `Hinoki`; with the class form (`@crud(...)`),
+generated and handwritten decorated actions can share it. Start with
 [Generate CRUD routes](crud.md); use handwritten actions for domain workflows
 or to replace an individual generated action.
 
@@ -358,14 +358,12 @@ prefix is declared once in `api/v1.py`:
 
 ```python
 # api/people.py
-from hinoki import CrudAPI
+from hinoki import crud
 
 from app.models import Person
 from app.schemas import PersonOut
 
-
-class People(CrudAPI, model=Person, path="/people"):
-    read_schema = PersonOut
+People = crud(Person, path="/people", read=PersonOut)
 
 
 # Each feature exports a list of routes relative to that feature.
@@ -374,14 +372,12 @@ routes = [People]
 
 ```python
 # api/teams.py
-from hinoki import CrudAPI
+from hinoki import crud
 
 from app.models import Team
 from app.schemas import TeamOut
 
-
-class Teams(CrudAPI, model=Team, path="/teams"):
-    read_schema = TeamOut
+Teams = crud(Team, path="/teams", read=TeamOut)
 
 
 routes = [Teams]

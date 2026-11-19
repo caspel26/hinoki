@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import importlib
 import inspect
 import math
 import uuid
@@ -11,7 +12,6 @@ from typing import Any, cast
 from urllib.parse import urlsplit
 
 from hinoki import context, core
-from hinoki import crud as crud_module
 from hinoki import pagination as pagination_module
 from hinoki.crud import (
     ACTIONS,
@@ -49,6 +49,10 @@ from hinoki.runtime.rowplan import (
 )
 from hinoki.schema import Schema, uses_generated_init
 from hinoki.utils import utc_now
+
+# ``hinoki.crud`` is also the exported ``crud`` function, so the module is
+# fetched by name rather than as an attribute of the package.
+crud_module = importlib.import_module("hinoki.crud")
 
 ACTION_ROUTES = {
     "list": ("GET", "/"),
@@ -468,7 +472,7 @@ def owner_scope_is_plain(resource: _CrudConfig) -> bool:
     field_type = model.__field_types__.get(resource.owner)
     return bool(
         resource.identity_key is caller_id
-        and resource.access is not None
+        and all(resource.access_for(a) is not None for a in WRITE_ACTIONS)
         and field_type is not None
         and field_type.kind == "str"
         and resource.owner != model.__primary_key__
@@ -490,7 +494,7 @@ CLAIMS_AUTH_METHODS_ORIGINAL = static_state(ClaimsJWTAuth, CLAIMS_AUTH_METHODS)
 def access_is_plain(route: Any, resource: _CrudConfig, action: str) -> bool:
     """The route's access is the resource's own and is either absent or a
     claims-only provider Rust can verify without running application code."""
-    declared = resource.access if action in WRITE_ACTIONS else resource.read_access
+    declared = resource.access_for(action)
     if route.access is not declared:
         return False
     if declared is None:
@@ -1110,6 +1114,8 @@ def value_state(
         resource.access,
         resource.read_access,
         resource.public_writes,
+        tuple((resource.actions or {}).items()),
+        resource.omit,
         resource.owner,
         resource.identity_key,
         tuple(resource.assign.items()),
