@@ -14,7 +14,7 @@ import pytest
 
 from hinoki import Schema
 from hinoki.admin import Admin
-from hinoki.crud import Resource
+from hinoki.crud import _CrudConfig
 from hinoki.db import Database, UniqueViolation
 from hinoki.errors import ModelError, RegistrationError
 from hinoki.orm import (
@@ -124,7 +124,7 @@ def test_an_abstract_model_has_no_table_and_cannot_be_queried() -> None:
     with pytest.raises(RegistrationError, match="abstract"):
         Admin(secret="s" * 32).register(Tracked)
     with pytest.raises(RegistrationError, match="Tracked is abstract"):
-        Resource(model=Tracked, read=TrackedRead).check()
+        _CrudConfig(model=Tracked, read=TrackedRead).check()
     assert Tracked not in models_of("tests.modelmixins")
     assert models_of("tests.abstractmodeltest")[:3] == [Team, Article, Page]
 

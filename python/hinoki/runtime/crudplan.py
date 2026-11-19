@@ -16,7 +16,7 @@ from hinoki import pagination as pagination_module
 from hinoki.crud import (
     ACTIONS,
     GENERATED,
-    CrudAPI,
+    CrudBase,
     _CrudConfig,
     caller_id,
     create_row,
@@ -141,7 +141,7 @@ QUERYSET_METHODS = (
 DATABASE_METHODS = ("fetch", "execute", "atomic", "active", "dialect")
 DATABASE_METHODS_ORIGINAL = static_state(Database, DATABASE_METHODS)
 QUERYSET_METHODS_ORIGINAL = static_state(QuerySet, QUERYSET_METHODS)
-OWNER_METHODS_ORIGINAL = static_state(CrudAPI, OWNER_METHODS)
+OWNER_METHODS_ORIGINAL = static_state(CrudBase, OWNER_METHODS)
 MODEL_METHODS_ORIGINAL = static_state(Model, MODEL_METHODS)
 IMMUTABLE_TYPES = (type(None), bool, int, float, str)
 
@@ -152,7 +152,7 @@ class CrudPlanSelection:
 
     plan: core._CrudPlan
     action: str
-    owner: type[CrudAPI]
+    owner: type[CrudBase]
     resource: _CrudConfig
     model: type[Model]
     schemas: tuple[type[Schema], ...]
@@ -220,7 +220,7 @@ class CrudPlanSelection:
 @dataclass(frozen=True, slots=True)
 class CrudCandidate:
     action: str
-    owner: type[CrudAPI]
+    owner: type[CrudBase]
     resource: _CrudConfig
 
 
@@ -321,11 +321,11 @@ def crud_candidate(
     route = binding.route
     action = getattr(route.handler, "__name__", "")
     owner = route.owner
-    is_owner = type(owner) is type and issubclass(owner, CrudAPI)
+    is_owner = type(owner) is type and issubclass(owner, CrudBase)
     resource = vars(owner).get("resource") if is_owner else None
     generated_action = action in ACTIONS and getattr(route.handler, GENERATED, False)
     matches_template = (
-        route_matches_action(route, action, cast(type[CrudAPI], owner))
+        route_matches_action(route, action, cast(type[CrudBase], owner))
         if is_owner and type(resource) is _CrudConfig and generated_action
         else False
     )
@@ -337,7 +337,7 @@ def crud_candidate(
     )
     reason = next((label for passed, label in checks if not passed), "")
     candidate = (
-        CrudCandidate(action, cast(type[CrudAPI], owner), cast(_CrudConfig, resource))
+        CrudCandidate(action, cast(type[CrudBase], owner), cast(_CrudConfig, resource))
         if not reason
         else None
     )
@@ -386,7 +386,7 @@ def finish_selection(
     return (selection, "eligible") if not reason else (None, reason)
 
 
-def route_matches_action(route: Any, action: str, owner: type[CrudAPI]) -> bool:
+def route_matches_action(route: Any, action: str, owner: type[CrudBase]) -> bool:
     expected = ACTION_ROUTES.get(action)
     template = ACTION_HANDLERS.get(action)
     if expected is None or template is None:
@@ -447,7 +447,7 @@ def crud_helpers_are_original() -> bool:
 
 
 def public_route_is_plain(
-    binding: Binding, owner: type[CrudAPI], resource: _CrudConfig, action: str
+    binding: Binding, owner: type[CrudBase], resource: _CrudConfig, action: str
 ) -> bool:
     route = binding.route
     return (
@@ -601,14 +601,14 @@ def expected_binding_shape(binding: Binding, action: str) -> bool:
     )
 
 
-def owner_is_plain(owner: type[CrudAPI]) -> bool:
+def owner_is_plain(owner: type[CrudBase]) -> bool:
     expected = (
         ("__init__", object.__init__),
         ("__new__", object.__new__),
         ("__getattribute__", object.__getattribute__),
         ("__getattr__", None),
         ("__setattr__", object.__setattr__),
-        ("get_queryset", CrudAPI.get_queryset),
+        ("get_queryset", CrudBase.get_queryset),
         *tuple(
             (name, original)
             for name, original in zip(
@@ -1098,7 +1098,7 @@ def make_selection(
 
 
 def value_state(
-    owner: type[CrudAPI],
+    owner: type[CrudBase],
     resource: _CrudConfig,
     model: type[Model],
     schemas: tuple[type[Schema], ...],

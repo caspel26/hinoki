@@ -15,8 +15,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import Caller, CrudAPI, Field, Hinoki, JSONRenderer, Schema
-from hinoki.crud import Resource
+from hinoki import API, Caller, Field, Hinoki, JSONRenderer, Schema, crud
+from hinoki.crud import CrudBase
 from hinoki.db import Database, DatabaseModule
 from hinoki.orm import Model, QuerySet, field
 from hinoki.runtime import rowplan
@@ -140,7 +140,7 @@ class StaticMetaClass(metaclass=StaticMeta):
     observed = object()
 
 
-def changed_crud_schema(self: CrudAPI, item: Any) -> Any:
+def changed_crud_schema(self: API, item: Any) -> Any:
     del self
     return item
 
@@ -176,8 +176,13 @@ class WireRecordOut(Schema):
     nullable: str | None
 
 
-class WireRecords(CrudAPI, model=WireRecord, path="/rows"):
-    read_schema = WireRecordOut
+@crud(WireRecord, path="/rows", read=WireRecordOut)
+class WireRecords(API):
+    pass
+
+
+def wire_api() -> CrudBase:
+    return cast(CrudBase, WireRecords())
 
 
 class ConstrainedRecordOut(Schema):
@@ -190,14 +195,8 @@ class ConstrainedRecordOut(Schema):
     nullable: str | None
 
 
-class ConstrainedRecords(CrudAPI, model=WireRecord, path="/constrained"):
-    read_schema = ConstrainedRecordOut
-
-
-LegacyResource = Resource(model=WireRecord, read=WireRecordOut)
-
-
-class LegacyRecords(CrudAPI, path="/legacy", resource=LegacyResource):
+@crud(WireRecord, path="/constrained", read=ConstrainedRecordOut)
+class ConstrainedRecords(API):
     pass
 
 
@@ -244,7 +243,7 @@ class GetattrRecords(WireRecords, path="/getattr"):
 
 class InvokeHookRecords(WireRecords, path="/invoke-hook"):
     async def call_hook(self, name: str, *arguments: Any) -> Any:
-        return await super().call_hook(name, *arguments)
+        return await cast(Any, super()).call_hook(name, *arguments)
 
 
 class DynamicRecord(Model, table="row_wire_dynamic"):
@@ -262,8 +261,9 @@ class DefaultDynamicRecordOut(Schema):
     number: int = 0
 
 
-class DynamicRecords(CrudAPI, model=DynamicRecord, path="/dynamic"):
-    read_schema = DynamicRecordOut
+@crud(DynamicRecord, path="/dynamic", read=DynamicRecordOut)
+class DynamicRecords(API):
+    pass
 
 
 class AllocatorMixin:
@@ -282,8 +282,9 @@ class AllocatedRecordOut(Schema):
     number: int
 
 
-class AllocatedRecords(CrudAPI, model=AllocatedRecord, path="/allocated"):
-    read_schema = AllocatedRecordOut
+@crud(AllocatedRecord, path="/allocated", read=AllocatedRecordOut)
+class AllocatedRecords(API):
+    pass
 
 
 class SetterOnly:
@@ -305,8 +306,9 @@ class SetterRecordOut(Schema):
     number: int
 
 
-class SetterRecords(CrudAPI, model=SetterRecord, path="/setter"):
-    read_schema = SetterRecordOut
+@crud(SetterRecord, path="/setter", read=SetterRecordOut)
+class SetterRecords(API):
+    pass
 
 
 class DeleteOnly:
@@ -328,8 +330,9 @@ class DeleteRecordOut(Schema):
     number: int
 
 
-class DeleteRecords(CrudAPI, model=DeleteRecord, path="/delete-descriptor"):
-    read_schema = DeleteRecordOut
+@crud(DeleteRecord, path="/delete-descriptor", read=DeleteRecordOut)
+class DeleteRecords(API):
+    pass
 
 
 class ValidatorMixinSchema(Schema):
@@ -348,8 +351,9 @@ class DynamicValidatorRecord(Model, table="row_wire_validator"):
     number: int
 
 
-class ValidatorRecords(CrudAPI, model=DynamicValidatorRecord, path="/validator"):
-    read_schema = ValidatorRecordOut
+@crud(DynamicValidatorRecord, path="/validator", read=ValidatorRecordOut)
+class ValidatorRecords(API):
+    pass
 
 
 class NativeSchemaMixin:
@@ -363,8 +367,9 @@ class NativeSchemaOut(NativeSchemaMixin, Schema):
     number: int
 
 
-class NativeSchemaRecords(CrudAPI, model=DynamicValidatorRecord, path="/native-schema"):
-    read_schema = NativeSchemaOut
+@crud(DynamicValidatorRecord, path="/native-schema", read=NativeSchemaOut)
+class NativeSchemaRecords(API):
+    pass
 
 
 SPEC_CALLS: list[str] = []
@@ -380,8 +385,9 @@ class ProbedSpecsOut(Schema):
         return cast(dict[str, Any], cast(Any, super()).specs())
 
 
-class ProbedSpecsRecords(CrudAPI, model=DynamicValidatorRecord, path="/probed-specs"):
-    read_schema = ProbedSpecsOut
+@crud(DynamicValidatorRecord, path="/probed-specs", read=ProbedSpecsOut)
+class ProbedSpecsRecords(API):
+    pass
 
 
 class HiddenTimestampRecord(Model, table="row_wire_hidden_timestamp"):
@@ -393,8 +399,9 @@ class HiddenTimestampOut(Schema):
     id: int
 
 
-class HiddenTimestampRecords(CrudAPI, model=HiddenTimestampRecord, path="/hidden-time"):
-    read_schema = HiddenTimestampOut
+@crud(HiddenTimestampRecord, path="/hidden-time", read=HiddenTimestampOut)
+class HiddenTimestampRecords(API):
+    pass
 
 
 class AlternateAllRecord(Model, table="row_wire_alternate_all"):
@@ -419,8 +426,9 @@ class CustomAllOut(Schema):
     number: int
 
 
-class CustomAllRecords(CrudAPI, model=CustomAllRecord, path="/custom-all"):
-    read_schema = CustomAllOut
+@crud(CustomAllRecord, path="/custom-all", read=CustomAllOut)
+class CustomAllRecords(API):
+    pass
 
 
 async def raw_request(
@@ -518,7 +526,6 @@ def test_custom_metaclass_static_lookup_does_not_run_dynamic_lookup() -> None:
 def test_ineligible_generated_lists_stay_on_the_python_path() -> None:
     for api in (
         ConstrainedRecords,
-        LegacyRecords,
         CustomQueryRecords,
         InstanceHookRecords,
         NewHookRecords,
@@ -544,10 +551,10 @@ def test_mutated_hooks_fail_closed_after_registration() -> None:
     app = Hinoki(include=[WireRecords])
     selection = app.bindings[0].row_wire
     assert selection is not None
-    original = WireRecords.to_schema
+    original = cast(Any, WireRecords).to_schema
     try:
         cast(Any, WireRecords).to_schema = changed_crud_schema
-        assert not selection.valid_for(WireRecords())
+        assert not selection.valid_for(wire_api())
     finally:
         cast(Any, WireRecords).to_schema = original
 
@@ -555,7 +562,7 @@ def test_mutated_hooks_fail_closed_after_registration() -> None:
 def test_mutated_instance_hook_fails_before_row_wire_query() -> None:
     selection = Hinoki(include=[WireRecords]).bindings[0].row_wire
     assert selection is not None
-    api = WireRecords()
+    api = wire_api()
     assert selection.valid_for(api)
     cast(Any, api).to_schema = changed_crud_schema.__get__(api, WireRecords)
     assert not selection.valid_for(api)
@@ -618,7 +625,7 @@ def test_mutated_schema_and_model_metadata_fail_closed() -> None:
         WireRecordOut.specs()["name"] = dataclasses.replace(
             original_schema, alias="changed"
         )
-        assert not selection.valid_for(WireRecords())
+        assert not selection.valid_for(wire_api())
     finally:
         WireRecordOut.specs()["name"] = original_schema
 
@@ -626,7 +633,7 @@ def test_mutated_schema_and_model_metadata_fail_closed() -> None:
         WireRecord.__field_types__["name"] = dataclasses.replace(
             original_model, kind="int"
         )
-        assert not selection.valid_for(WireRecords())
+        assert not selection.valid_for(wire_api())
     finally:
         WireRecord.__field_types__["name"] = original_model
 
@@ -640,13 +647,13 @@ def test_mutated_schema_validator_methods_fail_closed(
     monkeypatch.setattr(
         WireRecordOut, "_validate_instance", classmethod(changed_schema_validate)
     )
-    assert not selection.valid_for(WireRecords())
+    assert not selection.valid_for(wire_api())
     monkeypatch.undo()
 
     monkeypatch.setattr(
         WireRecordOut, "native_schema", classmethod(changed_native_schema)
     )
-    assert not selection.valid_for(WireRecords())
+    assert not selection.valid_for(wire_api())
 
 
 @pytest.mark.skipif(URL is None, reason="HINOKI_TEST_DATABASE_URL is not set")
@@ -829,7 +836,7 @@ async def test_field_descriptor_added_after_include_uses_python_path_before_quer
         TransparentDescriptor("name", descriptor_calls),
         raising=False,
     )
-    assert not selection.valid_for(WireRecords())
+    assert not selection.valid_for(wire_api())
 
     counts: list[str] = []
     selects: list[str] = []
