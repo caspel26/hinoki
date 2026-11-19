@@ -21,6 +21,7 @@ from hinoki.checkcli import USAGE_ERRORS, build_app
 from hinoki.reportui import lane_suffix, route_row
 from hinoki.routing import Route
 from hinoki.runtime.crudplan import select_crud_plan
+from hinoki.runtime.nativelane import lane_refusal
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.terminal import Style
 
@@ -58,7 +59,8 @@ def handler_of(route: Route) -> str:
 
 def lanes_of(app: Hinoki) -> dict[int, tuple[str, str]]:
     """Lane and reason per route (by identity), as the Rust server would select
-    them at worker startup; no database is opened."""
+    them at worker startup (``native_dispatch`` off keeps ``async def`` handlers on
+    Python); no database is opened."""
     pipeline = Pipeline(app)
     lanes: dict[int, tuple[str, str]] = {}
     for binding in pipeline.bindings:
@@ -66,6 +68,9 @@ def lanes_of(app: Hinoki) -> dict[int, tuple[str, str]]:
             selection, reason = select_crud_plan(binding, pipeline)
         except Exception:
             selection, reason = None, "native_plan_build_failed"
+        if selection is None and lane_refusal(binding) is None:
+            lanes[id(binding.route)] = ("native", "native_dispatch")
+            continue
         lane = "native" if selection else "python"
         lanes[id(binding.route)] = (lane, reason)
     return lanes
