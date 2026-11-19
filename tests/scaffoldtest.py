@@ -1,8 +1,10 @@
 """``python -m hinoki new`` and the explain_error MCP tool."""
 
 import argparse
+import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tomllib
@@ -16,6 +18,7 @@ from hinoki.__main__ import main
 from hinoki.errorcatalog import CATALOG, explain
 from hinoki.mcp import DevProject, Server
 from hinoki.newcli import fill_from_prompts
+from hinoki.prompts import Prompter, tokens
 from hinoki.rules import RuleSet
 from hinoki.scaffold import ScaffoldError, create, files
 from hinoki.terminal import Style
@@ -378,6 +381,44 @@ def test_the_database_prompt_accepts_a_number_or_a_name(
     args = new_args(name="shop", dir=".", agent_files=True, git=False, install=False)
     fill_from_prompts(args, answers("postgresql"))
     assert args.database == "postgresql"
+
+
+def keyed(text: str) -> tuple[Prompter, io.StringIO]:
+    out = io.StringIO()
+    style = Style(color=True, unicode=True, depth="truecolor")
+    return Prompter(style, tokens(text), out), out
+
+
+def test_key_driven_prompts_settle_into_a_summary_line() -> None:
+    prompter, out = keyed("Bad\r\x7f\x7f\x7fshop\r\r\x1b[B\x1b[B\x1b[A\rn\r\r\r")
+    args = new_args()
+    newcli.fill(args, prompter)
+    assert (args.name, args.dir, args.database) == ("shop", ".", "sqlite")
+    assert (args.agent_files, args.git, args.install) == (False, True, True)
+    shown = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", out.getvalue())
+    assert "use lower-case letters and digits" in shown
+    assert "\u25c7  Name" in shown and "sqlite" in shown
+
+
+def test_escape_cancels_a_key_driven_prompt() -> None:
+    prompter, out = keyed("sh\x1b")
+    with pytest.raises(KeyboardInterrupt):
+        newcli.fill(new_args(), prompter)
+    assert "\u25a0  Name" in re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", out.getvalue())
+
+
+def test_a_light_terminal_background_gets_the_light_palette() -> None:
+    class Tty:
+        encoding = "utf-8"
+
+        def isatty(self) -> bool:
+            return True
+
+    env = {"TERM": "xterm", "COLORTERM": "truecolor"}
+    dark = Style.detect(Tty(), env)  # type: ignore[arg-type]
+    light = Style.detect(Tty(), {**env, "COLORFGBG": "0;15"})  # type: ignore[arg-type]
+    assert dark.text("x") == "\x1b[38;2;238;237;242mx\x1b[0m"
+    assert light.text("x") == "\x1b[38;2;29;26;36mx\x1b[0m"
 
 
 def test_cancelling_a_prompt_creates_nothing(
