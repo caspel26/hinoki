@@ -37,6 +37,7 @@ from urllib.parse import unquote
 from hinoki import core
 from hinoki.db import Database
 from hinoki.errors import InvalidBody
+from hinoki.runtime import banner
 from hinoki.runtime.binding import BODY_METHODS
 from hinoki.runtime.listener import inherited_address, open_listener
 from hinoki.runtime.nativelane import NativeLane, lane_refusal
@@ -565,7 +566,7 @@ def access_style(settings: ServerSettings, dev: bool) -> str | None:
     development line when stderr is a terminal that takes colour."""
     if not settings.logs_access(dev):
         return None
-    colour = sys.stderr.isatty() and "NO_COLOR" not in os.environ
+    colour = banner.wants_colour()
     return "pretty" if colour else "plain"
 
 
