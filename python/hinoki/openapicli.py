@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from hinoki.ai.openapidiff import breaking_changes
 from hinoki.checkcli import USAGE_ERRORS, build_app
-from hinoki.openapidiff import breaking_changes
 
 
 def add_arguments(

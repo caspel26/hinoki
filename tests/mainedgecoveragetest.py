@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from hinoki import __main__ as cli
-from hinoki import mcp
+from hinoki.ai import mcp
 from hinoki.errors import MigrationError
 from hinoki.orm.migrations import Plan
 
