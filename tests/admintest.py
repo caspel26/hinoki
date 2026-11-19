@@ -688,6 +688,38 @@ async def test_admin_bulk_resolution_rejects_bad_or_inaccessible_selections() ->
     assert await bulk_rows(fake_site, admin, [], "publish") == []
 
 
+@pytest.mark.parametrize(
+    ("dialect", "lock"),
+    [
+        ("postgres", ' FOR UPDATE OF "' + Note.__table__ + '"'),
+        ("mysql", " FOR UPDATE"),
+        ("mariadb", " FOR UPDATE"),
+        ("sqlite", ""),
+    ],
+)
+async def test_admin_bulk_lock_clause_matches_the_dialect(
+    monkeypatch: pytest.MonkeyPatch, dialect: str, lock: str
+) -> None:
+    seen: list[str] = []
+
+    async def fetch(sql: str, *params: Any) -> list[Any]:
+        seen.append(sql)
+        return []
+
+    monkeypatch.setattr(
+        "hinoki.admin.views.current_database",
+        lambda: SimpleNamespace(dialect=dialect, fetch=fetch),
+    )
+    principal = Caller(id="admin", user="admin")
+    admin = NoteAdmin()
+    admin.model = Note
+    fake_site = cast(Site, SimpleNamespace(principal=principal))
+    await bulk_rows(fake_site, admin, [str(uuid4())], "publish")
+    assert seen
+    assert seen[0].endswith(lock) if lock else "FOR UPDATE" not in seen[0]
+    assert ("$1" in seen[0]) == (dialect == "postgres")
+
+
 async def test_admin_dashboard_skips_hidden_entry_and_renders_activity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
