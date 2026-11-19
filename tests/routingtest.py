@@ -6,10 +6,10 @@ import pytest
 
 import hinoki
 from hinoki import API, Access, Hinoki, RouteGroup, http
-from hinoki.crud import Crud
 from hinoki.errors import APIError, Conflict, Forbidden, NotFound, RegistrationError
 from hinoki.handlerhints import hints_of, module_scope_hints, signature_of
 from hinoki.http.request import Request
+from hinoki.resources import Crud
 from tests.providers import TokenAuth
 
 editor = Access(auth=TokenAuth(), permissions=["posts:write"])

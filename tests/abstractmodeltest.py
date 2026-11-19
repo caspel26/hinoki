@@ -14,7 +14,6 @@ import pytest
 
 from hinoki import Schema
 from hinoki.admin import Admin
-from hinoki.crud import _CrudConfig
 from hinoki.db import Database, UniqueViolation
 from hinoki.errors import ModelError, RegistrationError
 from hinoki.orm import (
@@ -29,6 +28,7 @@ from hinoki.orm import (
     use_database,
 )
 from hinoki.orm.migrations import models_of, plan, state_of
+from hinoki.resources import _CrudConfig
 from tests.modelmixins import Keyed, Priced, Ranked, Stamped, Tracked
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
