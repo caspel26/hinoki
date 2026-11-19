@@ -378,6 +378,15 @@ def authorize_bulk_rows(
     return rows
 
 
+def row_lock(table: str, dialect: str) -> str:
+    """The ``FOR UPDATE`` clause the database understands, if any."""
+    if dialect == "sqlite":
+        return ""
+    if dialect in {"mysql", "mariadb"}:
+        return " FOR UPDATE"
+    return f' FOR UPDATE OF "{table}"'
+
+
 async def bulk_rows(
     site: Site,
     entry: ModelAdmin[Any],
@@ -392,12 +401,14 @@ async def bulk_rows(
         return []
     key_name = entry.model.__primary_key__
     query = entry.queryset(site.principal).filter(**{f"{key_name}__in": keys})
-    sql, params = query.compile()
+    database = current_database()
+    sql, params = query.compile(dialect=database.dialect)
     # Custom callbacks can write by ID. Lock the scoped rows through the
     # callback's transaction so ownership and row permissions cannot change
-    # between this check and the callback's writes.
-    sql += f' FOR UPDATE OF "{entry.model.__table__}"'
-    raw_rows = await current_database().fetch(sql, *params)
+    # between this check and the callback's writes. SQLite has no row locks:
+    # its writer transaction already serialises.
+    sql += row_lock(entry.model.__table__, database.dialect)
+    raw_rows = await database.fetch(sql, *params)
     found = [query.build(row) for row in raw_rows]
     await query.load(found)
     return authorize_bulk_rows(entry, site.principal, keys, found, action)
