@@ -2,6 +2,7 @@
 
 import asyncio
 import dataclasses
+import json
 import math
 import os
 import sys
@@ -31,6 +32,7 @@ from hinoki import (
     http,
 )
 from hinoki import crud as crud_module
+from hinoki.__main__ import main
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import Conflict
 from hinoki.fields import UNSET
@@ -1785,3 +1787,34 @@ def test_custom_error_registry_keeps_lane_c(mutation: str) -> None:
     assert select_crud_plan(pipeline.bindings[0], pipeline)[1] == (
         "database_methods_or_not_found_handler_customized"
     )
+
+
+def plan_items_app() -> Hinoki:
+    return Hinoki(
+        include=[PlanItems, ordinary_health],
+        modules=[DatabaseModule("sqlite:///crud-plan-unused.sqlite3")],
+    )
+
+
+@http.get("/ordinary")
+def ordinary_health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+def test_routes_command_reports_the_lane_of_each_route(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target = "tests.crudplantest:plan_items_app"
+    assert main(["routes", target, "--format", "json"]) == 0
+    found = {
+        (item["method"], item["path"]): (item["lane"], item["lane_reason"])
+        for item in json.loads(capsys.readouterr().out)
+    }
+    assert found[("GET", "/plan-items")] == ("native", "eligible")
+    assert found[("DELETE", "/plan-items/{item_id}")] == ("native", "eligible")
+    assert found[("GET", "/ordinary")] == ("python", "not_generated_crud_action")
+
+    assert main(["routes", target]) == 0
+    assert "[" not in capsys.readouterr().out.split("/ordinary")[0].splitlines()[-1]
+    assert main(["routes", target, "--lanes", "--path", "/plan-items"]) == 0
+    assert "[native: eligible]" in capsys.readouterr().out
