@@ -14,4 +14,4 @@ Status: Accepted · 2026-11-18 (proposed 2026-11-13)
 
 ## Amendment (2026-11-18)
 
-Accepted. Since this ADR was proposed, Hinoki also ships a first-party Rust server selected with `--server rust` or `server.server = "rust"` (`docs/serving.md`). The Rust server is now the default server and Granian with the ASGI adapter remains selectable with `--server granian`, so "no second HTTP server" no longer holds for the first release. Requests the Rust server does not answer natively still cross Python, and no ASGI-versus-RSGI measurement exists yet, so the revisit condition above stands.
+Accepted. Since this ADR was proposed, Hinoki also ships a first-party Rust server selected with `--server kiso` or `server.server = "kiso"` (`docs/serving.md`). The Rust server is now the default server and Granian with the ASGI adapter remains selectable with `--server granian`, so "no second HTTP server" no longer holds for the first release. Requests the Rust server does not answer natively still cross Python, and no ASGI-versus-RSGI measurement exists yet, so the revisit condition above stands.

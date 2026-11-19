@@ -145,7 +145,7 @@ def server_command(framework: str, port: int) -> tuple[list[str], dict[str, str]
             "serve",
             "phase1_hinoki:app",
             "--server",
-            "rust",
+            "kiso",
             "--workers",
             str(WORKERS),
             "--host",

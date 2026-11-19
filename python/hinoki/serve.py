@@ -1,5 +1,5 @@
-"""``hinoki dev|serve TARGET``: run an application on the Rust server (the default)
-or under Granian.
+"""``hinoki dev|serve TARGET``: run an application on Kiso, Hinoki's Rust server
+(the default), or under Granian.
 
     hinoki dev   blog.main:create_app                  # reload on change
     hinoki serve blog.main:create_app                  # production-style, no reload
@@ -8,7 +8,7 @@ or under Granian.
 ``TARGET`` is ``module:name`` where ``name`` is an application (``Hinoki``) or
 a function returning one. The host, port, worker count and server come from the
 application's ``server`` settings group (``AppSettings.server``), and the
-flags below override them. The Rust server is part of the native extension;
+flags below override them. Kiso is part of the native extension;
 Granian is an optional dependency (``pip install hinoki[server]``) and so is
 ``watchfiles``, which ``hinoki dev`` reloads with.
 """
@@ -44,8 +44,8 @@ def add_arguments(
         sub.add_argument("--port", type=int, help="override server.port")
         sub.add_argument(
             "--server",
-            choices=("granian", "rust"),
-            help="override server.server (default rust)",
+            choices=("granian", "kiso"),
+            help="override server.server (default kiso)",
         )
         if name == "serve":
             sub.add_argument("--workers", type=int, help="override server.workers")
@@ -101,7 +101,7 @@ def refuse(message: str) -> int:
 
 def choose_server(args: argparse.Namespace, settings: ServerSettings) -> str | int:
     """The server to run, or the exit status of a refusal: an unknown value, a
-    setting the server cannot honour, or a Rust server that is not available."""
+    setting the server cannot honour, or a Kiso that is not available."""
     chosen = args.server or settings.server
     conflicts = settings.conflicts(chosen)
     if conflicts:
@@ -109,11 +109,11 @@ def choose_server(args: argparse.Namespace, settings: ServerSettings) -> str | i
             f"server.{', server.'.join(conflicts)} "
             f"{'is' if len(conflicts) == 1 else 'are'} not supported by the "
             f"{chosen} server; unset it or choose "
-            f"--server {'granian' if chosen == 'rust' else 'rust'}"
+            f"--server {'granian' if chosen == 'kiso' else 'kiso'}"
         )
-    if chosen == "rust" and not hasattr(core, "RustServer"):
+    if chosen == "kiso" and not hasattr(core, "RustServer"):
         return refuse(
-            "the Rust server is not available in this build of the native "
+            "Kiso is not available in this build of the native "
             "extension; use --server granian"
         )
     return chosen
@@ -247,7 +247,7 @@ def run(args: argparse.Namespace, reload: bool) -> int:
     chosen = choose_server(args, settings)
     if isinstance(chosen, int):
         return chosen
-    if chosen == "rust":
+    if chosen == "kiso":
         return run_rust(args, reload, app, settings)
     del app  # Granian's workers build their own; do not keep this one alive
     return run_granian(args, reload, settings)

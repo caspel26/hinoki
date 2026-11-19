@@ -42,19 +42,19 @@ def parsed(*argv: str) -> argparse.Namespace:
 
 
 def test_the_server_defaults_to_rust_and_the_flag_overrides_the_setting() -> None:
-    assert ServerSettings().server == "rust"
-    assert choose_server(parsed(), ServerSettings()) == "rust"
+    assert ServerSettings().server == "kiso"
+    assert choose_server(parsed(), ServerSettings()) == "kiso"
     assert choose_server(parsed("--server", "granian"), ServerSettings()) == "granian"
     assert choose_server(parsed(), ServerSettings(server="granian")) == "granian"
     assert choose_server(
-        parsed("--server", "rust"), ServerSettings(server="granian")
-    ) == ("rust")
+        parsed("--server", "kiso"), ServerSettings(server="granian")
+    ) == ("kiso")
     with pytest.raises(SystemExit):
         parsed("--server", "hyper")
 
 
 def test_both_servers_accept_the_access_log() -> None:
-    assert choose_server(parsed(), ServerSettings(access_log=True)) == "rust"
+    assert choose_server(parsed(), ServerSettings(access_log=True)) == "kiso"
     granian = parsed("--server", "granian")
     assert choose_server(granian, ServerSettings(access_log=True)) == "granian"
 
@@ -81,7 +81,7 @@ def test_granian_refuses_a_rust_only_setting(
     settings = ServerSettings(**limit)  # type: ignore[arg-type]
     assert choose_server(parsed("--server", "granian"), settings) == 2
     assert next(iter(limit)) in capsys.readouterr().err
-    assert choose_server(parsed(), settings) == "rust"
+    assert choose_server(parsed(), settings) == "kiso"
     granian = ServerSettings(server="granian", **limit)  # type: ignore[arg-type]
     assert choose_server(parsed(), granian) == 2
 
@@ -91,7 +91,7 @@ def test_a_missing_rust_server_is_an_error_not_a_fallback(
 ) -> None:
     monkeypatch.delattr(core, "RustServer")
     assert choose_server(parsed(), ServerSettings()) == 2
-    assert "Rust server is not available" in capsys.readouterr().err
+    assert "Kiso is not available" in capsys.readouterr().err
     assert choose_server(parsed("--server", "granian"), ServerSettings()) == "granian"
 
 
@@ -146,7 +146,7 @@ def test_http2_needs_tls() -> None:
     with pytest.raises(ValueError, match="http2 needs TLS"):
         ServerSettings(http2=True).validate()
     secure = ServerSettings(http2=True, tls_cert_file=str(cert), tls_key_file=str(key))
-    assert secure.conflicts("granian") == secure.conflicts("rust") == []
+    assert secure.conflicts("granian") == secure.conflicts("kiso") == []
 
 
 def test_the_native_server_refuses_http2_without_tls() -> None:
@@ -195,13 +195,13 @@ def test_the_supervisor_grace_covers_every_stop_step() -> None:
 def test_the_server_group_loads_the_new_fields_from_the_environment() -> None:
     loaded = AppSettings.load(
         env={
-            "SERVER__SERVER": "rust",
+            "SERVER__SERVER": "kiso",
             "SERVER__MAX_CONNECTIONS": "100",
             "SERVER__HEADER_READ_TIMEOUT": "2.5",
         }
     ).server
     assert (loaded.server, loaded.max_connections, loaded.header_read_timeout) == (
-        "rust",
+        "kiso",
         100,
         2.5,
     )
@@ -420,7 +420,7 @@ def test_run_dispatches_to_rust_or_granian(
     app = Hinoki()
     monkeypatch.setattr(serve_module, "built_app", lambda _: app)
     monkeypatch.setattr(serve_module, "settings_of", lambda _: ServerSettings())
-    monkeypatch.setattr(serve_module, "choose_server", lambda *_: "rust")
+    monkeypatch.setattr(serve_module, "choose_server", lambda *_: "kiso")
     rust = Mock(return_value=0)
     monkeypatch.setattr(serve_module, "run_rust", rust)
     args = argparse.Namespace(target="app:target")

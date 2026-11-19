@@ -91,7 +91,7 @@ def test_serve_runs_workers_and_stops_gracefully_with_a_request_in_flight(
     workers: int, served: list[subprocess.Popen[str]]
 ) -> None:
     port = free_port()
-    server = start("serve", TARGET, port, "--server", "rust", "--workers", str(workers))
+    server = start("serve", TARGET, port, "--server", "kiso", "--workers", str(workers))
     served.append(server)
     wait_ready(port, "/health")
     # One process when workers == 1 (no supervisor); a process per worker otherwise.
@@ -118,7 +118,7 @@ def test_a_worker_that_dies_stops_the_others_and_the_supervisor_fails(
     served: list[subprocess.Popen[str]],
 ) -> None:
     port = free_port()
-    server = start("serve", TARGET, port, "--server", "rust", "--workers", "2")
+    server = start("serve", TARGET, port, "--server", "kiso", "--workers", "2")
     served.append(server)
     wait_ready(port, "/health")
     workers = children(server.pid)
@@ -136,7 +136,7 @@ def test_workers_stop_when_the_supervisor_is_killed(
     served: list[subprocess.Popen[str]],
 ) -> None:
     port = free_port()
-    server = start("serve", TARGET, port, "--server", "rust", "--workers", "2")
+    server = start("serve", TARGET, port, "--server", "kiso", "--workers", "2")
     served.append(server)
     wait_ready(port, "/health")
     workers = children(server.pid)
@@ -261,7 +261,7 @@ def test_dev_reloads_on_a_change_and_waits_after_an_error(
     module = tmp_path / "devproject.py"
     module.write_text(APP.format(version="one"))
     port = free_port()
-    server = start("dev", "devproject:app", port, "--server", "rust", cwd=tmp_path)
+    server = start("dev", "devproject:app", port, "--server", "kiso", cwd=tmp_path)
     served.append(server)
     assert server.stdout is not None
     wait_ready(port, "/v")
@@ -302,7 +302,7 @@ def test_workers_stop_when_the_supervisor_dies_while_they_import(
     monkeypatch.setenv("SLOW_IMPORT", "3")
     port = free_port()
     server = start(
-        "serve", "tests.runtime.slowimportapp:app", port, "--server", "rust",
+        "serve", "tests.runtime.slowimportapp:app", port, "--server", "kiso",
         "--workers", "2",
     )  # fmt: skip
     served.append(server)
@@ -321,7 +321,7 @@ def test_a_child_of_a_handler_does_not_hold_the_listening_socket(
         "tests.runtime.spawnapp:app",
         port,
         "--server",
-        "rust",
+        "kiso",
         "--workers",
         "2",
     )
@@ -344,7 +344,7 @@ def test_a_client_arriving_during_a_graceful_stop_is_refused(
     served: list[subprocess.Popen[str]],
 ) -> None:
     port = free_port()
-    server = start("serve", TARGET, port, "--server", "rust", "--workers", "2")
+    server = start("serve", TARGET, port, "--server", "kiso", "--workers", "2")
     served.append(server)
     wait_ready(port, "/health")
     result: list[str] = []
@@ -361,7 +361,7 @@ def test_a_client_arriving_during_a_graceful_stop_is_refused(
 
 def test_sighup_stops_gracefully(served: list[subprocess.Popen[str]]) -> None:
     port = free_port()
-    server = start("serve", TARGET, port, "--server", "rust", "--workers", "2")
+    server = start("serve", TARGET, port, "--server", "kiso", "--workers", "2")
     served.append(server)
     wait_ready(port, "/health")
     result: list[str] = []
@@ -389,7 +389,7 @@ def test_a_listen_failure_is_one_clean_error_whatever_the_workers(
             "host": ["--host", "no-such-host.invalid"],
         }[fault]
         done = subprocess.run(
-            [sys.executable, "-m", "hinoki", "serve", TARGET, "--server", "rust",
+            [sys.executable, "-m", "hinoki", "serve", TARGET, "--server", "kiso",
              "--workers", workers, *flags],
             cwd=ROOT, capture_output=True, text=True, timeout=60, check=False,
         )  # fmt: skip
@@ -401,7 +401,7 @@ def test_a_listen_failure_is_one_clean_error_whatever_the_workers(
 @pytest.mark.parametrize("workers", ["-1", "257"])
 def test_workers_outside_the_range_are_refused(workers: str) -> None:
     done = subprocess.run(
-        [sys.executable, "-m", "hinoki", "serve", TARGET, "--server", "rust",
+        [sys.executable, "-m", "hinoki", "serve", TARGET, "--server", "kiso",
          "--workers", workers],
         cwd=ROOT, capture_output=True, text=True, timeout=60, check=False,
     )  # fmt: skip

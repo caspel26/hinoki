@@ -688,7 +688,7 @@ def test_server_settings_validate_listener_proxy_request_id_and_limits() -> None
     for factory, message in invalid:
         with pytest.raises(ValueError, match=message):
             factory()
-    assert ServerSettings(access_log=True).conflicts("rust") == []
+    assert ServerSettings(access_log=True).conflicts("kiso") == []
     assert "max_connections" in ServerSettings(max_connections=2).conflicts("granian")
 
 
