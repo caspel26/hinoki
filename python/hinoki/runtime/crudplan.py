@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import dataclasses
-import importlib
 import inspect
 import math
 import uuid
@@ -11,9 +10,20 @@ from dataclasses import dataclass
 from typing import Any, cast
 from urllib.parse import urlsplit
 
+import hinoki.resources as crud_module
 from hinoki import context, core
 from hinoki import pagination as pagination_module
-from hinoki.crud import (
+from hinoki.crypto import ClaimsJWTAuth
+from hinoki.db import Database, DatabaseModule
+from hinoki.errors import ErrorDetail, ErrorRegistry
+from hinoki.fields import UNSET
+from hinoki.orm import Model, QuerySet
+from hinoki.orm import queryset as queryset_module
+from hinoki.orm.queryset import condition, write_statement, written_rows
+from hinoki.pagination import PageNumberPagination, PageParams
+from hinoki.parsers import DEFAULT_PARSERS, JSONParser
+from hinoki.renderers import is_default_json_renderer
+from hinoki.resources import (
     ACTIONS,
     GENERATED,
     CrudBase,
@@ -25,16 +35,6 @@ from hinoki.crud import (
     retrieve_row,
     update_row,
 )
-from hinoki.crypto import ClaimsJWTAuth
-from hinoki.db import Database, DatabaseModule
-from hinoki.errors import ErrorDetail, ErrorRegistry
-from hinoki.fields import UNSET
-from hinoki.orm import Model, QuerySet
-from hinoki.orm import queryset as queryset_module
-from hinoki.orm.queryset import condition, write_statement, written_rows
-from hinoki.pagination import PageNumberPagination, PageParams
-from hinoki.parsers import DEFAULT_PARSERS, JSONParser
-from hinoki.renderers import is_default_json_renderer
 from hinoki.runtime.binding import Binding
 from hinoki.runtime.responses import HTTPError
 from hinoki.runtime.rowplan import (
@@ -49,10 +49,6 @@ from hinoki.runtime.rowplan import (
 )
 from hinoki.schema import Schema, uses_generated_init
 from hinoki.utils import utc_now
-
-# ``hinoki.crud`` is also the exported ``crud`` function, so the module is
-# fetched by name rather than as an attribute of the package.
-crud_module = importlib.import_module("hinoki.crud")
 
 ACTION_ROUTES = {
     "list": ("GET", "/"),
@@ -260,7 +256,7 @@ CRUD_RUNTIME_NAMES = (
 CRUD_RUNTIME_ORIGINALS = tuple(
     crud_module.list_rows.__globals__[name] for name in CRUD_RUNTIME_NAMES
 )
-# Names lane C resolves through ``hinoki.crud``'s module globals at request time.
+# Names lane C resolves through ``hinoki.resources``'s module globals at request time.
 CRUD_HELPER_NAMES = (
     "python_list_rows",
     "schema_items",

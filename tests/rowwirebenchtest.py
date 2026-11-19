@@ -281,9 +281,9 @@ def test_output_directory_refuses_to_mix_campaign_artifacts(tmp_path: Path) -> N
 
 def test_timed_run_requires_clean_committed_source_but_preflight_does_not() -> None:
     with pytest.raises(SystemExit, match="clean committed worktree"):
-        ensure_clean_for_timing(" M python/hinoki/crud.py", verify_only=False)
+        ensure_clean_for_timing(" M python/hinoki/resources.py", verify_only=False)
 
-    ensure_clean_for_timing(" M python/hinoki/crud.py", verify_only=True)
+    ensure_clean_for_timing(" M python/hinoki/resources.py", verify_only=True)
     ensure_clean_for_timing("", verify_only=False)
 
 

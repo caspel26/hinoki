@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import Any, TypeGuard, cast
 
 from hinoki import core
-from hinoki.crud import GENERATED, CrudBase, _CrudConfig
 from hinoki.orm import Model
 from hinoki.orm.queryset import (
     ROW_WIRE_METHODS,
@@ -17,6 +16,7 @@ from hinoki.orm.queryset import (
     QuerySet,
 )
 from hinoki.renderers import is_default_json_renderer
+from hinoki.resources import GENERATED, CrudBase, _CrudConfig
 from hinoki.runtime.binding import Binding
 from hinoki.schema import Schema, uses_generated_init
 

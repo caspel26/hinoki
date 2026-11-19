@@ -1,6 +1,5 @@
 """Generated CRUD: declaration checks (no database) and behaviour (PostgreSQL)."""
 
-import importlib
 import json
 import os
 from collections.abc import AsyncIterator
@@ -28,10 +27,8 @@ from hinoki.errors import Forbidden, RegistrationError
 from hinoki.http.request import Request
 from hinoki.orm import Model, QuerySet, field, use_database
 from hinoki.pagination import Page, PageNumberPagination, PageParams
+from hinoki.resources import _CrudConfig
 from tests.harness import Client, Pool
-
-# ``hinoki.crud`` the module is shadowed by the ``crud`` function on the package.
-_CrudConfig = importlib.import_module("hinoki.crud")._CrudConfig
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(

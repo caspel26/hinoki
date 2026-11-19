@@ -3,15 +3,15 @@
 The [CRUD guide](../crud.md) explains action generation, access policies,
 ownership, schema requirements and route replacement.
 
-::: hinoki.crud.crud
+::: hinoki.resources.crud
 
-::: hinoki.crud.CrudAccess
+::: hinoki.resources.CrudAccess
     options:
       show_if_no_docstring: true
 
-::: hinoki.crud.CrudDeclaration
+::: hinoki.resources.CrudDeclaration
     options:
       members: true
       show_if_no_docstring: true
 
-::: hinoki.crud.Crud
+::: hinoki.resources.Crud

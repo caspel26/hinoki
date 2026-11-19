@@ -16,9 +16,9 @@ from uuid import UUID, uuid4
 import pytest
 
 from hinoki import API, Caller, Field, Hinoki, JSONRenderer, Schema, crud
-from hinoki.crud import CrudBase
 from hinoki.db import Database, DatabaseModule
 from hinoki.orm import Model, QuerySet, field
+from hinoki.resources import CrudBase
 from hinoki.runtime import rowplan
 from tests.harness import Client, Feed, Pool, Sink
 
