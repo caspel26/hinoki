@@ -13,7 +13,7 @@ from hinoki.routing import Route, route_of
 class API:
     """Base class for a resource: several methods, standard or custom.
 
-    ``class Posts(API, path='/posts')``. Instances hold no per-request state;
+    ``class PostAPI(API, path='/posts')``. Instances hold no per-request state;
     methods declared with ``@http.get``/``@http.post``/... become actions.
     """
 

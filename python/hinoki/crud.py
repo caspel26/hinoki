@@ -463,7 +463,7 @@ def specialize(
 
 
 class CrudAPI(API):
-    """CRUD-generating API class, mounted once with ``app.include(Posts)``."""
+    """CRUD-generating API class, mounted once with ``app.include(PostAPI)``."""
 
     model: ClassVar[type[Model] | None] = None
     read_schema: ClassVar[type[Schema] | None] = None

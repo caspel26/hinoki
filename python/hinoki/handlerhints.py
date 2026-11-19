@@ -4,7 +4,7 @@ Since Python 3.14 annotations are evaluated when they are first read, in the
 scope of the class body. A method that carries the name of a builtin it also
 uses in its own annotations then resolves that name to itself::
 
-    class Posts(API):
+    class PostAPI(API):
         async def list(self) -> list[int]: ...   # `list` is now this method
 
 Up to 3.13 the annotation was evaluated before the method was bound, so it
