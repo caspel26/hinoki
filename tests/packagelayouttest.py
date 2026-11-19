@@ -15,7 +15,7 @@ FORBIDDEN = (
     "hinoki.runtime",
     "hinoki.app",
     "hinoki.admin",
-    "hinoki.mcp",
+    "hinoki.ai",
 )
 
 

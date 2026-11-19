@@ -24,14 +24,14 @@ from pathlib import Path
 from typing import Any, TextIO
 
 import hinoki
+from hinoki.ai.errorcatalog import CATALOG, explain
+from hinoki.ai.proposals import ProposalError, propose
 from hinoki.app import Hinoki
 from hinoki.checkcli import USAGE_ERRORS, build_app, build_rules, default_packages
-from hinoki.errorcatalog import CATALOG, explain
 from hinoki.handlerhints import signature_of
 from hinoki.openapi import operation_key
 from hinoki.orm import Model
 from hinoki.orm.migrations import models_of
-from hinoki.proposals import ProposalError, propose
 from hinoki.routing import Route
 from hinoki.rules import (
     Diagnostic,

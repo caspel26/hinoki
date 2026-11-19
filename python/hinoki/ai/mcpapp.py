@@ -19,11 +19,7 @@ from urllib.parse import quote, unquote, urlencode
 import hinoki
 from hinoki import context, http
 from hinoki.access import Access
-from hinoki.app import Hinoki
-from hinoki.core import decode_json
-from hinoki.http.request import Request
-from hinoki.http.response import Response
-from hinoki.mcp import (
+from hinoki.ai.mcp import (
     INVALID_PARAMS,
     NO_METHOD,
     PARSE_ERROR,
@@ -33,6 +29,10 @@ from hinoki.mcp import (
     failure,
     reply,
 )
+from hinoki.app import Hinoki
+from hinoki.core import decode_json
+from hinoki.http.request import Request
+from hinoki.http.response import Response
 from hinoki.openapi import operation_key
 from hinoki.routing import Route
 from hinoki.rules import qualified

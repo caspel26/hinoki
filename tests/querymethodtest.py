@@ -6,8 +6,8 @@ import pytest
 from openapi_spec_validator import validate
 
 from hinoki import API, Access, Hinoki, Request, RouteGroup, Schema, http
+from hinoki.ai.mcpapp import expose_as_mcp
 from hinoki.errors import RegistrationError
-from hinoki.mcpapp import expose_as_mcp
 from hinoki.scenario import ScenarioError, run_scenario
 from hinoki.testing import ASGIClient, SyncClient
 from hinoki.wsgi import WSGIAdapter

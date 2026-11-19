@@ -85,7 +85,7 @@ max-branches = 8
 [tool.ruff.lint.per-file-ignores]
 "tests/harness.py" = ["PLR0913"]  # mirrors the ASGI scope fields a test may set
 "tests/mcpclient/*.py" = ["E501", "S607", "S603", "S101"]  # standalone verification scripts
-"python/hinoki/proposals.py" = ["E501"]  # emits source text, one line per output line
+"python/hinoki/ai/proposals.py" = ["E501"]  # emits source text, one line per output line
 "tests/dbtest.py" = ["S608", "PT012"]
 "tests/ormtest.py" = ["PT012"]
 "tests/blogtest.py" = ["S106"]  # fixture tokens, not secrets
@@ -99,7 +99,7 @@ max-branches = 8
 "python/hinoki/resources.py" = ["ARG001"]
 "python/hinoki/admin/themes.py" = ["E501"]  # token tables
 "python/hinoki/scaffold.py" = ["E501"]  # file templates
-"python/hinoki/errorcatalog.py" = ["E501"]  # explanatory text
+"python/hinoki/ai/errorcatalog.py" = ["E501"]  # explanatory text
 "tests/schemadifftest.py" = ["E501", "S311", "RUF001"]
 "tests/adminreviewtest.py" = ["E501"]
 "tests/authtest.py" = ["E501"]
