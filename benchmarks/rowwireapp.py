@@ -7,7 +7,7 @@ from dataclasses import replace
 from datetime import datetime
 from typing import Annotated
 
-from hinoki import CrudAPI, Field, Hinoki, Schema
+from hinoki import API, Field, Hinoki, Schema, crud
 from hinoki.db import DatabaseModule
 from hinoki.orm import Model, field
 
@@ -39,8 +39,9 @@ class RowRecordOut(Schema):
     nullable: str | None
 
 
-class RowRecords(CrudAPI, model=RowRecord, path="/records"):
-    read_schema = RowRecordOut
+@crud(RowRecord, path="/records", read=RowRecordOut)
+class RowRecords(API):
+    pass
 
 
 def make_app(

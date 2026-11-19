@@ -451,7 +451,7 @@ def write_report(
         "# Native CRUD phase 1: end-to-end orientation run",
         "",
         "This is one host-specific orientation measurement, not a performance claim or a framework ranking.",
-        "The primary table reports five alternating pairs of Hinoki's automatically selected Rust generated `CrudAPI` path and a manually implemented equivalent Django Bolt endpoint.",
+        "The primary table reports five alternating pairs of Hinoki's automatically selected Rust generated `crud(...)` path and a manually implemented equivalent Django Bolt endpoint.",
         "Both apps use the same PostgreSQL table and deterministic 10,000-row seed. Their list, detail, create and update responses were verified against the database before timing.",
         "",
         f"Run started: {metadata['started_at_utc']}. Host: {metadata['cpu']} ({metadata['cores']} logical CPUs), {metadata['platform']}; Python {metadata['python_short']}; PostgreSQL {metadata['postgres']}; Rust {metadata['rustc']}; Oha {metadata['oha']}.",

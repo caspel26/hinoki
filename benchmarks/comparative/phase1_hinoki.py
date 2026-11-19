@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from hinoki import CrudAPI, Field, Hinoki, Schema, Unset, settings
+from hinoki import API, Field, Hinoki, Schema, Unset, crud, settings
 from hinoki.db import DatabaseModule
 from hinoki.fields import UNSET
 from hinoki.orm import Model, field
@@ -31,12 +31,17 @@ class Phase1PostPatch(Schema):
     title: str | Unset = UNSET
 
 
-class Phase1Posts(CrudAPI, model=Phase1Post, path="/crud-posts"):
-    read_schema = Phase1PostRead
-    create_schema = Phase1PostCreate
-    update_schema = Phase1PostPatch
-    public_writes = True
-    pagination = PageNumberPagination(page_size=20, max_page_size=100)
+@crud(
+    Phase1Post,
+    path="/crud-posts",
+    read=Phase1PostRead,
+    create=Phase1PostCreate,
+    update=Phase1PostPatch,
+    public_writes=True,
+    pagination=PageNumberPagination(page_size=20, max_page_size=100),
+)
+class Phase1Posts(API):
+    pass
 
 
 class Phase1Settings(settings.AppSettings, prefix="PHASE1_"):
