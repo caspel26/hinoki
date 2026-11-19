@@ -191,7 +191,8 @@ def test_app_command_creates_registers_and_discovery_walks_to_parent(
     monkeypatch.chdir(nested)
 
     assert main(["app", "create", "billing"]) == 0
-    assert "created app billing" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "created app billing" in output and "registered in" in output
     manifest_path = find_manifest()
     manifest = load_manifest(manifest_path)
     billing = next(app for app in manifest.apps if app.name == "billing")
