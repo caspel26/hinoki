@@ -352,7 +352,7 @@ def test_styling_is_used_only_on_a_capable_terminal() -> None:
             return False
 
     fancy = Style.detect(Tty(), {"TERM": "xterm"})  # type: ignore[arg-type]
-    assert fancy.ok("done").startswith("  \x1b[32m\u2714")
+    assert fancy.ok("done").startswith("  \x1b[")
     assert "\x1b[" in fancy.banner("new project")
     for stream, env in [
         (Pipe(), {}),

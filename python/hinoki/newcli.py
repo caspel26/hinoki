@@ -9,7 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from hinoki.scaffold import DATABASES, NAME, RESERVED_NAMES, ScaffoldError, create
-from hinoki.terminal import ACCENT, Style
+from hinoki.terminal import Style
 
 Ask = Callable[[str], str]
 
@@ -161,7 +161,7 @@ def next_steps(style: Style, target: Path, name: str, synced: bool) -> list[str]
     commands += ["uv run pytest", f"uv run hinoki dev {name}.main:app"]
     if not style.color:
         return [f"next: {' && '.join(commands[:-1])}"]
-    return ["", "  Next:", *(f"    {style.paint(c, ACCENT)}" for c in commands)]
+    return ["", "  Next:", *(f"    {style.paint(c, 'brand')}" for c in commands)]
 
 
 def run_new(args: argparse.Namespace, ask: Ask = input) -> int:
