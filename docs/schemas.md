@@ -487,6 +487,8 @@ Structural validation runs first and rejects wrong types, missing required value
 
 After normalization, field checks receive final values and object checks can compare final fields. Raise `Invalid(code, message)` to reject a value; these checks return `None` and do not transform it. Non-`None` returns and async check methods are programming errors. Applicable custom-check failures are returned together in `errors.ValidationError.details`. Checks must be side-effect free; do not query the database or call external services. Put checks that depend on current data in an operation.
 
+**Which lane runs what.** Types and `Field(...)` constraints are checked in Rust, on the Python-object path and, for most schemas, the GIL-free JSON path. The three decorators are Python callables, so they run in Python: Rust validates the structure first, and the normalizers, field checks and object checks run only on values that passed it. Computed fields are not available yet.
+
 These decorators validate a `Schema` instance passed through `Schema.validate`; they are not run on a `Model`. Model fields have separate checks that run before ORM writes, described in [Model field constraints and validators](models.md#model-field-constraints-and-validators).
 
 See also the [glossary](glossary.md) for what "schema" does and does not mean in these docs.
