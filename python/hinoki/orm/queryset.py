@@ -589,23 +589,43 @@ async def written_rows(
                 return []
             filters = [(key, "in", keys)]
         await database.execute(sql, *params)
-        select_sql, select_params = core.compile_query(
-            "select",
-            model.__table__,
-            columns=list(model.__columns__),
-            filters=filters,
-            dialect=database.dialect,
-        )
-        return await database.fetch(select_sql, *select_params)
+        rows: list[Row] = []
+        for group in read_back_groups(key, filters):
+            select_sql, select_params = core.compile_query(
+                "select",
+                model.__table__,
+                columns=list(model.__columns__),
+                filters=group,
+                dialect=database.dialect,
+            )
+            rows.extend(await database.fetch(select_sql, *select_params))
+        return rows
+
+
+def read_back_groups(key: str, filters: list[Filter]) -> list[list[Filter]]:
+    """``filters``, or the locked keys split so each statement stays small."""
+    if len(filters) != 1 or filters[0][:2] != (key, "in"):
+        return [filters]
+    keys = filters[0][2]
+    return [
+        [(key, "in", keys[start : start + IN_CHUNK])]
+        for start in range(0, len(keys), IN_CHUNK)
+    ]
 
 
 async def locked_keys(
     model: type[Model], filters: list[Filter], dialect: str
 ) -> list[Any]:
-    """The primary keys ``filters`` match, locked until the transaction ends."""
+    """The primary keys ``filters`` match, locked in key order so two writers
+    cannot take the same rows in opposite orders, until the transaction ends."""
     key = model.__primary_key__
     sql, params = core.compile_query(
-        "select", model.__table__, columns=[key], filters=filters, dialect=dialect
+        "select",
+        model.__table__,
+        columns=[key],
+        filters=filters,
+        order=[(key, False)],
+        dialect=dialect,
     )
     rows = await current_database().fetch(sql + " FOR UPDATE", *params)
     return [row[key] for row in rows]
