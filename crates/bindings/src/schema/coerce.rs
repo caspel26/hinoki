@@ -11,7 +11,7 @@ use hinoki_server::plan::InputKind;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 
-use super::{Definition, Kind, Node, PyRules, MAX_DEPTH};
+use super::{is_composite, Definition, Kind, Node, PyRules, MAX_DEPTH};
 
 type Defs = [Definition<PyRules>];
 
@@ -61,6 +61,8 @@ fn coerce_node<'py>(
     match &node.kind {
         Kind::List(item) => coerce_list(py, defs, item, value, use_aliases, depth),
         Kind::Tuple(positions) => coerce_tuple(py, defs, positions, value, use_aliases, depth),
+        Kind::Any => Ok(single(value)),
+        Kind::AnyOf(variants) => Ok(coerce_union(py, variants, value)),
         Kind::Schema(index) => coerce_object(py, defs, *index, value, use_aliases, depth + 1),
         Kind::TaggedUnion {
             discriminator_wire_name,
@@ -141,6 +143,30 @@ fn single<'py>(value: &Bound<'py, PyAny>) -> Bound<'py, PyAny> {
         Ok(list) if list.len() == 1 => list.get_item(0).unwrap_or_else(|_| value.clone()),
         _ => value.clone(),
     }
+}
+
+/// A plain union reads its text as the first number or flag variant that
+/// parses it, unless a string variant comes first; otherwise the text stays.
+/// A union with a container or object variant keeps the text lists as sent.
+fn coerce_union<'py>(
+    py: Python<'py>,
+    variants: &[Node<PyRules>],
+    value: &Bound<'py, PyAny>,
+) -> Bound<'py, PyAny> {
+    if variants.iter().any(|variant| is_composite(&variant.kind)) {
+        return value.clone();
+    }
+    let text = single(value);
+    for variant in variants {
+        if matches!(variant.kind, Kind::Str) {
+            break;
+        }
+        match coerce_scalar(py, &variant.kind, &text) {
+            Ok(converted) if !converted.is(&text) => return converted,
+            _ => {}
+        }
+    }
+    text
 }
 
 fn coerce_scalar<'py>(
