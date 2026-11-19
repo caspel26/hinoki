@@ -1561,7 +1561,8 @@ call again, it replaces its own handler.</p>
 
         <p>How <code>hinoki serve</code> and <code>dev</code> run the application. <code>serve</code> applies
 these; they do nothing when another runner starts the app.</p>
-<p><code>server</code> picks the Rust server (the default) or Granian. <code>access_log</code>
+<p><code>server</code> picks Kiso, Hinoki's Rust server (the default), or Granian.
+<code>access_log</code>
 prints one line per request on either server; unset, <code>hinoki dev</code> logs and
 <code>hinoki serve</code> does not, and <code>True</code> or <code>False</code> decides for both.
 <code>max_connections</code>, <code>header_read_timeout</code>,
@@ -1606,7 +1607,7 @@ without an asyncio task; <code>False</code> keeps every handler in one.</p>
   </span>
 
 <a href="#hinoki.settings.ServerSettings.server" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">server</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'granian'</span><span class="p">,</span> <span class="s1">'rust'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'rust'</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">server</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'granian'</span><span class="p">,</span> <span class="s1">'kiso'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'kiso'</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">

@@ -466,7 +466,7 @@ index; see <a href="../getting-started/">installation</a> for setup.</p>
 <tr>
 <td><code>server.server</code></td>
 <td><code>BLOG_SERVER__SERVER</code></td>
-<td><code>granian</code></td>
+<td><code>kiso</code></td>
 <td><code>--server</code></td>
 </tr>
 </tbody>
@@ -474,16 +474,16 @@ index; see <a href="../getting-started/">installation</a> for setup.</p>
 <p><code>dev</code> always runs one worker with reload. The settings command shows what is in effect: <code>hinoki settings blog.settings:BlogSettings</code>.</p>
 <p>Before serving a deployment, narrow <a href="../settings/#allowed_hosts"><code>allowed_hosts</code></a> to the names it answers to (<code>BLOG_ALLOWED_HOSTS=app.example.com</code>). While it is the default <code>*</code> and <code>debug</code> is off, each worker logs <code>allowed_hosts is '*' and debug is off: ...</code> at startup, on Granian, the Rust server, WSGI and other ASGI servers alike.</p>
 <h2 id="the-rust-server">The Rust server<a class="headerlink" href="#the-rust-server" title="Permanent link">&para;</a></h2>
-<p><code>hinoki serve</code> and <code>hinoki dev</code> run the application on the Rust server, which is part of Hinoki's native extension, unless you choose Granian with <code>--server granian</code> or <code>server.server = "granian"</code>. Choose Granian when you need an ASGI wrapper around the app (see below), or a server outside the extension.</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>rust
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>rust<span class="w"> </span>--workers<span class="w"> </span><span class="m">4</span>
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w">   </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>rust
+<p>Kiso is Hinoki's own HTTP server, written in Rust on hyper, tokio and rustls. <code>hinoki serve</code> and <code>hinoki dev</code> run the application on Kiso, which is part of Hinoki's native extension, unless you choose Granian with <code>--server granian</code> or <code>server.server = "granian"</code>. Choose Granian when you need an ASGI wrapper around the app (see below), or a server outside the extension.</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>kiso
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>kiso<span class="w"> </span>--workers<span class="w"> </span><span class="m">4</span>
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w">   </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>kiso
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"BLOG_"</span><span class="p">):</span>
-    <span class="n">server</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span><span class="p">(</span><span class="n">server</span><span class="o">=</span><span class="s2">"rust"</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+    <span class="n">server</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span><span class="p">(</span><span class="n">server</span><span class="o">=</span><span class="s2">"kiso"</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="what-is-native-and-what-still-runs-in-python">What is native and what still runs in Python<a class="headerlink" href="#what-is-native-and-what-still-runs-in-python" title="Permanent link">&para;</a></h3>
 <p>The listener, HTTP/1.1 parsing, connection and header limits, body framing and its limits and timeouts, route matching, the request ID, and the answers that need no application code run on the native runtime without taking the Python interpreter lock. Without host, CORS or HTTPS-redirect policies, a request the native layer can answer by itself is answered there: unknown paths and methods (<code>404</code>, <code>405</code> with <code>Allow</code>), oversized request lines or headers, <code>503</code> while the worker is not ready or the in-flight limit is reached, and malformed requests. When one of those policies is active, the Rust classifier still checks it first, then preserves Python lookup for unmatched requests. The response carries the same security headers, request ID, CORS and HSTS policy as one produced by the application.</p>
@@ -536,7 +536,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 </tr>
 </tbody>
 </table>
-<p>If the native extension of a build has no Rust server, <code>--server rust</code> fails with an error that says so.</p>
+<p>If the native extension of a build has no Rust server, <code>--server kiso</code> fails with an error that says so.</p>
 <h3 id="workers-signals-and-restarts">Workers, signals and restarts<a class="headerlink" href="#workers-signals-and-restarts" title="Permanent link">&para;</a></h3>
 <p>With one worker <code>hinoki serve</code> runs the server in its own process. With several workers (and always under <code>hinoki dev</code>) it starts a supervisor that opens the listening socket once (honouring <code>backlog</code>), starts each worker as a fresh process that imports the target and builds the application, and passes the socket down. Workers share the one socket, so connections are spread by the operating system's accept; Hinoki does not balance them. Databases and pools open inside each worker's lifespan, never in the supervisor.</p>
 <ul>
@@ -546,7 +546,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <li>If the supervisor is killed without a chance to clean up, its workers notice within a second of finishing their startup and stop. The workers' copy of the listening socket is not inherited by processes a handler starts.</li>
 <li>A socket that cannot be opened (address in use, a bad port or host) is reported as <code>error: cannot listen on HOST:PORT: ...</code> with exit status 2, with one worker or several.</li>
 </ul>
-<h3 id="hinoki-dev-server-rust"><code>hinoki dev --server rust</code><a class="headerlink" href="#hinoki-dev-server-rust" title="Permanent link">&para;</a></h3>
+<h3 id="hinoki-dev-server-kiso"><code>hinoki dev --server kiso</code><a class="headerlink" href="#hinoki-dev-server-kiso" title="Permanent link">&para;</a></h3>
 <p>The supervisor watches the project directory (<code>*.py</code>, <code>*.toml</code> and <code>.env</code> files; <code>.venv</code>, <code>.git</code> and caches are ignored) and, on a change, stops the worker gracefully and starts a new one on the same socket, so a client connecting during the restart waits instead of being refused. If the new code fails to import or start, the error is printed (a short <code>error: cannot load ...</code> line for a missing module or name, a traceback for other failures), <code>waiting for changes</code> follows, and the next edit starts the worker again; connections wait in the meantime. The host, port, <code>backlog</code> and the choice of server are read once when <code>hinoki dev</code> starts: change them and restart the command. The other <code>server</code> settings (limits, <code>trusted_proxies</code>, <code>runtime_threads</code>) are read again by every restarted worker. The watcher ignores <code>.venv</code> but not a virtual environment with another name, such as <code>venv/</code>: keep it outside the project directory or it triggers reloads. The first import of the target happens in the command itself, so an error there stops it with a message instead of waiting. <code>dev</code> needs <code>watchfiles</code> (the <code>hinoki[server]</code> extra) and uses one worker.</p>
 <h3 id="behind-a-reverse-proxy">Behind a reverse proxy<a class="headerlink" href="#behind-a-reverse-proxy" title="Permanent link">&para;</a></h3>
 <p><code>server.trusted_proxies</code> works as described in <a href="../settings/#reverse-proxies-and-request-ids">settings</a>: the native layer matches the TCP peer against it for the request ID and the HSTS and scheme policy of its own answers, and the request pipeline resolves the forwarded scheme and client address of the requests it handles from the same peer. The rate limit of a natively served route resolves its client the same way, so <code>RateLimitContext.client</code> is the same on both lanes. Two points to know:</p>
@@ -597,7 +597,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <span class="n">app</span> <span class="o">=</span> <span class="n">Timing</span><span class="p">(</span><span class="n">create_app</span><span class="p">(),</span> <span class="n">record</span><span class="o">=</span><span class="n">my_metrics</span><span class="o">.</span><span class="n">observe</span><span class="p">)</span>   <span class="c1"># run this with Granian or any ASGI server</span>
 </code></pre></div>
 <p>What this measures is the time from the ASGI call to the last byte handed to the server, not what a client perceives. Keep method and status as labels; do <strong>not</strong> label by <code>scope["path"]</code> (it holds ids and has unbounded cardinality), the request ID (it is for correlating logs: <code>logging.include_request_id</code> adds it to each Hinoki log line) or the caller. Hinoki does not currently expose the matched route template to a wrapper, so per-route metrics need an application-level counter inside the handler or a gap report so a hook can be designed.</p>
-<p>The Rust server (<code>--server rust</code>) has no ASGI boundary, so this wrapper does not apply to it and it has no instrumentation seam today. Use the server's own limits and the request log of your proxy, or serve with Granian when you need to wrap the application.</p>
+<p>The Rust server (<code>--server kiso</code>) has no ASGI boundary, so this wrapper does not apply to it and it has no instrumentation seam today. Use the server's own limits and the request log of your proxy, or serve with Granian when you need to wrap the application.</p>
 <h2 id="wsgi">WSGI<a class="headerlink" href="#wsgi" title="Permanent link">&para;</a></h2>
 <p>ASGI is the intended way to serve Hinoki. When a deployment can only run WSGI, wrap the application:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># wsgi.py</span>
@@ -641,7 +641,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
           
           
             <ul><li><a href="#where-host-port-and-workers-come-from">Where host, port and workers come from</a></li><li><a href="#the-rust-server">The Rust server</a>
-            <ul><li><a href="#what-is-native-and-what-still-runs-in-python">What is native and what still runs in Python</a></li><li><a href="#the-native-handler-lane">The native handler lane</a></li><li><a href="#generated-crud">Generated CRUD</a></li><li><a href="#optional-startup-probe">Optional startup probe</a></li><li><a href="#limits">Limits</a></li><li><a href="#settings-that-apply-to-one-server-only">Settings that apply to one server only</a></li><li><a href="#workers-signals-and-restarts">Workers, signals and restarts</a></li><li><a href="#hinoki-dev-server-rust">hinoki dev --server rust</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li></ul>
+            <ul><li><a href="#what-is-native-and-what-still-runs-in-python">What is native and what still runs in Python</a></li><li><a href="#the-native-handler-lane">The native handler lane</a></li><li><a href="#generated-crud">Generated CRUD</a></li><li><a href="#optional-startup-probe">Optional startup probe</a></li><li><a href="#limits">Limits</a></li><li><a href="#settings-that-apply-to-one-server-only">Settings that apply to one server only</a></li><li><a href="#workers-signals-and-restarts">Workers, signals and restarts</a></li><li><a href="#hinoki-dev-server-kiso">hinoki dev --server kiso</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li></ul>
           </li><li><a href="#declaring-where-settings-are-read">Declaring where settings are read</a></li><li><a href="#other-runners">Other runners</a></li><li><a href="#metrics-and-tracing">Metrics and tracing</a></li><li><a href="#wsgi">WSGI</a></li></ul>
           
         </nav>
@@ -649,7 +649,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 18:47:50 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 19:13:49 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>22 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
