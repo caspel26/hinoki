@@ -79,7 +79,7 @@ ALLOWED_CONSTRAINTS: dict[str, frozenset[str]] = {
     "decimal": frozenset(
         {"ge", "le", "gt", "lt", "max_digits", "decimal_places", "multiple_of"}
     ),
-    "bytes": frozenset({"min_length", "max_length"}),
+    "bytes": frozenset({"min_length", "max_length", "pattern"}),
     "str": frozenset(
         {"min_length", "max_length", "pattern", "one_of", "strip", "lower", "upper"}
     ),
