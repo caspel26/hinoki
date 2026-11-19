@@ -3,7 +3,7 @@
 import json
 import os
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -16,6 +16,7 @@ from hinoki import (
     BearerAuth,
     Caller,
     CrudAccess,
+    Field,
     Hinoki,
     Schema,
     Unset,
@@ -99,6 +100,18 @@ Memos = memo_crud("/memos").api()
 class Backwards(API):
     def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Memo]:
         return Memo.all().order_by("-title")
+
+
+class TightOut(Schema):
+    id: UUID
+    owner: str
+    title: Annotated[str, Field(max_length=3)]
+    body: str
+
+
+@crud(Memo, path="/tight", read=TightOut)
+class Tight(API):
+    pass
 
 
 @memo_crud("/hooked")
@@ -328,6 +341,7 @@ async def memos(pool: Pool) -> AsyncIterator[Client]:
             PrivateMemos,
             UnsafeHooks,
             SyncHooks,
+            Tight,
             url=URL,
         )
     )
@@ -357,6 +371,23 @@ async def test_create_assigns_the_owner_and_reads_back(memos: Client) -> None:
         1,
         [created.body["id"]],
     )
+
+
+@needs_database
+async def test_a_stored_row_the_read_schema_refuses_is_a_server_error(
+    memos: Client,
+) -> None:
+    key = uuid4()
+    assert URL is not None
+    admin = await Database.connect(URL, max_size=1)
+    await admin.execute(
+        "INSERT INTO crud_memos VALUES ($1, 'ann', 'too long', '')", key
+    )
+    admin.close()
+    single = await memos.request("GET", f"/tight/{key}")
+    listing = await memos.request("GET", "/tight")
+    assert (single.status, listing.status) == (500, 500)
+    assert "too long" not in f"{single.body}{listing.body}"
 
 
 @needs_database

@@ -933,7 +933,7 @@ async def test_invalid_sqlite_cell_falls_back_without_a_second_select(
     slow_start, slow_end = await raw_request(oracle_client, "GET", "/dynamic")
     assert wire_results and isinstance(wire_results[0], list)
     assert len(selects) == 3  # one count query per request; no fallback re-query
-    assert fast_start["status"] == slow_start["status"] == 422
+    assert fast_start["status"] == slow_start["status"] == 500
     assert public_headers(fast_start) == public_headers(slow_start)
     fast_error = json.loads(fast_end["body"])
     slow_error = json.loads(slow_end["body"])
