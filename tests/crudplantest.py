@@ -2,7 +2,6 @@
 
 import asyncio
 import dataclasses
-import importlib
 import json
 import math
 import os
@@ -33,8 +32,8 @@ from hinoki import (
     core,
     http,
 )
+from hinoki import resources as crud_module
 from hinoki.__main__ import main
-from hinoki.crud import CrudBase, caller_id, crud
 from hinoki.crypto import ClaimsJWTAuth, JWTKey
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import Conflict
@@ -43,6 +42,7 @@ from hinoki.modules import ModuleContext
 from hinoki.orm import Model, QuerySet, field
 from hinoki.orm.queryset import write_statement
 from hinoki.pagination import PageNumberPagination
+from hinoki.resources import CrudBase, caller_id, crud
 from hinoki.runtime import crudplan as crudplan_module
 from hinoki.runtime import servercore as servercore_module
 from hinoki.runtime.binding import Binding
@@ -56,7 +56,6 @@ from hinoki.utils import utc_now
 
 DATABASE_URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 REQUIRE_SQL_TRACE = os.environ.get("HINOKI_REQUIRE_SQL_TRACE") == "1"
-crud_module = importlib.import_module("hinoki.crud")
 
 
 class PlanItem(Model, table="crud_plan_items"):

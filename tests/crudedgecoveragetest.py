@@ -3,24 +3,21 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
 from types import SimpleNamespace
 from typing import Any, cast
 from uuid import uuid4
 
 import pytest
 
+import hinoki.resources as crud_module
 from hinoki import API, Caller, Schema, crud
 from hinoki.context import sync_runner
-from hinoki.crud import CrudBase
 from hinoki.errors import Forbidden, RegistrationError
 from hinoki.http.request import Request
 from hinoki.orm import Model, field
 from hinoki.pagination import PageParams
+from hinoki.resources import CrudBase
 from tests.crudtest import Memo, MemoIn, MemoOut, MemoPatch, Memos
-
-# ``hinoki.crud`` is also the exported function, so fetch the module by name.
-crud_module = importlib.import_module("hinoki.crud")
 
 
 class _WireSelection:
@@ -235,7 +232,8 @@ async def test_schema_items_gathers_async_hooks() -> None:
         async def call_hook(self, _name: str, row: Any) -> str:
             return await self.to_schema(row)
 
-    assert await crud_module.schema_items(AsyncSchemaHook(), [1, 2]) == ["1", "2"]
+    hook = cast(CrudBase, AsyncSchemaHook())
+    assert await crud_module.schema_items(hook, [1, 2]) == ["1", "2"]
 
 
 @pytest.mark.asyncio
