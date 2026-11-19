@@ -307,14 +307,14 @@ def next_steps(
     ]
 
 
-def show_banner(style: Style) -> None:
+def show_banner(style: Style, title: str = "new project") -> None:
     detail = f"v{__version__}"
     if style.animated and style.unicode:
         style.shimmer(detail)
     else:
-        print(style.banner("new project", detail))
+        print(style.banner(title, detail))
     if style.fancy:
-        print(style.intro("new project"))
+        print(style.intro(title))
 
 
 def cancelled(style: Style) -> str:

@@ -6,7 +6,14 @@ from argparse import Namespace
 from collections.abc import Collection
 from pathlib import Path
 
-from hinoki.newcli import Ask, LinePrompts, Questions, cancelled, shown_path
+from hinoki.newcli import (
+    Ask,
+    LinePrompts,
+    Questions,
+    cancelled,
+    show_banner,
+    shown_path,
+)
 from hinoki.project import ProjectManifest
 from hinoki.prompts import Check, Prompter, keys_available, raw_keys
 from hinoki.scaffold import NAME, RESERVED_NAMES
@@ -81,8 +88,7 @@ def fill(args: Namespace, manifest: ProjectManifest, questions: Questions) -> No
 
 def ask_app(args: Namespace, manifest: ProjectManifest, ask: Ask, style: Style) -> int:
     """Run the questions; 130 when the user cancels."""
-    if style.fancy:
-        print(style.intro("new app"))
+    show_banner(style, "new app")
     try:
         if style.fancy and keys_available():
             width = shutil.get_terminal_size().columns
