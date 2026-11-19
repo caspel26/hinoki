@@ -409,7 +409,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <p>Both commands run the app on the <a href="#the-rust-server">Rust server</a> unless you choose Granian with <code>--server granian</code> or <code>server.server</code>. In the Hinoki checkout,
 <code>uv sync --locked</code> installs the development environment, including Granian and
 its reload support. A project created by <code>hinoki new</code> declares the server extra in
-its source dependency; run <code>uv sync</code> in that project. The extra includes
+its source dependency; run <code>uv sync</code> in that project. <code>hinoki new --server granian</code> (or the server prompt) writes a <code>settings.toml</code> that makes the project run on Granian instead of Kiso. The extra includes
 Granian's reload support (<code>watchfiles</code>), which <code>hinoki dev</code> needs. If Granian
 was installed separately without <code>watchfiles</code>, <code>dev</code> reports the missing
 dependency and <code>serve</code> still works. For this checkout, use its locked source
@@ -649,7 +649,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 19:13:49 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 19:32:31 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>22 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
