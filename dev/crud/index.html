@@ -570,6 +570,12 @@ from <code>Caller.user</code>; its default reads <code>.id</code>. <code>assign<
 server-owned columns to functions of the caller's user object. Client schemas
 cannot accept server-assigned fields. Generated writes require an access
 policy even when <code>owner</code> is configured.</p>
+<p>With <code>ClaimsJWTAuth</code> there is no user object, so use
+<code>identity_key = caller_id</code> (from <code>hinoki.crud</code>): the owner value is then the
+caller's <code>Caller.id</code> (the token <code>sub</code>). A foreign update or delete answers <code>403</code>
+and a missing row <code>404</code>, as without the native lane. This is the only owner
+declaration that can run natively; see
+<a href="../authentication/#claims-only-tokens-on-the-native-lane">authentication</a>.</p>
 <p>At class declaration Hinoki rejects abstract models, unknown schema fields,
 unsafe nullable fields, missing required create values, update schemas that
 can overwrite omitted fields, primary-key updates, unknown assigned columns,
@@ -625,7 +631,7 @@ side-effects beyond the single model mutation.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.11</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 11:27:22 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 01:56:07 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
