@@ -26,7 +26,7 @@ from hinoki import (
     field_check,
     http,
 )
-from hinoki.errorcatalog import CATALOG
+from hinoki.ai.errorcatalog import CATALOG
 from hinoki.errors import RegistrationError, ValidationError
 from hinoki.fieldtypes import (
     DECIMAL_DIGITS_CEILING,

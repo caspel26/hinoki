@@ -13,11 +13,12 @@ from typing import Any
 
 import pytest
 
-from hinoki import API, Access, Hinoki, Request, http, mcp
-from hinoki.mcp import DevProject, Server, serve
+from hinoki import API, Access, Hinoki, Request, http
+from hinoki.ai import mcp
+from hinoki.ai.mcp import DevProject, Server, serve
+from hinoki.ai.proposals import ProposalError, propose
 from hinoki.modules import Module, ModuleContext
 from hinoki.orm import Model, field
-from hinoki.proposals import ProposalError, propose
 from tests.projects.rulesapp import create_app, rules
 from tests.providers import TokenAuth
 
@@ -183,7 +184,7 @@ def test_run_mcp_reports_invalid_targets_to_stderr(
     def invalid_target(_target: str) -> Hinoki:
         raise ValueError("bad target")
 
-    monkeypatch.setattr("hinoki.mcp.build_app", invalid_target)
+    monkeypatch.setattr("hinoki.ai.mcp.build_app", invalid_target)
     args = argparse.Namespace(target="missing:app")
     assert mcp.run_mcp(args) == 2
     assert "bad target" in capsys.readouterr().err
@@ -196,15 +197,15 @@ def test_run_mcp_restores_stdout_after_serving(
     diagnostics = io.StringIO()
     monkeypatch.setattr(sys, "stdout", protocol)
     monkeypatch.setattr(sys, "stderr", diagnostics)
-    monkeypatch.setattr("hinoki.mcp.build_app", lambda _target: Hinoki())
-    monkeypatch.setattr("hinoki.mcp.build_rules", lambda _rules, _app: rules)
-    monkeypatch.setattr("hinoki.mcp.default_packages", lambda _target: ())
+    monkeypatch.setattr("hinoki.ai.mcp.build_app", lambda _target: Hinoki())
+    monkeypatch.setattr("hinoki.ai.mcp.build_rules", lambda _rules, _app: rules)
+    monkeypatch.setattr("hinoki.ai.mcp.default_packages", lambda _target: ())
 
     def serve_once(_server: Server, _source: Any, sink: Any) -> None:
         assert sys.stdout is diagnostics
         assert sink is protocol
 
-    monkeypatch.setattr("hinoki.mcp.serve", serve_once)
+    monkeypatch.setattr("hinoki.ai.mcp.serve", serve_once)
     args = argparse.Namespace(
         target="tests.projects.rulesapp:create_app",
         rules=None,
@@ -377,7 +378,7 @@ def test_the_production_runtime_never_imports_the_development_server() -> None:
         "import sys, hinoki, hinoki.runtime.asgi\n"
         "from hinoki import Hinoki\n"
         "Hinoki().asgi()\n"
-        "print('hinoki.mcp' in sys.modules)"
+        "print('hinoki.ai.mcp' in sys.modules)"
     )
     done = subprocess.run(
         [sys.executable, "-c", code], capture_output=True, text=True, check=True

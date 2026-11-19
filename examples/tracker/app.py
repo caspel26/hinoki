@@ -11,7 +11,7 @@ Layers (see docs/patterns.md): ``api`` -> ``operations`` -> ``models``.
 """
 
 from hinoki import Hinoki
-from hinoki.mcpapp import expose_as_mcp
+from hinoki.ai.mcpapp import expose_as_mcp
 
 from . import api
 from .rules import tracker_rules

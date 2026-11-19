@@ -7,8 +7,8 @@ from uuid import UUID
 import pytest
 
 from hinoki import Access, Caller, Hinoki, Request, Response, Schema, http
+from hinoki.ai.mcpapp import ExposureError, expose_as_mcp, place, select
 from hinoki.errors import Conflict
-from hinoki.mcpapp import ExposureError, expose_as_mcp, place, select
 from hinoki.testing import ASGIClient
 from tests.providers import TokenAuth
 
@@ -290,7 +290,7 @@ async def test_invalid_json_decoder_is_reported_as_parse_error(
             return json.loads(body)
         raise ValueError
 
-    monkeypatch.setattr("hinoki.mcpapp.decode_json", decode)
+    monkeypatch.setattr("hinoki.ai.mcpapp.decode_json", decode)
     async with ASGIClient(build()) as client:
         listed = (await call(client, rpc("tools/list"))).body["result"]["tools"]
         calls = 0

@@ -9,10 +9,11 @@ from typing import Any
 
 import pytest
 
-from hinoki import Actions, Hinoki, Imports, Request, Schema, Schemas, http, mcp
+from hinoki import Actions, Hinoki, Imports, Request, Schema, Schemas, http
 from hinoki.__main__ import main
+from hinoki.ai import mcp
+from hinoki.ai.mcp import DevProject, Server, serve
 from hinoki.imports import imports_of
-from hinoki.mcp import DevProject, Server, serve
 from hinoki.rules import (
     Diagnostic,
     Phase,

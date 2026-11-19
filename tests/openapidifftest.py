@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from hinoki.__main__ import main
-from hinoki.openapidiff import breaking_changes
+from hinoki.ai.openapidiff import breaking_changes
 
 TARGET = "tests.routeinclusiontest:make_app"
 
