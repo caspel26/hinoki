@@ -12,7 +12,14 @@ from typing import Protocol
 
 from hinoki import __version__
 from hinoki.prompts import Check, Prompter, keys_available, raw_keys
-from hinoki.scaffold import DATABASES, NAME, RESERVED_NAMES, ScaffoldError, create
+from hinoki.scaffold import (
+    DATABASES,
+    NAME,
+    RESERVED_NAMES,
+    SERVERS,
+    ScaffoldError,
+    create,
+)
 from hinoki.terminal import Style, elapsed
 
 Ask = Callable[[str], str]
@@ -35,6 +42,12 @@ def add_arguments(new: argparse.ArgumentParser) -> None:
         choices=DATABASES,
         default=None,
         help="declare a database setting (default: none)",
+    )
+    new.add_argument(
+        "--server",
+        choices=SERVERS,
+        default=None,
+        help="server that `hinoki dev` and `hinoki serve` run (default: kiso)",
     )
     new.add_argument(
         "--agent-files",
@@ -72,6 +85,10 @@ DATABASE_OPTIONS = (
     ("none", "no database setting"),
     ("sqlite", "local file in .hinoki/"),
     ("postgresql", "also writes .env.example"),
+)
+SERVER_OPTIONS = (
+    ("kiso", "Hinoki's own Rust server: native handler lane, access log"),
+    ("granian", "general-purpose ASGI server: runs any ASGI app"),
 )
 KEY_FILES = (
     ("{name}/main.py", "the application"),
@@ -197,6 +214,8 @@ def fill(args: argparse.Namespace, questions: Questions) -> None:
         args.database = questions.choice(
             "Database", "Database", DATABASE_OPTIONS, "none"
         )
+    if args.server is None:
+        args.server = questions.choice("Server", "Server", SERVER_OPTIONS, "kiso")
     if args.agent_files is None:
         args.agent_files = questions.confirm(
             "Agent instructions and MCP config?", "Agent files", True
@@ -370,6 +389,7 @@ def run_new(args: argparse.Namespace, ask: Ask = input) -> int:
             Path(args.dir or "."),
             args.hinoki,
             database=args.database or "none",
+            server=args.server or "kiso",
             agent_files=args.agent_files is not False,
             skills=args.skills is True,
         )
