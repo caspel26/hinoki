@@ -173,6 +173,8 @@ def run_logged(command: str, env: dict[str, str], *flags: str) -> str:
         wait_ready(port, "/ping")
         with contextlib.suppress(urllib.error.HTTPError):
             fetch(port, "/missing?x=1")
+        # The log thread is not joined at exit: let it hand over its batch first.
+        time.sleep(0.5)
         process.send_signal(signal.SIGTERM)
         process.wait(timeout=20)
         assert process.stdout is not None
