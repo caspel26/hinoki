@@ -1038,7 +1038,7 @@ class ServerSettings(Settings):
     """How ``hinoki serve`` and ``dev`` run the application. ``serve`` applies
     these; they do nothing when another runner starts the app.
 
-    ``server`` picks Granian (the default) or the Rust server. ``access_log``
+    ``server`` picks the Rust server (the default) or Granian. ``access_log``
     belongs to Granian; ``max_connections``, ``header_read_timeout``,
     ``body_read_timeout``, ``write_timeout`` and ``native_dispatch`` belong to
     the Rust server (``None`` keeps its default). ``hinoki serve`` refuses a
@@ -1059,7 +1059,7 @@ class ServerSettings(Settings):
     trusted_proxies: tuple[str, ...] = ()
     request_id_header: str = "x-request-id"
     trust_request_id: bool = False
-    server: Literal["granian", "rust"] = "granian"
+    server: Literal["granian", "rust"] = "rust"
     max_connections: int | None = None
     header_read_timeout: float | None = None
     body_read_timeout: float | None = None

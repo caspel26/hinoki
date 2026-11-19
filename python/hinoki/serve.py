@@ -1,17 +1,16 @@
-"""``hinoki dev|serve TARGET``: run an application under Granian (the default)
-or the Rust server.
+"""``hinoki dev|serve TARGET``: run an application on the Rust server (the default)
+or under Granian.
 
     hinoki dev   blog.main:create_app                  # reload on change
     hinoki serve blog.main:create_app                  # production-style, no reload
-    hinoki serve blog.main:create_app --server rust    # the Rust HTTP server
+    hinoki serve blog.main:create_app --server granian # Granian instead
 
 ``TARGET`` is ``module:name`` where ``name`` is an application (``Hinoki``) or
 a function returning one. The host, port, worker count and server come from the
 application's ``server`` settings group (``AppSettings.server``), and the
-flags below override them. Granian is an optional dependency
-(``pip install hinoki[server]``); nothing else in the framework needs it. The
-Rust server is part of the native extension, but ``hinoki dev`` reloads with
-``watchfiles``, which comes with the same extra.
+flags below override them. The Rust server is part of the native extension;
+Granian is an optional dependency (``pip install hinoki[server]``) and so is
+``watchfiles``, which ``hinoki dev`` reloads with.
 """
 
 from __future__ import annotations
@@ -46,7 +45,7 @@ def add_arguments(
         sub.add_argument(
             "--server",
             choices=("granian", "rust"),
-            help="override server.server (default granian)",
+            help="override server.server (default rust)",
         )
         if name == "serve":
             sub.add_argument("--workers", type=int, help="override server.workers")
