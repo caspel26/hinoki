@@ -17,7 +17,7 @@ from hinoki import context
 from hinoki.access import Access
 from hinoki.api import API
 from hinoki.auth import Caller
-from hinoki.errors import Forbidden, RegistrationError
+from hinoki.errors import Forbidden, RegistrationError, ValidationError
 from hinoki.fields import UNSET, Unset
 from hinoki.http.request import Request
 from hinoki.http.response import Response
@@ -502,9 +502,16 @@ class CrudBase(API):
         return await query.filter(**{key: item_id}).aget()
 
     def to_schema(self, item: Any) -> Schema | Awaitable[Schema]:
-        return self.resource.read(
-            **{name: getattr(item, name) for name in self.resource.read.specs()}
-        )
+        read = self.resource.read
+        try:
+            return read(**{name: getattr(item, name) for name in read.specs()})
+        except ValidationError as error:
+            # The row came from the database, not from the client: a server fault.
+            problems = ", ".join(f"{d.path} ({d.code})" for d in error.details)
+            raise RuntimeError(
+                f"a stored {self.resource.model.__name__} row does not satisfy "
+                f"{read.__name__}: {problems}"
+            ) from None
 
     def check_written(self, item: Any) -> None:
         if not isinstance(item, self.resource.model):
