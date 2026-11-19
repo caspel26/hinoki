@@ -851,6 +851,7 @@
 </code></pre></div>
 <p>Structural validation runs first and rejects wrong types, missing required values, unknown keys and failed constraints. <code>@field_normalize("email")</code> then receives a valid string and returns its canonical form; the result is checked against the same <code>Field(...)</code> constraints before it is applied. The same hook runs for <code>Schema.validate(...)</code>, direct <code>Schema(...)</code> construction and <code>from_model(...)</code>. It cannot rescue an input that failed the initial validation. Normalizers must be typed synchronous methods returning <code>str</code>; they cannot perform I/O or reject input.</p>
 <p>After normalization, field checks receive final values and object checks can compare final fields. Raise <code>Invalid(code, message)</code> to reject a value; these checks return <code>None</code> and do not transform it. Non-<code>None</code> returns and async check methods are programming errors. Applicable custom-check failures are returned together in <code>errors.ValidationError.details</code>. Checks must be side-effect free; do not query the database or call external services. Put checks that depend on current data in an operation.</p>
+<p><strong>Which lane runs what.</strong> Types and <code>Field(...)</code> constraints are checked in Rust, on the Python-object path and, for most schemas, the GIL-free JSON path. The three decorators are Python callables, so they run in Python: Rust validates the structure first, and the normalizers, field checks and object checks run only on values that passed it. Computed fields are not available yet.</p>
 <p>These decorators validate a <code>Schema</code> instance passed through <code>Schema.validate</code>; they are not run on a <code>Model</code>. Model fields have separate checks that run before ORM writes, described in <a href="../models/#model-field-constraints-and-validators">Model field constraints and validators</a>.</p>
 <p>See also the <a href="../glossary/">glossary</a> for what "schema" does and does not mean in these docs.</p>
         
@@ -884,7 +885,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 10:12:53 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 10:28:15 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>22 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
