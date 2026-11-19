@@ -262,6 +262,8 @@ can overwrite omitted fields, primary-key updates, unknown assigned columns,
 and incompatible derived schemas. `only=` and `exclude=` schemas remain
 subject to these same checks.
 
+A stored row that the `read=` schema refuses (for example a `max_length` that the data exceeds) is a server-side fault, not a client error: the action answers `500` and the response does not repeat the stored values; the server-side error names the model, the read schema, the field and the code. Client input that fails a create or update schema still answers `422`.
+
 ## Model hooks and the Rust server
 
 Generated create and PATCH update write through the model, so its [lifecycle hooks](models.md#lifecycle-hooks-and-instance-state) run: create calls `acreate`, and update saves the item with the scoped query's conditions in its UPDATE, so a row that left the caller's scope since it was read is refused (`403`/`404`) exactly as on the unhooked path. A model that defines any of `before_save`, `before_create`, `after_create` or `after_save` is not eligible for the native create and update routes, which execute without Python model code; they use the Python lane, while its list, retrieve and delete routes stay native. Deleting does not run hooks.
