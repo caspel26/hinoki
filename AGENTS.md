@@ -1,107 +1,60 @@
-# Agent instructions — Hinoki
+# Working rules for Hinoki
 
-Status: adopted 2026-11-13 and maintained for Hinoki.
+Rules for anyone changing this repository, people and coding agents alike. Read [`ROADMAP.md`](ROADMAP.md) for project status, [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow and [`docs/adr/`](docs/adr/) for architecture decisions that are already made. Do not reconstruct intent from chat history.
 
-**Document locations.** User guides and API reference live in `docs/`; `ROADMAP.md` is the public project status. Final architecture decisions for contributors live in `docs/adr/`. Detailed working designs, identity notes and the handoff are local-only; do not publish them unless the owner selects a specific document for contributors.
+Do not state that a feature, benchmark number, supported version or check exists unless it does. If a command is not documented, report it as unavailable.
 
-**Toolchain.** `uv` for Python (`uv run --locked`), Ruff for lint+format, mypy for types, Cargo for Rust, maturin as build backend. See `docs/toolchain.md`.
+## Toolchain
 
-## Read first
+Python runs through `uv` with the lock enforced, Rust through Cargo, with maturin as the build backend. See [`docs/toolchain.md`](docs/toolchain.md) for setup and the database-backed tests.
 
-Read this file and `ROADMAP.md` before starting. If a local `handoff.md` or design document is available, read it for additional project context. Read relevant ADRs for established architectural decisions rather than reconstructing intent from chat.
-
-The project name is **Hinoki**. `hinoki` is the package/import/CLI identifier; external availability on PyPI/crates.io has not been checked. Do not invent implemented features, benchmark numbers, supported versions or completed checks.
+```sh
+uv sync --locked
+uv run --locked ruff check --fix . && uv run --locked ruff format .
+uv run --locked mypy
+uv run --locked complexipy . --failed
+uv run --locked pytest --cov
+cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
+uv run --locked --group docs mkdocs build --strict
+```
 
 ## Product boundaries
 
-- Independent Python framework; do not build it on another web framework. Infrastructure servers such as Granian are allowed.
-- Substantial Rust core for request processing/routing and ORM execution. Document the real server/binding boundary; do not call an ASGI path entirely native if it crosses Python objects.
-- Own the public schema and settings interfaces; do not add an external validation framework as a convenience dependency.
-- Function and class APIs, multiple custom methods per API, optional CRUD generation, optional architectural rules, public authentication default.
-- Confirmed base syntax: `@http.get`, `@http.post`, `@http.put`, `@http.patch`, `@http.delete`, `@http.query` (`from hinoki import http`); reusable typed `Access` policies; `access` and `atomic` options on the HTTP decorator. Preserve normal Python and decorator composition.
-- Do not reintroduce declaration blocks such as `with get/post`, or inline `get(query=...)`/`lookup=...` endpoint assignments. CRUD generation remains required, but its advanced syntax is still provisional.
-- Differentiate Hinoki through deterministic optional rules, structured AI/MCP context, coherent customization and explicit modules, not extra syntax machinery.
-- Typed built-in settings, automatic/customizable docs and pagination.
-- Vocabulary: write `Schema` (code font) for the Hinoki class; use "table state"/"migration state", "OpenAPI document" and "JSON Schema" for the other meanings (`docs/glossary.md`). The old `Contract` alias no longer exists.
-- Optional admin extra with explicit activation and migrations; installation/import never mutates a database.
-- Explicit application modules and dependencies; defined worker lifespan, bounded sync execution, startup and graceful shutdown. Granian is the first server candidate, pending integration validation.
-- Modules within a service may share local contracts. Remote services do not share ORM joins or pretend to share local transactions.
+- Independent Python framework: not built on another web framework. Infrastructure servers such as Granian are allowed.
+- Substantial Rust core for request processing, routing and ORM execution. Document the real server/binding boundary; do not call a path entirely native if it crosses Python objects.
+- Hinoki owns its public schema and settings interfaces. Do not add an external validation framework as a convenience dependency (no Pydantic, Django, FastAPI or Starlette).
+- Base syntax: `@http.get`, `@http.post`, `@http.put`, `@http.patch`, `@http.delete`, `@http.query` (`from hinoki import http`), reusable typed `Access` policies, and `access` and `transaction` options on the decorator. Preserve normal Python and decorator composition. Do not reintroduce declaration blocks such as `with get/post`, or inline `get(query=...)`/`lookup=...` assignments.
+- CRUD generation is required; its advanced syntax is provisional.
+- Explicit application modules and dependencies, a defined worker lifespan, bounded sync execution, startup and graceful shutdown.
+- Remote services do not share ORM joins or pretend to share local transactions.
+- The admin is an optional extra with explicit activation and migrations. Installing or importing Hinoki never mutates a database.
+- Vocabulary: `Schema` (code font) is the Hinoki class; use "table state"/"migration state", "OpenAPI document" and "JSON Schema" for the other meanings ([`docs/glossary.md`](docs/glossary.md)).
 
-## Work loop
+## Code conventions
 
-1. Record significant new work in the local handoff when available; otherwise update `ROADMAP.md` when public project status changes. Finish the active item before switching unless the owner redirects it. Answer questions promptly and incorporate corrections into the active design.
-2. Design nontrivial changes before implementation. Write a local-only `docs/<TOPIC>-DESIGN.md`: observed code/data, one recommendation, alternatives and trade-offs, public API examples, failure/empty/private states, tests, numbered build steps, file ownership and dependencies. Recommend defaults for routine choices; isolate genuine owner decisions. Do not add working design notes to the public index unless they are intentionally selected as contributor documentation.
-3. Implement one reviewable step at a time. When multiple agents are authorized, parallelize only independent tracks. Shared files require explicit non-overlapping ownership or serial edits. Never have two agents edit the same function concurrently.
-4. Verify the actual result. A delegated agent's report is not sufficient evidence. Inspect the diff and run the applicable checks independently. Report exactly what ran and what did not.
-5. For UI changes, inspect actual screenshots and exercise changed controls with browser automation. Check desktop 1440×900, phone 390×844, narrow 320 and short 360×740 where relevant. Verify keyboard/touch paths and both desktop/mobile behavior; test another relevant browser for gestures. Screenshots alone do not prove interaction correctness.
-6. Obtain an independent, read-only review for data, authentication, authorization, privacy, migrations, concurrency or similarly high-impact changes. Require concrete defects, file/line, severity and a failing scenario. Fix findings and re-run affected checks.
-7. When commits are in scope, make scoped local commits, include the applicable `Co-Authored-By` trailer and update the relevant status document. Do not push, publish or deploy without the owner's authorization. Previously given authorization remains valid within its scope.
+- Annotate public function signatures and class attributes. Decorators preserve signatures with `ParamSpec`/`TypeVar` and `functools.wraps`.
+- Imports go at the top of Python files; a local import is allowed to avoid a circular dependency, with a comment saying so.
+- Every Python function and Rust function or closure has cognitive complexity of 15 or less (`complexipy`, `rust-code-analysis-cli`). Refactor instead of suppressing.
+- Explicit resource ownership: no import-time I/O, no connection pool created per worker after process start, no async pool shared across event loops, no global mutable request context.
+- Bound queues, executor sizes, retries and timeouts. Roll transactions back before translating an HTTP error. No unmanaged background tasks, and no deployment migrations run from every worker's lifespan.
+- No implicit lazy I/O during schema serialization, and no `Any` standing in for an unimplemented typing contract.
+- Manual and generated APIs, docs, MCP and admin share the same public contracts. Generated and admin actions never bypass ownership or tenant policy.
 
-### Strict commit-scope gate
+## Tests and verification
 
-- A commit must contain one cohesive change scope and one matching conventional-commit type. Separate implementation, tests, documentation, dependency/toolchain changes, and repository-policy changes into distinct commits, even when they belong to the same feature or pull request.
-- Never use a catch-all commit for a multi-scope change. Before each commit, inspect the staged diff and confirm every staged file belongs to that single scope; stage files/hunks deliberately and make additional commits for the remaining scopes.
-- Keep dependent scopes in an understandable order (for example, build/dependency support, implementation, tests, then documentation). Do not squash distinct scopes together when preparing or merging a pull request.
-- Pull request descriptions remain explanatory and must not contain personal messages, internal decisions, or queue identifiers.
-- Pull requests must keep commits split by cohesive scope; never combine implementation, tests, docs, dependencies/tooling or repository policy in a catch-all commit.
-- When a pull request adds or changes code that affects end users, include a minimal code example in the pull request description showing how to use the change. Update the relevant guide/reference and checked-in example in the same work item. For changes with no user-facing code, mark the pull request template's example section as not applicable and give a short reason.
+- Get a green baseline before changing code, then run the full applicable suite with coverage at the end. Add meaningful tests for new behavior and uncovered changed paths; do not test inert prose or mirror the implementation.
+- Tests use disposable databases, synthetic fixtures and fake recipients. Never create real accounts or send real messages. Never commit production dumps.
+- Treat failures under load as evidence: rerun in isolation, keep the original result and tell host overload apart from a reproducible defect.
+- For code changes that can affect performance, compare at least five current samples with a retained baseline and investigate regressions instead of moving thresholds. Do not present external performance claims as measurements of Hinoki.
 
-Branches use `<type>/<short-kebab-case-topic>` with the same type vocabulary as scoped commits (`feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`). After a pull request is merged, delete both its local branch and its remote branch, and remove its worktree. Preserve a branch only while it contains active local-only work; an active local-only branch must not be pushed.
+## Documentation
 
-Do not introduce an unrecorded feature freeze or deployment flow. Record any future freeze or branch policy explicitly.
+- Every added or changed user-facing API, setting, CLI or MCP option, runtime behavior or admin feature updates its guide or reference in `docs/` in the same change, with a minimal example that matches the implementation. Keep navigation, `docs/guides.md` and page status aligned, and run a strict docs build.
+- Public documentation describes Hinoki's own behavior directly. Comparative claims belong only in evidence-backed benchmark reports.
 
-## Tests, coverage and performance
+## Commits and pull requests
 
-Use this verification discipline:
-
-1. Establish a green baseline before changing code. Run fast checks while implementing.
-2. At completion run the full applicable suite with coverage; add meaningful tests for new behavior and uncovered changed paths. Maintain or improve coverage. Do not add tests that merely mirror an implementation or test inert prose.
-3. Run the project's performance suite for code changes, with at least five comparable current samples and a retained comparable baseline, then analyze regressions. The detector compares five baseline and five current runs, with a 15% threshold and a 2σ heuristic. Treat these as a detector policy, not proof of a universal confidence level.
-4. Investigate unexpected variance; CV above 15% is a signal to inspect load and reproducibility, not proof that a regression is harmless. Collect more samples when justified. Never discard a failing result merely because it is inconvenient.
-5. Fix unjustified regressions. Document necessary costs and the affected workloads; do not quietly move the baseline or thresholds to hide them.
-6. Keep machine-readable benchmark data and a human-readable report. Compare equivalent payloads, database state and concurrency; disclose driver/runtime differences. Do not present external performance claims as measurements of Hinoki.
-
-Document Hinoki's actual Python/Rust fast, full, coverage and benchmark entry points. Until an entry point exists, report it as unavailable rather than claiming that a placeholder command passed.
-
-Expected gate categories: Python lint/format, Python type checks and typing fixtures, Python tests/coverage, Rust formatting/lints/tests, native-binding integration, real disposable-DB tests, generated OpenAPI checks, packaging/wheel checks, performance. Admin/browser gates apply when that module changes. Exact commands and scope belong in CI and the contributor documentation.
-
-Once a failing check has been fixed and the required checks pass, repeat or broaden runs only for new changes or unresolved evidence. Documentation-only changes need document/link/example validation rather than an unrelated DB benchmark cycle.
-
-## Code and architecture conventions
-
-- Use type annotations on public function signatures and class attributes. Preserve signatures in decorators with `ParamSpec`/`TypeVar` and `functools.wraps` where appropriate.
-- Imports at the top of Python files. A local import is allowed to avoid a circular dependency, with an explanatory comment.
-- Adopt Ruff linting/formatting and pre-commit checks for AST, conflict markers, TOML/YAML, trailing whitespace and EOF. Choose tool versions for this project; do not copy old pinned versions as a compatibility claim.
-- Every Python function and Rust function/closure must have cognitive complexity ≤ 15. Enforce this in CI with the pinned `complexipy` analyzer and `rust-code-analysis-cli` metric checker; refactor functions over the limit instead of suppressing findings. Analyzer outputs may include test and development code.
-- Explicit resource ownership: no import-time I/O, connection pools created per worker after process start, no async pool across event loops, no global mutable request context.
-- Bound queues, executor sizes, retries and timeouts. Transactions roll back before HTTP error translation. Do not launch unmanaged background tasks or run deployment migrations from every worker's lifespan.
-- Do not introduce implicit lazy I/O during schema serialization, or `Any` as a substitute for an unimplemented typing contract.
-- Keep public contracts shared by manual/generated API, docs, MCP and admin. Do not silently bypass ownership or tenant policy in generated/admin actions.
-
-## Data and shared workspace safety
-
-Use disposable databases, synthetic fixtures and fake mail recipients. Never create real accounts or send real messages as a test. Production dumps contain sensitive data: do not commit, paste or upload them; use authorized encrypted handling and sanitized disposable copies only.
-
-Do not use `git checkout`, `git stash` or `git reset` to manipulate a shared tree. Inspect status before editing and use isolated worktrees for comparisons or parallel work. Preserve unrelated changes. Do not reuse another test run's ports, databases or fixture output directory.
-
-Treat test failures under load as evidence to investigate: rerun in isolation when appropriate, retain the original result and distinguish host overload from a reproducible defect. Use deterministic clocks/fixtures for date-dependent behavior.
-
-## UI and docs
-
-Use shared components and tokens; new variants need a reason. Inspect hierarchy, spacing, alignment, repetition and Hinoki's visual identity. Do not import unrelated branding, provider restrictions or catalog rules.
-
-Public-facing documentation, the README and the docsite describe Hinoki's own APIs and behavior directly. Comparative claims belong only in evidence-backed benchmark reports.
-
-Update docs for user-facing API changes and provide minimal examples, including sync/async differences and errors. Verify the examples against the actual implementation once it exists. Keep generated docs and runtime contracts consistent.
-
-Every added or changed user-facing API, setting, CLI/MCP option, runtime behavior or admin feature must update its linked guide/reference in the docsite in the same work item. Keep the navigation, `guides.md`, page status metadata and rendered examples aligned; run a strict site build and link validation before completion.
-
-## Releases
-
-Derive release notes from the actual diff. Use the sections New Features, Improvements, Documentation and Summary, contextual emojis, file-path blockquotes and examples for new APIs. Keep styling/config documentation brief. Do not add a detailed Tests section to release notes; verification belongs in the PR/handoff report.
-
-Keep the existing changelog history intact. Update the project's version sources, documentation selectors and completed roadmap entries together when a release is authorized.
-
-## Completion report
-
-State what changed, why, validation actually performed, known limitations and the next work item. Keep the relevant status document current with decisions, migrations, commands and unresolved failures. Never describe a design proposal as already implemented.
+- One cohesive scope per commit and one matching conventional-commit type. Keep implementation, tests, documentation, dependencies/tooling and repository policy in separate commits.
+- Branches are `<type>/<short-kebab-case-topic>` with the same types (`feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`). Delete a branch once its pull request is merged.
+- Pull request descriptions follow [`.github/pull_request_template.md`](.github/pull_request_template.md) and explain the change; they carry no personal messages.
+- Do not use `git checkout`, `git stash` or `git reset` to rearrange a tree shared with other work; use a separate worktree.
