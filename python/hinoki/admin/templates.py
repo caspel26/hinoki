@@ -37,6 +37,15 @@ def escape(value: object) -> Raw:
     return Raw(html.escape(str(value), quote=True))
 
 
+def placeholders(source: str) -> set[tuple[str, bool]]:
+    """Every ``(name, is_raw)`` placeholder in a component's source."""
+    return {
+        (raw or plain, bool(raw))
+        for raw, plain in PLACEHOLDER.findall(source)
+        if raw or plain
+    }
+
+
 class Templates:
     """The components, stylesheet, script and icons of one admin, loaded once."""
 
@@ -45,8 +54,33 @@ class Templates:
     ) -> None:
         self.directory = Path(directory) if directory else None
         self.theme = resolve(theme)
+        self.check_overrides()
         self.sources = {name: self.read(name) for name in COMPONENTS}
         self.sprite = Raw((UI / "icons.svg").read_text(encoding="utf-8"))
+
+    def check_overrides(self) -> None:
+        """Refuse a bad override now, not on the first request: a file that names
+        no component, a placeholder the component is never given, or a form that
+        lost its ``csrf`` token (which would make every post fail)."""
+        if self.directory is None:
+            return
+        for path in sorted((self.directory / "components").glob("*.html")):
+            if path.stem not in COMPONENTS:
+                raise TemplateError(
+                    f"{path.name}: no admin component has this name; "
+                    f"the components are {', '.join(COMPONENTS)}"
+                )
+            builtin = placeholders((UI / "components" / path.name).read_text("utf-8"))
+            custom = placeholders(path.read_text(encoding="utf-8"))
+            for name, is_raw in sorted(custom - builtin):
+                marks = "{{{ %s }}}" if is_raw else "{{ %s }}"
+                raise TemplateError(
+                    f"{path.stem}: {marks % name} is never given a value there"
+                )
+            if any(n == "csrf" for n, _ in builtin) and not any(
+                n == "csrf" for n, _ in custom
+            ):
+                raise TemplateError(f"{path.stem}: the override drops the csrf token")
 
     def read(self, name: str) -> str:
         if self.directory is not None:
