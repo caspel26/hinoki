@@ -18,6 +18,7 @@ import hmac
 import ipaddress
 import json
 import logging
+import logging.config
 import math
 import os
 import re
@@ -34,6 +35,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from hinoki.context import request_id
 from hinoki.runtime.config import MAX_REQUEST_INPUT_BYTES, RuntimeConfig
+from hinoki.target import load_target
 
 TRUE = frozenset({"1", "true", "yes", "on"})
 FALSE = frozenset({"0", "false", "no", "off"})
@@ -861,12 +863,30 @@ class LoggingSettings(Settings):
     level: Literal["debug", "info", "warning", "error", "critical"] = "info"
     format: Literal["text", "json"] = "text"
     include_request_id: bool = False
+    config: str | None = None
 
     HANDLER: ClassVar[str] = "hinoki-settings"
 
+    def validate(self) -> None:
+        if self.config is not None and ":" not in self.config:
+            raise ValueError("config must be 'module:attribute'")
+
+    def custom_config(self) -> dict[str, Any] | None:
+        """The ``logging.config.dictConfig`` mapping ``config`` names (called first
+        when it is a function), with ``disable_existing_loggers`` off unless the
+        mapping says otherwise."""
+        if self.config is None:
+            return None
+        found = load_target(self.config)
+        if callable(found):
+            found = found()
+        if not isinstance(found, Mapping):
+            raise TypeError(f"{self.config} must be a logging dictConfig mapping")
+        return {"disable_existing_loggers": False, **found}
+
     def apply(self) -> None:
-        """Configure the ``hinoki`` logger tree (not the root logger); safe to
-        call again, it replaces its own handler."""
+        """Configure the ``hinoki`` logger tree (not the root logger), then apply
+        ``config`` if set; safe to call again, it replaces its own handler."""
         logger = logging.getLogger("hinoki")
         for handler in list(logger.handlers):
             if getattr(handler, "name", "") == self.HANDLER:
@@ -885,6 +905,9 @@ class LoggingSettings(Settings):
         )
         logger.addHandler(handler)
         logger.setLevel(self.level.upper())
+        custom = self.custom_config()
+        if custom is not None:
+            logging.config.dictConfig(custom)
 
 
 class DocsSettings(Settings):
