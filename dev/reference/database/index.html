@@ -518,6 +518,32 @@ operations may need backend-specific SQL.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="hinoki.db.Database.fetch_models" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">fetch_models</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.db.Database.fetch_models" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">fetch_models</span><span class="p">(</span>
+    <span class="n">sql</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">plan</span><span class="p">:</span> <span class="n">_ModelRows</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Rows built into finished model instances (private; <code>QuerySet.fetch</code>).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="hinoki.db.Database._fetch_page_wire" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">_fetch_page_wire</span>
 
@@ -1344,7 +1370,7 @@ max_size), so <code>Hinoki(settings=..., modules=[DatabaseModule])</code> works.
           
           
             <ul><li><a href="#configure-a-backend">Configure a backend</a></li><li><a href="#backend-behavior-and-limits">Backend behavior and limits</a></li><li><a href="#hinoki.db.Database">Database</a>
-            <ul><li><a href="#hinoki.db.Database.engine">engine</a></li><li><a href="#hinoki.db.Database.dialect">dialect</a></li><li><a href="#hinoki.db.Database.__init__">__init__</a></li><li><a href="#hinoki.db.Database.connect">connect</a></li><li><a href="#hinoki.db.Database.active">active</a></li><li><a href="#hinoki.db.Database.fetch">fetch</a></li><li><a href="#hinoki.db.Database._fetch_page_wire">_fetch_page_wire</a></li><li><a href="#hinoki.db.Database.fetch_one">fetch_one</a></li><li><a href="#hinoki.db.Database.execute">execute</a></li><li><a href="#hinoki.db.Database.atomic">atomic</a></li><li><a href="#hinoki.db.Database.after_commit">after_commit</a></li><li><a href="#hinoki.db.Database.migration">migration</a></li><li><a href="#hinoki.db.Database.close">close</a></li><li><a href="#hinoki.db.Database.status">status</a></li></ul>
+            <ul><li><a href="#hinoki.db.Database.engine">engine</a></li><li><a href="#hinoki.db.Database.dialect">dialect</a></li><li><a href="#hinoki.db.Database.__init__">__init__</a></li><li><a href="#hinoki.db.Database.connect">connect</a></li><li><a href="#hinoki.db.Database.active">active</a></li><li><a href="#hinoki.db.Database.fetch">fetch</a></li><li><a href="#hinoki.db.Database.fetch_models">fetch_models</a></li><li><a href="#hinoki.db.Database._fetch_page_wire">_fetch_page_wire</a></li><li><a href="#hinoki.db.Database.fetch_one">fetch_one</a></li><li><a href="#hinoki.db.Database.execute">execute</a></li><li><a href="#hinoki.db.Database.atomic">atomic</a></li><li><a href="#hinoki.db.Database.after_commit">after_commit</a></li><li><a href="#hinoki.db.Database.migration">migration</a></li><li><a href="#hinoki.db.Database.close">close</a></li><li><a href="#hinoki.db.Database.status">status</a></li></ul>
           </li><li><a href="#hinoki.db.atomic">atomic</a></li><li><a href="#hinoki.db.Atomic">Atomic</a>
             <ul><li><a href="#hinoki.db.Atomic.scopes">scopes</a></li><li><a href="#hinoki.db.Atomic.__init__">__init__</a></li><li><a href="#hinoki.db.Atomic.__aenter__">__aenter__</a></li><li><a href="#hinoki.db.Atomic.__aexit__">__aexit__</a></li><li><a href="#hinoki.db.Atomic.__call__">__call__</a></li></ul>
           </li><li><a href="#hinoki.db.DatabaseModule">DatabaseModule</a>
