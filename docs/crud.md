@@ -172,6 +172,13 @@ server-owned columns to functions of the caller's user object. Client schemas
 cannot accept server-assigned fields. Generated writes require an access
 policy even when `owner` is configured.
 
+With `ClaimsJWTAuth` there is no user object, so use
+`identity_key = caller_id` (from `hinoki.crud`): the owner value is then the
+caller's `Caller.id` (the token `sub`). A foreign update or delete answers `403`
+and a missing row `404`, as without the native lane. This is the only owner
+declaration that can run natively; see
+[authentication](authentication.md#claims-only-tokens-on-the-native-lane).
+
 At class declaration Hinoki rejects abstract models, unknown schema fields,
 unsafe nullable fields, missing required create values, update schemas that
 can overwrite omitted fields, primary-key updates, unknown assigned columns,

@@ -18,6 +18,7 @@ from hinoki.crud import (
     GENERATED,
     CrudAPI,
     _CrudConfig,
+    caller_id,
     create_row,
     delete_row,
     list_rows,
@@ -74,7 +75,7 @@ OWNER_METHODS = (
     "reload_written",
     "to_schema",
     "check_written",
-    "refused",
+    "refuse",
     "store",
     "change",
     "remove",
@@ -264,7 +265,7 @@ CRUD_HELPER_NAMES = (
     "Page",
 )
 CRUD_HELPER_ORIGINALS = tuple(getattr(crud_module, name) for name in CRUD_HELPER_NAMES)
-CONFIG_METHODS = ("values",)
+CONFIG_METHODS = ("values", "owner_of", "assigned")
 CONFIG_METHODS_ORIGINAL = static_state(_CrudConfig, CONFIG_METHODS)
 ERROR_REGISTRY_METHODS = ("handle", "add", "find", "translate")
 ERROR_REGISTRY_METHODS_ORIGINAL = static_state(ErrorRegistry, ERROR_REGISTRY_METHODS)
@@ -358,6 +359,12 @@ def finish_selection(
             and database_is_plain(pipeline.app, database_module, model),
             "database_methods_or_not_found_handler_customized",
         ),
+        (
+            not resource.owner
+            or database_module is None
+            or dialect_of(database_module) in {"postgres", "sqlite"},
+            "owner_scope_unsupported_dialect",
+        ),
     )
     reason = next((label for passed, label in checks if not passed), "")
     selection = (
@@ -441,7 +448,7 @@ def public_route_is_plain(
     route = binding.route
     return (
         owner_is_plain(owner)
-        and not resource.owner
+        and owner_scope_is_plain(resource)
         and not resource.assign
         and access_is_plain(route, resource, action)
         and route.atomic == (action in {"create", "update", "delete"})
@@ -449,6 +456,23 @@ def public_route_is_plain(
         and route_rendering_is_plain(route)
         and route_status_is_plain(route, action)
         and action_binding_is_plain(binding, action)
+    )
+
+
+def owner_scope_is_plain(resource: _CrudConfig) -> bool:
+    """No owner, or one Rust can apply: the column is a text column that the
+    client schemas cannot write, and its value is the caller's id."""
+    if not resource.owner:
+        return True
+    model = resource.model
+    field_type = model.__field_types__.get(resource.owner)
+    return bool(
+        resource.identity_key is caller_id
+        and resource.access is not None
+        and field_type is not None
+        and field_type.kind == "str"
+        and resource.owner != model.__primary_key__
+        and resource.owner not in write_columns(model, resource, "update")
     )
 
 
@@ -986,6 +1010,7 @@ def compile_selection(
             update_schema=schema_args[2],
             validation_error=validation_error_template(),
             auth=native_claims_auth(binding.route.access),
+            owner=resource.owner or None,
         )
     except (TypeError, ValueError):
         return None

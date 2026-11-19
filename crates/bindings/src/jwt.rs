@@ -437,12 +437,10 @@ fn is_token_byte(byte: u8) -> bool {
 }
 
 impl ClaimsAuth {
-    /// Whether `Authorization: Bearer <token>` is a valid token whose claims
-    /// give a non-empty `sub` and every required permission.
-    pub(crate) fn admits(&self, authorization: &[u8], now: i64) -> bool {
-        let Some(space) = authorization.iter().position(|byte| *byte == b' ') else {
-            return false;
-        };
+    /// The `sub` of `Authorization: Bearer <token>` when it is a valid token
+    /// whose claims give a non-empty `sub` and every required permission.
+    pub(crate) fn subject(&self, authorization: &[u8], now: i64) -> Option<String> {
+        let space = authorization.iter().position(|byte| *byte == b' ')?;
         let (scheme, token) = (&authorization[..space], &authorization[space + 1..]);
         // Only a plain token is read here, so Python's whitespace stripping
         // cannot make the two readings differ.
@@ -450,10 +448,10 @@ impl ClaimsAuth {
             || token.is_empty()
             || !token.iter().copied().all(is_token_byte)
         {
-            return false;
+            return None;
         }
         let Ok(token) = std::str::from_utf8(token) else {
-            return false;
+            return None;
         };
         let rules = Rules {
             now,
@@ -463,27 +461,28 @@ impl ClaimsAuth {
             require_exp: self.require_exp,
         };
         let Ok(payload) = decode(token, &self.keys, &rules) else {
-            return false;
+            return None;
         };
         let Ok(claims) = object(&payload) else {
-            return false;
+            return None;
         };
         self.grants(&claims)
     }
 
-    fn grants(&self, claims: &Map<String, Value>) -> bool {
-        match claims.get("sub") {
-            Some(Value::String(subject)) if !subject.is_empty() => {}
-            _ => return false,
-        }
+    fn grants(&self, claims: &Map<String, Value>) -> Option<String> {
+        let subject = match claims.get("sub") {
+            Some(Value::String(subject)) if !subject.is_empty() => subject.clone(),
+            _ => return None,
+        };
         let granted: Vec<&str> = match claims.get(&self.scope_claim) {
             None => Vec::new(),
             Some(Value::Array(items)) => items.iter().filter_map(Value::as_str).collect(),
-            Some(_) => return false,
+            Some(_) => return None,
         };
         self.required
             .iter()
             .all(|permission| granted.contains(&permission.as_str()))
+            .then_some(subject)
     }
 }
 
@@ -571,6 +570,16 @@ pub fn jwt_decode(
 
 #[cfg(test)]
 mod tests {
+    trait Admits {
+        fn admits(&self, authorization: &[u8], now: i64) -> bool;
+    }
+
+    impl Admits for ClaimsAuth {
+        fn admits(&self, authorization: &[u8], now: i64) -> bool {
+            self.subject(authorization, now).is_some()
+        }
+    }
+
     use super::*;
 
     fn hs(kid: Option<&str>) -> Key {
