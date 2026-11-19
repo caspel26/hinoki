@@ -148,8 +148,12 @@ def test_the_two_servers_are_refused_their_foreign_settings(
     served: list[subprocess.Popen[str]],
 ) -> None:
     for env, flags, text in (
-        ({"SRV_SERVER__ACCESS_LOG": "true"}, ["--server", "rust"], "access_log"),
-        ({"SRV_SERVER__MAX_CONNECTIONS": "9"}, [], "max_connections"),
+        ({"SRV_SERVER__ACCESS_LOG": "true"}, [], "access_log"),
+        (
+            {"SRV_SERVER__MAX_CONNECTIONS": "9"},
+            ["--server", "granian"],
+            "max_connections",
+        ),
     ):
         done = subprocess.run(
             [
