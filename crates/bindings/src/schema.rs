@@ -203,6 +203,8 @@ struct Node<R: Rules> {
     /// `Decimal` only: the digit counts the written value may have.
     max_digits: Option<i64>,
     decimal_places: Option<i64>,
+    /// `int` and `Decimal` only: the step the value must be a multiple of.
+    multiple_of: Option<R::Limit>,
 }
 
 struct Field<R: Rules> {
@@ -416,6 +418,7 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
         member: optional_object(&constraints, "enum")?,
         max_digits: optional_int(&constraints, "max_digits")?,
         decimal_places: optional_int(&constraints, "decimal_places")?,
+        multiple_of: optional_object(&constraints, "multiple_of")?,
     })
 }
 
@@ -626,6 +629,7 @@ fn lower_node(py: Python<'_>, node: &Node<PyRules>) -> Result<Node<NativeRules>,
         member: None,
         max_digits: node.max_digits,
         decimal_places: node.decimal_places,
+        multiple_of: limit(&node.multiple_of)?,
     })
 }
 
@@ -927,6 +931,12 @@ trait View {
         limit: &<Self::Rules as Rules>::Limit,
         op: CompareOp,
     ) -> Result<Option<String>, Self::Error>;
+    /// `Some(shown step)` when `value` is not a multiple of `step`.
+    fn multiple_fails(
+        &self,
+        value: &Self::Out,
+        step: &<Self::Rules as Rules>::Limit,
+    ) -> Result<Option<String>, Self::Error>;
     fn is_choice(
         &self,
         value: &Self::Out,
@@ -1177,6 +1187,23 @@ impl<'py> View for PyView<'_, 'py> {
             return Ok(None);
         }
         Ok(Some(limit.str()?.to_string()))
+    }
+
+    fn multiple_fails(&self, value: &Self::Out, step: &Py<PyAny>) -> PyResult<Option<String>> {
+        let step = step.bind(self.py);
+        // Exact fractions: `Decimal` arithmetic would round past its precision.
+        let ratio =
+            |number: &Bound<'py, PyAny>| -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>)> {
+                number.call_method0("as_integer_ratio")?.extract()
+            };
+        let (value_n, value_d) = ratio(value)?;
+        let (step_n, step_d) = ratio(step)?;
+        let left = value_n.mul(&step_d)?;
+        let right = step_n.mul(&value_d)?;
+        if left.rem(&right)?.is_truthy()? {
+            return Ok(Some(step.str()?.to_string()));
+        }
+        Ok(None)
     }
 
     fn is_choice(&self, value: &Self::Out, choices: &Vec<Py<PyAny>>) -> PyResult<bool> {
@@ -1586,6 +1613,23 @@ impl<'v> View for JsonView<'v> {
         Ok(Some(limit.shown.clone()))
     }
 
+    fn multiple_fails(
+        &self,
+        value: &Validated,
+        step: &NativeLimit,
+    ) -> Result<Option<String>, Defer> {
+        let multiple = match (value, &step.value) {
+            (Validated::Int(int), LimitValue::Number(Number::Int(step))) => {
+                int.checked_rem(*step) == Some(0)
+            }
+            (Validated::Decimal(text), LimitValue::Decimal(step)) => DecimalNumber::parse(text)
+                .and_then(|number| number.is_multiple_of(step))
+                .ok_or(Defer("multiple_of"))?,
+            _ => return Err(Defer("multiple_of")),
+        };
+        Ok((!multiple).then(|| step.shown.clone()))
+    }
+
     fn is_choice(&self, value: &Validated, choices: &NativeChoices) -> Result<bool, Defer> {
         Ok(choices
             .values
@@ -1865,6 +1909,19 @@ impl<'a, V: View> Run<'a, V> {
                 if let Some(shown) = failed {
                     return self.fail(path, name, format!("must be {words} {shown}"));
                 }
+            }
+        }
+        if let Some(step) = &node.multiple_of {
+            let failed = self
+                .view
+                .multiple_fails(&value, step)
+                .map_err(Abort::View)?;
+            if let Some(shown) = failed {
+                return self.fail(
+                    path,
+                    "multiple_of",
+                    format!("must be a multiple of {shown}"),
+                );
             }
         }
         Ok(Some(value))
