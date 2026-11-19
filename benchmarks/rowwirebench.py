@@ -300,7 +300,7 @@ def request_profile(frame: Any, event: str, _arg: object) -> None:
     filename = frame.f_code.co_filename
     if name == "from_row" and filename.endswith("/orm/model.py"):
         PROFILE["model_from_row"] += 1
-    elif name == "to_schema" and filename.endswith("/crud.py"):
+    elif name == "to_schema" and filename.endswith("/resources.py"):
         PROFILE["to_schema"] += 1
     elif name == "__init__" and filename == "<string>":
         PROFILE["generated_init"] += 1
