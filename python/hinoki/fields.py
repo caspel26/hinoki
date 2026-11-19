@@ -49,6 +49,14 @@ class FieldInfo:
     alias: str | None = None
     discriminator: str | None = None
     default_factory: Callable[[], Any] | None = None
+    description: str | None = None
+    examples: tuple[Any, ...] | None = None
+    deprecated: bool | None = None
+
+    def notes(self) -> dict[str, object]:
+        """The documentation-only options that were set; they never validate."""
+        names = ("description", "examples", "deprecated")
+        return {n: getattr(self, n) for n in names if getattr(self, n) is not None}
 
     def constraints(self) -> dict[str, object]:
         """Only the constraints that were actually set."""
@@ -93,6 +101,9 @@ def Field(
     upper: bool | None = None,
     format: str | None = None,
     discriminator: str | None = None,
+    description: str | None = None,
+    examples: Sequence[Any] | None = None,
+    deprecated: bool | None = None,
 ) -> Any: ...
 @overload
 def Field(
@@ -114,6 +125,9 @@ def Field(
     format: str | None = None,
     alias: str | None = None,
     discriminator: str | None = None,
+    description: str | None = None,
+    examples: Sequence[Any] | None = None,
+    deprecated: bool | None = None,
 ) -> FieldInfo: ...
 def Field(**options: Any) -> Any:
     """Declare constraints (inside ``Annotated``) or a default factory.
@@ -126,6 +140,8 @@ def Field(**options: Any) -> Any:
     if options.get("one_of") is not None:
         # a tuple: hashable, so ``Annotated`` can cache it
         options["one_of"] = tuple(options["one_of"])
+    if options.get("examples") is not None:
+        options["examples"] = tuple(options["examples"])
     return FieldInfo(**options)
 
 

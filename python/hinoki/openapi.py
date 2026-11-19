@@ -411,6 +411,13 @@ class OpenAPIBuilder:
         }
 
     def field(self, ftype: FieldType) -> dict[str, Any]:
+        described = self.constrained(ftype)
+        if ftype.kind != "any" and ftype.nullable:
+            described = {"anyOf": [described, {"type": "null"}]}
+        notes = {k: document_value(v) for k, v in ftype.info.notes().items()}
+        return {**described, **notes}
+
+    def constrained(self, ftype: FieldType) -> dict[str, Any]:
         base = self.shape(ftype)
         if ftype.kind == "any":
             return base
@@ -424,7 +431,7 @@ class OpenAPIBuilder:
             elif name == "pattern":
                 # JSON Schema patterns are unanchored; the runtime matches fully.
                 base["pattern"] = f"^(?:{value})$"
-        return {"anyOf": [base, {"type": "null"}]} if ftype.nullable else base
+        return base
 
 
 def document_value(value: object) -> object:
