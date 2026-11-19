@@ -2,6 +2,7 @@
 
 import asyncio
 import functools
+from asyncio import current_task as current_task_alias
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -81,8 +82,8 @@ async def unknown_name(id: int) -> Any:
 
 
 async def local_shadow() -> Any:
-    ProofNote = asyncio
-    return await ProofNote.sleep(0)
+    ProofNote: Any = object()
+    return await ProofNote.aget(id=1)
 
 
 async def overridden() -> Any:
@@ -158,9 +159,8 @@ def test_an_unproven_await_nested_in_an_argument_is_found() -> None:
     assert native_refusal(awaits_inside_an_argument) is None
 
 
-def test_a_task_started_without_await_is_not_covered_but_runs_on_the_loop() -> None:
-    # The lane runs steps on the loop thread, so this stays valid.
-    assert native_refusal(non_awaited_task) is None
+def test_a_task_started_without_await_is_refused() -> None:
+    assert native_refusal(non_awaited_task) == "it uses asyncio directly"
 
 
 def test_a_wrapped_handler_is_refused() -> None:
@@ -203,3 +203,33 @@ def test_a_closure_name_is_resolved_to_its_model() -> None:
 
 def test_the_proof_exports_its_reason_type() -> None:
     assert issubclass(nativeproof.ProofError, Exception)
+
+
+async def read_with_task_name(id: int) -> str:
+    task = asyncio.current_task()
+    assert task is not None
+    return (await ProofNote.aget(id=id)).title + task.get_name()
+
+
+def test_a_handler_using_the_current_task_is_refused() -> None:
+    assert native_refusal(read_with_task_name) == "it uses asyncio directly"
+
+
+async def imported_task_api() -> None:
+    current_task_alias()
+    await ProofNote.aget(id=1)
+
+
+async def imports_task_api_inline() -> None:
+    from asyncio import current_task as owner  # noqa: PLC0415
+
+    owner()
+    await ProofNote.aget(id=1)
+
+
+def test_an_inline_import_of_a_task_api_is_refused() -> None:
+    assert native_refusal(imports_task_api_inline) == "it uses asyncio directly"
+
+
+def test_a_task_api_under_another_name_is_refused() -> None:
+    assert native_refusal(imported_task_api) == "it uses asyncio directly"

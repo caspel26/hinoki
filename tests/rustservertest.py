@@ -1570,6 +1570,16 @@ def record_lanes(worker: RustWorker) -> list[bool]:
         return await serve(request)
 
     worker._pipeline_response = recorded  # type: ignore[method-assign]
+    if worker.lane is not None:
+        begin = worker.lane.start
+
+        def driven(request: core.PreparedRequest) -> bool:
+            taken = begin(request)
+            if taken:
+                lanes.append(True)  # Rust drives the handler: a native lane too
+            return taken
+
+        worker.lane.start = driven  # type: ignore[method-assign]
     return lanes
 
 
