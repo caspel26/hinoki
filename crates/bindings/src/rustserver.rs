@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use hinoki_server::{
-    serve, AccessLog, Answer, Backend, Closed, Early, Incoming, Lane, LogFilter, ServerConfig,
+    serve, AccessLog, Answer, Backend, Closed, Early, Incoming, Lane, LogFilter, ServerConfig, Sink,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -429,14 +429,52 @@ fn seconds(name: &str, value: f64) -> PyResult<Duration> {
         .map_err(|_| PyValueError::new_err(format!("{name} must be a non-negative number")))
 }
 
+/// Records waiting for the Python logger; a full queue drops new ones.
+const ACCESS_QUEUE: usize = 4096;
+/// Most records handed to Python in one call, so the GIL is taken once per batch.
+const ACCESS_BATCH: usize = 256;
+
+/// For `access_log="logger"`: a queue plus a thread that hands batches of JSON
+/// lines to `callback`. The thread ends when the server drops its last sender.
+fn access_sink(style: Option<AccessLog>, callback: Option<Py<PyAny>>) -> PyResult<Option<Sink>> {
+    match (style, callback) {
+        (Some(AccessLog::Logger), Some(callback)) => {
+            let (sink, receiver) = Sink::new(ACCESS_QUEUE);
+            std::thread::Builder::new()
+                .name("kiso-access-log".into())
+                .spawn(move || {
+                    while let Ok(first) = receiver.recv() {
+                        let mut batch = vec![first];
+                        while batch.len() < ACCESS_BATCH {
+                            let Ok(next) = receiver.try_recv() else { break };
+                            batch.push(next);
+                        }
+                        Python::attach(|py| {
+                            if let Err(error) = callback.call1(py, (batch,)) {
+                                error.print(py);
+                            }
+                        });
+                    }
+                })
+                .map_err(io_error)?;
+            Ok(Some(sink))
+        }
+        (Some(AccessLog::Logger), None) => Err(PyValueError::new_err(
+            "access_log 'logger' needs an access_log_sink callable",
+        )),
+        _ => Ok(None),
+    }
+}
+
 fn access_style(name: Option<&str>) -> PyResult<Option<AccessLog>> {
     match name {
         None => Ok(None),
         Some("plain") => Ok(Some(AccessLog::Plain)),
         Some("pretty") => Ok(Some(AccessLog::Pretty)),
         Some("json") => Ok(Some(AccessLog::Json)),
+        Some("logger") => Ok(Some(AccessLog::Logger)),
         Some(other) => Err(PyValueError::new_err(format!(
-            "access_log must be 'plain', 'pretty' or 'json', not {other:?}"
+            "access_log must be 'plain', 'pretty', 'json' or 'logger', not {other:?}"
         ))),
     }
 }
@@ -462,7 +500,8 @@ impl RustServer {
         core, host, port, max_connections=10_000, header_read_timeout=10.0,
         shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
         fd=None, write_timeout=30.0, tls_cert=None, tls_key=None, http2=false,
-        access_log=None, access_log_skip=None, access_log_slow_ms=None
+        access_log=None, access_log_skip=None, access_log_slow_ms=None,
+        access_log_sink=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start(
@@ -482,9 +521,12 @@ impl RustServer {
         access_log: Option<&str>,
         access_log_skip: Option<Vec<String>>,
         access_log_slow_ms: Option<f64>,
+        access_log_sink: Option<Py<PyAny>>,
     ) -> PyResult<Self> {
         // First, so that every later error closes the descriptor with it.
         let inherited = fd.map(inherited_listener).transpose()?;
+        let style = access_style(access_log)?;
+        let sink = access_sink(style, access_log_sink)?;
         if max_connections == 0 {
             return Err(PyValueError::new_err("max_connections must be >= 1"));
         }
@@ -501,12 +543,13 @@ impl RustServer {
             write_timeout: seconds("write_timeout", write_timeout)?,
             shutdown_timeout: seconds("shutdown_timeout", shutdown_timeout)?,
             max_header_bytes,
-            access_log: access_style(access_log)?,
+            access_log: style,
             log_filter: Arc::new(LogFilter {
                 skip: access_log_skip.unwrap_or_default(),
                 slow: access_log_slow_ms
                     .map(|ms| seconds("access_log_slow_ms", ms / 1000.0))
                     .transpose()?,
+                sink,
             }),
             ..ServerConfig::default()
         };

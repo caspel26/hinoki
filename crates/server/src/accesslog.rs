@@ -10,18 +10,21 @@ use std::fmt::Write as _;
 use std::io::Write as _;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use hyper::StatusCode;
 
 /// How a line looks: `Plain` is one greppable line, `Pretty` adds the level tag,
 /// colours and alignment of a development console, `Json` is one JSON object
-/// per line for a log pipeline.
+/// per line for a log pipeline. `Logger` renders the JSON object too, but hands
+/// it to a [`Sink`] instead of writing it to stderr.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AccessLog {
     Plain,
     Pretty,
     Json,
+    Logger,
 }
 
 /// What one line says about a request.
@@ -209,7 +212,7 @@ fn json_line(entry: &Entry<'_>, at: SystemTime) -> String {
 
 /// `line` with the time of the request given, so it can be tested.
 pub fn line_at(style: AccessLog, entry: &Entry<'_>, at: SystemTime) -> String {
-    if style == AccessLog::Json {
+    if matches!(style, AccessLog::Json | AccessLog::Logger) {
         return json_line(entry, at);
     }
     let target = target_of(entry);
@@ -220,7 +223,7 @@ pub fn line_at(style: AccessLog, entry: &Entry<'_>, at: SystemTime) -> String {
         entry.method, target, entry.http_version
     );
     match style {
-        AccessLog::Plain | AccessLog::Json => format!(
+        AccessLog::Plain | AccessLog::Json | AccessLog::Logger => format!(
             "{} - {} {} {} {}",
             entry.peer, request, entry.status, reason, took
         ),
@@ -243,7 +246,33 @@ pub struct LogFilter {
     pub skip: Vec<String>,
     /// When set, successful answers faster than this are left out.
     pub slow: Option<Duration>,
+    /// Where `AccessLog::Logger` lines go.
+    pub sink: Option<Sink>,
 }
+
+/// A bounded queue of rendered log lines. A full queue drops the new line: a
+/// slow logger never holds a request back or grows memory without bound.
+#[derive(Debug, Clone)]
+pub struct Sink(SyncSender<String>);
+
+impl Sink {
+    pub fn new(capacity: usize) -> (Self, Receiver<String>) {
+        let (sender, receiver) = sync_channel(capacity);
+        (Self(sender), receiver)
+    }
+
+    pub fn push(&self, line: String) {
+        let _ = self.0.try_send(line);
+    }
+}
+
+impl PartialEq for Sink {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for Sink {}
 
 impl LogFilter {
     pub fn keeps(&self, path: &str, status: u16, elapsed: Duration) -> bool {
@@ -258,8 +287,14 @@ impl LogFilter {
     }
 }
 
-pub fn log(style: AccessLog, entry: &Entry<'_>) {
+pub fn log(style: AccessLog, entry: &Entry<'_>, sink: Option<&Sink>) {
     let mut text = line(style, entry);
+    if style == AccessLog::Logger {
+        if let Some(sink) = sink {
+            sink.push(text);
+        }
+        return;
+    }
     text.push('\n');
     let _ = std::io::stderr().lock().write_all(text.as_bytes());
 }
@@ -282,10 +317,20 @@ mod tests {
     }
 
     #[test]
+    fn a_full_sink_drops_instead_of_blocking() {
+        let (sink, receiver) = Sink::new(1);
+        sink.push("a".into());
+        sink.push("b".into());
+        assert_eq!(receiver.try_recv().unwrap(), "a");
+        assert!(receiver.try_recv().is_err());
+    }
+
+    #[test]
     fn filter_skips_paths_and_slow_floor_but_never_failures() {
         let filter = LogFilter {
             skip: vec!["/health".into(), "/static/*".into()],
             slow: Some(Duration::from_millis(50)),
+            sink: None,
         };
         let fast = Duration::from_millis(1);
         let slow = Duration::from_millis(80);
