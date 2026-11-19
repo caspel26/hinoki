@@ -18,6 +18,7 @@ from hinoki.auth import (
 from hinoki.core import core_version
 from hinoki.crud import Crud, CrudAPI
 from hinoki.derive import derive
+from hinoki.fields import Email, Slug, Url
 from hinoki.http.request import Request
 from hinoki.http.response import Response, set_cookie
 from hinoki.modules import Module, ModuleContext
@@ -83,6 +84,7 @@ __all__ = [
     "Caller",
     "Crud",
     "CrudAPI",
+    "Email",
     "Field",
     "Form",
     "FormParser",
@@ -114,9 +116,11 @@ __all__ = [
     "SchemaConfig",
     "SchemaExtra",
     "Schemas",
+    "Slug",
     "Transactions",
     "Unset",
     "UploadedFile",
+    "Url",
     "XMLParser",
     "XMLRenderer",
     "__version__",

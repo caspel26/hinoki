@@ -15,6 +15,7 @@ from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from typing import (
     Annotated,
     Any,
@@ -418,6 +419,10 @@ PLAIN_TYPES: dict[str, type | tuple[type, ...]] = {
     "timedelta": dt.timedelta,
     "decimal": Decimal,
     "bytes": bytes,
+    "ipv4": IPv4Address,
+    "ipv6": IPv6Address,
+    "ipv4network": IPv4Network,
+    "ipv6network": IPv6Network,
     "dict": dict,
     "tuple": tuple,
 }
@@ -492,8 +497,13 @@ WIRE_KINDS = {
     "timedelta": (dt.timedelta, "a duration"),
     "decimal": (Decimal, "a decimal"),
     "bytes": (bytes, "bytes"),
+    "ipv4": (IPv4Address, "an IPv4 address"),
+    "ipv6": (IPv6Address, "an IPv6 address"),
+    "ipv4network": (IPv4Network, "an IPv4 network"),
+    "ipv6network": (IPv6Network, "an IPv6 network"),
 }
 OVERSIZED_DECIMAL = "9" * (DECIMAL_DIGITS_CEILING + 1)
+NETWORK_KINDS = frozenset({"ipv4", "ipv6", "ipv4network", "ipv6network"})
 
 
 def wire_instance_value(kind: str, value: Any) -> Any:
@@ -501,11 +511,12 @@ def wire_instance_value(kind: str, value: Any) -> Any:
     text the validator reads; a value of another type is not accepted."""
     wanted = WIRE_KINDS[kind][0]
     if not isinstance(value, wanted) or (
-        kind == "date" and isinstance(value, datetime)
+        (kind == "date" and isinstance(value, datetime))
+        or (kind == "bytes" and type(value) is not bytes)
     ):
         return _INVALID_INSTANCE_VALUE
-    if kind == "bytes" and type(value) is not bytes:
-        return _INVALID_INSTANCE_VALUE
+    if kind in NETWORK_KINDS:
+        return str(value)
     try:
         text = core.wire_text(value)
     except ValueError:
@@ -1903,6 +1914,10 @@ ENCODERS: dict[type, Callable[[Any], Any]] = {
     dt.timedelta: core.wire_text,
     Decimal: core.wire_text,
     bytes: core.wire_text,
+    IPv4Address: str,
+    IPv6Address: str,
+    IPv4Network: str,
+    IPv6Network: str,
 }
 
 
