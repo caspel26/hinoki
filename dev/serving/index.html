@@ -460,8 +460,8 @@ index; see <a href="../getting-started/">installation</a> for setup.</p>
 <tr>
 <td><code>server.access_log</code></td>
 <td><code>BLOG_SERVER__ACCESS_LOG</code></td>
-<td><code>false</code></td>
-<td></td>
+<td>unset</td>
+<td>Unset logs in <code>hinoki dev</code> only; <code>true</code> or <code>false</code> decides for both</td>
 </tr>
 <tr>
 <td><code>server.server</code></td>
@@ -474,7 +474,7 @@ index; see <a href="../getting-started/">installation</a> for setup.</p>
 <p><code>dev</code> always runs one worker with reload. The settings command shows what is in effect: <code>hinoki settings blog.settings:BlogSettings</code>.</p>
 <p>Before serving a deployment, narrow <a href="../settings/#allowed_hosts"><code>allowed_hosts</code></a> to the names it answers to (<code>BLOG_ALLOWED_HOSTS=app.example.com</code>). While it is the default <code>*</code> and <code>debug</code> is off, each worker logs <code>allowed_hosts is '*' and debug is off: ...</code> at startup, on Granian, the Rust server, WSGI and other ASGI servers alike.</p>
 <h2 id="the-rust-server">The Rust server<a class="headerlink" href="#the-rust-server" title="Permanent link">&para;</a></h2>
-<p><code>hinoki serve</code> and <code>hinoki dev</code> run the application on the Rust server, which is part of Hinoki's native extension, unless you choose Granian with <code>--server granian</code> or <code>server.server = "granian"</code>. Choose Granian when you need what the Rust server does not provide: the access log (<code>server.access_log</code>), an ASGI wrapper around the app (see below), or a server outside the extension.</p>
+<p><code>hinoki serve</code> and <code>hinoki dev</code> run the application on the Rust server, which is part of Hinoki's native extension, unless you choose Granian with <code>--server granian</code> or <code>server.server = "granian"</code>. Choose Granian when you need an ASGI wrapper around the app (see below), or a server outside the extension.</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>rust
 uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>serve<span class="w"> </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>rust<span class="w"> </span>--workers<span class="w"> </span><span class="m">4</span>
 uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w">   </span>blog.main:create_app<span class="w"> </span>--server<span class="w"> </span>rust
@@ -510,7 +510,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <li>A client that stops reading a response for <code>write_timeout</code> seconds (30 by default) is disconnected; any progress restarts the timer.</li>
 <li><code>max_connections</code> (10000 by default) bounds open connections. Requests waiting for the application are bounded by an in-flight limit and a queue; beyond them the answer is <code>503</code>.</li>
 <li>Requests with ambiguous framing (for example <code>Content-Length</code> together with <code>Transfer-Encoding</code>, repeated lengths, or a bare line feed in the head) are refused with <code>400</code> and the connection is closed.</li>
-<li>There is no access log: <code>server.access_log=true</code> is refused with <code>--server rust</code>.</li>
+<li>The access log is one line per answered request, written to stderr by the Rust server: <code>127.0.0.1:52341 - "GET /items?limit=5 HTTP/1.1" 200 OK 3.2ms</code>. The time is how long the server took to decide the answer, not including writing it to the client, and the line is printed for every answer, including the ones the server gives itself (<code>404</code>, <code>429</code>, <code>503</code>). When stderr is a terminal (and <code>NO_COLOR</code> is unset) the line is coloured in the style of a development console: <code>INFO:</code> in green, the request in bold, the status by class (2xx green, 3xx cyan, 4xx yellow, 5xx red) and the time dimmed. Control characters in the target are shown as <code>\xNN</code>.</li>
 <li>A client that disconnects does not cancel its running handler; the handler finishes and its answer is discarded.</li>
 </ul>
 <h3 id="settings-that-apply-to-one-server-only">Settings that apply to one server only<a class="headerlink" href="#settings-that-apply-to-one-server-only" title="Permanent link">&para;</a></h3>
@@ -525,13 +525,8 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 </thead>
 <tbody>
 <tr>
-<td><code>host</code>, <code>port</code>, <code>workers</code>, <code>runtime_threads</code>, <code>backlog</code>, <code>trusted_proxies</code>, <code>request_id_header</code>, <code>trust_request_id</code></td>
+<td><code>host</code>, <code>port</code>, <code>workers</code>, <code>runtime_threads</code>, <code>backlog</code>, <code>access_log</code>, <code>trusted_proxies</code>, <code>request_id_header</code>, <code>trust_request_id</code></td>
 <td>applied</td>
-<td>applied</td>
-</tr>
-<tr>
-<td><code>access_log</code></td>
-<td>refused when <code>true</code></td>
 <td>applied</td>
 </tr>
 <tr>
@@ -654,7 +649,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 18:26:52 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 18:47:50 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>22 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
