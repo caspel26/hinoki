@@ -374,12 +374,12 @@ def reachable(start: Iterable[type[Schema]]) -> Iterator[type[Schema]]:
         seen.add(schema)
         pending.extend(subclasses(schema))
         yield schema
-        for spec in schema.specs().values():
-            level: Any = spec.ftype
-            while level is not None:
-                if level.schema is not None:
-                    pending.append(level.schema)
-                level = level.item
+        pending_types = [spec.ftype for spec in schema.specs().values()]
+        while pending_types:
+            level = pending_types.pop()
+            if level.schema is not None:
+                pending.append(level.schema)
+            pending_types.extend(level.children())
 
 
 class ForbidExposure(Rule):
@@ -590,8 +590,7 @@ def has_unbounded_text(field_type: Any) -> bool:
     any length. Dict keys from clients are bounded by the validator."""
     if field_type.kind == "str":
         return not is_bounded_text(field_type)
-    item = field_type.item
-    return item is not None and has_unbounded_text(item)
+    return any(has_unbounded_text(child) for child in field_type.children())
 
 
 class RequireStringLimits(Rule):
