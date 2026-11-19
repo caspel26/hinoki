@@ -2156,7 +2156,8 @@ def test_owned_update_read_back_repeats_the_owner_filter() -> None:
     for dialect in ("mysql", "mariadb"):
         scoped = QuerySet(OwnedNote).filter(id=UUID(int=1), owner_id="o")
         assert (
-            templates[dialect, "update_read_back"] == scoped.compile(dialect=dialect)[0]
+            templates[dialect, "update_read_back"]
+            == scoped.compile(dialect=dialect)[0] + " FOR UPDATE"
         )
         assert "`owner_id` = ?" not in templates[dialect, "write_read_back"]
 

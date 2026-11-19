@@ -4,6 +4,7 @@ rows that stop matching the filter because of the update."""
 import os
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -69,3 +70,28 @@ async def test_update_returns_nothing_when_no_row_matches(database: Database) ->
     await Draft(id=1, status="live").asave()
 
     assert await Draft.filter(status="draft").aupdate({"status": "live"}) == []
+
+
+async def test_update_reads_many_rows_back_in_bounded_chunks(
+    database: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for number in range(1, 6):
+        await Draft(id=number, status="draft").asave()
+    monkeypatch.setattr("hinoki.orm.queryset.IN_CHUNK", 2)
+    statements: list[str] = []
+    original = database.fetch
+
+    async def spy(sql: str, *params: Any) -> list[dict[str, object]]:
+        statements.append(sql)
+        return await original(sql, *params)
+
+    monkeypatch.setattr(database, "fetch", spy)
+
+    rows = await Draft.filter(status="draft").aupdate({"status": "live"})
+
+    assert sorted(row.id for row in rows) == [1, 2, 3, 4, 5]
+    if database.dialect in {"mysql", "mariadb"}:
+        locks = [sql for sql in statements if sql.endswith("FOR UPDATE")]
+        assert len(locks) == 1
+        assert "ORDER BY" in locks[0]
+        assert len([sql for sql in statements if "IN (" in sql]) == 3
