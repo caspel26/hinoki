@@ -390,6 +390,44 @@ class Profile(Schema):
     old_nick: Annotated[str | None, Field(deprecated=True)] = None
 ```
 
+## Computed fields
+
+`@computed_field` adds a read-only value to the output of a `Schema`. The
+method takes only `self`, needs a return annotation and is read as an
+attribute:
+
+```python
+from hinoki import Schema, computed_field
+
+
+class Person(Schema):
+    first: str
+    last: str
+
+    @computed_field(alias="displayName", description="First and last name")
+    def full_name(self) -> str:
+        return f"{self.first} {self.last}"
+
+
+person = Person(first="Ada", last="Lovelace")
+person.full_name  # "Ada Lovelace"
+person.dump()  # {"first": "Ada", "last": "Lovelace", "displayName": "Ada Lovelace"}
+```
+
+- Computed values follow the declared fields in `dump()`, in HTTP responses
+  (both the Rust JSON lane and the Python path) and in nested schemas.
+  `include` and `exclude` accept their names; `exclude_unset` keeps them.
+  `to_dict()` leaves them out.
+- They are output only. A client that sends one gets the usual unknown-field
+  error, and `Person.validate(...)` never reads them.
+- The OpenAPI document lists them as `readOnly` properties, never as
+  `required`, with `description` and `examples` when given.
+- A computed field cannot reuse the name or the wire name of a field or of
+  another computed field (`RegistrationError`). Subclasses inherit them.
+- `Person.computed_fields()` returns the `{name: spec}` mapping.
+- A schema with computed fields is serialized through the schema instance, not
+  the direct row-to-JSON shortcut.
+
 ## Wire aliases
 
 Use `Field(alias=...)` when the public JSON name should differ from the Python attribute. The alias is the only accepted input key; sending both names is an error. `dump()` writes aliases, including in nested schemas and lists, while `to_dict()` keeps Python attribute names. Validation errors and OpenAPI properties use the wire names. A custom check's default field path is translated to its alias; an explicit `Invalid(path=...)` is already a wire path.
@@ -472,6 +510,16 @@ async def create_pet(data: PetRequest) -> PetRequest:
 `PetRequest.validate({"pet": {"type": "cat", "name": "Mugi"}})` returns a `PetRequest` whose `pet` is a `Cat`; manual construction takes an already validated variant instance, such as `PetRequest(pet=Dog(kind="dog", walks=2))`. A dict is not coerced into a variant. `list[Pet]`, nested Schema fields, nullable unions and `Unset` use the same discriminator rules. Unknown tags produce a field error at the tag's wire path without echoing the submitted value. The handler is not called for an invalid body, whether it is synchronous or asynchronous.
 
 Each variant's tag field is required and cannot have a default. Tags must be unique strings, variants must be distinct Schema classes, and variant classes cannot override `dump()` because the override could remove or change the tag on the wire. Plain unions without `Field(discriminator=...)`, non-Schema variants, and unions directly in handler body or return annotations are not supported; wrap the union in a Schema for route input and output. The runtime check of return values is separate and applies to every action.
+
+## Changing a value
+
+A `Schema` instance is frozen. `replace(**changes)` returns a copy with the named fields changed; the original is untouched. Every value of the copy goes through the same validation, normalisation and `@field_check`/`@object_check` as a new instance, so a change that breaks a rule raises `ValidationError` with the field path, and a check sees the whole new object. An unknown field name raises `TypeError`. Fields that were never supplied stay unsupplied for `dump(exclude_unset=True)`, and `replace` is reserved as a `Schema` method name, like `dump`.
+
+```python
+card = Card(title="Draft", stars=1)
+published = card.replace(title="Final", stars=4)
+assert card.stars == 1 and published.stars == 4
+```
 
 ## Projection options on `dump()`
 

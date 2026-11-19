@@ -1260,7 +1260,7 @@ impl<'py> Encoder<'py> {
                 &value.call_method0("isoformat")?.str()?.to_string(),
             );
         }
-        if let Some((names, unset)) = crate::schema::instance_fields(value, true, true)? {
+        if let Some((names, unset, _)) = crate::schema::instance_fields(value, true, true, true)? {
             self.schema_object(value, names, &unset, depth)?;
         } else if is_instance_of_named(value, "uuid", "UUID")? {
             write_string(&mut self.out, &value.str()?.to_string())?;
