@@ -19,6 +19,7 @@ use tokio::task::JoinSet;
 use tokio::time::{sleep, timeout};
 use tokio_rustls::TlsAcceptor;
 
+use crate::accesslog::AccessLog;
 use crate::conn::{respond, Backend, Transport};
 use crate::framing::{Framing, Guarded, Signals};
 use crate::stall::StallGuard;
@@ -74,6 +75,8 @@ pub struct ServerConfig {
     /// The header limit the plan enforces; sizes hyper's backstop buffer.
     pub max_header_bytes: usize,
     pub max_headers: usize,
+    /// Print one line per answered request to stderr, in this style.
+    pub access_log: Option<AccessLog>,
 }
 
 impl Default for ServerConfig {
@@ -86,6 +89,7 @@ impl Default for ServerConfig {
             shutdown_timeout: Duration::from_secs(10),
             max_header_bytes: 32_768,
             max_headers: 100,
+            access_log: None,
         }
     }
 }
@@ -159,6 +163,7 @@ async fn serve_h1<S, B>(
     let transport = Transport {
         secure,
         max_headers: config.max_headers,
+        access_log: config.access_log,
         body_read_timeout: config.body_read_timeout,
         signals: Arc::clone(&signals),
     };
@@ -210,6 +215,7 @@ async fn serve_h2<S, B>(
     let transport = Transport {
         secure: true,
         max_headers: config.max_headers,
+        access_log: config.access_log,
         body_read_timeout: config.body_read_timeout,
         signals: Arc::new(Signals::default()),
     };

@@ -144,6 +144,7 @@ class RustWorker:
         listener_fd: int | None = None,
         parent: int | None = None,
         native_dispatch: bool = True,
+        access_log: str | None = None,
     ) -> None:
         self.adapter = app.asgi()
         self.pipeline = self.adapter.pipeline
@@ -158,6 +159,7 @@ class RustWorker:
         self.http2 = http2
         self.backlog = backlog
         self.native_dispatch = native_dispatch
+        self.access_log = access_log
         self.lane: NativeLane | None = None
         # An inherited listening descriptor (a supervisor owns the socket); the
         # native server takes it over. Without one, the worker binds itself.
@@ -224,6 +226,7 @@ class RustWorker:
                 self.tls_cert_file,
                 self.tls_key_file,
                 self.http2,
+                self.access_log,
             )
         except BaseException:
             self.core._disarm_crud_plans()
@@ -557,6 +560,15 @@ class RustWorker:
         return 0
 
 
+def access_style(settings: ServerSettings, dev: bool) -> str | None:
+    """The access-log style for a worker: none, a plain line, or the coloured
+    development line when stderr is a terminal that takes colour."""
+    if not settings.logs_access(dev):
+        return None
+    colour = sys.stderr.isatty() and "NO_COLOR" not in os.environ
+    return "pretty" if colour else "plain"
+
+
 def build_worker(
     app: Hinoki,
     host: str,
@@ -565,6 +577,7 @@ def build_worker(
     *,
     listener_fd: int | None = None,
     parent: int | None = None,
+    dev: bool = False,
 ) -> RustWorker:
     """A worker for ``app`` with the limits of its ``server`` settings group
     (``None`` keeps the native default)."""
@@ -583,6 +596,7 @@ def build_worker(
         http2=settings.http2,
         listener_fd=listener_fd,
         parent=parent,
+        access_log=access_style(settings, dev),
         **limits,
     )
 
@@ -596,6 +610,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--fd", type=int, help="an inherited listening socket (host and port ignored)"
     )
     parser.add_argument("--parent", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.parent is not None and os.getppid() != args.parent:
         return 1  # the supervisor died before this worker ran
@@ -609,7 +624,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     settings = settings_of(app)
     core.configure_runtime(settings.runtime_threads)
     worker = build_worker(
-        app, host, port, settings, listener_fd=args.fd, parent=args.parent
+        app, host, port, settings, listener_fd=args.fd, parent=args.parent, dev=args.dev
     )
     return asyncio.run(worker.run())
 

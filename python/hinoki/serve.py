@@ -232,7 +232,7 @@ def run_granian(
         workers=1 if reload else (getattr(args, "workers", None) or settings.workers),
         runtime_threads=settings.runtime_threads,
         backlog=settings.backlog,
-        log_access=settings.access_log,
+        log_access=settings.logs_access(reload),
         factory=is_factory,
         reload=reload,
         **granian_tls(settings),

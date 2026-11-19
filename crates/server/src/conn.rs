@@ -17,7 +17,7 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use http_body_util::Full;
@@ -26,6 +26,7 @@ use hyper::header::{HeaderName, HeaderValue};
 use hyper::http::request::Parts;
 use hyper::{Method, Request, Response, StatusCode, Version};
 
+use crate::accesslog::{self, AccessLog};
 use crate::body::BodyReader;
 use crate::early::Early;
 use crate::framing::Signals;
@@ -174,6 +175,46 @@ pub struct Transport {
     pub max_headers: usize,
     /// What the framing guard and this layer tell each other about the connection.
     pub signals: Arc<Signals>,
+    /// Log every answer in this style; `None` logs nothing.
+    pub access_log: Option<AccessLog>,
+}
+
+/// The parts of a request an access-log line needs, kept past the handoff.
+struct LoggedHead {
+    peer: SocketAddr,
+    method: String,
+    path: String,
+    query: Vec<u8>,
+    http_version: &'static str,
+}
+
+impl LoggedHead {
+    fn log(&self, style: AccessLog, status: u16, elapsed: Duration) {
+        accesslog::log(
+            style,
+            &accesslog::Entry {
+                peer: self.peer,
+                method: &self.method,
+                path: &self.path,
+                query: &self.query,
+                http_version: self.http_version,
+                status,
+                elapsed,
+            },
+        );
+    }
+}
+
+impl Incoming {
+    fn clone_head(&self) -> LoggedHead {
+        LoggedHead {
+            peer: self.peer,
+            method: self.method.clone(),
+            path: self.path.clone(),
+            query: self.query.clone(),
+            http_version: self.http_version,
+        }
+    }
 }
 
 /// Serve one request: ask the backend, write the answer. The connection closes
@@ -191,7 +232,15 @@ pub async fn respond<B: Backend>(
     let body = (!body.is_end_stream()).then(|| BodyReader::new(body, transport.body_read_timeout));
     let finished = body.as_ref().map(BodyReader::finished);
     let incoming = incoming_of(&parts, body, peer, &transport);
-    let mut response = response_of(backend.handle(incoming).await, head_only);
+    let started = Instant::now();
+    let logged = transport
+        .access_log
+        .map(|style| (style, incoming.clone_head()));
+    let answer = backend.handle(incoming).await;
+    if let Some((style, head)) = logged {
+        head.log(style, answer.status, started.elapsed());
+    }
+    let mut response = response_of(answer, head_only);
     let unread = finished.is_some_and(|done| !done.load(Ordering::Acquire));
     if unread {
         transport.signals.linger.store(true, Ordering::Release);

@@ -38,7 +38,7 @@ From the application's **`server` settings group** ([settings guide](settings.md
 | `server.workers` | `BLOG_SERVER__WORKERS` | `1` | `--workers` (serve) |
 | `server.runtime_threads` | `BLOG_SERVER__RUNTIME_THREADS` | `1` | |
 | `server.backlog` | `BLOG_SERVER__BACKLOG` | `1024` | |
-| `server.access_log` | `BLOG_SERVER__ACCESS_LOG` | `false` | |
+| `server.access_log` | `BLOG_SERVER__ACCESS_LOG` | unset | Unset logs in `hinoki dev` only; `true` or `false` decides for both |
 | `server.server` | `BLOG_SERVER__SERVER` | `granian` | `--server` |
 
 `dev` always runs one worker with reload. The settings command shows what is in effect: `hinoki settings blog.settings:BlogSettings`.
@@ -47,7 +47,7 @@ Before serving a deployment, narrow [`allowed_hosts`](settings.md#allowed_hosts)
 
 ## The Rust server
 
-`hinoki serve` and `hinoki dev` run the application on the Rust server, which is part of Hinoki's native extension, unless you choose Granian with `--server granian` or `server.server = "granian"`. Choose Granian when you need what the Rust server does not provide: the access log (`server.access_log`), an ASGI wrapper around the app (see below), or a server outside the extension.
+`hinoki serve` and `hinoki dev` run the application on the Rust server, which is part of Hinoki's native extension, unless you choose Granian with `--server granian` or `server.server = "granian"`. Choose Granian when you need an ASGI wrapper around the app (see below), or a server outside the extension.
 
 ```sh
 uv run --project .. hinoki serve blog.main:create_app --server rust
@@ -103,7 +103,7 @@ ASGI/Granian and WSGI answer it in the Python pipeline after host, CORS and HTTP
 * A client that stops reading a response for `write_timeout` seconds (30 by default) is disconnected; any progress restarts the timer.
 * `max_connections` (10000 by default) bounds open connections. Requests waiting for the application are bounded by an in-flight limit and a queue; beyond them the answer is `503`.
 * Requests with ambiguous framing (for example `Content-Length` together with `Transfer-Encoding`, repeated lengths, or a bare line feed in the head) are refused with `400` and the connection is closed.
-* There is no access log: `server.access_log=true` is refused with `--server rust`.
+* The access log is one line per answered request, written to stderr by the Rust server: `127.0.0.1:52341 - "GET /items?limit=5 HTTP/1.1" 200 OK 3.2ms`. The time is how long the server took to decide the answer, not including writing it to the client, and the line is printed for every answer, including the ones the server gives itself (`404`, `429`, `503`). When stderr is a terminal (and `NO_COLOR` is unset) the line is coloured in the style of a development console: `INFO:` in green, the request in bold, the status by class (2xx green, 3xx cyan, 4xx yellow, 5xx red) and the time dimmed. Control characters in the target are shown as `\xNN`.
 * A client that disconnects does not cancel its running handler; the handler finishes and its answer is discarded.
 
 ### Settings that apply to one server only
@@ -112,8 +112,7 @@ ASGI/Granian and WSGI answer it in the Python pipeline after host, CORS and HTTP
 
 | Setting | Rust server | Granian |
 | --- | --- | --- |
-| `host`, `port`, `workers`, `runtime_threads`, `backlog`, `trusted_proxies`, `request_id_header`, `trust_request_id` | applied | applied |
-| `access_log` | refused when `true` | applied |
+| `host`, `port`, `workers`, `runtime_threads`, `backlog`, `access_log`, `trusted_proxies`, `request_id_header`, `trust_request_id` | applied | applied |
 | `max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`, `native_dispatch` | applied when set | refused when set |
 
 If the native extension of a build has no Rust server, `--server rust` fails with an error that says so.

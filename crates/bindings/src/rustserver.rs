@@ -15,7 +15,7 @@ use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use hinoki_server::{serve, Answer, Backend, Closed, Early, Incoming, ServerConfig};
+use hinoki_server::{serve, AccessLog, Answer, Backend, Closed, Early, Incoming, ServerConfig};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use socket2::{Socket, Type};
@@ -419,6 +419,17 @@ fn seconds(name: &str, value: f64) -> PyResult<Duration> {
         .map_err(|_| PyValueError::new_err(format!("{name} must be a non-negative number")))
 }
 
+fn access_style(name: Option<&str>) -> PyResult<Option<AccessLog>> {
+    match name {
+        None => Ok(None),
+        Some("plain") => Ok(Some(AccessLog::Plain)),
+        Some("pretty") => Ok(Some(AccessLog::Pretty)),
+        Some(other) => Err(PyValueError::new_err(format!(
+            "access_log must be 'plain' or 'pretty', not {other:?}"
+        ))),
+    }
+}
+
 /// A listening HTTP/1.1 (and, over TLS, HTTP/2) server on the shared tokio runtime.
 #[pyclass(name = "RustServer", module = "hinoki.core", frozen)]
 pub struct RustServer {
@@ -439,7 +450,8 @@ impl RustServer {
     #[pyo3(signature = (
         core, host, port, max_connections=10_000, header_read_timeout=10.0,
         shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
-        fd=None, write_timeout=30.0, tls_cert=None, tls_key=None, http2=false
+        fd=None, write_timeout=30.0, tls_cert=None, tls_key=None, http2=false,
+        access_log=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start(
@@ -456,6 +468,7 @@ impl RustServer {
         tls_cert: Option<String>,
         tls_key: Option<String>,
         http2: bool,
+        access_log: Option<&str>,
     ) -> PyResult<Self> {
         // First, so that every later error closes the descriptor with it.
         let inherited = fd.map(inherited_listener).transpose()?;
@@ -475,6 +488,7 @@ impl RustServer {
             write_timeout: seconds("write_timeout", write_timeout)?,
             shutdown_timeout: seconds("shutdown_timeout", shutdown_timeout)?,
             max_header_bytes,
+            access_log: access_style(access_log)?,
             ..ServerConfig::default()
         };
         let tls = match (tls_cert, tls_key) {
