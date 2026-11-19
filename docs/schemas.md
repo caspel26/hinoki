@@ -37,7 +37,42 @@ class NoteOut(Schema):
 
 ## Field types
 
-A field is annotated with `str`, `int`, `float`, `bool`, `UUID`, `datetime`, `date`, `time`, `timedelta`, `Decimal`, `bytes`, an `Enum` class, a `Literal`, a nested `Schema`, `list[X]`, `dict[str, X]` or a [discriminated union](#discriminated-unions), optionally `| None` (accepts `null`) and `| Unset` (may be left out of a partial update), and optionally wrapped in `Annotated[..., Field(...)]`. `X` can be any of these, so `list[dict[str, int]]` and `dict[str, list[Point]]` work. Anything else (`set`, `tuple`, `bytearray`, `Any`, plain unions, `dict[int, X]`) raises `RegistrationError` when the class is created.
+A field is annotated with `str`, `int`, `float`, `bool`, `UUID`, `datetime`, `date`, `time`, `timedelta`, `Decimal`, `bytes`, an `Enum` class, a `Literal`, a nested `Schema`, `list[X]`, `set[X]`, `frozenset[X]`, `tuple[X, ...]`, `tuple[X, Y]`, `dict[str, X]` or a [discriminated union](#discriminated-unions), optionally `| None` (accepts `null`) and `| Unset` (may be left out of a partial update), and optionally wrapped in `Annotated[..., Field(...)]`. `X` can be any of these, so `list[dict[str, int]]` and `dict[str, list[Point]]` work. Anything else (`bytearray`, `Any`, plain unions, `dict[int, X]`) raises `RegistrationError` when the class is created.
+
+### Sets and tuples
+
+`set[X]`, `frozenset[X]`, `tuple[X, ...]` and fixed tuples such as `tuple[float, float]` travel as JSON arrays; validation returns the Python container:
+
+```python
+from typing import Annotated
+
+from hinoki import Field, Schema
+from hinoki.errors import ValidationError
+
+
+class Place(Schema):
+    tags: Annotated[set[str], Field(max_length=5)]
+    point: tuple[float, float]
+    path: tuple[int, ...] = ()
+
+
+place = Place.validate({"tags": ["a", "b", "a"], "point": [1.5, 2]})
+assert place.tags == {"a", "b"} and place.point == (1.5, 2.0)
+assert place.dump() == {"tags": ["a", "b"], "point": [1.5, 2.0], "path": []}
+
+try:
+    Place.validate({"tags": [], "point": [1.5]})
+except ValidationError as error:
+    assert [(d.path, d.code) for d in error.details] == [("point", "min_length")]
+```
+
+* **Duplicates** in a set collapse; `min_length` and `max_length` on a set or variadic tuple count the array as sent. A fixed tuple has its length from its type (`at least 2 items` / `at most 2 items`), each position is checked at `point[0]`, and `Field(...)` constraints are refused on it.
+* **Hashable items.** Set and frozenset items must be hashable: scalars, enums, or tuples and frozensets of those. A set of `Schema`, `list`, `dict` or `set` items raises `RegistrationError`; bare `set`, `tuple[()]` and a misplaced `...` do too.
+* **Construction** takes exactly the declared container (`Place(tags={"a"}, point=(1, 2))`); a list for a `set` field is refused.
+* **Output.** `dump()`, responses and the JSON encoder write arrays, a set sorted when its items compare; `to_dict()` keeps the `set`, `frozenset` and `tuple`.
+* **Models.** A `Model` column annotated with one of these is a JSON column holding an array; the model stores and reads lists, and only `Schema` fields build sets and tuples.
+* **Lanes.** The native GIL-free CRUD lane does not read these fields; such a schema is validated through the Python lane, with the same results.
+* **OpenAPI** documents a set as an array with `uniqueItems`, a variadic tuple as an array and a fixed tuple with `prefixItems`, `minItems` and `maxItems`.
 
 ### Enums and literals
 
