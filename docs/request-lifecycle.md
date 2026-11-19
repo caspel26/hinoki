@@ -2,7 +2,7 @@
 
 The order matters because validation, access and transactions have different failure behavior.
 
-1. Granian accepts the HTTP request and calls the ASGI application. (With `--server rust` the native server accepts it, answers what needs no application code and hands the rest to the same request pipeline; see [serving](serving.md#the-rust-server).)
+1. The Rust server accepts the HTTP request, answers what needs no application code and hands the rest to the request pipeline; see [serving](serving.md#the-rust-server). (With `--server granian`, Granian accepts it and calls the ASGI application, which reaches the same pipeline.)
 2. Hinoki matches the method and path.
 3. For an action with an access policy, its authentication provider resolves a caller and the policy checks permissions. The request body has not been read yet, so an unauthenticated client cannot make the server buffer it.
 4. Hinoki negotiates the response type from `Accept` (`406` when nothing fits), reads the body of `POST`/`PUT`/`PATCH`/`QUERY` requests, then binds and validates path, query, header and body values before the handler runs.

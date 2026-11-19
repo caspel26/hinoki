@@ -99,8 +99,8 @@ def _environment_checks() -> list[Check]:
             Check(
                 "environment.server",
                 "warning",
-                "Granian is not installed (needed only to serve)",
-                "Install Hinoki with its server extra when you are ready to serve.",
+                "Granian is not installed (needed for --server granian)",
+                "Install Hinoki with its server extra to serve with Granian.",
             )
         )
     else:
