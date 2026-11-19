@@ -8,6 +8,7 @@
 //! coroutine yields is refused: once advanced, a coroutine cannot be handed to
 //! asyncio, so there is no fallback after the first `send`.
 
+use std::cell::Cell;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Mutex;
@@ -101,6 +102,33 @@ impl WaitIter {
     }
 }
 
+thread_local! {
+    static DRIVING: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Marks the code a coroutine step runs: database calls made meanwhile return
+/// a [`NativeWait`] instead of an asyncio future.
+struct Driving;
+
+impl Driving {
+    fn enter() -> Self {
+        DRIVING.with(|d| d.set(d.get() + 1));
+        Self
+    }
+}
+
+impl Drop for Driving {
+    fn drop(&mut self) {
+        DRIVING.with(|d| d.set(d.get() - 1));
+    }
+}
+
+/// Whether this thread is inside a step of [`advance`].
+#[pyfunction]
+pub fn driving() -> bool {
+    DRIVING.with(|d| d.get() > 0)
+}
+
 /// How a coroutine resumes.
 pub enum Resume {
     Value(Py<PyAny>),
@@ -115,6 +143,7 @@ pub enum Step {
 
 /// Advance `coro` once. A first step resumes with `None`.
 pub fn advance(py: Python<'_>, coro: &Bound<'_, PyAny>, resume: Resume) -> PyResult<Step> {
+    let _driving = Driving::enter();
     let outcome = match resume {
         Resume::Value(value) => coro.call_method1("send", (value,)),
         Resume::Error(error) => coro.call_method1("throw", (error.into_value(py),)),
