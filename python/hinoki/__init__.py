@@ -15,6 +15,7 @@ from hinoki.auth import (
     HeaderAuth,
     Permission,
 )
+from hinoki.computed import computed_field
 from hinoki.core import core_version
 from hinoki.derive import derive
 from hinoki.fields import Email, SecretStr, Slug, Url
@@ -125,6 +126,7 @@ __all__ = [
     "XMLParser",
     "XMLRenderer",
     "__version__",
+    "computed_field",
     "crud",
     "derive",
     "errors",

@@ -390,6 +390,44 @@ class Profile(Schema):
     old_nick: Annotated[str | None, Field(deprecated=True)] = None
 ```
 
+## Computed fields
+
+`@computed_field` adds a read-only value to the output of a `Schema`. The
+method takes only `self`, needs a return annotation and is read as an
+attribute:
+
+```python
+from hinoki import Schema, computed_field
+
+
+class Person(Schema):
+    first: str
+    last: str
+
+    @computed_field(alias="displayName", description="First and last name")
+    def full_name(self) -> str:
+        return f"{self.first} {self.last}"
+
+
+person = Person(first="Ada", last="Lovelace")
+person.full_name  # "Ada Lovelace"
+person.dump()  # {"first": "Ada", "last": "Lovelace", "displayName": "Ada Lovelace"}
+```
+
+- Computed values follow the declared fields in `dump()`, in HTTP responses
+  (both the Rust JSON lane and the Python path) and in nested schemas.
+  `include` and `exclude` accept their names; `exclude_unset` keeps them.
+  `to_dict()` leaves them out.
+- They are output only. A client that sends one gets the usual unknown-field
+  error, and `Person.validate(...)` never reads them.
+- The OpenAPI document lists them as `readOnly` properties, never as
+  `required`, with `description` and `examples` when given.
+- A computed field cannot reuse the name or the wire name of a field or of
+  another computed field (`RegistrationError`). Subclasses inherit them.
+- `Person.computed_fields()` returns the `{name: spec}` mapping.
+- A schema with computed fields is serialized through the schema instance, not
+  the direct row-to-JSON shortcut.
+
 ## Wire aliases
 
 Use `Field(alias=...)` when the public JSON name should differ from the Python attribute. The alias is the only accepted input key; sending both names is an error. `dump()` writes aliases, including in nested schemas and lists, while `to_dict()` keeps Python attribute names. Validation errors and OpenAPI properties use the wire names. A custom check's default field path is translated to its alias; an explicit `Invalid(path=...)` is already a wire path.
