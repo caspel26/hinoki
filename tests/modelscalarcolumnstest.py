@@ -5,6 +5,7 @@ import enum
 import os
 from collections.abc import AsyncIterator
 from decimal import Decimal
+from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
@@ -12,12 +13,7 @@ import pytest
 from hinoki.db import Database
 from hinoki.errors import FieldError, ModelValidationError
 from hinoki.orm import Model, field, use_database
-from hinoki.orm.migrations import table_state
-
-URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
-needs_database = pytest.mark.skipif(
-    URL is None, reason="HINOKI_TEST_DATABASE_URL is not set"
-)
+from hinoki.orm.migrations import create_table_sql, table_state
 
 
 class Color(enum.Enum):
@@ -74,14 +70,32 @@ def test_a_wrong_value_is_refused_before_a_write() -> None:
             Entry.validate_values(bad)
 
 
-@pytest.fixture
-async def db() -> AsyncIterator[Database]:
-    assert URL is not None
-    database = await Database.connect(URL, max_size=2, wait=0.5)
+BACKENDS = {
+    "sqlite": None,
+    "postgres": os.environ.get("HINOKI_TEST_DATABASE_URL"),
+    "mysql": os.environ.get("HINOKI_TEST_MYSQL_URL"),
+    "mariadb": os.environ.get("HINOKI_TEST_MARIADB_URL"),
+}
+
+
+@pytest.fixture(
+    params=[
+        pytest.param(
+            name,
+            marks=pytest.mark.skipif(
+                name != "sqlite" and url is None, reason=f"no {name} database URL"
+            ),
+        )
+        for name, url in BACKENDS.items()
+    ]
+)
+async def db(request: pytest.FixtureRequest, tmp_path: Path) -> AsyncIterator[Database]:
+    backend: str = request.param
+    url = BACKENDS[backend] or f"sqlite://{tmp_path / 'scalars.sqlite3'}"
+    database = await Database.connect(url, max_size=2, wait=0.5)
     await database.execute("DROP TABLE IF EXISTS scalar_entries")
     await database.execute(
-        "CREATE TABLE scalar_entries (id uuid PRIMARY KEY, day text NOT NULL, "
-        "at text, span bigint, price text, color text, level bigint)"
+        create_table_sql(Entry.__table__, table_state(Entry), backend)
     )
     with use_database(database):
         yield database
@@ -89,7 +103,6 @@ async def db() -> AsyncIterator[Database]:
     database.close()
 
 
-@needs_database
 async def test_round_trip_and_filter(db: Database) -> None:
     created = await Entry.acreate(
         day=dt.date(2026, 3, 4),
@@ -115,7 +128,6 @@ async def test_round_trip_and_filter(db: Database) -> None:
     assert updated.at is None
 
 
-@needs_database
 async def test_dates_and_durations_compare_and_order(db: Database) -> None:
     for day, span in ((3, 30), (1, -5), (2, 4)):
         await Entry.acreate(day=dt.date(2026, 1, day), span=dt.timedelta(seconds=span))
@@ -128,7 +140,6 @@ async def test_dates_and_durations_compare_and_order(db: Database) -> None:
     assert [e.day.day for e in days] == [1, 2, 3]
 
 
-@needs_database
 async def test_text_order_is_refused_where_it_would_be_wrong(db: Database) -> None:
     with pytest.raises(FieldError, match="price"):
         Entry.filter(price__gt=Decimal(1))
@@ -139,20 +150,20 @@ async def test_text_order_is_refused_where_it_would_be_wrong(db: Database) -> No
     assert await Entry.filter(price__isnull=True).acount() == 0
 
 
-@needs_database
-async def test_a_corrupt_stored_value_is_a_field_error(db: Database) -> None:
-    for column, value in (
+@pytest.mark.parametrize(
+    ("column", "value"),
+    [
         ("day", "'yesterday'"),
         ("at", "'noon'"),
         ("price", "'abc'"),
         ("color", "'green'"),
         ("level", "7"),
-    ):
-        await db.execute("DELETE FROM scalar_entries")
-        await db.execute(
-            "INSERT INTO scalar_entries (id, day, at, price, color, level) "
-            "VALUES (gen_random_uuid(), '2026-01-01', NULL, NULL, NULL, NULL)"
-        )
-        await db.execute(f"UPDATE scalar_entries SET {column} = {value}")  # noqa: S608
-        with pytest.raises(FieldError, match=column):
-            await Entry.all().afirst()
+    ],
+)
+async def test_a_corrupt_stored_value_is_a_field_error(
+    db: Database, column: str, value: str
+) -> None:
+    await Entry.acreate(day=dt.date(2026, 1, 1))
+    await db.execute(f"UPDATE scalar_entries SET {column} = {value}")  # noqa: S608
+    with pytest.raises(FieldError, match=column):
+        await Entry.all().afirst()
