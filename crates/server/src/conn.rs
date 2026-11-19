@@ -26,7 +26,7 @@ use hyper::header::{HeaderName, HeaderValue};
 use hyper::http::request::Parts;
 use hyper::{Method, Request, Response, StatusCode, Version};
 
-use crate::accesslog::{self, AccessLog, LogFilter, Trace};
+use crate::accesslog::{self, AccessLog, LogFilter, Sink, Trace};
 use crate::body::BodyReader;
 use crate::early::Early;
 use crate::framing::Signals;
@@ -195,7 +195,7 @@ struct LoggedHead {
 }
 
 impl LoggedHead {
-    fn log(&self, style: AccessLog, status: u16, elapsed: Duration) {
+    fn log(&self, style: AccessLog, status: u16, elapsed: Duration, sink: Option<&Sink>) {
         accesslog::log(
             style,
             &accesslog::Entry {
@@ -208,6 +208,7 @@ impl LoggedHead {
                 elapsed,
                 lane: self.trace.lane(),
             },
+            sink,
         );
     }
 }
@@ -251,7 +252,12 @@ pub async fn respond<B: Backend>(
             .log_filter
             .keeps(&head.path, answer.status, elapsed)
         {
-            head.log(style, answer.status, elapsed);
+            head.log(
+                style,
+                answer.status,
+                elapsed,
+                transport.log_filter.sink.as_ref(),
+            );
         }
     }
     let mut response = response_of(answer, head_only);
