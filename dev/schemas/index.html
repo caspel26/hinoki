@@ -425,7 +425,7 @@
 </ul>
 <p><code>Schema.validate(data)</code> reports structural problems together. Values are not coerced; for data that is all text, such as form fields, <code>Schema.validate_text(data)</code> first converts values to the <code>int</code>, <code>float</code> and <code>bool</code> fields declare (and wraps a lone value of a <code>list</code> field), in Rust, then runs the same strict <code>validate</code>. A value that does not convert is left as text and fails validation with the usual type error; <code>str</code>, <code>UUID</code> and <code>datetime</code> are checked as text. Declare field constraints with <code>Field(...)</code>; use <code>@field_normalize</code> for narrow, typed string canonicalization and <code>@field_check</code>/<code>@object_check</code> for synchronous rejection checks.</p>
 <h2 id="field-types">Field types<a class="headerlink" href="#field-types" title="Permanent link">&para;</a></h2>
-<p>A field is annotated with <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>, <code>UUID</code>, <code>datetime</code>, <code>date</code>, <code>time</code>, <code>timedelta</code>, <code>Decimal</code>, <code>bytes</code>, an <code>Enum</code> class, a <code>Literal</code>, a nested <code>Schema</code>, <code>list[X]</code>, <code>set[X]</code>, <code>frozenset[X]</code>, <code>tuple[X, ...]</code>, <code>tuple[X, Y]</code>, <code>dict[str, X]</code> or a <a href="#discriminated-unions">discriminated union</a>, a <a href="#plain-unions-and-any">plain union</a> such as <code>int | str</code>, <code>Any</code>, optionally <code>| None</code> (accepts <code>null</code>) and <code>| Unset</code> (may be left out of a partial update), and optionally wrapped in <code>Annotated[..., Field(...)]</code>. <code>X</code> can be any of these, so <code>list[dict[str, int]]</code> and <code>dict[str, list[Point]]</code> work. Anything else (<code>bytearray</code>, <code>dict[int, X]</code>, <code>TypedDict</code>) raises <code>RegistrationError</code> when the class is created.</p>
+<p>A field is annotated with <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>, <code>UUID</code>, <code>datetime</code>, <code>date</code>, <code>time</code>, <code>timedelta</code>, <code>Decimal</code>, <code>bytes</code>, an <code>Enum</code> class, a <code>Literal</code>, a nested <code>Schema</code>, a <a href="#typeddict-and-dataclass-fields"><code>TypedDict</code> or dataclass</a>, <code>list[X]</code>, <code>set[X]</code>, <code>frozenset[X]</code>, <code>tuple[X, ...]</code>, <code>tuple[X, Y]</code>, <code>dict[str, X]</code> or a <a href="#discriminated-unions">discriminated union</a>, a <a href="#plain-unions-and-any">plain union</a> such as <code>int | str</code>, <code>Any</code>, optionally <code>| None</code> (accepts <code>null</code>) and <code>| Unset</code> (may be left out of a partial update), and optionally wrapped in <code>Annotated[..., Field(...)]</code>. <code>X</code> can be any of these, so <code>list[dict[str, int]]</code> and <code>dict[str, list[Point]]</code> work. Anything else (<code>bytearray</code>, <code>dict[int, X]</code>) raises <code>RegistrationError</code> when the class is created.</p>
 <h3 id="sets-and-tuples">Sets and tuples<a class="headerlink" href="#sets-and-tuples" title="Permanent link">&para;</a></h3>
 <p><code>set[X]</code>, <code>frozenset[X]</code>, <code>tuple[X, ...]</code> and fixed tuples such as <code>tuple[float, float]</code> travel as JSON arrays; validation returns the Python container:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
@@ -685,7 +685,28 @@
 <li><strong>OpenAPI</strong> describes a plain union as <code>anyOf</code> of the variant schemas and <code>Any</code> as an unconstrained schema. A <code>Model</code> column annotated with a plain union or <code>Any</code> stays a JSON column.</li>
 <li><code>HNK-SCH-002</code> checks each text variant of a union for <code>max_length</code>.</li>
 </ul>
-<p>Not supported yet: <code>TypedDict</code> and dataclass fields.</p>
+<h3 id="typeddict-and-dataclass-fields"><code>TypedDict</code> and dataclass fields<a class="headerlink" href="#typeddict-and-dataclass-fields" title="Permanent link">&para;</a></h3>
+<p>A field may be annotated with a <code>TypedDict</code> or a dataclass. It is validated as a nested object and described in OpenAPI as a component named after the type.</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Address</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+    <span class="n">street</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="nb">zip</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Geo</span><span class="p">:</span>
+    <span class="n">lat</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">lon</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Place</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">address</span><span class="p">:</span> <span class="n">Address</span>
+    <span class="n">geo</span><span class="p">:</span> <span class="n">Geo</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+<ul>
+<li><strong>The value is a generated <code>Schema</code>.</strong> Hinoki builds one <code>Schema</code> per type, with the same name and fields, and the validated value is an instance of it: <code>place.address.street</code> works, but the value is not a <code>dict</code> or a <code>Geo</code>. <code>dump()</code> gives the JSON form. Methods, <code>__post_init__</code> and base classes of the original type are not carried over.</li>
+<li><strong>Required keys.</strong> A <code>TypedDict</code> key that may be missing (<code>NotRequired</code>, or any key of a <code>total=False</code> class unless <code>Required</code>) becomes <code>| Unset</code>: a key the client left out stays <code>UNSET</code> and is left out of <code>dump()</code>. A dataclass field with a default or a <code>default_factory</code> is optional.</li>
+<li><strong>Constraints.</strong> <code>Annotated[..., Field(...)]</code> on a member of the type is honoured; constraints on the field that holds the whole type are refused, as for a nested <code>Schema</code>.</li>
+<li><strong>Limits.</strong> A dataclass field with <code>init=False</code> and a recursive type raise <code>RegistrationError</code>.</li>
+<li><strong>Native lane.</strong> The generated class is an ordinary <code>Schema</code>, so both lanes validate it the same way.</li>
+</ul>
 <h3 id="internet-addresses-email-url-and-slug">Internet addresses, <code>Email</code>, <code>Url</code> and <code>Slug</code><a class="headerlink" href="#internet-addresses-email-url-and-slug" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ipaddress</span><span class="w"> </span><span class="kn">import</span> <span class="n">IPv4Address</span><span class="p">,</span> <span class="n">IPv4Network</span>
 
@@ -901,7 +922,7 @@
           
           
             <ul><li><a href="#field-types">Field types</a>
-            <ul><li><a href="#sets-and-tuples">Sets and tuples</a></li><li><a href="#enums-and-literals">Enums and literals</a></li><li><a href="#dates-durations-decimals-and-bytes">Dates, durations, decimals and bytes</a></li><li><a href="#multiples">Multiples</a></li><li><a href="#dictionary-fields">Dictionary fields</a></li><li><a href="#plain-unions-and-any">Plain unions and Any</a></li><li><a href="#internet-addresses-email-url-and-slug">Internet addresses, Email, Url and Slug</a></li><li><a href="#secretstr-and-path">SecretStr and Path</a></li></ul>
+            <ul><li><a href="#sets-and-tuples">Sets and tuples</a></li><li><a href="#enums-and-literals">Enums and literals</a></li><li><a href="#dates-durations-decimals-and-bytes">Dates, durations, decimals and bytes</a></li><li><a href="#multiples">Multiples</a></li><li><a href="#dictionary-fields">Dictionary fields</a></li><li><a href="#plain-unions-and-any">Plain unions and Any</a></li><li><a href="#typeddict-and-dataclass-fields">TypedDict and dataclass fields</a></li><li><a href="#internet-addresses-email-url-and-slug">Internet addresses, Email, Url and Slug</a></li><li><a href="#secretstr-and-path">SecretStr and Path</a></li></ul>
           </li><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#class-configuration">Class configuration</a></li><li><a href="#discriminated-unions">Discriminated unions</a></li><li><a href="#projection-options-on-dump">Projection options on dump()</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
           
         </nav>
@@ -909,8 +930,8 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 13:05:22 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>23 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 14:21:29 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>24 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
