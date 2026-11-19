@@ -2,6 +2,7 @@
 
 import asyncio
 import contextvars
+import threading
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -17,6 +18,7 @@ def start(
     *,
     ctx: contextvars.Context | None = None,
     deadline_ms: int | None = None,
+    scheduler: Callable[..., Any] | None = None,
     on_foreign: Callable[[Any, Any, Any, float | None], None] | None = None,
 ) -> tuple[core._NativeRun, asyncio.Future[Outcome]]:
     """Start a drive; the future resolves with what ``on_done`` received."""
@@ -29,7 +31,9 @@ def start(
     def refuse(coro: Any, ctx: Any, yielded: Any, remaining: float | None) -> None:
         raise AssertionError("unexpected hand-over")
 
-    run = core.run_native(coro, on_done, on_foreign or refuse, ctx, deadline_ms)
+    run = core.run_native(
+        coro, on_done, on_foreign or refuse, ctx, deadline_ms, scheduler
+    )
     return run, done
 
 
@@ -221,3 +225,67 @@ def test_the_handle_is_cancelable_without_a_loop() -> None:
     )
     run.cancel()
     assert outcomes == [(1, None, None)]
+
+
+async def test_with_a_scheduler_every_step_runs_on_the_loop_thread() -> None:
+    loop = asyncio.get_running_loop()
+    threads: list[int] = []
+    loops: list[object] = []
+
+    async def handler() -> str:
+        for _ in range(3):
+            await core._native_wait(2, None, False)
+            threads.append(threading.get_ident())
+            loops.append(asyncio.get_running_loop())
+        return "done"
+
+    _, done = start(handler(), scheduler=loop.call_soon_threadsafe)
+    assert await asyncio.wait_for(done, 2) == ("done", None, None)
+    assert set(threads) == {threading.get_ident()}
+    assert all(seen is loop for seen in loops)
+
+
+async def test_without_a_scheduler_there_is_no_loop_off_the_first_step() -> None:
+    errors: list[type[BaseException]] = []
+
+    async def handler() -> None:
+        await core._native_wait(2, None, False)
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError as error:
+            errors.append(type(error))
+
+    _, done = start(handler())
+    await done
+    assert errors == [RuntimeError]
+
+
+async def test_the_deadline_still_cancels_through_the_scheduler() -> None:
+    loop = asyncio.get_running_loop()
+    steps: list[str] = []
+
+    async def handler() -> None:
+        try:
+            await core._native_wait(10_000, None, False)
+        finally:
+            await core._native_wait(5, None, False)
+            steps.append("cleaned")
+
+    _, done = start(handler(), deadline_ms=20, scheduler=loop.call_soon_threadsafe)
+    _, error, reason = await asyncio.wait_for(done, 2)
+    assert isinstance(error, asyncio.CancelledError)
+    assert reason == "deadline"
+    assert steps == ["cleaned"]
+
+
+async def test_a_scheduler_that_fails_ends_the_drive_with_its_error() -> None:
+    def broken(callback: Any) -> None:
+        raise RuntimeError("loop is closed")
+
+    async def handler() -> None:
+        await core._native_wait(2, None, False)
+
+    _, done = start(handler(), scheduler=broken)
+    _, error, _ = await asyncio.wait_for(done, 2)
+    assert isinstance(error, RuntimeError)
+    assert "closed" in str(error)
