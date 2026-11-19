@@ -17,4 +17,14 @@ See the [documentation](https://caspel26.github.io/hinoki/) and runnable [exampl
 - Validate the server integration, admin styles and generated typing contracts across real usage.
 - Publish only after the site and release process have been reviewed.
 
+## Planned for a later release
+
+These are directions, not commitments, and none of them is available today.
+
+- Moving more of the request path into the Rust core, before new features.
+- Cursor pagination.
+- WebSockets and streaming responses.
+- Per-route CORS policies.
+- Shipping the admin as a separate optional package.
+
 This roadmap is intentionally curated; detailed queue notes and owner decisions are maintained locally and are not part of the public repository.
