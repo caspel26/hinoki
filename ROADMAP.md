@@ -13,7 +13,7 @@ See the [documentation](https://caspel26.github.io/hinoki/) and runnable [exampl
 ## Active direction
 
 - Improve the developer and documentation experience while keeping the public API small.
-- Bring `Schema` field types close to what Pydantic accepts, each step on both the Python and the Rust lane with OpenAPI, rules and documentation. Available: `dict[str, X]`, `date`, `time`, `timedelta`, `Decimal`, `bytes`, `Enum`, `StrEnum`, `IntEnum`, `Literal`, `set`, `frozenset` and `tuple`. Next, in order: plain unions, `Any`, `TypedDict` and dataclass fields; more constraints (`multiple_of`, strict mode); IP addresses and networks, URLs, `SecretStr`, `Path` and a syntactic email check; validators and computed fields where the Rust lane can stay consistent.
+- Bring `Schema` field types close to what Pydantic accepts, each step on both the Python and the Rust lane with OpenAPI, rules and documentation. Available: `dict[str, X]`, `date`, `time`, `timedelta`, `Decimal`, `bytes`, `Enum`, `StrEnum`, `IntEnum`, `Literal`, `set`, `frozenset`, `tuple`, plain unions and `Any`. Next, in order: `TypedDict` and dataclass fields; more constraints (`multiple_of`, strict mode); IP addresses and networks, URLs, `SecretStr`, `Path` and a syntactic email check; validators and computed fields where the Rust lane can stay consistent.
 - Validate the server integration, admin styles and generated typing contracts across real usage.
 - Publish only after the site and release process have been reviewed.
 

@@ -4,7 +4,7 @@ import datetime as dt
 import enum
 from collections.abc import Iterable
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from hinoki import UNSET, Field, Schema, SchemaConfig, SchemaExtra, Unset, derive
@@ -78,6 +78,15 @@ def ticket_priority() -> Priority:
 def invoice_total() -> Decimal:
     invoice = Invoice(total=Decimal("9.99"), due=dt.date(2026, 12, 1))
     return invoice.total
+
+
+class Reading(Schema):
+    code: int | str
+    payload: Any = None
+
+
+def reading_code() -> int | str:
+    return Reading(code=1).code
 
 
 class VendorWebhook(Schema, config=SchemaConfig(extra=SchemaExtra.IGNORE)):

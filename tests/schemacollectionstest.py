@@ -297,10 +297,8 @@ def test_the_json_encoder_writes_arrays_inside_schemas() -> None:
         (frozenset, "unsupported"),
         (tuple, "unsupported"),
         (tuple[()], "empty tuple"),
-        (tuple[int, ...] | set[int], "union"),
         (tuple[..., int], "Ellipsis"),  # type: ignore[misc]
         (tuple[int, ..., str], "Ellipsis"),  # type: ignore[misc]
-        (tuple[int, ...] | None | int, "union"),
         (set[Point], "hashable"),
         (set[list[int]], "hashable"),
         (set[dict[str, int]], "hashable"),
