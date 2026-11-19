@@ -65,10 +65,26 @@ model-to-file drift.
 ### `new`
 
 ```sh
-hinoki new notes --dir .
+hinoki new notes --dir .      # or just `hinoki new` in a terminal for prompts
+hinoki new notes --no-input --database sqlite --git --install
 ```
 
-`NAME` is a lowercase package name containing letters and digits; it cannot be `hinoki` or a Python standard-library module name, because those names would shadow imports used by the generated project. `--dir` chooses the parent directory and defaults to the current directory. The target `PATH/NAME` must not exist or must be empty; nothing is overwritten, and nothing is installed or run.
+In a terminal, `hinoki new` with no `NAME` (or with some options missing) asks for what the flags left unset: name, parent directory, database, agent files, `git init` and `uv sync`. Pass `--no-input` (or run without a terminal, as in CI) to skip every prompt and use flags and defaults; `NAME` is then required.
+
+| Option | Effect | Default |
+| --- | --- | --- |
+| `--database none\|sqlite\|postgresql` | `sqlite` declares `database: settings.DatabaseSettings` in the project settings (local file under `.hinoki/`); `postgresql` also writes `.env.example` with a placeholder `<NAME>_DATABASE__URL` to copy to `.env` | `none` |
+| `--agent-files` / `--no-agent-files` | write or omit `AGENTS.md`, `CLAUDE.md` and `.mcp.json` | written |
+| `--git` | run `git init` in the project (no commit is made) | off (prompt default: yes) |
+| `--install` | run `uv sync` in the project | off (prompt default: yes) |
+
+On a colour, UTF-8 terminal (macOS and Linux) the prompts sit on a guide rail and answer to keys: type a name (backspace edits, Ctrl-U clears), move through the database list with ↑/↓ or pick it by number, and switch yes/no with ←/→ or `y`/`n`; Enter confirms. Each answered prompt collapses into one summary line. The run then lists the key files it created, times `git init` and `uv sync` (with a spinner while they run) and ends with the next commands. Ghostty, kitty, iTerm2 and WezTerm show the Hinoki logo as an inline image; other terminals show a text wordmark. Elsewhere the prompts are numbered lists and `[Y/n]` questions answered with Enter.
+
+Output that is piped, `NO_COLOR` and `TERM=dumb` give plain ASCII with no escape sequences. `HINOKI_ANIMATE=0` (or `CI`) turns off the tagline animation and the spinner; `HINOKI_IMAGES=0` (or running inside tmux/screen) uses the text wordmark. When the terminal reports a light background through `COLORFGBG`, darker shades of the same colours are used. Ctrl-C (or Esc in the key-driven prompts) or end of input cancels before anything is written (exit status 130).
+
+`git` and `uv` run only when asked; a missing tool or a failing command prints a warning and does not undo the project. Nothing else is installed or run, and no database is created or contacted.
+
+`NAME` is a lowercase package name containing letters and digits; it cannot be `hinoki` or a Python standard-library module name, because those names would shadow imports used by the generated project. `--dir` chooses the parent directory and defaults to the current directory. The target `PATH/NAME` must not exist or must be empty; nothing is overwritten.
 
 This repository's pre-alpha Hinoki framework is not published on PyPI; the [`hinoki` name](https://pypi.org/project/hinoki/) belongs to an unrelated legacy package. The generated `pyproject.toml` therefore names this repository as the source under `[tool.uv.sources]`:
 
