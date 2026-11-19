@@ -255,7 +255,7 @@ class TaskOutput(Schema):
     title: str
 
 
-class Tasks(API, path="/tasks"):
+class TaskAPI(API, path="/tasks"):
     @http.get("/")
     async def listing(self) -> list[TaskOutput]:
         return []
@@ -265,7 +265,9 @@ class Tasks(API, path="/tasks"):
         return TaskOutput(id=uuid4(), title=data.title)
 ```
 
-Then the application can include `Tasks` as one item. The path prefix is visible
+Then the application can include `TaskAPI` as one item. Name an `API` class after
+its resource with an `API` suffix (`TaskAPI`, `PostAPI`); the name appears in
+rule ids and `hinoki routes`. The path prefix is visible
 on the class; the full paths remain beside their actions. Use `RouteGroup` when
 functions are a better fit, especially when several actions share access,
 transaction defaults, or declared errors. A group must contain at least one
@@ -413,11 +415,11 @@ If a feature declares its own prefix (a `RouteGroup("/tasks")` or `API, path="/t
 To see the resulting map without starting the server, run `hinoki routes blog.main:create_app --path /posts` (the blog example):
 
 ```text
-GET     /posts                    public                   blog.api.Posts.listing
+GET     /posts                    public                   blog.api.PostAPI.listing
 POST    /posts                    TokenAuth[posts:write]   hinoki.crud.create
 DELETE  /posts/{item_id}          TokenAuth[posts:write]   hinoki.crud.delete
-GET     /posts/{item_id}          public                   blog.api.Posts.one
-POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publish
+GET     /posts/{item_id}          public                   blog.api.PostAPI.one
+POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.PostAPI.publish
 ```
 
 Use `--path` or `--method` to narrow it, and `--format json` for scripts. The list is sorted by path.

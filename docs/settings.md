@@ -304,7 +304,7 @@ postgresql://app:password@db.example/app?sslmode=require&sslrootcert=/run/secret
 class BlogSettings(settings.AppSettings, prefix="BLOG_"):
     database: settings.DatabaseSettings
 
-app = Hinoki(settings=BlogSettings, include=[health, Posts])
+app = Hinoki(settings=BlogSettings, include=[health, PostAPI])
 ```
 
 The configuration is automatic in the useful sense: `BLOG_DATABASE__URL` (or the connection fields) is loaded from settings and the database module connects as the server starts. Resource creation and cleanup remain explicit in the module lifecycle; there is no process-global connection opened during import. Factories remain useful when the app's routes or modules depend on runtime choices.

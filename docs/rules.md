@@ -50,7 +50,7 @@ app = Hinoki(..., rules=blog_rules)   # startup rules fail the app if a promise 
 
 The model rules take `match` as an `fnmatch` pattern on the model's module (`blog.*`); a pattern that matches no model is reported as unverifiable.
 
-`match` and `except_` patterns on action rules use `fnmatch` on the action's full qualified name (`pkg.api.Posts.create`, named after the class it is mounted on). A bare name such as `health` matches nothing: write `*.health`.
+`match` and `except_` patterns on action rules use `fnmatch` on the action's full qualified name (`pkg.api.PostAPI.create`, named after the class it is mounted on). A bare name such as `health` matches nothing: write `*.health`.
 
 ## Run them
 

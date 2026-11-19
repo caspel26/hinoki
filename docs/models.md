@@ -166,7 +166,7 @@ from hinoki import API, crud
 
 
 @crud(Task, path="/tasks", read=TaskOut)
-class Tasks(API):
+class TaskAPI(API):
     def get_queryset(self, principal):
         return Task.active()
 

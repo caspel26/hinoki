@@ -8,14 +8,14 @@ Modules own resources whose lifetime belongs to a worker or a management command
 
 ## Declare modules
 
-This excerpt uses the `health` route and `Tasks` API from your application; the imports and application-specific declarations are omitted here.
+This excerpt uses the `health` route and `TaskAPI` from your application; the imports and application-specific declarations are omitted here.
 
 ```python
 class ProjectSettings(settings.AppSettings, prefix="APP_"):
     database: settings.DatabaseSettings
 
 
-app = Hinoki(settings=ProjectSettings, include=[health, Tasks])
+app = Hinoki(settings=ProjectSettings, include=[health, TaskAPI])
 ```
 
 The settings' `database: DatabaseSettings` field makes Hinoki install `DatabaseModule` before any declared module, so a module that `requires = (DatabaseModule,)` finds it. Declaring `DatabaseModule` in `modules=`, or installing an instance, replaces that automatic module. When a module class is passed, Hinoki constructs it from the settings class. A module instance is useful when setup needs explicit runtime arguments. The database pool is opened after the worker starts and closed during shutdown; importing the model module does not open a connection.
@@ -30,7 +30,7 @@ Module lifespan hooks are async. Keep startup bounded, fail fast when a required
 
 ## Startup and shutdown hooks
 
-For an action at the edge of a worker's life that owns no resource, such as warming a cache, logging the build or flushing a counter, list functions on the application instead of writing a module (`ProjectSettings`, `health` and `Tasks` are those of the previous example):
+For an action at the edge of a worker's life that owns no resource, such as warming a cache, logging the build or flushing a counter, list functions on the application instead of writing a module (`ProjectSettings`, `health` and `TaskAPI` are those of the previous example):
 
 ```python
 import logging
@@ -51,7 +51,7 @@ def say_goodbye(ctx: ModuleContext) -> None:
 
 app = Hinoki(
     settings=ProjectSettings,
-    include=[health, Tasks],
+    include=[health, TaskAPI],
     on_startup=[warm_cache],
     on_shutdown=[say_goodbye],
 )

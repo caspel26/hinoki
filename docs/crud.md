@@ -58,7 +58,7 @@ from hinoki.orm import QuerySet
 
 
 @crud(Post, path="/posts", read=PostOut, create=PostCreate, access=editor)
-class Posts(API):
+class PostAPI(API):
     def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Post]:
         return Post.filter(published=True).order_by("-id")
 
@@ -67,7 +67,7 @@ class Posts(API):
         return {"status": "ok"}
 
 
-app = Hinoki(include=[Posts])
+app = Hinoki(include=[PostAPI])
 ```
 
 A generated action is generated **or** handwritten, never both: defining
@@ -118,7 +118,7 @@ from hinoki import Caller, CrudAPI, Hinoki, http
 from hinoki.orm import QuerySet
 
 
-class Posts(CrudAPI, model=Post, path="/posts"):
+class PostAPI(CrudAPI, model=Post, path="/posts"):
     read_schema = PostOut
     create_schema = PostCreate
     access = editor
@@ -132,7 +132,7 @@ class Posts(CrudAPI, model=Post, path="/posts"):
         return {"status": "ok"}
 
 
-app = Hinoki(include=[Posts])
+app = Hinoki(include=[PostAPI])
 ```
 
 The generated actions are ordinary API routes, visible to OpenAPI, the
@@ -211,7 +211,7 @@ def slug_for(title: str) -> str:
     return title.casefold().replace(" ", "-")
 
 
-class Posts(CrudAPI, model=Post, path="/posts"):
+class PostAPI(CrudAPI, model=Post, path="/posts"):
     read_schema = PostOut
     create_schema = PostCreate
     access = editor
