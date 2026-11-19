@@ -201,6 +201,8 @@ struct Node<R: Rules> {
     /// entries of a dict, the characters of its keys).
     input_max_length: Option<i64>,
     pattern: Option<(R::Pattern, Regex)>,
+    /// `str` only: the form the text takes before any other check.
+    normalize: Normalize,
     ge: Option<R::Limit>,
     le: Option<R::Limit>,
     gt: Option<R::Limit>,
@@ -307,6 +309,53 @@ fn optional_int(constraints: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<
         .get_item(name)?
         .map(|v| v.extract::<i64>())
         .transpose()
+}
+
+fn flag(constraints: &Bound<'_, PyDict>, name: &str) -> PyResult<bool> {
+    constraints
+        .get_item(name)?
+        .map_or(Ok(false), |v| v.extract::<bool>())
+}
+
+/// What `strip`, `lower` and `upper` do to a string before it is checked.
+#[derive(Clone, Copy, Default)]
+struct Normalize {
+    strip: bool,
+    lower: bool,
+    upper: bool,
+}
+
+impl Normalize {
+    fn from_constraints(constraints: &Bound<'_, PyDict>) -> PyResult<Self> {
+        Ok(Self {
+            strip: flag(constraints, "strip")?,
+            lower: flag(constraints, "lower")?,
+            upper: flag(constraints, "upper")?,
+        })
+    }
+
+    fn is_set(self) -> bool {
+        self.strip || self.lower || self.upper
+    }
+
+    /// Python's `str.strip()` also removes the four information separators
+    /// (U+001C to U+001F), which Unicode does not call white space.
+    fn apply(self, text: &str) -> Cow<'_, str> {
+        let mut text = Cow::Borrowed(text);
+        if self.strip {
+            let trimmed =
+                text.trim_matches(|c: char| c.is_whitespace() || ('\x1c'..='\x1f').contains(&c));
+            if trimmed.len() != text.len() {
+                text = Cow::Owned(trimmed.to_owned());
+            }
+        }
+        if self.lower {
+            text = Cow::Owned(text.to_lowercase());
+        } else if self.upper {
+            text = Cow::Owned(text.to_uppercase());
+        }
+        text
+    }
 }
 
 fn optional_object(constraints: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<Py<PyAny>>> {
@@ -426,6 +475,7 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
         max_length: optional_int(&constraints, "max_length")?,
         input_max_length: optional_int(&constraints, "input_max_length")?,
         pattern,
+        normalize: Normalize::from_constraints(&constraints)?,
         ge: optional_object(&constraints, "ge")?,
         le: optional_object(&constraints, "le")?,
         gt: optional_object(&constraints, "gt")?,
@@ -640,6 +690,7 @@ fn lower_node(py: Python<'_>, node: &Node<PyRules>) -> Result<Node<NativeRules>,
         max_length: node.max_length,
         input_max_length: node.input_max_length,
         pattern,
+        normalize: node.normalize,
         ge: limit(&node.ge)?,
         le: limit(&node.le)?,
         gt: limit(&node.gt)?,
@@ -886,6 +937,8 @@ trait View {
     fn is_null(&self, data: &Self::Data) -> bool;
     fn null(&self, data: &Self::Data) -> Self::Out;
     fn string(&self, data: &Self::Data) -> Option<Self::Str>;
+    /// The text after `strip`, `lower` or `upper`.
+    fn normalized(&self, text: Self::Str, form: Normalize) -> Result<Self::Str, Self::Error>;
     /// Length in code points.
     fn char_count(&self, text: &Self::Str) -> Result<usize, Self::Error>;
     fn text<'s>(&self, text: &'s Self::Str) -> Result<Cow<'s, str>, Self::Error>;
@@ -1019,6 +1072,14 @@ impl<'py> View for PyView<'_, 'py> {
 
     fn string(&self, data: &Self::Data) -> Option<Self::Str> {
         data.cast::<PyString>().ok().cloned()
+    }
+
+    fn normalized(&self, text: Self::Str, form: Normalize) -> PyResult<Self::Str> {
+        let changed = match form.apply(&text.to_cow()?) {
+            Cow::Borrowed(_) => return Ok(text),
+            Cow::Owned(changed) => changed,
+        };
+        Ok(PyString::new(text.py(), &changed))
     }
 
     fn char_count(&self, text: &Self::Str) -> PyResult<usize> {
@@ -1430,7 +1491,7 @@ const BIG_INTEGER: Defer = Defer("integer outside i64");
 impl<'v> View for JsonView<'v> {
     type Rules = NativeRules;
     type Data = &'v Json;
-    type Str = &'v str;
+    type Str = Cow<'v, str>;
     type Object = &'v JsonObject;
     type Key = &'v str;
     type List = &'v [Json];
@@ -1447,23 +1508,30 @@ impl<'v> View for JsonView<'v> {
         Validated::Null
     }
 
-    fn string(&self, data: &Self::Data) -> Option<&'v str> {
+    fn string(&self, data: &Self::Data) -> Option<Cow<'v, str>> {
         match data {
-            Json::Str(text) => Some(text.as_str()),
+            Json::Str(text) => Some(Cow::Borrowed(text.as_str())),
             _ => None,
         }
     }
 
-    fn char_count(&self, text: &&'v str) -> Result<usize, Defer> {
+    fn normalized(&self, text: Cow<'v, str>, form: Normalize) -> Result<Cow<'v, str>, Defer> {
+        Ok(match form.apply(&text) {
+            Cow::Borrowed(_) => text,
+            Cow::Owned(changed) => Cow::Owned(changed),
+        })
+    }
+
+    fn char_count(&self, text: &Cow<'v, str>) -> Result<usize, Defer> {
         Ok(text.chars().count())
     }
 
-    fn text<'s>(&self, text: &'s &'v str) -> Result<Cow<'s, str>, Defer> {
-        Ok(Cow::Borrowed(text))
+    fn text<'s>(&self, text: &'s Cow<'v, str>) -> Result<Cow<'s, str>, Defer> {
+        Ok(Cow::Borrowed(text.as_ref()))
     }
 
-    fn string_out(&self, text: &'v str) -> Validated {
-        Validated::Str(text.to_owned())
+    fn string_out(&self, text: Cow<'v, str>) -> Validated {
+        Validated::Str(text.into_owned())
     }
 
     fn integer(&self, data: &Self::Data) -> Result<Option<Validated>, Defer> {
@@ -1907,6 +1975,13 @@ impl<'a, V: View> Run<'a, V> {
     fn text(&mut self, node: &Node<V::Rules>, data: &V::Data, path: &str) -> Checked<V> {
         let Some(text) = self.view.string(data) else {
             return self.fail(path, "type", "expected a string".to_owned());
+        };
+        let text = if node.normalize.is_set() {
+            self.view
+                .normalized(text, node.normalize)
+                .map_err(Abort::View)?
+        } else {
+            text
         };
         let size = self.view.char_count(&text).map_err(Abort::View)?;
         if !self.length(node, size, path, "character")? {
