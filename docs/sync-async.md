@@ -49,6 +49,23 @@ first = await Post.all().afirst()
 * **No sync lifespan, sync admin hooks, sync background tasks (`ctx.tasks.start_soon` takes coroutines) or sync `Database` SQL.** A sync *error handler* runs on the loop and must not call the ORM (its failure is treated as "unhandled").
 * **`SyncClient`** is available only inside its `with` block and raises a timeout error after `timeout` seconds.
 
+## Native handlers
+
+`@native` marks an `async def` handler that awaits only Hinoki's database calls, so the Rust server can drive it without an event loop. Put it under the HTTP decorator:
+
+```python
+from hinoki import http, native
+
+@http.get("/notes/{note_id}")
+@native
+async def read(note_id: int) -> NoteOut:
+    return await Note.aget(note_id)
+```
+
+The marker returns the function unchanged. Registration fails with the reason when the handler is not `async def`, belongs to an API class or generated resource, takes `Request`, or uses a method, input, parser or renderer the native lane does not run (path and query inputs, one `Schema` body, built-in parsers and renderers). Inside a Rust-driven coroutine a database call returns a native wait, and `atomic()` opens its transaction without an event-loop task.
+
+Current state: the marker is accepted and checked, and the database layer supports driven coroutines, but requests still run on the Python path, so behaviour and speed do not change yet. Once the Rust server drives marked handlers, awaiting anything other than the database (`asyncio.sleep`, an HTTP client, a lock) answers an error, because a started coroutine cannot move to an event loop.
+
 ## Rules of thumb
 
 * Prefer `async` handlers; use `def` for code that is naturally blocking (a library without async support, CPU work measured to be short).

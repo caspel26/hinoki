@@ -47,6 +47,12 @@ Import the namespace and decorate actions: `from hinoki import http`, then `@htt
 
 ::: hinoki.http.query
 
+## Native handler marker
+
+`from hinoki import native`, applied under an HTTP decorator. See [Sync and async](../sync-async.md#native-handlers).
+
+::: hinoki.nativemark.native
+
 ## Request, response and errors
 
 The types are available from `hinoki.http`, from `hinoki`, or from their modules `hinoki.http.request` and `hinoki.http.response`.
