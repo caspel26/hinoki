@@ -24,6 +24,7 @@ from hinoki.crud import (
     retrieve_row,
     update_row,
 )
+from hinoki.crypto import ClaimsJWTAuth
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import ErrorDetail, ErrorRegistry
 from hinoki.fields import UNSET
@@ -112,6 +113,7 @@ MODEL_METHODS = (
 # Overridden hooks only matter to the actions that write through the model.
 HOOK_METHODS = frozenset(MODEL_METHODS[-4:])
 HOOKED_ACTIONS = frozenset({"create", "update"})
+WRITE_ACTIONS = frozenset({"create", "update", "delete"})
 QUERYSET_METHODS = (
     "__init__",
     "__await__",
@@ -439,16 +441,77 @@ def public_route_is_plain(
     route = binding.route
     return (
         owner_is_plain(owner)
-        and not resource.access
-        and not resource.read_access
         and not resource.owner
         and not resource.assign
-        and route.access is None
+        and access_is_plain(route, resource, action)
         and route.atomic == (action in {"create", "update", "delete"})
         and route_parsing_is_plain(route)
         and route_rendering_is_plain(route)
         and route_status_is_plain(route, action)
         and action_binding_is_plain(binding, action)
+    )
+
+
+CLAIMS_AUTH_METHODS = (
+    "authenticate",
+    "resolve",
+    "resolve_token",
+    "resolve_claims",
+    "now",
+    "headers",
+)
+CLAIMS_AUTH_METHODS_ORIGINAL = static_state(ClaimsJWTAuth, CLAIMS_AUTH_METHODS)
+
+
+def access_is_plain(route: Any, resource: _CrudConfig, action: str) -> bool:
+    """The route's access is the resource's own and is either absent or a
+    claims-only provider Rust can verify without running application code."""
+    declared = resource.access if action in WRITE_ACTIONS else resource.read_access
+    if route.access is not declared:
+        return False
+    if declared is None:
+        return True
+    auth = declared.auth
+    return (
+        type(auth).__mro__.count(ClaimsJWTAuth) == 1
+        and not vars(auth)
+        and static_state_matches(
+            type(auth), CLAIMS_AUTH_METHODS, CLAIMS_AUTH_METHODS_ORIGINAL
+        )
+        and static_state_matches(
+            ClaimsJWTAuth, CLAIMS_AUTH_METHODS, CLAIMS_AUTH_METHODS_ORIGINAL
+        )
+    )
+
+
+def auth_snapshot(access: Any) -> tuple[object, ...]:
+    """Everything Rust copies from a claims-only provider, for the cold recheck."""
+    if access is None:
+        return ()
+    auth = access.auth
+    return (
+        tuple(key.spec() for key in auth.keys),
+        auth.issuer,
+        auth.audience,
+        auth.leeway,
+        auth.require_exp,
+        auth.scope_claim,
+        tuple(sorted(access.permissions)),
+    )
+
+
+def native_claims_auth(access: Any) -> core._ClaimsAuth | None:
+    if access is None:
+        return None
+    auth = access.auth
+    return core._ClaimsAuth(
+        [key.spec() for key in auth.keys],
+        auth.issuer,
+        auth.audience,
+        auth.leeway,
+        auth.require_exp,
+        auth.scope_claim,
+        sorted(access.permissions),
     )
 
 
@@ -498,6 +561,8 @@ def expected_binding_shape(binding: Binding, action: str) -> bool:
         "update": {"item_id": "path", "data": "body"},
         "delete": {"item_id": "path"},
     }[action]
+    if binding.route.access is not None:
+        expected = {**expected, "principal": "principal"}
     values = {parameter.name: parameter.source for parameter in binding.params}
     return (
         values == expected
@@ -789,6 +854,7 @@ def route_snapshot(binding: Binding) -> tuple[object, ...]:
         route.renderers,
         route.errors,
         route.owner,
+        auth_snapshot(route.access),
         tuple(
             (
                 item.name,
@@ -917,6 +983,7 @@ def compile_selection(
             create_schema=schema_args[1],
             update_schema=schema_args[2],
             validation_error=validation_error_template(),
+            auth=native_claims_auth(binding.route.access),
         )
     except (TypeError, ValueError):
         return None
