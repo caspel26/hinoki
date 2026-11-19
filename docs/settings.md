@@ -47,7 +47,7 @@ Settings types live in the `hinoki.settings` namespace: `from hinoki import sett
 | `docs` | `openapi_url` | `None` | JSON document route; disabled when `None` |
 | `docs` | `docs_url` | `None` | Swagger UI route; requires `openapi_url` |
 | `docs` | `redoc_url` | `None` | ReDoc route; requires `openapi_url` |
-| `server` | `server` | `granian` | `granian` or `rust`; `--server` overrides it. See [Running an application](serving.md#the-rust-server) |
+| `server` | `server` | `rust` | `granian` or `rust`; `--server` overrides it. See [Running an application](serving.md#the-rust-server) |
 | `server` | `host` | `127.0.0.1` | Bind address used by `hinoki dev/serve` |
 | `server` | `port` | `8000` | `1` to `65535` |
 | `server` | `workers` | `1` | `1` to `256`; `dev` uses one worker for reload |
