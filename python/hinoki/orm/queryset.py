@@ -587,3 +587,14 @@ async def fetch_in(model: type[Model], column: str, values: list[Any]) -> list[A
         chunk = values[start : start + IN_CHUNK]
         found.extend(await QuerySet(model).filter(**{f"{column}__in": chunk}))
     return found
+
+
+async def delete_keys(model: type[Model], keys: list[Any]) -> int:
+    """Delete the rows whose primary key is in ``keys``, chunked like
+    ``fetch_in``; returns how many were deleted."""
+    key = model.__primary_key__
+    deleted = 0
+    for start in range(0, len(keys), IN_CHUNK):
+        chunk = keys[start : start + IN_CHUNK]
+        deleted += await QuerySet(model).filter(**{f"{key}__in": chunk}).adelete()
+    return deleted
