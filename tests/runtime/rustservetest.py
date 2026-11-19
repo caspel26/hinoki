@@ -207,6 +207,7 @@ def test_the_json_format_writes_one_object_per_request() -> None:
     assert missing["lane"] == "early"
     ping = next(item for item in records if item["path"] == "/ping")
     assert ping["lane"] in {"python", "native"}
+    assert ping["route"] == "/ping" and "route" not in missing
     assert "\x1b[" not in output
 
 
