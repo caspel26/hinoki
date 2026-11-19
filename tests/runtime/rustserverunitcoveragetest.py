@@ -77,6 +77,7 @@ def _worker() -> Any:
     worker.access_log_skip = None
     worker.access_log_slow_ms = None
     worker.access_log_sink = None
+    worker.access_log_sink = None
     worker.lane = None
     worker.header_read_timeout = 5.0
     worker.body_read_timeout = 20.0
@@ -665,6 +666,7 @@ def test_build_worker_passes_only_native_server_settings(
         access_log_format=None,
         access_log_skip=None,
         access_log_slow_ms=None,
+        recent_requests=None,
         logs_access=lambda dev: dev,
     )
     captured: dict[str, Any] = {}

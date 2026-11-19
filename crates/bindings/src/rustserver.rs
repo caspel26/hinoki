@@ -434,11 +434,11 @@ const ACCESS_QUEUE: usize = 4096;
 /// Most records handed to Python in one call, so the GIL is taken once per batch.
 const ACCESS_BATCH: usize = 256;
 
-/// For `access_log="logger"`: a queue plus a thread that hands batches of JSON
+/// For a log with a callback: a queue plus a thread that hands batches of JSON
 /// lines to `callback`. The thread ends when the server drops its last sender.
 fn access_sink(style: Option<AccessLog>, callback: Option<Py<PyAny>>) -> PyResult<Option<Sink>> {
     match (style, callback) {
-        (Some(AccessLog::Logger), Some(callback)) => {
+        (Some(_), Some(callback)) => {
             let (sink, receiver) = Sink::new(ACCESS_QUEUE);
             std::thread::Builder::new()
                 .name("kiso-access-log".into())
