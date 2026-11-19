@@ -9,16 +9,18 @@
 use std::fmt::Write as _;
 use std::io::Write as _;
 use std::net::SocketAddr;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use hyper::StatusCode;
 
 /// How a line looks: `Plain` is one greppable line, `Pretty` adds the level tag,
-/// colours and alignment of a development console.
+/// colours and alignment of a development console, `Json` is one JSON object
+/// per line for a log pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AccessLog {
     Plain,
     Pretty,
+    Json,
 }
 
 /// What one line says about a request.
@@ -91,6 +93,81 @@ fn reason_of(status: u16) -> &'static str {
 
 /// The line for `entry`, without the trailing newline.
 pub fn line(style: AccessLog, entry: &Entry<'_>) -> String {
+    line_at(style, entry, SystemTime::now())
+}
+
+/// Days since 1970-01-01 as (year, month, day), proleptic Gregorian (Hinnant's
+/// `civil_from_days`).
+fn civil_from_days(days: i64) -> (i64, u32, u32) {
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    (year, month, day)
+}
+
+/// RFC 3339 UTC with millisecond precision, e.g. `2026-11-19T19:56:25.881Z`.
+fn timestamp(at: SystemTime) -> String {
+    let since = at.duration_since(UNIX_EPOCH).unwrap_or_default();
+    let secs = since.as_secs() as i64;
+    let (year, month, day) = civil_from_days(secs.div_euclid(86_400));
+    let rest = secs.rem_euclid(86_400);
+    format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}.{:03}Z",
+        rest / 3_600,
+        rest % 3_600 / 60,
+        rest % 60,
+        since.subsec_millis()
+    )
+}
+
+/// JSON string content: quotes, backslashes and control characters escaped.
+fn json_escaped(text: &str, out: &mut String) {
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if c.is_control() => {
+                let _ = write!(out, "\\u{:04x}", c as u32);
+            }
+            c => out.push(c),
+        }
+    }
+}
+
+fn json_line(entry: &Entry<'_>, at: SystemTime) -> String {
+    let mut text = String::with_capacity(192);
+    let _ = write!(
+        text,
+        "{{\"time\":\"{}\",\"peer\":\"{}\",\"method\":\"",
+        timestamp(at),
+        entry.peer
+    );
+    json_escaped(entry.method, &mut text);
+    text.push_str("\",\"path\":\"");
+    json_escaped(entry.path, &mut text);
+    text.push_str("\",\"query\":\"");
+    json_escaped(&String::from_utf8_lossy(entry.query), &mut text);
+    let _ = write!(
+        text,
+        "\",\"http_version\":\"{}\",\"status\":{},\"duration_ms\":{:.3}}}",
+        entry.http_version,
+        entry.status,
+        entry.elapsed.as_secs_f64() * 1_000.0
+    );
+    text
+}
+
+/// `line` with the time of the request given, so it can be tested.
+pub fn line_at(style: AccessLog, entry: &Entry<'_>, at: SystemTime) -> String {
+    if style == AccessLog::Json {
+        return json_line(entry, at);
+    }
     let target = target_of(entry);
     let reason = reason_of(entry.status);
     let took = duration_text(entry.elapsed);
@@ -99,7 +176,7 @@ pub fn line(style: AccessLog, entry: &Entry<'_>) -> String {
         entry.method, target, entry.http_version
     );
     match style {
-        AccessLog::Plain => format!(
+        AccessLog::Plain | AccessLog::Json => format!(
             "{} - {} {} {} {}",
             entry.peer, request, entry.status, reason, took
         ),
@@ -160,6 +237,39 @@ mod tests {
         let text = line(AccessLog::Plain, &entry(200, b"a=%0A", "/x\ny"));
         assert!(!text.contains('\n'));
         assert!(text.contains("/x\\x0ay"));
+    }
+
+    #[test]
+    fn json_line_is_one_object_with_a_utc_timestamp() {
+        let at = UNIX_EPOCH + Duration::from_millis(1_795_118_185_881);
+        let text = line_at(AccessLog::Json, &entry(404, b"a=1", "/items"), at);
+        assert_eq!(
+            text,
+            "{\"time\":\"2026-11-19T19:56:25.881Z\",\"peer\":\"127.0.0.1:52341\",\
+             \"method\":\"GET\",\"path\":\"/items\",\"query\":\"a=1\",\
+             \"http_version\":\"1.1\",\"status\":404,\"duration_ms\":3.200}"
+        );
+    }
+
+    #[test]
+    fn json_line_escapes_what_a_client_controls() {
+        let text = line_at(
+            AccessLog::Json,
+            &entry(200, b"q=\"x\"\n", "/a\\b\u{1}"),
+            UNIX_EPOCH,
+        );
+        assert!(!text.contains('\n'));
+        assert!(text.contains("\"path\":\"/a\\\\b\\u0001\""));
+        assert!(text.contains("\"query\":\"q=\\\"x\\\"\\u000a\""));
+        assert!(text.contains("\"time\":\"1970-01-01T00:00:00.000Z\""));
+    }
+
+    #[test]
+    fn dates_across_a_leap_day_are_exact() {
+        assert_eq!(civil_from_days(0), (1970, 1, 1));
+        assert_eq!(civil_from_days(11_016), (2000, 2, 29));
+        assert_eq!(civil_from_days(19_782), (2024, 2, 29));
+        assert_eq!(civil_from_days(19_783), (2024, 3, 1));
     }
 
     #[test]

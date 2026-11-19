@@ -690,6 +690,20 @@ def test_server_settings_validate_listener_proxy_request_id_and_limits() -> None
             factory()
     assert ServerSettings(access_log=True).conflicts("kiso") == []
     assert "max_connections" in ServerSettings(max_connections=2).conflicts("granian")
+    assert ServerSettings(access_log_format="json").conflicts("granian") == [
+        "access_log_format"
+    ]
+    assert ServerSettings(access_log_format="json").conflicts("kiso") == []
+
+
+def test_a_chosen_access_log_format_turns_the_log_on_unless_it_is_off() -> None:
+    assert ServerSettings(access_log_format="json").logs_access(False) is True
+    assert (
+        ServerSettings(access_log_format="json", access_log=False).logs_access(True)
+        is False
+    )
+    assert ServerSettings().logs_access(False) is False
+    assert ServerSettings().logs_access(True) is True
 
 
 def test_cors_settings_validate_origin_tokens_credentials_and_max_age() -> None:

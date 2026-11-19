@@ -2,7 +2,9 @@
 workers under a supervisor, graceful stop, a crashed worker and dev reload."""
 
 import contextlib
+import json
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -190,6 +192,18 @@ def test_serve_logs_requests_only_when_the_setting_is_on() -> None:
     assert '"GET /missing?x=1 HTTP/1.1" 404 Not Found' in loud
     assert "\x1b[" not in loud  # a pipe is not a terminal: no colour
     assert "Kiso " in loud and "serve, 1 worker, http, access log on" in loud
+
+
+def test_the_json_format_writes_one_object_per_request() -> None:
+    output = run_logged(
+        "serve", {"SRV_SERVER__ACCESS_LOG_FORMAT": "json"}, "--workers", "1"
+    )
+    records = [json.loads(line) for line in output.splitlines() if line.startswith("{")]
+    missing = next(item for item in records if item["path"] == "/missing")
+    assert missing["method"] == "GET" and missing["query"] == "x=1"
+    assert missing["status"] == 404 and missing["duration_ms"] >= 0
+    assert re.fullmatch(r"\d{4}-\d\d-\d\dT[\d:.]+Z", missing["time"])
+    assert "\x1b[" not in output
 
 
 def test_dev_logs_requests_unless_the_setting_is_off() -> None:

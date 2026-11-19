@@ -52,6 +52,8 @@ RUST_ONLY = (
     "write_timeout",
     "native_dispatch",
 )
+# What Granian cannot honour: the limits above and how Kiso formats its log.
+KISO_ONLY = (*RUST_ONLY, "access_log_format")
 QUOTED = 2  # shortest quoted value: the two quotes
 MAX_CORS_AGE = 86400
 HSTS_MAX_SECONDS = 63_072_000
@@ -1042,8 +1044,13 @@ class ServerSettings(Settings):
     ``access_log``
     prints one line per request on either server; unset, ``hinoki dev`` logs and
     ``hinoki serve`` does not, and ``True`` or ``False`` decides for both.
+    ``access_log_format`` (Rust server only: ``pretty``, ``plain`` or ``json``)
+    chooses how a line looks; unset, it is ``pretty`` on a colour terminal and
+    ``plain`` otherwise, and setting it turns the log on unless ``access_log`` is
+    ``False``. ``json`` writes one object per line with an RFC 3339 UTC ``time``.
     ``max_connections``, ``header_read_timeout``,
-    ``body_read_timeout``, ``write_timeout`` and ``native_dispatch`` belong to
+    ``body_read_timeout``, ``write_timeout``, ``native_dispatch`` and
+    ``access_log_format`` belong to
     the Rust server (``None`` keeps its default). ``hinoki serve`` refuses a
     setting the chosen server cannot honour. ``tls_cert_file`` and
     ``tls_key_file`` (PEM files, set together) serve HTTPS on either server;
@@ -1059,6 +1066,7 @@ class ServerSettings(Settings):
     runtime_threads: int = 1
     backlog: int = 1024
     access_log: bool | None = None
+    access_log_format: Literal["pretty", "plain", "json"] | None = None
     trusted_proxies: tuple[str, ...] = ()
     request_id_header: str = "x-request-id"
     trust_request_id: bool = False
@@ -1128,11 +1136,14 @@ class ServerSettings(Settings):
         """The settings that ``server`` (default: this group's) cannot honour."""
         if (server or self.server) == "kiso":
             return []
-        return [name for name in RUST_ONLY if getattr(self, name) is not None]
+        return [name for name in KISO_ONLY if getattr(self, name) is not None]
 
     def logs_access(self, dev: bool) -> bool:
-        """Whether requests are logged: ``access_log`` if set, else only in ``dev``."""
-        return dev if self.access_log is None else self.access_log
+        """Whether requests are logged: ``access_log`` if set, else when a format
+        is chosen or in ``dev``."""
+        if self.access_log is not None:
+            return self.access_log
+        return dev or self.access_log_format is not None
 
 
 class FrameOptions(StrEnum):
