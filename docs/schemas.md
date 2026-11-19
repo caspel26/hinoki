@@ -37,7 +37,7 @@ class NoteOut(Schema):
 
 ## Field types
 
-A field is annotated with `str`, `int`, `float`, `bool`, `UUID`, `datetime`, `date`, `time`, `timedelta`, `Decimal`, `bytes`, an `Enum` class, a `Literal`, a nested `Schema`, `list[X]`, `set[X]`, `frozenset[X]`, `tuple[X, ...]`, `tuple[X, Y]`, `dict[str, X]` or a [discriminated union](#discriminated-unions), optionally `| None` (accepts `null`) and `| Unset` (may be left out of a partial update), and optionally wrapped in `Annotated[..., Field(...)]`. `X` can be any of these, so `list[dict[str, int]]` and `dict[str, list[Point]]` work. Anything else (`bytearray`, `Any`, plain unions, `dict[int, X]`) raises `RegistrationError` when the class is created.
+A field is annotated with `str`, `int`, `float`, `bool`, `UUID`, `datetime`, `date`, `time`, `timedelta`, `Decimal`, `bytes`, an `Enum` class, a `Literal`, a nested `Schema`, `list[X]`, `set[X]`, `frozenset[X]`, `tuple[X, ...]`, `tuple[X, Y]`, `dict[str, X]` or a [discriminated union](#discriminated-unions), a [plain union](#plain-unions-and-any) such as `int | str`, `Any`, optionally `| None` (accepts `null`) and `| Unset` (may be left out of a partial update), and optionally wrapped in `Annotated[..., Field(...)]`. `X` can be any of these, so `list[dict[str, int]]` and `dict[str, list[Point]]` work. Anything else (`bytearray`, `dict[int, X]`, `TypedDict`) raises `RegistrationError` when the class is created.
 
 ### Sets and tuples
 
@@ -223,6 +223,48 @@ assert place.dump() == {
 A text value without a limit is reported by the `HNK-SCH-002` rule like a text field (see [rules](rules.md)). `HNK-SCH-001` (`Schemas.forbid_exposure`) checks field names only: the keys of a dict are runtime data, so a forbidden name used as a key is not detected. A `Model` column that holds a dict, directly or in list items, stays a JSON column: model writes do not apply these checks, and constraints on such a column are refused. A `Schema` derived from that model gets a `dict[str, X]` field validated as described here, without the wire-input bounds.
 
 Checks of `Schema` values run through lists and dicts at any depth. A `list[list[Point]]` field runs `Point`'s `@field_check` and `@object_check` for each inner item (`rows[1][0].x`); earlier versions skipped the checks of lists nested in lists.
+
+### Plain unions and `Any`
+
+A union of ordinary types, such as `int | str`, accepts a value that fits any variant; `Any` and `object` accept every JSON value unchanged:
+
+```python
+from typing import Annotated, Any
+
+from hinoki import Field, Schema
+from hinoki.errors import ValidationError
+
+
+class Reading(Schema):
+    value: int | str
+    when: Annotated[int, Field(ge=0)] | Annotated[str, Field(max_length=10)]
+    extra: Any = None
+
+
+reading = Reading.validate({"value": "abc", "when": 5, "extra": {"k": [1, None]}})
+assert reading.value == "abc" and reading.when == 5
+assert reading.dump() == {"value": "abc", "when": 5, "extra": {"k": [1, None]}}
+
+try:
+    Reading.validate({"value": 1.5, "when": -1})
+except ValidationError as error:
+    assert [(d.path, d.code) for d in error.details] == [
+        ("value", "union"),
+        ("when", "union"),
+    ]
+```
+
+* **First match wins.** Variants are tried in declared order and the first that accepts the value is used; no variant is tried after it. `bool` is never an `int` or a number, so `int | str` refuses `true`. A value no variant accepts is reported once at the field path with code `union` and `does not match any allowed type`, without the individual variant errors.
+* **Limits.** A union has 2 to 16 variants. `Field(...)` constraints go on a variant (`Annotated[str, Field(max_length=10)] | int`), not on the union itself, and are refused there. A union made only of `Schema` classes still needs `Field(discriminator=...)` (see [discriminated unions](#discriminated-unions)); a discriminated union can be one variant of a plain union.
+* **`Any` and `object`** accept anything, `null` included, and are returned as sent: no normalisation, no constraints. Use them for payloads the service stores or forwards without reading, and bound their size at the server or with a `Field(max_length=...)` on the surrounding field.
+* **Form, query and XML text.** A text source has no types, so a union takes the first `int`, `float` or `bool` variant that parses the text and otherwise keeps the text when a `str` variant exists: for `int | str`, `"5"` becomes `5` and `"abc"` stays `"abc"`. Lists from repeated keys stay lists of text, and a union with a list, tuple, dict or `Schema` variant gets its text as sent, without conversion.
+* **Bounded work.** Nested unions are tried variant by variant, so a hostile payload could multiply the work; a request whose failed container trials inside one union exceed 1024 is refused with a validation error.
+* **Construction** (`Reading(value=1, when="x")`) takes a value of a variant's Python type; the first variant that takes that type is used, so a `date` is never turned into text by an earlier `str` variant.
+* **Native lane.** Plain unions and `Any` are checked in Rust on the Python-object path (`Schema.validate`, handlers on the native lane). A `Schema` that uses one is not lowered to the GIL-free JSON lane, as with tuples; the results are identical.
+* **OpenAPI** describes a plain union as `anyOf` of the variant schemas and `Any` as an unconstrained schema. A `Model` column annotated with a plain union or `Any` stays a JSON column.
+* `HNK-SCH-002` checks each text variant of a union for `max_length`.
+
+Not supported yet: `TypedDict` and dataclass fields.
 
 ## Wire aliases
 
