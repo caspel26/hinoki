@@ -434,7 +434,7 @@ def test_shell_interrupt_exits_cleanly(
     monkeypatch.setattr(shellcli, "run_console", interrupt_console)
     output = io.StringIO()
     status = shellcli._run_session(
-        cast(Any, SimpleNamespace(settings=object())),
+        cast(Any, SimpleNamespace(title="app", settings=object())),
         {},
         io.StringIO(),
         output,
