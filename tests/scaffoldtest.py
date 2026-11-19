@@ -11,12 +11,14 @@ from typing import Any
 
 import pytest
 
+from hinoki import newcli
 from hinoki.__main__ import main
 from hinoki.errorcatalog import CATALOG, explain
 from hinoki.mcp import DevProject, Server
 from hinoki.newcli import fill_from_prompts
 from hinoki.rules import RuleSet
 from hinoki.scaffold import ScaffoldError, create, files
+from hinoki.terminal import Style
 from tests.projects.rulesapp import create_app, rules
 
 
@@ -312,7 +314,7 @@ def test_git_and_install_run_in_the_new_project_and_failures_are_not_fatal(
 
     calls: list[tuple[list[str], Path]] = []
 
-    def fake_run(command: list[str], cwd: Path, check: bool) -> Any:
+    def fake_run(command: list[str], cwd: Path, **_options: Any) -> Any:
         calls.append((command, cwd))
         return subprocess.CompletedProcess(command, 1 if "sync" in command else 0)
 
@@ -322,7 +324,7 @@ def test_git_and_install_run_in_the_new_project_and_failures_are_not_fatal(
         ["new", "shop", "--no-input", "--dir", str(tmp_path), "--git", "--install"]
     )
     assert code == 0
-    assert [call[0][1:] for call in calls] == [["init", "-q"], ["sync"]]
+    assert [call[0][1:] for call in calls] == [["init"], ["sync"]]
     assert all(call[1] == tmp_path / "shop" for call in calls)
     captured = capsys.readouterr()
     assert "warning" in captured.err
@@ -336,3 +338,57 @@ def test_a_missing_tool_is_skipped(
     monkeypatch.setattr("shutil.which", lambda _name: None)
     assert main(["new", "shop", "--no-input", "--dir", str(tmp_path), "--git"]) == 0
     assert "skipped: git is not installed" in capsys.readouterr().err
+
+
+def test_styling_is_used_only_on_a_capable_terminal() -> None:
+    class Tty:
+        encoding = "utf-8"
+
+        def isatty(self) -> bool:
+            return True
+
+    class Pipe(Tty):
+        def isatty(self) -> bool:
+            return False
+
+    fancy = Style.detect(Tty(), {"TERM": "xterm"})  # type: ignore[arg-type]
+    assert fancy.ok("done").startswith("  \x1b[32m\u2714")
+    assert "\x1b[" in fancy.banner("new project")
+    for stream, env in [
+        (Pipe(), {}),
+        (Tty(), {"NO_COLOR": "1"}),
+        (Tty(), {"TERM": "dumb"}),
+    ]:
+        plain = Style.detect(stream, env)  # type: ignore[arg-type]
+        text = plain.ok("done") + plain.warning("w") + plain.banner("t")
+        assert "\x1b" not in text
+        assert text.isascii()
+    ascii_only = Style(color=True, unicode=False)
+    assert "\u2714" not in ascii_only.ok("done")
+
+
+def test_the_database_prompt_accepts_a_number_or_a_name(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = new_args(name="shop", dir=".", agent_files=True, git=False, install=False)
+    fill_from_prompts(args, answers("7", "2"))
+    assert args.database == "sqlite"
+    listing = capsys.readouterr().out
+    assert "1) none" in listing and "3) postgresql" in listing
+    args = new_args(name="shop", dir=".", agent_files=True, git=False, install=False)
+    fill_from_prompts(args, answers("postgresql"))
+    assert args.database == "postgresql"
+
+
+def test_cancelling_a_prompt_creates_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+
+    def interrupted(_prompt: str) -> str:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(newcli, "interactive", lambda _args: True)
+    args = new_args(dir=str(tmp_path))
+    assert newcli.run_new(args, interrupted) == 130
+    assert "nothing was created" in capsys.readouterr().err
+    assert not any(tmp_path.iterdir())
