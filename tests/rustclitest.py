@@ -53,14 +53,17 @@ def test_the_server_defaults_to_rust_and_the_flag_overrides_the_setting() -> Non
         parsed("--server", "hyper")
 
 
-def test_the_rust_server_refuses_a_granian_only_setting(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    assert choose_server(parsed(), ServerSettings(access_log=True)) == 2
-    error = capsys.readouterr().err
-    assert "server.access_log is not supported by the rust server" in error
+def test_both_servers_accept_the_access_log() -> None:
+    assert choose_server(parsed(), ServerSettings(access_log=True)) == "rust"
     granian = parsed("--server", "granian")
     assert choose_server(granian, ServerSettings(access_log=True)) == "granian"
+
+
+def test_the_access_log_follows_the_setting_and_otherwise_dev() -> None:
+    assert ServerSettings().logs_access(dev=True)
+    assert not ServerSettings().logs_access(dev=False)
+    assert not ServerSettings(access_log=False).logs_access(dev=True)
+    assert ServerSettings(access_log=True).logs_access(dev=False)
 
 
 @pytest.mark.parametrize(
@@ -641,6 +644,9 @@ def test_supervisor_builds_and_spawns_worker_command(
     assert command[4:] == ["--fd", str(listener.fileno()), "--parent", str(os.getpid())]
     supervisor.spawn()
     assert popen.call_args.kwargs["pass_fds"] == (listener.fileno(),)
+    assert (
+        Supervisor("app:make", listener, 1, 2.0, reload=True).command()[-1] == "--dev"
+    )
     listener.close()
 
 
