@@ -506,3 +506,47 @@ def test_every_junk_value_in_every_collection_slot_agrees() -> None:
                 "pair",
                 junk,
             )
+
+
+class Variety(Schema):
+    code: int | str
+    when: datetime | UUID | float
+    many: list[int | Annotated[str, Field(max_length=2)]]
+    node: Point | int | None
+    anything: Any = None
+    mixed: tuple[int, str | bool] = (0, "")
+    plain: int | list[int] | dict[str, int] | None = None
+
+
+def choices_outcome(call: Any, data: object) -> tuple[str, Any]:
+    kind, value = outcome(call, Variety, data)
+    if kind != "ok":
+        return kind, value
+    return kind, {name: shown(getattr(value, name)) for name in Variety.specs()}
+
+
+def test_every_junk_value_in_every_union_slot_agrees() -> None:
+    base: dict[str, Any] = {
+        "code": 1,
+        "when": 1.5,
+        "many": [1, "a"],
+        "node": {"x": 1.0, "y": 1.0},
+        "anything": {"k": [1]},
+        "mixed": [1, "x"],
+        "plain": [1],
+    }
+    for junk in [*JUNK, [1, "a", 2.5], {"label": "ab"}, {"x": 1, "y": 2}]:
+        for key in list(base):
+            data = {**base, key: junk}
+            assert choices_outcome(native, data) == choices_outcome(oracle, data), (
+                key,
+                junk,
+            )
+        for inner in ([junk], [1, junk], [junk, junk]):
+            data = {**base, "many": inner}
+            assert choices_outcome(native, data) == choices_outcome(oracle, data), (
+                "many",
+                junk,
+            )
+        data = {**base, "mixed": [junk, junk]}
+        assert choices_outcome(native, data) == choices_outcome(oracle, data)
