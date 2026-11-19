@@ -152,6 +152,11 @@ enum Kind<R: Rules> {
     Timedelta,
     Decimal,
     Bytes,
+    /// `Any` / `object`: every value is accepted as it is.
+    Any,
+    /// A plain union: the variants in declared order, the first that accepts
+    /// the value wins.
+    AnyOf(Vec<Node<R>>),
     List(Box<Node<R>>),
     /// `tuple[X, Y]`: one node per position, the array length fixed by the
     /// node's `min_length` and `max_length`.
@@ -330,6 +335,17 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
         "list" => {
             let inner = item.ok_or_else(|| compile_error("list type without an item type"))?;
             Kind::List(Box::new(parse_node(&inner)?))
+        }
+        "any" => Kind::Any,
+        "anyof" => {
+            let variants = constraints
+                .get_item("items")?
+                .ok_or_else(|| compile_error("union type without variants"))?;
+            let mut nodes = Vec::new();
+            for variant in variants.try_iter()? {
+                nodes.push(parse_node(&variant?)?);
+            }
+            Kind::AnyOf(nodes)
         }
         "tuple" => {
             let positions = constraints
@@ -548,7 +564,7 @@ fn lower_kind(py: Python<'_>, kind: &Kind<PyRules>) -> Result<Kind<NativeRules>,
         Kind::Decimal => Kind::Decimal,
         Kind::Bytes => Kind::Bytes,
         Kind::List(item) => Kind::List(Box::new(lower_node(py, item)?)),
-        Kind::Tuple(_) => return Err(Unlowerable),
+        Kind::Tuple(_) | Kind::Any | Kind::AnyOf(_) => return Err(Unlowerable),
         Kind::Map { key, value } => Kind::Map {
             key: Box::new(lower_node(py, key)?),
             value: Box::new(lower_node(py, value)?),
@@ -805,7 +821,9 @@ fn refers_outside<R: Rules>(node: &Node<R>, known: usize) -> bool {
     match &node.kind {
         Kind::Schema(index) => *index >= known,
         Kind::List(inner) | Kind::Map { value: inner, .. } => refers_outside(inner, known),
-        Kind::Tuple(positions) => positions.iter().any(|inner| refers_outside(inner, known)),
+        Kind::Tuple(positions) | Kind::AnyOf(positions) => {
+            positions.iter().any(|inner| refers_outside(inner, known))
+        }
         Kind::TaggedUnion { variants, .. } => variants.iter().any(|(_, index)| *index >= known),
         _ => false,
     }
@@ -923,6 +941,8 @@ trait View {
     ) -> Result<Self::Out, Self::Error>;
     /// The container a checked array becomes (duplicates of a set collapse).
     fn collect(&self, collection: Collection, value: Self::Out) -> Result<Self::Out, Self::Error>;
+    /// An `Any` field's value: the data as it was given.
+    fn anything(&self, data: &Self::Data) -> Result<Self::Out, Self::Error>;
     fn pattern_shown(
         &self,
         pattern: &<Self::Rules as Rules>::Pattern,
@@ -1183,6 +1203,10 @@ impl<'py> View for PyView<'_, 'py> {
             Collection::Tuple => self.py.get_type::<pyo3::types::PyTuple>().into_any(),
         };
         builtin.call1((value,))
+    }
+
+    fn anything(&self, data: &Self::Data) -> PyResult<Self::Out> {
+        Ok(data.clone())
     }
 
     fn pattern_shown(&self, pattern: &Py<PyAny>) -> PyResult<String> {
@@ -1581,6 +1605,10 @@ impl<'v> View for JsonView<'v> {
         Err(Defer("collection"))
     }
 
+    fn anything(&self, _data: &&'v Json) -> Result<Validated, Defer> {
+        Err(Defer("any"))
+    }
+
     fn pattern_shown(&self, pattern: &String) -> Result<String, Defer> {
         Ok(pattern.clone())
     }
@@ -1592,6 +1620,26 @@ struct Run<'a, V: View> {
     definitions: &'a [Definition<V::Rules>],
     options: &'a Options,
     problems: Vec<Problem>,
+    /// Plain unions being tried right now, and the failed container trials
+    /// among them: the work of nested unions multiplies, so it is capped.
+    trials: usize,
+    wasted: usize,
+}
+
+/// Failed container variants one outermost union may burn before the whole
+/// validation is refused.
+const MAX_WASTED_TRIALS: usize = 1024;
+
+fn is_composite<R: Rules>(kind: &Kind<R>) -> bool {
+    matches!(
+        kind,
+        Kind::AnyOf(_)
+            | Kind::List(_)
+            | Kind::Tuple(_)
+            | Kind::Map { .. }
+            | Kind::Schema(_)
+            | Kind::TaggedUnion { .. }
+    )
 }
 
 impl<'a, V: View> Run<'a, V> {
@@ -1601,6 +1649,8 @@ impl<'a, V: View> Run<'a, V> {
             definitions,
             options,
             problems: Vec::new(),
+            trials: 0,
+            wasted: 0,
         }
     }
 
@@ -1668,6 +1718,8 @@ impl<'a, V: View> Run<'a, V> {
             Kind::Bytes => self.binary(node, data, path)?,
             Kind::List(item) => self.sequence(node, item, data, path, depth)?,
             Kind::Tuple(positions) => self.fixed(node, positions, data, path, depth)?,
+            Kind::AnyOf(variants) => self.any_of(variants, data, path, depth)?,
+            Kind::Any => Some(self.view.anything(data).map_err(Abort::View)?),
             Kind::Map { key, value } => self.mapping(node, key, value, data, path, depth)?,
             Kind::Schema(index) => self.schema(*index, data, path, depth)?,
             Kind::TaggedUnion {
@@ -2041,6 +2093,52 @@ impl<'a, V: View> Run<'a, V> {
 
     /// A `tuple[X, Y]` field: an array of exactly as many items as positions,
     /// each checked at `path[i]` by its position's node, the result a tuple.
+    /// A plain union: each variant is tried on the same data in declared order;
+    /// the trial's problems are dropped, and a value no variant takes is one
+    /// `union` problem.
+    fn any_of(
+        &mut self,
+        variants: &[Node<V::Rules>],
+        data: &V::Data,
+        path: &str,
+        depth: usize,
+    ) -> Checked<V> {
+        if self.trials == 0 {
+            self.wasted = 0;
+        }
+        self.trials += 1;
+        let found = self.try_variants(variants, data, path, depth);
+        self.trials -= 1;
+        found
+    }
+
+    fn try_variants(
+        &mut self,
+        variants: &[Node<V::Rules>],
+        data: &V::Data,
+        path: &str,
+        depth: usize,
+    ) -> Checked<V> {
+        let before = self.problems.len();
+        for variant in variants {
+            if self.wasted > MAX_WASTED_TRIALS {
+                return Err(Abort::TooMany);
+            }
+            let tried = match self.check(variant, data, path, depth + 1) {
+                Err(Abort::TooMany) if self.wasted <= MAX_WASTED_TRIALS => None,
+                other => other?,
+            };
+            self.problems.truncate(before);
+            if tried.is_some() {
+                return Ok(tried);
+            }
+            if self.trials > 1 && is_composite(&variant.kind) {
+                self.wasted += 1;
+            }
+        }
+        self.fail(path, "union", "does not match any allowed type".to_owned())
+    }
+
     fn fixed(
         &mut self,
         node: &Node<V::Rules>,
