@@ -275,12 +275,12 @@ action and becomes immutable after successful inclusion.
 
 Both forms declare the same actions with the same decorators. They differ in four ways that matter in Hinoki, and each rule below follows from one of them.
 
-| | Function (with `RouteGroup`) | Class (`API`, `CrudAPI`) |
+| | Function (with `RouteGroup`) | Class (`API`) |
 | --- | --- | --- |
 | Shared `access=`, `atomic=`, `errors=` | stated once on `RouteGroup(...)` | not available: an `API` class carries a path prefix only, so each action states them |
 | Rust fast path for simple public routes | eligible ([serving](serving.md)) | never: a method has an owner class, so it always takes the Python lane |
 | Inheritance | none: compose with decorators and groups | subclasses extend a base, override an action, or drop an inherited one by redefining it without a decorator (or `replaces=`) |
-| Generated routes and write hooks | no | `crud(...)` or `CrudAPI` (`get_queryset`, `to_schema`; `CrudAPI` also `store`, `change`, `remove`) |
+| Generated routes and write hooks | no | `@crud(...)` (`get_queryset`, `to_schema`, `written_queryset`, `store`, `change`, `remove`) |
 
 **Use functions and a `RouteGroup` for ordinary endpoints.** The action's shared policy sits in one place, the handlers are plain functions that a test can call, and a simple public one can be served natively. The group below states access, transactions and the errors its actions may raise once:
 
@@ -294,7 +294,7 @@ async def listing(page: PageParams, caller: Caller[Member]) -> Page[TaskOut]: ..
 async def create(data: TaskIn, caller: Caller[Member]) -> TaskOut: ...
 ```
 
-**Use a class when the endpoints share behaviour by inheritance**: a `crud(...)` or `CrudAPI` class for a model (generated routes plus hooks), a base `API` whose actions several resources extend or override, or a resource you ship for others to include (the admin is one). A class that only groups three functions under a prefix gains nothing and loses the shared options and the native path.
+**Use a class when the endpoints share behaviour by inheritance**: a `@crud(...)` class for a model (generated routes plus hooks), a base `API` whose actions several resources extend or override, or a resource you ship for others to include (the admin is one). A class that only groups three functions under a prefix gains nothing and loses the shared options and the native path.
 
 **Keep state out of the instance.** An `API` instance holds no per-request state and is shared by every request of the worker. Take what you need as parameters (`Request`, `Caller[...]`, path and body values) and reach worker-owned resources through a module, never by assigning to `self`.
 
