@@ -114,6 +114,7 @@ fn decode_cell(row: &tokio_postgres::Row, i: usize, ty: &Type) -> Result<Value, 
         Type::BYTEA => cell!(Vec<u8>, Value::Bytes),
         Type::UUID => cell!(uuid::Uuid, Value::Uuid),
         Type::TIMESTAMPTZ => cell!(PgTimestamp, |v: PgTimestamp| Value::timestamp(v.0)),
+        Type::NUMERIC => cell!(PgNumeric, |v: PgNumeric| Value::Text(v.0)),
         Type::JSON | Type::JSONB => cell!(serde_json::Value, Value::Json),
         _ => {
             return Err(DbError::new(
@@ -241,6 +242,24 @@ async fn execute_with_recovery(conn: &Object, sql: &str, values: &[Value]) -> Re
             run_execute(conn, sql, values).await
         }
         other => other,
+    }
+}
+
+/// A finite `numeric` as its decimal text, scale kept; NaN and infinity are refused.
+struct PgNumeric(String);
+
+impl<'a> FromSql<'a> for PgNumeric {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        crate::numeric::decode(raw)
+            .map(Self)
+            .map_err(|e| e.0.into())
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        *ty == Type::NUMERIC
     }
 }
 

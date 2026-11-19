@@ -6,7 +6,8 @@ from __future__ import annotations
 
 import builtins
 import dataclasses
-from collections.abc import Generator
+from collections.abc import Generator, Iterable
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any, Literal, overload
 
 from hinoki import core
@@ -134,7 +135,6 @@ class QuerySet[M: Model]:
         for name in names:
             column = name.removeprefix("-")
             self.model.check_field(column)
-            refuse_text_decimal(self.model, column, f"ordering by {column}")
             parsed.append((column, name.startswith("-")))
         return self.derive(order=tuple(parsed))
 
@@ -182,6 +182,7 @@ class QuerySet[M: Model]:
     def compile(
         self, kind: str = "select", dialect: str = "postgres"
     ) -> tuple[str, list[Any]]:
+        refuse_sqlite_decimal(self.model, self.filters, self.order, dialect)
         return core.compile_query(
             kind,
             self.model.__table__,
@@ -357,6 +358,7 @@ class QuerySet[M: Model]:
                 "adelete cannot filter across a relation; look the keys up first"
             )
         database = current_database()
+        refuse_sqlite_decimal(self.model, self.filters, (), database.dialect)
         sql, params = core.compile_query(
             "delete",
             self.model.__table__,
@@ -451,14 +453,63 @@ ROW_WIRE_METHODS = (
 ROW_WIRE_METHODS_ORIGINAL = tuple(getattr(QuerySet, name) for name in ROW_WIRE_METHODS)
 
 
-def refuse_text_decimal(model: type[Model], name: str, action: str) -> None:
-    """A ``Decimal`` column is stored as its text, which neither orders nor
-    compares by value (``12.3`` and ``12.30`` differ)."""
-    if model.__field_types__[name].kind == "decimal":
+TEXT_DECIMAL_OPERATORS = frozenset({"eq", "ne", "in", "isnull", "notnull"})
+
+
+def decimal_value(model: type[Model], name: str, value: Any) -> Decimal:
+    """A filter value for a ``Decimal`` column: exact numbers only, never a float."""
+    if isinstance(value, bool) or not isinstance(value, Decimal | int | str):
         raise FieldError(
-            f"{model.__name__}.{name} is a Decimal column stored as text: {action} "
-            "is not supported; only __isnull works"
+            f"{model.__name__}.{name} is a Decimal column: filter with a Decimal, "
+            f"an int or a numeric string, not {type(value).__name__}"
         )
+    try:
+        number = Decimal(value)
+    except InvalidOperation:
+        raise FieldError(
+            f"{model.__name__}.{name}: {value!r} is not a number"
+        ) from None
+    if not number.is_finite():
+        raise FieldError(f"{model.__name__}.{name}: {value!r} is not a finite number")
+    return number
+
+
+def decimal_columns(model: type[Model], column: str) -> bool:
+    """Whether ``column`` (own, or ``rel_<name>.<column>`` through a join) is a
+    ``Decimal`` column."""
+    owner, _, name = column.rpartition(".")
+    if owner:
+        relation = model.__relations__.get(owner.removeprefix(ALIAS_PREFIX))
+        if relation is None:
+            return False
+        model = relation.model
+    field_type = model.__field_types__.get(name)
+    return field_type is not None and field_type.kind == "decimal"
+
+
+def refuse_sqlite_decimal(
+    model: type[Model],
+    filters: Iterable[tuple[str, str, list[Any]]],
+    order: Iterable[tuple[str, bool]],
+    dialect: str,
+) -> None:
+    """SQLite keeps a ``Decimal`` as text, which compares by spelling
+    (``12.3`` and ``12.30`` differ) and orders alphabetically: only equality
+    is allowed there, and no ordering."""
+    if dialect != "sqlite":
+        return
+    for column, op, _ in filters:
+        if op not in TEXT_DECIMAL_OPERATORS and decimal_columns(model, column):
+            raise FieldError(
+                f"{column} is a Decimal column stored as text on SQLite: "
+                f"{op} comparisons are not supported there; use PostgreSQL or MySQL"
+            )
+    for column, _ in order:
+        if decimal_columns(model, column):
+            raise FieldError(
+                f"{column} is a Decimal column stored as text on SQLite: "
+                "ordering by it is not supported there; use PostgreSQL or MySQL"
+            )
 
 
 def condition(model: type[Model], key: str, value: Any) -> tuple[str, str, list[Any]]:
@@ -473,10 +524,12 @@ def condition(model: type[Model], key: str, value: Any) -> tuple[str, str, list[
         if suffix not in {"eq", "ne"}:
             raise FieldError(f"{key} cannot compare with None")
         return name, "isnull" if suffix == "eq" else "notnull", []
-    refuse_text_decimal(model, name, f"filtering on {key}")
-    if suffix == "in":
-        return name, "in", list(value)
-    return name, suffix, [value]
+    values = list(value) if suffix == "in" else [value]
+    if model.__field_types__[name].kind == "decimal":
+        if suffix == "contains":
+            raise FieldError(f"{key}: contains does not apply to a Decimal column")
+        values = [decimal_value(model, name, item) for item in values]
+    return name, suffix, values
 
 
 Filter = tuple[str, str, list[Any]]
@@ -494,6 +547,7 @@ def write_statement(
     """An INSERT or UPDATE that returns every column when ``returning`` is set
     and the dialect supports it, and nothing otherwise."""
     reads = returning and dialect not in NO_RETURNING
+    refuse_sqlite_decimal(model, filters, (), dialect)
     return core.compile_query(
         kind,
         model.__table__,

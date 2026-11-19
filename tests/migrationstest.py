@@ -25,6 +25,7 @@ from hinoki.orm.migrations import (
     models_of,
     plan,
     statements,
+    table_changes,
 )
 from hinoki.project import load_manifest
 
@@ -892,3 +893,22 @@ def test_migrations_take_the_app_as_an_argument_or_as_an_option(
     assert main(["migrations", "apply", "argumentapp", "--app", "argumentapp"]) == 0
     assert main(["migrations", "apply", "argumentapp", "--app", "other"]) == 2
     assert "conflicts with --app" in capsys.readouterr().err
+
+
+def test_text_to_numeric_is_planned_only_where_the_backend_stores_it_differently() -> (
+    None
+):
+    column = {
+        "type": "text",
+        "nullable": False,
+        "primary_key": False,
+        "unique": False,
+        "references": None,
+    }
+    old = {"columns": {"price": column}, "unique": []}
+    new = {"columns": {"price": {**column, "type": "numeric"}}, "unique": []}
+    assert table_changes("items", old, new, "sqlite") == []
+    (postgres,) = table_changes("items", old, new, "postgres")
+    assert 'ALTER COLUMN "price" TYPE numeric USING "price"::numeric' in (postgres.sql)
+    (mysql,) = table_changes("items", old, new, "mysql")
+    assert "MODIFY COLUMN `price` decimal(65,30) NOT NULL" in mysql.sql

@@ -46,7 +46,7 @@ TYPES: dict[Any, str] = {
     date: "text",
     time: "text",
     timedelta: "bigint",
-    Decimal: "text",
+    Decimal: "numeric",
     bytes: "bytea",
     dict: "jsonb",
     list: "jsonb",
@@ -60,8 +60,10 @@ SQLITE_STATE_TYPES = {
     "bigint": "integer",
     "double precision": "real",
     "bytea": "blob",
+    "numeric": "text",
 }
 MYSQL_STATE_TYPES = {
+    "numeric": "decimal(65,30)",
     "uuid": "binary(16)",
     "double precision": "double",
     "timestamptz": "datetime(6)",
@@ -568,11 +570,20 @@ def sqlite_rebuild(table: str, old: State, new: State, dialect: str) -> Operatio
     )
 
 
+def stored_columns(state: State, dialect: str) -> dict[str, State]:
+    """Columns with their types as the backend stores them, so a logical type
+    change that the backend renders identically plans nothing."""
+    return {
+        name: {**column, "type": dialect_type(column["type"], dialect)}
+        for name, column in state["columns"].items()
+    }
+
+
 def table_changes(table: str, old: State, new: State, dialect: str) -> list[Operation]:
     if dialect == "sqlite":
-        if old["columns"] != new["columns"] or old.get("unique", []) != new.get(
+        if stored_columns(old, dialect) != stored_columns(new, dialect) or old.get(
             "unique", []
-        ):
+        ) != new.get("unique", []):
             return [sqlite_rebuild(table, old, new, dialect)]
         return index_changes(table, old, new, dialect)
     operations: list[Operation] = []
