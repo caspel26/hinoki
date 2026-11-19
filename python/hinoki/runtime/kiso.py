@@ -170,6 +170,7 @@ class KisoWorker:
         access_log_skip: Sequence[str] | None = None,
         access_log_slow_ms: float | None = None,
         access_log_sink: Callable[[Sequence[str]], None] | None = None,
+        server_timing: bool = False,
     ) -> None:
         self.adapter = app.asgi()
         self.pipeline = self.adapter.pipeline
@@ -188,6 +189,7 @@ class KisoWorker:
         self.access_log_skip = access_log_skip
         self.access_log_slow_ms = access_log_slow_ms
         self.access_log_sink = access_log_sink
+        self.server_timing = server_timing
         self.lane: NativeLane | None = None
         # An inherited listening descriptor (a supervisor owns the socket); the
         # native server takes it over. Without one, the worker binds itself.
@@ -258,6 +260,7 @@ class KisoWorker:
                 self.access_log_skip,
                 self.access_log_slow_ms,
                 self.access_log_sink,
+                self.server_timing,
             )
         except BaseException:
             self.core._disarm_crud_plans()
@@ -653,6 +656,7 @@ def build_worker(
         access_log_skip=settings.access_log_skip,
         access_log_slow_ms=settings.access_log_slow_ms,
         access_log_sink=access_sink(settings, dev),
+        server_timing=dev if settings.server_timing is None else settings.server_timing,
         **limits,
     )
 

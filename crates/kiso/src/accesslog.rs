@@ -39,7 +39,7 @@ pub enum Lane {
 }
 
 impl Lane {
-    fn name(self) -> &'static str {
+    pub fn name(self) -> &'static str {
         match self {
             Self::Early => "early",
             Self::Python => "python",

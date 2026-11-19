@@ -79,6 +79,8 @@ pub struct ServerConfig {
     pub access_log: Option<AccessLog>,
     /// Which answers that log keeps.
     pub log_filter: Arc<LogFilter>,
+    /// Add a `Server-Timing` header to every answer.
+    pub server_timing: bool,
 }
 
 impl Default for ServerConfig {
@@ -93,6 +95,7 @@ impl Default for ServerConfig {
             max_headers: 100,
             access_log: None,
             log_filter: Arc::default(),
+            server_timing: false,
         }
     }
 }
@@ -168,6 +171,7 @@ async fn serve_h1<S, B>(
         max_headers: config.max_headers,
         access_log: config.access_log,
         log_filter: Arc::clone(&config.log_filter),
+        server_timing: config.server_timing,
         body_read_timeout: config.body_read_timeout,
         signals: Arc::clone(&signals),
     };
@@ -221,6 +225,7 @@ async fn serve_h2<S, B>(
         max_headers: config.max_headers,
         access_log: config.access_log,
         log_filter: Arc::clone(&config.log_filter),
+        server_timing: config.server_timing,
         body_read_timeout: config.body_read_timeout,
         signals: Arc::new(Signals::default()),
     };
