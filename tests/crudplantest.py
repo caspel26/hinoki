@@ -1893,6 +1893,13 @@ def test_a_custom_provider_or_instance_override_keeps_the_python_lane() -> None:
         read_schema = PlanItemOut
         read_access = Access(Custom(), permissions=[])
 
+    class Elsewhere(ClaimsTokens):
+        header = "x-token"
+
+    class Moved(CrudAPI, model=PlanItem, path="/moved"):
+        read_schema = PlanItemOut
+        read_access = Access(Elsewhere(), permissions=[])
+
     tokens = ClaimsTokens()
     tokens.now = lambda: 0  # type: ignore[method-assign]
 
@@ -1900,7 +1907,7 @@ def test_a_custom_provider_or_instance_override_keeps_the_python_lane() -> None:
         read_schema = PlanItemOut
         read_access = Access(tokens, permissions=[])
 
-    for owner in (Variant, Patched):
+    for owner in (Variant, Patched, Moved):
         pipeline = Pipeline(
             Hinoki(
                 include=[owner],
