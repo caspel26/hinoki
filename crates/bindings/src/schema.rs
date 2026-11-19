@@ -153,6 +153,9 @@ enum Kind<R: Rules> {
     Decimal,
     Bytes,
     List(Box<Node<R>>),
+    /// `tuple[X, Y]`: one node per position, the array length fixed by the
+    /// node's `min_length` and `max_length`.
+    Tuple(Vec<Node<R>>),
     /// `dict[str, X]`: the key node (always a string) and the value node.
     Map {
         key: Box<Node<R>>,
@@ -166,8 +169,18 @@ enum Kind<R: Rules> {
     },
 }
 
+/// The container a checked array becomes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Collection {
+    Set,
+    Frozenset,
+    Tuple,
+}
+
 struct Node<R: Rules> {
     kind: Kind<R>,
+    /// The container that replaces the checked array.
+    collection: Option<Collection>,
     nullable: bool,
     min_length: Option<i64>,
     max_length: Option<i64>,
@@ -318,6 +331,16 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
             let inner = item.ok_or_else(|| compile_error("list type without an item type"))?;
             Kind::List(Box::new(parse_node(&inner)?))
         }
+        "tuple" => {
+            let positions = constraints
+                .get_item("items")?
+                .ok_or_else(|| compile_error("tuple type without item types"))?;
+            let mut nodes = Vec::new();
+            for position in positions.try_iter()? {
+                nodes.push(parse_node(&position?)?);
+            }
+            Kind::Tuple(nodes)
+        }
         "dict" => {
             let value = item.ok_or_else(|| compile_error("dict type without a value type"))?;
             let key = constraints
@@ -352,8 +375,18 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
         }
         None => None,
     };
+    let collection = match constraints.get_item("collection")? {
+        Some(name) => Some(match name.extract::<String>()?.as_str() {
+            "set" => Collection::Set,
+            "frozenset" => Collection::Frozenset,
+            "tuple" => Collection::Tuple,
+            other => return Err(compile_error(format!("unknown collection {other:?}"))),
+        }),
+        None => None,
+    };
     Ok(Node {
         kind,
+        collection,
         nullable,
         min_length: optional_int(&constraints, "min_length")?,
         max_length: optional_int(&constraints, "max_length")?,
@@ -515,6 +548,7 @@ fn lower_kind(py: Python<'_>, kind: &Kind<PyRules>) -> Result<Kind<NativeRules>,
         Kind::Decimal => Kind::Decimal,
         Kind::Bytes => Kind::Bytes,
         Kind::List(item) => Kind::List(Box::new(lower_node(py, item)?)),
+        Kind::Tuple(_) => return Err(Unlowerable),
         Kind::Map { key, value } => Kind::Map {
             key: Box::new(lower_node(py, key)?),
             value: Box::new(lower_node(py, value)?),
@@ -557,11 +591,12 @@ fn lower_node(py: Python<'_>, node: &Node<PyRules>) -> Result<Node<NativeRules>,
         None => None,
     };
     // A member is a Python object; the GIL-free walk cannot build one.
-    if node.member.is_some() {
+    if node.member.is_some() || node.collection.is_some() || matches!(kind, Kind::Tuple(_)) {
         return Err(Unlowerable);
     }
     Ok(Node {
         kind,
+        collection: None,
         nullable: node.nullable,
         min_length: node.min_length,
         max_length: node.max_length,
@@ -770,6 +805,7 @@ fn refers_outside<R: Rules>(node: &Node<R>, known: usize) -> bool {
     match &node.kind {
         Kind::Schema(index) => *index >= known,
         Kind::List(inner) | Kind::Map { value: inner, .. } => refers_outside(inner, known),
+        Kind::Tuple(positions) => positions.iter().any(|inner| refers_outside(inner, known)),
         Kind::TaggedUnion { variants, .. } => variants.iter().any(|(_, index)| *index >= known),
         _ => false,
     }
@@ -885,6 +921,8 @@ trait View {
         class: &<Self::Rules as Rules>::Member,
         value: Self::Out,
     ) -> Result<Self::Out, Self::Error>;
+    /// The container a checked array becomes (duplicates of a set collapse).
+    fn collect(&self, collection: Collection, value: Self::Out) -> Result<Self::Out, Self::Error>;
     fn pattern_shown(
         &self,
         pattern: &<Self::Rules as Rules>::Pattern,
@@ -1136,6 +1174,15 @@ impl<'py> View for PyView<'_, 'py> {
 
     fn member(&self, class: &Py<PyAny>, value: Self::Out) -> PyResult<Self::Out> {
         class.bind(self.py).call1((value,))
+    }
+
+    fn collect(&self, collection: Collection, value: Self::Out) -> PyResult<Self::Out> {
+        let builtin = match collection {
+            Collection::Set => self.py.get_type::<pyo3::types::PySet>().into_any(),
+            Collection::Frozenset => self.py.get_type::<pyo3::types::PyFrozenSet>().into_any(),
+            Collection::Tuple => self.py.get_type::<pyo3::types::PyTuple>().into_any(),
+        };
+        builtin.call1((value,))
     }
 
     fn pattern_shown(&self, pattern: &Py<PyAny>) -> PyResult<String> {
@@ -1530,6 +1577,10 @@ impl<'v> View for JsonView<'v> {
         Ok(value)
     }
 
+    fn collect(&self, _collection: Collection, _value: Validated) -> Result<Validated, Defer> {
+        Err(Defer("collection"))
+    }
+
     fn pattern_shown(&self, pattern: &String) -> Result<String, Defer> {
         Ok(pattern.clone())
     }
@@ -1616,6 +1667,7 @@ impl<'a, V: View> Run<'a, V> {
             Kind::Decimal => self.decimal(node, data, path)?,
             Kind::Bytes => self.binary(node, data, path)?,
             Kind::List(item) => self.sequence(node, item, data, path, depth)?,
+            Kind::Tuple(positions) => self.fixed(node, positions, data, path, depth)?,
             Kind::Map { key, value } => self.mapping(node, key, value, data, path, depth)?,
             Kind::Schema(index) => self.schema(*index, data, path, depth)?,
             Kind::TaggedUnion {
@@ -1640,10 +1692,22 @@ impl<'a, V: View> Run<'a, V> {
             (Some(choices), Some(value)) => self.one_of(choices, value, path)?,
             (_, other) => other,
         };
-        match (&node.member, checked) {
-            (Some(class), Some(value)) => self.member(class, value),
+        let checked = match (&node.member, checked) {
+            (Some(class), Some(value)) => self.member(class, value)?,
+            (_, other) => other,
+        };
+        match (node.collection, checked) {
+            (Some(collection), Some(value)) => self.collect(collection, value),
             (_, other) => Ok(other),
         }
+    }
+
+    /// The checked array as a set, frozenset or tuple.
+    fn collect(&mut self, collection: Collection, value: V::Out) -> Checked<V> {
+        self.view
+            .collect(collection, value)
+            .map(Some)
+            .map_err(Abort::View)
     }
 
     /// The member of the field's `Enum` that the checked value names.
@@ -1973,6 +2037,37 @@ impl<'a, V: View> Run<'a, V> {
         } else {
             Some(self.view.close_list(out))
         })
+    }
+
+    /// A `tuple[X, Y]` field: an array of exactly as many items as positions,
+    /// each checked at `path[i]` by its position's node, the result a tuple.
+    fn fixed(
+        &mut self,
+        node: &Node<V::Rules>,
+        positions: &[Node<V::Rules>],
+        data: &V::Data,
+        path: &str,
+        depth: usize,
+    ) -> Checked<V> {
+        let Some(list) = self.view.list(data) else {
+            return self.fail(path, "type", "expected an array".to_owned());
+        };
+        if !self.length(node, self.view.list_len(&list), path, "item")? {
+            return Ok(None);
+        }
+        let before = self.problems.len();
+        let mut out = self.view.new_list();
+        for ((index, element), position) in V::items(&list).enumerate().zip(positions) {
+            let found = self.check(position, &element, &format!("{path}[{index}]"), depth + 1)?;
+            if let Some(value) = found {
+                self.view.push(&mut out, value).map_err(Abort::View)?;
+            }
+        }
+        if self.problems.len() > before {
+            return Ok(None);
+        }
+        let closed = self.view.close_list(out);
+        self.collect(Collection::Tuple, closed)
     }
 
     /// A `dict[str, X]` field: an object of string keys, its entry count
@@ -3458,16 +3553,10 @@ fn convert<'py>(
             depth,
         );
     }
-    if let Ok(tuple) = value.cast::<pyo3::types::PyTuple>() {
-        return convert_list(
-            py,
-            tuple.iter(),
-            json_mode,
-            by_alias,
-            exclude_unset,
-            controlled,
-            depth,
-        );
+    if let Some(grouped) =
+        convert_grouped(value, json_mode, by_alias, exclude_unset, controlled, depth)?
+    {
+        return Ok(grouped);
     }
     if let Ok(dict) = value.cast::<PyDict>() {
         return convert_dict(
@@ -3487,6 +3576,45 @@ fn convert<'py>(
         return convert_json_object(value);
     }
     Ok(value.clone())
+}
+
+/// A tuple, set or frozenset: JSON mode writes a list (a set sorted when its
+/// members compare); Python mode keeps the container.
+fn convert_grouped<'py>(
+    value: &Bound<'py, PyAny>,
+    json_mode: bool,
+    by_alias: bool,
+    exclude_unset: bool,
+    controlled: bool,
+    depth: usize,
+) -> PyResult<Option<Bound<'py, PyAny>>> {
+    let py = value.py();
+    let is_set = value.is_instance_of::<pyo3::types::PySet>()
+        || value.is_instance_of::<pyo3::types::PyFrozenSet>();
+    if !is_set && !value.is_instance_of::<pyo3::types::PyTuple>() {
+        return Ok(None);
+    }
+    if is_set && !json_mode {
+        return Ok(Some(value.clone()));
+    }
+    let members = if is_set {
+        crate::pytypes::sorted_members(value)?
+    } else {
+        value.try_iter()?.collect::<PyResult<Vec<_>>>()?
+    };
+    let items = convert_list(
+        py,
+        members.into_iter(),
+        json_mode,
+        by_alias,
+        exclude_unset,
+        controlled,
+        depth,
+    )?;
+    if json_mode {
+        return Ok(Some(items));
+    }
+    Ok(Some(py.get_type::<pyo3::types::PyTuple>().call1((items,))?))
 }
 
 fn convert_list<'py>(

@@ -50,6 +50,16 @@ pub fn enum_value<'py>(value: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, 
     value.getattr("value").map(Some)
 }
 
+/// The members of a set in the fixed order `hinoki.schema.sorted_items` gives.
+pub fn sorted_members<'py>(set: &Bound<'py, PyAny>) -> PyResult<Vec<Bound<'py, PyAny>>> {
+    let ordered = set
+        .py()
+        .import("hinoki.schema")?
+        .getattr("sorted_items")?
+        .call1((set,))?;
+    ordered.try_iter()?.collect()
+}
+
 /// `None`, `bool`, `int`, `float` and `str` of exactly these types: values that
 /// are never objects with a `dump()` method and never schema instances.
 pub fn is_plain_scalar(value: &Bound<'_, PyAny>) -> bool {
