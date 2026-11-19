@@ -13,6 +13,9 @@
 <p align="center">
   <a href="https://github.com/caspel26/hinoki/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/caspel26/hinoki/ci.yml?branch=main&label=CI&labelColor=1d1a24"></a>
   <a href="https://codecov.io/gh/caspel26/hinoki"><img alt="Coverage" src="https://codecov.io/gh/caspel26/hinoki/branch/main/graph/badge.svg?labelColor=1d1a24"></a>
+  <a href="https://sonarcloud.io/project/overview?id=caspel26_hinoki"><img alt="Quality gate" src="https://sonarcloud.io/api/project_badges/measure?project=caspel26_hinoki&metric=alert_status"></a>
+  <a href="https://github.com/caspel26/hinoki/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://img.shields.io/github/actions/workflow/status/caspel26/hinoki/codeql.yml?branch=main&label=CodeQL&labelColor=1d1a24"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/caspel26/hinoki"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/caspel26/hinoki/badge"></a>
   <img alt="Python 3.12, 3.13 and 3.14" src="https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-7a55c4?labelColor=1d1a24">
   <a href="https://caspel26.github.io/hinoki/dev/status/"><img alt="Status: pre-alpha" src="https://img.shields.io/badge/status-pre--alpha-e3c29b?labelColor=1d1a24"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-7a55c4?labelColor=1d1a24"></a>
