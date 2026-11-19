@@ -432,6 +432,7 @@ class KisoServer:
         access_log_skip: Sequence[str] | None = None,
         access_log_slow_ms: float | None = None,
         access_log_sink: Callable[[Sequence[str]], None] | None = None,
+        server_timing: bool = False,
     ) -> KisoServer: ...
     @property
     def port(self) -> int: ...

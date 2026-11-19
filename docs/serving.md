@@ -40,6 +40,7 @@ From the application's **`server` settings group** ([settings guide](settings.md
 | `server.backlog` | `BLOG_SERVER__BACKLOG` | `1024` | |
 | `server.access_log` | `BLOG_SERVER__ACCESS_LOG` | unset | Unset logs in `hinoki dev` only (or whenever `access_log_format` is set); `true` or `false` decides for both |
 | `server.access_log_skip` | `BLOG_SERVER__ACCESS_LOG_SKIP` | unset | Kiso only: comma-separated paths the log leaves out (health checks); exact, or a prefix when the entry ends with `*` |
+| `server.server_timing` | `BLOG_SERVER__SERVER_TIMING` | unset | Kiso only: add a `Server-Timing` header (`kiso;dur=3.2;desc="native"`: milliseconds the server took and the serving lane); unset means `hinoki dev` only |
 | `server.recent_requests` | `BLOG_SERVER__RECENT_REQUESTS` | unset | Kiso only: file that also receives each request as a JSON line, read by the `recent_requests` tool of [`hinoki mcp`](dev-mcp.md); rotated near 1 MiB |
 | `server.access_log_slow_ms` | `BLOG_SERVER__ACCESS_LOG_SLOW_MS` | unset | Kiso only: keep only answers at least this slow, in milliseconds |
 | `server.access_log_format` | `BLOG_SERVER__ACCESS_LOG_FORMAT` | unset | Kiso only: `pretty`, `plain`, `json` or `logger`. Unset is `pretty` on a colour terminal and `plain` otherwise |
@@ -118,7 +119,7 @@ ASGI/Granian and WSGI answer it in the Python pipeline after host, CORS and HTTP
 | Setting | Rust server | Granian |
 | --- | --- | --- |
 | `host`, `port`, `workers`, `runtime_threads`, `backlog`, `access_log`, `trusted_proxies`, `request_id_header`, `trust_request_id` | applied | applied |
-| `max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`, `native_dispatch`, `access_log_format`, `access_log_skip`, `access_log_slow_ms`, `recent_requests` | applied when set | refused when set |
+| `max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`, `native_dispatch`, `access_log_format`, `access_log_skip`, `access_log_slow_ms`, `recent_requests`, `server_timing` | applied when set | refused when set |
 
 If the native extension of a build has no Rust server, `--server kiso` fails with an error that says so.
 

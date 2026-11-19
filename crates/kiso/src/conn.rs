@@ -26,7 +26,7 @@ use hyper::header::{HeaderName, HeaderValue};
 use hyper::http::request::Parts;
 use hyper::{Method, Request, Response, StatusCode, Version};
 
-use crate::accesslog::{self, AccessLog, LogFilter, Sink, Trace};
+use crate::accesslog::{self, AccessLog, Lane, LogFilter, Sink, Trace};
 use crate::body::BodyReader;
 use crate::early::Early;
 use crate::framing::Signals;
@@ -182,6 +182,8 @@ pub struct Transport {
     pub access_log: Option<AccessLog>,
     /// Which answers that log keeps.
     pub log_filter: Arc<LogFilter>,
+    /// Add a `Server-Timing` header with the time taken and the serving lane.
+    pub server_timing: bool,
 }
 
 /// The parts of a request an access-log line needs, kept past the handoff.
@@ -227,6 +229,17 @@ impl Incoming {
     }
 }
 
+/// `kiso;dur=3.2;desc="native"`: what browser developer tools show next to the
+/// request.
+fn server_timing(elapsed: Duration, lane: Option<Lane>) -> HeaderValue {
+    let millis = elapsed.as_secs_f64() * 1_000.0;
+    let text = match lane {
+        Some(lane) => format!("kiso;dur={millis:.3};desc=\"{}\"", lane.name()),
+        None => format!("kiso;dur={millis:.3}"),
+    };
+    HeaderValue::from_str(&text).unwrap_or_else(|_| HeaderValue::from_static("kiso"))
+}
+
 /// Serve one request: ask the backend, write the answer. The connection closes
 /// after an answer given while the body was not read in full (unread, refused,
 /// cut short) and when the framing guard asks for it: in each case the bytes that follow must not be parsed as a request.
@@ -246,7 +259,9 @@ pub async fn respond<B: Backend>(
     let logged = transport
         .access_log
         .map(|style| (style, incoming.clone_head()));
+    let timed = transport.server_timing.then(|| Arc::clone(&incoming.trace));
     let answer = backend.handle(incoming).await;
+    let timing = timed.map(|trace| server_timing(started.elapsed(), trace.lane()));
     if let Some((style, head)) = logged {
         let elapsed = started.elapsed();
         if transport
@@ -262,6 +277,9 @@ pub async fn respond<B: Backend>(
         }
     }
     let mut response = response_of(answer, head_only);
+    if let Some(value) = timing {
+        response.headers_mut().insert("server-timing", value);
+    }
     let unread = finished.is_some_and(|done| !done.load(Ordering::Acquire));
     if unread {
         transport.signals.linger.store(true, Ordering::Release);
@@ -286,6 +304,14 @@ mod tests {
             headers,
             body: body.to_vec(),
         }
+    }
+
+    #[test]
+    fn server_timing_names_the_time_and_the_lane() {
+        let took = Duration::from_micros(3_250);
+        let value = server_timing(took, Some(Lane::Native));
+        assert_eq!(value, "kiso;dur=3.250;desc=\"native\"");
+        assert_eq!(server_timing(took, None), "kiso;dur=3.250");
     }
 
     #[test]
