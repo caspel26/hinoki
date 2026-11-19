@@ -75,6 +75,7 @@ def run_native(
     on_foreign: Callable[[Any, Any, Any, float | None], None],
     ctx: Any = None,
     deadline_ms: int | None = None,
+    scheduler: Callable[[Any], Any] | None = None,
 ) -> _NativeRun: ...
 
 class _ClaimsAuth:

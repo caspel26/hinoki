@@ -13,12 +13,12 @@
 //! goes on until the coroutine ends. The third hands the coroutine over to
 //! `on_foreign`, which continues it under asyncio.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
-use tokio::sync::Notify;
+use tokio::sync::{oneshot, Notify};
 
 use crate::driver::{advance, Resume, Step};
 
@@ -62,6 +62,7 @@ struct Run {
     ctx: Option<Py<PyAny>>,
     on_done: Py<PyAny>,
     on_foreign: Py<PyAny>,
+    scheduler: Option<Py<PyAny>>,
     deadline: Option<Instant>,
     stop: Arc<Notify>,
 }
@@ -161,21 +162,79 @@ async fn next_event(run: &Run, work: &mut Work, cancelling: bool) -> Event {
     }
 }
 
-/// Resume the coroutine with what `event` brought. Returns the next wait.
-fn resume_with(run: &Run, event: Event, reason: &mut Option<Reason>) -> Next {
+/// Resume the coroutine with what `event` brought, on this thread. Returns
+/// the next wait and whether the coroutine was cancelled.
+fn resume_here(run: &Run, event: Event, reason: Option<Reason>) -> (Next, Option<Reason>) {
     Python::attach(|py| {
+        let mut reason = reason;
         let resume = match event {
             Event::Ready(convert) => match convert(py) {
                 Ok(value) => Resume::Value(value),
                 Err(error) => Resume::Error(error),
             },
             Event::Stopped(why) => {
-                *reason = Some(why);
+                reason = Some(why);
                 Resume::Error(Run::cancelled_error(py).unwrap_or_else(|error| error))
             }
         };
-        run.step(py, resume, *reason)
+        (run.step(py, resume, reason), reason)
     })
+}
+
+type Resumed = (Next, Option<Reason>);
+
+/// The callback that runs one step on the thread of the event loop.
+#[pyclass(module = "hinoki.core", name = "_NativeStep")]
+struct StepCall {
+    run: Arc<Run>,
+    pending: Mutex<Option<(Event, Option<Reason>)>>,
+    reply: Mutex<Option<oneshot::Sender<Resumed>>>,
+}
+
+#[pymethods]
+impl StepCall {
+    fn __call__(&self) {
+        let pending = self
+            .pending
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
+        let reply = self.reply.lock().unwrap_or_else(|e| e.into_inner()).take();
+        if let (Some((event, reason)), Some(reply)) = (pending, reply) {
+            let _ = reply.send(resume_here(&self.run, event, reason));
+        }
+    }
+}
+
+/// Resume the coroutine where the caller asked: on the loop thread through
+/// the scheduler, else here. `None` means the step never ran and the drive
+/// was already answered.
+async fn resume_with(run: &Arc<Run>, event: Event, reason: Option<Reason>) -> Option<Resumed> {
+    let Some(scheduler) = run.scheduler.as_ref() else {
+        return Some(resume_here(run, event, reason));
+    };
+    let (reply, wait) = oneshot::channel();
+    let call = StepCall {
+        run: run.clone(),
+        pending: Mutex::new(Some((event, reason))),
+        reply: Mutex::new(Some(reply)),
+    };
+    let scheduled = Python::attach(|py| {
+        let call = Bound::new(py, call)?;
+        scheduler.call1(py, (call,)).map(|_| ())
+    });
+    if let Err(error) = scheduled {
+        Python::attach(|py| run.finish(py, Err(error), reason));
+        return None;
+    }
+    match wait.await {
+        Ok(resumed) => Some(resumed),
+        Err(_) => {
+            let error = PyRuntimeError::new_err("the event loop dropped a native step");
+            Python::attach(|py| run.finish(py, Err(error), reason));
+            None
+        }
+    }
 }
 
 /// Answers `on_done` if the drive task ends without having done it, so a
@@ -205,9 +264,12 @@ async fn drive_waits(run: Arc<Run>, mut work: Work) {
     let mut reason: Option<Reason> = None;
     loop {
         let event = next_event(&run, &mut work, reason.is_some()).await;
-        match resume_with(&run, event, &mut reason) {
-            Next::Wait(next) => work = next,
-            Next::Over => {
+        match resume_with(&run, event, reason).await {
+            Some((Next::Wait(next), now)) => {
+                work = next;
+                reason = now;
+            }
+            _ => {
                 guard.done = true;
                 return;
             }
@@ -223,9 +285,12 @@ async fn drive_waits(run: Arc<Run>, mut work: Work) {
 /// cancelled on the way, else `None`. `on_foreign(coro, ctx, yielded,
 /// remaining)` takes over a coroutine that awaited a non-native object;
 /// `on_done` is then the caller's to arrange. `ctx` is a
-/// `contextvars.Context` every step runs in.
+/// `contextvars.Context` every step runs in. With `scheduler` (for instance
+/// `loop.call_soon_threadsafe`), every step after the first runs through it,
+/// so the coroutine always runs on the loop's thread and code that needs a
+/// running loop keeps working; without it, steps run on the runtime thread.
 #[pyfunction]
-#[pyo3(signature = (coro, on_done, on_foreign, ctx=None, deadline_ms=None))]
+#[pyo3(signature = (coro, on_done, on_foreign, ctx=None, deadline_ms=None, scheduler=None))]
 pub fn run_native(
     py: Python<'_>,
     coro: Py<PyAny>,
@@ -233,6 +298,7 @@ pub fn run_native(
     on_foreign: Py<PyAny>,
     ctx: Option<Py<PyAny>>,
     deadline_ms: Option<u64>,
+    scheduler: Option<Py<PyAny>>,
 ) -> NativeRun {
     let stop = Arc::new(Notify::new());
     let run = Arc::new(Run {
@@ -240,6 +306,7 @@ pub fn run_native(
         ctx,
         on_done,
         on_foreign,
+        scheduler,
         deadline: deadline_ms.map(|ms| Instant::now() + Duration::from_millis(ms)),
         stop: stop.clone(),
     });
