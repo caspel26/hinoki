@@ -162,11 +162,11 @@ everything = await Task.all()           # the explicit way around the policy
 Pass the method where the framework asks for a base query, so every operation built on it sees the same rows:
 
 ```python
-from hinoki import crud
+from hinoki import API, crud
 
 
 @crud(Task, path="/tasks", read=TaskOut)
-class Tasks:
+class Tasks(API):
     def get_queryset(self, principal):
         return Task.active()
 

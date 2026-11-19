@@ -45,19 +45,20 @@ posts = crud(
 app = Hinoki(include=[posts])
 ```
 
-Add code with the class form. `get_queryset(self, principal)` and
+Add code with the class form. The class extends `API` (its only base);
+`get_queryset(self, principal)` and
 `to_schema(self, item)` are the only hooks; anything else is a handwritten
 action:
 
 ```python
 from typing import Any
 
-from hinoki import Caller, crud, http
+from hinoki import API, Caller, crud, http
 from hinoki.orm import QuerySet
 
 
 @crud(Post, path="/posts", read=PostOut, create=PostCreate, access=editor)
-class Posts:
+class Posts(API):
     def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Post]:
         return Post.filter(published=True).order_by("-id")
 
