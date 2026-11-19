@@ -1,11 +1,11 @@
 """Startup compilation for the private native CRUD plans."""
 
 import asyncio
-import re
 import dataclasses
 import json
 import math
 import os
+import re
 import sys
 import types
 from datetime import datetime
