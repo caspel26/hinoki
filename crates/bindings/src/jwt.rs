@@ -417,6 +417,115 @@ impl Verifier {
     }
 }
 
+/// Native admission for a claims-only provider (`hinoki.crypto.ClaimsJWTAuth`).
+///
+/// It only ever says "admitted": every other outcome (no header, a header it does
+/// not read exactly as Python does, a token or claims Python might refuse) is
+/// left to the Python pipeline, which authenticates and answers `401`/`403`.
+pub(crate) struct ClaimsAuth {
+    keys: Vec<Key>,
+    issuer: Option<String>,
+    audience: Option<String>,
+    leeway: i64,
+    require_exp: bool,
+    scope_claim: String,
+    required: Vec<String>,
+}
+
+fn is_token_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-')
+}
+
+impl ClaimsAuth {
+    /// Whether `Authorization: Bearer <token>` is a valid token whose claims
+    /// give a non-empty `sub` and every required permission.
+    pub(crate) fn admits(&self, authorization: &[u8], now: i64) -> bool {
+        let Some(space) = authorization.iter().position(|byte| *byte == b' ') else {
+            return false;
+        };
+        let (scheme, token) = (&authorization[..space], &authorization[space + 1..]);
+        // Only a plain token is read here, so Python's whitespace stripping
+        // cannot make the two readings differ.
+        if !scheme.eq_ignore_ascii_case(b"bearer")
+            || token.is_empty()
+            || !token.iter().copied().all(is_token_byte)
+        {
+            return false;
+        }
+        let Ok(token) = std::str::from_utf8(token) else {
+            return false;
+        };
+        let rules = Rules {
+            now,
+            leeway: self.leeway,
+            issuer: self.issuer.as_deref(),
+            audience: self.audience.as_deref(),
+            require_exp: self.require_exp,
+        };
+        let Ok(payload) = decode(token, &self.keys, &rules) else {
+            return false;
+        };
+        let Ok(claims) = object(&payload) else {
+            return false;
+        };
+        self.grants(&claims)
+    }
+
+    fn grants(&self, claims: &Map<String, Value>) -> bool {
+        match claims.get("sub") {
+            Some(Value::String(subject)) if !subject.is_empty() => {}
+            _ => return false,
+        }
+        let granted: Vec<&str> = match claims.get(&self.scope_claim) {
+            None => Vec::new(),
+            Some(Value::Array(items)) => items.iter().filter_map(Value::as_str).collect(),
+            Some(_) => return false,
+        };
+        self.required
+            .iter()
+            .all(|permission| granted.contains(&permission.as_str()))
+    }
+}
+
+/// Private immutable claims-only authentication settings of one CRUD route.
+#[pyclass(name = "_ClaimsAuth", module = "hinoki.core", frozen)]
+pub(crate) struct PyClaimsAuth {
+    pub(crate) inner: std::sync::Arc<ClaimsAuth>,
+}
+
+#[pymethods]
+impl PyClaimsAuth {
+    #[new]
+    fn new(
+        keys: Vec<KeySpec>,
+        issuer: Option<String>,
+        audience: Option<String>,
+        leeway: i64,
+        require_exp: bool,
+        scope_claim: String,
+        required: Vec<String>,
+    ) -> PyResult<Self> {
+        if keys.is_empty() || !(0..=MAX_LEEWAY).contains(&leeway) {
+            return Err(PyValueError::new_err("invalid claims authentication"));
+        }
+        let keys = keys
+            .into_iter()
+            .map(|(kid, algorithm, bytes, public)| key_from(kid, &algorithm, bytes, public))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(Self {
+            inner: std::sync::Arc::new(ClaimsAuth {
+                keys,
+                issuer,
+                audience,
+                leeway,
+                require_exp,
+                scope_claim,
+                required,
+            }),
+        })
+    }
+}
+
 /// Private immutable native verifier; Python owns a short-lived reference.
 #[pyclass(name = "_JWTVerifier", module = "hinoki.core")]
 pub(super) struct PyJWTVerifier {
@@ -695,5 +804,63 @@ mod tests {
                 decode(&invalid, &verifier.keys, &policy)
             );
         }
+    }
+
+    fn claims_auth(required: &[&str]) -> ClaimsAuth {
+        ClaimsAuth {
+            keys: vec![hs(None)],
+            issuer: None,
+            audience: None,
+            leeway: 0,
+            require_exp: true,
+            scope_claim: "scopes".to_owned(),
+            required: required.iter().map(|name| (*name).to_owned()).collect(),
+        }
+    }
+
+    fn bearer(claims: &str) -> Vec<u8> {
+        format!("Bearer {}", encode(claims.as_bytes(), &hs(None)).unwrap()).into_bytes()
+    }
+
+    #[test]
+    fn claims_auth_admits_a_valid_token_with_the_required_permissions() {
+        let auth = claims_auth(&["posts:write"]);
+        let header = bearer(r#"{"sub":"u1","exp":2000,"scopes":["posts:write","x",7]}"#);
+        assert!(auth.admits(&header, 1000));
+        assert!(claims_auth(&[]).admits(&bearer(r#"{"sub":"u1","exp":2000}"#), 1000));
+    }
+
+    #[test]
+    fn claims_auth_leaves_every_doubtful_request_to_python() {
+        let auth = claims_auth(&["posts:write"]);
+        let good = r#"{"sub":"u1","exp":2000,"scopes":["posts:write"]}"#;
+        assert!(!auth.admits(&bearer(good), 2000), "expired");
+        assert!(!auth.admits(&bearer(r#"{"sub":"u1","exp":2000,"scopes":[]}"#), 1000));
+        assert!(!auth.admits(&bearer(r#"{"exp":2000,"scopes":["posts:write"]}"#), 1000));
+        assert!(!auth.admits(
+            &bearer(r#"{"sub":"","exp":2000,"scopes":["posts:write"]}"#),
+            1000
+        ));
+        assert!(!auth.admits(
+            &bearer(r#"{"sub":"u","exp":2000,"scopes":"posts:write"}"#),
+            1000
+        ));
+        let token = String::from_utf8(bearer(good)).unwrap();
+        let token = token.strip_prefix("Bearer ").unwrap();
+        assert!(auth.admits(format!("bEaReR {token}").as_bytes(), 1000));
+        for header in [
+            format!("Basic {token}"),
+            format!("Bearer  {token}"),
+            format!("Bearer {token} "),
+            format!("Bearer {token}, Bearer {token}"),
+            token.to_owned(),
+            "Bearer ".to_owned(),
+        ] {
+            assert!(!auth.admits(header.as_bytes(), 1000), "{header}");
+        }
+        let mut forged = token.to_owned();
+        forged.pop();
+        forged.push('x');
+        assert!(!auth.admits(format!("Bearer {forged}").as_bytes(), 1000));
     }
 }

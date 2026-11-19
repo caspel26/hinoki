@@ -165,6 +165,19 @@ impl PreparedRequest {
         joined_value(&self.headers, name).map(Cow::into_owned)
     }
 
+    /// The request header `name` when it appears exactly once (several
+    /// occurrences are not read as one value).
+    pub(crate) fn single_header(&self, name: &[u8]) -> Option<&[u8]> {
+        let mut found = self
+            .headers
+            .iter()
+            .filter(|(header, _)| header.eq_ignore_ascii_case(name));
+        match (found.next(), found.next()) {
+            (Some((_, value)), None) => Some(value.as_slice()),
+            _ => None,
+        }
+    }
+
     pub(crate) fn buffer_native_body(&self, bytes: Vec<u8>) -> bool {
         if !self.native_body_consumed.swap(false, Ordering::AcqRel) {
             return false;

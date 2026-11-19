@@ -265,3 +265,32 @@ class JWTAuth[T](BearerAuth[T]):
         if self.audience is not None:
             body.setdefault("aud", self.audience)
         return core.jwt_encode(core.encode_json(body), signer.spec())
+
+
+class ClaimsJWTAuth(JWTAuth[None]):
+    """A JWT provider whose caller comes from the signed claims alone.
+
+    Subclass it and set ``keys`` (and usually ``issuer`` and ``audience``)::
+
+        class Tokens(ClaimsJWTAuth):
+            keys = [JWTKey("2026-11", "HS256", settings.jwt_secret)]
+
+    ``Caller.id`` is the non-empty string claim ``sub``, ``Caller.user`` is
+    ``None`` and ``Caller.permissions`` are the strings in the list claim named
+    by ``scope_claim`` (none when it is absent). A token without a usable
+    ``sub``, or whose scope claim is not a list, is refused. Nothing is loaded
+    from a database, so a token stays valid until it expires; use ``JWTAuth``
+    when a revoked or deleted account must be refused immediately.
+
+    Because it runs no application code, the Rust server can authenticate
+    generated CRUD routes that use it without entering Python. Overriding any
+    method keeps the routes on the Python request pipeline.
+    """
+
+    scope_claim: ClassVar[str] = "scopes"
+
+    def resolve_claims(self, claims: dict[str, Any]) -> Caller[None] | None:
+        subject, raw = claims.get("sub"), claims.get(self.scope_claim, [])
+        if not isinstance(subject, str) or not subject or not isinstance(raw, list):
+            return None
+        return Caller(subject, None, frozenset(s for s in raw if isinstance(s, str)))

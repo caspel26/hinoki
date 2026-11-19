@@ -114,6 +114,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(jwt::jwt_encode, m)?)?;
     m.add_function(wrap_pyfunction!(jwt::jwt_decode, m)?)?;
     m.add_class::<jwt::PyJWTVerifier>()?;
+    m.add_class::<jwt::PyClaimsAuth>()?;
     m.add_function(wrap_pyfunction!(crypto::hash_password, m)?)?;
     m.add_function(wrap_pyfunction!(crypto::verify_password, m)?)?;
     m.add_function(wrap_pyfunction!(crypto::password_needs_rehash, m)?)?;
