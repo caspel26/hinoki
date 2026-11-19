@@ -13,8 +13,8 @@ from hinoki import Hinoki, Module, RuntimeConfig, Schema, http
 from hinoki.db import Database, DatabaseModule, UniqueViolation
 from hinoki.errors import Conflict
 from hinoki.modules import ModuleContext
-from hinoki.runtime.rustserver import RustWorker
-from tests.rustservertest import fetch, record_lanes
+from hinoki.runtime.kiso import KisoWorker
+from tests.kisoservertest import fetch, record_lanes
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(
@@ -128,7 +128,7 @@ async def count(admin: Database) -> int:
 async def test_native_transaction_commits_or_rolls_back_like_the_pipeline(
     table: Database, path: str, status: int, rows: int
 ) -> None:
-    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(), "127.0.0.1", 0)
     port = await worker.start()
     try:
         lanes = record_lanes(worker)
@@ -144,7 +144,7 @@ async def test_native_transaction_commits_or_rolls_back_like_the_pipeline(
 async def test_native_transaction_timeout_rolls_back_and_keeps_serving(
     table: Database,
 ) -> None:
-    worker = RustWorker(make_app(request_timeout=0.3), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(request_timeout=0.3), "127.0.0.1", 0)
     port = await worker.start()
     try:
         assert (await post(port, "/slow"))[0] == 504
@@ -156,7 +156,7 @@ async def test_native_transaction_timeout_rolls_back_and_keeps_serving(
 
 
 async def test_a_sync_delete_with_a_transaction_is_native() -> None:
-    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(), "127.0.0.1", 0)
     port = await worker.start()
     try:
         lanes = record_lanes(worker)

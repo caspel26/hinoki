@@ -7,9 +7,9 @@ from __future__ import annotations
 from typing import Any
 
 from hinoki import XML, Field, Form, Hinoki, Query, Schema, XMLParser, http
-from hinoki.runtime.rustserver import RustWorker
+from hinoki.runtime.kiso import KisoWorker
 from hinoki.testing import ASGIClient
-from tests.rustservertest import JSON, fetch
+from tests.kisoservertest import JSON, fetch
 from tests.xmlnativelanetest import recording
 
 FORM = "application/x-www-form-urlencoded"
@@ -125,7 +125,7 @@ BODIES = [
 async def test_the_native_lane_validates_and_encodes_like_the_python_lane() -> None:
     app = Hinoki()
     app.include(json_basket, query_basket)
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     lanes: list[str] = []
     pipeline = worker.pipeline
     pipeline.handle_native = recording(lanes, "native", pipeline.handle_native)  # type: ignore[method-assign]

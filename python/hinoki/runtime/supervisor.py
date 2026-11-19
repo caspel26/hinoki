@@ -2,7 +2,7 @@
 ``hinoki dev``.
 
 The supervisor opens the listening socket once and starts every worker as a
-fresh process (``python -m hinoki.runtime.rustserver``, with the descriptor
+fresh process (``python -m hinoki.runtime.kiso``, with the descriptor
 passed down; no ``fork``), so no tokio runtime, database pool or request-id
 prefix is inherited: each worker imports the target, builds the application and
 starts its runtime after it starts. The supervisor never starts tokio itself.
@@ -64,7 +64,7 @@ class Supervisor:
         return [
             sys.executable,
             "-m",
-            "hinoki.runtime.rustserver",
+            "hinoki.runtime.kiso",
             self.target,
             "--fd",
             str(self.listener.fileno()),

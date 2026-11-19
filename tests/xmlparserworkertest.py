@@ -10,8 +10,8 @@ import pytest
 
 from hinoki import XML, Hinoki, Request, Schema, XMLParser, http
 from hinoki.parsers import MAX_XML_DEPTH
-from hinoki.runtime.rustserver import RustWorker
-from tests.rustservertest import Received, fetch, record_lanes
+from hinoki.runtime.kiso import KisoWorker
+from tests.kisoservertest import Received, fetch, record_lanes
 
 
 class Entry(Schema):
@@ -49,7 +49,7 @@ async def xmlp_deep(request: Request) -> dict[str, object]:
 async def serving() -> AsyncIterator[tuple[int, list[bool]]]:
     app = Hinoki()
     app.include(xmlp_native, xmlp_python, xmlp_tree, xmlp_deep)
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     port = await worker.start()
     try:
         yield port, record_lanes(worker)

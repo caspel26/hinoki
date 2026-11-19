@@ -10,8 +10,8 @@ from uuid import UUID
 import pytest
 
 from hinoki import Hinoki, JSONRenderer, Request, XMLRenderer, http
-from hinoki.runtime.rustserver import RustWorker
-from tests.rustservertest import fetch
+from hinoki.runtime.kiso import KisoWorker
+from tests.kisoservertest import fetch
 
 XML = "application/xml; charset=utf-8"
 BODY = (
@@ -43,7 +43,7 @@ async def serving(lanes: list[str]) -> AsyncIterator[int]:
     """A started worker whose every request records the lane that served it."""
     app = Hinoki()
     app.include(lane_xml, lane_request)
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     pipeline = worker.pipeline
     pipeline.handle_native = recording(lanes, "native", pipeline.handle_native)  # type: ignore[method-assign]
     pipeline.handle = recording(lanes, "python", pipeline.handle)  # type: ignore[method-assign]

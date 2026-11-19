@@ -48,9 +48,9 @@ from hinoki.runtime import crudplan as crudplan_module
 from hinoki.runtime import servercore as servercore_module
 from hinoki.runtime.binding import Binding
 from hinoki.runtime.crudplan import CrudPlanSelection, select_crud_plan
+from hinoki.runtime.kiso import KisoWorker, _drain_native_uninterruptibly
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.responses import Response
-from hinoki.runtime.rustserver import RustWorker, _drain_native_uninterruptibly
 from hinoki.runtime.servercore import build_server_core
 from hinoki.settings import AppSettings, CorsSettings, ServerSettings
 from hinoki.utils import utc_now
@@ -439,7 +439,7 @@ def test_native_crud_activation_fails_closed_for_missing_and_failed_database(
             def _arm_crud(self, _action: int) -> bool:
                 return False
 
-        worker = object.__new__(RustWorker)
+        worker = object.__new__(KisoWorker)
         worker.pipeline = pipeline
         worker.core = cast(Any, CoreStub())
         worker._disarmed_crud_actions = set()
@@ -737,7 +737,7 @@ async def test_worker_attaches_and_releases_the_shared_database_clone(
         modules=[DatabaseModule(f"sqlite:///{tmp_path / 'worker.db'}")],
     )
     app.errors.handle(core.UniqueViolation)(unique_to_conflict)
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     await worker.start()
 
     eligible = [
@@ -890,7 +890,7 @@ async def test_native_list_retrieve_and_head_match_forced_python_lane() -> None:
         include=[PlanItems],
         modules=[DatabaseModule(DATABASE_URL)],
     )
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     await worker.start()
     try:
         eligible = [
@@ -1097,7 +1097,7 @@ async def test_native_writes_match_forced_python_lane(
         include=[PlanItems],
         modules=[DatabaseModule(DATABASE_URL)],
     )
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     monkeypatch.setattr(worker, "_check_crud_snapshots", lambda: None)
     await worker.start()
     originals = {
@@ -1155,7 +1155,7 @@ async def test_native_writes_match_forced_python_lane_on_sqlite(
         include=[PlanItems],
         modules=[DatabaseModule(database_url)],
     )
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     monkeypatch.setattr(worker, "_check_crud_snapshots", lambda: None)
     await worker.start()
     originals = {
@@ -1215,7 +1215,7 @@ async def test_native_write_timeout_rolls_back_before_504() -> None:
         include=[PlanItems],
         modules=[DatabaseModule(DATABASE_URL)],
     )
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     await worker.start()
     started = asyncio.get_running_loop().time()
     try:
@@ -1251,7 +1251,7 @@ async def test_native_write_survives_client_disconnect() -> None:
         include=[PlanItems],
         modules=[DatabaseModule(DATABASE_URL)],
     )
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     await worker.start()
     try:
         _, writer = await asyncio.open_connection("127.0.0.1", worker.address[1])
@@ -1289,7 +1289,7 @@ def test_not_ready_requests_cannot_enter_the_native_crud_path() -> None:
         include=[PlanItems],
         modules=[DatabaseModule("sqlite:///unused-native-error.sqlite3")],
     )
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     assert not worker.core.ready
     submission = worker.core.submit("GET", "/plan-items", b"", [])
     reply = submission.early
@@ -1309,7 +1309,7 @@ async def test_startup_mutation_disarms_crud_plans_before_ready(
         modules=[DatabaseModule(f"sqlite:///{tmp_path / 'stale.db'}")],
         on_startup=[mutate_crud],
     )
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     await worker.start()
 
     eligible = [
@@ -1332,7 +1332,7 @@ async def test_housekeeping_disarms_a_plan_after_a_snapshot_change(
         include=[PlanItems],
         modules=[DatabaseModule(f"sqlite:///{tmp_path / 'tick.db'}")],
     )
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     await worker.start()
     eligible = [
         action
@@ -1360,7 +1360,7 @@ async def test_snapshot_exception_fails_closed_before_pool_attachment(
         include=[PlanItems],
         modules=[DatabaseModule(f"sqlite:///{tmp_path / 'snapshot-failure.db'}")],
     )
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     await worker.start()
 
     eligible = [
@@ -2022,7 +2022,7 @@ async def test_native_claims_auth_answers_like_the_python_lane() -> None:
         "saved",
     )
     database.close()
-    worker = RustWorker(claims_app(DATABASE_URL), "127.0.0.1", 0)
+    worker = KisoWorker(claims_app(DATABASE_URL), "127.0.0.1", 0)
     await worker.start()
     try:
         port = worker.address[1]
@@ -2217,7 +2217,7 @@ ALL_SCOPES = ["notes:read", "notes:write"]
 async def owned_scenario(  # noqa: PLR0915 - one linear request script
     url: str, *, native: bool
 ) -> tuple[list[object], list[object], int]:
-    worker = RustWorker(
+    worker = KisoWorker(
         Hinoki(include=[OwnedNotes], modules=[DatabaseModule(url)]), "127.0.0.1", 0
     )
     await worker.start()

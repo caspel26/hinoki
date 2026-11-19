@@ -207,6 +207,7 @@ impl LoggedHead {
                 status,
                 elapsed,
                 lane: self.trace.lane(),
+                route: self.trace.route(),
             },
             sink,
         );
