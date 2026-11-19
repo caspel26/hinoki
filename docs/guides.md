@@ -51,7 +51,7 @@ One page for each part of an application. Start with the data and endpoint guide
 
 ## Operating
 
-- [Sync and async](sync-async.md): Hinoki runs on one event loop per worker; synchronous handlers run on a bounded worker pool.
+- [Sync and async](sync-async.md): Hinoki runs on one event loop per worker; synchronous handlers run on a bounded worker pool; `@native` marks handlers the Rust server will drive.
 - [Benchmarks](benchmarks.md): retained measurements with their environment, method and limits, including a separate native CRUD orientation run.
 
 ## Where to go next
