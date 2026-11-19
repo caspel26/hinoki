@@ -23,8 +23,8 @@ from hinoki import (
     http,
 )
 from hinoki.runtime.executor import ExecutorSaturated
+from hinoki.runtime.nativehandler import native_handler_eligible
 from hinoki.runtime.pipeline import Pipeline
-from hinoki.runtime.servercore import native_handler_eligible
 from hinoki.settings import AppSettings, ServerSettings
 from hinoki.testing import ASGIClient
 
