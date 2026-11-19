@@ -475,6 +475,27 @@ An alias remains the only accepted wire name. If `given_name` has alias `givenNa
 
 `Schema(...)` validates the final Python values immediately and raises `ValidationError` for invalid values. Pass Python objects such as `UUID`, timezone-aware `datetime` and nested `Schema` instances. `Schema.validate(decoded_data)` is the wire-input path: it accepts JSON-compatible values, resolves aliases and returns field errors using wire names. Request body binding uses that path before calling the handler. `from_model()` also validates the constructed Schema; naive datetimes returned by database drivers remain unchanged and are allowed on that model-conversion path. When a handler declares one concrete Schema return type, a direct Model result is passed through `from_model()` automatically (an invalid row is a `500`, not a `422`) and a subclass instance is sent with the declared fields only; this does not validate other handler return values such as a `dict`. See [Schemas derived from models](model-schemas.md#return-a-model-from-a-schema-annotated-handler).
 
+## Generic schemas
+
+Declare type parameters with the Python 3.12 syntax and parameterize the class where it is used. `Envelope[User]` is a real, cached `Schema` subclass: it validates on both lanes, appears in the OpenAPI document as its own component (`Envelope_User_`) and keeps `Field(...)` metadata, defaults, checks and computed fields.
+
+```python
+from hinoki import Schema, http
+
+class User(Schema):
+    name: str
+
+class Envelope[T](Schema):
+    data: T
+    count: int = 0
+
+@http.get("/user")
+async def show(request) -> Envelope[User]:
+    return Envelope[User](data=User(name="Ada"))
+```
+
+Limits: the unparameterized `Envelope` cannot validate or be used as a field (`RegistrationError`); the argument count must match; a schema that refers to itself (`children: list[Tree[T]]`) is refused as recursive; and a generic subclass of a generic schema (`class Child[T](Base[T])`) is not supported: the base class's fields keep the type variable and parameterizing the child fails with a `RegistrationError`.
+
 ## Discriminated unions
 
 Use a discriminated union when one field can contain one of several known Schema shapes. Declare the union on a `Schema` field with `Annotated[Cat | Dog, Field(discriminator="kind")]`. Every variant needs the same required string field, the same wire alias for that field, and exactly one `Field(one_of=(...))` tag. Hinoki selects the variant by that tag in Rust; it does not try each schema in order.

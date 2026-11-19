@@ -332,6 +332,14 @@ def check_one_of(info: FieldInfo, kind: str, where: str) -> None:
         )
 
 
+def concrete(annotation: Any) -> Any:
+    """``Envelope[User]`` written inside a generic schema becomes the real class."""
+    origin = get_origin(annotation)
+    if isinstance(origin, type) and hasattr(origin, "__hinoki_schema__"):
+        return cast(Any, origin)[get_args(annotation)]
+    return annotation
+
+
 def parse_annotation(
     annotation: object, where: str, *, input_bounds: bool = True
 ) -> FieldType:
@@ -339,9 +347,10 @@ def parse_annotation(
     ``input_bounds=False`` (a field derived from a model column) leaves out the
     default wire-input bounds of dict fields."""
     base, info = split_annotated(annotation, where)
+    base = concrete(base)
     nullable = allows_unset = False
     if is_union(base):
-        members = list(get_args(base))
+        members = [concrete(m) for m in get_args(base)]
         nullable = type(None) in members
         allows_unset = Unset in members
         rest = [m for m in members if m is not type(None) and m is not Unset]

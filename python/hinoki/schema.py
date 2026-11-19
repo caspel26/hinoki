@@ -1083,11 +1083,27 @@ class Schema:
         else:
             install_generated_init(cls, cls.__init__)
         try:
-            cls.__specs__ = cls.build_specs()
+            cls.__specs__ = None if cls.is_generic() else cls.build_specs()
         except ForwardReference:
             cls.__specs__ = None  # resolved on first use (recursive schemas)
         else:
-            cls.computed_fields()
+            if not cls.is_generic():
+                cls.computed_fields()
+
+    @classmethod
+    def is_generic(cls) -> bool:
+        """True while type parameters are still open (``Envelope``)."""
+        return bool(getattr(cls, "__parameters__", ()))
+
+    def __class_getitem__(cls, args: object) -> Any:
+        if not cls.is_generic():
+            raise TypeError(f"{cls.__name__} is not a generic schema")
+        given = args if isinstance(args, tuple) else (args,)
+        if any(free_parameters(a) for a in given):
+            return super().__class_getitem__(args)  # type: ignore[misc]
+        from hinoki.generics import parameterize  # noqa: PLC0415 - generics uses us
+
+        return parameterize(cls, given)
 
     @classmethod
     def computed_fields(cls) -> dict[str, ComputedSpec]:
@@ -1120,6 +1136,11 @@ class Schema:
         """Field descriptions, resolving forward references on first use."""
         cached = cls.__dict__.get("__specs__")
         if cached is None:
+            if cls.is_generic():
+                raise RegistrationError(
+                    f"{cls.__name__} is generic: parameterize it first, "
+                    f"for example {cls.__name__}[int]"
+                )
             cached = cls.build_specs(final=True)
             cls.__specs__ = cached
         return cached
@@ -1659,8 +1680,17 @@ SOURCE_SKIP = frozenset(
         "__derivation__", "__derived_model__", "__model_fields__",
         _SUPPLIED_FIELDS, _TRACKS_SUPPLIED_FIELDS,
         "__computed_specs__", "__computed_checked__", COMPUTED_TABLE,
+        "__parameters__", "__orig_bases__", "__type_params__",
     }
 )  # fmt: skip
+
+
+def free_parameters(value: object) -> tuple[Any, ...]:
+    """Type variables still open in ``value``."""
+    if isinstance(value, typing.TypeVar):
+        return (value,)
+    found = getattr(value, "__parameters__", ())
+    return found if isinstance(found, tuple) else ()
 
 
 def class_source(cls: type) -> dict[str, Any]:
