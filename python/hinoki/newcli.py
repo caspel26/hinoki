@@ -201,6 +201,8 @@ def fill(args: argparse.Namespace, questions: Questions) -> None:
         args.agent_files = questions.confirm(
             "Agent instructions and MCP config?", "Agent files", True
         )
+    if args.skills is None:
+        args.skills = questions.confirm("Agent skills?", "Skills", False)
     if args.git is None:
         args.git = questions.confirm("Initialize a git repository?", "Git", True)
     if args.install is None:

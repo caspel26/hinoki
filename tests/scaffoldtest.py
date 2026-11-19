@@ -254,9 +254,27 @@ def new_args(**overrides: Any) -> Any:
 
 def test_prompts_fill_only_what_the_flags_left_unset(tmp_path: Path) -> None:
     args = new_args(name="shop", dir=str(tmp_path), database="sqlite")
-    fill_from_prompts(args, answers("n", "", "n"))
+    fill_from_prompts(args, answers("n", "", "", "n"))
     assert (args.name, args.database) == ("shop", "sqlite")
-    assert (args.agent_files, args.git, args.install) == (False, True, False)
+    assert (args.agent_files, args.skills, args.git, args.install) == (
+        False,
+        False,
+        True,
+        False,
+    )
+
+
+def test_the_skills_question_can_be_answered_yes() -> None:
+    args = new_args(
+        name="shop",
+        dir=".",
+        database="none",
+        agent_files=True,
+        git=False,
+        install=False,
+    )
+    fill_from_prompts(args, answers("y"))
+    assert args.skills is True
 
 
 def test_prompts_repeat_until_the_answer_is_valid() -> None:
@@ -264,7 +282,17 @@ def test_prompts_repeat_until_the_answer_is_valid() -> None:
     fill_from_prompts(
         args,
         answers(
-            "Bad-Name", "hinoki", "shop", "", "oracle", "sqlite", "maybe", "y", "", ""
+            "Bad-Name",
+            "hinoki",
+            "shop",
+            "",
+            "oracle",
+            "sqlite",
+            "maybe",
+            "y",
+            "",
+            "",
+            "",
         ),
     )
     assert (args.name, args.dir, args.database, args.agent_files) == (
@@ -374,12 +402,16 @@ def test_styling_is_used_only_on_a_capable_terminal() -> None:
 def test_the_database_prompt_accepts_a_number_or_a_name(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    args = new_args(name="shop", dir=".", agent_files=True, git=False, install=False)
+    args = new_args(
+        name="shop", dir=".", agent_files=True, skills=False, git=False, install=False
+    )
     fill_from_prompts(args, answers("7", "2"))
     assert args.database == "sqlite"
     listing = capsys.readouterr().out
     assert "1) none" in listing and "3) postgresql" in listing
-    args = new_args(name="shop", dir=".", agent_files=True, git=False, install=False)
+    args = new_args(
+        name="shop", dir=".", agent_files=True, skills=False, git=False, install=False
+    )
     fill_from_prompts(args, answers("postgresql"))
     assert args.database == "postgresql"
 
@@ -391,11 +423,16 @@ def keyed(text: str) -> tuple[Prompter, io.StringIO]:
 
 
 def test_key_driven_prompts_settle_into_a_summary_line() -> None:
-    prompter, out = keyed("Bad\r\x7f\x7f\x7fshop\r\r\x1b[B\x1b[B\x1b[A\rn\r\r\r")
+    prompter, out = keyed("Bad\r\x7f\x7f\x7fshop\r\r\x1b[B\x1b[B\x1b[A\rn\r\r\r\r")
     args = new_args()
     newcli.fill(args, prompter)
     assert (args.name, args.dir, args.database) == ("shop", ".", "sqlite")
-    assert (args.agent_files, args.git, args.install) == (False, True, True)
+    assert (args.agent_files, args.skills, args.git, args.install) == (
+        False,
+        False,
+        True,
+        True,
+    )
     shown = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", out.getvalue())
     assert "use lower-case letters and digits" in shown
     assert "\u25c7  Name" in shown and "sqlite" in shown
