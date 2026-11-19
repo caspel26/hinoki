@@ -342,7 +342,7 @@ def stays_json(parsed: FieldType, values: dict[str, Any]) -> bool:
     of dicts, an Enum or a Literal (a plain ``one_of`` constraint is not), or a
     set or tuple."""
     listed = parsed.info.one_of is not None and "one_of" not in values
-    grouped = parsed.kind == "tuple" or parsed.collection is not None
+    grouped = parsed.kind in {"tuple", "anyof", "any"} or parsed.collection is not None
     return listed or grouped or holds_mapping(parsed)
 
 

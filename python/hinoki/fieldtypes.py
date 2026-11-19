@@ -41,6 +41,8 @@ SCALARS: dict[type, str] = {
     timedelta: "timedelta",
     Decimal: "decimal",
     bytes: "bytes",
+    Any: "any",
+    object: "any",
 }
 
 DECIMAL_DIGITS_CEILING = 1000
@@ -106,11 +108,12 @@ class FieldType:
     is an array of ``item``; the validated value is built as this container."""
     items: tuple[FieldType, ...] = ()
     """The element types, by position, of a fixed ``tuple`` field (kind
-    ``"tuple"``); its length is its ``min_length`` and ``max_length``."""
+    ``"tuple"``), or the variants, in order, of a plain union (kind ``"anyof"``);
+    a tuple's length is its ``min_length`` and ``max_length``."""
 
     def children(self) -> tuple[FieldType, ...]:
         """The types of the elements (or dict values) a value of this type holds."""
-        if self.kind == "tuple":
+        if self.kind in {"tuple", "anyof"}:
             return self.items
         return () if self.item is None else (self.item,)
 
@@ -281,29 +284,73 @@ def parse_annotation(
         allows_unset = Unset in members
         rest = [m for m in members if m is not type(None) and m is not Unset]
         if len(rest) > 1:
-            return build_tagged_union(rest, info, nullable, allows_unset, where)
+            return build_union(rest, info, nullable, allows_unset, where)
         if len(rest) != 1:
             raise RegistrationError(f"{where}: unsupported union {annotation!r}")
-        base, inner = split_annotated(rest[0], where)
-        if (
-            info.alias is not None
-            and inner.alias is not None
-            and info.alias != inner.alias
-        ):
-            raise RegistrationError(
-                f"{where}: conflicting aliases {inner.alias!r} and {info.alias!r}"
-            )
-        constraints = {**inner.constraints(), **info.constraints()}
-        info = field_info_from_constraints(
-            constraints,
-            alias=info.alias if info.alias is not None else inner.alias,
-            discriminator=info.discriminator or inner.discriminator,
-        )
+        base, info = merge_single(rest[0], info, where)
     elif info.discriminator is not None:
         raise RegistrationError(
             f"{where}: discriminator is only valid on a union of Schema variants"
         )
     return build(base, info, nullable, allows_unset, where, input_bounds)
+
+
+def merge_single(member: object, info: FieldInfo, where: str) -> tuple[Any, FieldInfo]:
+    """The base type and merged metadata of ``Annotated[X, ...] | None``."""
+    base, inner = split_annotated(member, where)
+    if info.alias is not None and inner.alias is not None and info.alias != inner.alias:
+        raise RegistrationError(
+            f"{where}: conflicting aliases {inner.alias!r} and {info.alias!r}"
+        )
+    merged = field_info_from_constraints(
+        {**inner.constraints(), **info.constraints()},
+        alias=info.alias if info.alias is not None else inner.alias,
+        discriminator=info.discriminator or inner.discriminator,
+    )
+    return base, merged
+
+
+def build_union(
+    members: list[Any],
+    info: FieldInfo,
+    nullable: bool,
+    allows_unset: bool,
+    where: str,
+) -> FieldType:
+    """A union of Schema classes is discriminated; any other union is plain."""
+    if info.discriminator is None and not all_schemas(members):
+        return build_anyof(members, info, nullable, allows_unset, where)
+    return build_tagged_union(members, info, nullable, allows_unset, where)
+
+
+def all_schemas(members: list[Any]) -> bool:
+    """Whether every member of a union is a Schema class (these need a tag)."""
+    return all(
+        isinstance(member, type) and hasattr(member, "__hinoki_schema__")
+        for member in members
+    )
+
+
+def build_anyof(
+    members: list[Any],
+    info: FieldInfo,
+    nullable: bool,
+    allows_unset: bool,
+    where: str,
+) -> FieldType:
+    """``A | B | ...``: the first variant, in declared order, that accepts the
+    value is the one used. A union of Schema classes must be discriminated."""
+    check_constraints(info, "anyof", where)
+    if not MIN_UNION_VARIANTS <= len(members) <= MAX_UNION_VARIANTS:
+        raise RegistrationError(
+            f"{where}: a union takes {MIN_UNION_VARIANTS} to {MAX_UNION_VARIANTS} "
+            "variants"
+        )
+    variants = tuple(
+        parse_annotation(member, f"{where}|{index}")
+        for index, member in enumerate(members)
+    )
+    return FieldType("anyof", nullable, allows_unset, info, items=variants)
 
 
 def build_tagged_union(
@@ -464,13 +511,22 @@ def build(
     else:
         raise RegistrationError(f"{where}: unsupported type {base!r}")
     check_constraints(info, kind, where)
-    default = None
-    if kind == "bytes":
-        default = MAX_BYTES_LENGTH if input_bounds and info.max_length is None else None
-        check_reachable(info, MAX_BYTES_LENGTH if input_bounds else None, where)
+    default = bytes_default(info, input_bounds, where) if kind == "bytes" else None
     return FieldType(
-        kind, nullable, allows_unset, info, item, schema, input_max_length=default
+        kind,
+        nullable or kind == "any",
+        allows_unset,
+        info,
+        item,
+        schema,
+        input_max_length=default,
     )
+
+
+def bytes_default(info: FieldInfo, input_bounds: bool, where: str) -> int | None:
+    """The framework bound on the decoded length of wire ``bytes`` input."""
+    check_reachable(info, MAX_BYTES_LENGTH if input_bounds else None, where)
+    return MAX_BYTES_LENGTH if input_bounds and info.max_length is None else None
 
 
 INT64_MIN = -(2**63)
@@ -566,7 +622,9 @@ def is_hashable(ftype: FieldType) -> bool:
         )
     if ftype.kind == "tuple":
         return all(is_hashable(item) for item in ftype.items)
-    return ftype.kind not in {"dict", "schema", "union"}
+    if ftype.kind == "anyof":
+        return all(is_hashable(item) for item in ftype.items)
+    return ftype.kind not in {"dict", "schema", "union", "any"}
 
 
 def build_grouped(
