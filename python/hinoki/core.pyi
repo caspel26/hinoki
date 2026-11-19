@@ -66,6 +66,17 @@ def driving() -> bool: ...
 def _drive(coro: Any, cancel_after: int | None = None) -> Any: ...
 def _native_wait(millis: int, value: Any, fail: bool) -> _NativeWait: ...
 
+class _NativeRun:
+    def cancel(self) -> None: ...
+
+def run_native(
+    coro: Any,
+    on_done: Callable[[Any, BaseException | None, str | None], None],
+    on_foreign: Callable[[Any, Any, Any, float | None], None],
+    ctx: Any = None,
+    deadline_ms: int | None = None,
+) -> _NativeRun: ...
+
 class _ClaimsAuth:
     def __init__(
         self,

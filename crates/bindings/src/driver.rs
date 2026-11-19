@@ -1,12 +1,12 @@
 //! Driving a coroutine without an event loop.
 //!
-//! A handler marked `@native` may await only [`NativeWait`] objects. Awaiting
-//! one yields the object itself to whoever calls `send`; the driver recognises
-//! it by type (an `isinstance(Future)` test cannot tell it from
-//! `asyncio.sleep`), runs the Rust future it carries, and resumes the
-//! coroutine with the converted result or the converted error. Anything else a
-//! coroutine yields is refused: once advanced, a coroutine cannot be handed to
-//! asyncio, so there is no fallback after the first `send`.
+//! Inside a driven coroutine, a database call yields a [`NativeWait`] to
+//! whoever calls `send`; the driver recognises it by type (an
+//! `isinstance(Future)` test cannot tell it from `asyncio.sleep`), runs the
+//! Rust future it carries, and resumes the coroutine with the converted result
+//! or the converted error. [`advance`] reports anything else the coroutine
+//! yields as [`Step::Foreign`], so the caller decides: the test oracle
+//! [`_drive`] refuses it, the serving driver hands the coroutine to asyncio.
 
 use std::cell::Cell;
 use std::future::Future;
@@ -139,33 +139,63 @@ pub enum Resume {
 pub enum Step {
     Done(Py<PyAny>),
     Wait(Py<NativeWait>),
+    /// The coroutine awaited something that is not a [`NativeWait`].
+    Foreign(Py<PyAny>),
+}
+
+/// Call `method` of `coro`, inside `ctx` when there is one.
+fn call_in<'py>(
+    coro: &Bound<'py, PyAny>,
+    ctx: Option<&Bound<'py, PyAny>>,
+    method: &str,
+    arg: Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let method = coro.getattr(method)?;
+    match ctx {
+        Some(ctx) => ctx.call_method1("run", (method, arg)),
+        None => method.call1((arg,)),
+    }
 }
 
 /// Advance `coro` once. A first step resumes with `None`.
-pub fn advance(py: Python<'_>, coro: &Bound<'_, PyAny>, resume: Resume) -> PyResult<Step> {
+pub fn advance<'py>(
+    py: Python<'py>,
+    coro: &Bound<'py, PyAny>,
+    ctx: Option<&Bound<'py, PyAny>>,
+    resume: Resume,
+) -> PyResult<Step> {
     let _driving = Driving::enter();
     let outcome = match resume {
-        Resume::Value(value) => coro.call_method1("send", (value,)),
-        Resume::Error(error) => coro.call_method1("throw", (error.into_value(py),)),
+        Resume::Value(value) => call_in(coro, ctx, "send", value.into_bound(py)),
+        Resume::Error(error) => call_in(
+            coro,
+            ctx,
+            "throw",
+            error.into_value(py).into_bound(py).into_any(),
+        ),
     };
     match outcome {
-        Ok(yielded) => match yielded.cast_into::<NativeWait>() {
-            Ok(wait) => Ok(Step::Wait(wait.unbind())),
-            Err(other) => {
-                let yielded = other.into_inner();
-                let name = yielded.get_type().name()?.to_string();
-                // The coroutine cannot go on; close it so `finally` runs.
-                let _ = coro.call_method0("close");
-                Err(PyRuntimeError::new_err(format!(
-                    "a native handler awaited a {name}, which is not a native awaitable"
-                )))
-            }
-        },
+        Ok(yielded) => Ok(match yielded.cast_into::<NativeWait>() {
+            Ok(wait) => Step::Wait(wait.unbind()),
+            Err(other) => Step::Foreign(other.into_inner().unbind()),
+        }),
         Err(error) if error.is_instance_of::<PyStopIteration>(py) => {
             let value = error.value(py).getattr("value")?;
             Ok(Step::Done(value.unbind()))
         }
         Err(error) => Err(error),
+    }
+}
+
+/// The error of a coroutine that awaited a non-native object where only
+/// native ones are allowed. The coroutine is closed so `finally` runs.
+fn refuse(py: Python<'_>, coro: &Bound<'_, PyAny>, yielded: &Py<PyAny>) -> PyErr {
+    let _ = coro.call_method0("close");
+    match yielded.bind(py).get_type().name() {
+        Ok(name) => PyRuntimeError::new_err(format!(
+            "a native handler awaited a {name}, which is not a native awaitable"
+        )),
+        Err(error) => error,
     }
 }
 
@@ -184,9 +214,10 @@ pub fn _drive(
     let mut resume = Resume::Value(py.None());
     let mut waits = 0_usize;
     loop {
-        let wait = match advance(py, &coro, resume)? {
+        let wait = match advance(py, &coro, None, resume)? {
             Step::Done(value) => return Ok(value),
             Step::Wait(wait) => wait,
+            Step::Foreign(yielded) => return Err(refuse(py, &coro, &yielded)),
         };
         let work = wait
             .bind(py)
