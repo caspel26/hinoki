@@ -39,6 +39,8 @@ From the application's **`server` settings group** ([settings guide](settings.md
 | `server.runtime_threads` | `BLOG_SERVER__RUNTIME_THREADS` | `1` | |
 | `server.backlog` | `BLOG_SERVER__BACKLOG` | `1024` | |
 | `server.access_log` | `BLOG_SERVER__ACCESS_LOG` | unset | Unset logs in `hinoki dev` only (or whenever `access_log_format` is set); `true` or `false` decides for both |
+| `server.access_log_skip` | `BLOG_SERVER__ACCESS_LOG_SKIP` | unset | Kiso only: comma-separated paths the log leaves out (health checks); exact, or a prefix when the entry ends with `*` |
+| `server.access_log_slow_ms` | `BLOG_SERVER__ACCESS_LOG_SLOW_MS` | unset | Kiso only: keep only answers at least this slow, in milliseconds |
 | `server.access_log_format` | `BLOG_SERVER__ACCESS_LOG_FORMAT` | unset | Kiso only: `pretty`, `plain` or `json`. Unset is `pretty` on a colour terminal and `plain` otherwise |
 | `server.server` | `BLOG_SERVER__SERVER` | `kiso` | `--server` |
 
@@ -105,7 +107,7 @@ ASGI/Granian and WSGI answer it in the Python pipeline after host, CORS and HTTP
 * `max_connections` (10000 by default) bounds open connections. Requests waiting for the application are bounded by an in-flight limit and a queue; beyond them the answer is `503`.
 * Requests with ambiguous framing (for example `Content-Length` together with `Transfer-Encoding`, repeated lengths, or a bare line feed in the head) are refused with `400` and the connection is closed.
 * On start, Kiso names itself on stderr before the `listening on ...` line (which stays on stdout, where tools wait for it): its version, the mode (`serve` or `dev`, which reloads on file changes), the worker count, the scheme, whether the access log is on and whether the native handler lane is on. In a terminal (and with `NO_COLOR` unset) it is two lines with the name in bold; otherwise it is one plain line, for example `Kiso 0.1.0 (Hinoki's Rust server): serve, 4 workers, http, access log off, native lane on`.
-* The access log is one line per answered request, written to stderr by the Rust server: `127.0.0.1:52341 - "GET /items?limit=5 HTTP/1.1" 200 OK 3.2ms`. The time is how long the server took to decide the answer, not including writing it to the client, and the line is printed for every answer, including the ones the server gives itself (`404`, `429`, `503`). When stderr is a terminal (and `NO_COLOR` is unset) the line is coloured in the style of a development console: `INFO:` in green, the request in bold, the status by class (2xx green, 3xx cyan, 4xx yellow, 5xx red) and the time dimmed. Control characters in the target are shown as `\xNN`. `server.access_log_format = "json"` writes one JSON object per line instead, for a log pipeline: `{"time":"2026-11-19T19:56:25.881Z","peer":"127.0.0.1:52341","method":"GET","path":"/items","query":"limit=5","http_version":"1.1","status":200,"duration_ms":3.2}`; `time` is RFC 3339 UTC and quotes and control characters are escaped. Setting a format turns the log on, in `serve` too, unless `access_log` is `false`.
+* The access log is one line per answered request, written to stderr by the Rust server: `127.0.0.1:52341 - "GET /items?limit=5 HTTP/1.1" 200 OK 3.2ms`. The time is how long the server took to decide the answer, not including writing it to the client, and the line is printed for every answer, including the ones the server gives itself (`404`, `429`, `503`). When stderr is a terminal (and `NO_COLOR` is unset) the line is coloured in the style of a development console: `INFO:` in green, the request in bold, the status by class (2xx green, 3xx cyan, 4xx yellow, 5xx red) and the time dimmed. Control characters in the target are shown as `\xNN`. `server.access_log_format = "json"` writes one JSON object per line instead, for a log pipeline: `{"time":"2026-11-19T19:56:25.881Z","peer":"127.0.0.1:52341","method":"GET","path":"/items","query":"limit=5","http_version":"1.1","status":200,"duration_ms":3.2}`; `time` is RFC 3339 UTC and quotes and control characters are escaped. Setting a format turns the log on, in `serve` too, unless `access_log` is `false`. `access_log_skip = ["/health", "/static/*"]` leaves noisy paths out and `access_log_slow_ms = 100` keeps only slow answers; failures (status 400 and up) are always logged.
 * A client that disconnects does not cancel its running handler; the handler finishes and its answer is discarded.
 
 ### Settings that apply to one server only
@@ -115,7 +117,7 @@ ASGI/Granian and WSGI answer it in the Python pipeline after host, CORS and HTTP
 | Setting | Rust server | Granian |
 | --- | --- | --- |
 | `host`, `port`, `workers`, `runtime_threads`, `backlog`, `access_log`, `trusted_proxies`, `request_id_header`, `trust_request_id` | applied | applied |
-| `max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`, `native_dispatch`, `access_log_format` | applied when set | refused when set |
+| `max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`, `native_dispatch`, `access_log_format`, `access_log_skip`, `access_log_slow_ms` | applied when set | refused when set |
 
 If the native extension of a build has no Rust server, `--server kiso` fails with an error that says so.
 

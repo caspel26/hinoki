@@ -191,6 +191,29 @@ pub fn line_at(style: AccessLog, entry: &Entry<'_>, at: SystemTime) -> String {
 
 /// Print the line for `entry`. A closed or failing stderr is ignored: logging
 /// never decides an answer.
+/// Which answers the access log keeps. Failures (status 400 and up) are always
+/// kept, so a health-check exclusion or a slow-only log never hides an error.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LogFilter {
+    /// Paths left out: exact, or a prefix when the entry ends with `*`.
+    pub skip: Vec<String>,
+    /// When set, successful answers faster than this are left out.
+    pub slow: Option<Duration>,
+}
+
+impl LogFilter {
+    pub fn keeps(&self, path: &str, status: u16, elapsed: Duration) -> bool {
+        if status >= 400 {
+            return true;
+        }
+        let skipped = self.skip.iter().any(|rule| match rule.strip_suffix('*') {
+            Some(prefix) => path.starts_with(prefix),
+            None => path == rule,
+        });
+        !skipped && self.slow.is_none_or(|slow| elapsed >= slow)
+    }
+}
+
 pub fn log(style: AccessLog, entry: &Entry<'_>) {
     let mut text = line(style, entry);
     text.push('\n');
@@ -211,6 +234,22 @@ mod tests {
             status,
             elapsed: Duration::from_micros(3_200),
         }
+    }
+
+    #[test]
+    fn filter_skips_paths_and_slow_floor_but_never_failures() {
+        let filter = LogFilter {
+            skip: vec!["/health".into(), "/static/*".into()],
+            slow: Some(Duration::from_millis(50)),
+        };
+        let fast = Duration::from_millis(1);
+        let slow = Duration::from_millis(80);
+        assert!(!filter.keeps("/health", 200, slow));
+        assert!(!filter.keeps("/static/app.js", 200, slow));
+        assert!(!filter.keeps("/items", 200, fast));
+        assert!(filter.keeps("/items", 200, slow));
+        assert!(filter.keeps("/health", 503, fast));
+        assert!(LogFilter::default().keeps("/health", 200, fast));
     }
 
     #[test]

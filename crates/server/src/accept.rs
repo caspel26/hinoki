@@ -19,7 +19,7 @@ use tokio::task::JoinSet;
 use tokio::time::{sleep, timeout};
 use tokio_rustls::TlsAcceptor;
 
-use crate::accesslog::AccessLog;
+use crate::accesslog::{AccessLog, LogFilter};
 use crate::conn::{respond, Backend, Transport};
 use crate::framing::{Framing, Guarded, Signals};
 use crate::stall::StallGuard;
@@ -54,7 +54,7 @@ const H2_MAX_LOCAL_ERROR_RESET: usize = 128;
 /// Pause after a failed `accept` (descriptor exhaustion), so the loop does not spin.
 const ACCEPT_BACKOFF: Duration = Duration::from_millis(50);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServerConfig {
     /// Connections served at once; at the bound the loop stops accepting and
     /// the kernel backlog absorbs the rest.
@@ -77,6 +77,8 @@ pub struct ServerConfig {
     pub max_headers: usize,
     /// Print one line per answered request to stderr, in this style.
     pub access_log: Option<AccessLog>,
+    /// Which answers that log keeps.
+    pub log_filter: Arc<LogFilter>,
 }
 
 impl Default for ServerConfig {
@@ -90,6 +92,7 @@ impl Default for ServerConfig {
             max_header_bytes: 32_768,
             max_headers: 100,
             access_log: None,
+            log_filter: Arc::default(),
         }
     }
 }
@@ -164,6 +167,7 @@ async fn serve_h1<S, B>(
         secure,
         max_headers: config.max_headers,
         access_log: config.access_log,
+        log_filter: Arc::clone(&config.log_filter),
         body_read_timeout: config.body_read_timeout,
         signals: Arc::clone(&signals),
     };
@@ -216,6 +220,7 @@ async fn serve_h2<S, B>(
         secure: true,
         max_headers: config.max_headers,
         access_log: config.access_log,
+        log_filter: Arc::clone(&config.log_filter),
         body_read_timeout: config.body_read_timeout,
         signals: Arc::new(Signals::default()),
     };
@@ -295,7 +300,7 @@ pub async fn serve<B: Backend>(
             Some((slot, accepted)) = next_client(&listener, &slots) => match accepted {
                 Ok((stream, peer)) => {
                     let task = run_connection(
-                        stream, peer, Arc::clone(&backend), config, tls.clone(), stop.clone(),
+                        stream, peer, Arc::clone(&backend), config.clone(), tls.clone(), stop.clone(),
                     );
                     connections.spawn(async move {
                         task.await;
