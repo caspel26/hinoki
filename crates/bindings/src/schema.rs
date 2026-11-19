@@ -662,7 +662,7 @@ fn lower_node(py: Python<'_>, node: &Node<PyRules>) -> Result<Node<NativeRules>,
     let numeric = matches!(kind, Kind::Int | Kind::Float | Kind::Decimal);
     let decimal = matches!(kind, Kind::Decimal);
     let pattern = match &node.pattern {
-        Some((source, regex)) if matches!(kind, Kind::Str) => {
+        Some((source, regex)) if matches!(kind, Kind::Str | Kind::Bytes) => {
             Some((lower_pattern(source.bind(py))?, regex.clone()))
         }
         _ => None,
@@ -1987,16 +1987,9 @@ impl<'a, V: View> Run<'a, V> {
         if !self.length(node, size, path, "character")? {
             return Ok(None);
         }
-        if let Some((source, regex)) = &node.pattern {
-            let matched = self
-                .view
-                .text(&text)
-                .map(|s| regex.is_match(&s))
-                .unwrap_or(false);
-            if !matched {
-                let shown = self.view.pattern_shown(source).map_err(Abort::View)?;
-                return self.fail(path, "pattern", format!("must match {shown}"));
-            }
+        let matched = self.view.text(&text).ok();
+        if !self.pattern(node, matched, path)? {
+            return Ok(None);
         }
         Ok(Some(self.view.string_out(text)))
     }
@@ -2259,11 +2252,35 @@ impl<'a, V: View> Run<'a, V> {
         if !self.length(node, raw.len(), path, "byte")? {
             return Ok(None);
         }
+        if node.pattern.is_some() {
+            // One character per byte (Latin-1), so Python's `re` sees the same text.
+            let latin_1: String = raw.iter().map(|&byte| char::from(byte)).collect();
+            if !self.pattern(node, Some(Cow::Owned(latin_1)), path)? {
+                return Ok(None);
+            }
+        }
         Ok(Some(
             self.view
                 .wire(Wire::Bytes(raw), text)
                 .map_err(Abort::View)?,
         ))
+    }
+
+    fn pattern(
+        &mut self,
+        node: &Node<V::Rules>,
+        subject: Option<Cow<'_, str>>,
+        path: &str,
+    ) -> Result<bool, Abort<V::Error>> {
+        let Some((source, regex)) = &node.pattern else {
+            return Ok(true);
+        };
+        if subject.is_some_and(|text| regex.is_match(&text)) {
+            return Ok(true);
+        }
+        let shown = self.view.pattern_shown(source).map_err(Abort::View)?;
+        self.fail(path, "pattern", format!("must match {shown}"))?;
+        Ok(false)
     }
 
     fn sequence(

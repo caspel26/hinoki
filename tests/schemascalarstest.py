@@ -101,7 +101,7 @@ def test_the_new_types_register_as_their_own_kinds() -> None:
         (Annotated[Decimal, Field(min_length=1)], "do not apply to decimal"),
         (Annotated[Decimal, Field(pattern="[0-9]+")], "do not apply to decimal"),
         (Annotated[bytes, Field(ge=1)], "do not apply to bytes"),
-        (Annotated[bytes, Field(pattern="a")], "do not apply to bytes"),
+        (Annotated[bytes, Field(one_of=(b"a",))], "do not apply to bytes"),
         (Annotated[int, Field(max_digits=3)], "do not apply to int"),
         (Annotated[str, Field(decimal_places=2)], "do not apply to str"),
         (Annotated[Decimal, Field(ge=0.5)], "ge must be an int or a finite Decimal"),
