@@ -64,6 +64,8 @@ pub(crate) trait Rules {
     type Limit;
     /// The `one_of` choices.
     type Choices;
+    /// The `Enum` class a checked value becomes a member of.
+    type Member;
 }
 
 /// The Python objects `hinoki.schema` declared.
@@ -92,6 +94,7 @@ impl Rules for PyRules {
     type Pattern = Py<PyAny>;
     type Limit = Py<PyAny>;
     type Choices = Vec<Py<PyAny>>;
+    type Member = Py<PyAny>;
 }
 
 /// Plain Rust values lowered from exact builtin scalars, with the Python
@@ -103,6 +106,7 @@ impl Rules for NativeRules {
     type Pattern = String;
     type Limit = NativeLimit;
     type Choices = NativeChoices;
+    type Member = ();
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -176,6 +180,8 @@ struct Node<R: Rules> {
     gt: Option<R::Limit>,
     lt: Option<R::Limit>,
     one_of: Option<R::Choices>,
+    /// The `Enum` class whose member replaces the value once it is checked.
+    member: Option<R::Member>,
     /// `Decimal` only: the digit counts the written value may have.
     max_digits: Option<i64>,
     decimal_places: Option<i64>,
@@ -358,6 +364,7 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
         gt: optional_object(&constraints, "gt")?,
         lt: optional_object(&constraints, "lt")?,
         one_of: optional_choices(&constraints)?,
+        member: optional_object(&constraints, "enum")?,
         max_digits: optional_int(&constraints, "max_digits")?,
         decimal_places: optional_int(&constraints, "decimal_places")?,
     })
@@ -549,6 +556,10 @@ fn lower_node(py: Python<'_>, node: &Node<PyRules>) -> Result<Node<NativeRules>,
         Some(choices) => Some(lower_choices(py, choices)?),
         None => None,
     };
+    // A member is a Python object; the GIL-free walk cannot build one.
+    if node.member.is_some() {
+        return Err(Unlowerable);
+    }
     Ok(Node {
         kind,
         nullable: node.nullable,
@@ -561,6 +572,7 @@ fn lower_node(py: Python<'_>, node: &Node<PyRules>) -> Result<Node<NativeRules>,
         gt: limit(&node.gt)?,
         lt: limit(&node.lt)?,
         one_of,
+        member: None,
         max_digits: node.max_digits,
         decimal_places: node.decimal_places,
     })
@@ -867,6 +879,12 @@ trait View {
         choices: &<Self::Rules as Rules>::Choices,
     ) -> Result<bool, Self::Error>;
     fn choices_shown(&self, choices: &<Self::Rules as Rules>::Choices) -> String;
+    /// The member of an `Enum` class named by an accepted value.
+    fn member(
+        &self,
+        class: &<Self::Rules as Rules>::Member,
+        value: Self::Out,
+    ) -> Result<Self::Out, Self::Error>;
     fn pattern_shown(
         &self,
         pattern: &<Self::Rules as Rules>::Pattern,
@@ -1114,6 +1132,10 @@ impl<'py> View for PyView<'_, 'py> {
 
     fn choices_shown(&self, choices: &Vec<Py<PyAny>>) -> String {
         shown_choices(self.py, choices)
+    }
+
+    fn member(&self, class: &Py<PyAny>, value: Self::Out) -> PyResult<Self::Out> {
+        class.bind(self.py).call1((value,))
     }
 
     fn pattern_shown(&self, pattern: &Py<PyAny>) -> PyResult<String> {
@@ -1504,6 +1526,10 @@ impl<'v> View for JsonView<'v> {
         choices.shown.clone()
     }
 
+    fn member(&self, _class: &(), value: Validated) -> Result<Validated, Defer> {
+        Ok(value)
+    }
+
     fn pattern_shown(&self, pattern: &String) -> Result<String, Defer> {
         Ok(pattern.clone())
     }
@@ -1605,10 +1631,27 @@ impl<'a, V: View> Run<'a, V> {
                 depth,
             )?,
         };
-        match (&node.one_of, checked) {
-            (Some(choices), Some(value)) => self.one_of(choices, value, path),
+        self.settle(node, checked, path)
+    }
+
+    /// The checked value after `one_of` and, for an `Enum` field, as its member.
+    fn settle(&mut self, node: &Node<V::Rules>, checked: Option<V::Out>, path: &str) -> Checked<V> {
+        let checked = match (&node.one_of, checked) {
+            (Some(choices), Some(value)) => self.one_of(choices, value, path)?,
+            (_, other) => other,
+        };
+        match (&node.member, checked) {
+            (Some(class), Some(value)) => self.member(class, value),
             (_, other) => Ok(other),
         }
+    }
+
+    /// The member of the field's `Enum` that the checked value names.
+    fn member(&mut self, class: &<V::Rules as Rules>::Member, value: V::Out) -> Checked<V> {
+        self.view
+            .member(class, value)
+            .map(Some)
+            .map_err(Abort::View)
     }
 
     /// The value must equal one of the declared choices (strict types were
@@ -3539,6 +3582,9 @@ fn convert_json_object<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, Py
     }
     if let Some(text) = wire_text(value)? {
         return Ok(pyo3::types::PyString::new(value.py(), &text).into_any());
+    }
+    if let Some(member) = crate::pytypes::enum_value(value)? {
+        return Ok(member);
     }
     if value.hasattr("dump")? {
         return value.call_method0("dump");
