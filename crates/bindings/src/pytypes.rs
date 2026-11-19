@@ -11,6 +11,9 @@ static DATE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static TIME: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static TIMEDELTA: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static DECIMAL: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static PATH: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static PURE_PATH: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static SECRET: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static ENUM: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static FAST_UUID: PyOnceLock<Option<FastUuid>> = PyOnceLock::new();
 
@@ -40,6 +43,18 @@ pub fn decimal_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
 
 static IP_ADDRESS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static IP_NETWORK: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+pub fn path_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    PATH.import(py, "pathlib", "Path")
+}
+
+pub fn pure_path_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    PURE_PATH.import(py, "pathlib", "PurePath")
+}
+
+pub fn secret_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    SECRET.import(py, "hinoki.fields", "SecretStr")
+}
 
 /// Whether `value` is any `ipaddress` address or network; the four concrete
 /// classes share these two bases.

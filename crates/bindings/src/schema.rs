@@ -156,6 +156,10 @@ enum Kind<R: Rules> {
     Bytes,
     /// An `ipaddress` address or network, read from text.
     Net(NetKind),
+    /// A `pathlib.Path`, read from text.
+    Path,
+    /// A `SecretStr`: text with the string rules, wrapped to stay masked.
+    Secret,
     /// `Any` / `object`: every value is accepted as it is.
     Any,
     /// A plain union: the variants in declared order, the first that accepts
@@ -344,6 +348,8 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
         "ipv6" => Kind::Net(NetKind::V6),
         "ipv4network" => Kind::Net(NetKind::V4Network),
         "ipv6network" => Kind::Net(NetKind::V6Network),
+        "path" => Kind::Path,
+        "secret" => Kind::Secret,
         "list" => {
             let inner = item.ok_or_else(|| compile_error("list type without an item type"))?;
             Kind::List(Box::new(parse_node(&inner)?))
@@ -578,7 +584,9 @@ fn lower_kind(py: Python<'_>, kind: &Kind<PyRules>) -> Result<Kind<NativeRules>,
         Kind::Bytes => Kind::Bytes,
         Kind::Net(kind) => Kind::Net(*kind),
         Kind::List(item) => Kind::List(Box::new(lower_node(py, item)?)),
-        Kind::Tuple(_) | Kind::Any | Kind::AnyOf(_) => return Err(Unlowerable),
+        Kind::Tuple(_) | Kind::Any | Kind::AnyOf(_) | Kind::Path | Kind::Secret => {
+            return Err(Unlowerable)
+        }
         Kind::Map { key, value } => Kind::Map {
             key: Box::new(lower_node(py, key)?),
             value: Box::new(lower_node(py, value)?),
@@ -978,6 +986,8 @@ enum Wire {
     Decimal,
     Bytes(Vec<u8>),
     Net(NetKind),
+    Path,
+    Secret,
 }
 
 /// Reads Python objects and builds the Python result (`CompiledSchema.validate`).
@@ -1088,6 +1098,8 @@ impl<'py> View for PyView<'_, 'py> {
                 .import("ipaddress")?
                 .getattr(kind.class_name())?
                 .call1((text,)),
+            Wire::Path => crate::pytypes::path_class(py)?.call1((text,)),
+            Wire::Secret => crate::pytypes::secret_class(py)?.call1((text,)),
         }
     }
 
@@ -1514,6 +1526,7 @@ impl<'v> View for JsonView<'v> {
             Wire::Decimal => Validated::Decimal(text.to_owned()),
             Wire::Bytes(raw) => Validated::Bytes(raw),
             Wire::Net(kind) => Validated::Net(kind, text.to_owned()),
+            Wire::Path | Wire::Secret => return Err(Defer("path and secret values")),
         })
     }
 
@@ -1778,6 +1791,8 @@ impl<'a, V: View> Run<'a, V> {
             Kind::Decimal => self.decimal(node, data, path)?,
             Kind::Bytes => self.binary(node, data, path)?,
             Kind::Net(kind) => self.internet(*kind, data, path)?,
+            Kind::Path => self.file_path(node, data, path)?,
+            Kind::Secret => self.secret(node, data, path)?,
             Kind::List(item) => self.sequence(node, item, data, path, depth)?,
             Kind::Tuple(positions) => self.fixed(node, positions, data, path, depth)?,
             Kind::AnyOf(variants) => self.any_of(variants, data, path, depth)?,
@@ -2037,6 +2052,33 @@ impl<'a, V: View> Run<'a, V> {
             self.view
                 .wire(Wire::Time(clock), text)
                 .map_err(Abort::View)?,
+        ))
+    }
+
+    fn file_path(&mut self, node: &Node<V::Rules>, data: &V::Data, path: &str) -> Checked<V> {
+        let text = self
+            .plain_text(data)
+            .filter(|text| !text.is_empty() && !text.contains('\0'));
+        let Some(text) = text else {
+            return self.fail(path, "path", "expected a file system path".to_owned());
+        };
+        if !self.length(node, text.chars().count(), path, "character")? {
+            return Ok(None);
+        }
+        Ok(Some(
+            self.view.wire(Wire::Path, &text).map_err(Abort::View)?,
+        ))
+    }
+
+    fn secret(&mut self, node: &Node<V::Rules>, data: &V::Data, path: &str) -> Checked<V> {
+        if self.text(node, data, path)?.is_none() {
+            return Ok(None);
+        }
+        let Some(text) = self.plain_text(data) else {
+            return self.fail(path, "type", "expected a string".to_owned());
+        };
+        Ok(Some(
+            self.view.wire(Wire::Secret, &text).map_err(Abort::View)?,
         ))
     }
 
