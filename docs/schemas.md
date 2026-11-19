@@ -37,7 +37,59 @@ class NoteOut(Schema):
 
 ## Field types
 
-A field is annotated with `str`, `int`, `float`, `bool`, `UUID`, `datetime`, `date`, `time`, `timedelta`, `Decimal`, `bytes`, a nested `Schema`, `list[X]`, `dict[str, X]` or a [discriminated union](#discriminated-unions), optionally `| None` (accepts `null`) and `| Unset` (may be left out of a partial update), and optionally wrapped in `Annotated[..., Field(...)]`. `X` can be any of these, so `list[dict[str, int]]` and `dict[str, list[Point]]` work. Anything else (`set`, `tuple`, `bytearray`, `Any`, plain unions, `dict[int, X]`) raises `RegistrationError` when the class is created.
+A field is annotated with `str`, `int`, `float`, `bool`, `UUID`, `datetime`, `date`, `time`, `timedelta`, `Decimal`, `bytes`, an `Enum` class, a `Literal`, a nested `Schema`, `list[X]`, `dict[str, X]` or a [discriminated union](#discriminated-unions), optionally `| None` (accepts `null`) and `| Unset` (may be left out of a partial update), and optionally wrapped in `Annotated[..., Field(...)]`. `X` can be any of these, so `list[dict[str, int]]` and `dict[str, list[Point]]` work. Anything else (`set`, `tuple`, `bytearray`, `Any`, plain unions, `dict[int, X]`) raises `RegistrationError` when the class is created.
+
+### Enums and literals
+
+An `Enum`, `StrEnum` or `IntEnum` class, or a `Literal` of strings or of integers, accepts only the listed values. On the wire the value is the member's value; validation returns the member itself:
+
+```python
+import enum
+from typing import Literal
+
+from hinoki import Schema
+from hinoki.errors import ValidationError
+
+
+class Status(enum.StrEnum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+
+
+class Priority(enum.IntEnum):
+    LOW = 1
+    HIGH = 3
+
+
+class Ticket(Schema):
+    channel: Literal["web", "email"]
+    status: Status = Status.DRAFT
+    priority: Priority = Priority.LOW
+    retries: Literal[0, 1, 3] = 0
+
+
+ticket = Ticket.validate({"channel": "web", "status": "published", "priority": 3})
+assert ticket.status is Status.PUBLISHED and ticket.priority is Priority.HIGH
+assert ticket.dump() == {
+    "channel": "web", "status": "published", "priority": 3, "retries": 0,
+}
+
+try:
+    Ticket.validate({"channel": "sms", "priority": 2})
+except ValidationError as error:
+    assert [(d.path, d.code) for d in error.details] == [
+        ("channel", "one_of"),
+        ("priority", "one_of"),
+    ]
+```
+
+* **Values, not names.** The names of the members never appear on the wire; the error message lists the accepted values (`must be one of 'web', 'email'`). Matching is strict: `"3"` and `3.0` are not `3`, and `True` is not `1`. Wrong types answer `type`, a value outside the list answers `one_of`.
+* **One kind of value.** All values are `str`, or all are `int` (64-bit, never `bool`). A mixed `Enum` or `Literal`, `None` inside a `Literal` (write `Literal["a"] | None`), a `Flag` enum, an enum without members, an enum member inside a `Literal` (use the class) and values of any other type raise `RegistrationError`. Aliases of a member count once. `Field(...)` constraints, including `one_of`, are refused on these fields: the type is the list.
+* **Construction** takes members for an enum field (`Ticket(status=Status.DRAFT)`) and the listed values for a `Literal`; a plain `"draft"` is refused for an enum field. `validate` and the request sources read the value, and a member of a `StrEnum` is read as its text.
+* **Output.** `dump()`, responses and the JSON encoder write the member's value (inside `Schema` instances); `to_dict()` keeps the member.
+* **Text sources.** Form, query and XML values are text; an `IntEnum` or an `int` `Literal` reads its number like an `int` field does.
+* **Models.** A `Model` column annotated with an enum or a `Literal` stays a JSON column; only `Schema` fields check the values.
+* **OpenAPI** documents the field as its `type` (`string` or `integer`) with an `enum` list of the values, inline in the property.
 
 ### Dates, durations, decimals and bytes
 
@@ -218,7 +270,7 @@ async def create_pet(data: PetRequest) -> PetRequest:
 
 `PetRequest.validate({"pet": {"type": "cat", "name": "Mugi"}})` returns a `PetRequest` whose `pet` is a `Cat`; manual construction takes an already validated variant instance, such as `PetRequest(pet=Dog(kind="dog", walks=2))`. A dict is not coerced into a variant. `list[Pet]`, nested Schema fields, nullable unions and `Unset` use the same discriminator rules. Unknown tags produce a field error at the tag's wire path without echoing the submitted value. The handler is not called for an invalid body, whether it is synchronous or asynchronous.
 
-Each variant's tag field is required and cannot have a default. Tags must be unique strings, variants must be distinct Schema classes, and variant classes cannot override `dump()` because the override could remove or change the tag on the wire. Plain unions without `Field(discriminator=...)`, `Literal`, non-Schema variants, and unions directly in handler body or return annotations are not supported; wrap the union in a Schema for route input and output. The runtime check of return values is separate and applies to every action.
+Each variant's tag field is required and cannot have a default. Tags must be unique strings, variants must be distinct Schema classes, and variant classes cannot override `dump()` because the override could remove or change the tag on the wire. Plain unions without `Field(discriminator=...)`, non-Schema variants, and unions directly in handler body or return annotations are not supported; wrap the union in a Schema for route input and output. The runtime check of return values is separate and applies to every action.
 
 ## Projection options on `dump()`
 

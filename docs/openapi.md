@@ -59,6 +59,8 @@ A `dict[str, X]` field becomes `type: object` with `additionalProperties` (the v
 
 `date`, `time` and `timedelta` fields become `type: string` with `format: date`, `time` and `duration`. A `Decimal` field becomes `type: string`, `format: decimal` and a `pattern` for its text form, with `ge`/`le`/`gt`/`lt` as `minimum`/`maximum`/`exclusiveMinimum`/`exclusiveMaximum`; `max_digits` and `decimal_places` are not written. A `bytes` field becomes `type: string`, `format: byte` and `contentEncoding: base64`, and its decoded-size limits are not written either, since they count bytes rather than characters. See [dates, durations, decimals and bytes](schemas.md#dates-durations-decimals-and-bytes).
 
+An `Enum` or `Literal` field becomes `type: string` or `type: integer` with an `enum` list of the values (the member values, never the names), inline in the property; a nullable one is wrapped in `anyOf` with `null`. See [enums and literals](schemas.md#enums-and-literals).
+
 Discriminated unions declared as `Schema` fields become OpenAPI `oneOf` schemas with a `discriminator` and explicit tag-to-component mapping. Variant tag fields appear as required string enums; the runtime uses the same tags to select exactly one branch. List items, nested fields and nullable unions retain that structure. For route input and response documentation, put the union inside a wrapper `Schema`; bare union return annotations are rejected instead of producing an incomplete schema. As elsewhere, the response annotation does not cause runtime response validation.
 
 ```yaml
