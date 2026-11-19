@@ -24,7 +24,7 @@ use hinoki_server::hosts::Hosts;
 use hinoki_server::queue::Push;
 use hinoki_server::{
     convert, proxy, requestid, Converted, Early, EarlyBodies, InFlight, InputKind, InputParam,
-    InputValue, Limits, NativeJobs, Networks, Permit, Plan, Queue, RoutePlan,
+    InputValue, Limits, NativeJobs, Networks, Permit, Plan, Queue, RoutePlan, Trace,
 };
 use hinoki_server::{Answer, BodyError, BodyReader};
 use pyo3::exceptions::{PyException, PyRuntimeError, PyValueError};
@@ -934,6 +934,8 @@ pub struct Core {
         reason = "consumed by native CRUD execution in the next phase"
     )]
     crud_plans: HashMap<u32, Arc<CrudPlan>>,
+    /// Route pattern by action number, for the access log.
+    templates: HashMap<u32, Arc<str>>,
     database: Mutex<Option<Database>>,
     native_jobs: Arc<NativeJobs>,
     request_timeout: Duration,
@@ -1082,6 +1084,10 @@ impl ServerCore {
             }
         };
         let proxies = Networks::parse(&trusted_proxies).map_err(PyValueError::new_err)?;
+        let templates = routes
+            .iter()
+            .map(|route| (route.0, Arc::from(route.2.as_str())))
+            .collect();
         let (router, plan, crud_plans) = build_routes(py, routes)?;
         let rendered = early_bodies
             .into_iter()
@@ -1096,6 +1102,7 @@ impl ServerCore {
                 router,
                 plan,
                 crud_plans,
+                templates,
                 database: Mutex::new(None),
                 native_jobs: Arc::new(NativeJobs::new(max_in_flight)),
                 request_timeout: Duration::from_millis(request_timeout_ms),
@@ -1281,7 +1288,7 @@ impl ServerCore {
         };
         let outcome = self
             .core
-            .classify(head, false)
+            .classify(head, false, &Trace::default())
             .map_err(PyRuntimeError::new_err)?;
         Ok(match outcome {
             Outcome::Early(reply) => Submission {
@@ -1436,6 +1443,7 @@ impl Core {
         &self,
         head: Head<'_>,
         native_execution: bool,
+        trace: &Trace,
     ) -> Result<Outcome, String> {
         let (request_id, id_ignored) = self.request_id(&head.headers, head.trusted);
         let asked = Asked {
@@ -1480,6 +1488,9 @@ impl Core {
             }
             Resolved::Missing(early, extra) => return self.answer(&asked, early, extra),
         };
+        if let Some(pattern) = action.and_then(|number| self.templates.get(&number)) {
+            trace.set_route(Arc::clone(pattern));
+        }
         let plan = match action {
             Some(number) => self
                 .plan
