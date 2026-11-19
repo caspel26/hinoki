@@ -527,11 +527,11 @@ unsupported types fail during model or migration validation.</p>
 <span class="n">everything</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>           <span class="c1"># the explicit way around the policy</span>
 </code></pre></div>
 <p>Pass the method where the framework asks for a base query, so every operation built on it sees the same rows:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">crud</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">API</span><span class="p">,</span> <span class="n">crud</span>
 
 
 <span class="nd">@crud</span><span class="p">(</span><span class="n">Task</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">TaskOut</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">Tasks</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Tasks</span><span class="p">(</span><span class="n">API</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">Task</span><span class="o">.</span><span class="n">active</span><span class="p">()</span>
 
@@ -751,7 +751,7 @@ set <code>deletable = True</code>; protect generated writes with <code>access = 
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 10:50:26 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 11:00:45 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>15 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
