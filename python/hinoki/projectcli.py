@@ -396,7 +396,10 @@ def create_command(args: Namespace) -> int:
         return 2
     requires = split_requires(args.requires or "")
     created = create_app(args.name, prefix=args.prefix or "", requires=requires)
-    for line in report_app(style, args.name, created, args.prefix or "", requires):
+    manifest = find_manifest()
+    for line in report_app(
+        style, args.name, created, manifest, args.prefix or "", requires
+    ):
         print(line)
     return 0
 

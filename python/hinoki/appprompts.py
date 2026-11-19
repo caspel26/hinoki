@@ -104,11 +104,16 @@ def ask_app(args: Namespace, manifest: ProjectManifest, ask: Ask, style: Style) 
 
 
 def report_app(
-    style: Style, name: str, created: Path, prefix: str, requires: tuple[str, ...]
+    style: Style,
+    name: str,
+    created: Path,
+    manifest: Path,
+    prefix: str,
+    requires: tuple[str, ...],
 ) -> list[str]:
     """The lines shown once the app exists."""
     if not style.fancy:
-        return [f"created app {name} at {created}"]
+        return [f"created app {name} at {created}", f"registered in {manifest}"]
     mounted = f"mounted at {prefix or f'/{name}'}"
     if requires:
         mounted += f", requires {', '.join(requires)}"
@@ -120,7 +125,13 @@ def report_app(
         branch = "\u2514\u2500" if index == len(APP_FILES) - 1 else "\u251c\u2500"
         entry = f"{style.dim(branch)} {style.text(f'{path:<14}')}{style.dim(what)}"
         lines.append(style.line("rail", entry))
+    registered = style.dim(f"registered app {name}")
     lines += [
+        style.line("rail"),
+        style.line(
+            "rail",
+            f"{style.paint('+', 'good')} {style.text('hinoki.toml')}  {registered}",
+        ),
         style.line("rail"),
         style.line("active", style.bold("Next steps")),
         style.line(

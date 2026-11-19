@@ -72,6 +72,7 @@ KEY_FILES = (
     ("{name}/api.py", "endpoints"),
     ("{name}/settings.py", "typed settings"),
     ("{name}/rules.py", "architecture rules"),
+    ("hinoki.toml", "project registry: apps, models, migrations"),
     ("tests/", "pytest suite"),
     ("AGENTS.md", "agent instructions"),
     (".env.example", "database URL template"),
