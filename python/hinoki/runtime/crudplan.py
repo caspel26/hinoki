@@ -359,12 +359,6 @@ def finish_selection(
             and database_is_plain(pipeline.app, database_module, model),
             "database_methods_or_not_found_handler_customized",
         ),
-        (
-            not resource.owner
-            or database_module is None
-            or dialect_of(database_module) in {"postgres", "sqlite"},
-            "owner_scope_unsupported_dialect",
-        ),
     )
     reason = next((label for passed, label in checks if not passed), "")
     selection = (
