@@ -20,7 +20,9 @@ from hinoki.project import (
     find_manifest_or_none,
     load_manifest,
 )
+from hinoki.reportui import doctor_text
 from hinoki.settings import Settings
+from hinoki.terminal import Style
 
 Status = Literal["ok", "warning", "failed", "skipped"]
 
@@ -207,7 +209,13 @@ def collect(target: str | None) -> tuple[list[Check], int]:
     return checks, max(code, int(manifest_check.status == "failed"))
 
 
-def render(checks: list[Check], fmt: str) -> str:
+NOTE = (
+    "Database and migration state were not checked; use `hinoki migrations "
+    "status` and `hinoki migrations plan --check` when needed."
+)
+
+
+def render(checks: list[Check], fmt: str, style: Style | None = None) -> str:
     if fmt == "json":
         return (
             json.dumps(
@@ -216,18 +224,19 @@ def render(checks: list[Check], fmt: str) -> str:
             )
             + "\n"
         )
+    if style is not None and style.color:
+        return doctor_text(style, checks, NOTE)
     lines = ["Hinoki doctor"]
     for check in checks:
         suffix = f" — {check.remediation}" if check.remediation else ""
         lines.append(f"{check.status:<7} {check.id:<25} {check.message}{suffix}")
-    lines.append(
-        "Database and migration state were not checked; use `hinoki migrations "
-        "status` and `hinoki migrations plan --check` when needed."
-    )
+    lines.append(NOTE)
     return "\n".join(lines) + "\n"
 
 
 def run_doctor(args: argparse.Namespace) -> int:
     checks, code = collect(args.target)
-    print(render(checks, args.format), end="", file=sys.stdout)
+    print(
+        render(checks, args.format, Style.detect(sys.stdout)), end="", file=sys.stdout
+    )
     return code

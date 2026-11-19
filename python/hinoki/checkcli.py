@@ -16,6 +16,7 @@ from pathlib import Path
 from hinoki.app import Hinoki
 from hinoki.errors import RegistrationError
 from hinoki.newcli import add_arguments as add_new_arguments
+from hinoki.reportui import check_text
 from hinoki.rules import (
     SCHEMA_VERSION,
     Diagnostic,
@@ -26,6 +27,7 @@ from hinoki.rules import (
     failing,
 )
 from hinoki.target import load_target
+from hinoki.terminal import Style
 from hinoki.utils import utc_today
 from hinoki.waivers import NAME, WaiverError, apply_waivers, load_waivers
 
@@ -70,7 +72,12 @@ def summary(diagnostics: list[Diagnostic]) -> dict[str, int]:
     return {**counts, "failing": len(failing(diagnostics))}
 
 
-def render(diagnostics: list[Diagnostic], rule_count: int, fmt: str) -> str:
+def render(
+    diagnostics: list[Diagnostic],
+    rule_count: int,
+    fmt: str,
+    style: Style | None = None,
+) -> str:
     totals = summary(diagnostics)
     if fmt == "json":
         return json.dumps(
@@ -82,6 +89,8 @@ def render(diagnostics: list[Diagnostic], rule_count: int, fmt: str) -> str:
             },
             indent=2,
         )
+    if style is not None and style.color:
+        return check_text(style, diagnostics, rule_count, totals)
     lines = [d.text() for d in diagnostics]
     lines.extend(f"    waived: {d.waiver}" for d in diagnostics if d.waiver)
     lines.append(
@@ -106,7 +115,7 @@ def run_check(args: argparse.Namespace, today: datetime.date | None = None) -> i
     except (*USAGE_ERRORS, WaiverError, SystemExit) as exc:  # factories may exit
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    print(render(found, len(rules.rules), args.format))
+    print(render(found, len(rules.rules), args.format, Style.detect(sys.stdout)))
     return 1 if failing(found) else 0
 
 

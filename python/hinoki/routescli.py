@@ -18,9 +18,11 @@ import sys
 from hinoki.access import Access
 from hinoki.app import Hinoki
 from hinoki.checkcli import USAGE_ERRORS, build_app
+from hinoki.reportui import lane_suffix, route_row
 from hinoki.routing import Route
 from hinoki.runtime.crudplan import select_crud_plan
 from hinoki.runtime.pipeline import Pipeline
+from hinoki.terminal import Style
 
 
 def add_arguments(
@@ -109,12 +111,18 @@ def run_routes(args: argparse.Namespace) -> int:
     if not routes:
         print("no routes match", file=sys.stderr)
         return 1
+    style = Style.detect(sys.stdout)
     width = max(len(route.path) for route in routes)
     for route in routes:
         lane, reason = lanes.get(id(route), unknown)
+        access, handler = access_of(route), handler_of(route)
+        if style.color:
+            suffix = lane_suffix(style, lane, reason) if args.lanes else ""
+            row = route_row(style, route.method, route.path, width, access, handler)
+            print(row + suffix)
+            continue
         suffix = f"  [{lane}: {reason}]" if args.lanes else ""
         print(
-            f"{route.method:<7} {route.path:<{width}}  {access_of(route):<24} "
-            f"{handler_of(route)}{suffix}"
+            f"{route.method:<7} {route.path:<{width}}  {access:<24} {handler}{suffix}"
         )
     return 0
