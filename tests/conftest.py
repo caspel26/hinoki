@@ -1,7 +1,7 @@
 """Shared fixtures."""
 
+import os
 from collections.abc import AsyncIterator
-from pathlib import Path
 
 import pytest
 
@@ -24,14 +24,15 @@ DATABASE_VARIABLES = (
 )
 
 
-def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
-    """Tests that share the CI database run on one pytest-xdist worker
-    (``--dist loadgroup``), one after the other."""
-    reads: dict[Path, bool] = {}
-    for item in items:
-        path = item.path
-        if path not in reads:
-            text = path.read_text(encoding="utf-8")
-            reads[path] = any(name in text for name in DATABASE_VARIABLES)
-        if reads[path]:
-            item.add_marker(pytest.mark.xdist_group("database"))
+def pytest_configure() -> None:
+    """Under pytest-xdist each worker uses its own database (``hinoki_gw0``,
+    ``hinoki_gw1``, ...), created beforehand, so workers never share tables."""
+    worker = os.environ.get("PYTEST_XDIST_WORKER")
+    if worker is None:
+        return
+    for name in DATABASE_VARIABLES:
+        url = os.environ.get(name)
+        if url is not None:
+            base, mark, query = url.partition("?")
+            base = base.removesuffix("/hinoki") + f"/hinoki_{worker}"
+            os.environ[name] = base + mark + query
