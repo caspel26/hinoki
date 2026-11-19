@@ -385,6 +385,24 @@ impl DecimalNumber {
         })
     }
 
+    /// The digits as an integer scaled by `10^places`; `None` on overflow.
+    fn scaled(&self, places: usize) -> Option<u128> {
+        let padding = "0".repeat(places - self.fraction.len());
+        let digits = format!("{}{}{padding}", self.whole, self.fraction);
+        if digits.is_empty() {
+            return Some(0);
+        }
+        digits.parse().ok()
+    }
+
+    /// Whether `self` is a whole multiple of `step`; `None` when the scaled
+    /// digits exceed 128 bits (the caller defers to Python's exact check).
+    pub(crate) fn is_multiple_of(&self, step: &Self) -> Option<bool> {
+        let places = self.fraction.len().max(step.fraction.len());
+        let (value, step) = (self.scaled(places)?, step.scaled(places)?);
+        Some(step != 0 && value % step == 0)
+    }
+
     fn magnitude(&self, other: &Self) -> Ordering {
         self.whole
             .len()
