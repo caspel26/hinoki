@@ -34,6 +34,7 @@ from hinoki import (
 )
 from hinoki import crud as crud_module
 from hinoki.__main__ import main
+from hinoki.crud import caller_id
 from hinoki.crypto import ClaimsJWTAuth, JWTKey
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import Conflict
@@ -2042,3 +2043,250 @@ async def test_native_claims_auth_answers_like_the_python_lane() -> None:
         cleanup = await Database.connect(DATABASE_URL, max_size=1, wait=1)
         await cleanup.execute("DROP TABLE IF EXISTS crud_plan_items")
         cleanup.close()
+
+
+class OwnedNote(Model, table="crud_owned_notes"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    owner_id: str
+    title: str
+
+
+class OwnedNoteOut(Schema):
+    id: UUID
+    owner_id: str
+    title: str
+
+
+class OwnedNoteIn(Schema):
+    title: str
+
+
+class OwnedNotePatch(Schema):
+    title: str | Unset = UNSET
+
+
+class OwnedNotes(CrudAPI, model=OwnedNote, path="/owned-notes"):
+    read_schema = OwnedNoteOut
+    create_schema = OwnedNoteIn
+    update_schema = OwnedNotePatch
+    deletable = True
+    read_access = Access(ClaimsTokens(), permissions=["notes:read"])
+    access = Access(ClaimsTokens(), permissions=["notes:write"])
+    owner = "owner_id"
+    identity_key = caller_id
+
+
+def owned_pipeline(url: str = "sqlite:///crud-plan-unused.sqlite3") -> Pipeline:
+    pipeline = Pipeline(Hinoki(include=[OwnedNotes], modules=[DatabaseModule(url)]))
+    build_server_core(pipeline)
+    return pipeline
+
+
+def test_owner_scoped_routes_are_native_only_for_the_caller_id_source() -> None:
+    assert set(owned_pipeline().crud_plan_reasons) == {"eligible"}
+
+
+def test_owner_scope_is_not_native_on_mysql() -> None:
+    pipeline = owned_pipeline("mysql://u:p@localhost/db")
+    assert set(pipeline.crud_plan_reasons) == {"owner_scope_unsupported_dialect"}
+
+
+@pytest.mark.parametrize(
+    "attributes",
+    [{"identity_key": lambda user: user.id}],
+    ids=["custom_identity"],
+)
+def test_other_owner_declarations_keep_the_python_lane(
+    attributes: dict[str, object],
+) -> None:
+    def fill(namespace: dict[str, object]) -> None:
+        namespace.update(
+            read_schema=OwnedNoteOut,
+            create_schema=OwnedNoteIn,
+            update_schema=OwnedNotePatch,
+            deletable=True,
+            access=Access(ClaimsTokens(), permissions=["notes:write"]),
+            owner="owner_id",
+            identity_key=caller_id,
+        )
+        namespace.update(attributes)
+
+    variant = types.new_class(
+        "Variant", (CrudAPI,), {"model": OwnedNote, "path": "/variant-notes"}, fill
+    )
+    pipeline = Pipeline(
+        Hinoki(
+            include=[variant],
+            modules=[DatabaseModule("sqlite:///crud-plan-unused.sqlite3")],
+        )
+    )
+    build_server_core(pipeline)
+    writes = [
+        reason
+        for reason, selection in zip(
+            pipeline.crud_plan_reasons, pipeline.crud_plan_selections, strict=True
+        )
+        if selection is None
+    ]
+    assert len(writes) >= 3
+
+
+def test_caller_id_owner_comes_from_the_caller_not_the_user() -> None:
+    resource = vars(OwnedNotes)["resource"]
+    principal = SimpleNamespace(id="u1", user=None)
+    assert resource.owner_of(principal) == "u1"
+
+
+def owned_headers(subject: str, scopes: list[str]) -> tuple[tuple[str, str], ...]:
+    now = int(utc_now().timestamp())
+    token = claims_token({"sub": subject, "exp": now + 600, "scopes": scopes})
+    return (("authorization", f"Bearer {token}"),)
+
+
+ALL_SCOPES = ["notes:read", "notes:write"]
+
+
+async def owned_scenario(
+    url: str, *, native: bool
+) -> tuple[list[object], list[object], int]:
+    worker = RustWorker(
+        Hinoki(include=[OwnedNotes], modules=[DatabaseModule(url)]), "127.0.0.1", 0
+    )
+    await worker.start()
+    python_requests = 0
+    try:
+        port = worker.address[1]
+        if not native:
+            worker.core._disarm_crud_plans()
+        serve = worker._serve
+
+        async def counting(request: Any) -> Any:
+            nonlocal python_requests
+            python_requests += 1
+            return await serve(request)
+
+        worker._serve = counting  # type: ignore[method-assign]
+        ids: dict[str, str] = {}
+        log: list[object] = []
+
+        async def call(
+            label: str,
+            method: str,
+            target: str,
+            headers: tuple[tuple[str, str], ...],
+            body: bytes = b"",
+            remember: str | None = None,
+        ) -> None:
+            for name, value in ids.items():
+                target = target.replace(f"<{name}>", value)
+            status, response_headers, content = await _crud_http_request(
+                port, method, target, body=body, extra_headers=headers
+            )
+            if remember is not None:
+                ids[remember] = json.loads(content)["id"]
+            text = re.sub(rb'"request_id":"[0-9a-f]+"', b'"request_id":""', content)
+            for name, value in ids.items():
+                text = text.replace(value.encode(), f"<{name}>".encode())
+            if label.startswith("list"):
+                listed = json.loads(content)
+                listed["items"].sort(key=lambda item: item["title"])
+                text = json.dumps(listed).encode()
+                for name, value in ids.items():
+                    text = text.replace(value.encode(), f"<{name}>".encode())
+            stable = [
+                (n, v) for n, v in response_headers if n not in {"date", "x-request-id"}
+            ]
+            log.append((label, status, stable, text))
+
+        alice = owned_headers("alice", ALL_SCOPES)
+        bob = owned_headers("bob", ALL_SCOPES)
+        await call(
+            "alice create",
+            "POST",
+            "/owned-notes",
+            alice,
+            b'{"title":"a1"}',
+            "alice-note",
+        )
+        await call(
+            "bob create", "POST", "/owned-notes", bob, b'{"title":"b1"}', "bob-note"
+        )
+        await call(
+            "spoofed owner",
+            "POST",
+            "/owned-notes",
+            alice,
+            b'{"title":"x","owner_id":"bob"}',
+        )
+        await call("anonymous create", "POST", "/owned-notes", (), b'{"title":"x"}')
+        await call(
+            "read-only create",
+            "POST",
+            "/owned-notes",
+            owned_headers("alice", ["notes:read"]),
+            b'{"title":"x"}',
+        )
+        await call(
+            "own update", "PATCH", "/owned-notes/<alice-note>", alice, b'{"title":"a2"}'
+        )
+        await call(
+            "foreign update",
+            "PATCH",
+            "/owned-notes/<alice-note>",
+            bob,
+            b'{"title":"hijack"}',
+        )
+        await call("foreign delete", "DELETE", "/owned-notes/<alice-note>", bob)
+        await call(
+            "missing update",
+            "PATCH",
+            f"/owned-notes/{uuid4()}",
+            alice,
+            b'{"title":"x"}',
+        )
+        await call("empty update", "PATCH", "/owned-notes/<bob-note>", alice, b"{}")
+        await call("list sees everyone", "GET", "/owned-notes", alice)
+        await call("own delete", "DELETE", "/owned-notes/<alice-note>", alice)
+        await call("repeat delete", "DELETE", "/owned-notes/<alice-note>", alice)
+        counted = python_requests
+    finally:
+        await worker.stop()
+    database = await Database.connect(url, max_size=1, wait=1)
+    rows = await database.fetch(
+        "SELECT owner_id, title FROM crud_owned_notes ORDER BY title"
+    )
+    database.close()
+    return log, [tuple(row.values()) for row in rows], counted
+
+
+async def test_native_owner_scope_answers_like_the_python_lane(tmp_path: Path) -> None:
+    results = []
+    for native in (True, False):
+        url = f"sqlite:///{tmp_path / f'owned-{native}.db'}"
+        database = await Database.connect(url, max_size=1, wait=1)
+        await database.execute(
+            "CREATE TABLE crud_owned_notes ("
+            "id uuid PRIMARY KEY, owner_id varchar(40) NOT NULL, title text NOT NULL)"
+        )
+        database.close()
+        results.append(await owned_scenario(url, native=native))
+    (
+        (native_log, native_rows, native_python),
+        (python_log, python_rows, python_python),
+    ) = results
+    assert native_log == python_log
+    assert native_rows == python_rows
+    assert python_python == len(python_log)
+    statuses = {entry[0]: entry[1] for entry in native_log}  # type: ignore[index]
+    assert statuses["alice create"] == 201
+    assert statuses["foreign update"] == 403
+    assert statuses["foreign delete"] == 403
+    assert statuses["missing update"] == 404
+    assert statuses["own delete"] == 204
+    assert statuses["repeat delete"] == 404
+    assert statuses["anonymous create"] == 401
+    assert statuses["read-only create"] == 403
+    assert native_rows == [("bob", "b1")] or ("bob", "b1") in native_rows
+    # Only the requests Rust declines (spoofed owner is a validation error it
+    # may answer itself) reach Python; the owner-scoped writes must not.
+    assert native_python < len(native_log)
