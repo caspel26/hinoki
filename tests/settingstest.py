@@ -706,6 +706,19 @@ def test_a_chosen_access_log_format_turns_the_log_on_unless_it_is_off() -> None:
     assert ServerSettings().logs_access(True) is True
 
 
+def test_access_log_filters_are_validated_and_refused_by_granian() -> None:
+    for kwargs, message in (
+        ({"access_log_slow_ms": -1.0}, "access_log_slow_ms"),
+        ({"access_log_skip": ("health",)}, "start with '/'"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            ServerSettings(**kwargs).validate()
+    filtered = ServerSettings(access_log_skip=("/health",), access_log_slow_ms=5.0)
+    filtered.validate()
+    assert filtered.conflicts("granian") == ["access_log_skip", "access_log_slow_ms"]
+    assert filtered.conflicts("kiso") == []
+
+
 def test_cors_settings_validate_origin_tokens_credentials_and_max_age() -> None:
     invalid: tuple[tuple[Callable[[], object], str], ...] = (
         (lambda: CorsSettings(origins=("*", "https://example.test")), "only entry"),

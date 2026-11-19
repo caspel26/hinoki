@@ -206,6 +206,29 @@ def test_the_json_format_writes_one_object_per_request() -> None:
     assert "\x1b[" not in output
 
 
+def test_skipped_paths_and_a_slow_floor_leave_successes_out_not_failures() -> None:
+    output = run_logged(
+        "serve",
+        {
+            "SRV_SERVER__ACCESS_LOG_FORMAT": "plain",
+            "SRV_SERVER__ACCESS_LOG_SKIP": "/ping",
+        },
+        "--workers",
+        "1",
+    )
+    assert "GET /missing?x=1" in output and "GET /ping" not in output
+    quiet = run_logged(
+        "serve",
+        {
+            "SRV_SERVER__ACCESS_LOG_FORMAT": "plain",
+            "SRV_SERVER__ACCESS_LOG_SLOW_MS": "60000",
+        },
+        "--workers",
+        "1",
+    )
+    assert "GET /missing?x=1" in quiet and "GET /ping" not in quiet
+
+
 def test_dev_logs_requests_unless_the_setting_is_off() -> None:
     dev = run_logged("dev", {})
     assert '"GET /ping HTTP/1.1" 200 OK' in dev
