@@ -1,6 +1,7 @@
 """``crud(...)``: the function and class-decorator form of generated CRUD."""
 
 import os
+from functools import partial
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -164,13 +165,42 @@ def test_a_generated_action_cannot_also_be_handwritten() -> None:
                 return []
 
 
-def test_only_get_queryset_and_to_schema_are_hooks() -> None:
-    with pytest.raises(RegistrationError, match="only get_queryset and to_schema"):
+def test_the_class_form_accepts_the_write_hooks() -> None:
+    @crud(Note, path="/notes", read=NoteOut, access=writer, create=NoteIn)
+    class Notes(API):
+        async def store(self, values: dict[str, Any], principal: Any) -> Any:
+            return await Note.acreate(**values)
 
-        @crud(Note, path="/notes", read=NoteOut, access=writer, create=NoteIn)
+        async def change(
+            self, item: Any, scoped: Any, values: dict[str, Any], principal: Any
+        ) -> Any:
+            return item
+
+        async def remove(self, item: Any, scoped: Any, principal: Any) -> bool:
+            return True
+
+        def written_queryset(self, principal: Any) -> QuerySet[Note]:
+            return Note.all()
+
+    assert ("POST", "/notes") in shape(Notes)
+
+
+def test_an_internal_helper_is_not_a_hook() -> None:
+    with pytest.raises(RegistrationError, match="reload_written"):
+
+        @crud(Note, path="/notes", read=NoteOut, access=writer)
         class Notes(API):
-            async def store(self, values: dict[str, Any], principal: Any) -> Any:
-                return await Note.acreate(**values)
+            async def reload_written(self, item_id: Any, principal: Any) -> Any:
+                return None
+
+
+def test_functools_partial_shares_options_between_declarations() -> None:
+    staff = partial(crud, access=writer, read=NoteOut)
+    one = staff(Note, path="/one").api()
+    two = staff(Note, path="/two", create=NoteIn).api()
+    assert shape(one)[("GET", "/one")] is writer
+    assert ("POST", "/two") in shape(two)
+    assert ("POST", "/one") not in shape(one)
 
 
 def test_a_crud_class_must_extend_api_only() -> None:
@@ -243,6 +273,68 @@ async def test_function_form_runs_against_a_database(pool: Pool) -> None:
         assert (await send("GET", path, headers=BOB)).status == 404
         assert (await send("DELETE", path, headers=BOB)).status == 404
         assert (await send("DELETE", path, headers=ANN)).status == 204
+    finally:
+        await admin.execute("DROP TABLE IF EXISTS crud_function_notes")
+        admin.close()
+
+
+@needs_database
+async def test_write_hooks_in_a_decorated_class_run_on_a_database(pool: Pool) -> None:
+    assert URL is not None
+    calls: list[str] = []
+
+    @crud(
+        Note,
+        path="/notes",
+        read=NoteOut,
+        create=NoteIn,
+        update=NotePatch,
+        delete=True,
+        owner="owner",
+        identity_key=str,
+        access=writer,
+    )
+    class Notes(API):
+        async def store(self, values: dict[str, Any], principal: Any) -> Any:
+            calls.append("store")
+            values["title"] = str(values["title"]).upper()
+            return await Note.acreate(**values)
+
+        async def change(
+            self, item: Any, scoped: Any, values: dict[str, Any], principal: Any
+        ) -> Any:
+            calls.append("change")
+            return await super().change(item, scoped, values, principal)  # type: ignore[misc]
+
+        async def remove(self, item: Any, scoped: Any, principal: Any) -> bool:
+            calls.append("remove")
+            return cast(bool, await super().remove(item, scoped, principal))  # type: ignore[misc]
+
+    admin = await Database.connect(URL, max_size=1)
+    await admin.execute("DROP TABLE IF EXISTS crud_function_notes")
+    await admin.execute(
+        "CREATE TABLE crud_function_notes (id uuid PRIMARY KEY, "
+        "owner varchar(20) NOT NULL, title varchar(40) NOT NULL, body text NOT NULL)"
+    )
+    app = Hinoki(title="Notes")
+    app.include(Notes)
+    app.install(DatabaseModule(URL, max_size=3))
+    client = await pool.start(app)
+    try:
+        send = client.request
+        created = await send(
+            "POST", "/notes", b'{"title": "mine"}', content_type=JSON, headers=ANN
+        )
+        assert created.status == 201
+        assert created.body["title"] == "MINE"
+        path = f"/notes/{created.body['id']}"
+        patched = await send(
+            "PATCH", path, b'{"body": "hi"}', content_type=JSON, headers=ANN
+        )
+        assert patched.status == 200
+        assert (await send("DELETE", path, headers=BOB)).status == 403
+        assert (await send("DELETE", path, headers=ANN)).status == 204
+        assert calls == ["store", "change", "remove"]
     finally:
         await admin.execute("DROP TABLE IF EXISTS crud_function_notes")
         admin.close()
