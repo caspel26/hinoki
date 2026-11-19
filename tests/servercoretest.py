@@ -11,12 +11,12 @@ from hinoki import Hinoki, RuntimeConfig, Schema, core, http
 from hinoki.http.request import Request
 from hinoki.parsers import BytesParser, FormParser, JSONParser, TextParser
 from hinoki.renderers import JSONRenderer
+from hinoki.runtime.nativehandler import native_handler_eligible
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.servercore import (
     SENTINEL,
     build_server_core,
     early_bodies,
-    native_handler_eligible,
 )
 from hinoki.settings import AppSettings, CorsSettings, SecuritySettings, ServerSettings
 from tests.harness import Client, Pool

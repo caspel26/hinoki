@@ -8,8 +8,8 @@ import pytest
 from hinoki import Access, Hinoki, RateLimitContext, Request, RouteGroup, http
 from hinoki.api import API
 from hinoki.auth import BaseAuth
+from hinoki.runtime.nativehandler import native_handler_eligible
 from hinoki.runtime.pipeline import Pipeline
-from hinoki.runtime.servercore import native_handler_eligible
 
 
 class Nobody(BaseAuth[str]):
