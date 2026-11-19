@@ -46,7 +46,12 @@ from hinoki.errors import (
     RegistrationError,
 )
 from hinoki.fields import UNSET, FieldInfo
-from hinoki.fieldtypes import FieldType, parse_annotation, split_annotated
+from hinoki.fieldtypes import (
+    TEXT_STORED,
+    FieldType,
+    parse_annotation,
+    split_annotated,
+)
 from hinoki.orm.context import current_database
 from hinoki.orm.naming import resolve_model_names
 from hinoki.orm.queryset import QuerySet, write_statement, written_rows
@@ -81,6 +86,7 @@ _IMMUTABLE = frozenset(
         datetime.time,
         datetime.timedelta,
         Decimal,
+        *TEXT_STORED.values(),
     }
 )
 PLACEHOLDER = "{model}"
@@ -558,6 +564,7 @@ class Model:
     __table_problem__: ClassVar[str] = ""
     __columns__: ClassVar[tuple[str, ...]] = ()
     __json_columns__: ClassVar[tuple[str, ...]] = ()
+    __text_columns__: ClassVar[dict[str, type]] = {}
     __field_types__: ClassVar[dict[str, FieldType]] = {}
     __field_validators__: ClassVar[dict[str, tuple[Callable[..., None], ...]]] = {}
     __field_annotations__: ClassVar[dict[str, object]] = {}
@@ -629,8 +636,15 @@ class Model:
         cls.__field_validation_fields__ = frozenset(
             name
             for name, field_type in cls.__field_types__.items()
-            if field_type.info.constraints() or cls.__field_validators__[name]
+            if field_type.info.constraints()
+            or cls.__field_validators__[name]
+            or field_type.kind in TEXT_STORED
         )
+        cls.__text_columns__ = {
+            name: TEXT_STORED[field_type.kind]
+            for name, field_type in cls.__field_types__.items()
+            if field_type.kind in TEXT_STORED
+        }
         cls.__primary_key__ = keys[0] if keys else ""
         cls.check_names(cls.__columns__)
         cls.__field_indexes__ = tuple(
@@ -976,26 +990,41 @@ class Model:
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> Self:
-        values = row
-        if cls.__json_columns__:
-            for name in cls.__json_columns__:
-                if name not in values:
-                    continue
-                value = values[name]
-                if not isinstance(value, (str, bytes, bytearray)):
-                    continue
-                try:
-                    decoded = json.loads(value)
-                except (UnicodeDecodeError, json.JSONDecodeError) as error:
-                    raise FieldError(
-                        f"{cls.__name__}.{name}: database value is not valid JSON"
-                    ) from error
-                if values is row:
-                    values = dict(row)
-                values[name] = decoded
-        instance = cls(**values)
+        changed = {**cls._text_values(row), **cls._json_values(row)}
+        instance = cls(**({**row, **changed} if changed else row))
         instance.remember()
         return instance
+
+    @classmethod
+    def _text_values(cls, row: dict[str, Any]) -> dict[str, Any]:
+        """Objects for the columns stored as text (addresses and networks)."""
+        found: dict[str, Any] = {}
+        for name, kind in cls.__text_columns__.items():
+            if not isinstance(text := row.get(name), str):
+                continue
+            try:
+                found[name] = kind(text)
+            except ValueError as error:
+                raise FieldError(
+                    f"{cls.__name__}.{name}: database value is not a valid "
+                    f"{kind.__name__}"
+                ) from error
+        return found
+
+    @classmethod
+    def _json_values(cls, row: dict[str, Any]) -> dict[str, Any]:
+        decoded: dict[str, Any] = {}
+        for name in cls.__json_columns__:
+            value = row.get(name)
+            if not isinstance(value, (str, bytes, bytearray)):
+                continue
+            try:
+                decoded[name] = json.loads(value)
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise FieldError(
+                    f"{cls.__name__}.{name}: database value is not valid JSON"
+                ) from error
+        return decoded
 
     def remember(self) -> None:
         """Record the stored values, so ``asave`` writes only what changed."""
