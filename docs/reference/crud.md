@@ -14,14 +14,4 @@ ownership, schema requirements and route replacement.
       members: true
       show_if_no_docstring: true
 
-::: hinoki.crud.Resource
-    options:
-      members: true
-      show_if_no_docstring: true
-
-::: hinoki.crud.CrudAPI
-    options:
-      members: true
-      show_if_no_docstring: true
-
 ::: hinoki.crud.Crud
