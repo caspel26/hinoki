@@ -290,3 +290,57 @@ def test_cancelled_shutdown_thread_future_does_not_run_callable(
     monkeypatch.setattr("hinoki.runtime.executor.threading.Thread", CancelBeforeRun)
     future = SyncExecutor._run_in_shutdown_thread(lambda: pytest.fail("was called"))
     assert future.cancelled()
+
+
+async def test_call_cancelled_while_queued_never_runs_and_frees_its_slot() -> None:
+    release = threading.Event()
+    ran: list[str] = []
+    async with SyncExecutor(workers=1, queue=1) as executor:
+        first = asyncio.create_task(executor.run(release.wait, 5))
+        queued = asyncio.create_task(executor.run(ran.append, "queued"))
+        await asyncio.sleep(0.05)
+        queued.cancel()
+        await asyncio.gather(queued, return_exceptions=True)
+        release.set()
+        await first
+        await executor.drain(2)
+        assert ran == []
+        assert executor.in_flight == 0
+
+
+async def test_leaving_the_executor_cancels_queued_calls() -> None:
+    release = threading.Event()
+    executor = SyncExecutor(workers=1, queue=1)
+    async with executor:
+        running = asyncio.create_task(executor.run(release.wait, 5))
+        queued = asyncio.create_task(executor.run(lambda: "late"))
+        await asyncio.sleep(0.05)
+    with pytest.raises(asyncio.CancelledError):
+        await queued
+    release.set()
+    await running
+    assert executor.in_flight == 0
+
+
+async def test_exceptions_reach_the_caller() -> None:
+    def stop() -> None:
+        raise StopIteration
+
+    async with SyncExecutor(workers=1, queue=0) as executor:
+        with pytest.raises(ValueError, match="boom"):
+            await executor.run(int, "boom")
+        with pytest.raises(RuntimeError, match="StopIteration"):
+            await executor.run(stop)
+        assert await executor.run(lambda: "next") == "next"
+
+
+async def test_a_shutdown_hook_still_runs_after_the_real_pool_is_stopped() -> None:
+    executor = SyncExecutor(workers=1, queue=0)
+    async with executor:
+        pool = executor._pool
+        assert pool is not None
+        pool.shutdown(wait=True)
+        with pytest.raises(RuntimeError, match="shutdown"):
+            await executor.run(lambda: None)
+        assert executor.in_flight == 0
+        assert await executor.run_shutdown(lambda: "hook") == "hook"
