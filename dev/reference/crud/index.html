@@ -311,7 +311,8 @@ ownership, schema requirements and route replacement.</p>
 
         <p>Declare generated CRUD for <code>model</code>.</p>
 <p><code>app.include(crud(...))</code> mounts the generated actions; <code>@crud(...)</code> on a
-class adds <code>get_queryset</code>/<code>to_schema</code> hooks and handwritten actions.
+class adds the hooks (<code>get_queryset</code>, <code>to_schema</code>, <code>written_queryset</code>,
+<code>store</code>, <code>change</code>, <code>remove</code>) and handwritten actions.
 A single <code>Access</code> protects every action; <code>CrudAccess</code> sets them apart.</p>
 
 
