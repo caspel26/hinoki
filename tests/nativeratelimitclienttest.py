@@ -8,9 +8,9 @@ from dataclasses import dataclass, field
 import pytest
 
 from hinoki import Hinoki, RateLimitContext, Request, http
-from hinoki.runtime.rustserver import RustWorker
+from hinoki.runtime.kiso import KisoWorker
 from hinoki.settings import AppSettings, ServerSettings
-from tests.rustservertest import fetch, record_lanes
+from tests.kisoservertest import fetch, record_lanes
 
 
 @dataclass
@@ -74,7 +74,7 @@ async def test_the_rate_limit_client_is_the_same_on_both_lanes(
 ) -> None:
     settings = AppSettings(server=ServerSettings(trusted_proxies=proxies))
     app = Hinoki(include=[where, where_python], settings=settings)
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     port = await worker.start()
     try:
         lanes = record_lanes(worker)

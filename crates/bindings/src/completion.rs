@@ -21,8 +21,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use hinoki_orm::{DbError, ErrorKind};
-use hinoki_server::queue::Push;
-use hinoki_server::Queue;
+use kiso::queue::Push;
+use kiso::Queue;
 use pyo3::prelude::*;
 use tokio::task::AbortHandle;
 

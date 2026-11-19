@@ -3,11 +3,11 @@
 //! accept them. Only the sources that carry nothing but text use it.
 //!
 //! The rules are the ones that convert path and query parameters
-//! (`hinoki_server::inputs`). A value that does not convert is left as it is:
+//! (`kiso::inputs`). A value that does not convert is left as it is:
 //! the validator then reports it with its ordinary type error.
 
-use hinoki_server::inputs::{convert, Converted, InputValue};
-use hinoki_server::plan::InputKind;
+use kiso::inputs::{convert, Converted, InputValue};
+use kiso::plan::InputKind;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 

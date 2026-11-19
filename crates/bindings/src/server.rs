@@ -1,4 +1,4 @@
-//! Glue between `hinoki-server` and Python: the request classifier (`Core`, held
+//! Glue between `kiso` and Python: the request classifier (`Core`, held
 //! by the Python `ServerCore`), the request handed to the pipeline
 //! (`PreparedRequest`) and the handle a test holds to see the answer
 //! (`Submission`).
@@ -6,7 +6,7 @@
 //! Python objects exist only on the calling thread: `PreparedRequest` holds Rust
 //! data and a oneshot sender, so it can be dropped on any thread without the GIL.
 //! `Core` is shared with the tokio side behind an `Arc` and holds no Python
-//! object; `rustserver.rs` drives `Core::classify` from the connection layer, and
+//! object; `kiso.rs` drives `Core::classify` from the connection layer, and
 //! the tests call `submit` the same way without a socket.
 
 use std::borrow::Cow;
@@ -17,16 +17,16 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use hinoki_orm::{Database, Value};
-use hinoki_server::cors::{Cors, PreflightError};
-use hinoki_server::early::TemplateError;
-use hinoki_server::headers::{final_headers, Header};
-use hinoki_server::hosts::Hosts;
-use hinoki_server::queue::Push;
-use hinoki_server::{
+use kiso::cors::{Cors, PreflightError};
+use kiso::early::TemplateError;
+use kiso::headers::{final_headers, Header};
+use kiso::hosts::Hosts;
+use kiso::queue::Push;
+use kiso::{
     convert, proxy, requestid, Converted, Early, EarlyBodies, InFlight, InputKind, InputParam,
-    InputValue, Limits, NativeJobs, Networks, Permit, Plan, Queue, RoutePlan,
+    InputValue, Limits, NativeJobs, Networks, Permit, Plan, Queue, RoutePlan, Trace,
 };
-use hinoki_server::{Answer, BodyError, BodyReader};
+use kiso::{Answer, BodyError, BodyReader};
 use pyo3::exceptions::{PyException, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
@@ -37,7 +37,7 @@ use crate::crudplan::{CrudPlan, PyCrudPlan};
 use crate::db::PyDatabase;
 use crate::request;
 use crate::router::{Match, Router};
-use hinoki_server::redirect;
+use kiso::redirect;
 
 // `args[0]` is `too_large`, `disconnected` or `timeout`.
 pyo3::create_exception!(core, BodyReadError, PyException);
@@ -934,6 +934,8 @@ pub struct Core {
         reason = "consumed by native CRUD execution in the next phase"
     )]
     crud_plans: HashMap<u32, Arc<CrudPlan>>,
+    /// Route pattern by action number, for the access log.
+    templates: HashMap<u32, Arc<str>>,
     database: Mutex<Option<Database>>,
     native_jobs: Arc<NativeJobs>,
     request_timeout: Duration,
@@ -1082,6 +1084,10 @@ impl ServerCore {
             }
         };
         let proxies = Networks::parse(&trusted_proxies).map_err(PyValueError::new_err)?;
+        let templates = routes
+            .iter()
+            .map(|route| (route.0, Arc::from(route.2.as_str())))
+            .collect();
         let (router, plan, crud_plans) = build_routes(py, routes)?;
         let rendered = early_bodies
             .into_iter()
@@ -1096,6 +1102,7 @@ impl ServerCore {
                 router,
                 plan,
                 crud_plans,
+                templates,
                 database: Mutex::new(None),
                 native_jobs: Arc::new(NativeJobs::new(max_in_flight)),
                 request_timeout: Duration::from_millis(request_timeout_ms),
@@ -1281,7 +1288,7 @@ impl ServerCore {
         };
         let outcome = self
             .core
-            .classify(head, false)
+            .classify(head, false, &Trace::default())
             .map_err(PyRuntimeError::new_err)?;
         Ok(match outcome {
             Outcome::Early(reply) => Submission {
@@ -1421,7 +1428,7 @@ fn build_routes(
             transaction,
             takes_request,
             native_handler,
-            crud_plan: crud_plan.map(|_| Arc::new(hinoki_server::CrudPlanSlot::new(action))),
+            crud_plan: crud_plan.map(|_| Arc::new(kiso::CrudPlanSlot::new(action))),
         });
     }
     let plan = Plan::new(planned).map_err(|e| PyValueError::new_err(format!("{e:?}")))?;
@@ -1436,6 +1443,7 @@ impl Core {
         &self,
         head: Head<'_>,
         native_execution: bool,
+        trace: &Trace,
     ) -> Result<Outcome, String> {
         let (request_id, id_ignored) = self.request_id(&head.headers, head.trusted);
         let asked = Asked {
@@ -1480,6 +1488,9 @@ impl Core {
             }
             Resolved::Missing(early, extra) => return self.answer(&asked, early, extra),
         };
+        if let Some(pattern) = action.and_then(|number| self.templates.get(&number)) {
+            trace.set_route(Arc::clone(pattern));
+        }
         let plan = match action {
             Some(number) => self
                 .plan
@@ -1789,9 +1800,8 @@ impl Core {
         if !self.ready.load(Ordering::Acquire) {
             return Some(Early::NotReady);
         }
-        let total = hinoki_server::limits::header_total(
-            headers.iter().map(|(n, v)| (n.as_slice(), v.as_slice())),
-        );
+        let total =
+            kiso::limits::header_total(headers.iter().map(|(n, v)| (n.as_slice(), v.as_slice())));
         self.limits.check_request(query.len(), total)
     }
 

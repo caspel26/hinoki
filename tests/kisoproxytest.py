@@ -11,12 +11,12 @@ from typing import Any
 import pytest
 
 from hinoki import Hinoki, Request, core, http
+from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.proxy import trusted_peer
-from hinoki.runtime.rustserver import RustWorker
 from hinoki.runtime.servercore import build_server_core
 from hinoki.settings import AppSettings, SecuritySettings, ServerSettings
-from tests.rustservertest import Received, fetch, read_response
+from tests.kisoservertest import Received, fetch, read_response
 
 FORWARDED = (
     "x-forwarded-proto: https\r\n"
@@ -50,7 +50,7 @@ def make_app(proxies: tuple[str, ...], **server: Any) -> Hinoki:
 
 @asynccontextmanager
 async def running(app: Hinoki) -> AsyncIterator[int]:
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     port = await worker.start()
     try:
         yield port
@@ -236,7 +236,7 @@ async def test_a_native_answer_reports_an_ignored_trusted_id(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level(logging.WARNING, logger="hinoki.runtime")
-    worker = RustWorker(make_app(TRUSTED, trust_request_id=True), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(TRUSTED, trust_request_id=True), "127.0.0.1", 0)
     port = await worker.start()
     try:
         for _ in range(2):
@@ -262,7 +262,7 @@ async def test_the_last_second_of_ignored_ids_is_reported_at_stop(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level(logging.WARNING, logger="hinoki.runtime")
-    worker = RustWorker(make_app(TRUSTED, trust_request_id=True), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(TRUSTED, trust_request_id=True), "127.0.0.1", 0)
     port = await worker.start()
     await fetch(port, "GET", "/nope", "x-request-id: two,values\r\n")
     await worker.stop()  # no housekeeping pass has run since the request
@@ -272,7 +272,7 @@ async def test_the_last_second_of_ignored_ids_is_reported_at_stop(
 async def test_a_failing_housekeeping_pass_does_not_end_the_chain(
     caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    worker = RustWorker(make_app(TRUSTED), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(TRUSTED), "127.0.0.1", 0)
     await worker.start()
     try:
         worker.timer.cancel()  # type: ignore[union-attr]
@@ -291,7 +291,7 @@ TLS_DIR = Path(__file__).parent / "tls"
 async def test_a_trusted_proxy_scheme_wins_over_tls_in_python_and_native_answers() -> (
     None
 ):
-    worker = RustWorker(
+    worker = KisoWorker(
         make_app(TRUSTED),
         "127.0.0.1",
         0,

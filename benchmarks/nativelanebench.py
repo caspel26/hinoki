@@ -35,7 +35,7 @@ from hinoki.db import Database, DatabaseModule
 from hinoki.modules import Module, ModuleContext
 from hinoki.orm import Model, field
 from hinoki.orm.options import table
-from hinoki.runtime.rustserver import RustWorker
+from hinoki.runtime.kiso import KisoWorker
 
 CONNECTIONS = 32
 SCENARIOS = {
@@ -157,7 +157,7 @@ async def run_mode(
     app = Hinoki(runtime=RuntimeConfig())
     app.include(one, listing, mixed, write)
     app.install(DatabaseModule(url), Seed())
-    worker = RustWorker(app, "127.0.0.1", 0, native_dispatch=native)
+    worker = KisoWorker(app, "127.0.0.1", 0, native_dispatch=native)
     port = await worker.start()
     results: dict[str, dict[str, float]] = {}
     try:

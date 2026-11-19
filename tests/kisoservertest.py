@@ -51,8 +51,8 @@ from hinoki.http.response import Response
 from hinoki.modules import ModuleContext
 from hinoki.parsers import TextParser
 from hinoki.renderers import is_native_renderer
-from hinoki.runtime import responses, rustserver
-from hinoki.runtime.rustserver import RustWorker
+from hinoki.runtime import kiso, responses
+from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.servercore import build_server_core
 from hinoki.settings import AppSettings, CorsSettings, FrameOptions, SecuritySettings
 from tests.harness import Client
@@ -521,8 +521,8 @@ def make_app(**config: Any) -> Hinoki:
 
 
 @pytest.fixture
-async def served() -> AsyncIterator[tuple[RustWorker, int]]:
-    worker = RustWorker(make_app(), "127.0.0.1", 0)
+async def served() -> AsyncIterator[tuple[KisoWorker, int]]:
+    worker = KisoWorker(make_app(), "127.0.0.1", 0)
     port = await worker.start()
     yield worker, port
     await worker.stop()
@@ -531,8 +531,8 @@ async def served() -> AsyncIterator[tuple[RustWorker, int]]:
 @asynccontextmanager
 async def rust_probe(
     settings: AppSettings | None = None,
-) -> AsyncIterator[tuple[RustWorker, int]]:
-    worker = RustWorker(
+) -> AsyncIterator[tuple[KisoWorker, int]]:
+    worker = KisoWorker(
         Hinoki(startup_url="/health", settings=settings), "127.0.0.1", 0
     )
     port = await worker.start()
@@ -789,7 +789,7 @@ def comparable(headers: list[tuple[str, str]]) -> list[tuple[str, str]]:
     return [(k, v) for k, v in headers if k not in {"x-request-id", "date"}]
 
 
-async def test_get_matches_the_asgi_answer(served: tuple[RustWorker, int]) -> None:
+async def test_get_matches_the_asgi_answer(served: tuple[KisoWorker, int]) -> None:
     _, port = served
     over_socket = await fetch(port, "GET", "/health")
     client = Client(make_app().asgi())
@@ -810,7 +810,7 @@ async def test_get_matches_the_asgi_answer(served: tuple[RustWorker, int]) -> No
     "path", ["/context-async", "/context-sync", "/context-sync-awaitable"]
 )
 async def test_native_handler_keeps_the_request_context(
-    served: tuple[RustWorker, int], path: str
+    served: tuple[KisoWorker, int], path: str
 ) -> None:
     _, port = served
     received = await fetch(port, "GET", path)
@@ -819,7 +819,7 @@ async def test_native_handler_keeps_the_request_context(
 
 
 async def test_native_handler_context_is_isolated_between_concurrent_requests(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     replies = await asyncio.gather(
@@ -833,7 +833,7 @@ async def test_native_handler_context_is_isolated_between_concurrent_requests(
 
 async def test_native_string_inputs_match_pipeline_and_head() -> None:
     app = make_app()
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     port = await worker.start()
     try:
         target = "/native/echo/a%2Fb+c?term=green+tea"
@@ -873,7 +873,7 @@ async def test_native_string_inputs_match_pipeline_and_head() -> None:
 async def test_native_delete_matches_pipeline(
     method: str, target: str, native: bool
 ) -> None:
-    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(), "127.0.0.1", 0)
     port = await worker.start()
     try:
         lanes = record_lanes(worker)
@@ -924,7 +924,7 @@ JSON_HEADER = {"content-type": "application/json"}
 async def test_native_body_handlers_match_pipeline(
     method: str, target: str, extra: str, headers: dict[str, str], body: bytes
 ) -> None:
-    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(), "127.0.0.1", 0)
     port = await worker.start()
     try:
         lanes = record_lanes(worker)
@@ -939,7 +939,7 @@ async def test_native_body_handlers_match_pipeline(
 
 
 async def test_native_body_over_the_limit_is_refused_like_the_pipeline() -> None:
-    worker = RustWorker(make_app(max_body_bytes=16), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(max_body_bytes=16), "127.0.0.1", 0)
     port = await worker.start()
     try:
         body = b'{"title":"' + b"a" * 64 + b'"}'
@@ -954,7 +954,7 @@ async def test_native_body_over_the_limit_is_refused_like_the_pipeline() -> None
 
 
 async def test_native_body_early_refusal_closes_like_the_pipeline() -> None:
-    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(), "127.0.0.1", 0)
     port = await worker.start()
     try:
         body = b'{"title":"a"}'
@@ -1002,7 +1002,7 @@ async def test_native_access_matches_pipeline(
 async def check_native_parity(
     method: str, target: str, auth: str | None, extra: str, body: bytes
 ) -> None:
-    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(), "127.0.0.1", 0)
     port = await worker.start()
     try:
         raw, headers = bearer(auth) if auth else ("", {})
@@ -1172,7 +1172,7 @@ TYPED_ID = "123e4567-E89b-12d3-a456-426614174000"
     ],
 )
 async def test_native_typed_inputs_match_pipeline(target: str) -> None:
-    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(), "127.0.0.1", 0)
     port = await worker.start()
     try:
         assert_pipeline_parity(
@@ -1190,7 +1190,7 @@ async def test_native_defaulted_string_queries_match_pipeline() -> None:
     [prepared] = native.drain(1)
     assert prepared.native_handler is True
     assert prepared.native_args == {"term": "tail"}
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     port = await worker.start()
     try:
         for target in (
@@ -1231,7 +1231,7 @@ async def test_native_defaulted_string_queries_match_pipeline() -> None:
 async def test_python_pipeline_routes_use_prepared_path_values_once() -> None:
     app = make_app()
     client = Client(app.asgi())
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     port = await worker.start()
     try:
         for target, expected in (
@@ -1288,7 +1288,7 @@ async def test_invalid_prepared_path_keeps_early_policy_precedence() -> None:
     )
     app = Hinoki(include=[pipeline_echo], settings=settings)
     client = Client(app.asgi())
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     port = await worker.start()
     invalid = "/pipeline/echo/%FF"
     try:
@@ -1356,7 +1356,7 @@ async def test_invalid_prepared_path_keeps_early_policy_precedence() -> None:
     ],
 )
 async def test_native_input_errors_match_pipeline(
-    served: tuple[RustWorker, int], target: str, extra: str, status: int, error: str
+    served: tuple[KisoWorker, int], target: str, extra: str, status: int, error: str
 ) -> None:
     _, port = served
     before = PROBE.native_input_calls
@@ -1370,7 +1370,7 @@ async def test_native_input_errors_match_pipeline(
 
 
 async def test_native_none_and_reply_results_keep_pipeline_semantics(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     empty = await fetch(port, "GET", "/native-none")
@@ -1385,7 +1385,7 @@ async def test_native_none_and_reply_results_keep_pipeline_semantics(
 
 
 async def test_native_handler_errors_keep_the_request_id(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     received = await fetch(port, "GET", "/native-error")
@@ -1399,7 +1399,7 @@ async def test_native_handler_timeout_differs_from_handler_timeout_error() -> No
         include=[native_slow, native_timeout_error],
         runtime=RuntimeConfig(request_timeout=0.05),
     )
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     port = await worker.start()
     try:
         expired = await fetch(port, "GET", "/native-slow")
@@ -1417,7 +1417,7 @@ async def test_native_sync_handler_saturation_answers_503() -> None:
         include=[native_sync_block],
         runtime=RuntimeConfig(sync_workers=1, sync_queue=0),
     )
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     port = await worker.start()
     first = asyncio.create_task(fetch(port, "GET", "/native-sync-block"))
     try:
@@ -1435,7 +1435,7 @@ async def test_native_sync_handler_saturation_answers_503() -> None:
 async def test_native_timeout_closes_awaitable_returned_by_abandoned_sync_handler() -> (
     None
 ):
-    worker = RustWorker(
+    worker = KisoWorker(
         Hinoki(
             include=[native_sync_late_awaitable],
             runtime=RuntimeConfig(request_timeout=0.02, sync_workers=1, sync_queue=0),
@@ -1462,7 +1462,7 @@ async def test_native_timeout_closes_awaitable_returned_by_abandoned_sync_handle
 
 async def test_native_handler_negotiates_accept_before_calling_handler() -> None:
     app = Hinoki(include=[context_async])
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     port = await worker.start()
     try:
         received = await fetch(port, "GET", "/context-async", "accept: text/plain\r\n")
@@ -1478,7 +1478,7 @@ async def test_native_handler_preserves_query_validation(
     query: str,
 ) -> None:
     app = Hinoki(include=[health])
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     port = await worker.start()
     try:
         received = await fetch(port, "GET", f"/health?{query}")
@@ -1498,7 +1498,7 @@ async def test_native_finalizer_keeps_security_headers() -> None:
             )
         ),
     )
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     port = await worker.start()
     try:
         received = await fetch(port, "GET", "/health")
@@ -1537,7 +1537,7 @@ def final_answer(
 
 
 async def pipeline_answer(
-    worker: RustWorker, method: str, target: str, headers: list[tuple[bytes, bytes]]
+    worker: KisoWorker, method: str, target: str, headers: list[tuple[bytes, bytes]]
 ) -> tuple[int, list[tuple[str, str]], object]:
     """The same request served by the Python pipeline, as the ASGI adapter
     (Granian) serves it."""
@@ -1557,7 +1557,7 @@ async def pipeline_answer(
     return final_answer(response.status, pairs, body)
 
 
-def record_lanes(worker: RustWorker) -> list[bool]:
+def record_lanes(worker: KisoWorker) -> list[bool]:
     """Record, for every request the worker serves from now on, whether the
     real queued request took the native handler lane."""
     lanes: list[bool] = []
@@ -1606,7 +1606,7 @@ async def test_native_handler_answers_carry_the_pipeline_cors_headers(
         settings=AppSettings(cors=cors),
         runtime=RuntimeConfig(request_timeout=0.05),
     )
-    worker = RustWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0)
     port = await worker.start()
     headers = [(b"host", b"t")] + ([(b"origin", origin.encode())] if origin else [])
     extra = f"origin: {origin}\r\n" if origin else ""
@@ -1630,7 +1630,7 @@ async def test_native_handler_answers_carry_the_pipeline_cors_headers(
 
 @pytest.mark.parametrize("path", ["/upload", "/upload-auto"])
 async def test_multipart_file_binding_works_over_the_native_server(
-    served: tuple[RustWorker, int], path: str
+    served: tuple[KisoWorker, int], path: str
 ) -> None:
     _, port = served
     boundary = "rust-upload-test"
@@ -1653,7 +1653,7 @@ async def test_multipart_file_binding_works_over_the_native_server(
 
 
 async def test_the_native_404_and_405_carry_the_request_id(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     missing = await fetch(port, "GET", "/nope")
@@ -1669,7 +1669,7 @@ async def test_the_native_404_and_405_carry_the_request_id(
 
 
 async def test_head_keeps_the_length_and_sends_no_body(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     reader, writer = await open_connection(port)
@@ -1683,7 +1683,7 @@ async def test_head_keeps_the_length_and_sends_no_body(
 
 
 async def test_a_non_ascii_target_gets_the_pipelines_400(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     reader, writer = await open_connection(port)
@@ -1695,7 +1695,7 @@ async def test_a_non_ascii_target_gets_the_pipelines_400(
     writer.close()
 
 
-async def test_keep_alive_and_pipelining(served: tuple[RustWorker, int]) -> None:
+async def test_keep_alive_and_pipelining(served: tuple[KisoWorker, int]) -> None:
     _, port = served
     reader, writer = await open_connection(port)
     request = b"GET /health HTTP/1.1\r\nhost: t\r\n\r\n"
@@ -1706,7 +1706,7 @@ async def test_keep_alive_and_pipelining(served: tuple[RustWorker, int]) -> None
 
 
 async def test_a_post_without_a_body_reaches_the_handler(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     created = await fetch(port, "POST", "/made", "content-length: 0\r\n")
@@ -1719,7 +1719,7 @@ def post(path: str, body: bytes, extra: str = "") -> bytes:
 
 
 async def test_a_json_body_reaches_the_handler_and_the_connection_is_reused(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     reader, writer = await open_connection(port)
@@ -1733,7 +1733,7 @@ async def test_a_json_body_reaches_the_handler_and_the_connection_is_reused(
 
 
 async def test_a_chunked_json_body_reaches_the_handler(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     reader, writer = await open_connection(port)
@@ -1782,7 +1782,7 @@ async def send_streaming(port: int, head: bytes, body: bytes) -> tuple[Received,
 
 
 async def test_a_declared_length_over_the_limit_is_a_413_like_asgi() -> None:
-    worker = RustWorker(make_app(max_body_bytes=64), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(max_body_bytes=64), "127.0.0.1", 0)
     port = await worker.start()
     try:
         size = 256 * 1024
@@ -1807,7 +1807,7 @@ async def test_a_declared_length_over_the_limit_is_a_413_like_asgi() -> None:
 
 
 async def test_a_chunked_total_over_the_limit_is_a_413() -> None:
-    worker = RustWorker(make_app(max_body_bytes=64), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(max_body_bytes=64), "127.0.0.1", 0)
     port = await worker.start()
     try:
         head = b"POST /notes HTTP/1.1\r\nhost: t\r\ntransfer-encoding: chunked\r\n\r\n"
@@ -1822,7 +1822,7 @@ async def test_a_chunked_total_over_the_limit_is_a_413() -> None:
 
 async def test_the_limit_itself_is_accepted() -> None:
     body = json.dumps({"title": "a" * 40}).encode()
-    worker = RustWorker(make_app(max_body_bytes=len(body)), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(max_body_bytes=len(body)), "127.0.0.1", 0)
     port = await worker.start()
     try:
         accepted = await raw(port, post("/notes", body))
@@ -1832,7 +1832,7 @@ async def test_the_limit_itself_is_accepted() -> None:
 
 
 async def test_authentication_comes_before_the_size_check_and_no_continue_is_sent(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     reader, writer = await open_connection(port)
@@ -1850,7 +1850,7 @@ async def test_authentication_comes_before_the_size_check_and_no_continue_is_sen
 
 
 async def test_continue_is_sent_once_the_request_is_authorized(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     reader, writer = await open_connection(port)
@@ -1870,7 +1870,7 @@ async def test_continue_is_sent_once_the_request_is_authorized(
 
 
 async def test_an_oversized_declared_body_is_refused_without_a_continue() -> None:
-    worker = RustWorker(make_app(max_body_bytes=64), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(max_body_bytes=64), "127.0.0.1", 0)
     port = await worker.start()
     try:
         reader, writer = await open_connection(port)
@@ -1887,7 +1887,7 @@ async def test_an_oversized_declared_body_is_refused_without_a_continue() -> Non
 
 
 async def test_a_stalled_body_is_a_408_before_the_request_timeout() -> None:
-    worker = RustWorker(
+    worker = KisoWorker(
         make_app(request_timeout=5), "127.0.0.1", 0, body_read_timeout=0.3
     )
     port = await worker.start()
@@ -1907,7 +1907,7 @@ TLS_DIR = Path(__file__).parent / "tls"
 
 
 async def test_the_worker_serves_https_with_its_own_certificate() -> None:
-    worker = RustWorker(
+    worker = KisoWorker(
         make_app(),
         "127.0.0.1",
         0,
@@ -1933,7 +1933,7 @@ async def test_the_worker_serves_https_with_its_own_certificate() -> None:
     assert (secure.status, secure.json()) == (200, {"scheme": "https"})
 
 
-REAL_SCOPE_OF = rustserver.scope_of
+REAL_SCOPE_OF = kiso.scope_of
 SCOPES: list[dict[str, Any]] = []
 
 
@@ -1974,8 +1974,8 @@ async def test_http2_reaches_the_pipeline_with_http_version_2(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     SCOPES.clear()
-    monkeypatch.setattr(rustserver, "scope_of", recording_scope_of)
-    worker = RustWorker(
+    monkeypatch.setattr(kiso, "scope_of", recording_scope_of)
+    worker = KisoWorker(
         make_app(),
         "127.0.0.1",
         0,
@@ -1997,7 +1997,7 @@ async def test_http2_reaches_the_pipeline_with_http_version_2(
 
 
 async def test_a_client_that_stops_reading_frees_its_connection_slot() -> None:
-    worker = RustWorker(
+    worker = KisoWorker(
         make_app(), "127.0.0.1", 0, max_connections=1, write_timeout=0.3
     )
     port = await worker.start()
@@ -2012,7 +2012,7 @@ async def test_a_client_that_stops_reading_frees_its_connection_slot() -> None:
 
 
 async def test_a_body_timeout_above_the_request_timeout_is_clamped() -> None:
-    worker = RustWorker(
+    worker = KisoWorker(
         make_app(request_timeout=1), "127.0.0.1", 0, body_read_timeout=60
     )
     port = await worker.start()
@@ -2027,7 +2027,7 @@ async def test_a_body_timeout_above_the_request_timeout_is_clamped() -> None:
 
 
 async def test_a_client_that_leaves_mid_body_does_not_reach_the_handler(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     worker, port = served
     _, writer = await open_connection(port)
@@ -2052,7 +2052,7 @@ async def test_a_client_that_leaves_mid_body_does_not_reach_the_handler(
 
 
 async def test_a_disconnected_body_is_the_asgi_invalid_body_error() -> None:
-    failure = rustserver.body_failure("disconnected")
+    failure = kiso.body_failure("disconnected")
     assert (failure.code, failure.message) == (  # type: ignore[attr-defined]
         "disconnected",
         "the client disconnected",
@@ -2060,7 +2060,7 @@ async def test_a_disconnected_body_is_the_asgi_invalid_body_error() -> None:
 
 
 async def test_malformed_body_framing_keeps_the_disconnected_code() -> None:
-    failure = rustserver.body_failure("malformed")
+    failure = kiso.body_failure("malformed")
     assert (failure.code, failure.message) == (  # type: ignore[attr-defined]
         "disconnected",
         "the request body is malformed",
@@ -2068,7 +2068,7 @@ async def test_malformed_body_framing_keeps_the_disconnected_code() -> None:
 
 
 async def test_a_bare_lf_in_a_header_is_refused_before_the_body(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     attack = (
@@ -2085,7 +2085,7 @@ async def test_a_bare_lf_in_a_header_is_refused_before_the_body(
 
 
 async def test_content_length_with_transfer_encoding_is_refused(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     smuggle = (
@@ -2102,7 +2102,7 @@ async def test_content_length_with_transfer_encoding_is_refused(
 
 
 async def test_a_request_pipelined_after_a_refused_body_is_never_answered(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     reader, writer = await open_connection(port)
@@ -2117,7 +2117,7 @@ async def test_a_request_pipelined_after_a_refused_body_is_never_answered(
 
 
 async def test_oversized_query_and_headers_get_the_json_refusals() -> None:
-    worker = RustWorker(
+    worker = KisoWorker(
         make_app(max_query_bytes=64, max_header_bytes=2048), "127.0.0.1", 0
     )
     port = await worker.start()
@@ -2132,7 +2132,7 @@ async def test_oversized_query_and_headers_get_the_json_refusals() -> None:
 
 
 async def test_the_in_flight_bound_answers_503_without_running_the_handler() -> None:
-    worker = RustWorker(
+    worker = KisoWorker(
         make_app(sync_workers=1, sync_queue=0), "127.0.0.1", 0
     )  # in-flight bound 4
     port = await worker.start()
@@ -2158,16 +2158,16 @@ async def test_the_in_flight_bound_answers_503_without_running_the_handler() -> 
 
 
 async def test_the_loop_drains_until_the_queue_is_empty(
-    served: tuple[RustWorker, int], monkeypatch: pytest.MonkeyPatch
+    served: tuple[KisoWorker, int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _, port = served
-    monkeypatch.setattr(rustserver, "DRAIN_BATCH", 2)
+    monkeypatch.setattr(kiso, "DRAIN_BATCH", 2)
     answers = await asyncio.gather(*(fetch(port, "GET", "/health") for _ in range(25)))
     assert [a.status for a in answers] == [200] * 25
 
 
 async def test_stop_lets_a_running_request_finish() -> None:
-    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(), "127.0.0.1", 0)
     port = await worker.start()
     reader, writer = await open_connection(port)
     writer.write(b"GET /block HTTP/1.1\r\nhost: t\r\n\r\n")
@@ -2189,7 +2189,7 @@ async def test_stop_lets_a_running_request_finish() -> None:
 
 
 async def test_stop_aborts_what_outlives_the_shutdown_timeout() -> None:
-    worker = RustWorker(make_app(shutdown_timeout=0.3), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(shutdown_timeout=0.3), "127.0.0.1", 0)
     port = await worker.start()
     reader, writer = await open_connection(port)
     writer.write(b"GET /block HTTP/1.1\r\nhost: t\r\n\r\n")
@@ -2205,7 +2205,7 @@ async def test_stop_aborts_what_outlives_the_shutdown_timeout() -> None:
 async def test_a_failing_startup_binds_nothing() -> None:
     app = Hinoki(include=[health], on_startup=[fail_startup])
     port = free_port()
-    worker = RustWorker(app, "127.0.0.1", port)
+    worker = KisoWorker(app, "127.0.0.1", port)
     with pytest.raises(RuntimeError, match="startup failed"):
         await worker.start()
     with pytest.raises(ConnectionRefusedError):
@@ -2216,7 +2216,7 @@ async def test_a_busy_port_fails_and_closes_the_lifespan() -> None:
     with socket.socket() as taken:
         taken.bind(("127.0.0.1", 0))
         taken.listen()
-        worker = RustWorker(make_app(), "127.0.0.1", taken.getsockname()[1])
+        worker = KisoWorker(make_app(), "127.0.0.1", taken.getsockname()[1])
         with pytest.raises(OSError, match="in use"):
             await worker.start()
     assert PROBE.shutdown_ran
@@ -2227,8 +2227,8 @@ def spawn_server(port: int) -> subprocess.Popen[str]:
         [
             sys.executable,
             "-m",
-            "hinoki.runtime.rustserver",
-            "tests.rustserverapp:app",
+            "hinoki.runtime.kiso",
+            "tests.kisoserverapp:app",
             "--port",
             str(port),
         ],
@@ -2280,7 +2280,7 @@ async def raw(port: int, request: bytes) -> Received:
 
 
 async def test_a_client_that_closes_its_write_side_still_gets_the_answer(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     reader, writer = await open_connection(port)
@@ -2299,7 +2299,7 @@ async def test_a_client_that_closes_its_write_side_still_gets_the_answer(
     "head", ["", "host: a\r\nhost: b\r\n"], ids=["missing", "repeated"]
 )
 async def test_http_1_1_needs_exactly_one_host(
-    served: tuple[RustWorker, int], head: str
+    served: tuple[KisoWorker, int], head: str
 ) -> None:
     _, port = served
     refused = await raw(port, f"GET /health HTTP/1.1\r\n{head}\r\n".encode())
@@ -2311,7 +2311,7 @@ async def test_http_1_1_needs_exactly_one_host(
 
 
 async def test_an_absolute_form_target_makes_its_authority_the_host(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     answer = await raw(
@@ -2321,7 +2321,7 @@ async def test_an_absolute_form_target_makes_its_authority_the_host(
 
 
 async def test_http_1_0_without_host_falls_back_to_the_listening_address(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     answer = await raw(port, b"GET /host HTTP/1.0\r\n\r\n")
@@ -2346,7 +2346,7 @@ class FlakyCore:
 
 
 async def test_a_failing_drain_is_retried_instead_of_stranding_the_queue(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     worker, port = served
     worker.core = FlakyCore(worker.core)  # type: ignore[assignment]
@@ -2354,10 +2354,10 @@ async def test_a_failing_drain_is_retried_instead_of_stranding_the_queue(
 
 
 class FailingSpawn:
-    """Stands in for ``RustWorker._spawn``: fails the first request, then
+    """Stands in for ``KisoWorker._spawn``: fails the first request, then
     restores the real method."""
 
-    def __init__(self, worker: RustWorker, monkeypatch: pytest.MonkeyPatch) -> None:
+    def __init__(self, worker: KisoWorker, monkeypatch: pytest.MonkeyPatch) -> None:
         self.worker = worker
         self.monkeypatch = monkeypatch
         self.original = worker._spawn
@@ -2368,7 +2368,7 @@ class FailingSpawn:
 
 
 async def test_a_request_that_cannot_be_started_gets_a_500_and_the_rest_flow(
-    served: tuple[RustWorker, int], monkeypatch: pytest.MonkeyPatch
+    served: tuple[KisoWorker, int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     worker, port = served
     monkeypatch.setattr(worker, "_spawn", FailingSpawn(worker, monkeypatch))
@@ -2384,7 +2384,7 @@ async def test_a_request_that_cannot_be_started_gets_a_500_and_the_rest_flow(
 class CountingWake:
     """A wake callback that counts its calls."""
 
-    def __init__(self, worker: RustWorker) -> None:
+    def __init__(self, worker: KisoWorker) -> None:
         self.worker = worker
         self.calls = 0
 
@@ -2394,7 +2394,7 @@ class CountingWake:
 
 
 async def test_the_wake_reader_is_removed_when_the_server_ends() -> None:
-    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(), "127.0.0.1", 0)
     await worker.start()
     server = worker.server
     assert server is not None
@@ -2412,7 +2412,7 @@ async def test_the_wake_reader_is_removed_when_the_server_ends() -> None:
 
 
 async def test_a_connection_limit_beyond_the_semaphore_is_a_value_error() -> None:
-    worker = RustWorker(make_app(), "127.0.0.1", 0, max_connections=2**62)
+    worker = KisoWorker(make_app(), "127.0.0.1", 0, max_connections=2**62)
     with pytest.raises(ValueError, match="max_connections"):
         await worker.start()
     assert PROBE.shutdown_ran
@@ -2424,7 +2424,7 @@ class BrokenStop:
 
 
 async def test_run_stops_the_server_when_it_fails_after_start() -> None:
-    worker = RustWorker(make_app(), "127.0.0.1", 0)
+    worker = KisoWorker(make_app(), "127.0.0.1", 0)
 
     worker.stopping = BrokenStop()  # type: ignore[assignment]
     with pytest.raises(RuntimeError, match="interrupted"):
@@ -2443,7 +2443,7 @@ CL_AND_TE = (
 @pytest.mark.parametrize("size", [41_000, 45_000, 48_000])
 @pytest.mark.parametrize("tail", [BARE_LF, CL_AND_TE], ids=["bare_lf", "cl_te"])
 async def test_an_oversized_head_cannot_hide_smuggling(
-    served: tuple[RustWorker, int], size: int, tail: bytes
+    served: tuple[KisoWorker, int], size: int, tail: bytes
 ) -> None:
     _, port = served
     reader, writer = await open_connection(port)
@@ -2460,7 +2460,7 @@ async def test_an_oversized_head_cannot_hide_smuggling(
 
 
 async def test_a_head_under_the_limits_still_works(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     ok = await fetch(port, "GET", "/health", f"x: {'a' * 30_000}\r\n")
@@ -2471,7 +2471,7 @@ async def test_a_head_under_the_limits_still_works(
 
 
 async def test_a_refused_head_is_answered_before_the_client_stops_sending(
-    served: tuple[RustWorker, int],
+    served: tuple[KisoWorker, int],
 ) -> None:
     _, port = served
     head = b"POST /notes HTTP/1.1\r\nhost: t\r\nx: a\ncontent-length: 262144\r\n\r\n"

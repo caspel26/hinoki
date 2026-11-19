@@ -621,9 +621,9 @@ def verify_native_plans(output: Path) -> None:
     async def inspect_worker() -> dict[str, Any]:
         from phase1_hinoki import Phase1Posts, app
 
-        from hinoki.runtime.rustserver import RustWorker
+        from hinoki.runtime.kiso import KisoWorker
 
-        worker = RustWorker(app, "127.0.0.1", 0)
+        worker = KisoWorker(app, "127.0.0.1", 0)
         await worker.start()
         try:
             selected = [
