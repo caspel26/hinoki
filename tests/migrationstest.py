@@ -185,6 +185,59 @@ def test_late_resolved_set_null_annotation_is_checked_during_planning(
         globals().pop(alias, None)
 
 
+@pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
+@pytest.mark.parametrize("option", [field(unique=True), field(index=True)])
+def test_mysql_family_refuses_a_key_on_text_without_max_length(
+    tmp_path: Path, dialect: str, option: Any
+) -> None:
+    keyed = model(
+        "mig_keyed", {"id": (int, field(primary_key=True)), "token": (str, option)}
+    )
+    with pytest.raises(MigrationError, match=r"mig_keyed\.token.*max_length"):
+        plan([keyed], tmp_path, "initial", dialect=dialect, write=False)
+
+
+@pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
+def test_mysql_family_accepts_a_key_on_a_bounded_str(
+    tmp_path: Path, dialect: str
+) -> None:
+    keyed = model(
+        "mig_keyed",
+        {
+            "id": (int, field(primary_key=True)),
+            "token": (str, field(unique=True, max_length=40)),
+            "note": (str, None),
+        },
+    )
+    result = plan([keyed], tmp_path, "initial", dialect=dialect, write=False)
+    sql = "\n".join(operation.sql for operation in result.operations)
+    assert "`token` varchar(40) NOT NULL UNIQUE" in sql
+    assert "`note` text NOT NULL" in sql
+
+
+def test_other_backends_keep_a_unique_text_column(tmp_path: Path) -> None:
+    keyed = model(
+        "mig_keyed",
+        {"id": (int, field(primary_key=True)), "token": (str, field(unique=True))},
+    )
+    for dialect in ("postgres", "sqlite"):
+        assert plan([keyed], tmp_path, "initial", dialect=dialect, write=False)
+
+
+@pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
+def test_mysql_family_add_column_refuses_a_unique_text_column(
+    tmp_path: Path, dialect: str
+) -> None:
+    base = model("mig_keyed", {"id": (int, field(primary_key=True))})
+    plan([base], tmp_path, "initial", dialect=dialect)
+    wider = model(
+        "mig_keyed",
+        {"id": (int, field(primary_key=True)), "token": (str, field(unique=True))},
+    )
+    with pytest.raises(MigrationError, match=r"mig_keyed\.token.*max_length"):
+        plan([wider], tmp_path, "token", dialect=dialect, write=False)
+
+
 def test_mysql_plan_uses_mysql_types_and_quoting(tmp_path: Path) -> None:
     owner = owners()
     result = plan([things(owner), owner], tmp_path, "mysql", dialect="mysql")

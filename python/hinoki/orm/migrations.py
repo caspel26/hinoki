@@ -328,7 +328,33 @@ def dialect_type(state_type: str, dialect: str) -> str:
     return types.get(state_type, state_type)
 
 
+def keyed_columns(spec: State) -> set[str]:
+    """Columns that a unique constraint, an index, a key or a foreign key uses."""
+    keyed = {
+        name
+        for name, column in spec["columns"].items()
+        if column["unique"] or column["primary_key"] or column["references"]
+    }
+    for group in (*spec.get("unique", []), *spec.get("indexes", [])):
+        keyed.update(group)
+    return keyed
+
+
+def refuse_unbounded_keys(table: str, spec: State, dialect: str) -> None:
+    """MySQL and MariaDB cannot key a ``text`` column without a prefix length."""
+    if dialect not in {"mysql", "mariadb"}:
+        return
+    for name in sorted(keyed_columns(spec)):
+        column = spec["columns"].get(name)
+        if column is not None and column["type"] == "text":
+            raise MigrationError(
+                f"{table}.{name}: MySQL and MariaDB cannot key an unbounded text "
+                "column; give the field a max_length"
+            )
+
+
 def create_table(name: str, spec: State, dialect: str = "postgres") -> Operation:
+    refuse_unbounded_keys(name, spec, dialect)
     statement = create_table_sql(name, spec, dialect)
     for columns in spec.get("indexes", []):
         statement += "\n" + create_index_sql(name, columns, dialect)
@@ -587,6 +613,7 @@ def table_changes(table: str, old: State, new: State, dialect: str) -> list[Oper
             return [sqlite_rebuild(table, old, new, dialect)]
         return index_changes(table, old, new, dialect)
     operations: list[Operation] = []
+    refuse_unbounded_keys(table, new, dialect)
     if old.get("unique", []) != new.get("unique", []):
         raise MigrationError(
             f"{table}: changing composite unique constraints is not planned "
