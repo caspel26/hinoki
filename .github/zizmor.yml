@@ -1,0 +1,8 @@
+rules:
+  # deploy-docs pushes the documentation branch with the checkout's credentials.
+  artipacked:
+    ignore:
+      - deploy-docs.yml
+  cache-poisoning:
+    ignore:
+      - deploy-docs.yml
