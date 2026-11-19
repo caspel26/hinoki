@@ -780,7 +780,12 @@ fn compile_templates(
     .0;
     let read_back = select_filtered_sql(table, columns, primary_key, ordering, Some(2), dialect)?;
     let write_read_back = select_write_sql(table, columns, (primary_key, None), dialect)?;
-    let update_read_back = select_write_sql(table, columns, (primary_key, owner), dialect)?;
+    let mut update_read_back = select_write_sql(table, columns, (primary_key, owner), dialect)?;
+    if dialect == Dialect::Mysql {
+        // A current read: a plain read would keep the handler's snapshot and
+        // return the row even when a concurrent owner change matched nothing.
+        update_read_back.push_str(" FOR UPDATE");
+    }
     Ok(DialectTemplates {
         dialect: name.to_owned(),
         count,
