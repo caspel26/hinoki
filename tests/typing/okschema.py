@@ -1,9 +1,10 @@
 """Valid schema usage: must type-check cleanly under mypy --strict."""
 
 import datetime as dt
+import enum
 from collections.abc import Iterable
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from hinoki import UNSET, Field, Schema, SchemaConfig, SchemaExtra, Unset, derive
@@ -48,6 +49,20 @@ class Invoice(Schema):
     due: dt.date
     grace: dt.timedelta = dt.timedelta(days=3)
     scan: Annotated[bytes, Field(max_length=1024)] = b""
+
+
+class Priority(enum.IntEnum):
+    LOW = 1
+    HIGH = 3
+
+
+class Ticket(Schema):
+    priority: Priority = Priority.LOW
+    channel: Literal["web", "email"] = "web"
+
+
+def ticket_priority() -> Priority:
+    return Ticket(channel="email").priority
 
 
 def invoice_total() -> Decimal:
