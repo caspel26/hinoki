@@ -108,6 +108,8 @@ uv run hinoki app create billing
 
 This creates `NAME/apps/billing/{models.py,routes.py,migrations/}` and registers the model, migration and routes modules in `hinoki.toml` (`routes = "NAME.apps.billing.routes:routes"`, `prefix = "/billing"`). Cross-app foreign keys require the referencing app to list the referenced app in `requires` in `hinoki.toml`; migrations are then planned/applied in dependency order. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.
 
+`--prefix` and `--requires` (comma-separated) set the mount prefix and dependencies directly. In a terminal, `app create` asks for whatever is not given — the name, the prefix (default `/NAME`) and, when other apps exist, `requires` — with the same prompts, Esc-to-cancel (exit 130, nothing created) and `NO_COLOR` handling as `hinoki new`. Without a terminal or with `--no-input` it never asks: the name is required (exit 2) and the defaults are `/NAME` and no `requires`.
+
 To register a package that already exists, name its modules. Nothing is created or imported; only `hinoki.toml` changes:
 
 ```sh
