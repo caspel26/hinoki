@@ -60,6 +60,7 @@ KISO_ONLY = (
     "access_log_format",
     "access_log_skip",
     "access_log_slow_ms",
+    "recent_requests",
 )
 QUOTED = 2  # shortest quoted value: the two quotes
 MAX_CORS_AGE = 86400
@@ -1080,7 +1081,9 @@ class ServerSettings(Settings):
     ``access_log_skip`` (Rust server only) lists paths the log leaves out, such
     as health checks: exact, or a prefix when the entry ends with ``*``.
     ``access_log_slow_ms`` keeps only answers at least that slow. Both always
-    keep failures (status 400 and up).
+    keep failures (status 400 and up). ``recent_requests`` (Rust server only) is a
+    file that also receives each record as JSON, for ``hinoki mcp``'s
+    ``recent_requests`` tool.
     ``max_connections``, ``header_read_timeout``,
     ``body_read_timeout``, ``write_timeout``, ``native_dispatch`` and
     ``access_log_format``, ``access_log_skip`` and ``access_log_slow_ms`` belong to
@@ -1102,6 +1105,7 @@ class ServerSettings(Settings):
     access_log_format: Literal["pretty", "plain", "json", "logger"] | None = None
     access_log_skip: tuple[str, ...] | None = None
     access_log_slow_ms: float | None = None
+    recent_requests: str | None = None
     trusted_proxies: tuple[str, ...] = ()
     request_id_header: str = "x-request-id"
     trust_request_id: bool = False

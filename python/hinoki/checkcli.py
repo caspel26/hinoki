@@ -146,6 +146,10 @@ def add_arguments(
     server.add_argument("--models", action="append", help="module that defines models")
     server.add_argument("--waivers", help=f"waiver file (default ./{NAME})")
     server.add_argument(
+        "--requests",
+        help="file of recent requests (default ./.hinoki/requests.jsonl)",
+    )
+    server.add_argument(
         "--scenarios",
         choices=["off", "read", "write"],
         default="off",

@@ -43,6 +43,7 @@ from hinoki.rules import (
     qualified,
     where,
 )
+from hinoki.runtime.recent import DEFAULT_PATH, read_recent
 from hinoki.scenario import ScenarioError, run_scenario
 from hinoki.utils import utc_today
 from hinoki.waivers import NAME, apply_waivers, load_waivers
@@ -114,10 +115,13 @@ def describe_model(model: type[Model]) -> dict[str, Any]:
     }
 
 
+MAX_RECENT = 200
+
+
 class DevProject:
     """What the server knows: the app, its rules and optional extras."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - one optional input per tool
         self,
         app: Hinoki,
         rules: RuleSet,
@@ -126,6 +130,7 @@ class DevProject:
         waivers: Path | None = None,
         today: datetime.date | None = None,
         scenarios: str = "off",
+        requests: Path | None = None,
     ) -> None:
         self.app = app
         self.rules = rules
@@ -134,6 +139,7 @@ class DevProject:
         self.waivers = waivers or Path(NAME)
         self.today = today
         self.scenarios = scenarios
+        self.requests = requests or Path(DEFAULT_PATH)
 
     def find(self, name: str) -> Route:
         matches = [r for r in self.app.routes if name in names_of(r)]
@@ -255,6 +261,37 @@ def tool_explain_error(project: DevProject, args: dict[str, Any]) -> dict[str, A
     raise ToolFailure(f"unknown code {code!r}" + (f"; similar: {near}" if near else ""))
 
 
+def tool_recent_requests(project: DevProject, args: dict[str, Any]) -> dict[str, Any]:
+    limit = args.get("limit", 20)
+    status_min = args.get("status_min", 0)
+    contains = args.get("path_contains", "")
+    if (
+        not isinstance(limit, int)
+        or isinstance(limit, bool)
+        or not 1 <= limit <= MAX_RECENT
+    ):
+        raise ToolFailure(f"'limit' must be an integer from 1 to {MAX_RECENT}")
+    if not isinstance(status_min, int) or isinstance(status_min, bool):
+        raise ToolFailure("'status_min' must be an integer")
+    if not isinstance(contains, str):
+        raise ToolFailure("'path_contains' must be a string")
+    found = [
+        item
+        for item in read_recent(project.requests, 10_000)
+        if item.get("status", 0) >= status_min and contains in item.get("path", "")
+    ]
+    result: dict[str, Any] = {
+        "file": str(project.requests),
+        "requests": found[-limit:],
+    }
+    if not project.requests.is_file():
+        result["note"] = (
+            "no file yet: run `hinoki dev` with server.recent_requests set to "
+            "this path (it is Kiso only)"
+        )
+    return result
+
+
 def tool_run_scenario(project: DevProject, args: dict[str, Any]) -> dict[str, Any]:
     if project.scenarios == "off":
         raise ToolFailure(
@@ -357,6 +394,20 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[..., dict[str, Any]]]] = {
             "required": ["name", "fields"],
         },
         tool_propose_model,
+    ),
+    "recent_requests": (
+        "The newest requests the development server answered (method, path, "
+        "query, status, duration_ms, lane), oldest first. Needs `hinoki dev` "
+        "to run with server.recent_requests set.",
+        {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "minimum": 1, "maximum": MAX_RECENT},
+                "status_min": {"type": "integer"},
+                "path_contains": {"type": "string"},
+            },
+        },
+        tool_recent_requests,
     ),
     "run_scenario": (
         "Send one HTTP request to the application in-process and return status, "
@@ -549,6 +600,7 @@ def run_mcp(args: argparse.Namespace) -> int:
             tuple(args.models or ()),
             Path(args.waivers) if args.waivers else None,
             scenarios=args.scenarios,
+            requests=Path(args.requests) if args.requests else None,
         )
     except (*USAGE_ERRORS, SystemExit) as exc:
         print(f"error: {exc}", file=sys.stderr)

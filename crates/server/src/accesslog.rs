@@ -18,7 +18,7 @@ use hyper::StatusCode;
 /// How a line looks: `Plain` is one greppable line, `Pretty` adds the level tag,
 /// colours and alignment of a development console, `Json` is one JSON object
 /// per line for a log pipeline. `Logger` renders the JSON object too, but hands
-/// it to a [`Sink`] instead of writing it to stderr.
+/// it to the [`Sink`] only, writing nothing to stderr.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AccessLog {
     Plain,
@@ -246,7 +246,7 @@ pub struct LogFilter {
     pub skip: Vec<String>,
     /// When set, successful answers faster than this are left out.
     pub slow: Option<Duration>,
-    /// Where `AccessLog::Logger` lines go.
+    /// Where JSON records go, besides stderr (not at all in the `Logger` style).
     pub sink: Option<Sink>,
 }
 
@@ -287,14 +287,16 @@ impl LogFilter {
     }
 }
 
+/// Write the line to stderr, except in the `Logger` style; a sink, when there
+/// is one, also gets the JSON record whatever the style.
 pub fn log(style: AccessLog, entry: &Entry<'_>, sink: Option<&Sink>) {
-    let mut text = line(style, entry);
+    if let Some(sink) = sink {
+        sink.push(line(AccessLog::Json, entry));
+    }
     if style == AccessLog::Logger {
-        if let Some(sink) = sink {
-            sink.push(text);
-        }
         return;
     }
+    let mut text = line(style, entry);
     text.push('\n');
     let _ = std::io::stderr().lock().write_all(text.as_bytes());
 }
@@ -314,6 +316,14 @@ mod tests {
             elapsed: Duration::from_micros(3_200),
             lane: None,
         }
+    }
+
+    #[test]
+    fn the_logger_style_feeds_only_the_sink_with_json() {
+        let (sink, receiver) = Sink::new(2);
+        log(AccessLog::Logger, &entry(200, b"", "/items"), Some(&sink));
+        let text = receiver.try_recv().unwrap();
+        assert!(text.starts_with('{') && text.contains("\"path\":\"/items\""));
     }
 
     #[test]

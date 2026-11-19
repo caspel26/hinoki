@@ -431,7 +431,7 @@ class RustServer:
         access_log: str | None = None,
         access_log_skip: Sequence[str] | None = None,
         access_log_slow_ms: float | None = None,
-        access_log_sink: Callable[[list[str]], None] | None = None,
+        access_log_sink: Callable[[Sequence[str]], None] | None = None,
     ) -> RustServer: ...
     @property
     def port(self) -> int: ...
