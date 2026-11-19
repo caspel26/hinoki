@@ -277,8 +277,36 @@ class ScaffoldError(ValueError):
     """The project cannot be created as asked."""
 
 
-def files(name: str, source: str | None = None) -> dict[str, str]:
+DATABASES = ("none", "sqlite", "postgresql")
+AGENT_FILES = ("AGENTS.md", "CLAUDE.md", ".mcp.json")
+
+
+def database_files(name: str, database: str) -> dict[str, str]:
+    """Settings and environment example for the chosen database."""
+    settings_source = SETTINGS.format(name=name, upper=name.upper())
+    if database == "none":
+        return {f"{name}/settings.py": settings_source}
+    declared = settings_source.replace(
+        "    pass\n", "    database: settings.DatabaseSettings\n"
+    )
+    result = {f"{name}/settings.py": declared}
+    if database == "postgresql":
+        result[".env.example"] = (
+            f"{name.upper()}_DATABASE__URL=postgresql://user:password@localhost:5432/{name}\n"
+        )
+    return result
+
+
+def files(
+    name: str,
+    source: str | None = None,
+    *,
+    database: str = "none",
+    agent_files: bool = True,
+) -> dict[str, str]:
     """Relative path to content for a new project called ``name``."""
+    if database not in DATABASES:
+        raise ScaffoldError(f"the database must be one of {', '.join(DATABASES)}")
     title = name.capitalize()
     values = {
         "name": name,
@@ -286,7 +314,7 @@ def files(name: str, source: str | None = None) -> dict[str, str]:
         "upper": name.upper(),
         "sources": framework_source(source),
     }
-    return {
+    contents = {
         "pyproject.toml": PYPROJECT.format(**values),
         "hinoki.toml": (
             "[project]\n"
@@ -308,7 +336,6 @@ def files(name: str, source: str | None = None) -> dict[str, str]:
         f"{name}/api.py": API.format(**values),
         f"{name}/routes.py": ROUTES.format(**values),
         f"{name}/rules.py": RULES.format(**values),
-        f"{name}/settings.py": SETTINGS.format(**values),
         f"{name}/models.py": '"""Models owned by the project app."""\n',
         f"{name}/migrations/__init__.py": "",
         "tests/__init__.py": "",
@@ -318,9 +345,21 @@ def files(name: str, source: str | None = None) -> dict[str, str]:
             ".hinoki-app-create.lock\n"
         ),
     }
+    contents.update(database_files(name, database))
+    if not agent_files:
+        for relative in AGENT_FILES:
+            contents.pop(relative)
+    return contents
 
 
-def create(name: str, parent: Path, source: str | None = None) -> Path:
+def create(
+    name: str,
+    parent: Path,
+    source: str | None = None,
+    *,
+    database: str = "none",
+    agent_files: bool = True,
+) -> Path:
     """Write the project into ``parent / name``; refuse a bad name or a target
     that exists and is not empty."""
     if not NAME.fullmatch(name) or name in RESERVED_NAMES:
@@ -332,7 +371,9 @@ def create(name: str, parent: Path, source: str | None = None) -> Path:
     target = parent / name
     if target.exists() and any(target.iterdir()):
         raise ScaffoldError(f"{target} already exists and is not empty")
-    contents = files(name, source)  # resolve the source before writing anything
+    contents = files(
+        name, source, database=database, agent_files=agent_files
+    )  # resolve the source before writing anything
     for relative, content in contents.items():
         path = target / relative
         path.parent.mkdir(parents=True, exist_ok=True)
