@@ -657,6 +657,7 @@ def test_build_worker_passes_only_native_server_settings(
         body_read_timeout=3.0,
         write_timeout=None,
         native_dispatch=None,
+        access_log_format=None,
         logs_access=lambda dev: dev,
     )
     captured: dict[str, Any] = {}
