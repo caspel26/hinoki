@@ -317,3 +317,52 @@ async fn infinite_timestamps_are_refused_instead_of_shifted() {
         Value::Timestamp(time::macros::datetime!(2026-11-16 10:11:12.5 UTC))
     );
 }
+
+#[tokio::test]
+async fn numeric_columns_round_trip_decimal_text_and_order_by_value() {
+    let Some(db) = database("rt_numeric", 1).await else {
+        return;
+    };
+    db.execute("DROP TABLE IF EXISTS rt_numeric_values", &[])
+        .await
+        .unwrap();
+    db.execute("CREATE TABLE rt_numeric_values (v numeric)", &[])
+        .await
+        .unwrap();
+    for text in ["12.30", "-0.5", "100", "1E+3", "0.00000015"] {
+        db.execute(
+            "INSERT INTO rt_numeric_values (v) VALUES ($1)",
+            &[Value::Text(text.into())],
+        )
+        .await
+        .unwrap();
+    }
+    db.execute(
+        "INSERT INTO rt_numeric_values (v) VALUES ($1)",
+        &[Value::Int(7)],
+    )
+    .await
+    .unwrap();
+    let rows = db
+        .fetch("SELECT v FROM rt_numeric_values ORDER BY v", &[])
+        .await
+        .unwrap();
+    let texts: Vec<_> = rows.iter().map(|row| row[0].1.clone()).collect();
+    let expected = ["-0.5", "0.00000015", "7", "12.30", "100", "1000"];
+    assert_eq!(texts, expected.map(|t| Value::Text(t.into())).to_vec(),);
+    let found = db
+        .fetch(
+            "SELECT v FROM rt_numeric_values WHERE v = $1",
+            &[Value::Text("12.3".into())],
+        )
+        .await
+        .unwrap();
+    assert_eq!(found[0][0].1, Value::Text("12.30".into()));
+    let bad = db
+        .execute(
+            "INSERT INTO rt_numeric_values (v) VALUES ($1)",
+            &[Value::Text("NaN".into())],
+        )
+        .await;
+    assert!(bad.is_err());
+}
