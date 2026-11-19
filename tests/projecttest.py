@@ -874,3 +874,67 @@ def test_app_create_registers_the_routes_of_the_new_app(
         ("billedsample", ""),
         ("billing", "/billing"),
     ]
+
+
+def test_app_create_takes_prefix_and_requires_from_flags(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(create("sample", tmp_path))
+    assert main(["app", "create", "billing"]) == 0
+    args = ["app", "create", "invoices", "--prefix", "/bills", "--requires", "billing"]
+    assert main(args) == 0
+    capsys.readouterr()
+
+    invoices = next(app for app in load_manifest().apps if app.name == "invoices")
+    assert invoices.prefix == "/bills"
+    assert invoices.requires == ("billing",)
+
+    assert main(["app", "create", "bad", "--requires", "nope"]) == 2
+    assert capsys.readouterr().err.startswith("error:")
+
+
+def test_app_create_without_a_name_needs_a_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(create("sample", tmp_path))
+    assert main(["app", "create"]) == 2
+    assert "app name is required" in capsys.readouterr().err
+
+
+def test_app_create_asks_for_what_is_missing_in_a_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(create("sample", tmp_path))
+    assert main(["app", "create", "billing"]) == 0
+    monkeypatch.setattr(projectcli, "interactive", lambda _args: True)
+    answers = iter(["invoices", "/bills", "billing"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    assert main(["app", "create"]) == 0
+    capsys.readouterr()
+    invoices = next(app for app in load_manifest().apps if app.name == "invoices")
+    assert (invoices.prefix, invoices.requires) == ("/bills", ("billing",))
+
+
+def test_cancelling_the_app_questions_creates_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(create("sample", tmp_path))
+    monkeypatch.setattr(projectcli, "interactive", lambda _args: True)
+
+    def cancel(_prompt: str = "") -> str:
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", cancel)
+
+    assert main(["app", "create"]) == 130
+    assert "invoices" not in capsys.readouterr().out
+    assert [app.name for app in load_manifest().apps] == ["sample"]
