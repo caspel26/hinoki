@@ -43,6 +43,9 @@ class FieldInfo:
     max_digits: int | None = None
     decimal_places: int | None = None
     multiple_of: int | Decimal | None = None
+    strip: bool | None = None
+    lower: bool | None = None
+    upper: bool | None = None
     alias: str | None = None
     discriminator: str | None = None
     default_factory: Callable[[], Any] | None = None
@@ -61,6 +64,9 @@ class FieldInfo:
             "max_digits",
             "decimal_places",
             "multiple_of",
+            "strip",
+            "lower",
+            "upper",
         )
         return {n: getattr(self, n) for n in names if getattr(self, n) is not None}
 
@@ -82,6 +88,9 @@ def Field(
     max_digits: int | None = None,
     decimal_places: int | None = None,
     multiple_of: int | Decimal | None = None,
+    strip: bool | None = None,
+    lower: bool | None = None,
+    upper: bool | None = None,
     format: str | None = None,
     discriminator: str | None = None,
 ) -> Any: ...
@@ -99,6 +108,9 @@ def Field(
     max_digits: int | None = None,
     decimal_places: int | None = None,
     multiple_of: int | Decimal | None = None,
+    strip: bool | None = None,
+    lower: bool | None = None,
+    upper: bool | None = None,
     format: str | None = None,
     alias: str | None = None,
     discriminator: str | None = None,

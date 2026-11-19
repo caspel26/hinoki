@@ -80,7 +80,9 @@ ALLOWED_CONSTRAINTS: dict[str, frozenset[str]] = {
         {"ge", "le", "gt", "lt", "max_digits", "decimal_places", "multiple_of"}
     ),
     "bytes": frozenset({"min_length", "max_length"}),
-    "str": frozenset({"min_length", "max_length", "pattern", "one_of"}),
+    "str": frozenset(
+        {"min_length", "max_length", "pattern", "one_of", "strip", "lower", "upper"}
+    ),
     "int": frozenset({"ge", "le", "gt", "lt", "one_of", "multiple_of"}),
     "float": frozenset({"ge", "le", "gt", "lt", "one_of"}),
     "list": frozenset({"min_length", "max_length"}),
@@ -207,6 +209,9 @@ def field_info_from_constraints(
         max_digits=cast(int | None, constraints.get("max_digits")),
         decimal_places=cast(int | None, constraints.get("decimal_places")),
         multiple_of=cast(int | Decimal | None, constraints.get("multiple_of")),
+        strip=cast(bool | None, constraints.get("strip")),
+        lower=cast(bool | None, constraints.get("lower")),
+        upper=cast(bool | None, constraints.get("upper")),
         alias=alias,
         discriminator=discriminator,
     )
@@ -658,6 +663,30 @@ def build_listed(
     return FieldType(kind, nullable, allows_unset, info, enum_class=enum_class)
 
 
+def normalize_text(text: str, info: FieldInfo) -> str:
+    """What ``strip``, ``lower`` and ``upper`` make of ``text``."""
+    if info.strip:
+        text = text.strip()
+    if info.lower:
+        text = text.lower()
+    elif info.upper:
+        text = text.upper()
+    return text
+
+
+def check_normalisation(info: FieldInfo, where: str) -> None:
+    """``lower`` and ``upper`` exclude each other, and a ``one_of`` value must
+    be one the normalisation can produce."""
+    if info.lower and info.upper:
+        raise RegistrationError(f"{where}: lower and upper cannot both be set")
+    for value in info.one_of or ():
+        if isinstance(value, str) and normalize_text(value, info) != value:
+            raise RegistrationError(
+                f"{where}: one_of value {value!r} can never match once the "
+                "field is normalised"
+            )
+
+
 def check_constraints(info: FieldInfo, kind: str, where: str) -> None:
     if info.pattern is not None:
         check_pattern(info.pattern, where)
@@ -667,6 +696,7 @@ def check_constraints(info: FieldInfo, kind: str, where: str) -> None:
         raise RegistrationError(
             f"{where}: constraint(s) {sorted(unsupported)} do not apply to {kind}"
         )
+    check_normalisation(info, where)
     if kind in {"str", "int", "float"}:
         check_one_of(info, kind, where)
 

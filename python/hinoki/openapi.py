@@ -55,10 +55,12 @@ KIND_SCHEMAS: dict[str, dict[str, Any]] = {
     "secret": {"type": "string", "format": "password", "writeOnly": True},
 }
 # Not keywords of the document: digit counts are enforced, not described, and
-# the length of a ``bytes`` field counts decoded bytes, not base64 characters.
+# the length of a ``bytes`` field counts decoded bytes, not base64 characters;
+# normalisation happens before the constraints, which describe its result.
 UNDESCRIBED = {
     "decimal": frozenset({"max_digits", "decimal_places", "multiple_of"}),
     "bytes": frozenset({"min_length", "max_length"}),
+    "str": frozenset({"strip", "lower", "upper"}),
 }
 CONSTRAINT_KEYWORDS = {
     "min_length": None,  # depends on the kind (string vs array)
