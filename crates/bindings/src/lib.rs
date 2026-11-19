@@ -7,6 +7,7 @@ mod completion;
 mod crudplan;
 mod crypto;
 mod db;
+mod driver;
 mod jwt;
 mod modelrows;
 mod nativecrud;
@@ -113,6 +114,9 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<schema::ModelPlan>()?;
     m.add_class::<rows::PyRowPlan>()?;
     m.add_class::<modelrows::PyModelRows>()?;
+    m.add_class::<driver::NativeWait>()?;
+    m.add_function(wrap_pyfunction!(driver::_drive, m)?)?;
+    m.add_function(wrap_pyfunction!(driver::_native_wait, m)?)?;
     m.add_function(wrap_pyfunction!(jwt::jwt_encode, m)?)?;
     m.add_function(wrap_pyfunction!(jwt::jwt_decode, m)?)?;
     m.add_class::<jwt::PyJWTVerifier>()?;
