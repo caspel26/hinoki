@@ -3,19 +3,23 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 from types import SimpleNamespace
 from typing import Any, cast
 from uuid import uuid4
 
 import pytest
 
-from hinoki import Caller, CrudAPI, Schema, crud
+from hinoki import Caller, CrudAPI, Schema
 from hinoki.context import sync_runner
 from hinoki.errors import Forbidden, RegistrationError
 from hinoki.http.request import Request
 from hinoki.orm import Model, field
 from hinoki.pagination import PageParams
 from tests.crudtest import Memo, MemoIn, MemoOut, MemoPatch, Memos
+
+# ``hinoki.crud`` is also the exported function, so fetch the module by name.
+crud = importlib.import_module("hinoki.crud")
 
 
 class _WireSelection:
@@ -136,21 +140,19 @@ async def test_wire_list_rows_falls_back_and_handles_wire_bytes_or_rows(
     page = PageParams(page=2, page_size=5)
     rows = [SimpleNamespace(id=uuid4())]
     query = _WireQuery(rows)
-    monkeypatch.setattr("hinoki.crud.schema_items", _wire_schema_items)
+    monkeypatch.setattr(crud, "schema_items", _wire_schema_items)
     fallback = await crud.wire_list_rows(
         api, cast(Any, query), page, cast(Any, _WireSelection(False))
     )
     assert fallback.page == 2 and fallback.total == 9 and len(fallback.items) == 1
-    monkeypatch.setattr("hinoki.crud.current_database", lambda: _WireDatabase(b"[]"))
+    monkeypatch.setattr(crud, "current_database", lambda: _WireDatabase(b"[]"))
     reply = await crud.wire_list_rows(
         api, cast(Any, query), page, cast(Any, _WireSelection(True))
     )
     assert reply.body == b"[]"
     assert (b"content-type", b"application/json") in reply.headers
 
-    monkeypatch.setattr(
-        "hinoki.crud.current_database", lambda: _WireDatabase([{"id": 1}])
-    )
+    monkeypatch.setattr(crud, "current_database", lambda: _WireDatabase([{"id": 1}]))
     hydrated = await crud.wire_list_rows(
         api, cast(Any, query), page, cast(Any, _WireSelection(True))
     )
@@ -194,8 +196,8 @@ async def test_list_rows_selects_python_fallback_or_row_wire(
     async def wire_rows(*_args: Any) -> str:
         return "wire"
 
-    monkeypatch.setattr("hinoki.crud.python_list_rows", python_rows)
-    monkeypatch.setattr("hinoki.crud.wire_list_rows", wire_rows)
+    monkeypatch.setattr(crud, "python_list_rows", python_rows)
+    monkeypatch.setattr(crud, "wire_list_rows", wire_rows)
     api = cast(CrudAPI, APIStub())
     request = cast(Request, object())
     page = PageParams(page=1, page_size=20)
@@ -230,7 +232,7 @@ async def test_schema_items_gathers_async_hooks() -> None:
         async def call_hook(self, _name: str, row: Any) -> str:
             return await self.to_schema(row)
 
-    assert await crud.schema_items(AsyncSchemaHook(), [1, 2]) == ["1", "2"]  # type: ignore[arg-type]
+    assert await crud.schema_items(AsyncSchemaHook(), [1, 2]) == ["1", "2"]
 
 
 @pytest.mark.asyncio
