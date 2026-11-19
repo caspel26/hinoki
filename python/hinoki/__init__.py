@@ -16,7 +16,7 @@ from hinoki.auth import (
     Permission,
 )
 from hinoki.core import core_version
-from hinoki.crud import Crud, CrudAccess, CrudAPI, crud
+from hinoki.crud import Crud, CrudAccess, crud
 from hinoki.derive import derive
 from hinoki.fields import Email, Slug, Url
 from hinoki.http.request import Request
@@ -83,7 +83,6 @@ __all__ = [
     "BytesParser",
     "Caller",
     "Crud",
-    "CrudAPI",
     "CrudAccess",
     "Email",
     "Field",
