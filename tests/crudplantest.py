@@ -40,6 +40,7 @@ from hinoki.errors import Conflict
 from hinoki.fields import UNSET
 from hinoki.modules import ModuleContext
 from hinoki.orm import Model, QuerySet, field
+from hinoki.orm.migrations import create_table_sql, table_state
 from hinoki.orm.queryset import write_statement
 from hinoki.pagination import PageNumberPagination
 from hinoki.resources import CrudBase, caller_id, crud
@@ -2138,9 +2139,9 @@ def test_owner_scoped_routes_are_native_only_for_the_caller_id_source() -> None:
     assert set(owned_pipeline().crud_plan_reasons) == {"eligible"}
 
 
-def test_owner_scope_is_not_native_on_mysql() -> None:
-    pipeline = owned_pipeline("mysql://u:p@localhost/db")
-    assert set(pipeline.crud_plan_reasons) == {"owner_scope_unsupported_dialect"}
+def test_owner_scope_is_native_on_every_supported_dialect() -> None:
+    for url in ("mysql://u:p@localhost/db", "mariadb://u:p@localhost/db"):
+        assert set(owned_pipeline(url).crud_plan_reasons) == {"eligible"}
 
 
 @pytest.mark.parametrize(
@@ -2195,7 +2196,7 @@ def owned_headers(subject: str, scopes: list[str]) -> tuple[tuple[str, str], ...
 ALL_SCOPES = ["notes:read", "notes:write"]
 
 
-async def owned_scenario(
+async def owned_scenario(  # noqa: PLR0915 - one linear request script
     url: str, *, native: bool
 ) -> tuple[list[object], list[object], int]:
     worker = RustWorker(
@@ -2275,6 +2276,15 @@ async def owned_scenario(
             owned_headers("alice", ["notes:read"]),
             b'{"title":"x"}',
         )
+        shout = owned_headers("ALICE", ALL_SCOPES)
+        await call(
+            "case-variant update",
+            "PATCH",
+            "/owned-notes/<alice-note>",
+            shout,
+            b'{"title":"case"}',
+        )
+        await call("case-variant delete", "DELETE", "/owned-notes/<alice-note>", shout)
         await call(
             "own update", "PATCH", "/owned-notes/<alice-note>", alice, b'{"title":"a2"}'
         )
@@ -2308,14 +2318,41 @@ async def owned_scenario(
     return log, [tuple(row.values()) for row in rows], counted
 
 
-async def test_native_owner_scope_answers_like_the_python_lane(tmp_path: Path) -> None:
+OWNED_DATABASES = (
+    pytest.param("sqlite", id="sqlite"),
+    pytest.param(
+        "mysql",
+        marks=pytest.mark.skipif(
+            "HINOKI_TEST_MYSQL_URL" not in os.environ,
+            reason="HINOKI_TEST_MYSQL_URL is not set",
+        ),
+        id="mysql",
+    ),
+    pytest.param(
+        "mariadb",
+        marks=pytest.mark.skipif(
+            "HINOKI_TEST_MARIADB_URL" not in os.environ,
+            reason="HINOKI_TEST_MARIADB_URL is not set",
+        ),
+        id="mariadb",
+    ),
+)
+
+
+@pytest.mark.parametrize("backend", OWNED_DATABASES)
+async def test_native_owner_scope_answers_like_the_python_lane(
+    backend: str, tmp_path: Path
+) -> None:
     results = []
     for native in (True, False):
-        url = f"sqlite:///{tmp_path / f'owned-{native}.db'}"
+        if backend == "sqlite":
+            url = f"sqlite:///{tmp_path / f'owned-{native}.db'}"
+        else:
+            url = os.environ[f"HINOKI_TEST_{backend.upper()}_URL"]
         database = await Database.connect(url, max_size=1, wait=1)
+        await database.execute("DROP TABLE IF EXISTS crud_owned_notes")
         await database.execute(
-            "CREATE TABLE crud_owned_notes ("
-            "id uuid PRIMARY KEY, owner_id varchar(40) NOT NULL, title text NOT NULL)"
+            create_table_sql("crud_owned_notes", table_state(OwnedNote), backend)
         )
         database.close()
         results.append(await owned_scenario(url, native=native))
@@ -2330,6 +2367,8 @@ async def test_native_owner_scope_answers_like_the_python_lane(tmp_path: Path) -
     assert statuses["alice create"] == 201
     assert statuses["foreign update"] == 403
     assert statuses["foreign delete"] == 403
+    assert statuses["case-variant update"] == 403
+    assert statuses["case-variant delete"] == 403
     assert statuses["missing update"] == 404
     assert statuses["own delete"] == 204
     assert statuses["repeat delete"] == 404
