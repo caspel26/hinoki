@@ -82,6 +82,9 @@ pub(crate) struct CrudPlan {
     pub(crate) read_rows: Arc<RowPlan>,
     /// Claims-only authentication Rust performs before the route; `None` for a public route.
     pub(crate) auth: Option<Arc<ClaimsAuth>>,
+    /// Text column holding the caller's id: set on create, and required to
+    /// match on update and delete. Only present together with `auth`.
+    pub(crate) owner: Option<String>,
     templates: Vec<DialectTemplates>,
     validation_error: Vec<u8>,
     create_schema: Option<Arc<NativeSchema>>,
@@ -101,7 +104,8 @@ impl PyCrudPlan {
         model_fields, model_defaults, create_defaults, update_defaults, create_columns, update_columns,
         updated_at,
         read_schema, read_fields,
-        create_schema=None, update_schema=None, validation_error=Vec::new(), auth=None
+        create_schema=None, update_schema=None, validation_error=Vec::new(), auth=None,
+        owner=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -127,7 +131,13 @@ impl PyCrudPlan {
         update_schema: Option<Py<Compiled>>,
         validation_error: Vec<u8>,
         auth: Option<Py<PyClaimsAuth>>,
+        owner: Option<String>,
     ) -> PyResult<Self> {
+        if owner.is_some() && auth.is_none() {
+            return Err(PyValueError::new_err(
+                "an owner column needs native claims authentication",
+            ));
+        }
         let _ = native_schema(py, &read_schema)?;
         let (create_schema, update_schema) =
             compiled_write_schemas(py, create_schema, update_schema)?;
@@ -151,6 +161,7 @@ impl PyCrudPlan {
             validation_error,
             create_schema,
             update_schema,
+            owner,
         )?;
         inner.auth = auth.map(|auth| Arc::clone(&auth.get().inner));
         Ok(Self {
@@ -369,7 +380,7 @@ impl CrudPlan {
             &Update {
                 table: self.table.clone(),
                 assignments,
-                filters: vec![equality_filter(&self.primary_key, columns.len())],
+                filters: scoped_filters(&self.primary_key, self.owner.as_deref(), columns.len()),
                 returning: returning_columns(&self.columns, dialect),
             },
             dialect,
@@ -440,7 +451,14 @@ impl CrudPlan {
         validation_error: Vec<u8>,
         create_schema: Option<Arc<NativeSchema>>,
         update_schema: Option<Arc<NativeSchema>>,
+        owner: Option<String>,
     ) -> PyResult<Self> {
+        validate_owner(
+            owner.as_deref(),
+            &primary_key,
+            &model_fields,
+            &update_columns,
+        )?;
         validate_metadata(
             &action,
             &columns,
@@ -479,6 +497,7 @@ impl CrudPlan {
                     page_size,
                     &create_columns,
                     &update_columns,
+                    owner.as_deref(),
                 )
             })
             .collect::<PyResult<Vec<_>>>()?;
@@ -500,6 +519,7 @@ impl CrudPlan {
             updated_at,
             read_rows,
             auth: None,
+            owner,
             templates,
             validation_error,
             create_schema,
@@ -690,6 +710,7 @@ fn compile_templates(
     page_size: u64,
     create_columns: &[String],
     update_columns: &[String],
+    owner: Option<&str>,
 ) -> PyResult<DialectTemplates> {
     let count = select_sql(table, &[], &[], None, None, true, dialect)?;
     let list = select_sql(
@@ -728,7 +749,7 @@ fn compile_templates(
             &Update {
                 table: table.to_owned(),
                 assignments: std::mem::take(&mut assignments),
-                filters: vec![equality_filter(primary_key, filter_value)],
+                filters: scoped_filters(primary_key, owner, filter_value),
                 returning: returning_columns(columns, dialect),
             },
             dialect,
@@ -740,7 +761,7 @@ fn compile_templates(
     let delete = compile_delete_with(
         &Delete {
             table: table.to_owned(),
-            filters: vec![equality_filter(primary_key, 0)],
+            filters: scoped_filters(primary_key, owner, 0),
         },
         dialect,
     )
@@ -846,6 +867,35 @@ fn equality_filter(column: &str, value: usize) -> Filter<usize> {
         op: Op::Eq,
         values: vec![value],
     }
+}
+
+/// The key filter, plus the owner filter on the next parameter when scoped.
+fn scoped_filters(primary_key: &str, owner: Option<&str>, first: usize) -> Vec<Filter<usize>> {
+    let mut filters = vec![equality_filter(primary_key, first)];
+    if let Some(column) = owner {
+        filters.push(equality_filter(column, first + 1));
+    }
+    filters
+}
+
+fn validate_owner(
+    owner: Option<&str>,
+    primary_key: &str,
+    model_fields: &[(String, String, bool)],
+    update_columns: &[String],
+) -> PyResult<()> {
+    let Some(column) = owner else {
+        return Ok(());
+    };
+    let text = model_fields
+        .iter()
+        .any(|(name, kind, _)| name == column && kind == "str");
+    if column == primary_key || !text || update_columns.iter().any(|name| name == column) {
+        return Err(PyValueError::new_err(
+            "the owner must be a text column that is neither the key nor updatable",
+        ));
+    }
+    Ok(())
 }
 
 fn indexed(columns: &[String]) -> Vec<(String, usize)> {

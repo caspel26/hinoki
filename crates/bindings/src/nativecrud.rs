@@ -41,13 +41,31 @@ enum TransactionResult {
     Replay,
 }
 
+/// The owner column and the caller's id every update and delete must match.
+struct OwnerScope {
+    column: String,
+    value: String,
+}
+
+impl OwnerScope {
+    fn owns(&self, row: &[(String, Value)]) -> bool {
+        row.iter().any(|(name, value)| {
+            name == &self.column && matches!(value, Value::Text(text) if text == &self.value)
+        })
+    }
+}
+
 enum PreparedWrite {
     Create(Vec<(String, Value)>),
     Update {
         id: Value,
         values: Vec<(String, Value)>,
+        owner: Option<OwnerScope>,
     },
-    Delete(Value),
+    Delete {
+        id: Value,
+        owner: Option<OwnerScope>,
+    },
 }
 
 #[derive(serde::Serialize)]
@@ -136,6 +154,7 @@ pub(crate) async fn execute_read(
     execute_read_with(plan, database, path_params, raw_query).await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn execute_write(
     plan: &CrudPlan,
     database: &Database,
@@ -144,14 +163,30 @@ pub(crate) async fn execute_write(
     raw_query: &[u8],
     max_body_bytes: usize,
     timeout: Duration,
+    caller: Option<&str>,
 ) -> NativeWrite {
+    let owner = match (plan.owner.as_deref(), caller) {
+        (None, _) => None,
+        (Some(column), Some(value)) => Some(OwnerScope {
+            column: column.to_owned(),
+            value: value.to_owned(),
+        }),
+        (Some(_), None) => return NativeWrite::Defer(None),
+    };
     let deadline = tokio::time::Instant::now() + timeout;
     let body = match read_write_body(plan, request, max_body_bytes, deadline).await {
         Ok(body) => body,
         Err(NativeWrite::Timeout) => return http_error(request, 504, "timeout", None),
         Err(result) => return result,
     };
-    let prepared = match prepare_write(plan, request, path_params, raw_query, body.as_deref()) {
+    let prepared = match prepare_write(
+        plan,
+        request,
+        path_params,
+        raw_query,
+        body.as_deref(),
+        owner,
+    ) {
         Ok(prepared) => prepared,
         Err(result) => return result,
     };
@@ -240,6 +275,7 @@ fn prepare_write(
     path_params: &[(String, String)],
     raw_query: &[u8],
     body: Option<&[u8]>,
+    owner: Option<OwnerScope>,
 ) -> Result<PreparedWrite, NativeWrite> {
     if parse_query(raw_query, 1000).is_err() {
         return Err(http_error(
@@ -250,16 +286,17 @@ fn prepare_write(
         ));
     }
     match plan.action.as_str() {
-        "create" => prepare_create(plan, request, body.ok_or(NativeWrite::Defer(None))?),
+        "create" => prepare_create(plan, request, body.ok_or(NativeWrite::Defer(None))?, owner),
         "update" => prepare_update(
             plan,
             request,
             path_params,
             body.ok_or(NativeWrite::Defer(None))?,
+            owner,
         ),
         "delete" => {
             let id = write_path_id(plan, path_params).ok_or(NativeWrite::Defer(None))?;
-            Ok(PreparedWrite::Delete(id))
+            Ok(PreparedWrite::Delete { id, owner })
         }
         _ => Err(NativeWrite::Defer(body.map(<[u8]>::to_vec))),
     }
@@ -269,6 +306,7 @@ fn prepare_create(
     plan: &CrudPlan,
     request: &PreparedRequest,
     body: &[u8],
+    owner: Option<OwnerScope>,
 ) -> Result<PreparedWrite, NativeWrite> {
     let json = decode_body(request, body)?;
     let schema = plan
@@ -281,6 +319,10 @@ fn prepare_create(
     if !append_defaults(&mut values, plan.create_defaults(), plan) {
         return Err(NativeWrite::Defer(Some(body.to_vec())));
     }
+    if let Some(owner) = owner {
+        // The schema cannot carry the owner column, so this never overrides input.
+        values.push((owner.column, Value::Text(owner.value)));
+    }
     order_schema_values(&mut values, schema);
     ensure_create_requirements(plan, &values, body)?;
     Ok(PreparedWrite::Create(values))
@@ -291,6 +333,7 @@ fn prepare_update(
     request: &PreparedRequest,
     path_params: &[(String, String)],
     body: &[u8],
+    owner: Option<OwnerScope>,
 ) -> Result<PreparedWrite, NativeWrite> {
     let id = write_path_id(plan, path_params).ok_or(NativeWrite::Defer(Some(body.to_vec())))?;
     let json = decode_body(request, body)?;
@@ -304,7 +347,7 @@ fn prepare_update(
         return Err(NativeWrite::Defer(Some(body.to_vec())));
     }
     order_schema_values(&mut values, schema);
-    Ok(PreparedWrite::Update { id, values })
+    Ok(PreparedWrite::Update { id, values, owner })
 }
 
 fn decode_body(request: &PreparedRequest, body: &[u8]) -> Result<Json, NativeWrite> {
@@ -585,11 +628,20 @@ async fn execute_in_transaction(
         PreparedWrite::Create(values) => {
             create_in_transaction(plan, dialect, transaction, values).await
         }
-        PreparedWrite::Update { id, values } => {
-            update_in_transaction(plan, dialect, transaction, id, values, request_id).await
+        PreparedWrite::Update { id, values, owner } => {
+            update_in_transaction(
+                plan,
+                dialect,
+                transaction,
+                (id, owner.as_ref()),
+                values,
+                request_id,
+            )
+            .await
         }
-        PreparedWrite::Delete(id) => {
-            delete_in_transaction(plan, dialect, transaction, id, request_id).await
+        PreparedWrite::Delete { id, owner } => {
+            delete_in_transaction(plan, dialect, transaction, (id, owner.as_ref()), request_id)
+                .await
         }
     }
 }
@@ -680,7 +732,7 @@ async fn update_in_transaction(
     plan: &CrudPlan,
     dialect: &str,
     transaction: &Transaction,
-    id: Value,
+    (id, owner): (Value, Option<&OwnerScope>),
     supplied: Vec<(String, Value)>,
     request_id: &str,
 ) -> Result<TransactionResult, DbError> {
@@ -700,6 +752,11 @@ async fn update_in_transaction(
             "database returned multiple rows for a primary key",
         ));
     }
+    if let Some(scope) = owner {
+        if !scope.owns(&visible[0]) {
+            return forbidden_result(request_id, "You cannot change this item.");
+        }
+    }
     let values = add_update_timestamp(plan, supplied);
     if !values.is_empty() {
         let columns = values
@@ -714,13 +771,16 @@ async fn update_in_transaction(
             .map(|(_, value)| value)
             .collect::<Vec<_>>();
         parameters.push(id.clone());
+        if let Some(scope) = owner {
+            parameters.push(Value::Text(scope.value.clone()));
+        }
         let written = if is_mysql(dialect) {
             mysql_update(transaction, plan, &sql, &parameters, &id).await?
         } else {
             transaction.fetch(&sql, &parameters).await?
         };
         if written.is_empty() {
-            return refused_result(plan, dialect, transaction, id, request_id).await;
+            return refused_result(plan, dialect, transaction, (id, owner), request_id).await;
         }
     }
     let read_back_sql = required_sql(plan.read_back_sql(dialect))?;
@@ -779,35 +839,33 @@ async fn refused_result(
     plan: &CrudPlan,
     dialect: &str,
     transaction: &Transaction,
-    id: Value,
+    (id, owner): (Value, Option<&OwnerScope>),
     request_id: &str,
 ) -> Result<TransactionResult, DbError> {
     let sql = required_sql(plan.retrieve_sql(dialect))?;
-    if transaction
-        .fetch(sql, std::slice::from_ref(&id))
-        .await?
-        .is_empty()
-    {
+    let rows = transaction.fetch(sql, std::slice::from_ref(&id)).await?;
+    let Some(row) = rows.first() else {
         return Ok(TransactionResult::NotFound(format!(
             "{} not found",
             plan.model_name
         )));
-    }
-    let Some(body) = error_body(
-        request_id,
-        "forbidden",
-        Some("The item could not be changed."),
-    ) else {
-        return Ok(TransactionResult::Replay);
     };
-    Ok(TransactionResult::Forbidden(body))
+    if owner.is_some_and(|scope| !scope.owns(row)) {
+        return forbidden_result(request_id, "You cannot change this item.");
+    }
+    forbidden_result(request_id, "The item could not be changed.")
+}
+
+fn forbidden_result(request_id: &str, message: &str) -> Result<TransactionResult, DbError> {
+    Ok(error_body(request_id, "forbidden", Some(message))
+        .map_or(TransactionResult::Replay, TransactionResult::Forbidden))
 }
 
 async fn delete_in_transaction(
     plan: &CrudPlan,
     dialect: &str,
     transaction: &Transaction,
-    id: Value,
+    (id, owner): (Value, Option<&OwnerScope>),
     request_id: &str,
 ) -> Result<TransactionResult, DbError> {
     let visible_sql = required_sql(plan.retrieve_sql(dialect))?;
@@ -820,13 +878,18 @@ async fn delete_in_transaction(
             plan.model_name
         )));
     }
+    if let Some(scope) = owner {
+        if !scope.owns(&visible[0]) {
+            return forbidden_result(request_id, "You cannot change this item.");
+        }
+    }
     let delete_sql = required_sql(plan.delete_sql(dialect))?;
-    if transaction
-        .execute(delete_sql, std::slice::from_ref(&id))
-        .await?
-        == 0
-    {
-        return refused_result(plan, dialect, transaction, id, request_id).await;
+    let mut parameters = vec![id.clone()];
+    if let Some(scope) = owner {
+        parameters.push(Value::Text(scope.value.clone()));
+    }
+    if transaction.execute(delete_sql, &parameters).await? == 0 {
+        return refused_result(plan, dialect, transaction, (id, owner), request_id).await;
     }
     Ok(TransactionResult::Reply {
         status: 204,
@@ -1098,8 +1161,23 @@ mod tests {
             br#"{"error":"validation_error","request_id":"0123456789abcdeffedcba9876543210","details":[{"path":"body","code":"invalid","message":"invalid"}]}"#.to_vec(),
             None,
             None,
+            None,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn only_a_text_row_value_equal_to_the_caller_is_owned() {
+        let scope = super::OwnerScope {
+            column: "owner".to_owned(),
+            value: "u1".to_owned(),
+        };
+        let row = |value: Value| vec![("owner".to_owned(), value)];
+        assert!(scope.owns(&row(Value::Text("u1".to_owned()))));
+        assert!(!scope.owns(&row(Value::Text("u2".to_owned()))));
+        assert!(!scope.owns(&row(Value::Text(String::new()))));
+        assert!(!scope.owns(&row(Value::Null)));
+        assert!(!scope.owns(&[("other".to_owned(), Value::Text("u1".to_owned()))]));
     }
 
     #[test]

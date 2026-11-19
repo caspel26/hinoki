@@ -125,10 +125,10 @@ impl CoreBackend {
                 return;
             };
             request.release_admission();
-            if !admitted(&plan, &request) {
+            let Some(caller) = admitted(&plan, &request) else {
                 requeue_native(&core, &mut job_wake, request, asked);
                 return;
-            }
+            };
             let write_action = matches!(plan.action.as_str(), "create" | "update" | "delete");
             let fallback = if write_action {
                 let result = crate::nativecrud::execute_write(
@@ -139,6 +139,7 @@ impl CoreBackend {
                     &query,
                     core.max_body_bytes(),
                     core.request_timeout(),
+                    caller.as_deref(),
                 )
                 .await;
                 finish_native_write(&request, result)
@@ -192,18 +193,20 @@ impl CoreBackend {
     }
 }
 
-/// Whether the route needs no authentication Python must do: a public route,
-/// or a request Rust verified itself. Anything else goes to the Python pipeline.
-fn admitted(plan: &CrudPlan, request: &PreparedRequest) -> bool {
+/// Whether the request may run natively, and as which caller: a public route
+/// admits everyone, an authenticated one only a request Rust verified itself.
+/// `None` sends the request to the Python pipeline.
+fn admitted(plan: &CrudPlan, request: &PreparedRequest) -> Option<Option<String>> {
     let Some(auth) = &plan.auth else {
-        return true;
+        return Some(None);
     };
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |elapsed| i64::try_from(elapsed.as_secs()).unwrap_or(0));
-    request
+    let subject = request
         .single_header(b"authorization")
-        .is_some_and(|value| auth.admits(value, now))
+        .and_then(|value| auth.subject(value, now))?;
+    Some(Some(subject))
 }
 
 fn is_write_action(action: &str) -> bool {
