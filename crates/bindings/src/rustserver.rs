@@ -424,8 +424,9 @@ fn access_style(name: Option<&str>) -> PyResult<Option<AccessLog>> {
         None => Ok(None),
         Some("plain") => Ok(Some(AccessLog::Plain)),
         Some("pretty") => Ok(Some(AccessLog::Pretty)),
+        Some("json") => Ok(Some(AccessLog::Json)),
         Some(other) => Err(PyValueError::new_err(format!(
-            "access_log must be 'plain' or 'pretty', not {other:?}"
+            "access_log must be 'plain', 'pretty' or 'json', not {other:?}"
         ))),
     }
 }

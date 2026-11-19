@@ -562,12 +562,14 @@ class RustWorker:
 
 
 def access_style(settings: ServerSettings, dev: bool) -> str | None:
-    """The access-log style for a worker: none, a plain line, or the coloured
-    development line when stderr is a terminal that takes colour."""
+    """The access-log style for a worker: none, the configured format, or by
+    default the coloured development line on a colour terminal and a plain line
+    otherwise."""
     if not settings.logs_access(dev):
         return None
-    colour = banner.wants_colour()
-    return "pretty" if colour else "plain"
+    if settings.access_log_format is not None:
+        return settings.access_log_format
+    return "pretty" if banner.wants_colour() else "plain"
 
 
 def build_worker(
