@@ -244,6 +244,7 @@ def new_args(**overrides: Any) -> Any:
         "hinoki": None,
         "database": None,
         "agent_files": None,
+        "skills": None,
         "git": None,
         "install": None,
         "no_input": False,
