@@ -116,7 +116,31 @@ Built-in checks support string/list lengths, string patterns and membership, and
 
 These checks complement, rather than replace, a `Schema` at the HTTP boundary. Schema validation can report request errors before calling an operation; Model validation also protects CLI, admin and direct ORM writes. Database constraints remain authoritative, and their enforcement varies by backend; see [Schema validation](schemas.md#built-in-and-custom-validation).
 
-Hinoki stores PostgreSQL UUID, timestamp, JSON and byte values in their native column types. `ipaddress` addresses and networks (`IPv4Address`, `IPv6Address`, `IPv4Network`, `IPv6Network`) are stored as `text` and read back as the object; writes accept only an object of the annotated class. `date` and `time` are stored as ISO text (a `time` with microseconds always, without a timezone), `timedelta` as whole microseconds in a `bigint`, `Decimal` as its exact text and an `Enum` as its value (`bigint` when every value is an integer, `text` otherwise); each is read back as the annotated type, and a stored value that is not one raises `FieldError`. A `date` and a `timedelta` compare and order by value (`__gt`, `order_by`); a `Decimal` column does not, because its text does not order or compare by value, so filtering or ordering on it is refused (only `__isnull` works). SQLite stores UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string `contains` matching follows SQLite's case-folding behavior (ASCII case-insensitive). UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string `contains` matching follows SQLite's case-folding behavior (ASCII case-insensitive).
+Hinoki stores PostgreSQL UUID, timestamp, JSON and byte values in their native column types. `ipaddress` addresses and networks (`IPv4Address`, `IPv6Address`, `IPv4Network`, `IPv6Network`) are stored as `text` and read back as the object; writes accept only an object of the annotated class. `date` and `time` are stored as ISO text (a `time` with microseconds always, without a timezone), `timedelta` as whole microseconds in a `bigint` and an `Enum` as its value (`bigint` when every value is an integer, `text` otherwise); each is read back as the annotated type, and a stored value that is not one raises `FieldError`. A `date` and a `timedelta` compare and order by value (`__gt`, `order_by`). SQLite stores UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string `contains` matching follows SQLite's case-folding behavior (ASCII case-insensitive).
+
+#### `Decimal` columns
+
+A `Decimal` field is stored exactly on every backend, but not in the same column type:
+
+| Backend | Column | Filters and ordering |
+|---|---|---|
+| PostgreSQL | `numeric` (read and written through a binary codec) | equality, `ne`, `in`, `isnull`, `gt`, `gte`, `lt`, `lte`, `order_by` |
+| MySQL / MariaDB | `decimal(65,30)` | the same; a value is read back with scale 30 (`Decimal("1.5")` returns as `Decimal("1.500000000000000000000000000000")`, equal in value) |
+| SQLite | `text` (its exact text) | `isnull`, equality, `ne` and `in` only, and equality compares the spelling (`12.3` and `12.30` differ); `gt`, `gte`, `lt`, `lte` and `order_by` are refused, because text does not order by value |
+
+```python
+class Product(Model):
+    name: str
+    price: Decimal
+
+await Product.objects.filter(price__gte=Decimal("9.99")).order_by("price")  # PostgreSQL, MySQL, MariaDB
+await Product.objects.filter(price=Decimal("9.99"))                        # every backend
+```
+
+* **Filter values.** A filter value must be a `Decimal`, an `int` or a numeric string; a `float`, a `bool`, `NaN` and an infinity raise `FieldError`, as does `contains` on a `Decimal` column. On SQLite an unsupported comparison or ordering raises `FieldError` naming the column.
+* **Range.** `decimal(65,30)` keeps 30 digits after the point and 35 before it, so a MySQL or MariaDB `Decimal` field is bounded by that; PostgreSQL `numeric` is not.
+* **Migrations.** A new migration declares `numeric` on PostgreSQL and `decimal(65,30)` on MySQL and MariaDB; on SQLite the column stays `text`, so that backend has no column change. A table that already stores a `Decimal` as text on PostgreSQL or MySQL needs a reviewed migration that changes the column type.
+* **CRUD.** A generated list action whose default `@ordered_by` names a `Decimal` column uses the Python path on SQLite, where that ordering is refused.
 
 ## Query rows
 

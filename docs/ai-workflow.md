@@ -27,6 +27,32 @@ The generated project contains a health route, **rules that are already on** (`H
 
 See the [development MCP guide](dev-mcp.md) for tool arguments, result shapes and the effectful scenario option.
 
+### Optional agent skills
+
+`hinoki new shop --skills` (or the prompt in a terminal) and `hinoki skills install` in an existing project write four Markdown playbooks under `.claude/skills/`: `hinoki-add-endpoint`, `hinoki-fix-rule`, `hinoki-review-api` and `hinoki-test-api`. Each one tells an assistant which MCP tool or CLI command to run and which changes belong to the owner (never `hinoki-rules.toml`). They are off by default; see [`hinoki skills`](cli.md#skills).
+
+### Checking a change against clients
+
+```sh
+uv run hinoki openapi shop.main:app --output openapi-baseline.json     # released version
+uv run hinoki openapi shop.main:app --breaking-against openapi-baseline.json
+```
+
+Exit status `1` lists each change that would break an existing client (removed operations or response fields, new required request input, narrowed enums, changed types); see [`openapi`](cli.md#openapi).
+
+### Generated request bodies
+
+`hinoki.ai.samples.request_cases(app.openapi())` returns one `RequestCase` per operation with a JSON body: a `method`, a `path`, a `body` that satisfies the declared schema, and `invalid`, a list of `(description, body)` pairs that each break one rule (wrong type, missing property, too long, below a bound, and so on).
+
+```python
+from hinoki.ai.samples import request_cases
+
+for case in request_cases(app.openapi()):
+    ...  # send case.body: expect 2xx; send each body in case.invalid: expect 422
+```
+
+The generator reads only the OpenAPI document. It raises `CannotSample` for a schema it cannot build a value for (such as a regular-expression pattern), and a path with parameters needs real values before it is sent. Use a disposable database and synthetic data.
+
 ## 3. The loop
 
 1. The agent asks the MCP for the project (`inspect_project`) to read the registered routes and models.

@@ -635,4 +635,38 @@ After normalization, field checks receive final values and object checks can com
 
 These decorators validate a `Schema` instance passed through `Schema.validate`; they are not run on a `Model`. Model fields have separate checks that run before ORM writes, described in [Model field constraints and validators](models.md#model-field-constraints-and-validators).
 
+## Reshaping input with `@before_validate`
+
+`@before_validate` marks a `classmethod` or `staticmethod` that receives the decoded request mapping and returns the mapping to validate. Use it to accept an older or looser input shape, such as a renamed key (unknown keys are refused, so the hook drops the old one), and still get the full structural validation afterwards.
+
+```python
+from typing import Any
+
+from hinoki import Schema, before_validate
+
+
+class Profile(Schema):
+    display_name: str
+
+    @before_validate
+    @classmethod
+    def accept_legacy_name(cls, data: dict[str, Any]) -> dict[str, Any]:
+        if "name" in data and "display_name" not in data:
+            rest = {key: value for key, value in data.items() if key != "name"}
+            return {**rest, "display_name": data["name"]}
+        return data
+
+
+assert Profile.validate({"name": "Ada"}).display_name == "Ada"
+```
+
+* **Where it runs.** On the schema and on every schema nested in it (lists, dicts, tuples, optionals and discriminated variants), before any structural validation, on the Python and the Rust lane alike. Base-class hooks run before a subclass's.
+* **Untrusted input.** The hook sees data that has not been checked: test types before using them. It gets a shallow copy of the mapping, so replace nested values instead of mutating them. It must be synchronous and do no I/O.
+* **Refusing.** Raise `Invalid(code, message)` to answer 422. A `KeyError`, `TypeError`, `ValueError`, `IndexError` or `AttributeError` caused by unexpected input answers `invalid_input` rather than 500.
+* **Limits.** A plain union of schemas where a member has such a hook is refused at class creation: use a [discriminated union](#discriminated-unions). The decorator on a plain method raises `RegistrationError`.
+
+## Text that cannot be stored
+
+A string value or a dict key that contains a NUL character (`\u0000`) is refused with the code `nul`, or `key_nul` for a dict key, on both lanes. PostgreSQL cannot store NUL in `text`, so the request answers 422 instead of failing later with a server error. The check runs after the length limits and before `pattern`.
+
 See also the [glossary](glossary.md) for what "schema" does and does not mean in these docs.

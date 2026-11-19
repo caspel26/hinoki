@@ -33,6 +33,7 @@ them with `uv run --project ..` to use the locked environment at the parent.
 | `hinoki manage [TARGET] [COMMAND]` | Run an app-defined command with its declared module resources; a project manifest supplies the default target. |
 | `hinoki shell [TARGET]` | Open an interactive Python shell with the app's modules and registered models. |
 | `hinoki mcp TARGET` | Serve project context to an MCP client over stdio. Scenario tools are off by default. |
+| `hinoki skills list` / `install` | List the optional agent skills, or write them under `.claude/skills` in the current project; see [`skills`](#skills). |
 | `hinoki completion SHELL` | Print a completion script for `bash`, `zsh` or `fish`; see [Help and completion](#help-and-completion). |
 
 On a colour terminal, `doctor`, `check` and `routes` print a coloured report: a status glyph per check (`✔` ok, `▲` warning, `✘` failed or violated, `–` skipped) with the fix on its own line, and routes with coloured methods. When output is piped or redirected, or with `NO_COLOR` or `TERM=dumb`, the text is plain and unchanged, and `--format json` is never styled.
@@ -98,6 +99,7 @@ In a terminal, `hinoki new` with no `NAME` (or with some options missing) asks f
 | `--database none\|sqlite\|postgresql` | `sqlite` declares `database: settings.DatabaseSettings` in the project settings (local file under `.hinoki/`); `postgresql` also writes `.env.example` with a placeholder `<NAME>_DATABASE__URL` to copy to `.env` | `none` |
 | `--server kiso\|granian` | the server `hinoki dev` and `hinoki serve` run. `kiso` is Hinoki's own Rust server (native handler lane, access log) and needs no configuration; `granian` is a general-purpose ASGI server and writes a `settings.toml` with `[server] server = "granian"`, which the project settings read. `<NAME>_SERVER__SERVER` and `--server` on `dev`/`serve` still override it; see [serving](serving.md) | `kiso` |
 | `--agent-files` / `--no-agent-files` | write or omit `AGENTS.md`, `CLAUDE.md` and `.mcp.json` | written |
+| `--skills` / `--no-skills` | also write the optional agent skills under `.claude/skills` (see [`skills`](#skills)); the terminal prompt asks for it | off |
 | `--git` | run `git init` in the project (no commit is made) | off (prompt default: yes) |
 | `--install` | run `uv sync` in the project | off (prompt default: yes) |
 
@@ -207,6 +209,15 @@ hinoki openapi notes.main:app --check openapi.json
 ```
 
 The command builds the app without serving it or opening a database; it works even when `openapi_url` is disabled. With no file option it prints deterministic JSON (sorted keys, two-space indentation and a trailing newline). `--output FILE` writes those bytes. `--check FILE` compares parsed JSON, so formatting differences do not count as drift. Exit status is `0` when the file matches or is written, `1` when its JSON differs, and `2` when the target cannot load or the check file is missing or invalid JSON. `--output` and `--check` cannot be used together.
+
+`--breaking-against BASELINE` compares the generated document with an earlier OpenAPI JSON file (the released version) and prints one `breaking: …` line per change that would break an existing client:
+
+```sh
+hinoki openapi notes.main:app --output openapi-baseline.json   # at release time
+hinoki openapi notes.main:app --breaking-against openapi-baseline.json
+```
+
+Reported: a removed operation or success response, new or newly required request input, a removed response property, a changed type, and a request enum that narrows or a response enum that widens. Additions are compatible and are not reported. Exit status is `0` when nothing breaks, `1` when something does, and `2` when the target cannot load or the baseline is missing or not a JSON object. It cannot be combined with `--output` or `--check`. The comparison reads the documents only; it does not check behavior that an OpenAPI document does not describe.
 
 ### `version`
 
@@ -385,6 +396,23 @@ hinoki mcp tracker.app:create_app \
 The development server uses MCP over stdio. It accepts `--rules`, repeatable `--package`, repeatable `--models`, and `--waivers` with the same target meanings as `check`. `--requests PATH` names the file the `recent_requests` tool reads (default `.hinoki/requests.jsonl`; see `server.recent_requests`). `--scenarios off|read|write` controls whether `run_scenario` is registered: `read` allows GET, HEAD, OPTIONS and QUERY; `write` allows every supported method. Scenarios start the real app, run handlers and lifespan hooks, and may write data even for a GET. Keep the tool server owner-controlled and point the app at a disposable database.
 
 The development MCP is separate from application MCP, which is mounted with `expose_as_mcp` and an explicit action allowlist. See the [development MCP guide](dev-mcp.md) for tool inputs and results.
+
+### `skills`
+
+```sh
+hinoki skills list
+hinoki skills install            # from a project directory
+hinoki skills install --force    # replace skills that already exist
+```
+
+Agent skills are short Markdown playbooks that point an assistant at the real Hinoki tools (the development MCP and the CLI). `list` prints each skill name and description. `install` reads `hinoki.toml`, then writes `.claude/skills/<skill>/SKILL.md` for each one, with the project package name filled in; an existing file is kept and reported unless `--force` replaces it. Without a manifest it prints an error and exits `2`. `hinoki new --skills` writes the same files at creation. They are optional and never written otherwise.
+
+| Skill | Playbook |
+| --- | --- |
+| `hinoki-add-endpoint` | add an action with its `Schema` types, access policy and test |
+| `hinoki-fix-rule` | fix a rule diagnostic without editing the rules or waivers |
+| `hinoki-review-api` | run `hinoki openapi --breaking-against` before and after a change |
+| `hinoki-test-api` | exercise operations with the generated valid and invalid bodies of `hinoki.ai.samples.request_cases` |
 
 ## Import target examples
 
