@@ -33,8 +33,28 @@ them with `uv run --project ..` to use the locked environment at the parent.
 | `hinoki manage [TARGET] [COMMAND]` | Run an app-defined command with its declared module resources; a project manifest supplies the default target. |
 | `hinoki shell [TARGET]` | Open an interactive Python shell with the app's modules and registered models. |
 | `hinoki mcp TARGET` | Serve project context to an MCP client over stdio. Scenario tools are off by default. |
+| `hinoki completion SHELL` | Print a completion script for `bash`, `zsh` or `fish`; see [Help and completion](#help-and-completion). |
 
 On a colour terminal, `doctor`, `check` and `routes` print a coloured report: a status glyph per check (`✔` ok, `▲` warning, `✘` failed or violated, `–` skipped) with the fix on its own line, and routes with coloured methods. When output is piped or redirected, or with `NO_COLOR` or `TERM=dumb`, the text is plain and unchanged, and `--format json` is never styled.
+
+### Help and completion
+
+`hinoki --help` lists the commands in groups (Start, Inspect, Data, Integrate); `hinoki COMMAND --help` shows one command's options. A mistyped command or migrations action gets a suggestion:
+
+```text
+hinoki: error: argument group: invalid choice: 'chek' (choose from ...)
+  did you mean 'check'?
+```
+
+The completion script is generated from the real parser, so it follows the commands and options of the installed version:
+
+```sh
+eval "$(hinoki completion bash)"     # in ~/.bashrc
+eval "$(hinoki completion zsh)"      # in ~/.zshrc, after compinit
+hinoki completion fish | source      # in ~/.config/fish/config.fish
+```
+
+It completes command, subcommand and option names; it does not complete option values or project-specific names such as apps.
 
 ### `doctor`
 
@@ -350,6 +370,8 @@ hinoki migrations --dir myapp/migrations sql 0001-initial
 ```
 
 `plan` requires `--models MODULE`; `--name` is an optional slug override and is derived from the first planned schema change when omitted. `--dry-run` prints operations without writing files. Destructive operations require `--allow-destructive`. Without `HINOKI_DATABASE_URL`, plan/status/apply target the local SQLite file at `.hinoki/local.sqlite3`; `--database URL` selects another supported backend. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints `error: database: …` with a `fix:` line and exits 1; the URL is not printed. `sql NAME` prints a migration's SQL. Use a disposable database while reviewing migrations.
+
+On an animated terminal, `plan` and `apply` show a spinner while they work and finish with a timing line (`✔ applied   1.2s`); the commands' own output is printed unchanged before it. Piped output, `NO_COLOR`, `TERM=dumb`, `CI` and `HINOKI_ANIMATE=0` print only the commands' own output.
 
 ### `mcp`
 
