@@ -8,7 +8,7 @@ import logging
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Literal
+from typing import Any, ClassVar, Literal
 from unittest.mock import Mock
 
 import pytest
@@ -336,6 +336,64 @@ def test_json_log_format_and_idempotent_apply() -> None:
             if handler not in before:
                 logger.removeHandler(handler)
         logger.setLevel(logging.NOTSET)
+
+
+class CollectingHandler(logging.Handler):
+    lines: ClassVar[list[str]] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.lines.append(self.format(record))
+
+
+CUSTOM_LOGGING: dict[str, Any] = {
+    "version": 1,
+    "formatters": {"short": {"format": "%(levelname)s|%(name)s|%(message)s"}},
+    "handlers": {
+        "collect": {
+            "class": "tests.settingstest.CollectingHandler",
+            "formatter": "short",
+        }
+    },
+    "loggers": {"orders": {"handlers": ["collect"], "level": "INFO"}},
+}
+
+
+def build_custom_logging() -> dict[str, Any]:
+    return CUSTOM_LOGGING
+
+
+def test_a_declared_logging_config_adds_the_developers_own_loggers() -> None:
+    kept = logging.getLogger("hinoki")
+    before = list(kept.handlers)
+    CollectingHandler.lines.clear()
+    try:
+        for target in (
+            "tests.settingstest:CUSTOM_LOGGING",
+            "tests.settingstest:build_custom_logging",
+        ):
+            LoggingSettings(config=target).apply()
+            logging.getLogger("orders").info("paid %s", 7)
+        assert CollectingHandler.lines == ["INFO|orders|paid 7", "INFO|orders|paid 7"]
+        assert any(h.name == LoggingSettings.HANDLER for h in kept.handlers)
+    finally:
+        logging.getLogger("orders").handlers.clear()
+        for handler in list(kept.handlers):
+            if handler not in before:
+                kept.removeHandler(handler)
+        kept.setLevel(logging.NOTSET)
+
+
+def test_a_logging_config_must_name_a_mapping() -> None:
+    with pytest.raises(ValueError, match="module:attribute"):
+        LoggingSettings(config="nowhere").validate()
+    with pytest.raises(TypeError, match="dictConfig mapping"):
+        LoggingSettings(
+            config="tests.settingstest:build_custom_logging.__name__"
+        ).apply()
+    loaded = AppSettings.load(
+        prefix="LC_", env={"LC_LOGGING__CONFIG": "tests.settingstest:CUSTOM_LOGGING"}
+    )
+    assert loaded.logging.config == "tests.settingstest:CUSTOM_LOGGING"
 
 
 def test_request_id_log_format_is_opt_in_and_omits_empty_context() -> None:
