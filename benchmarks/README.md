@@ -164,7 +164,9 @@ Hinoki, FastAPI, Django Ninja and Django Bolt implementing the same small API ag
 
 ## `comparative/phase1_orientation.py` — generated CRUD, end to end
 
-This dedicated run measures the public generated `CrudAPI` on Hinoki's Rust
+This dedicated run measures the generated CRUD routes (declared with the
+since-removed `CrudAPI` class when measured; `crud(...)` generates the same
+routes) on Hinoki's Rust
 server against equivalent Django Bolt endpoints. It covers list pages of 20 and
 100 rows, detail, create and PATCH update on the same 10,000-row PostgreSQL
 table. The script checks that all native plans arm, verifies both apps against
@@ -322,7 +324,7 @@ Under Granian with real sockets (`comparative/run.py --framework hinoki`, 4 work
 
 ## Generated CRUD rows-to-JSON gate (`rowwirebench.py`)
 
-This local A/B gate compares a real generated `CrudAPI.list` route with the same
+This local A/B gate compares a real generated CRUD list route (`CrudAPI.list` when measured; now `crud(...)`) with the same
 binding's private Rust RowPlan enabled or disabled. Granian, the model, schema,
 seed, database, pool, workers and SQL remain the same. It is a regression check
 for this implementation slice; it is not the Rust-server comparison, the
