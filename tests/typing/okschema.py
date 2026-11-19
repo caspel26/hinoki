@@ -59,6 +59,16 @@ class Priority(enum.IntEnum):
 class Ticket(Schema):
     priority: Priority = Priority.LOW
     channel: Literal["web", "email"] = "web"
+    labels: frozenset[str] = frozenset()
+    origin: tuple[float, float] = (0.0, 0.0)
+
+
+def ticket_labels() -> frozenset[str]:
+    return Ticket(labels=frozenset({"a"})).labels
+
+
+def ticket_origin() -> tuple[float, float]:
+    return Ticket(origin=(1.0, 2.0)).origin
 
 
 def ticket_priority() -> Priority:
