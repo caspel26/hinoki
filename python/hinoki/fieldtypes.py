@@ -46,6 +46,7 @@ SCALARS: dict[type, str] = {
 }
 
 DECIMAL_DIGITS_CEILING = 1000
+MAX_STEP_EXPONENT = 1000
 """Most digits a ``Decimal`` field may declare through ``max_digits``."""
 MAX_DECIMAL_DIGITS = 64
 """Most digits a ``Decimal`` field accepts from wire input unless it declares
@@ -55,10 +56,12 @@ MAX_BYTES_LENGTH = 65536
 declares ``max_length``."""
 
 ALLOWED_CONSTRAINTS: dict[str, frozenset[str]] = {
-    "decimal": frozenset({"ge", "le", "gt", "lt", "max_digits", "decimal_places"}),
+    "decimal": frozenset(
+        {"ge", "le", "gt", "lt", "max_digits", "decimal_places", "multiple_of"}
+    ),
     "bytes": frozenset({"min_length", "max_length"}),
     "str": frozenset({"min_length", "max_length", "pattern", "one_of"}),
-    "int": frozenset({"ge", "le", "gt", "lt", "one_of"}),
+    "int": frozenset({"ge", "le", "gt", "lt", "one_of", "multiple_of"}),
     "float": frozenset({"ge", "le", "gt", "lt", "one_of"}),
     "list": frozenset({"min_length", "max_length"}),
     "dict": frozenset({"min_length", "max_length"}),
@@ -183,6 +186,7 @@ def field_info_from_constraints(
         one_of=cast(tuple[Any, ...] | None, constraints.get("one_of")),
         max_digits=cast(int | None, constraints.get("max_digits")),
         decimal_places=cast(int | None, constraints.get("decimal_places")),
+        multiple_of=cast(int | Decimal | None, constraints.get("multiple_of")),
         alias=alias,
         discriminator=discriminator,
     )
@@ -222,6 +226,28 @@ def check_limits(info: FieldInfo, where: str, kind: str = "") -> None:
         check_bound(name, getattr(info, name), kind, where)
     if kind == "decimal":
         check_decimal_digits(info, where)
+    if info.multiple_of is not None and kind in {"int", "float", "decimal"}:
+        check_multiple_of(info.multiple_of, kind, where)
+
+
+def check_multiple_of(step: object, kind: str, where: str) -> None:
+    """A positive ``int`` step; a ``Decimal`` field also takes a positive finite
+    ``Decimal``. Floats have no exact multiples, so ``float`` fields refuse it."""
+    if kind == "float":
+        raise RegistrationError(
+            f"{where}: multiple_of does not apply to float (a float multiple is "
+            "inexact); use a Decimal field"
+        )
+    exact = is_whole(step) or (
+        kind == "decimal" and isinstance(step, Decimal) and step.is_finite()
+    )
+    if not exact or cast(int | Decimal, step) <= 0:
+        wanted = "int or Decimal" if kind == "decimal" else "int"
+        raise RegistrationError(f"{where}: multiple_of must be a positive {wanted}")
+    if isinstance(step, Decimal) and abs(step.adjusted()) > MAX_STEP_EXPONENT:
+        raise RegistrationError(
+            f"{where}: multiple_of has an exponent beyond {MAX_STEP_EXPONENT}"
+        )
 
 
 def check_bound(name: str, value: object, kind: str, where: str) -> None:
