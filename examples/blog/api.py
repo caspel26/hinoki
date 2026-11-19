@@ -50,7 +50,7 @@ def health() -> HealthOut:
     owner="author_id",
     omit=("list", "retrieve"),
 )
-class Posts(API):
+class PostAPI(API):
     """Generated create and delete (owner enforced), handwritten reads."""
 
     async def to_schema(self, post: Post) -> PostOut:

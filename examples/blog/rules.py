@@ -8,8 +8,8 @@ from hinoki.rules import RuleSet
 
 PUBLIC = [
     "blog.api.health",
-    "blog.api.Posts.listing",
-    "blog.api.Posts.one",
+    "blog.api.PostAPI.listing",
+    "blog.api.PostAPI.one",
     "blog.accounts.*.login",  # public on purpose: it is how you sign in
 ]
 

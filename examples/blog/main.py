@@ -13,7 +13,7 @@ from hinoki import Hinoki, Mount
 
 from .accounts import build_accounts
 from .adminsite import build_admin
-from .api import Posts, health
+from .api import PostAPI, health
 from .rules import blog_rules
 from .settings import BlogSettings
 
@@ -47,7 +47,7 @@ def create_app(
         redoc_url="/redoc",
         rules=blog_rules,  # startup rules fail the app if a promise is broken
     )
-    app.include(health, Posts, Mount("/admin", build_admin(app_settings.admin_theme)))
+    app.include(health, PostAPI, Mount("/admin", build_admin(app_settings.admin_theme)))
     # password login is on only when a signing secret exists
     if app_settings.jwt_secret:
         actions, _hasher = build_accounts(app_settings.jwt_secret.reveal())
