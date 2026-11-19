@@ -858,6 +858,17 @@
 <p><code>dump</code> is reserved as a <code>Schema</code> method name. Declaring a field with that Python attribute name raises <code>RegistrationError</code> instead of treating the inherited method as a default value; rename the Python field to avoid the collision. A wire alias alone cannot resolve a Python attribute-name conflict.</p>
 <h2 id="built-in-and-custom-validation">Built-in and custom validation<a class="headerlink" href="#built-in-and-custom-validation" title="Permanent link">&para;</a></h2>
 <p><code>Field(...)</code> provides built-in structural constraints. <code>format=</code> accepts <code>email</code>, <code>url</code>, <code>slug</code> or <code>hex_color</code> and is shorthand for a regular-expression pattern. Numeric bounds apply to numbers; length limits apply to strings and collections; <code>one_of</code> restricts a value to the listed choices.</p>
+<p><code>Field(strip=True)</code>, <code>Field(lower=True)</code> and <code>Field(upper=True)</code> normalise a <code>str</code> field before anything else is checked, so <code>min_length</code>, <code>pattern</code> and <code>one_of</code> see the normalised text and the value you read is the normalised one:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Signup</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">handle</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">strip</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">min_length</span><span class="o">=</span><span class="mi">3</span><span class="p">)]</span>
+
+<span class="n">Signup</span><span class="o">.</span><span class="n">validate</span><span class="p">({</span><span class="s2">"handle"</span><span class="p">:</span> <span class="s2">"  AbC "</span><span class="p">})</span><span class="o">.</span><span class="n">handle</span>  <span class="c1"># "abc"</span>
+</code></pre></div>
+<ul>
+<li><strong>Same on both lanes.</strong> The Python-object path, the native JSON path and direct construction (<code>Signup(handle=" ABC ")</code>) give the same result. <code>strip</code> removes what Python's <code>str.strip()</code> removes, including U+001C to U+001F; <code>lower</code> and <code>upper</code> use the Unicode case mapping of <code>str.lower()</code> and <code>str.upper()</code>.</li>
+<li><strong>Before <code>@field_normalize</code>.</strong> A custom normalizer receives the already normalised text.</li>
+<li><strong>Limits.</strong> Only <code>str</code> fields accept them (not <code>bytes</code>, <code>SecretStr</code>, <code>Path</code> or a <code>Literal</code>); <code>lower</code> and <code>upper</code> cannot both be set; a <code>one_of</code> value that the normalisation would change (<code>upper=True</code> with <code>one_of=("ab",)</code>) raises <code>RegistrationError</code>. The OpenAPI document describes the constraints that apply to the normalised value and has no keyword for the normalisation itself.</li>
+</ul>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
@@ -930,8 +941,8 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 14:21:29 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>24 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 14:42:35 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>25 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

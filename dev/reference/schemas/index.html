@@ -477,6 +477,30 @@ with its path.</p>
 
 
 
+<h3 id="hinoki.schema.Schema.__declared_forms__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">__declared_forms__</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.schema.Schema.__declared_forms__" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">__declared_forms__</span><span class="p">:</span> <span class="p">(</span>
+    <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">FieldInfo</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="hinoki.schema.Schema.__graph_normalizers__" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">__graph_normalizers__</span>
 
@@ -1074,6 +1098,9 @@ fields not supplied at construction. HTTP responses use default options.</p>
     <span class="n">max_digits</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">decimal_places</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">multiple_of</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="n">Decimal</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">strip</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">lower</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">upper</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="nb">format</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">discriminator</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
@@ -1090,6 +1117,9 @@ fields not supplied at construction. HTTP responses use default options.</p>
     <span class="n">max_digits</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">decimal_places</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">multiple_of</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="n">Decimal</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">strip</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">lower</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">upper</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="nb">format</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">alias</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">discriminator</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1388,7 +1418,7 @@ deprecated; it requires the legacy <code>model=</code> Schema class keyword.</p>
           
           
             <ul><li><a href="#hinoki.schema.Schema">Schema</a>
-            <ul><li><a href="#hinoki.schema.Schema.__hinoki_schema__">__hinoki_schema__</a></li><li><a href="#hinoki.schema.Schema.__specs__">__specs__</a></li><li><a href="#hinoki.schema.Schema.__assigned_field_info__">__assigned_field_info__</a></li><li><a href="#hinoki.schema.Schema.__native__">__native__</a></li><li><a href="#hinoki.schema.Schema.__native_dump__">__native_dump__</a></li><li><a href="#hinoki.schema.Schema.__checks__">__checks__</a></li><li><a href="#hinoki.schema.Schema.__normalizers__">__normalizers__</a></li><li><a href="#hinoki.schema.Schema.__graph_normalizers__">__graph_normalizers__</a></li><li><a href="#hinoki.schema.Schema.__source__">__source__</a></li><li><a href="#hinoki.schema.Schema.__derivation__">__derivation__</a></li><li><a href="#hinoki.schema.Schema.__derived_model__">__derived_model__</a></li><li><a href="#hinoki.schema.Schema.__schema_config__">__schema_config__</a></li><li><a href="#hinoki.schema.Schema.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.schema.Schema.apply_default">apply_default</a></li><li><a href="#hinoki.schema.Schema.specs">specs</a></li><li><a href="#hinoki.schema.Schema.build_specs">build_specs</a></li><li><a href="#hinoki.schema.Schema.validate_normalizers">validate_normalizers</a></li><li><a href="#hinoki.schema.Schema.native_schema">native_schema</a></li><li><a href="#hinoki.schema.Schema.validate">validate</a></li><li><a href="#hinoki.schema.Schema.validate_text">validate_text</a></li><li><a href="#hinoki.schema.Schema._validate_instance">_validate_instance</a></li><li><a href="#hinoki.schema.Schema.fields">fields</a></li><li><a href="#hinoki.schema.Schema.to_dict">to_dict</a></li><li><a href="#hinoki.schema.Schema.from_models">from_models</a></li><li><a href="#hinoki.schema.Schema.from_model">from_model</a></li><li><a href="#hinoki.schema.Schema.dump">dump</a></li></ul>
+            <ul><li><a href="#hinoki.schema.Schema.__hinoki_schema__">__hinoki_schema__</a></li><li><a href="#hinoki.schema.Schema.__specs__">__specs__</a></li><li><a href="#hinoki.schema.Schema.__assigned_field_info__">__assigned_field_info__</a></li><li><a href="#hinoki.schema.Schema.__native__">__native__</a></li><li><a href="#hinoki.schema.Schema.__native_dump__">__native_dump__</a></li><li><a href="#hinoki.schema.Schema.__checks__">__checks__</a></li><li><a href="#hinoki.schema.Schema.__normalizers__">__normalizers__</a></li><li><a href="#hinoki.schema.Schema.__declared_forms__">__declared_forms__</a></li><li><a href="#hinoki.schema.Schema.__graph_normalizers__">__graph_normalizers__</a></li><li><a href="#hinoki.schema.Schema.__source__">__source__</a></li><li><a href="#hinoki.schema.Schema.__derivation__">__derivation__</a></li><li><a href="#hinoki.schema.Schema.__derived_model__">__derived_model__</a></li><li><a href="#hinoki.schema.Schema.__schema_config__">__schema_config__</a></li><li><a href="#hinoki.schema.Schema.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.schema.Schema.apply_default">apply_default</a></li><li><a href="#hinoki.schema.Schema.specs">specs</a></li><li><a href="#hinoki.schema.Schema.build_specs">build_specs</a></li><li><a href="#hinoki.schema.Schema.validate_normalizers">validate_normalizers</a></li><li><a href="#hinoki.schema.Schema.native_schema">native_schema</a></li><li><a href="#hinoki.schema.Schema.validate">validate</a></li><li><a href="#hinoki.schema.Schema.validate_text">validate_text</a></li><li><a href="#hinoki.schema.Schema._validate_instance">_validate_instance</a></li><li><a href="#hinoki.schema.Schema.fields">fields</a></li><li><a href="#hinoki.schema.Schema.to_dict">to_dict</a></li><li><a href="#hinoki.schema.Schema.from_models">from_models</a></li><li><a href="#hinoki.schema.Schema.from_model">from_model</a></li><li><a href="#hinoki.schema.Schema.dump">dump</a></li></ul>
           </li><li><a href="#hinoki.schemaconfig.SchemaConfig">SchemaConfig</a></li><li><a href="#hinoki.schemaconfig.SchemaExtra">SchemaExtra</a></li><li><a href="#hinoki.fields.Field">Field</a></li><li><a href="#hinoki.schema.Invalid">Invalid</a></li><li><a href="#hinoki.schema.Unset">Unset</a></li><li><a href="#hinoki.schema.field_check">field_check</a></li><li><a href="#hinoki.schema.field_normalize">field_normalize</a></li><li><a href="#hinoki.schema.object_check">object_check</a></li><li><a href="#hinoki.errors.ValidationError">ValidationError</a></li><li><a href="#hinoki.fields.UNSET">UNSET</a></li><li><a href="#hinoki.derive.derive">derive</a></li></ul>
           
         </nav>
