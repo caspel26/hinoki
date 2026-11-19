@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import dataclasses
 import enum
 import inspect
@@ -650,7 +651,9 @@ def resolve_config(
     if resource is not None:
         config = resource_config(cls, model, resource)
     elif inherited is not None and model is None:
-        config = dataclasses.replace(inherited, **class_config_overrides(cls))
+        config = dataclasses.replace(
+            inherited, **class_config_overrides(cls, inherited)
+        )
     else:
         native = native_config(cls, model, inherited)
         if native is None:
@@ -668,7 +671,7 @@ def resource_config(
 ) -> _CrudConfig:
     if model is not None:
         raise RegistrationError("model= cannot be combined with resource=")
-    return dataclasses.replace(resource, **class_config_overrides(cls))
+    return dataclasses.replace(resource, **class_config_overrides(cls, resource))
 
 
 def native_config(
@@ -696,7 +699,9 @@ def native_config(
     )
 
 
-def class_config_overrides(cls: type[CrudAPI]) -> dict[str, Any]:
+def class_config_overrides(
+    cls: type[CrudAPI], base: _CrudConfig | None = None
+) -> dict[str, Any]:
     names = {
         "model": "model",
         "read_schema": "read",
@@ -711,11 +716,19 @@ def class_config_overrides(cls: type[CrudAPI]) -> dict[str, Any]:
         "assign": "assign",
         "pagination": "pagination",
     }
-    return {
+    found = {
         target: vars(cls)[source]
         for source, target in names.items()
         if source in vars(cls)
     }
+    if base is not None and base.actions is not None:
+        stale = sorted({"access", "read_access"} & found.keys())
+        if stale:
+            raise RegistrationError(
+                f"{cls.__name__}: {stale} cannot override a crud(...) declaration "
+                "that sets access per action; declare crud(access=...) again"
+            )
+    return found
 
 
 def item_type(model: type[Model]) -> Any:
@@ -834,6 +847,23 @@ def enabled(config: _CrudConfig, action: str) -> bool:
     }.get(action, True)
 
 
+def rebind_class_cells(old: type, new: type) -> None:
+    """Point zero-argument ``super()`` and ``__class__`` in the methods at the
+    class that was built, not the decorated one that is discarded."""
+    for value in vars(old).values():
+        parts = (
+            (value.fget, value.fset, value.fdel)
+            if isinstance(value, property)
+            else (value,)
+        )
+        for part in parts:
+            function = getattr(part, "__func__", part)
+            for cell in getattr(function, "__closure__", None) or ():
+                with contextlib.suppress(ValueError):  # an empty cell
+                    if cell.cell_contents is old:
+                        cell.cell_contents = new
+
+
 class CrudDeclaration:
     """What ``crud(...)`` returns: include it for plain CRUD, or apply it to a
     class that adds hooks and handwritten actions."""
@@ -872,9 +902,11 @@ class CrudDeclaration:
                 f"write {extra} as a handwritten action"
             )
         skip = {"__dict__", "__weakref__"}
-        return self.build(
+        built = self.build(
             cls.__name__, {k: v for k, v in vars(cls).items() if k not in skip}
         )
+        rebind_class_cells(cls, built)
+        return built
 
     def build(self, name: str, namespace: dict[str, Any]) -> type[CrudAPI]:
         return cast(
