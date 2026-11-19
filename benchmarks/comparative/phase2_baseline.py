@@ -224,8 +224,8 @@ def lanes(output: Path) -> dict[str, str]:
     async def inspect_worker() -> dict[str, str]:
         app = importlib.import_module(APP_MODULE).app
 
-        from hinoki.runtime.rustserver import RustWorker
         from hinoki.runtime.nativehandler import native_handler_eligible
+        from hinoki.runtime.rustserver import RustWorker
 
         worker = RustWorker(app, "127.0.0.1", 0)
         await worker.start()
