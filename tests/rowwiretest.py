@@ -778,6 +778,13 @@ async def test_mutated_checks_fall_back_before_count_and_wire_fetch(
     )
     monkeypatch.setattr(
         Database,
+        "fetch_models",
+        MethodObserver(
+            "fetch_models", Database.fetch_models, [], mode="selects", records=selects
+        ),
+    )
+    monkeypatch.setattr(
+        Database,
         "_fetch_page_wire",
         MethodObserver(
             "_fetch_page_wire",
@@ -851,6 +858,13 @@ async def test_field_descriptor_added_after_include_uses_python_path_before_quer
     )
     monkeypatch.setattr(
         Database,
+        "fetch_models",
+        MethodObserver(
+            "fetch_models", Database.fetch_models, [], mode="selects", records=selects
+        ),
+    )
+    monkeypatch.setattr(
+        Database,
         "_fetch_page_wire",
         MethodObserver(
             "_fetch_page_wire",
@@ -907,6 +921,13 @@ async def test_invalid_sqlite_cell_falls_back_without_a_second_select(
         Database,
         "fetch",
         MethodObserver("fetch", Database.fetch, [], mode="selects", records=selects),
+    )
+    monkeypatch.setattr(
+        Database,
+        "fetch_models",
+        MethodObserver(
+            "fetch_models", Database.fetch_models, [], mode="selects", records=selects
+        ),
     )
     fast_start, fast_end = await raw_request(fast_client, "GET", "/dynamic")
     slow_start, slow_end = await raw_request(oracle_client, "GET", "/dynamic")

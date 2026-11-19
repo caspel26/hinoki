@@ -203,12 +203,18 @@ def test_unknown_or_unsupported_relations_are_rejected(build: Any) -> None:
 def statements(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     seen: list[str] = []
     original = Database.fetch
+    original_models = Database.fetch_models
 
     async def counting(self: Database, sql: str, *params: Any) -> Any:
         seen.append(sql)
         return await original(self, sql, *params)
 
+    async def counting_models(self: Database, sql: str, *params: Any) -> Any:
+        seen.append(sql)
+        return await original_models(self, sql, *params)
+
     monkeypatch.setattr(Database, "fetch", counting)
+    monkeypatch.setattr(Database, "fetch_models", counting_models)
     return seen
 
 
