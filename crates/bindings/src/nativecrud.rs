@@ -766,14 +766,7 @@ async fn update_in_transaction(
         let sql = plan
             .update_sql(dialect, &columns)
             .map_err(|_| DbError::new(ErrorKind::Other, "CRUD update SQL is unavailable"))?;
-        let mut parameters = values
-            .into_iter()
-            .map(|(_, value)| value)
-            .collect::<Vec<_>>();
-        parameters.push(id.clone());
-        if let Some(scope) = owner {
-            parameters.push(Value::Text(scope.value.clone()));
-        }
+        let parameters = update_parameters(values, &id, owner);
         let written = if is_mysql(dialect) {
             mysql_update(transaction, plan, &sql, &parameters, &id).await?
         } else {
@@ -801,6 +794,22 @@ async fn update_in_transaction(
             "database returned multiple rows for a primary key",
         )),
     }
+}
+
+fn update_parameters(
+    values: Vec<(String, Value)>,
+    id: &Value,
+    owner: Option<&OwnerScope>,
+) -> Vec<Value> {
+    let mut parameters = values
+        .into_iter()
+        .map(|(_, value)| value)
+        .collect::<Vec<_>>();
+    parameters.push(id.clone());
+    if let Some(scope) = owner {
+        parameters.push(Value::Text(scope.value.clone()));
+    }
+    parameters
 }
 
 async fn mysql_update(
