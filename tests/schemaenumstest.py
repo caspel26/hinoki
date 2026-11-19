@@ -360,9 +360,10 @@ class Ticket(Model, table="enum_tickets"):
     mode: Literal["a", "b"] | None = None
 
 
-def test_model_columns_keep_their_json_type() -> None:
-    kinds = {name: ft.kind for name, ft in Ticket.__field_types__.items()}
-    assert kinds["colour"] == kinds["mode"] == "json"
+def test_an_enum_column_is_read_as_the_enum_and_a_literal_stays_json() -> None:
+    colour = Ticket.__field_types__["colour"]
+    assert colour.enum_class is Colour
+    assert Ticket.__field_types__["mode"].kind == "json"
 
 
 class Holder(Schema):
