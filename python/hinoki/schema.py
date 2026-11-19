@@ -37,7 +37,12 @@ from hinoki.errors import (
     ValidationError,
 )
 from hinoki.fields import MASK, UNSET, Field, FieldInfo, SecretStr, Unset
-from hinoki.fieldtypes import DECIMAL_DIGITS_CEILING, FieldType, parse_annotation
+from hinoki.fieldtypes import (
+    DECIMAL_DIGITS_CEILING,
+    FieldType,
+    normalize_text,
+    parse_annotation,
+)
 from hinoki.schemaconfig import SchemaConfig, SchemaExtra
 
 _NO_MODEL = object()
@@ -750,15 +755,36 @@ def normalize_constructed(
     commit_normalized_values(instance, proposed)
 
 
+def declared_forms(cls: type[Schema]) -> tuple[tuple[str, FieldInfo], ...]:
+    """The ``str`` fields declared with ``strip``, ``lower`` or ``upper``."""
+    cached = cls.__dict__.get("__declared_forms__")
+    if cached is None:
+        cached = tuple(
+            (name, spec.ftype.info)
+            for name, spec in cls.specs().items()
+            if spec.ftype.kind == "str"
+            and (
+                spec.ftype.info.strip or spec.ftype.info.lower or spec.ftype.info.upper
+            )
+        )
+        cls.__declared_forms__ = cached
+    return cached
+
+
 def prepare_normalized_values(
     instance: Schema, use_aliases: bool, path_prefix: str
 ) -> dict[str, str]:
     cls = type(instance)
-    if not cls.__normalizers__:
+    declared = declared_forms(cls)
+    if not cls.__normalizers__ and not declared:
         return {}
     proposed: dict[str, str] = {}
-    for field_name, method_name in cls.__normalizers__:
+    for field_name, info in declared:
         value = getattr(instance, field_name)
+        if isinstance(value, str):
+            proposed[field_name] = normalize_text(value, info)
+    for field_name, method_name in cls.__normalizers__:
+        value = proposed.get(field_name, getattr(instance, field_name))
         if value is UNSET or value is None:
             continue
         proposed[field_name] = normalized_value(instance, method_name, value)
@@ -988,6 +1014,7 @@ class Schema:
     __native_dump__: ClassVar[bool] = True
     __checks__: ClassVar[tuple[tuple[str, tuple[str, ...], str], ...]] = ()
     __normalizers__: ClassVar[tuple[tuple[str, str], ...]] = ()
+    __declared_forms__: ClassVar[tuple[tuple[str, FieldInfo], ...] | None] = None
     __graph_normalizers__: ClassVar[bool | None] = None
     __source__: ClassVar[dict[str, Any]] = {}
     __derivation__: ClassVar[tuple[Any, ...] | None] = None

@@ -494,6 +494,19 @@ With no options, `dump()` preserves its current output and honors custom `dump()
 
 `Field(...)` provides built-in structural constraints. `format=` accepts `email`, `url`, `slug` or `hex_color` and is shorthand for a regular-expression pattern. Numeric bounds apply to numbers; length limits apply to strings and collections; `one_of` restricts a value to the listed choices.
 
+`Field(strip=True)`, `Field(lower=True)` and `Field(upper=True)` normalise a `str` field before anything else is checked, so `min_length`, `pattern` and `one_of` see the normalised text and the value you read is the normalised one:
+
+```python
+class Signup(Schema):
+    handle: Annotated[str, Field(strip=True, lower=True, min_length=3)]
+
+Signup.validate({"handle": "  AbC "}).handle  # "abc"
+```
+
+* **Same on both lanes.** The Python-object path, the native JSON path and direct construction (`Signup(handle=" ABC ")`) give the same result. `strip` removes what Python's `str.strip()` removes, including U+001C to U+001F; `lower` and `upper` use the Unicode case mapping of `str.lower()` and `str.upper()`.
+* **Before `@field_normalize`.** A custom normalizer receives the already normalised text.
+* **Limits.** Only `str` fields accept them (not `bytes`, `SecretStr`, `Path` or a `Literal`); `lower` and `upper` cannot both be set; a `one_of` value that the normalisation would change (`upper=True` with `one_of=("ab",)`) raises `RegistrationError`. The OpenAPI document describes the constraints that apply to the normalised value and has no keyword for the normalisation itself.
+
 ```python
 from typing import Annotated
 
