@@ -84,11 +84,20 @@ jobs:
         run: uv run --locked mypy
       - name: Build the test-only SQL trace extension
         run: uv run --with "maturin>=1.9.4,<2" maturin develop --manifest-path crates/bindings/Cargo.toml --features sql-trace
+      - name: One database per pytest-xdist worker
+        run: |
+          for worker in gw0 gw1 gw2 gw3; do
+            PGPASSWORD=hinoki psql -h localhost -U postgres -c "CREATE DATABASE hinoki_$worker"
+            for port in 3306 3307; do
+              mysql -h 127.0.0.1 -P $port -uroot -phinoki -e \
+                "CREATE DATABASE hinoki_$worker; GRANT ALL ON hinoki_$worker.* TO 'hinoki'@'%'"
+            done
+          done
       - name: Tests
         env:
           # The native write differential tests fail, not skip, without the trace build.
           HINOKI_REQUIRE_SQL_TRACE: "1"
-        run: uv run --no-sync --locked pytest -n auto --dist loadgroup --cov --cov-report=xml
+        run: uv run --no-sync --locked pytest -n 4 --cov --cov-report=xml
       - name: Save coverage report
         if: matrix.python == '3.13'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
