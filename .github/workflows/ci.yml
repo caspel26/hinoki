@@ -84,11 +84,26 @@ jobs:
         run: uv run --locked mypy
       - name: Build the test-only SQL trace extension
         run: uv run --with "maturin>=1.9.4,<2" maturin develop --manifest-path crates/bindings/Cargo.toml --features sql-trace
+      - name: One database per pytest-xdist worker
+        run: |
+          for worker in gw0 gw1 gw2 gw3; do
+            PGPASSWORD=hinoki psql -h localhost -U postgres -c "CREATE DATABASE hinoki_$worker"
+            for port in 3306 3307; do
+              mysql -h 127.0.0.1 -P $port -uroot -phinoki -e \
+                "CREATE DATABASE hinoki_$worker; GRANT ALL ON hinoki_$worker.* TO 'hinoki'@'%'"
+            done
+          done
       - name: Tests
         env:
           # The native write differential tests fail, not skip, without the trace build.
           HINOKI_REQUIRE_SQL_TRACE: "1"
-        run: uv run --no-sync --locked pytest --cov --cov-report=xml
+        run: |
+          # Tests that start real servers are timing-sensitive: they run alone.
+          SERVERS="tests/runtime tests/kisoservertest.py tests/kisoclitest.py tests/wsgitest.py"
+          uv run --no-sync --locked pytest -n 4 --cov \
+            --ignore=tests/runtime --ignore=tests/kisoservertest.py \
+            --ignore=tests/kisoclitest.py --ignore=tests/wsgitest.py
+          uv run --no-sync --locked pytest $SERVERS --cov --cov-append --cov-report=xml
       - name: Save coverage report
         if: matrix.python == '3.13'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -234,10 +249,14 @@ jobs:
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      # Prebuilt, checksum-verified binaries: compiling both tools took about 4 minutes.
+      - uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2.90.6
+        with:
+          tool: cargo-audit,cargo-deny
       - name: Audit Cargo.lock against the RustSec advisory database
-        run: cargo install cargo-audit --locked && cargo audit
+        run: cargo audit
       - name: Check licences, bans and sources (deny.toml)
-        run: cargo install cargo-deny --locked && cargo deny check
+        run: cargo deny check
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
       - name: Audit uv.lock against the Python advisory database
         run: |
