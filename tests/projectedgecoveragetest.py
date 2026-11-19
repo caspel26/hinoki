@@ -124,7 +124,12 @@ def test_app_management_run_reports_project_errors(
     monkeypatch.setattr(
         projectcli,
         "create_app",
-        lambda _name: (_ for _ in ()).throw(ProjectError("invalid project")),
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            ProjectError("invalid project")
+        ),
     )
-    assert projectcli.run(Namespace(app_action="create", name="billing")) == 2
+    args = Namespace(
+        app_action="create", name="billing", prefix=None, requires=None, no_input=True
+    )
+    assert projectcli.run(args) == 2
     assert capsys.readouterr().err == "error: invalid project\n"
