@@ -644,7 +644,7 @@ action and becomes immutable after successful inclusion.</p>
 <tr>
 <td>Generated routes and write hooks</td>
 <td>no</td>
-<td><code>CrudAPI</code> only (<code>get_queryset</code>, <code>store</code>, <code>change</code>, <code>remove</code>)</td>
+<td><code>crud(...)</code> or <code>CrudAPI</code> (<code>get_queryset</code>, <code>to_schema</code>; <code>CrudAPI</code> also <code>store</code>, <code>change</code>, <code>remove</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -657,7 +657,7 @@ action and becomes immutable after successful inclusion.</p>
 <span class="nd">@tasks</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">TaskIn</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">TaskOut</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
-<p><strong>Use a class when the endpoints share behaviour by inheritance</strong>: a <code>CrudAPI</code> for a model (generated routes plus the <code>store</code>/<code>change</code>/<code>remove</code> hooks), a base <code>API</code> whose actions several resources extend or override, or a resource you ship for others to include (the admin is one). A class that only groups three functions under a prefix gains nothing and loses the shared options and the native path.</p>
+<p><strong>Use a class when the endpoints share behaviour by inheritance</strong>: a <code>crud(...)</code> or <code>CrudAPI</code> class for a model (generated routes plus hooks), a base <code>API</code> whose actions several resources extend or override, or a resource you ship for others to include (the admin is one). A class that only groups three functions under a prefix gains nothing and loses the shared options and the native path.</p>
 <p><strong>Keep state out of the instance.</strong> An <code>API</code> instance holds no per-request state and is shared by every request of the worker. Take what you need as parameters (<code>Request</code>, <code>Caller[...]</code>, path and body values) and reach worker-owned resources through a module, never by assigning to <code>self</code>.</p>
 <p><strong>Make the handler thin.</strong> Parse and validate with a <code>Schema</code>, call a plain async function that owns the rule (the Tracker's <code>operations.py</code>), and return a <code>Schema</code>. Keep the direction of imports api → operations → models, and let <code>Imports.forbid(...)</code> in <code>rules.py</code> fail the build when it is reversed.</p>
 <p><strong>Register through one <code>routes.py</code> per feature.</strong> The module exports <code>routes: list[Includable]</code> with paths relative to the feature, and the root (or the <code>routes =</code> key of <code>hinoki.toml</code>, see below) mounts it. The whole map then reads in one place, <code>hinoki routes</code> and <code>hinoki check</code> can print and verify it, and an explicit <code>include=[...]</code> still overrides the manifest when you need it. Pick one source for each prefix: a <code>Mount</code>, or a <code>RouteGroup</code>/<code>API</code> path, not both.</p>
@@ -677,9 +677,9 @@ action and becomes immutable after successful inclusion.</p>
 </code></pre></div>
 <p>The project's routes come first, then each app's, in dependency order, each app under its prefix. Three rules keep this free of surprises: only the module named by <code>project.application</code> binds the manifest (a <code>Hinoki()</code> in a test or script next to the project stays empty); a <code>Hinoki(include=[...])</code> you write yourself wins and the manifest is ignored (<code>include=[]</code> is an explicit empty list); and <code>app.include(...)</code> still adds routes by hand, for example a feature that only exists when a setting is on. A route module that cannot be imported, or whose <code>routes</code> is not a list, fails when the application is built. Projects without these keys behave as before.</p>
 <p>When the ordinary list/retrieve/create/update/delete routes fit a model,
-<code>CrudAPI</code> can generate them from a model and schemas declared on one API class.
-Mount that class once in <code>Hinoki</code>; generated and handwritten decorated actions
-can share it. Start with
+<code>crud(...)</code> can generate them from a model and schemas.
+Include the result once in <code>Hinoki</code>; with the class form (<code>@crud(...)</code>),
+generated and handwritten decorated actions can share it. Start with
 <a href="../crud/">Generate CRUD routes</a>; use handwritten actions for domain workflows
 or to replace an individual generated action.</p>
 <p>Give each feature one module that owns its routes and exports them as a list, with paths relative to the feature. Choose where each feature lives in the root declaration with <code>Mount</code>, so the paths stay visible in one place:</p>
@@ -705,28 +705,24 @@ or to replace an individual generated action.</p>
 under one version mount. Each CRUD class keeps its resource path; the version
 prefix is declared once in <code>api/v1.py</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># api/people.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">CrudAPI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">crud</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">app.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Person</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">app.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">PersonOut</span>
 
-
-<span class="k">class</span><span class="w"> </span><span class="nc">People</span><span class="p">(</span><span class="n">CrudAPI</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Person</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/people"</span><span class="p">):</span>
-    <span class="n">read_schema</span> <span class="o">=</span> <span class="n">PersonOut</span>
+<span class="n">People</span> <span class="o">=</span> <span class="n">crud</span><span class="p">(</span><span class="n">Person</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/people"</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">PersonOut</span><span class="p">)</span>
 
 
 <span class="c1"># Each feature exports a list of routes relative to that feature.</span>
 <span class="n">routes</span> <span class="o">=</span> <span class="p">[</span><span class="n">People</span><span class="p">]</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><span class="c1"># api/teams.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">CrudAPI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">crud</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">app.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Team</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">app.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">TeamOut</span>
 
-
-<span class="k">class</span><span class="w"> </span><span class="nc">Teams</span><span class="p">(</span><span class="n">CrudAPI</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Team</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/teams"</span><span class="p">):</span>
-    <span class="n">read_schema</span> <span class="o">=</span> <span class="n">TeamOut</span>
+<span class="n">Teams</span> <span class="o">=</span> <span class="n">crud</span><span class="p">(</span><span class="n">Team</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/teams"</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">TeamOut</span><span class="p">)</span>
 
 
 <span class="n">routes</span> <span class="o">=</span> <span class="p">[</span><span class="n">Teams</span><span class="p">]</span>
@@ -839,7 +835,7 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.10</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 21:33:28 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 10:50:26 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>18 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>

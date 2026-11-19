@@ -400,14 +400,10 @@
       <article class="prose" style="--sheet: '3.11'">
         <p class="kicker" data-search-exclude>3.11 · Guides</p>
         <h1 id="generate-crud-routes">Generate CRUD routes<a class="headerlink" href="#generate-crud-routes" title="Permanent link">&para;</a></h1>
-<p><code>CrudAPI</code> generates model-backed routes on an ordinary API class. Declare the
-model in the class header, set schemas and options as class attributes, and
-include the class once in the app. Handwritten <code>@http.*</code> methods and mixins can
-live beside the generated actions.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">CrudAPI</span><span class="p">,</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuerySet</span>
+<p><code>crud(...)</code> generates model-backed routes. Include it once in the app for plain
+CRUD, or apply it to a class when you need <code>get_queryset</code>/<code>to_schema</code> hooks
+or handwritten <code>@http.*</code> actions beside the generated ones.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">crud</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">app.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">app.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">editor</span>
@@ -421,6 +417,78 @@ live beside the generated actions.</p>
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">slug</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">body</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="n">posts</span> <span class="o">=</span> <span class="n">crud</span><span class="p">(</span>
+    <span class="n">Post</span><span class="p">,</span>
+    <span class="n">path</span><span class="o">=</span><span class="s2">"/posts"</span><span class="p">,</span>
+    <span class="n">read</span><span class="o">=</span><span class="n">PostOut</span><span class="p">,</span>
+    <span class="n">create</span><span class="o">=</span><span class="n">PostCreate</span><span class="p">,</span>
+    <span class="n">delete</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">access</span><span class="o">=</span><span class="n">editor</span><span class="p">,</span>
+    <span class="n">owner</span><span class="o">=</span><span class="s2">"author_id"</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">posts</span><span class="p">])</span>
+</code></pre></div>
+<p>Add code with the class form. <code>get_queryset(self, principal)</code> and
+<code>to_schema(self, item)</code> are the only hooks; anything else is a handwritten
+action:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">crud</span><span class="p">,</span> <span class="n">http</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuerySet</span>
+
+
+<span class="nd">@crud</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/posts"</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">PostOut</span><span class="p">,</span> <span class="n">create</span><span class="o">=</span><span class="n">PostCreate</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">editor</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Posts</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Post</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">published</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"-id"</span><span class="p">)</span>
+
+    <span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/health"</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">health</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"ok"</span><span class="p">}</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">Posts</span><span class="p">])</span>
+</code></pre></div>
+<p>A generated action is generated <strong>or</strong> handwritten, never both: defining
+<code>list</code>, <code>retrieve</code>, <code>create</code>, <code>update</code> or <code>delete</code> in the class while <code>crud</code>
+generates it raises <code>RegistrationError</code> at declaration. To write list or
+retrieve yourself, pass <code>omit=("list",)</code> (or <code>"retrieve"</code>); other actions are
+generated only when you give their schema or <code>delete=True</code>. Defining <code>store</code>,
+<code>change</code>, <code>remove</code> or <code>written_queryset</code> in a <code>crud(...)</code> class is rejected the
+same way; write that behaviour as an action, or use the
+<a href="#the-crudapi-class-form"><code>CrudAPI</code> class form</a> below.</p>
+<h3 id="access-per-action">Access per action<a class="headerlink" href="#access-per-action" title="Permanent link">&para;</a></h3>
+<p><code>access=</code> takes one <code>Access</code>, which protects <strong>every</strong> generated action
+including reads, or <code>CrudAccess</code> to set actions apart. An action without its
+own entry uses <code>default</code>; <code>None</code> means public:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">CrudAccess</span>
+
+<span class="n">posts</span> <span class="o">=</span> <span class="n">crud</span><span class="p">(</span>
+    <span class="n">Post</span><span class="p">,</span>
+    <span class="n">path</span><span class="o">=</span><span class="s2">"/posts"</span><span class="p">,</span>
+    <span class="n">read</span><span class="o">=</span><span class="n">PostOut</span><span class="p">,</span>
+    <span class="n">create</span><span class="o">=</span><span class="n">PostCreate</span><span class="p">,</span>
+    <span class="n">delete</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">access</span><span class="o">=</span><span class="n">CrudAccess</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">editor</span><span class="p">,</span> <span class="nb">list</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">delete</span><span class="o">=</span><span class="n">admin</span><span class="p">),</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>Here list is public, retrieve and create need <code>editor</code>, delete needs <code>admin</code>.
+Unknown action names raise <code>TypeError</code>. Writes with no policy still need
+<code>public_writes=True</code>.</p>
+<h2 id="the-crudapi-class-form">The <code>CrudAPI</code> class form<a class="headerlink" href="#the-crudapi-class-form" title="Permanent link">&para;</a></h2>
+<p><code>CrudAPI</code> generates model-backed routes on an ordinary API class. It remains
+supported and is the form that exposes the <code>store</code>, <code>change</code>, <code>remove</code> and
+<code>written_queryset</code> hooks. Declare the model in the class header, set schemas
+and options as class attributes, and include the class once in the app.
+Handwritten <code>@http.*</code> methods and mixins can live beside the generated
+actions.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">CrudAPI</span><span class="p">,</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">http</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuerySet</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Posts</span><span class="p">(</span><span class="n">CrudAPI</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/posts"</span><span class="p">):</span>
@@ -443,6 +511,10 @@ live beside the generated actions.</p>
 <code>hinoki routes</code> command and the route registry. The class is mounted once; no import-time or
 global auto-registration occurs. A model's read schema and write schemas must
 match its fields. See <a href="../schemas/">Schemas</a> for model-derived schemas.</p>
+<p>The sections below describe the class attributes (<code>read_schema</code>,
+<code>create_schema</code>, <code>access</code>, <code>owner</code>, ...); each has a <code>crud(...)</code> keyword
+(<code>read</code>, <code>create</code>, <code>update</code>, <code>delete</code>, <code>access</code>, <code>owner</code>, <code>identity_key</code>,
+<code>assign</code>, <code>pagination</code>, <code>public_writes</code>).</p>
 <h2 id="generated-actions">Generated actions<a class="headerlink" href="#generated-actions" title="Permanent link">&para;</a></h2>
 <p>List and retrieve are generated by default. Writes are opt-in:</p>
 <table>
@@ -624,15 +696,15 @@ side-effects beyond the single model mutation.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#generated-actions">Generated actions</a></li><li><a href="#reuse-and-customization">Reuse and customization</a></li><li><a href="#security-and-validation">Security and validation</a></li><li><a href="#model-hooks-and-the-rust-server">Model hooks and the Rust server</a></li><li><a href="#existing-resource-declarations">Existing Resource declarations</a></li><li><a href="#openapi-and-inspection">OpenAPI and inspection</a></li></ul>
+            <ul><li><a href="#access-per-action">Access per action</a></li><li><a href="#the-crudapi-class-form">The CrudAPI class form</a></li><li><a href="#generated-actions">Generated actions</a></li><li><a href="#reuse-and-customization">Reuse and customization</a></li><li><a href="#security-and-validation">Security and validation</a></li><li><a href="#model-hooks-and-the-rust-server">Model hooks and the Rust server</a></li><li><a href="#existing-resource-declarations">Existing Resource declarations</a></li><li><a href="#openapi-and-inspection">OpenAPI and inspection</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.11</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 01:56:07 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>6 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 10:50:26 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
