@@ -510,6 +510,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <li>A client that stops reading a response for <code>write_timeout</code> seconds (30 by default) is disconnected; any progress restarts the timer.</li>
 <li><code>max_connections</code> (10000 by default) bounds open connections. Requests waiting for the application are bounded by an in-flight limit and a queue; beyond them the answer is <code>503</code>.</li>
 <li>Requests with ambiguous framing (for example <code>Content-Length</code> together with <code>Transfer-Encoding</code>, repeated lengths, or a bare line feed in the head) are refused with <code>400</code> and the connection is closed.</li>
+<li>On start, Kiso names itself on stderr before the <code>listening on ...</code> line (which stays on stdout, where tools wait for it): its version, the mode (<code>serve</code> or <code>dev</code>, which reloads on file changes), the worker count, the scheme, whether the access log is on and whether the native handler lane is on. In a terminal (and with <code>NO_COLOR</code> unset) it is two lines with the name in bold; otherwise it is one plain line, for example <code>Kiso 0.1.0 (Hinoki's Rust server): serve, 4 workers, http, access log off, native lane on</code>.</li>
 <li>The access log is one line per answered request, written to stderr by the Rust server: <code>127.0.0.1:52341 - "GET /items?limit=5 HTTP/1.1" 200 OK 3.2ms</code>. The time is how long the server took to decide the answer, not including writing it to the client, and the line is printed for every answer, including the ones the server gives itself (<code>404</code>, <code>429</code>, <code>503</code>). When stderr is a terminal (and <code>NO_COLOR</code> is unset) the line is coloured in the style of a development console: <code>INFO:</code> in green, the request in bold, the status by class (2xx green, 3xx cyan, 4xx yellow, 5xx red) and the time dimmed. Control characters in the target are shown as <code>\xNN</code>.</li>
 <li>A client that disconnects does not cancel its running handler; the handler finishes and its answer is discarded.</li>
 </ul>
@@ -649,8 +650,8 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 19:32:31 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>22 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 19:51:05 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>23 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
