@@ -115,16 +115,23 @@ impl Run {
     }
 
     /// Give the coroutine and what it awaited to `on_foreign`, with the time
-    /// left before the deadline. A coroutine that was already cancelled has
-    /// nothing to continue: it ends as cancelled.
+    /// left before the deadline and the reason it was cancelled, if it was: a
+    /// cleanup that awaits an asyncio-only object continues there.
     fn hand_over(&self, py: Python<'_>, yielded: Py<PyAny>, reason: Option<Reason>) {
         let remaining = self
             .deadline
             .map(|d| d.saturating_duration_since(Instant::now()).as_secs_f64());
         let ctx = self.ctx.as_ref().map(|c| c.clone_ref(py));
-        let handed = self
-            .on_foreign
-            .call1(py, (self.coro.clone_ref(py), ctx, yielded, remaining));
+        let handed = self.on_foreign.call1(
+            py,
+            (
+                self.coro.clone_ref(py),
+                ctx,
+                yielded,
+                remaining,
+                reason.map(Reason::name),
+            ),
+        );
         if let Err(error) = handed {
             let _ = self.coro.call_method0(py, "close");
             self.finish(py, Err(error), reason);
@@ -150,10 +157,18 @@ async fn until(deadline: Option<Instant>) {
 }
 
 /// Wait for `work`, unless the deadline or a cancel comes first. Once the
-/// coroutine was cancelled the cleanup it runs is not cut short again.
-async fn next_event(run: &Run, work: &mut Work, cancelling: bool) -> Event {
-    if cancelling {
-        return Event::Ready(work.await);
+/// coroutine was cancelled the cleanup it runs is not cut short again, except
+/// that a shutdown cancel still interrupts the cleanup of a missed deadline.
+async fn next_event(run: &Run, work: &mut Work, reason: Option<Reason>) -> Event {
+    match reason {
+        Some(Reason::Cancelled) => return Event::Ready(work.await),
+        Some(Reason::Deadline) => {
+            return tokio::select! {
+                convert = work => Event::Ready(convert),
+                () = run.stop.notified() => Event::Stopped(Reason::Cancelled),
+            };
+        }
+        None => {}
     }
     tokio::select! {
         convert = work => Event::Ready(convert),
@@ -263,7 +278,7 @@ async fn drive_waits(run: Arc<Run>, mut work: Work) {
     };
     let mut reason: Option<Reason> = None;
     loop {
-        let event = next_event(&run, &mut work, reason.is_some()).await;
+        let event = next_event(&run, &mut work, reason).await;
         match resume_with(&run, event, reason).await {
             Some((Next::Wait(next), now)) => {
                 work = next;
@@ -283,7 +298,8 @@ async fn drive_waits(run: Arc<Run>, mut work: Work) {
 /// finished the drive: `error` is the exception the coroutine ended with (or
 /// `None`), `reason` is `"deadline"` or `"cancelled"` when the coroutine was
 /// cancelled on the way, else `None`. `on_foreign(coro, ctx, yielded,
-/// remaining)` takes over a coroutine that awaited a non-native object;
+/// remaining, reason)` takes over a coroutine that awaited a non-native object
+/// (`reason` as for `on_done`, when it was awaited during cleanup);
 /// `on_done` is then the caller's to arrange. `ctx` is a
 /// `contextvars.Context` every step runs in. With `scheduler` (for instance
 /// `loop.call_soon_threadsafe`), every step after the first runs through it,

@@ -70,6 +70,8 @@ def _worker() -> Any:
     worker.address = (worker.host, worker.port)
     worker.scheme = "http"
     worker.max_connections = 100
+    worker.native_dispatch = False
+    worker.lane = None
     worker.header_read_timeout = 5.0
     worker.body_read_timeout = 20.0
     worker.write_timeout = 30.0
@@ -653,6 +655,7 @@ def test_build_worker_passes_only_native_server_settings(
         header_read_timeout=None,
         body_read_timeout=3.0,
         write_timeout=None,
+        native_dispatch=None,
     )
     captured: dict[str, Any] = {}
 

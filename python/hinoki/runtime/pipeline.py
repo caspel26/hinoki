@@ -11,6 +11,7 @@ header policy exist once. The handlers and this pipeline run in Python.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import inspect
 import ipaddress
 import itertools
@@ -413,13 +414,75 @@ class Pipeline:
                 response = HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
             else:
                 response = await error_response(exc, rid, self.app.errors, self.debug)
-        except ExecutorSaturated:
-            response = HTTPError(
+        except Exception as exc:
+            response = await self.native_failure(exc, rid)
+        return response
+
+    async def native_failure(self, exc: Exception, rid: str) -> Response:
+        """The answer for an error a native handler raised."""
+        if isinstance(exc, ExecutorSaturated):
+            return HTTPError(
                 HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
             ).response
+        return await error_response(exc, rid, self.app.errors, self.debug)
+
+    def native_context(self, rid: str) -> contextvars.Context:
+        """A fresh context holding what ``_in_request_context`` sets, for a
+        handler Rust drives outside any task."""
+        ctx = contextvars.copy_context()
+        ctx.run(self._set_request_context, rid)
+        return ctx
+
+    def _set_request_context(self, rid: str) -> None:
+        request_id.set(rid)
+        context.route_headers.set(())
+        context.sync_runner.set(self.executor.run)
+        database_var.set(self.ctx.find(Database))
+
+    async def drive_native(self, binding: Binding, args: dict[str, object]) -> Response:
+        """The coroutine Rust drives for an unguarded, non-atomic native route:
+        the handler call and its encoding, with no timeout and no error
+        translation (the driver owns the deadline and the caller the errors)."""
+        return await self._native_result(binding, args)
+
+    async def native_continue(
+        self,
+        rid: str,
+        work: Awaitable[Response],
+        timeout: float | None,
+        reason: str | None = None,
+    ) -> Response:
+        """Finish a driven handler that awaited something only asyncio can
+        run, under what is left of the request timeout. A handler already
+        cancelled (``reason``) only unwinds: its cleanup is not cancelled again,
+        and a deadline that ends it is the ``504``."""
+        if reason is not None:
+            return await self._unwind(rid, work, reason)
+        response: Response
+        try:
+            async with asyncio.timeout(timeout) as limit:
+                response = await work
+        except TimeoutError as exc:
+            if limit.expired():
+                response = HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
+            else:
+                response = await error_response(exc, rid, self.app.errors, self.debug)
         except Exception as exc:
-            response = await error_response(exc, rid, self.app.errors, self.debug)
+            response = await self.native_failure(exc, rid)
         return response
+
+    async def _unwind(
+        self, rid: str, work: Awaitable[Response], reason: str
+    ) -> Response:
+        try:
+            return await work
+        except asyncio.CancelledError:
+            task = asyncio.current_task()
+            if reason == "deadline" and task is not None and task.cancelling() == 0:
+                return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
+            raise
+        except Exception as exc:
+            return await self.native_failure(exc, rid)
 
     def _request_id(self, scope: Scope, trusted: bool) -> str:
         """The trusted inbound request id when configured and valid, else a new

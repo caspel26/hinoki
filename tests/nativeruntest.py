@@ -19,7 +19,7 @@ def start(
     ctx: contextvars.Context | None = None,
     deadline_ms: int | None = None,
     scheduler: Callable[..., Any] | None = None,
-    on_foreign: Callable[[Any, Any, Any, float | None], None] | None = None,
+    on_foreign: Callable[[Any, Any, Any, float | None, str | None], None] | None = None,
 ) -> tuple[core._NativeRun, asyncio.Future[Outcome]]:
     """Start a drive; the future resolves with what ``on_done`` received."""
     loop = asyncio.get_running_loop()
@@ -28,7 +28,9 @@ def start(
     def on_done(value: Any, error: BaseException | None, reason: str | None) -> None:
         loop.call_soon_threadsafe(done.set_result, (value, error, reason))
 
-    def refuse(coro: Any, ctx: Any, yielded: Any, remaining: float | None) -> None:
+    def refuse(
+        coro: Any, ctx: Any, yielded: Any, remaining: float | None, reason: str | None
+    ) -> None:
         raise AssertionError("unexpected hand-over")
 
     run = core.run_native(
@@ -164,7 +166,9 @@ async def test_a_foreign_await_hands_the_coroutine_over_with_the_time_left() -> 
     async def handler() -> str:
         return await pending
 
-    def take_over(coro: Any, ctx: Any, yielded: Any, remaining: float | None) -> None:
+    def take_over(
+        coro: Any, ctx: Any, yielded: Any, remaining: float | None, reason: str | None
+    ) -> None:
         handed.append((yielded, remaining))
         coro.close()
 
@@ -187,7 +191,9 @@ async def test_a_foreign_await_after_a_native_one_is_handed_over() -> None:
         await core._native_wait(5, None, False)
         return await pending
 
-    def take_over(coro: Any, ctx: Any, yielded: Any, remaining: float | None) -> None:
+    def take_over(
+        coro: Any, ctx: Any, yielded: Any, remaining: float | None, reason: str | None
+    ) -> None:
         loop.call_soon_threadsafe(handed.set_result, (coro, yielded, remaining))
 
     start(handler(), on_foreign=take_over)
@@ -204,7 +210,9 @@ async def test_a_failing_hand_over_ends_the_drive_with_its_error() -> None:
     async def handler() -> str:
         return await pending
 
-    def take_over(coro: Any, ctx: Any, yielded: Any, remaining: float | None) -> None:
+    def take_over(
+        coro: Any, ctx: Any, yielded: Any, remaining: float | None, reason: str | None
+    ) -> None:
         raise LookupError("no taker")
 
     _, done = start(handler(), on_foreign=take_over)
@@ -289,3 +297,43 @@ async def test_a_scheduler_that_fails_ends_the_drive_with_its_error() -> None:
     _, error, _ = await asyncio.wait_for(done, 2)
     assert isinstance(error, RuntimeError)
     assert "closed" in str(error)
+
+
+async def test_a_cleanup_awaiting_a_foreign_object_is_handed_over_with_the_reason() -> (
+    None
+):
+    loop = asyncio.get_running_loop()
+    pending: asyncio.Future[str] = loop.create_future()
+    handed: asyncio.Future[Any] = loop.create_future()
+
+    async def handler() -> None:
+        try:
+            await core._native_wait(5_000, None, False)
+        finally:
+            await pending
+
+    def take_over(
+        coro: Any, ctx: Any, yielded: Any, remaining: float | None, reason: str | None
+    ) -> None:
+        loop.call_soon_threadsafe(handed.set_result, (coro, remaining, reason))
+
+    start(handler(), deadline_ms=20, on_foreign=take_over)
+    coro, remaining, reason = await asyncio.wait_for(handed, 2)
+    assert (remaining, reason) == (0.0, "deadline")
+    coro.close()
+    pending.cancel()
+
+
+async def test_a_cancel_interrupts_the_cleanup_of_a_missed_deadline() -> None:
+    async def handler() -> None:
+        try:
+            await core._native_wait(10_000, "slow", False)
+        finally:
+            await core._native_wait(10_000, "stuck cleanup", False)
+
+    run, done = start(handler(), deadline_ms=20)
+    await asyncio.sleep(0.15)
+    run.cancel()
+    _, error, reason = await asyncio.wait_for(done, 2)
+    assert isinstance(error, asyncio.CancelledError)
+    assert reason == "cancelled"
