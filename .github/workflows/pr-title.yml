@@ -1,0 +1,48 @@
+name: Pull request title
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: amannn/action-semantic-pull-request@2252a14e810aa9b85c2d560bd7070c802206ecf6 # v6.1.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            perf
+            test
+            refactor
+            build
+            ci
+            chore
+      - name: Label from the title prefix
+        # A fork's token is read-only; its label is added by hand.
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: ${{ github.event.pull_request.title }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          prefix="${TITLE%%[(:!]*}"
+          case "$prefix" in
+            feat) label=enhancement ;;
+            fix) label=bug ;;
+            docs) label=documentation ;;
+            perf) label=performance ;;
+            test) label=tests ;;
+            refactor|build|ci|chore) label="$prefix" ;;
+            *) exit 0 ;;
+          esac
+          gh pr edit "$PR" --repo "$REPO" --add-label "$label"
