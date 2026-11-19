@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from hinoki.errors import ErrorDetail
-from hinoki.fields import SecretStr
+from hinoki.fields import FieldInfo, SecretStr
 from hinoki.fieldtypes import FieldType, decimal_limits
 from hinoki.schemaconfig import SchemaExtra
 
@@ -63,6 +63,27 @@ BOUNDS = (
     ("gt", "greater than", operator.gt),
     ("lt", "less than", operator.lt),
 )
+
+
+def decode_base64(data: Any) -> bytes | None:
+    """The bytes of a strict padded base64 string, ``None`` for anything else."""
+    if not isinstance(data, str) or BASE64.fullmatch(data) is None or len(data) % 4:
+        return None
+    try:
+        raw = base64.b64decode(data, validate=True)
+    except binascii.Error:
+        return None
+    return raw if base64.b64encode(raw).decode("ascii") == data else None
+
+
+def byte_length_problem(info: FieldInfo, size: int) -> tuple[str, str] | None:
+    """``(code, message)`` of a ``bytes`` length bound the size breaks."""
+    least, most = info.min_length, info.max_length
+    if least is not None and size < least:
+        return "min_length", f"at least {least} byte{'' if least == 1 else 's'}"
+    if most is not None and size > most:
+        return "max_length", f"at most {most} byte{'' if most == 1 else 's'}"
+    return None
 
 
 def wire_bounded(ftype: FieldType) -> FieldType:
@@ -322,26 +343,16 @@ class Validator:
         return INVALID if text is INVALID else SecretStr(str(text))
 
     def binary(self, ftype: FieldType, data: Any, path: str) -> object:
-        found = BASE64.fullmatch(data) if isinstance(data, str) else None
-        raw = None
-        if found is not None and len(data) % 4 == 0:
-            try:
-                raw = base64.b64decode(data, validate=True)
-            except binascii.Error:
-                raw = None
-        if raw is None or base64.b64encode(raw).decode("ascii") != data:
+        raw = decode_base64(data)
+        if raw is None:
             return self.fail(path, "bytes", "expected a base64 string")
         info, size = wire_bounded(ftype).info, len(raw)
-        if info.min_length is not None and size < info.min_length:
-            plural = "" if info.min_length == 1 else "s"
-            return self.fail(
-                path, "min_length", f"at least {info.min_length} byte{plural}"
-            )
-        if info.max_length is not None and size > info.max_length:
-            plural = "" if info.max_length == 1 else "s"
-            return self.fail(
-                path, "max_length", f"at most {info.max_length} byte{plural}"
-            )
+        problem = byte_length_problem(info, size)
+        if problem is not None:
+            return self.fail(path, *problem)
+        pattern = info.pattern
+        if pattern is not None and not re.fullmatch(pattern, raw.decode("latin-1")):
+            return self.fail(path, "pattern", f"must match {pattern!r}")
         return raw
 
     def sequence(self, ftype: FieldType, data: Any, path: str) -> object:
