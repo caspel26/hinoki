@@ -116,6 +116,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<modelrows::PyModelRows>()?;
     m.add_class::<driver::NativeWait>()?;
     m.add_function(wrap_pyfunction!(driver::_drive, m)?)?;
+    m.add_function(wrap_pyfunction!(driver::driving, m)?)?;
     m.add_function(wrap_pyfunction!(driver::_native_wait, m)?)?;
     m.add_function(wrap_pyfunction!(jwt::jwt_encode, m)?)?;
     m.add_function(wrap_pyfunction!(jwt::jwt_decode, m)?)?;
