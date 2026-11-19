@@ -36,6 +36,7 @@ from typing import (
 )
 from uuid import UUID
 
+from hinoki import core
 from hinoki.blocking import run_sync
 from hinoki.errors import (
     ErrorDetail,
@@ -565,6 +566,7 @@ class Model:
     __columns__: ClassVar[tuple[str, ...]] = ()
     __json_columns__: ClassVar[tuple[str, ...]] = ()
     __text_columns__: ClassVar[dict[str, type]] = {}
+    __row_plan__: ClassVar[core._ModelRows | None]
     __field_types__: ClassVar[dict[str, FieldType]] = {}
     __field_validators__: ClassVar[dict[str, tuple[Callable[..., None], ...]]] = {}
     __field_annotations__: ClassVar[dict[str, object]] = {}
@@ -987,6 +989,34 @@ class Model:
     def attach(cls, name: str, relation: Relation) -> None:
         cls.__relations__[name] = relation
         setattr(cls, name, Related(name, relation))
+
+    @classmethod
+    def row_plan(cls) -> core._ModelRows | None:
+        """The native row builder for this model, or ``None`` when its
+        instances must go through ``from_row`` (a custom constructor or
+        allocator, text-stored columns, or an overridden or patched
+        ``from_row``, ``remember`` or ``__post_init__``). The builder is made
+        once per class; the cheap override checks run on every call."""
+        if "__row_plan__" not in cls.__dict__:
+            cls.__row_plan__ = cls._native_row_plan()
+        stock = (
+            getattr(cls.from_row, "__func__", None)
+            is Model.__dict__["from_row"].__func__
+            and cls.remember is Model.remember
+            and not hasattr(cls, "__post_init__")
+        )
+        return cls.__row_plan__ if stock else None
+
+    @classmethod
+    def _native_row_plan(cls) -> core._ModelRows | None:
+        # Imported here because hinoki.schema imports this module.
+        from hinoki.schema import uses_generated_init  # noqa: PLC0415
+
+        if not uses_generated_init(cls) or cls.__text_columns__:
+            return None
+        return core._ModelRows(
+            cls, list(cls.__columns__), list(cls.__json_columns__), SNAPSHOT
+        )
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> Self:

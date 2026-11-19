@@ -50,6 +50,15 @@ class _RowPlan:
         fields: list[tuple[str, str, str, bool]],
     ) -> None: ...
 
+class _ModelRows:
+    def __init__(
+        self,
+        cls: type,
+        columns: list[str],
+        json_columns: list[str],
+        snapshot_key: str,
+    ) -> None: ...
+
 class _ClaimsAuth:
     def __init__(
         self,
@@ -198,6 +207,9 @@ def configure_runtime(worker_threads: int) -> None: ...
 
 class Transaction:
     async def fetch(self, sql: str, params: list[Param]) -> list[Row]: ...
+    async def fetch_models(
+        self, sql: str, params: list[Param], plan: _ModelRows
+    ) -> list[Any]: ...
     async def _fetch_page_wire(
         self,
         sql: str,
@@ -213,6 +225,9 @@ class Database:
     @staticmethod
     async def connect(url: str, max_size: int = 8, wait_ms: int = 5000) -> Database: ...
     async def fetch(self, sql: str, params: list[Param]) -> list[Row]: ...
+    async def fetch_models(
+        self, sql: str, params: list[Param], plan: _ModelRows
+    ) -> list[Any]: ...
     async def _fetch_page_wire(
         self,
         sql: str,
