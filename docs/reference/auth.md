@@ -20,6 +20,8 @@
 
 ::: hinoki.crypto.JWTAuth
 
+::: hinoki.crypto.ClaimsJWTAuth
+
 ::: hinoki.crypto.PasswordHasher
 
 ::: hinoki.crypto.random_token

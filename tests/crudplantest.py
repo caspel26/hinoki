@@ -5,6 +5,7 @@ import dataclasses
 import json
 import math
 import os
+import re
 import sys
 import types
 from datetime import datetime
@@ -33,6 +34,7 @@ from hinoki import (
 )
 from hinoki import crud as crud_module
 from hinoki.__main__ import main
+from hinoki.crypto import ClaimsJWTAuth, JWTKey
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import Conflict
 from hinoki.fields import UNSET
@@ -793,8 +795,10 @@ async def _crud_http_request(
     accept: str | None = None,
     body: bytes = b"",
     content_type: str = "application/json",
+    extra_headers: tuple[tuple[str, str], ...] = (),
 ) -> tuple[int, list[tuple[str, str]], bytes]:
     reader, writer = await asyncio.open_connection("127.0.0.1", port)
+    extra = "".join(f"{name}: {value}\r\n" for name, value in extra_headers)
     accept_header = f"accept: {accept}\r\n" if accept is not None else ""
     content_type_header = (
         f"content-type: {content_type}\r\n"
@@ -808,6 +812,7 @@ async def _crud_http_request(
         f"{content_type_header}"
         f"content-length: {len(body)}\r\n"
         f"{accept_header}"
+        f"{extra}"
         "\r\n"
     )
     writer.write(request_head.encode() + body)
@@ -1727,14 +1732,13 @@ def custom_queryset(_self: object) -> QuerySet[NoteItem]:
 @pytest.mark.parametrize(
     "attributes",
     [
-        {"access": Access(auth=Tokens(), permissions=[])},
         {"read_access": Access(auth=Tokens(), permissions=[])},
         {"access": Access(auth=Tokens(), permissions=[]), "owner": "name"},
         {"access": Access(auth=Tokens(), permissions=[]), "assign": {"name": str}},
         {"get_queryset": custom_queryset},
         {"to_schema": lambda _self, item: item},
     ],
-    ids=["access", "read_access", "owner", "assign", "get_queryset", "to_schema"],
+    ids=["read_access", "owner", "assign", "get_queryset", "to_schema"],
 )
 def test_customized_owner_keeps_lane_c(attributes: dict[str, object]) -> None:
     assert reasons(variant_pipeline(PlainRead, **attributes)) <= {
@@ -1818,3 +1822,223 @@ def test_routes_command_reports_the_lane_of_each_route(
     assert "[" not in capsys.readouterr().out.split("/ordinary")[0].splitlines()[-1]
     assert main(["routes", target, "--lanes", "--path", "/plan-items"]) == 0
     assert "[native: eligible]" in capsys.readouterr().out
+
+
+class ClaimsTokens(ClaimsJWTAuth):
+    keys = (JWTKey(None, "HS256", b"k" * 32),)
+
+
+CLAIMS_KEY = ClaimsTokens.keys[0].spec()
+
+
+def claims_token(claims: dict[str, Any], key: bytes = b"k" * 32) -> str:
+    return core.jwt_encode(core.encode_json(claims), (None, "HS256", key, False))
+
+
+class ClaimsItems(CrudAPI, model=PlanItem, path="/claims-items"):
+    read_schema = PlanItemOut
+    create_schema = PlanItemIn
+    update_schema = PlanItemPatch
+    deletable = True
+    read_access = Access(ClaimsTokens(), permissions=["items:read"])
+    access = Access(ClaimsTokens(), permissions=["items:write"])
+
+
+def claims_app(url: str) -> Hinoki:
+    return Hinoki(include=[ClaimsItems], modules=[DatabaseModule(url)])
+
+
+def test_claims_auth_routes_are_selected_for_the_native_lane() -> None:
+    pipeline = Pipeline(claims_app("sqlite:///crud-plan-unused.sqlite3"))
+    build_server_core(pipeline)
+    assert set(pipeline.crud_plan_reasons) == {"eligible"}
+    assert all(item is not None for item in pipeline.crud_plan_selections)
+
+
+@pytest.mark.parametrize(
+    "change",
+    ["resolve_claims", "now", "authenticate", "resolve_token"],
+)
+def test_overriding_the_claims_provider_keeps_the_python_lane(
+    monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    pipeline = Pipeline(claims_app("sqlite:///crud-plan-unused.sqlite3"))
+    build_server_core(pipeline)
+    selections = [item for item in pipeline.crud_plan_selections if item is not None]
+    assert all(item.snapshot_valid() for item in selections)
+    monkeypatch.setattr(ClaimsTokens, change, lambda *_a, **_k: None)
+    assert not any(item.snapshot_valid() for item in selections)
+
+
+def test_changing_keys_or_permissions_disarms_the_plan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipeline = Pipeline(claims_app("sqlite:///crud-plan-unused.sqlite3"))
+    build_server_core(pipeline)
+    selections = [item for item in pipeline.crud_plan_selections if item is not None]
+    monkeypatch.setattr(ClaimsTokens, "keys", (JWTKey(None, "HS256", b"r" * 32),))
+    assert not any(item.snapshot_valid() for item in selections)
+    monkeypatch.undo()
+    monkeypatch.setattr(ClaimsTokens, "issuer", "https://issuer.example")
+    assert not any(item.snapshot_valid() for item in selections)
+
+
+def test_a_custom_provider_or_instance_override_keeps_the_python_lane() -> None:
+    class Custom(ClaimsJWTAuth):
+        keys = (JWTKey(None, "HS256", b"k" * 32),)
+
+        def resolve_claims(self, claims: dict[str, Any]) -> None:
+            return None
+
+    class Variant(CrudAPI, model=PlanItem, path="/variant"):
+        read_schema = PlanItemOut
+        read_access = Access(Custom(), permissions=[])
+
+    class Elsewhere(ClaimsTokens):
+        header = "x-token"
+
+    class Moved(CrudAPI, model=PlanItem, path="/moved"):
+        read_schema = PlanItemOut
+        read_access = Access(Elsewhere(), permissions=[])
+
+    tokens = ClaimsTokens()
+    tokens.now = lambda: 0  # type: ignore[method-assign]
+
+    class Patched(CrudAPI, model=PlanItem, path="/patched"):
+        read_schema = PlanItemOut
+        read_access = Access(tokens, permissions=[])
+
+    for owner in (Variant, Patched, Moved):
+        pipeline = Pipeline(
+            Hinoki(
+                include=[owner],
+                modules=[DatabaseModule("sqlite:///crud-plan-unused.sqlite3")],
+            )
+        )
+        build_server_core(pipeline)
+        assert set(pipeline.crud_plan_reasons) == {"custom_route_or_access_policy"}
+
+
+AUTH_HEADERS: list[tuple[str, tuple[tuple[str, str], ...]]] = []
+
+
+def auth_cases() -> list[tuple[str, tuple[tuple[str, str], ...]]]:
+    now = int(utc_now().timestamp())
+    good = {"sub": "u1", "exp": now + 600, "scopes": ["items:read", "items:write"]}
+
+    def bearer(token: str) -> tuple[tuple[str, str], ...]:
+        return (("authorization", f"Bearer {token}"),)
+
+    return [
+        ("none", ()),
+        ("garbage", bearer("not.a.token")),
+        ("basic", (("authorization", "Basic abc"),)),
+        ("two headers", (*bearer(claims_token(good)), *bearer(claims_token(good)))),
+        ("wrong key", bearer(claims_token(good, key=b"x" * 32))),
+        ("expired", bearer(claims_token({**good, "exp": now - 5}))),
+        ("no sub", bearer(claims_token({k: v for k, v in good.items() if k != "sub"}))),
+        ("empty sub", bearer(claims_token({**good, "sub": ""}))),
+        ("scopes not a list", bearer(claims_token({**good, "scopes": "items:read"}))),
+        (
+            "no scopes",
+            bearer(claims_token({k: v for k, v in good.items() if k != "scopes"})),
+        ),
+        ("read only", bearer(claims_token({**good, "scopes": ["items:read"]}))),
+        ("write only", bearer(claims_token({**good, "scopes": ["items:write"]}))),
+        (
+            "extra junk scopes",
+            bearer(
+                claims_token({**good, "scopes": [1, None, "items:read", "items:write"]})
+            ),
+        ),
+        ("valid", bearer(claims_token(good))),
+        ("lowercase scheme", (("authorization", f"bearer {claims_token(good)}"),)),
+        ("padded", (("authorization", f"Bearer  {claims_token(good)} "),)),
+    ]
+
+
+@pytest.mark.skipif(DATABASE_URL is None, reason="HINOKI_TEST_DATABASE_URL is not set")
+async def test_native_claims_auth_answers_like_the_python_lane() -> None:
+    assert DATABASE_URL is not None
+    database = await Database.connect(DATABASE_URL, max_size=2, wait=1)
+    await database.execute("DROP TABLE IF EXISTS crud_plan_items")
+    await database.execute(
+        "CREATE TABLE crud_plan_items ("
+        "id uuid PRIMARY KEY, name text NOT NULL, label text NOT NULL)"
+    )
+    item_id = uuid4()
+    await database.execute(
+        "INSERT INTO crud_plan_items (id, name, label) VALUES ($1, $2, $3)",
+        item_id,
+        "seed",
+        "saved",
+    )
+    database.close()
+    worker = RustWorker(claims_app(DATABASE_URL), "127.0.0.1", 0)
+    await worker.start()
+    try:
+        port = worker.address[1]
+        eligible = [
+            action
+            for action, item in enumerate(worker.pipeline.crud_plan_selections)
+            if item is not None
+        ]
+        assert len(eligible) == 5
+        assert all(worker.core._crud_armed(action) for action in eligible)
+        served: list[object] = []
+        serve = worker._serve
+
+        async def counting(request: Any) -> Any:
+            served.append(request)
+            return await serve(request)
+
+        worker._serve = counting  # type: ignore[method-assign]
+        reads = [
+            ("GET", "/claims-items?page=1&page_size=20", b""),
+            ("GET", f"/claims-items/{item_id}", b""),
+        ]
+        results: dict[str, list[tuple[Any, int]]] = {}
+        for lane in ("native", "python"):
+            if lane == "python":
+                worker.core._disarm_crud_plans()
+            results[lane] = []
+            for label, headers in auth_cases():
+                for method, target, _body in reads:
+                    served.clear()
+                    status, response_headers, content = await _crud_http_request(
+                        port, method, target, extra_headers=headers
+                    )
+                    stable = [
+                        (n, v)
+                        for n, v in response_headers
+                        if n not in {"date", "x-request-id"}
+                    ]
+                    results[lane].append(
+                        (
+                            (
+                                label,
+                                method,
+                                status,
+                                stable,
+                                re.sub(
+                                    rb'"request_id":"[0-9a-f]+"',
+                                    b'"request_id":""',
+                                    content,
+                                ),
+                            ),
+                            len(served),
+                        )
+                    )
+        assert [item[0] for item in results["native"]] == [
+            item[0] for item in results["python"]
+        ]
+        statuses = {(case[0], case[1]): case[2] for case, _calls in results["native"]}
+        assert statuses[("valid", "GET")] == 200
+        assert statuses[("none", "GET")] == 401
+        assert statuses[("read only", "GET")] == 200
+        assert statuses[("write only", "GET")] == 403
+    finally:
+        await worker.stop()
+        cleanup = await Database.connect(DATABASE_URL, max_size=1, wait=1)
+        await cleanup.execute("DROP TABLE IF EXISTS crud_plan_items")
+        cleanup.close()

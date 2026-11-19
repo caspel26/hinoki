@@ -10,6 +10,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
+use crate::jwt::{ClaimsAuth, PyClaimsAuth};
 use crate::rows::RowPlan;
 use crate::schema::{Compiled, NativeSchema};
 
@@ -79,6 +80,8 @@ pub(crate) struct CrudPlan {
     pub(crate) update_columns: Vec<String>,
     pub(crate) updated_at: Option<String>,
     pub(crate) read_rows: Arc<RowPlan>,
+    /// Claims-only authentication Rust performs before the route; `None` for a public route.
+    pub(crate) auth: Option<Arc<ClaimsAuth>>,
     templates: Vec<DialectTemplates>,
     validation_error: Vec<u8>,
     create_schema: Option<Arc<NativeSchema>>,
@@ -98,7 +101,7 @@ impl PyCrudPlan {
         model_fields, model_defaults, create_defaults, update_defaults, create_columns, update_columns,
         updated_at,
         read_schema, read_fields,
-        create_schema=None, update_schema=None, validation_error=Vec::new()
+        create_schema=None, update_schema=None, validation_error=Vec::new(), auth=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -123,11 +126,12 @@ impl PyCrudPlan {
         create_schema: Option<Py<Compiled>>,
         update_schema: Option<Py<Compiled>>,
         validation_error: Vec<u8>,
+        auth: Option<Py<PyClaimsAuth>>,
     ) -> PyResult<Self> {
         let _ = native_schema(py, &read_schema)?;
         let (create_schema, update_schema) =
             compiled_write_schemas(py, create_schema, update_schema)?;
-        let inner = CrudPlan::new(
+        let mut inner = CrudPlan::new(
             action,
             model_name,
             table,
@@ -148,6 +152,7 @@ impl PyCrudPlan {
             create_schema,
             update_schema,
         )?;
+        inner.auth = auth.map(|auth| Arc::clone(&auth.get().inner));
         Ok(Self {
             inner: Arc::new(inner),
         })
@@ -494,6 +499,7 @@ impl CrudPlan {
             update_columns,
             updated_at,
             read_rows,
+            auth: None,
             templates,
             validation_error,
             create_schema,

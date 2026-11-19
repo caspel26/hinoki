@@ -50,6 +50,18 @@ class _RowPlan:
         fields: list[tuple[str, str, str, bool]],
     ) -> None: ...
 
+class _ClaimsAuth:
+    def __init__(
+        self,
+        keys: list[tuple[str | None, str, bytes, bool]],
+        issuer: str | None,
+        audience: str | None,
+        leeway: int,
+        require_exp: bool,
+        scope_claim: str,
+        required: list[str],
+    ) -> None: ...
+
 class _CrudPlan:
     def __init__(
         self,
@@ -73,6 +85,7 @@ class _CrudPlan:
         create_schema: CompiledSchema | None = ...,
         update_schema: CompiledSchema | None = ...,
         validation_error: bytes = ...,
+        auth: _ClaimsAuth | None = ...,
     ) -> None: ...
     @property
     def action(self) -> str: ...
