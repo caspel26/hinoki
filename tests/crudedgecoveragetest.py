@@ -10,8 +10,9 @@ from uuid import uuid4
 
 import pytest
 
-from hinoki import Caller, CrudAPI, Schema
+from hinoki import API, Caller, Schema, crud
 from hinoki.context import sync_runner
+from hinoki.crud import CrudBase
 from hinoki.errors import Forbidden, RegistrationError
 from hinoki.http.request import Request
 from hinoki.orm import Model, field
@@ -19,7 +20,7 @@ from hinoki.pagination import PageParams
 from tests.crudtest import Memo, MemoIn, MemoOut, MemoPatch, Memos
 
 # ``hinoki.crud`` is also the exported function, so fetch the module by name.
-crud = importlib.import_module("hinoki.crud")
+crud_module = importlib.import_module("hinoki.crud")
 
 
 class _WireSelection:
@@ -68,7 +69,7 @@ class _WireDatabase:
         return self.result
 
 
-async def _wire_schema_items(_self: CrudAPI, rows: list[Any]) -> list[str]:
+async def _wire_schema_items(_self: CrudBase, rows: list[Any]) -> list[str]:
     return [str(row.id) for row in rows]
 
 
@@ -80,7 +81,7 @@ def test_crud_config_rejects_abstract_and_derived_schemas() -> None:
         title: str
 
     with pytest.raises(RegistrationError, match="is abstract"):
-        crud.Resource(model=AbstractEntry, read=AbstractEntryOut).check()
+        crud_module._CrudConfig(model=AbstractEntry, read=AbstractEntryOut).check()
 
     class OtherEntry(Model, table="crud_edge_other_entries"):
         id: int = field(primary_key=True)
@@ -89,10 +90,10 @@ def test_crud_config_rejects_abstract_and_derived_schemas() -> None:
         id: int
 
     with pytest.raises(RegistrationError, match="read_schema is derived"):
-        crud._CrudConfig(model=Memo, read=OtherEntryOut).check()
+        crud_module._CrudConfig(model=Memo, read=OtherEntryOut).check()
 
     with pytest.raises(RegistrationError, match="create_schema is derived"):
-        crud._CrudConfig(model=Memo, read=MemoOut).check_derived_model(
+        crud_module._CrudConfig(model=Memo, read=MemoOut).check_derived_model(
             "create", OtherEntryOut
         )
 
@@ -140,20 +141,22 @@ async def test_wire_list_rows_falls_back_and_handles_wire_bytes_or_rows(
     page = PageParams(page=2, page_size=5)
     rows = [SimpleNamespace(id=uuid4())]
     query = _WireQuery(rows)
-    monkeypatch.setattr(crud, "schema_items", _wire_schema_items)
-    fallback = await crud.wire_list_rows(
+    monkeypatch.setattr(crud_module, "schema_items", _wire_schema_items)
+    fallback = await crud_module.wire_list_rows(
         api, cast(Any, query), page, cast(Any, _WireSelection(False))
     )
     assert fallback.page == 2 and fallback.total == 9 and len(fallback.items) == 1
-    monkeypatch.setattr(crud, "current_database", lambda: _WireDatabase(b"[]"))
-    reply = await crud.wire_list_rows(
+    monkeypatch.setattr(crud_module, "current_database", lambda: _WireDatabase(b"[]"))
+    reply = await crud_module.wire_list_rows(
         api, cast(Any, query), page, cast(Any, _WireSelection(True))
     )
     assert reply.body == b"[]"
     assert (b"content-type", b"application/json") in reply.headers
 
-    monkeypatch.setattr(crud, "current_database", lambda: _WireDatabase([{"id": 1}]))
-    hydrated = await crud.wire_list_rows(
+    monkeypatch.setattr(
+        crud_module, "current_database", lambda: _WireDatabase([{"id": 1}])
+    )
+    hydrated = await crud_module.wire_list_rows(
         api, cast(Any, query), page, cast(Any, _WireSelection(True))
     )
     assert hydrated.page == 2 and hydrated.total == 9 and len(hydrated.items) == 1
@@ -196,25 +199,25 @@ async def test_list_rows_selects_python_fallback_or_row_wire(
     async def wire_rows(*_args: Any) -> str:
         return "wire"
 
-    monkeypatch.setattr(crud, "python_list_rows", python_rows)
-    monkeypatch.setattr(crud, "wire_list_rows", wire_rows)
-    api = cast(CrudAPI, APIStub())
+    monkeypatch.setattr(crud_module, "python_list_rows", python_rows)
+    monkeypatch.setattr(crud_module, "wire_list_rows", wire_rows)
+    api = cast(CrudBase, APIStub())
     request = cast(Request, object())
     page = PageParams(page=1, page_size=20)
     assert (
-        await crud.list_rows(
+        await crud_module.list_rows(
             api, request, page, _row_plan=cast(Any, Selection(False, True))
         )
         == "python"
     )
     assert (
-        await crud.list_rows(
+        await crud_module.list_rows(
             api, request, page, _row_plan=cast(Any, Selection(True, False))
         )
         == "python"
     )
     assert (
-        await crud.list_rows(
+        await crud_module.list_rows(
             api, request, page, _row_plan=cast(Any, Selection(True, True))
         )
         == "wire"
@@ -232,7 +235,7 @@ async def test_schema_items_gathers_async_hooks() -> None:
         async def call_hook(self, _name: str, row: Any) -> str:
             return await self.to_schema(row)
 
-    assert await crud.schema_items(AsyncSchemaHook(), [1, 2]) == ["1", "2"]
+    assert await crud_module.schema_items(AsyncSchemaHook(), [1, 2]) == ["1", "2"]
 
 
 @pytest.mark.asyncio
@@ -256,8 +259,8 @@ async def test_generated_create_and_update_reject_hooks_that_change_owned_values
                 raise RegistrationError("wrong model")
 
     with pytest.raises(RegistrationError, match="changed a server-assigned field"):
-        await crud.create_row(
-            cast(CrudAPI, BadCreate()),
+        await crud_module.create_row(
+            cast(CrudBase, BadCreate()),
             cast(Request, object()),
             MemoIn(title="x"),
             principal,
@@ -285,8 +288,8 @@ async def test_generated_create_and_update_reject_hooks_that_change_owned_values
                 raise RegistrationError("wrong model")
 
     with pytest.raises(RegistrationError, match="changed a server-assigned field"):
-        await crud.update_row(
-            cast(CrudAPI, BadUpdate()),
+        await crud_module.update_row(
+            cast(CrudBase, BadUpdate()),
             cast(Request, object()),
             key,
             MemoPatch(title="changed"),
@@ -321,8 +324,8 @@ async def test_generated_update_rejects_hook_returning_different_primary_key() -
                 raise RegistrationError("wrong model")
 
     with pytest.raises(RegistrationError, match="different item"):
-        await crud.update_row(
-            cast(CrudAPI, BadUpdate()),
+        await crud_module.update_row(
+            cast(CrudBase, BadUpdate()),
             cast(Request, object()),
             key,
             MemoPatch(title="changed"),
@@ -351,8 +354,8 @@ async def test_generated_delete_race_rechecks_row_and_owner() -> None:
             return Forbidden("The item could not be changed.")
 
     with pytest.raises(Forbidden, match="could not be changed"):
-        await crud.delete_row(
-            cast(CrudAPI, DeleteRace()),
+        await crud_module.delete_row(
+            cast(CrudBase, DeleteRace()),
             cast(Request, object()),
             visible.id,
             Caller(id="ann", user="ann"),
@@ -360,7 +363,7 @@ async def test_generated_delete_race_rechecks_row_and_owner() -> None:
 
 
 @pytest.mark.asyncio
-async def test_crud_hook_type_and_legacy_readback_boundaries(
+async def test_crud_hook_type_and_readback_boundaries(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     api = Memos()
@@ -380,26 +383,6 @@ async def test_crud_hook_type_and_legacy_readback_boundaries(
     monkeypatch.setattr(api, "call_hook", missing_hook)
     with pytest.raises(Memo.NotFound):
         await api.reload_written(uuid4(), Caller(id="ann", user="ann"))
-
-    class LegacyFallback:
-        resource = crud.Resource(model=Memo, read=MemoOut)
-
-        async def call_hook(self, _name: str, *_args: Any) -> MissingQuery:
-            return MissingQuery()
-
-    key = uuid4()
-    row = Memo(id=key, owner="ann", title="legacy", body="")
-
-    async def get_legacy(**_conditions: Any) -> Memo:
-        return row
-
-    monkeypatch.setattr(Memo, "aget", get_legacy)
-    assert (
-        await crud.CrudAPI.reload_written(
-            cast(CrudAPI, LegacyFallback()), key, Caller(id="ann", user="ann")
-        )
-        is row
-    )
 
 
 @pytest.mark.asyncio
@@ -421,14 +404,14 @@ async def test_refused_update_and_owner_race_messages() -> None:
         async def call_hook(self, _name: str, *_args: Any) -> Query:
             return Query()
 
-    api = cast(CrudAPI, APIWithQuery())
-    owner_refused = await crud.CrudAPI.refuse(
+    api = cast(CrudBase, APIWithQuery())
+    owner_refused = await crud_module.CrudBase.refuse(
         api, item.id, Caller(id="ann", user="ann")
     )
     assert str(owner_refused) == "You cannot change this item."
 
     item.owner = "ann"
-    normal_refused = await crud.CrudAPI.refuse(
+    normal_refused = await crud_module.CrudBase.refuse(
         api, item.id, Caller(id="ann", user="ann")
     )
     assert str(normal_refused) == "The item could not be changed."
@@ -442,8 +425,8 @@ async def test_refused_update_and_owner_race_messages() -> None:
             return Forbidden("The item could not be changed.")
 
     with pytest.raises(Forbidden, match="could not be changed"):
-        await crud.CrudAPI.apply_change(
-            cast(CrudAPI, UpdateAPI()),
+        await crud_module.CrudBase.apply_change(
+            cast(CrudBase, UpdateAPI()),
             item,
             cast(Any, FailedUpdate()),
             {"title": "x"},
@@ -453,13 +436,12 @@ async def test_refused_update_and_owner_race_messages() -> None:
 
 @pytest.mark.asyncio
 async def test_sync_custom_hook_requires_request_runner_and_awaits_handoff() -> None:
-    class SyncHook(CrudAPI, model=Memo, path="/sync-hook-edge"):
-        read_schema = MemoOut
-
+    @crud(Memo, path="/sync-hook-edge", read=MemoOut)
+    class SyncHook(API):
         def to_schema(self, item: Any) -> Any:
             return asyncio.sleep(0, result=item)
 
-    api = SyncHook()
+    api = cast(CrudBase, SyncHook())
     with pytest.raises(RuntimeError, match="running Hinoki request"):
         await api.call_custom_hook("to_schema", "value")
 
@@ -471,18 +453,3 @@ async def test_sync_custom_hook_requires_request_runner_and_awaits_handoff() -> 
         assert await api.call_custom_hook("to_schema", "value") == "value"
     finally:
         sync_runner.reset(token)
-
-
-def test_crud_config_requires_model_and_read_schema() -> None:
-    with pytest.raises(RegistrationError, match="model= and read_schema are required"):
-        type("Incomplete", (CrudAPI,), {}, path="/incomplete", model=Memo)
-
-
-def test_legacy_resource_present_uses_custom_output() -> None:
-    row = SimpleNamespace(title="Hinoki")
-    resource = crud.Resource(
-        model=Memo,
-        read=MemoOut,
-        output=lambda item: {"label": item.title.upper()},
-    )
-    assert resource.present(row) == {"label": "HINOKI"}

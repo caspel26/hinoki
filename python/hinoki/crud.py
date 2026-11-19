@@ -63,7 +63,7 @@ def caller_id(user: object) -> NoReturn:
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class _CrudConfig:
-    """Validated snapshot of public CrudAPI class attributes."""
+    """Validated snapshot of a ``crud(...)`` declaration."""
 
     model: type[Model]
     read: type[Schema]
@@ -263,33 +263,8 @@ class _CrudConfig:
         return Forbidden("You cannot change this item.")
 
 
-@dataclasses.dataclass(frozen=True, kw_only=True)
-class Resource(_CrudConfig):
-    """Compatibility configuration; new declarations should use CrudAPI attrs."""
-
-    queryset: Callable[[], QuerySet[Any]] | None = None
-    output: Callable[[Any], Any] | None = None
-
-    def base(self) -> QuerySet[Any]:
-        return self.queryset() if self.queryset else self.model.all()
-
-    def present(self, row: Any) -> Any:
-        if self.output:
-            return self.output(row)
-        return super().present(row)
-
-    def scope(self, key: Any, principal: Any) -> QuerySet[Any]:
-        scoped = self.base().filter(**{self.model.__primary_key__: key})
-        if self.owner:
-            scoped = scoped.filter(**{self.owner: self.owner_of(principal)})
-        return scoped
-
-    async def fetch(self, key: Any) -> Any:
-        return await self.base().filter(**{self.model.__primary_key__: key}).aget()
-
-
 async def list_rows(
-    self: CrudAPI,
+    self: CrudBase,
     request: Request,
     page: PageParams,
     principal: Any = None,
@@ -307,7 +282,7 @@ async def list_rows(
 
 
 async def python_list_rows(
-    self: CrudAPI, query: QuerySet[Any], page: PageParams
+    self: CrudBase, query: QuerySet[Any], page: PageParams
 ) -> Any:
     resource = self.resource
     if not query.order:
@@ -318,7 +293,7 @@ async def python_list_rows(
 
 
 async def wire_list_rows(
-    self: CrudAPI,
+    self: CrudBase,
     query: QuerySet[Any],
     page: PageParams,
     selection: RowWireSelection,
@@ -347,7 +322,7 @@ async def wire_list_rows(
     return Page(list(items), page.page, page.page_size, total)
 
 
-async def schema_items(self: CrudAPI, rows: list[Any]) -> list[Any]:
+async def schema_items(self: CrudBase, rows: list[Any]) -> list[Any]:
     if inspect.iscoroutinefunction(self.to_schema):
         items = await asyncio.gather(
             *(self.call_hook("to_schema", row) for row in rows)
@@ -358,7 +333,7 @@ async def schema_items(self: CrudAPI, rows: list[Any]) -> list[Any]:
 
 
 async def retrieve_row(
-    self: CrudAPI, request: Request, item_id: Any, principal: Any = None
+    self: CrudBase, request: Request, item_id: Any, principal: Any = None
 ) -> Any:
     resource = self.resource
     query = await self.call_hook("get_queryset", principal)
@@ -367,7 +342,7 @@ async def retrieve_row(
 
 
 async def create_row(
-    self: CrudAPI, request: Request, data: Any, principal: Any = None
+    self: CrudBase, request: Request, data: Any, principal: Any = None
 ) -> Any:
     resource = self.resource
     values = resource.values(data)
@@ -391,7 +366,7 @@ async def create_row(
 
 
 async def update_row(
-    self: CrudAPI, request: Request, item_id: Any, data: Any, principal: Any = None
+    self: CrudBase, request: Request, item_id: Any, data: Any, principal: Any = None
 ) -> Any:
     resource = self.resource
     query = await self.call_hook("get_queryset", principal)
@@ -425,7 +400,7 @@ async def update_row(
 
 
 async def delete_row(
-    self: CrudAPI, request: Request, item_id: Any, principal: Any = None
+    self: CrudBase, request: Request, item_id: Any, principal: Any = None
 ) -> None:
     resource = self.resource
     query = await self.call_hook("get_queryset", principal)
@@ -469,32 +444,20 @@ def specialize(
     return copy
 
 
-class CrudAPI(API):
-    """CRUD-generating API class, mounted once with ``app.include(Posts)``."""
+class CrudBase(API):
+    """The API class that ``crud(...)`` generates; it is not declared directly."""
 
-    model: ClassVar[type[Model] | None] = None
-    read_schema: ClassVar[type[Schema] | None] = None
-    create_schema: ClassVar[type[Schema] | None] = None
-    update_schema: ClassVar[type[Schema] | None] = None
-    deletable: ClassVar[bool] = False
-    access: ClassVar[Access | None] = None
-    read_access: ClassVar[Access | None] = None
-    public_writes: ClassVar[bool] = False
-    owner: ClassVar[str] = ""
-    identity_key: ClassVar[Callable[[Any], Any]] = attrgetter("id")
-    assign: ClassVar[Mapping[str, Callable[[Any], Any]]] = {}
-    pagination: ClassVar[PageNumberPagination] = PageNumberPagination()
+    model: ClassVar[type[Model]]
     resource: ClassVar[_CrudConfig]
 
     def __init_subclass__(
         cls,
         path: str | None = None,
-        model: type[Model] | None = None,
-        resource: Resource | None = None,
+        resource: _CrudConfig | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init_subclass__(path=path, **kwargs)
-        inherited = next(
+        config = resource or next(
             (
                 vars(base)["resource"]
                 for base in cls.__mro__[1:]
@@ -502,22 +465,12 @@ class CrudAPI(API):
             ),
             None,
         )
-        config = resolve_config(cls, model, resource, inherited)
         if config is None:
             return
+        custom_output = cls.to_schema is not CrudBase.to_schema
+        config.check(custom_output=custom_output)
         cls.resource = config
         cls.model = config.model
-        cls.read_schema = config.read
-        cls.create_schema = config.create
-        cls.update_schema = config.update
-        cls.deletable = config.deletable
-        cls.access = config.access
-        cls.read_access = config.read_access
-        cls.public_writes = config.public_writes
-        cls.owner = config.owner
-        cls.identity_key = config.identity_key
-        cls.assign = config.assign
-        cls.pagination = config.pagination
         generated = generate(config)
         for name in ACTIONS:
             existing = inspect.getattr_static(cls, name, None)
@@ -533,8 +486,6 @@ class CrudAPI(API):
         principal: Caller[Any] | None,  # noqa: ARG002
     ) -> QuerySet[Any] | Awaitable[QuerySet[Any]]:
         """Build the visible query; public routes receive ``None``."""
-        if isinstance(self.resource, Resource):
-            return self.resource.base()
         return self.resource.model.all()
 
     def written_queryset(
@@ -542,24 +493,15 @@ class CrudAPI(API):
         principal: Caller[Any] | None,  # noqa: ARG002
     ) -> QuerySet[Any] | Awaitable[QuerySet[Any]]:
         """Build a query for reading back a successful write."""
-        if isinstance(self.resource, Resource):
-            return self.resource.base()
         return self.resource.model.all()
 
     async def reload_written(self, item_id: Any, principal: Any) -> Any:
-        """Read back a write, retaining legacy eager-load and hidden-row behavior."""
+        """Read back a write through ``written_queryset``."""
         key = self.resource.model.__primary_key__
-        try:
-            query = await self.call_hook("written_queryset", principal)
-            return await query.filter(**{key: item_id}).aget()
-        except self.resource.model.NotFound:
-            if not isinstance(self.resource, Resource):
-                raise
-            return await self.resource.model.aget(**{key: item_id})
+        query = await self.call_hook("written_queryset", principal)
+        return await query.filter(**{key: item_id}).aget()
 
     def to_schema(self, item: Any) -> Schema | Awaitable[Schema]:
-        if isinstance(self.resource, Resource):
-            return cast(Schema, self.resource.present(item))
         return self.resource.read(
             **{name: getattr(item, name) for name in self.resource.read.specs()}
         )
@@ -623,7 +565,7 @@ class CrudAPI(API):
 
     async def call_hook(self, name: str, *arguments: Any) -> Any:
         """Run overrides as async, or on the bounded executor when sync."""
-        if getattr(type(self), name) is getattr(CrudAPI, name):
+        if getattr(type(self), name) is getattr(CrudBase, name):
             return await self.call_default_hook(name, *arguments)
         return await self.call_custom_hook(name, *arguments)
 
@@ -646,96 +588,6 @@ class CrudAPI(API):
         if inspect.isawaitable(result) and not isinstance(result, QuerySet):
             return await result
         return result
-
-
-def resolve_config(
-    cls: type[CrudAPI],
-    model: type[Model] | None,
-    resource: Resource | None,
-    inherited: _CrudConfig | None,
-) -> _CrudConfig | None:
-    """Resolve class-header declarations and intentional subclass overrides."""
-    if resource is not None:
-        config = resource_config(cls, model, resource)
-    elif inherited is not None and model is None:
-        config = dataclasses.replace(
-            inherited, **class_config_overrides(cls, inherited)
-        )
-    else:
-        native = native_config(cls, model, inherited)
-        if native is None:
-            return None
-        config = native
-    custom_output = (
-        isinstance(config, Resource) and config.output is not None
-    ) or cls.to_schema is not CrudAPI.to_schema
-    config.check(custom_output=custom_output)
-    return config
-
-
-def resource_config(
-    cls: type[CrudAPI], model: type[Model] | None, resource: Resource
-) -> _CrudConfig:
-    if model is not None:
-        raise RegistrationError("model= cannot be combined with resource=")
-    return dataclasses.replace(resource, **class_config_overrides(cls, resource))
-
-
-def native_config(
-    cls: type[CrudAPI], model: type[Model] | None, inherited: _CrudConfig | None
-) -> _CrudConfig | None:
-    actual_model = model or cls.model
-    schema = cls.read_schema
-    if actual_model is None and schema is None and inherited is None:
-        return None
-    if actual_model is None or schema is None:
-        raise RegistrationError(f"{cls.__name__}: model= and read_schema are required")
-    return _CrudConfig(
-        model=actual_model,
-        read=schema,
-        create=cls.create_schema,
-        update=cls.update_schema,
-        deletable=cls.deletable,
-        access=cls.access,
-        read_access=cls.read_access,
-        public_writes=cls.public_writes,
-        owner=cls.owner,
-        identity_key=cls.identity_key,
-        assign=cls.assign,
-        pagination=cls.pagination,
-    )
-
-
-def class_config_overrides(
-    cls: type[CrudAPI], base: _CrudConfig | None = None
-) -> dict[str, Any]:
-    names = {
-        "model": "model",
-        "read_schema": "read",
-        "create_schema": "create",
-        "update_schema": "update",
-        "deletable": "deletable",
-        "access": "access",
-        "read_access": "read_access",
-        "public_writes": "public_writes",
-        "owner": "owner",
-        "identity_key": "identity_key",
-        "assign": "assign",
-        "pagination": "pagination",
-    }
-    found = {
-        target: vars(cls)[source]
-        for source, target in names.items()
-        if source in vars(cls)
-    }
-    if base is not None and base.actions is not None:
-        stale = sorted({"access", "read_access"} & found.keys())
-        if stale:
-            raise RegistrationError(
-                f"{cls.__name__}: {stale} cannot override a crud(...) declaration "
-                "that sets access per action; declare crud(access=...) again"
-            )
-    return found
 
 
 def item_type(model: type[Model]) -> Any:
@@ -883,9 +735,9 @@ class CrudDeclaration:
             for name in ACTIONS
             if name not in config.omit and enabled(config, name)
         ]
-        self.built: type[CrudAPI] | None = None
+        self.built: type[CrudBase] | None = None
 
-    def api(self) -> type[CrudAPI]:
+    def api(self) -> type[CrudBase]:
         """The generated API class (built once)."""
         if self.built is None:
             name = f"{self.config.model.__name__}Crud"
@@ -917,12 +769,12 @@ class CrudDeclaration:
         rebind_class_cells(cls, built)
         return cast(type[T], built)
 
-    def build(self, name: str, namespace: dict[str, Any]) -> type[CrudAPI]:
+    def build(self, name: str, namespace: dict[str, Any]) -> type[CrudBase]:
         return cast(
-            type[CrudAPI],
+            type[CrudBase],
             types.new_class(
                 name,
-                (CrudAPI,),
+                (CrudBase,),
                 {"path": self.path, "resource": self.config},
                 lambda body: body.update(namespace),
             ),

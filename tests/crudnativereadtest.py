@@ -9,7 +9,7 @@ from uuid import UUID
 
 import pytest
 
-from hinoki import CrudAPI, Hinoki, Schema, core
+from hinoki import API, Hinoki, Schema, core, crud
 from hinoki.db import Database, DatabaseModule
 from hinoki.orm import Model, QuerySet, field
 from hinoki.runtime.rustserver import RustWorker
@@ -43,8 +43,8 @@ class GadgetOut(Schema):
     note: str | None
 
 
-class Gadgets(CrudAPI, model=Gadget, path="/gadgets"):
-    read_schema = GadgetOut
+@crud(Gadget, path="/gadgets", read=GadgetOut)
+class Gadgets(API):
     response_headers = (("x-gadget", "1"),)
 
 
@@ -155,7 +155,7 @@ def assert_disarmed(worker: RustWorker) -> None:
     assert all(not worker.core._crud_armed(action) for action in armed(worker))
 
 
-def forbid_python_reads(monkeypatch: pytest.MonkeyPatch, owner: type[CrudAPI]) -> None:
+def forbid_python_reads(monkeypatch: pytest.MonkeyPatch, owner: type[API]) -> None:
     """After this, only a native answer can succeed: the Python handler would
     call ``get_queryset`` and fail."""
 

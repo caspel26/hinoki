@@ -1,5 +1,6 @@
 """Generated CRUD: declaration checks (no database) and behaviour (PostgreSQL)."""
 
+import importlib
 import json
 import os
 from collections.abc import AsyncIterator
@@ -10,23 +11,27 @@ import pytest
 from openapi_spec_validator import validate
 
 from hinoki import (
+    API,
     UNSET,
     Access,
     BearerAuth,
     Caller,
-    CrudAPI,
+    CrudAccess,
     Hinoki,
     Schema,
     Unset,
+    crud,
     http,
 )
-from hinoki.crud import Resource
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import Forbidden, RegistrationError
 from hinoki.http.request import Request
 from hinoki.orm import Model, QuerySet, field, use_database
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from tests.harness import Client, Pool
+
+# ``hinoki.crud`` the module is shadowed by the ``crud`` function on the package.
+_CrudConfig = importlib.import_module("hinoki.crud")._CrudConfig
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(
@@ -73,40 +78,48 @@ auth = Tokens()
 writer = Access(auth=auth, permissions=["memo:write"])
 
 
-class Memos(CrudAPI, model=Memo, path="/memos"):
-    read_schema = MemoOut
-    create_schema = MemoIn
-    update_schema = MemoPatch
-    deletable = True
-    access = writer
-    owner = "owner"
-    identity_key = str
+def memo_crud(
+    path: str,
+    access: Access | CrudAccess = CrudAccess(default=writer, list=None, retrieve=None),  # noqa: B008
+    **changes: Any,
+) -> Any:
+    options: dict[str, Any] = {
+        "read": MemoOut,
+        "create": MemoIn,
+        "update": MemoPatch,
+        "delete": True,
+        "owner": "owner",
+        "identity_key": str,
+    }
+    options.update(changes)
+    return crud(Memo, path=path, access=access, **options)
 
 
-BACKWARDS = Resource(
-    model=Memo, read=MemoOut, queryset=lambda: Memo.all().order_by("-title")
-)
+Memos = memo_crud("/memos").api()
 
 
-class Backwards(CrudAPI, path="/backwards", resource=BACKWARDS):
-    pass
+@crud(Memo, path="/backwards", read=MemoOut)
+class Backwards(API):
+    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Memo]:
+        return Memo.all().order_by("-title")
 
 
-class HookedMemos(Memos, path="/hooked"):
+@memo_crud("/hooked")
+class HookedMemos(API):
     async def store(self, values: dict[str, Any], principal: Caller[Any]) -> Any:
         values["title"] = f"hook:{values['title']}"
         return await Memo.acreate(**values)
 
 
-class PrivateMemos(Memos, path="/private"):
-    read_access = writer
-
+@memo_crud("/private", access=writer)
+class PrivateMemos(API):
     def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Memo]:
         assert principal is not None
         return Memo.filter(owner=principal.user)
 
 
-class UnsafeHooks(Memos, path="/unsafe-hooks"):
+@memo_crud("/unsafe-hooks")
+class UnsafeHooks(API):
     async def store(self, values: dict[str, Any], principal: Caller[Any]) -> Any:
         item = await Memo.acreate(**values)
         await Memo.aupdate_where({"id": item.id}, {"owner": "bob"})
@@ -123,9 +136,10 @@ class UnsafeHooks(Memos, path="/unsafe-hooks"):
         return item
 
 
-class SyncHooks(Memos, path="/sync-hooks"):
-    pagination = PageNumberPagination(page_size=100, max_page_size=100)
-
+@memo_crud(
+    "/sync-hooks", pagination=PageNumberPagination(page_size=100, max_page_size=100)
+)
+class SyncHooks(API):
     def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Memo]:
         del principal
         return Memo.all()
@@ -165,16 +179,16 @@ def app_for(*apis: type[Any], url: str | None = None) -> Hinoki:
     return app
 
 
-def declare(**changes: Any) -> type[CrudAPI]:
-    resource = Resource(model=Memo, read=MemoOut, **changes)
-    return type("Declared", (CrudAPI,), {}, path="/x", resource=resource)
+def declare(**changes: Any) -> type[API]:
+    result: type[API] = crud(Memo, path="/x", read=MemoOut, **changes).api()
+    return result
 
 
 @pytest.mark.parametrize(
     ("changes", "message"),
     [
         ({"create": MemoIn}, "need access"),
-        ({"deletable": True}, "need access"),
+        ({"delete": True}, "need access"),
         ({"access": writer, "owner": "nope", "create": MemoIn}, "no column 'nope'"),
         ({"owner": "owner", "create": MemoIn, "public_writes": True}, "access policy"),
         (
@@ -197,7 +211,7 @@ def test_schema_fields_must_exist_on_the_model() -> None:
         nonsense: str
 
     with pytest.raises(RegistrationError, match="nonsense"):
-        Resource(model=Memo, read=Wrong).check()
+        _CrudConfig(model=Memo, read=Wrong).check()
 
 
 def test_generated_actions_are_real_routes_in_the_documentation() -> None:
@@ -213,25 +227,26 @@ def test_generated_actions_are_real_routes_in_the_documentation() -> None:
 
 
 def test_class_configuration_composes_with_custom_routes_and_hooks() -> None:
-    class Base(CrudAPI, model=Memo, path="/base"):
-        read_schema = MemoOut
-        access = writer
-
+    @crud(
+        Memo,
+        path="/posts",
+        read=MemoOut,
+        create=MemoIn,
+        access=writer,
+        owner="owner",
+        identity_key=str,
+    )
+    class Posts(API):
         async def store(self, values: dict[str, Any], principal: Caller[Any]) -> Any:
             values["title"] = f"hook:{values['title']}"
             return await Memo.acreate(**values)
-
-    class Posts(Base, path="/posts"):
-        create_schema = MemoIn
-        owner = "owner"
-        identity_key = str
 
         @http.get("/health")
         async def health(self, request: Request) -> dict[str, str]:
             return {"status": "ok"}
 
     routes = Posts.routes()
-    assert Posts.model is Memo
+    assert Posts.routes()
     assert {route.handler.__name__ for route in routes} == {
         "list",
         "retrieve",
@@ -243,9 +258,8 @@ def test_class_configuration_composes_with_custom_routes_and_hooks() -> None:
 
 
 def test_class_api_custom_route_can_replace_generated_action() -> None:
-    class Custom(CrudAPI, model=Memo, path="/custom"):
-        read_schema = MemoOut
-
+    @crud(Memo, path="/custom", read=MemoOut)
+    class Custom(API):
         @http.get("/", replaces="list")
         async def listing(self, request: Request) -> dict[str, str]:
             return {"custom": "yes"}
@@ -256,55 +270,12 @@ def test_class_api_custom_route_can_replace_generated_action() -> None:
     }
 
 
-def test_undecorated_action_name_removes_generated_route() -> None:
-    class NoListing(CrudAPI, model=Memo, path="/no-listing"):
-        read_schema = MemoOut
+def test_a_handwritten_action_name_must_not_shadow_a_generated_one() -> None:
+    with pytest.raises(RegistrationError, match="both generated and handwritten"):
 
-        def list(self) -> None:
-            """An ordinary same-name method shadows the generated route."""
-
-    assert {route.handler.__name__ for route in NoListing.routes()} == {"retrieve"}
-
-
-def test_legacy_resource_output_and_subclassing_remain_compatible() -> None:
-    class ExtraOut(Schema):
-        title: str
-        display: str
-
-    legacy = Resource(
-        model=Memo,
-        read=ExtraOut,
-        output=lambda item: ExtraOut(title=item.title, display=item.title.upper()),
-    )
-
-    class Legacy(CrudAPI, path="/legacy", resource=legacy):
-        pass
-
-    class Child(Legacy, path="/child"):
-        pass
-
-    assert {route.path for route in Child.routes()} == {"/child", "/child/{item_id}"}
-
-    class Private(Legacy, path="/private-legacy"):
-        read_access = writer
-
-    assert Private.resource.read_access is writer
-    assert all(route.access is writer for route in Private.routes())
-
-    class PrivateAtDeclaration(CrudAPI, path="/private-direct", resource=legacy):
-        read_access = writer
-
-    assert all(route.access is writer for route in PrivateAtDeclaration.routes())
-
-    with pytest.raises(RegistrationError, match="cannot be combined"):
-        type(
-            "Ambiguous",
-            (CrudAPI,),
-            {},
-            path="/ambiguous",
-            model=Memo,
-            resource=legacy,
-        )
+        @crud(Memo, path="/no-listing", read=MemoOut)
+        class NoListing(API):
+            def list(self) -> None: ...
 
 
 def test_reads_only_resources_generate_only_reads() -> None:
@@ -313,7 +284,8 @@ def test_reads_only_resources_generate_only_reads() -> None:
 
 
 def test_replaces_must_name_an_action() -> None:
-    class Bad(CrudAPI, path="/y", resource=Resource(model=Memo, read=MemoOut)):
+    @crud(Memo, path="/y", read=MemoOut)
+    class Bad(API):
         @http.get("/", replaces="nothing")
         async def mine(self, request: Request) -> dict[str, str]:
             return {}
@@ -322,17 +294,23 @@ def test_replaces_must_name_an_action() -> None:
         Bad.routes()
 
 
-def test_replaces_and_same_name_overrides_swap_generated_actions() -> None:
-    class Custom(CrudAPI, path="/z", resource=Resource(model=Memo, read=MemoOut)):
+def test_replaces_swaps_a_generated_action_for_a_handwritten_route() -> None:
+    @crud(Memo, path="/z", read=MemoOut, omit=("retrieve",))
+    class Custom(API):
         @http.get("/", replaces="list", pagination=PageNumberPagination())
         async def mine(self, request: Request, page: PageParams) -> Page[MemoOut]:
             return Page([], 1, 10, 0)
 
         @http.get("/{item_id}")
-        async def retrieve(self, request: Request, item_id: UUID) -> dict[str, str]:
+        async def retrieve_mine(
+            self, request: Request, item_id: UUID
+        ) -> dict[str, str]:
             return {"custom": "yes"}
 
-    assert sorted(r.handler.__name__ for r in Custom.routes()) == ["mine", "retrieve"]
+    assert sorted(r.handler.__name__ for r in Custom.routes()) == [
+        "mine",
+        "retrieve_mine",
+    ]
     assert app_for(Custom).openapi()
 
 
@@ -604,24 +582,19 @@ class HiddenPatch(Schema):
     hidden: bool | Unset = UNSET
 
 
-def visible() -> Any:
-    return Hidden.filter(hidden=False)
-
-
-SCOPED = Resource(
-    model=Hidden,
+@crud(
+    Hidden,
+    path="/scoped",
     read=HiddenOut,
     update=HiddenPatch,
-    deletable=True,
-    access=writer,
+    delete=True,
+    access=CrudAccess(default=writer, list=None, retrieve=None),
     owner="owner",
     identity_key=str,
-    queryset=visible,
 )
-
-
-class Scoped(CrudAPI, path="/scoped", resource=SCOPED):
-    pass
+class Scoped(API):
+    async def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Hidden]:
+        return Hidden.filter(hidden=False)
 
 
 @pytest.fixture
@@ -674,28 +647,14 @@ def test_update_schemas_cannot_carry_the_key_or_loud_defaults() -> None:
         (Nullable, "accepts null"),
     ):
         with pytest.raises(RegistrationError, match=message):
-            Resource(model=Hidden, read=HiddenOut, update=schema, access=writer).check()
-
-
-def test_an_inherited_override_survives_and_a_new_resource_regenerates() -> None:
-    class Base(CrudAPI):
-        @http.get("/{item_id}")
-        async def retrieve(self, request: Request, item_id: UUID) -> dict[str, str]:
-            return {"custom": "yes"}
-
-    class Child(Base, path="/c", resource=Resource(model=Memo, read=MemoOut)):
-        pass
-
-    assert Child.retrieve is Base.retrieve
-
-    class Other(Child, resource=Resource(model=Memo, read=MemoOut)):
-        pass
-
-    assert Other.retrieve is Base.retrieve
+            _CrudConfig(
+                model=Hidden, read=HiddenOut, update=schema, access=writer
+            ).check()
 
 
 def test_replaces_rejects_duplicates_chains_and_loose_functions() -> None:
-    class Twice(CrudAPI, path="/t", resource=Resource(model=Memo, read=MemoOut)):
+    @crud(Memo, path="/t", read=MemoOut)
+    class Twice(API):
         @http.get("/a", replaces="list")
         async def a(self, request: Request) -> dict[str, str]:
             return {}
@@ -707,7 +666,8 @@ def test_replaces_rejects_duplicates_chains_and_loose_functions() -> None:
     with pytest.raises(RegistrationError, match="once"):
         Twice.routes()
 
-    class Chain(CrudAPI, path="/u", resource=Resource(model=Memo, read=MemoOut)):
+    @crud(Memo, path="/u", read=MemoOut)
+    class Chain(API):
         @http.get("/a", replaces="list")
         async def a(self, request: Request) -> dict[str, str]:
             return {}
@@ -727,19 +687,11 @@ def test_replaces_rejects_duplicates_chains_and_loose_functions() -> None:
         Hinoki().include(loose)
 
 
-def test_a_narrower_resource_drops_the_parent_write_routes() -> None:
-    class Public(Memos, path="/public", resource=Resource(model=Memo, read=MemoOut)):
-        pass
-
-    assert {r.handler.__name__ for r in Public.routes()} == {"list", "retrieve"}
-    assert {r.handler.__name__ for r in Memos.routes()} >= {"update", "delete"}
-
-
 def test_a_required_column_is_not_covered_by_an_optional_create_field() -> None:
     class Loose(Schema):
         title: str | Unset = UNSET
 
-    resource = Resource(
+    resource = _CrudConfig(
         model=Memo, read=MemoOut, create=Loose, access=writer, owner="owner"
     )
     with pytest.raises(RegistrationError, match="required columns"):
@@ -747,7 +699,7 @@ def test_a_required_column_is_not_covered_by_an_optional_create_field() -> None:
 
 
 def test_a_caller_without_an_owner_value_may_change_nothing() -> None:
-    resource = Resource(
+    resource = _CrudConfig(
         model=Memo, read=MemoOut, owner="owner", identity_key=lambda _: None
     )
     service = Caller(id="svc", user="svc", permissions=frozenset())
@@ -790,29 +742,10 @@ async def test_writes_carry_the_base_query_and_report_missing_as_404(
     await admin.execute("INSERT INTO crud_hidden VALUES ($1, 'ann', false)", shown)
     with use_database(admin):
         ann = Caller(id="ann", user="ann", permissions=frozenset())
-        # A row hidden after the guard is not deleted by the statement itself.
-        assert await SCOPED.scope(hidden, ann).adelete() == 0
-        assert len(await admin.fetch("SELECT id FROM crud_hidden")) == 2
+        api: Any = Scoped()
         # Zero rows because the row vanished is a 404; because it is owned by
         # someone else (checked against a still visible row) it is a 403.
         with pytest.raises(Hidden.NotFound):
-            await SCOPED.refuse(hidden)
-        assert isinstance(await SCOPED.refuse(shown), Forbidden)
-
-
-def test_a_model_class_method_is_a_reusable_base_query() -> None:
-    class Entry(Model, table="reuse_entries"):
-        id: UUID = field(primary_key=True, default_factory=uuid4)
-        deleted: bool = False
-
-        @classmethod
-        def active(cls) -> "QuerySet[Entry]":
-            return cls.filter(deleted=False)
-
-    class EntryOut(Schema):
-        id: UUID
-
-    resource = Resource(model=Entry, read=EntryOut, queryset=Entry.active)
-    sql, params = resource.base().compile()
-    assert "deleted" in sql and params == [False]
-    assert "WHERE" not in Entry.all().compile()[0]  # all() is unchanged
+            await api.refuse(hidden, ann)
+        assert isinstance(await api.refuse(shown, ann), Forbidden)
+        assert len(await admin.fetch("SELECT id FROM crud_hidden")) == 2

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, TypeGuard, cast
 
 from hinoki import core
-from hinoki.crud import GENERATED, CrudAPI, _CrudConfig
+from hinoki.crud import GENERATED, CrudBase, _CrudConfig
 from hinoki.orm import Model
 from hinoki.orm.queryset import (
     ROW_WIRE_METHODS,
@@ -78,7 +78,7 @@ class RowWireSelection:
     """One app's immutable plan plus identities for a cheap fail-closed guard."""
 
     plan: core._RowPlan
-    owner: type[CrudAPI]
+    owner: type[CrudBase]
     owner_state: tuple[object, ...]
     resource: _CrudConfig
     model: type[Model]
@@ -116,14 +116,14 @@ class RowWireSelection:
     ) -> TypeGuard[QuerySet[Any]]:
         return valid_query_state(self, query, order=order, limit=limit, offset=offset)
 
-    def valid_for(self, api: CrudAPI) -> bool:
+    def valid_for(self, api: CrudBase) -> bool:
         """A changed class/resource/schema falls back before any database work."""
         return (
             type(api) is self.owner
             and selection_behavior_unchanged(self, api)
             and api.resource is self.resource
             and api.model is self.model
-            and api.read_schema is self.schema
+            and api.resource.read is self.schema
         )
 
 
@@ -175,7 +175,7 @@ def static_state_matches(
     )
 
 
-def has_shadowed_owner_state(api: CrudAPI) -> bool:
+def has_shadowed_owner_state(api: CrudBase) -> bool:
     try:
         attributes = object.__getattribute__(api, "__dict__")
     except AttributeError:
@@ -183,7 +183,7 @@ def has_shadowed_owner_state(api: CrudAPI) -> bool:
     return any(name in attributes for name in OWNER_INSTANCE_NAMES)
 
 
-def selection_behavior_unchanged(selection: RowWireSelection, api: CrudAPI) -> bool:
+def selection_behavior_unchanged(selection: RowWireSelection, api: CrudBase) -> bool:
     return (
         static_state_matches(selection.owner, OWNER_GUARD_NAMES, selection.owner_state)
         and not has_shadowed_owner_state(api)
@@ -221,7 +221,7 @@ def select_row_wire(binding: Binding) -> RowWireSelection | None:
 
 def eligible_route(
     binding: Binding,
-) -> tuple[type[CrudAPI], _CrudConfig] | None:
+) -> tuple[type[CrudBase], _CrudConfig] | None:
     route = binding.route
     owner = route.owner
     if (
@@ -240,7 +240,7 @@ def eligible_route(
 
 
 def build_selection(
-    owner: type[CrudAPI],
+    owner: type[CrudBase],
     resource: _CrudConfig,
     model: type[Model],
     schema: type[Schema],
@@ -399,12 +399,12 @@ def schema_unchanged(selection: RowWireSelection) -> bool:
 
 
 def is_generated_list(binding: Binding, owner: type | None) -> bool:
-    """Only generated CrudAPI list rows use this private specialization."""
+    """Only generated CRUD list rows use this private specialization."""
     handler = binding.route.handler
     return bool(
         type(owner) is type
         and owner is not None
-        and issubclass(owner, CrudAPI)
+        and issubclass(owner, CrudBase)
         and handler.__name__ == "list"
         and getattr(handler, GENERATED, False)
         and binding.route.method == "GET"
@@ -423,7 +423,9 @@ def is_plain_binding(binding: Binding) -> bool:
     )
 
 
-def is_plain_resource(resource: object, owner: type[CrudAPI]) -> TypeGuard[_CrudConfig]:
+def is_plain_resource(
+    resource: object, owner: type[CrudBase]
+) -> TypeGuard[_CrudConfig]:
     return bool(
         type(owner) is type
         and type(resource) is _CrudConfig
@@ -435,18 +437,18 @@ def is_plain_resource(resource: object, owner: type[CrudAPI]) -> TypeGuard[_Crud
     )
 
 
-def owner_is_plain(owner: type[CrudAPI]) -> bool:
+def owner_is_plain(owner: type[CrudBase]) -> bool:
     expected = (
         ("__init__", object.__init__),
         ("__new__", object.__new__),
         ("__getattribute__", object.__getattribute__),
         ("__getattr__", None),
         ("__setattr__", object.__setattr__),
-        ("get_queryset", CrudAPI.get_queryset),
-        ("to_schema", CrudAPI.to_schema),
-        ("call_hook", CrudAPI.call_hook),
-        ("call_default_hook", CrudAPI.call_default_hook),
-        ("call_custom_hook", CrudAPI.call_custom_hook),
+        ("get_queryset", CrudBase.get_queryset),
+        ("to_schema", CrudBase.to_schema),
+        ("call_hook", CrudBase.call_hook),
+        ("call_default_hook", CrudBase.call_default_hook),
+        ("call_custom_hook", CrudBase.call_custom_hook),
     )
     return all(
         inspect.getattr_static(owner, name, None) is value for name, value in expected
