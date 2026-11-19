@@ -10,7 +10,7 @@ uv run --locked mypy && uv run --locked pytest --cov
 cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
 ```
 
-* Non-trivial changes start with a design note in `docs/` (see `AGENTS.md`); decisions go in `docs/adr/`.
+* Discuss non-trivial changes in an issue before implementing them; record final architecture decisions as an ADR in `docs/adr/`.
 * Name branches `<type>/<short-kebab-case-topic>` using `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci` or `chore` (for example, `feat/route-groups`). Delete merged branches.
 * Split commits by cohesive scope (`feat(core):`, `test(core):`, `docs(runtime):`, `build:`, `ci:`); do not combine implementation, tests, docs, dependencies/tooling or repository policy in one catch-all commit.
 * For user-facing code changes, include a minimal usage example in the pull request description and update the relevant guide/reference and checked-in example in the same work item. If no user-facing code is changed, mark the template section as not applicable and explain why.
