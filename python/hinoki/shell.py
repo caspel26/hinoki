@@ -181,6 +181,7 @@ def run_console(
     *,
     read: Callable[[str], str] = input,
     output: TextIO,
+    prompts: tuple[str, str] = (">>> ", "... "),
 ) -> None:
     """Compile multiline Python cells and keep the prompt usable after errors."""
     compiler = codeop.CommandCompiler()
@@ -188,7 +189,7 @@ def run_console(
     source = ""
     while True:
         try:
-            line = read("... " if source else ">>> ")
+            line = read(prompts[1] if source else prompts[0])
         except EOFError:
             return
         except KeyboardInterrupt:

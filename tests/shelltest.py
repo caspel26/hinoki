@@ -28,6 +28,8 @@ from hinoki.project import ProjectError
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.shell import ShellRuntime, run_console, terminal_reader
 from hinoki.shellcli import _target_and_models, model_namespace, run
+from hinoki.shellui import farewell, greeting, prompts
+from hinoki.terminal import Style
 
 
 class ShellNote(Model, table="shell_notes"):
@@ -768,3 +770,49 @@ def test_console_keeps_running_after_control_flow_exceptions(
     run_console(cast(ShellRuntime, FailingRuntime()), read=read, output=terminal)
 
     assert output in terminal.getvalue()
+
+
+FANCY = Style(color=True, unicode=True)
+
+
+def test_plain_shell_keeps_python_prompts_and_the_original_greeting() -> None:
+    plain = Style()
+    assert prompts(plain) == (">>> ", "... ")
+    assert greeting(plain, "App", "Settings", ["Note"]) == [
+        "Hinoki interactive shell; use Ctrl-D or Ctrl-C to exit."
+    ]
+    assert farewell(plain) == ""
+
+
+def test_branded_shell_greets_with_app_models_and_branded_prompts() -> None:
+    names = [f"Model{index}" for index in range(9)]
+    text = "\n".join(greeting(FANCY, "Blog", "BlogSettings", names))
+
+    assert "ctrl-d to exit" in text and "Blog" in text and "BlogSettings" in text
+    assert "Model0" in text and "+3 more" in text and "Model8" not in text
+    assert "await" in text
+    primary, continuation = prompts(FANCY)
+    assert "hinoki" in primary and "\u276f" in primary
+    assert "\u00b7" in continuation
+    assert "\x1b[" in primary
+
+
+def test_run_console_uses_the_prompts_it_is_given(tmp_path: Path) -> None:
+    app = Hinoki()
+    runtime = ShellRuntime(app)
+    runtime.start({})
+    asked: list[str] = []
+    lines = iter(["if True:", "    pass", ""])
+
+    def read(prompt: str) -> str:
+        asked.append(prompt)
+        try:
+            return next(lines)
+        except StopIteration:
+            raise EOFError from None
+
+    try:
+        run_console(runtime, read=read, output=io.StringIO(), prompts=("P> ", "C> "))
+    finally:
+        runtime.close()
+    assert asked[:2] == ["P> ", "C> "]

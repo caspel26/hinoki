@@ -277,6 +277,8 @@ that cell. It executes Python with the current user's process privileges and
 may write to the configured database, so use a development database when
 experimenting.
 
+On a colour terminal the shell opens with the Hinoki banner (the logo as an inline image where the terminal supports it), a summary of the app title, its settings class and the loaded models, and a `hinoki ❯` prompt. `NO_COLOR`, `TERM=dumb`, `HINOKI_ANIMATE=0` and `HINOKI_IMAGES=0` behave as for [`hinoki new`](#new); without colour the shell prints the plain greeting and Python's `>>>` / `...` prompts.
+
 ### `migrations`
 
 In a project created by `hinoki new`, migration modules are read from the manifest; users do not supply model or migration paths:
