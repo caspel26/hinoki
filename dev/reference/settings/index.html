@@ -1565,8 +1565,13 @@ these; they do nothing when another runner starts the app.</p>
 <code>access_log</code>
 prints one line per request on either server; unset, <code>hinoki dev</code> logs and
 <code>hinoki serve</code> does not, and <code>True</code> or <code>False</code> decides for both.
+<code>access_log_format</code> (Rust server only: <code>pretty</code>, <code>plain</code> or <code>json</code>)
+chooses how a line looks; unset, it is <code>pretty</code> on a colour terminal and
+<code>plain</code> otherwise, and setting it turns the log on unless <code>access_log</code> is
+<code>False</code>. <code>json</code> writes one object per line with an RFC 3339 UTC <code>time</code>.
 <code>max_connections</code>, <code>header_read_timeout</code>,
-<code>body_read_timeout</code>, <code>write_timeout</code> and <code>native_dispatch</code> belong to
+<code>body_read_timeout</code>, <code>write_timeout</code>, <code>native_dispatch</code> and
+<code>access_log_format</code> belong to
 the Rust server (<code>None</code> keeps its default). <code>hinoki serve</code> refuses a
 setting the chosen server cannot honour. <code>tls_cert_file</code> and
 <code>tls_key_file</code> (PEM files, set together) serve HTTPS on either server;

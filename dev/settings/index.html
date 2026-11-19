@@ -560,7 +560,13 @@
 <td><code>server</code></td>
 <td><code>access_log</code></td>
 <td>unset</td>
-<td>One line per request on either server. Unset logs in <code>hinoki dev</code> only; <code>true</code> or <code>false</code> decides for <code>dev</code> and <code>serve</code></td>
+<td>One line per request on either server. Unset logs in <code>hinoki dev</code> only (or whenever <code>access_log_format</code> is set); <code>true</code> or <code>false</code> decides for <code>dev</code> and <code>serve</code></td>
+</tr>
+<tr>
+<td><code>server</code></td>
+<td><code>access_log_format</code></td>
+<td>unset</td>
+<td>Kiso only (Granian refuses it): <code>pretty</code>, <code>plain</code> or <code>json</code>. Unset is <code>pretty</code> on a colour terminal and <code>plain</code> otherwise</td>
 </tr>
 <tr>
 <td><code>server</code></td>
@@ -1001,7 +1007,7 @@ BLOG_JWT_SECRET               file         ***
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.20</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 19:13:49 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 20:10:11 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>18 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
