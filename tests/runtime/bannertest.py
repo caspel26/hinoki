@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from hinoki.runtime import banner
@@ -40,7 +42,7 @@ def test_colour_needs_a_terminal_and_no_no_color(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("NO_COLOR", raising=False)
-    monkeypatch.setattr(banner.sys.stderr, "isatty", lambda: True, raising=False)
+    monkeypatch.setattr(sys.stderr, "isatty", lambda: True, raising=False)
     assert banner.wants_colour() is True
     monkeypatch.setenv("NO_COLOR", "1")
     assert banner.wants_colour() is False
