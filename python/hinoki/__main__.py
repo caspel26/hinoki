@@ -239,15 +239,9 @@ def run_sql(args: argparse.Namespace) -> None:
 
 
 def run_new(args: argparse.Namespace) -> int:
-    from hinoki.scaffold import ScaffoldError, create  # noqa: PLC0415 - only for `new`
+    from hinoki.newcli import run_new as new_project  # noqa: PLC0415 - only for `new`
 
-    try:
-        target = create(args.name, Path(args.dir), args.hinoki)
-    except ScaffoldError as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 2
-    print(f"created {target}; next: cd {target} && uv sync && uv run pytest")
-    return 0
+    return new_project(args)
 
 
 def run_mcp_command(args: argparse.Namespace) -> int:
