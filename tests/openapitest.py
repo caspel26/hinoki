@@ -157,6 +157,29 @@ def test_none_return_has_no_content_and_lists_are_arrays() -> None:
     }
 
 
+def test_a_schema_without_a_docstring_has_no_description() -> None:
+    class Bare(Schema):
+        value: int
+
+    class Documented(Schema):
+        """Says what it is.
+
+        More detail."""
+
+        value: int
+
+    app = Hinoki()
+
+    @http.post("/bare")
+    async def bare(data: Bare) -> Documented:
+        return Documented(value=data.value)
+
+    app.include(bare)
+    schemas = app.openapi()["components"]["schemas"]
+    assert "description" not in schemas["Bare"]
+    assert schemas["Documented"]["description"] == "Says what it is."
+
+
 def test_schema_components_carry_constraints_nullability_and_requirements() -> None:
     schemas = make_app().openapi()["components"]["schemas"]
     create = schemas["PostCreate"]

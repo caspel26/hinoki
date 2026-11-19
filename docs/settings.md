@@ -47,13 +47,13 @@ Settings types live in the `hinoki.settings` namespace: `from hinoki import sett
 | `docs` | `openapi_url` | `None` | JSON document route; disabled when `None` |
 | `docs` | `docs_url` | `None` | Swagger UI route; requires `openapi_url` |
 | `docs` | `redoc_url` | `None` | ReDoc route; requires `openapi_url` |
-| `server` | `server` | `granian` | `granian` or `rust`; `--server` overrides it. See [Running an application](serving.md#the-rust-server) |
+| `server` | `server` | `rust` | `granian` or `rust`; `--server` overrides it. See [Running an application](serving.md#the-rust-server) |
 | `server` | `host` | `127.0.0.1` | Bind address used by `hinoki dev/serve` |
 | `server` | `port` | `8000` | `1` to `65535` |
 | `server` | `workers` | `1` | `1` to `256`; `dev` uses one worker for reload |
 | `server` | `runtime_threads` | `1` | Must be positive |
 | `server` | `backlog` | `1024` | Must be positive |
-| `server` | `access_log` | `false` | Enables Granian access logging; refused when `true` with the Rust server |
+| `server` | `access_log` | unset | One line per request on either server. Unset logs in `hinoki dev` only; `true` or `false` decides for `dev` and `serve` |
 | `server` | `max_connections` | unset (10000) | Rust server only: open-connection limit, `1` to `1000000`; refused under Granian |
 | `server` | `header_read_timeout` | unset (10 seconds) | Rust server only: time to receive request headers, and the keep-alive idle limit; refused under Granian |
 | `server` | `body_read_timeout` | unset (10 seconds) | Rust server only: silence allowed while a body is read (at most half of `execution.request_timeout`); refused under Granian |

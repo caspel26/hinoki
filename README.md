@@ -96,7 +96,7 @@ The [Blog example](examples/blog) demonstrates relations, authentication and the
 
 ## Python and Rust boundary
 
-The extension provides path matching, selected request parsing, schema validation and serialization, cryptography, and ORM SQL compilation and execution. The ASGI adapter, handlers and most request-pipeline work run in Python. Granian is the default server; an opt-in Rust HTTP server is available with `--server rust`. See [Serving](docs/serving.md) for the boundary and server limitations.
+The extension provides path matching, selected request parsing, schema validation and serialization, cryptography, and ORM SQL compilation and execution. The ASGI adapter, handlers and most request-pipeline work run in Python. The Rust HTTP server is the default; Granian remains available with `--server granian`. See [Serving](docs/serving.md) for the boundary and server limitations.
 
 ## Status and measurements
 

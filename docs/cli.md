@@ -172,12 +172,12 @@ A password is read from a terminal prompt or, with `--password-stdin`, from one 
 ```sh
 hinoki dev notes.main:app --host 127.0.0.1 --port 8000
 hinoki serve notes.main:app --workers 4
-hinoki serve notes.main:app --server rust --workers 2
+hinoki serve notes.main:app --server granian --workers 2
 ```
 
-Both commands accept `--host` and `--port`; they override `settings.server.host` and `.port`. `serve` also accepts `--workers`, overriding `.workers`. Both accept `--server granian|rust`, overriding `.server` (default `granian`). Otherwise values come from the app's `settings.AppSettings.server` group. `dev` enables reload and runs one worker. Granian is provided by the optional server extra.
+Both commands accept `--host` and `--port`; they override `settings.server.host` and `.port`. `serve` also accepts `--workers`, overriding `.workers`. Both accept `--server granian|rust`, overriding `.server` (default `rust`). Otherwise values come from the app's `settings.AppSettings.server` group. `dev` enables reload and runs one worker. Granian (`--server granian`) and the `watchfiles` that `dev` reloads with come from the optional server extra.
 
-`--server rust` runs the application on the Rust HTTP server (see [Running an application](serving.md#the-rust-server) for what it does and does not do). A setting that the chosen server cannot honour (`access_log` with `rust`; `max_connections`, `header_read_timeout` or `body_read_timeout` with `granian`) makes the command print `error: server.<name> is not supported by the <server> server` and exit with status 2. A build whose native extension has no Rust server exits 2 with a message instead of falling back to Granian. With several workers the command runs a supervisor that starts one process per worker; `SIGTERM` or Ctrl-C stops them gracefully, and a worker that dies stops the rest and makes the command exit non-zero.
+`--server rust` runs the application on the Rust HTTP server (see [Running an application](serving.md#the-rust-server) for what it does and does not do). A setting that the chosen server cannot honour (`max_connections`, `header_read_timeout` or `body_read_timeout` with `granian`) makes the command print `error: server.<name> is not supported by the <server> server` and exit with status 2. A build whose native extension has no Rust server exits 2 with a message instead of falling back to Granian. With several workers the command runs a supervisor that starts one process per worker; `SIGTERM` or Ctrl-C stops them gracefully, and a worker that dies stops the rest and makes the command exit non-zero.
 
 ### `check`
 

@@ -71,6 +71,7 @@ def _worker() -> Any:
     worker.scheme = "http"
     worker.max_connections = 100
     worker.native_dispatch = False
+    worker.access_log = None
     worker.lane = None
     worker.header_read_timeout = 5.0
     worker.body_read_timeout = 20.0
@@ -656,6 +657,7 @@ def test_build_worker_passes_only_native_server_settings(
         body_read_timeout=3.0,
         write_timeout=None,
         native_dispatch=None,
+        logs_access=lambda dev: dev,
     )
     captured: dict[str, Any] = {}
 
@@ -675,6 +677,7 @@ def test_build_worker_passes_only_native_server_settings(
     assert captured["max_connections"] == 200
     assert captured["body_read_timeout"] == 3.0
     assert captured["listener_fd"] == 4 and captured["parent"] == 5
+    assert captured["access_log"] is None
 
 
 def test_main_checks_parent_and_runs_loaded_factory_with_inherited_socket(

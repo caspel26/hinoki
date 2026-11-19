@@ -1038,8 +1038,10 @@ class ServerSettings(Settings):
     """How ``hinoki serve`` and ``dev`` run the application. ``serve`` applies
     these; they do nothing when another runner starts the app.
 
-    ``server`` picks Granian (the default) or the Rust server. ``access_log``
-    belongs to Granian; ``max_connections``, ``header_read_timeout``,
+    ``server`` picks the Rust server (the default) or Granian. ``access_log``
+    prints one line per request on either server; unset, ``hinoki dev`` logs and
+    ``hinoki serve`` does not, and ``True`` or ``False`` decides for both.
+    ``max_connections``, ``header_read_timeout``,
     ``body_read_timeout``, ``write_timeout`` and ``native_dispatch`` belong to
     the Rust server (``None`` keeps its default). ``hinoki serve`` refuses a
     setting the chosen server cannot honour. ``tls_cert_file`` and
@@ -1055,11 +1057,11 @@ class ServerSettings(Settings):
     workers: int = 1
     runtime_threads: int = 1
     backlog: int = 1024
-    access_log: bool = False
+    access_log: bool | None = None
     trusted_proxies: tuple[str, ...] = ()
     request_id_header: str = "x-request-id"
     trust_request_id: bool = False
-    server: Literal["granian", "rust"] = "granian"
+    server: Literal["granian", "rust"] = "rust"
     max_connections: int | None = None
     header_read_timeout: float | None = None
     body_read_timeout: float | None = None
@@ -1124,8 +1126,12 @@ class ServerSettings(Settings):
     def conflicts(self, server: str | None = None) -> list[str]:
         """The settings that ``server`` (default: this group's) cannot honour."""
         if (server or self.server) == "rust":
-            return ["access_log"] if self.access_log else []
+            return []
         return [name for name in RUST_ONLY if getattr(self, name) is not None]
+
+    def logs_access(self, dev: bool) -> bool:
+        """Whether requests are logged: ``access_log`` if set, else only in ``dev``."""
+        return dev if self.access_log is None else self.access_log
 
 
 class FrameOptions(StrEnum):

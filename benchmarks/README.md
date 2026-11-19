@@ -367,6 +367,29 @@ Raw Oha JSON, load averages, server logs, environment metadata and paired
 summaries are retained in the selected output directory. Interpret only the
 measured local run; do not copy these results into the comparative report.
 
+## Native handler lane (`nativelanebench.py`)
+
+This script runs the Rust server in process with `native_dispatch` on or off
+and drives it from a separate process with 32 keep-alive connections on
+loopback. Modes alternate every round. It reports, per scenario and mode, the
+median requests per second, the coefficient of variation, and the median p50
+and p99 latency.
+
+```bash
+uv run --locked python benchmarks/nativelanebench.py --rounds 5 --seconds 3
+```
+
+Scenarios: `one`, `list_20` and `list_100` are served by the lane; `mixed`
+(a read plus `asyncio.sleep`) and `write` (an `atomic` POST) are refused by the
+proof and stay on asyncio in both modes, so they are controls. A difference
+between modes on a control is host noise.
+
+To isolate the per-call cost of `driving()` and `current_owner()` added with the
+Lane B driver, run the same script on two builds, before and after that change,
+and compare `write`, `mixed` and `list_100`. Use an idle, dedicated machine and
+investigate a coefficient of variation above 15% before reading the medians.
+No results are recorded here.
+
 ## `comparative/phase2_baseline.py` — the request path around handwritten handlers
 
 Measures a fixture app whose handlers do no work, on Hinoki's Rust server and on

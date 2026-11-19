@@ -428,6 +428,7 @@ class RustServer:
         tls_cert: str | None = None,
         tls_key: str | None = None,
         http2: bool = False,
+        access_log: str | None = None,
     ) -> RustServer: ...
     @property
     def port(self) -> int: ...

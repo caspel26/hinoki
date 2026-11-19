@@ -70,6 +70,7 @@ class Supervisor:
             str(self.listener.fileno()),
             "--parent",
             str(os.getpid()),
+            *(["--dev"] if self.reload else []),
         ]
 
     def spawn(self) -> subprocess.Popen[bytes]:

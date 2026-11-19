@@ -10,6 +10,7 @@
 #![forbid(unsafe_code)]
 
 pub mod accept;
+pub mod accesslog;
 pub mod body;
 pub mod conn;
 pub mod cors;
@@ -37,6 +38,7 @@ mod plan_slot_tests;
 mod policy_tests;
 
 pub use accept::{serve, Closed, ServerConfig, Stop};
+pub use accesslog::AccessLog;
 pub use body::{BodyError, BodyReader};
 pub use conn::{Answer, Backend, Incoming};
 pub use early::{Early, EarlyBodies};

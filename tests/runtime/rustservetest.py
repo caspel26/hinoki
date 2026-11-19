@@ -144,12 +144,68 @@ def test_workers_stop_when_the_supervisor_is_killed(
     assert wait_until(lambda: not any(is_running(pid) for pid in workers), 20)
 
 
+def run_logged(command: str, env: dict[str, str], *flags: str) -> str:
+    """Serve ``serveapp`` with ``env``, request /ping and an unknown path, stop it
+    and return everything it printed."""
+    port = free_port()
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "hinoki",
+            command,
+            "tests.runtime.serveapp:create_app",
+            "--port",
+            str(port),
+            *flags,
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONUNBUFFERED": "1", **env},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        wait_ready(port, "/ping")
+        with contextlib.suppress(urllib.error.HTTPError):
+            fetch(port, "/missing?x=1")
+        process.send_signal(signal.SIGTERM)
+        process.wait(timeout=20)
+        assert process.stdout is not None
+        return process.stdout.read()
+    finally:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(process.pid, signal.SIGKILL)
+        process.wait(timeout=20)
+        if process.stdout:
+            process.stdout.close()
+
+
+def test_serve_logs_requests_only_when_the_setting_is_on() -> None:
+    quiet = run_logged("serve", {}, "--workers", "1")
+    assert "HTTP/1.1" not in quiet
+    loud = run_logged("serve", {"SRV_SERVER__ACCESS_LOG": "true"}, "--workers", "1")
+    assert '"GET /ping HTTP/1.1" 200 OK' in loud
+    assert '"GET /missing?x=1 HTTP/1.1" 404 Not Found' in loud
+    assert "\x1b[" not in loud  # a pipe is not a terminal: no colour
+
+
+def test_dev_logs_requests_unless_the_setting_is_off() -> None:
+    assert '"GET /ping HTTP/1.1" 200 OK' in run_logged("dev", {})
+    off = run_logged("dev", {"SRV_SERVER__ACCESS_LOG": "false"})
+    assert "HTTP/1.1" not in off
+
+
 def test_the_two_servers_are_refused_their_foreign_settings(
     served: list[subprocess.Popen[str]],
 ) -> None:
     for env, flags, text in (
-        ({"SRV_SERVER__ACCESS_LOG": "true"}, ["--server", "rust"], "access_log"),
-        ({"SRV_SERVER__MAX_CONNECTIONS": "9"}, [], "max_connections"),
+        (
+            {"SRV_SERVER__MAX_CONNECTIONS": "9"},
+            ["--server", "granian"],
+            "max_connections",
+        ),
     ):
         done = subprocess.run(
             [
