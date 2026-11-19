@@ -260,7 +260,7 @@ cannot accept server-assigned fields. Generated writes require an access
 policy even when `owner` is configured.
 
 With `ClaimsJWTAuth` there is no user object, so use
-`identity_key = caller_id` (from `hinoki.crud`): the owner value is then the
+`identity_key = caller_id` (from `hinoki.resources`): the owner value is then the
 caller's `Caller.id` (the token `sub`). A foreign update or delete answers `403`
 and a missing row `404`, as without the native lane. This is the only owner
 declaration that can run natively; see
