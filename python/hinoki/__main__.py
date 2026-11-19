@@ -17,6 +17,7 @@ from hinoki import (
     serve,
     settingscli,
     shellcli,
+    skillscli,
     versioncli,
 )
 from hinoki.checkcli import add_arguments, run_check
@@ -60,6 +61,7 @@ def parser() -> argparse.ArgumentParser:
     admincli.add_arguments(commands)
     doctorcli.add_arguments(commands)
     shellcli.add_arguments(commands)
+    skillscli.add_arguments(commands)
     completioncli.add_arguments(commands)
     serve.add_arguments(commands)
     commands.add_parser("manage", help="run an app's management commands")
@@ -350,6 +352,7 @@ def main(argv: list[str] | None = None) -> int:
         "routes": routescli.run_routes,
         "settings": settingscli.run_settings,
         "shell": shellcli.run,
+        "skills": skillscli.run,
         "version": versioncli.run_version,
         "dev": serve.run_dev,
         "serve": serve.run_serve,
