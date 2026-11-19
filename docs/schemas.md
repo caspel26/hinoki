@@ -473,6 +473,16 @@ async def create_pet(data: PetRequest) -> PetRequest:
 
 Each variant's tag field is required and cannot have a default. Tags must be unique strings, variants must be distinct Schema classes, and variant classes cannot override `dump()` because the override could remove or change the tag on the wire. Plain unions without `Field(discriminator=...)`, non-Schema variants, and unions directly in handler body or return annotations are not supported; wrap the union in a Schema for route input and output. The runtime check of return values is separate and applies to every action.
 
+## Changing a value
+
+A `Schema` instance is frozen. `replace(**changes)` returns a copy with the named fields changed; the original is untouched. Every value of the copy goes through the same validation, normalisation and `@field_check`/`@object_check` as a new instance, so a change that breaks a rule raises `ValidationError` with the field path, and a check sees the whole new object. An unknown field name raises `TypeError`. Fields that were never supplied stay unsupplied for `dump(exclude_unset=True)`, and `replace` is reserved as a `Schema` method name, like `dump`.
+
+```python
+card = Card(title="Draft", stars=1)
+published = card.replace(title="Final", stars=4)
+assert card.stars == 1 and published.stars == 4
+```
+
 ## Projection options on `dump()`
 
 Use `dump()` when application code needs a JSON-compatible projection of a Schema. `include` and `exclude` accept Python field names and apply to the top-level fields only; exclusion wins if a field appears in both. There are no dotted paths or nested selection maps. Nested Schemas and supported lists are converted recursively, with `by_alias` applied at every Schema level.

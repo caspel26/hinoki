@@ -217,11 +217,12 @@ def validate_reserved_names(cls: type, annotations: dict[str, Any]) -> None:
             inherited_schema_config = True
         if dataclasses.is_dataclass(base):
             inherited_fields.update(item.name for item in dataclasses.fields(base))
-    if "dump" in annotations or "dump" in inherited_fields:
-        raise RegistrationError(
-            f"{cls.__name__}.dump: field name conflicts with the "
-            "Schema.dump() method; rename the Python field"
-        )
+    for method in ("dump", "replace"):
+        if method in annotations or method in inherited_fields:
+            raise RegistrationError(
+                f"{cls.__name__}.{method}: field name conflicts with the "
+                f"Schema.{method}() method; rename the Python field"
+            )
     if tracking_names & (inherited_fields | inherited_annotations) or (
         "__schema_config__" in inherited_fields or inherited_schema_config
     ):
@@ -1238,6 +1239,25 @@ class Schema:
         nested schemas converted too. Fields left ``UNSET`` are omitted, so the
         result is exactly "what the client sent" for a partial update."""
         return dump_instance(self, False, list(exclude), False)
+
+    def replace(self, **changes: Any) -> Self:
+        """A copy with ``changes`` (Python field names) applied. Every value is
+        validated again, normalised and checked like a new instance, so the copy
+        is as trustworthy as any other; fields that were never supplied stay
+        unsupplied for ``dump(exclude_unset=True)``."""
+        specs = self.specs()
+        unknown = [name for name in changes if name not in specs]
+        if unknown:
+            raise TypeError(
+                f"{type(self).__name__}.replace() got an unknown field {unknown[0]!r}"
+            )
+        supplied = getattr(self, _SUPPLIED_FIELDS, None)
+        kept = {
+            name: getattr(self, name)
+            for name in specs
+            if supplied is None or name in supplied
+        }
+        return type(self)(**{**kept, **changes})
 
     @classmethod
     def from_models(cls, rows: Iterable[object], **extra: Any) -> list[Self]:
