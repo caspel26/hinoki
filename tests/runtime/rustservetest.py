@@ -203,6 +203,9 @@ def test_the_json_format_writes_one_object_per_request() -> None:
     assert missing["method"] == "GET" and missing["query"] == "x=1"
     assert missing["status"] == 404 and missing["duration_ms"] >= 0
     assert re.fullmatch(r"\d{4}-\d\d-\d\dT[\d:.]+Z", missing["time"])
+    assert missing["lane"] == "early"
+    ping = next(item for item in records if item["path"] == "/ping")
+    assert ping["lane"] in {"python", "native"}
     assert "\x1b[" not in output
 
 

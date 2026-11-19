@@ -38,7 +38,7 @@ mod plan_slot_tests;
 mod policy_tests;
 
 pub use accept::{serve, Closed, ServerConfig, Stop};
-pub use accesslog::{AccessLog, LogFilter};
+pub use accesslog::{AccessLog, Lane, LogFilter, Trace};
 pub use body::{BodyError, BodyReader};
 pub use conn::{Answer, Backend, Incoming};
 pub use early::{Early, EarlyBodies};

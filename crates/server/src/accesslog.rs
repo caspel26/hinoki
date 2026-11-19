@@ -9,6 +9,7 @@
 use std::fmt::Write as _;
 use std::io::Write as _;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use hyper::StatusCode;
@@ -24,6 +25,44 @@ pub enum AccessLog {
 }
 
 /// What one line says about a request.
+/// Where a request was served, as far as the log can tell: answered by the
+/// transport or the classifier (`Early`), handed to Python, or run natively.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Lane {
+    Early,
+    Python,
+    Native,
+}
+
+impl Lane {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Early => "early",
+            Self::Python => "python",
+            Self::Native => "native",
+        }
+    }
+}
+
+/// Written by the backend while it handles a request, read by the log line.
+#[derive(Debug, Default)]
+pub struct Trace(AtomicU8);
+
+impl Trace {
+    pub fn set(&self, lane: Lane) {
+        self.0.store(lane as u8 + 1, Ordering::Relaxed);
+    }
+
+    pub fn lane(&self) -> Option<Lane> {
+        match self.0.load(Ordering::Relaxed) {
+            1 => Some(Lane::Early),
+            2 => Some(Lane::Python),
+            3 => Some(Lane::Native),
+            _ => None,
+        }
+    }
+}
+
 pub struct Entry<'a> {
     pub peer: SocketAddr,
     pub method: &'a str,
@@ -32,6 +71,7 @@ pub struct Entry<'a> {
     pub http_version: &'a str,
     pub status: u16,
     pub elapsed: Duration,
+    pub lane: Option<Lane>,
 }
 
 const RESET: &str = "\x1b[0m";
@@ -155,11 +195,15 @@ fn json_line(entry: &Entry<'_>, at: SystemTime) -> String {
     json_escaped(&String::from_utf8_lossy(entry.query), &mut text);
     let _ = write!(
         text,
-        "\",\"http_version\":\"{}\",\"status\":{},\"duration_ms\":{:.3}}}",
+        "\",\"http_version\":\"{}\",\"status\":{},\"duration_ms\":{:.3}",
         entry.http_version,
         entry.status,
         entry.elapsed.as_secs_f64() * 1_000.0
     );
+    if let Some(lane) = entry.lane {
+        let _ = write!(text, ",\"lane\":\"{}\"", lane.name());
+    }
+    text.push('}');
     text
 }
 
@@ -233,6 +277,7 @@ mod tests {
             http_version: "1.1",
             status,
             elapsed: Duration::from_micros(3_200),
+            lane: None,
         }
     }
 
@@ -288,6 +333,18 @@ mod tests {
              \"method\":\"GET\",\"path\":\"/items\",\"query\":\"a=1\",\
              \"http_version\":\"1.1\",\"status\":404,\"duration_ms\":3.200}"
         );
+    }
+
+    #[test]
+    fn json_line_names_the_lane_when_known() {
+        let mut served = entry(200, b"", "/items");
+        served.lane = Some(Lane::Native);
+        let text = line_at(AccessLog::Json, &served, UNIX_EPOCH);
+        assert!(text.ends_with(",\"lane\":\"native\"}"));
+        let trace = Trace::default();
+        assert_eq!(trace.lane(), None);
+        trace.set(Lane::Python);
+        assert_eq!(trace.lane(), Some(Lane::Python));
     }
 
     #[test]

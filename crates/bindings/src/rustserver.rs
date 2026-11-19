@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use hinoki_server::{
-    serve, AccessLog, Answer, Backend, Closed, Early, Incoming, LogFilter, ServerConfig,
+    serve, AccessLog, Answer, Backend, Closed, Early, Incoming, Lane, LogFilter, ServerConfig,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -357,6 +357,7 @@ impl Backend for CoreBackend {
             http_version,
             refusal,
             body,
+            trace,
         } = request;
         let (trusted, forwarded) = self.core.peer_view(peer, &headers);
         // A trusted proxy's scheme wins, like the Python resolution does.
@@ -374,7 +375,14 @@ impl Backend for CoreBackend {
             body,
         };
         match self.core.classify(head, true) {
-            Ok(outcome) => self.reply_of(outcome).await,
+            Ok(outcome) => {
+                trace.set(match outcome {
+                    Outcome::Early(_) => Lane::Early,
+                    Outcome::Queued { .. } => Lane::Python,
+                    Outcome::NativeCrud { .. } => Lane::Native,
+                });
+                self.reply_of(outcome).await
+            }
             Err(_) => internal_error(),
         }
     }

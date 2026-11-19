@@ -26,7 +26,7 @@ use hyper::header::{HeaderName, HeaderValue};
 use hyper::http::request::Parts;
 use hyper::{Method, Request, Response, StatusCode, Version};
 
-use crate::accesslog::{self, AccessLog, LogFilter};
+use crate::accesslog::{self, AccessLog, LogFilter, Trace};
 use crate::body::BodyReader;
 use crate::early::Early;
 use crate::framing::Signals;
@@ -54,6 +54,8 @@ pub struct Incoming {
     /// The request body, unread; `None` when the request has none. Nothing is
     /// polled (and no `100 Continue` sent) until the backend reads it.
     pub body: Option<BodyReader>,
+    /// Filled in by the backend with where it served the request, for the log.
+    pub trace: Arc<Trace>,
 }
 
 /// A complete answer: final status, final headers and the whole body.
@@ -130,6 +132,7 @@ fn incoming_of(
         },
         refusal,
         body,
+        trace: Arc::default(),
     }
 }
 
@@ -188,6 +191,7 @@ struct LoggedHead {
     path: String,
     query: Vec<u8>,
     http_version: &'static str,
+    trace: Arc<Trace>,
 }
 
 impl LoggedHead {
@@ -202,6 +206,7 @@ impl LoggedHead {
                 http_version: self.http_version,
                 status,
                 elapsed,
+                lane: self.trace.lane(),
             },
         );
     }
@@ -215,6 +220,7 @@ impl Incoming {
             path: self.path.clone(),
             query: self.query.clone(),
             http_version: self.http_version,
+            trace: Arc::clone(&self.trace),
         }
     }
 }
