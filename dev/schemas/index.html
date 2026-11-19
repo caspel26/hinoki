@@ -777,6 +777,41 @@
     <span class="p">]</span>
     <span class="n">old_nick</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">deprecated</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
+<h2 id="computed-fields">Computed fields<a class="headerlink" href="#computed-fields" title="Permanent link">&para;</a></h2>
+<p><code>@computed_field</code> adds a read-only value to the output of a <code>Schema</code>. The
+method takes only <code>self</code>, needs a return annotation and is read as an
+attribute:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">computed_field</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Person</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">first</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">last</span><span class="p">:</span> <span class="nb">str</span>
+
+    <span class="nd">@computed_field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">"displayName"</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">"First and last name"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">full_name</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">first</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">last</span><span class="si">}</span><span class="s2">"</span>
+
+
+<span class="n">person</span> <span class="o">=</span> <span class="n">Person</span><span class="p">(</span><span class="n">first</span><span class="o">=</span><span class="s2">"Ada"</span><span class="p">,</span> <span class="n">last</span><span class="o">=</span><span class="s2">"Lovelace"</span><span class="p">)</span>
+<span class="n">person</span><span class="o">.</span><span class="n">full_name</span>  <span class="c1"># "Ada Lovelace"</span>
+<span class="n">person</span><span class="o">.</span><span class="n">dump</span><span class="p">()</span>  <span class="c1"># {"first": "Ada", "last": "Lovelace", "displayName": "Ada Lovelace"}</span>
+</code></pre></div>
+<ul>
+<li>Computed values follow the declared fields in <code>dump()</code>, in HTTP responses
+  (both the Rust JSON lane and the Python path) and in nested schemas.
+  <code>include</code> and <code>exclude</code> accept their names; <code>exclude_unset</code> keeps them.
+  <code>to_dict()</code> leaves them out.</li>
+<li>They are output only. A client that sends one gets the usual unknown-field
+  error, and <code>Person.validate(...)</code> never reads them.</li>
+<li>The OpenAPI document lists them as <code>readOnly</code> properties, never as
+  <code>required</code>, with <code>description</code> and <code>examples</code> when given.</li>
+<li>A computed field cannot reuse the name or the wire name of a field or of
+  another computed field (<code>RegistrationError</code>). Subclasses inherit them.</li>
+<li><code>Person.computed_fields()</code> returns the <code>{name: spec}</code> mapping.</li>
+<li>A schema with computed fields is serialized through the schema instance, not
+  the direct row-to-JSON shortcut.</li>
+</ul>
 <h2 id="wire-aliases">Wire aliases<a class="headerlink" href="#wire-aliases" title="Permanent link">&para;</a></h2>
 <p>Use <code>Field(alias=...)</code> when the public JSON name should differ from the Python attribute. The alias is the only accepted input key; sending both names is an error. <code>dump()</code> writes aliases, including in nested schemas and lists, while <code>to_dict()</code> keeps Python attribute names. Validation errors and OpenAPI properties use the wire names. A custom check's default field path is translated to its alias; an explicit <code>Invalid(path=...)</code> is already a wire path.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
@@ -949,15 +984,15 @@
           
             <ul><li><a href="#field-types">Field types</a>
             <ul><li><a href="#sets-and-tuples">Sets and tuples</a></li><li><a href="#enums-and-literals">Enums and literals</a></li><li><a href="#dates-durations-decimals-and-bytes">Dates, durations, decimals and bytes</a></li><li><a href="#multiples">Multiples</a></li><li><a href="#dictionary-fields">Dictionary fields</a></li><li><a href="#plain-unions-and-any">Plain unions and Any</a></li><li><a href="#typeddict-and-dataclass-fields">TypedDict and dataclass fields</a></li><li><a href="#internet-addresses-email-url-and-slug">Internet addresses, Email, Url and Slug</a></li><li><a href="#secretstr-and-path">SecretStr and Path</a></li></ul>
-          </li><li><a href="#documenting-a-field">Documenting a field</a></li><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#class-configuration">Class configuration</a></li><li><a href="#discriminated-unions">Discriminated unions</a></li><li><a href="#changing-a-value">Changing a value</a></li><li><a href="#projection-options-on-dump">Projection options on dump()</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
+          </li><li><a href="#documenting-a-field">Documenting a field</a></li><li><a href="#computed-fields">Computed fields</a></li><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#class-configuration">Class configuration</a></li><li><a href="#discriminated-unions">Discriminated unions</a></li><li><a href="#changing-a-value">Changing a value</a></li><li><a href="#projection-options-on-dump">Projection options on dump()</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 15:41:58 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>26 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 15:56:15 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>27 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
