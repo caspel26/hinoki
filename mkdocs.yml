@@ -125,6 +125,7 @@ nav:
       - Overview: concepts.md
       - Request lifecycle: request-lifecycle.md
       - Architecture patterns: patterns.md
+      - Own schemas and ORM: ecosystem.md
       - Glossary: glossary.md
   - Reference:
       - Overview: reference/index.md
