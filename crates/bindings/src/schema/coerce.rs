@@ -60,6 +60,7 @@ fn coerce_node<'py>(
 ) -> PyResult<Bound<'py, PyAny>> {
     match &node.kind {
         Kind::List(item) => coerce_list(py, defs, item, value, use_aliases, depth),
+        Kind::Tuple(positions) => coerce_tuple(py, defs, positions, value, use_aliases, depth),
         Kind::Schema(index) => coerce_object(py, defs, *index, value, use_aliases, depth + 1),
         Kind::TaggedUnion {
             discriminator_wire_name,
@@ -98,6 +99,38 @@ fn coerce_list<'py>(
         }
     } else {
         items.append(coerce_node(py, defs, item, value, use_aliases, depth + 1)?)?;
+    }
+    Ok(items.into_any())
+}
+
+/// A fixed tuple: each text of a list of the right length is read as its
+/// position's type; any other value goes on as it is, for the check to refuse.
+fn coerce_tuple<'py>(
+    py: Python<'py>,
+    defs: &Defs,
+    positions: &[Node<PyRules>],
+    value: &Bound<'py, PyAny>,
+    use_aliases: bool,
+    depth: usize,
+) -> PyResult<Bound<'py, PyAny>> {
+    let entries: Vec<Bound<'py, PyAny>> = match value.cast::<PyList>() {
+        Ok(list) => list.iter().collect(),
+        Err(_) if !value.is_none() => vec![value.clone()],
+        Err(_) => return Ok(value.clone()),
+    };
+    if entries.len() != positions.len() {
+        return Ok(value.clone());
+    }
+    let items = PyList::empty(py);
+    for (position, entry) in positions.iter().zip(&entries) {
+        items.append(coerce_node(
+            py,
+            defs,
+            position,
+            entry,
+            use_aliases,
+            depth + 1,
+        )?)?;
     }
     Ok(items.into_any())
 }

@@ -93,6 +93,7 @@ class Validator:
             "decimal": self.decimal,
             "bytes": self.binary,
             "list": self.sequence,
+            "tuple": self.fixed,
             "dict": self.mapping,
             "schema": self.schema,
         }
@@ -295,7 +296,22 @@ class Validator:
             raise TypeError("list type without an item type")
         before = len(self.errors)
         items = [self.check(ftype.item, v, f"{path}[{i}]") for i, v in enumerate(data)]
-        return INVALID if len(self.errors) > before else items
+        if len(self.errors) > before:
+            return INVALID
+        collected = {"set": set, "frozenset": frozenset, "tuple": tuple}
+        return collected.get(ftype.collection or "", list)(items)
+
+    def fixed(self, ftype: FieldType, data: Any, path: str) -> object:
+        if not isinstance(data, list):
+            return self.fail(path, "type", "expected an array")
+        if self.length(ftype, data, path) is INVALID:
+            return INVALID
+        before = len(self.errors)
+        items = [
+            self.check(item, v, f"{path}[{i}]")
+            for i, (item, v) in enumerate(zip(ftype.items, data, strict=True))
+        ]
+        return INVALID if len(self.errors) > before else tuple(items)
 
     def mapping(self, ftype: FieldType, data: Any, path: str) -> object:
         if not isinstance(data, dict):
