@@ -686,6 +686,43 @@
 <li><code>HNK-SCH-002</code> checks each text variant of a union for <code>max_length</code>.</li>
 </ul>
 <p>Not supported yet: <code>TypedDict</code> and dataclass fields.</p>
+<h3 id="internet-addresses-email-url-and-slug">Internet addresses, <code>Email</code>, <code>Url</code> and <code>Slug</code><a class="headerlink" href="#internet-addresses-email-url-and-slug" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ipaddress</span><span class="w"> </span><span class="kn">import</span> <span class="n">IPv4Address</span><span class="p">,</span> <span class="n">IPv4Network</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Email</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">Url</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">ValidationError</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Allowlist</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">owner</span><span class="p">:</span> <span class="n">Email</span>
+    <span class="n">homepage</span><span class="p">:</span> <span class="n">Url</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">source</span><span class="p">:</span> <span class="n">IPv4Address</span>
+    <span class="n">subnet</span><span class="p">:</span> <span class="n">IPv4Network</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="n">rule</span> <span class="o">=</span> <span class="n">Allowlist</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">"owner"</span><span class="p">:</span> <span class="s2">"ops@example.com"</span><span class="p">,</span> <span class="s2">"source"</span><span class="p">:</span> <span class="s2">"10.0.0.7"</span><span class="p">,</span> <span class="s2">"subnet"</span><span class="p">:</span> <span class="s2">"10.0.0.0/24"</span><span class="p">}</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">rule</span><span class="o">.</span><span class="n">source</span> <span class="o">==</span> <span class="n">IPv4Address</span><span class="p">(</span><span class="s2">"10.0.0.7"</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">rule</span><span class="o">.</span><span class="n">dump</span><span class="p">()[</span><span class="s2">"subnet"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"10.0.0.0/24"</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">Allowlist</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span>
+        <span class="p">{</span><span class="s2">"owner"</span><span class="p">:</span> <span class="s2">"ops@example.com"</span><span class="p">,</span> <span class="s2">"source"</span><span class="p">:</span> <span class="s2">"10.0.0.7"</span><span class="p">,</span> <span class="s2">"subnet"</span><span class="p">:</span> <span class="s2">"10.0.0.7/24"</span><span class="p">}</span>
+    <span class="p">)</span>
+<span class="k">except</span> <span class="n">ValidationError</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+    <span class="k">assert</span> <span class="p">[(</span><span class="n">d</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">code</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">error</span><span class="o">.</span><span class="n">details</span><span class="p">]</span> <span class="o">==</span> <span class="p">[(</span><span class="s2">"subnet"</span><span class="p">,</span> <span class="s2">"ipv4network"</span><span class="p">)]</span>
+</code></pre></div>
+<ul>
+<li><strong>Types.</strong> <code>IPv4Address</code>, <code>IPv6Address</code>, <code>IPv4Network</code> and <code>IPv6Network</code> from <code>ipaddress</code> are read from a JSON string and become the object. The error code is <code>ipv4</code>, <code>ipv6</code>, <code>ipv4network</code> or <code>ipv6network</code>. A union such as <code>IPv4Address | IPv6Address</code> takes either family.</li>
+<li><strong>Strict text.</strong> Only ASCII is accepted. IPv4 refuses leading zeros; IPv6 refuses a zone id (<code>fe80::1%eth0</code>). A network needs a prefix length of plain digits within its family (no netmask form, no sign) and no host bits set (<code>10.0.0.7/24</code> is refused); a bare address is a single-host network.</li>
+<li><strong>No constraints.</strong> <code>Field(...)</code> options do not apply to these types and are refused when the class is created. Output is the canonical text (<code>dump()</code> and JSON responses); constructing with <code>Allowlist(source=...)</code> takes the matching <code>ipaddress</code> object only.</li>
+<li><strong><code>Email</code>, <code>Url</code> and <code>Slug</code></strong> are <code>Annotated[str, Field(format=...)]</code> shortcuts (see <a href="#built-in-and-custom-validation">validation</a>). They are plain text, so they also work as <code>Model</code> columns. <code>Email</code> is a syntactic check, not a deliverability check.</li>
+<li><strong>OpenAPI</strong> writes <code>type: string</code> with <code>format: ipv4</code>, <code>ipv6</code>, <code>ipv4network</code> or <code>ipv6network</code>.</li>
+<li><strong>Native lane.</strong> Checked in Rust on both lanes with the same grammar; the GIL-free lane keeps the text and builds the <code>ipaddress</code> object when a handler asks for it.</li>
+<li><strong>Models.</strong> A <code>Model</code> column of these types is stored as <code>text</code> and read back as the object; a write checks that the value is an <code>ipaddress</code> object of the right family before SQL is sent (<code>ModelValidationError</code>). See <a href="../models/">models</a>.</li>
+</ul>
+<p>Not supported yet: <code>SecretStr</code> and <code>Path</code>.</p>
 <h2 id="wire-aliases">Wire aliases<a class="headerlink" href="#wire-aliases" title="Permanent link">&para;</a></h2>
 <p>Use <code>Field(alias=...)</code> when the public JSON name should differ from the Python attribute. The alias is the only accepted input key; sending both names is an error. <code>dump()</code> writes aliases, including in nested schemas and lists, while <code>to_dict()</code> keeps Python attribute names. Validation errors and OpenAPI properties use the wire names. A custom check's default field path is translated to its alias; an explicit <code>Invalid(path=...)</code> is already a wire path.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
@@ -839,7 +876,7 @@
           
           
             <ul><li><a href="#field-types">Field types</a>
-            <ul><li><a href="#sets-and-tuples">Sets and tuples</a></li><li><a href="#enums-and-literals">Enums and literals</a></li><li><a href="#dates-durations-decimals-and-bytes">Dates, durations, decimals and bytes</a></li><li><a href="#multiples">Multiples</a></li><li><a href="#dictionary-fields">Dictionary fields</a></li><li><a href="#plain-unions-and-any">Plain unions and Any</a></li></ul>
+            <ul><li><a href="#sets-and-tuples">Sets and tuples</a></li><li><a href="#enums-and-literals">Enums and literals</a></li><li><a href="#dates-durations-decimals-and-bytes">Dates, durations, decimals and bytes</a></li><li><a href="#multiples">Multiples</a></li><li><a href="#dictionary-fields">Dictionary fields</a></li><li><a href="#plain-unions-and-any">Plain unions and Any</a></li><li><a href="#internet-addresses-email-url-and-slug">Internet addresses, Email, Url and Slug</a></li></ul>
           </li><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#class-configuration">Class configuration</a></li><li><a href="#discriminated-unions">Discriminated unions</a></li><li><a href="#projection-options-on-dump">Projection options on dump()</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
           
         </nav>
@@ -847,8 +884,8 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 09:45:14 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>20 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 10:12:53 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>22 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
