@@ -326,7 +326,32 @@ except ValidationError as error:
 * **Native lane.** Checked in Rust on both lanes with the same grammar; the GIL-free lane keeps the text and builds the `ipaddress` object when a handler asks for it.
 * **Models.** A `Model` column of these types is stored as `text` and read back as the object; a write checks that the value is an `ipaddress` object of the right family before SQL is sent (`ModelValidationError`). See [models](models.md).
 
-Not supported yet: `SecretStr` and `Path`.
+### `SecretStr` and `Path`
+
+```python
+from pathlib import Path
+
+from hinoki import Field, Schema, SecretStr
+from typing import Annotated
+
+
+class Account(Schema):
+    password: Annotated[SecretStr, Field(min_length=8)]
+    home: Path
+
+
+account = Account.validate({"password": "correct horse", "home": "/srv/ann"})
+assert account.password.get_secret_value() == "correct horse"
+assert repr(account.password) == "SecretStr('**********')"
+assert account.dump() == {"password": "**********", "home": "/srv/ann"}
+assert account.home == Path("/srv/ann")
+```
+
+* **`SecretStr`** reads a JSON string and wraps it. `repr`, `str`, `dump()` and JSON responses show `**********`; only `get_secret_value()` returns the text. Validation errors never repeat the value. `min_length`, `max_length` and `pattern` apply. Constructing with `Account(password=...)` takes a `SecretStr` only, so a plain string never ends up unmasked in an instance.
+* **`Path`** reads a non-empty JSON string without a NUL character and becomes a `pathlib.Path`. Nothing touches the file system. `min_length` and `max_length` apply; without `max_length`, wire input is capped at 4096 characters. The error code is `path`. Output is `str(path)`; constructing takes a `Path` object only (a `PurePath` is refused).
+* **OpenAPI** writes `type: string` with `format: path`, and for a secret `format: password` with `writeOnly: true`.
+* **Lanes.** Both are validated in Rust; a `Schema` using them is served by the Python lane, by design, because the GIL-free lane cannot build these objects.
+* **Models.** There is no `Model` column for either type yet: generating a migration for one reports `no SQL type`.
 
 ## Wire aliases
 
