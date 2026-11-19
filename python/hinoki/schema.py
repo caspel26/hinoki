@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import enum
 import functools
 import inspect
 import typing
@@ -378,13 +379,9 @@ def typed_instance_value(
         checked = nested_instance_value(
             ftype.schema, value, use_aliases, active, depth, path
         )
-    elif ftype.kind == "dict" and ftype.item is not None:
-        checked = mapping_instance_value(
-            ftype.item, value, use_aliases, active, depth, path
-        )
-    elif ftype.item is not None:
-        checked = list_instance_value(
-            ftype.item, value, use_aliases, active, depth, path
+    elif ftype.kind in {"dict", "list", "tuple"}:
+        checked = container_instance_value(
+            ftype, value, use_aliases, active, depth, path
         )
     elif ftype.kind == "uuid":
         checked = str(value) if isinstance(value, UUID) else _INVALID_INSTANCE_VALUE
@@ -501,6 +498,63 @@ def nested_instance_value(
         depth=depth,
         path=path,
     )
+
+
+COLLECTION_TYPES: dict[str, type] = {"set": set, "frozenset": frozenset, "tuple": tuple}
+
+
+def container_instance_value(
+    ftype: FieldType,
+    value: Any,
+    use_aliases: bool,
+    active: set[int],
+    depth: int,
+    path: str,
+) -> Any:
+    """A list, dict, set, frozenset or tuple value as the JSON-like data the
+    validator reads; a set or tuple field refuses any other container."""
+    if ftype.kind == "dict" and ftype.item is not None:
+        return mapping_instance_value(
+            ftype.item, value, use_aliases, active, depth, path
+        )
+    if ftype.kind == "tuple":
+        return fixed_instance_value(ftype, value, use_aliases, active, depth, path)
+    wanted = COLLECTION_TYPES.get(ftype.collection or "", list)
+    if not isinstance(value, wanted):
+        return value if wanted is list else _INVALID_INSTANCE_VALUE
+    items = list(cast(Iterable[Any], value))
+    return list_instance_value(
+        cast(FieldType, ftype.item), items, use_aliases, active, depth, path
+    )
+
+
+def fixed_instance_value(
+    ftype: FieldType,
+    value: Any,
+    use_aliases: bool,
+    active: set[int],
+    depth: int,
+    path: str,
+) -> Any:
+    """A fixed tuple as a list, each position converted by its own type; a
+    value of the wrong length goes on as it is, for the validator to refuse."""
+    if not isinstance(value, tuple):
+        return _INVALID_INSTANCE_VALUE
+    if depth > _MAX_INSTANCE_DEPTH:
+        raise instance_error(path)
+    if len(value) != len(ftype.items):
+        return list(value)
+    return [
+        instance_value(
+            item_type,
+            item,
+            use_aliases=use_aliases,
+            active=active,
+            depth=depth + 1,
+            path=f"{path}[{index}]",
+        )
+        for index, (item_type, item) in enumerate(zip(ftype.items, value, strict=True))
+    ]
 
 
 def list_instance_value(
@@ -1272,12 +1326,13 @@ def graph_has_normalizers(cls: type[Schema], seen: set[type] | None = None) -> b
 def nested_schemas(cls: type[Schema]) -> list[type[Schema]]:
     found: list[type[Schema]] = []
     for spec in cls.specs().values():
-        ftype: FieldType | None = spec.ftype
-        while ftype is not None:
+        pending: list[FieldType] = [spec.ftype]
+        while pending:
+            ftype = pending.pop()
             if ftype.schema is not None:
                 found.append(ftype.schema)
             found.extend(schema for _, schema in ftype.variants)
-            ftype = ftype.item
+            pending.extend(ftype.children())
     return found
 
 
@@ -1359,23 +1414,20 @@ def holds_schema(ftype: FieldType) -> bool:
     """Whether a value of this type can contain a Schema instance."""
     if ftype.schema is not None or ftype.variants:
         return True
-    return ftype.item is not None and holds_schema(ftype.item)
+    return any(holds_schema(child) for child in ftype.children())
 
 
 def value_check_problems(
     ftype: FieldType, value: Any, where: str, use_aliases: bool, seen: set[int]
 ) -> list[ErrorDetail]:
-    """Checks of the Schema instances in one field value, through lists and
-    dicts at any depth; ``ftype`` can hold a Schema."""
+    """Checks of the Schema instances in one field value, through lists, dicts
+    and tuples at any depth; ``ftype`` can hold a Schema."""
     if isinstance(value, Schema):
         return run_checks(value, where, use_aliases=use_aliases, seen=seen)
-    item = ftype.item
-    if item is None:
-        return []
     return [
         problem
-        for at, element in container_entries(ftype, value, where)
-        for problem in value_check_problems(item, element, at, use_aliases, seen)
+        for child, at, element in typed_entries(ftype, value, where)
+        for problem in value_check_problems(child, element, at, use_aliases, seen)
     ]
 
 
@@ -1513,6 +1565,13 @@ def node_of(
         constraints = {**constraints, "key": node_of(ftype.key, index_of, queue)}
     if ftype.enum_class is not None:
         constraints = {**constraints, "enum": ftype.enum_class}
+    if ftype.collection is not None:
+        constraints = {**constraints, "collection": ftype.collection}
+    if ftype.kind == "tuple":
+        constraints = {
+            **constraints,
+            "items": [node_of(child, index_of, queue) for child in ftype.items],
+        }
     if ftype.kind == "union":
         constraints = {
             **constraints,
@@ -1672,10 +1731,26 @@ def walk_model_value(
         if isinstance(value, variant):
             walk_model_schema(value, path, queue, queued, visited)
             return
+    for child, child_path, item in typed_entries(ftype, value, path):
+        walk_model_value(child, item, child_path, queue, queued, visited)
+
+
+def typed_entries(
+    ftype: FieldType, value: Any, path: str
+) -> list[tuple[FieldType, str, Any]]:
+    """``(element type, path, element)`` of a list, dict, set or tuple field
+    value; empty for anything else."""
+    if ftype.kind == "tuple":
+        if not isinstance(value, tuple) or len(value) != len(ftype.items):
+            return []
+        return [
+            (child, f"{path}[{index}]", item)
+            for index, (child, item) in enumerate(zip(ftype.items, value, strict=True))
+        ]
     if ftype.item is None:
-        return
-    for child_path, item in container_entries(ftype, value, path):
-        walk_model_value(ftype.item, item, child_path, queue, queued, visited)
+        return []
+    item_type = ftype.item
+    return [(item_type, at, item) for at, item in container_entries(ftype, value, path)]
 
 
 def container_entries(ftype: FieldType, value: Any, path: str) -> list[tuple[str, Any]]:
@@ -1690,7 +1765,11 @@ def container_entries(ftype: FieldType, value: Any, path: str) -> list[tuple[str
 def conversion_of(ftype: FieldType) -> tuple[Any, Any, bool]:
     """How a model attribute converts for this field (see ``from_model``):
     ``(schema, item conversion, is a dict)``. Lists and dicts are copied."""
-    inner = conversion_of(ftype.item) if ftype.item is not None else None
+    inner = (
+        conversion_of(ftype.item)
+        if ftype.item is not None and ftype.collection is None
+        else None
+    )
     return (ftype.schema, inner, ftype.kind == "dict")
 
 
@@ -1717,7 +1796,11 @@ def from_row(ftype: FieldType, value: Any) -> Any:
         return value
     if ftype.schema is not None and hasattr(type(value), "__table__"):
         return ftype.schema.from_model(value)
-    if ftype.item is not None and isinstance(value, list | tuple):
+    if (
+        ftype.item is not None
+        and ftype.collection is None
+        and isinstance(value, list | tuple)
+    ):
         return [from_row(ftype.item, item) for item in value]
     return value
 
@@ -1740,18 +1823,48 @@ class Dumpable(Protocol):
     def dump(self) -> dict[str, Any]: ...
 
 
-def encode_items(value: list[Any] | tuple[Any, ...] | dict[str, Any]) -> Any:
+RANKS: dict[type, int] = {type(None): 0, bool: 1, int: 1, float: 1, str: 2}
+
+
+def member_key(member: Any) -> tuple[Any, ...]:
+    """A sort key that orders the members of a set the same in every process:
+    an Enum by its value, a tuple or frozenset by its members, other values by
+    their own order."""
+    if isinstance(member, enum.Enum):
+        member = member.value
+    if isinstance(member, tuple):
+        return (3, tuple(member_key(item) for item in member))
+    if isinstance(member, frozenset):
+        return (4, tuple(sorted(member_key(item) for item in member)))
+    return (RANKS.get(type(member), 5), member)
+
+
+def sorted_items(value: set[Any] | frozenset[Any]) -> list[Any]:
+    """The members of a set in a fixed order when they can be compared, else
+    as stored."""
+    try:
+        return sorted(value, key=member_key)
+    except TypeError:
+        return list(value)
+
+
+def encode_items(
+    value: list[Any] | tuple[Any, ...] | set[Any] | frozenset[Any] | dict[str, Any],
+) -> Any:
     if isinstance(value, dict):
         return {key: encode(item) for key, item in value.items()}
+    if isinstance(value, set | frozenset):
+        return [encode(item) for item in sorted_items(value)]
     return [encode(item) for item in value]
 
 
 def encode(value: object) -> Any:
     """JSON-compatible form of a value produced by a handler or schema. A tuple
-    becomes a list, as the JSON encoder writes it as an array."""
+    becomes a list, as the JSON encoder writes it as an array; a set becomes a
+    sorted list."""
     if isinstance(value, Dumpable):
         return value.dump()
-    if isinstance(value, list | tuple | dict):
+    if isinstance(value, list | tuple | set | frozenset | dict):
         return encode_items(value)
     encoder = ENCODERS.get(type(value))
     return encoder(value) if encoder else value

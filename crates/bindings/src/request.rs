@@ -1271,6 +1271,8 @@ impl<'py> Encoder<'py> {
             )?;
         } else if let Some(text) = self.wire_text(value)? {
             write_string(&mut self.out, &text)?;
+        } else if let Some(members) = self.set_members(value)? {
+            self.replace(&members, depth)?;
         } else if let Some(member) = self.member_value(value)? {
             self.replace(&member, depth)?;
         } else if value.hasattr("dump")? {
@@ -1297,6 +1299,17 @@ impl<'py> Encoder<'py> {
             return Ok(None);
         }
         crate::schema::wire_text(value)
+    }
+
+    /// The members of a set or frozenset as a list, inside a schema instance.
+    fn set_members(&self, value: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        let is_set = value.is_instance_of::<pyo3::types::PySet>()
+            || value.is_instance_of::<pyo3::types::PyFrozenSet>();
+        if self.schemas == 0 || !is_set {
+            return Ok(None);
+        }
+        let members = crate::pytypes::sorted_members(value)?;
+        Ok(Some(PyList::new(value.py(), members)?.into_any()))
     }
 
     /// The value an `Enum` member is written as, inside a schema instance.
