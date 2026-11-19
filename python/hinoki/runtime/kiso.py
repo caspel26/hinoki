@@ -1,7 +1,7 @@
 """One worker of the Rust HTTP server (HTTP/1.1, and HTTP/2 over TLS).
 
 The listener, the HTTP parsing and the connection limits run on the native
-tokio runtime (``core.RustServer``). Every request the native classifier does
+tokio runtime (``core.KisoServer``). Every request the native classifier does
 not answer waits in a bounded queue; this module drains it on the asyncio loop,
 runs ``Pipeline.handle`` for each one and hands the answer back to the
 connection. The handlers and the pipeline run in Python, on the loop.
@@ -18,7 +18,7 @@ several workers (and always under ``hinoki dev``), starts this module as a
 process per worker from ``hinoki.runtime.supervisor``, which owns the listening
 socket and passes it down. Run by hand it binds itself:
 
-    python -m hinoki.runtime.rustserver module:app --port 8000
+    python -m hinoki.runtime.kiso module:app --port 8000
 """
 
 from __future__ import annotations
@@ -146,7 +146,7 @@ def scope_of(
     }
 
 
-class RustWorker:
+class KisoWorker:
     """Runs one application on the Rust server inside the current event loop."""
 
     def __init__(  # noqa: PLR0913 - one parameter per native limit
@@ -198,7 +198,7 @@ class RustWorker:
         self.timer: asyncio.TimerHandle | None = None
         # Starts not ready; the lifespan startup flips it.
         self.core = build_server_core(self.pipeline)
-        self.server: core.RustServer | None = None
+        self.server: core.KisoServer | None = None
         self.address = (host, port)
         self.scheme = "https" if tls_cert_file else "http"
         self.tasks: set[asyncio.Task[None]] = set()
@@ -239,7 +239,7 @@ class RustWorker:
                 listener = open_listener(self.host, self.port, self.backlog)
                 self.listener_fd = listener.detach()
             fd, self.listener_fd = self.listener_fd, None  # taken, even on failure
-            server = core.RustServer.start(
+            server = core.KisoServer.start(
                 self.core,
                 self.host,
                 self.port,
@@ -378,7 +378,7 @@ class RustWorker:
             log.error("the supervisor is gone; stopping")
             self.stopping.set()
 
-    def _wake(self, server: core.RustServer) -> None:
+    def _wake(self, server: core.KisoServer) -> None:
         """The loop's reader callback: clear the wake socket first, then drain
         the queue until it is empty (a short batch), as the queue requires. It
         keeps running while the server shuts down, so requests already queued
@@ -631,7 +631,7 @@ def build_worker(
     listener_fd: int | None = None,
     parent: int | None = None,
     dev: bool = False,
-) -> RustWorker:
+) -> KisoWorker:
     """A worker for ``app`` with the limits of its ``server`` settings group
     (``None`` keeps the native default)."""
     limits: dict[str, Any] = {
@@ -639,7 +639,7 @@ def build_worker(
         for name in RUST_ONLY
         if getattr(settings, name) is not None
     }
-    return RustWorker(
+    return KisoWorker(
         app,
         host,
         port,
@@ -658,7 +658,7 @@ def build_worker(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m hinoki.runtime.rustserver")
+    parser = argparse.ArgumentParser(prog="python -m hinoki.runtime.kiso")
     parser.add_argument("target", help="module:application or module:factory")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)

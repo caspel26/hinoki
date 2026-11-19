@@ -412,7 +412,7 @@ class ServerCore:
         https: bool = False,
     ) -> Submission: ...
 
-class RustServer:
+class KisoServer:
     @staticmethod
     def start(
         core: ServerCore,
@@ -432,7 +432,7 @@ class RustServer:
         access_log_skip: Sequence[str] | None = None,
         access_log_slow_ms: float | None = None,
         access_log_sink: Callable[[Sequence[str]], None] | None = None,
-    ) -> RustServer: ...
+    ) -> KisoServer: ...
     @property
     def port(self) -> int: ...
     @property

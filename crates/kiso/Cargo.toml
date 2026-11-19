@@ -1,5 +1,5 @@
 [package]
-name = "hinoki-server"
+name = "kiso"
 description = "Hinoki HTTP server: plan, limits, early answers, handoff queue and the hyper HTTP/1.1 connection layer (pure Rust, no Python)"
 version.workspace = true
 edition.workspace = true

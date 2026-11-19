@@ -15,7 +15,7 @@ import pytest
 
 from hinoki import core
 from hinoki.errors import InvalidBody
-from hinoki.runtime import rustserver
+from hinoki.runtime import kiso
 from hinoki.runtime.responses import HTTPError
 from hinoki.settings import ServerSettings
 
@@ -66,7 +66,7 @@ class _Request:
 
 
 def _worker() -> Any:
-    worker: Any = object.__new__(rustserver.RustWorker)
+    worker: Any = object.__new__(kiso.KisoWorker)
     worker.host = "127.0.0.1"
     worker.port = 8000
     worker.address = (worker.host, worker.port)
@@ -107,9 +107,9 @@ def test_worker_constructor_owns_adapter_limits_queues_and_state(
     adapter = SimpleNamespace(pipeline=pipeline)
     app = SimpleNamespace(asgi=lambda: adapter)
     monkeypatch.setattr(
-        "hinoki.runtime.rustserver.build_server_core", lambda _pipeline: "core"
+        "hinoki.runtime.kiso.build_server_core", lambda _pipeline: "core"
     )
-    worker: Any = rustserver.RustWorker(
+    worker: Any = kiso.KisoWorker(
         cast(Any, app),
         "127.0.0.1",
         8010,
@@ -175,7 +175,7 @@ async def test_lifespan_starts_one_adapter_task_and_finishes_it() -> None:
 def test_body_failure_maps_native_read_kinds(
     kind: str, status: int | None, code: str
 ) -> None:
-    error = rustserver.body_failure(kind)
+    error = kiso.body_failure(kind)
     if status is not None:
         assert isinstance(error, HTTPError)
         assert error.response.status == status and str(error) == code
@@ -187,20 +187,20 @@ def test_body_failure_maps_native_read_kinds(
 @pytest.mark.asyncio
 async def test_rust_body_returns_bytes_and_translates_native_error() -> None:
     request: Any = _Request()
-    assert await rustserver.RustBody(cast(Any, request)).read(16) == b"payload"
+    assert await kiso.RustBody(cast(Any, request)).read(16) == b"payload"
 
     async def fail(_limit: int) -> bytes:
         raise core.BodyReadError("timeout")
 
     request.body = fail
     with pytest.raises(HTTPError) as caught:
-        await rustserver.RustBody(cast(Any, request)).read(16)
+        await kiso.RustBody(cast(Any, request)).read(16)
     assert caught.value.response.status == 408
 
 
 def test_scope_of_decodes_path_and_preserves_wire_values() -> None:
     request = _Request(path="/caf%C3%A9", http_version="2")
-    scope = rustserver.scope_of(cast(Any, request), ("0.0.0.0", 8443), "https")
+    scope = kiso.scope_of(cast(Any, request), ("0.0.0.0", 8443), "https")
     assert scope == {
         "type": "http",
         "http_version": "2",
@@ -222,7 +222,7 @@ def test_housekeeping_reports_invalid_ids_and_dead_parent(
     worker.core = SimpleNamespace(take_ignored_ids=lambda: 3)
     worker.pipeline = SimpleNamespace(crud_plan_selections=())
     worker.parent = 100
-    monkeypatch.setattr("hinoki.runtime.rustserver.os.getppid", lambda: 101)
+    monkeypatch.setattr("hinoki.runtime.kiso.os.getppid", lambda: 101)
     worker.housekeeping()
     assert worker.stopping.is_set()
 
@@ -237,9 +237,7 @@ async def test_wake_removes_dead_reader_and_retries_failed_drain(
         remove_reader=lambda fd: calls.append(("remove", fd)),
         call_soon=lambda callback, *args: calls.append(("retry", (callback, args))),
     )
-    monkeypatch.setattr(
-        "hinoki.runtime.rustserver.asyncio.get_running_loop", lambda: loop
-    )
+    monkeypatch.setattr("hinoki.runtime.kiso.asyncio.get_running_loop", lambda: loop)
     server = SimpleNamespace(wake_fd=12, clear_wake=lambda: False)
     worker._wake(cast(Any, server))
     assert calls == [("remove", 12)]
@@ -397,7 +395,7 @@ async def test_stop_without_server_and_with_shutdown_callbacks(
     )
     drain_results = [(2, False), (0, True)]
     monkeypatch.setattr(
-        rustserver,
+        kiso,
         "_drain_native_uninterruptibly",
         lambda *_args: asyncio.sleep(0, result=drain_results.pop(0)),
     )
@@ -410,9 +408,7 @@ async def test_stop_without_server_and_with_shutdown_callbacks(
     worker._lifespan = lambda event: asyncio.sleep(0, result={"type": event})
     worker._finish_lifespan = lambda: asyncio.sleep(0, result=None)
     loop = SimpleNamespace(remove_reader=lambda fd: events.append(f"reader:{fd}"))
-    monkeypatch.setattr(
-        "hinoki.runtime.rustserver.asyncio.get_running_loop", lambda: loop
-    )
+    monkeypatch.setattr("hinoki.runtime.kiso.asyncio.get_running_loop", lambda: loop)
     assert await worker.stop() == 2
     assert events == ["ready:False", "timer", "reader:9"]
     assert "aborted 2 native CRUD jobs" in caplog.text
@@ -460,7 +456,7 @@ async def test_start_failure_paths_never_leave_lifespan_running(
         _detach_database=lambda: None,
     )
     monkeypatch.setattr(
-        rustserver,
+        kiso,
         "_drain_native_uninterruptibly",
         lambda *_args: asyncio.sleep(0, result=(0, False)),
     )
@@ -471,7 +467,7 @@ async def test_start_failure_paths_never_leave_lifespan_running(
             assert args[7] == 10.0
             raise RuntimeError("native startup failed")
 
-    monkeypatch.setattr(rustserver, "core", SimpleNamespace(RustServer=FailedServer))
+    monkeypatch.setattr(kiso, "core", SimpleNamespace(KisoServer=FailedServer))
     events.clear()
 
     async def track_lifespan(event: str) -> dict[str, str]:
@@ -513,7 +509,7 @@ async def test_start_binds_only_after_success_and_registers_housekeeping(
         _detach_database=lambda: None,
     )
     monkeypatch.setattr(
-        rustserver,
+        kiso,
         "_drain_native_uninterruptibly",
         lambda *_args: asyncio.sleep(0, result=(0, False)),
     )
@@ -531,10 +527,8 @@ async def test_start_binds_only_after_success_and_registers_housekeeping(
             events.append("detach")
             return 33
 
-    monkeypatch.setattr(rustserver, "core", SimpleNamespace(RustServer=NativeServer))
-    monkeypatch.setattr(
-        "hinoki.runtime.rustserver.open_listener", lambda *_args: Listener()
-    )
+    monkeypatch.setattr(kiso, "core", SimpleNamespace(KisoServer=NativeServer))
+    monkeypatch.setattr("hinoki.runtime.kiso.open_listener", lambda *_args: Listener())
     monkeypatch.setattr(
         worker,
         "_lifespan",
@@ -552,14 +546,12 @@ async def test_start_binds_only_after_success_and_registers_housekeeping(
         return object()
 
     loop = SimpleNamespace(add_reader=add_reader, call_later=call_later)
-    monkeypatch.setattr(
-        "hinoki.runtime.rustserver.asyncio.get_running_loop", lambda: loop
-    )
+    monkeypatch.setattr("hinoki.runtime.kiso.asyncio.get_running_loop", lambda: loop)
     assert await worker.start() == 9001
     assert worker.listener_fd is None
     assert worker.server is server
     assert ("reader", 17) in events
-    assert ("timer", rustserver.HOUSEKEEPING) in events
+    assert ("timer", kiso.HOUSEKEEPING) in events
     assert events[-1] == "ready:True"
 
 
@@ -576,12 +568,10 @@ def test_tick_logs_and_reschedules_even_when_housekeeping_fails(
     loop = SimpleNamespace(
         call_later=lambda delay, callback: events.append((delay, callback))
     )
-    monkeypatch.setattr(
-        "hinoki.runtime.rustserver.asyncio.get_running_loop", lambda: loop
-    )
+    monkeypatch.setattr("hinoki.runtime.kiso.asyncio.get_running_loop", lambda: loop)
     worker._tick()
     assert "housekeeping failed" in caplog.text
-    assert events == [(rustserver.HOUSEKEEPING, worker._tick)]
+    assert events == [(kiso.HOUSEKEEPING, worker._tick)]
 
 
 @pytest.mark.asyncio
@@ -612,7 +602,7 @@ def test_signal_handling_is_graceful_until_unmanaged_second_signal(
     def exit_process(code: int) -> None:
         exits.append(code)
 
-    monkeypatch.setattr("hinoki.runtime.rustserver.os._exit", exit_process)
+    monkeypatch.setattr("hinoki.runtime.kiso.os._exit", exit_process)
     worker._on_signal()
     assert exits == [1]
 
@@ -638,9 +628,7 @@ async def test_run_registers_signals_waits_and_logs_aborted_connections(
     loop = SimpleNamespace(
         add_signal_handler=lambda sig, callback: events.append((sig, callback))
     )
-    monkeypatch.setattr(
-        "hinoki.runtime.rustserver.asyncio.get_running_loop", lambda: loop
-    )
+    monkeypatch.setattr("hinoki.runtime.kiso.asyncio.get_running_loop", lambda: loop)
     monkeypatch.setattr(worker, "start", lambda: asyncio.sleep(0, result=9555))
     monkeypatch.setattr(worker, "stop", lambda: asyncio.sleep(0, result=2))
     assert await worker.run() == 0
@@ -676,8 +664,8 @@ def test_build_worker_passes_only_native_server_settings(
         captured.update(kwargs)
         return "worker"
 
-    monkeypatch.setattr(rustserver, "RustWorker", capture)
-    result: Any = rustserver.build_worker(
+    monkeypatch.setattr(kiso, "KisoWorker", capture)
+    result: Any = kiso.build_worker(
         app, "127.0.0.1", 88, cast(Any, settings), listener_fd=4, parent=5
     )
     assert result == "worker"
@@ -694,13 +682,13 @@ def test_main_checks_parent_and_runs_loaded_factory_with_inherited_socket(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     parent = 123
-    monkeypatch.setattr("hinoki.runtime.rustserver.os.getppid", lambda: 999)
-    assert rustserver.main(["sample:app", "--parent", str(parent)]) == 1
+    monkeypatch.setattr("hinoki.runtime.kiso.os.getppid", lambda: 999)
+    assert kiso.main(["sample:app", "--parent", str(parent)]) == 1
 
-    monkeypatch.setattr("hinoki.runtime.rustserver.os.getppid", lambda: parent)
+    monkeypatch.setattr("hinoki.runtime.kiso.os.getppid", lambda: parent)
     events: list[Any] = []
     monkeypatch.setattr(
-        "hinoki.runtime.rustserver.os.set_inheritable",
+        "hinoki.runtime.kiso.os.set_inheritable",
         lambda fd, enabled: events.append(("inheritable", fd, enabled)),
     )
 
@@ -708,19 +696,17 @@ def test_main_checks_parent_and_runs_loaded_factory_with_inherited_socket(
         events.append(("address", fd))
         return "::1", 9443
 
-    monkeypatch.setattr(
-        "hinoki.runtime.rustserver.inherited_address", inherited_address
-    )
+    monkeypatch.setattr("hinoki.runtime.kiso.inherited_address", inherited_address)
     app = SimpleNamespace(settings=object())
     monkeypatch.setattr(
-        "hinoki.runtime.rustserver.load_target", lambda _target: (lambda: app, True)
+        "hinoki.runtime.kiso.load_target", lambda _target: (lambda: app, True)
     )
     monkeypatch.setattr(
-        "hinoki.runtime.rustserver.settings_of",
+        "hinoki.runtime.kiso.settings_of",
         lambda _target: SimpleNamespace(runtime_threads=2),
     )
     monkeypatch.setattr(
-        rustserver,
+        kiso,
         "core",
         SimpleNamespace(
             configure_runtime=lambda count: events.append(("threads", count))
@@ -738,10 +724,8 @@ def test_main_checks_parent_and_runs_loaded_factory_with_inherited_socket(
         events.append((target, host, port, options))
         return Worker()
 
-    monkeypatch.setattr(rustserver, "build_worker", build)
-    assert (
-        rustserver.main(["sample:factory", "--fd", "7", "--parent", str(parent)]) == 0
-    )
+    monkeypatch.setattr(kiso, "build_worker", build)
+    assert kiso.main(["sample:factory", "--fd", "7", "--parent", str(parent)]) == 0
     assert events[0] == ("inheritable", 7, False)
     assert ("address", 7) in events
     assert any(
@@ -772,16 +756,16 @@ def test_module_entrypoint_exits_with_main_result(
     monkeypatch.setattr(
         sys,
         "argv",
-        ["hinoki.runtime.rustserver", "sample:app"],
+        ["hinoki.runtime.kiso", "sample:app"],
     )
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
-            message="'hinoki.runtime.rustserver' found in sys.modules",
+            message="'hinoki.runtime.kiso' found in sys.modules",
             category=RuntimeWarning,
         )
         with pytest.raises(SystemExit) as caught:
-            runpy.run_module("hinoki.runtime.rustserver", run_name="__main__")
+            runpy.run_module("hinoki.runtime.kiso", run_name="__main__")
     assert caught.value.code == 17
 
 
@@ -797,6 +781,6 @@ def test_log_access_attaches_the_parsed_record(
         "lane": "native",
     }
     with caplog.at_level(logging.INFO, logger="hinoki.access"):
-        rustserver.log_access([json.dumps(record)])
+        kiso.log_access([json.dumps(record)])
     assert caplog.records[0].getMessage() == "10.0.0.1:5 GET /x 200 1.2ms"
     assert caplog.records[0].access == record  # type: ignore[attr-defined]
