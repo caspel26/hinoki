@@ -14,6 +14,8 @@ from hinoki.orm import Model
 from hinoki.orm.migrations import models_of
 from hinoki.project import ProjectError, find_manifest_or_none, load_manifest
 from hinoki.shell import ShellRuntime, run_console, terminal_reader
+from hinoki.shellui import farewell, greeting, prompts
+from hinoki.terminal import Style
 
 
 def add_arguments(
@@ -83,14 +85,15 @@ def run(
     stdout = sys.stdout if stdout is None else stdout
     stderr = sys.stderr if stderr is None else stderr
     if not stdin.isatty():
-        print("error: `hinoki shell` requires an interactive terminal", file=stderr)
+        message = "`hinoki shell` requires an interactive terminal"
+        print(Style.detect(stderr).error(message), file=stderr)
         return 2
     try:
         target, model_modules = _target_and_models(args.target, args.models)
         models = model_namespace(model_modules)
         app = build_app(target)
     except (*USAGE_ERRORS, ProjectError, OSError) as error:
-        print(f"error: {error}", file=stderr)
+        print(Style.detect(stderr).error(str(error)), file=stderr)
         return 2
 
     return _run_session(app, models, stdin, stdout, stderr)
@@ -112,10 +115,18 @@ def _run_session(
     }
     runtime = ShellRuntime(app)
     status = 0
+    style = Style.detect(stdout)
     try:
         runtime.start(namespace)
-        print("Hinoki interactive shell; use Ctrl-D or Ctrl-C to exit.", file=stdout)
-        run_console(runtime, read=terminal_reader(stdin, stdout), output=stdout)
+        for line in greeting(style, app.title, type(app.settings).__name__, models):
+            print(line, file=stdout)
+        run_console(
+            runtime,
+            read=terminal_reader(stdin, stdout),
+            output=stdout,
+            prompts=prompts(style),
+        )
+        print(farewell(style), file=stdout)
     except (StartupError, ShutdownError) as error:
         print(f"error: {error}", file=stderr)
         status = 1
