@@ -30,7 +30,7 @@ from hinoki.runtime.responses import RETRY_LATER, HTTPError
 
 log = logging.getLogger("hinoki.server")
 
-# Rendered request id used as a splice point; mirrors `hinoki_server::early::SENTINEL`.
+# Rendered request id used as a splice point; mirrors `kiso::early::SENTINEL`.
 SENTINEL = "0123456789abcdeffedcba9876543210"
 
 EARLY_ERRORS: dict[str, tuple[int, str, list[tuple[bytes, bytes]] | None]] = {
