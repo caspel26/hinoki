@@ -20,7 +20,7 @@ With a declared app, settings load when the target module creates the `Hinoki` o
 Both commands run the app on the [Rust server](#the-rust-server) unless you choose Granian with `--server granian` or `server.server`. In the Hinoki checkout,
 `uv sync --locked` installs the development environment, including Granian and
 its reload support. A project created by `hinoki new` declares the server extra in
-its source dependency; run `uv sync` in that project. The extra includes
+its source dependency; run `uv sync` in that project. `hinoki new --server granian` (or the server prompt) writes a `settings.toml` that makes the project run on Granian instead of Kiso. The extra includes
 Granian's reload support (`watchfiles`), which `hinoki dev` needs. If Granian
 was installed separately without `watchfiles`, `dev` reports the missing
 dependency and `serve` still works. For this checkout, use its locked source

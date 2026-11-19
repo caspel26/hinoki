@@ -74,9 +74,15 @@ the framework; add your own fields here and read them from ``app.settings``.
 from hinoki import settings
 
 
-class ProjectSettings(settings.AppSettings, prefix="{upper}_", dotenv=".env"):
-    pass
-'''
+class ProjectSettings(settings.AppSettings, prefix="{upper}_", dotenv=".env"{toml}):
+{fields}'''
+
+SERVER_TOML = """# Which server `hinoki dev` and `hinoki serve` run: "kiso" (Hinoki's Rust
+# server, the default) or "granian" (a general-purpose ASGI server).
+# Override per environment with {upper}_SERVER__SERVER=kiso.
+[server]
+server = "granian"
+"""
 
 API = '''"""Endpoints. Protected actions name an Access policy; declare `request: Request` first only when you need it."""
 
@@ -280,18 +286,29 @@ class ScaffoldError(ValueError):
 
 
 DATABASES = ("none", "sqlite", "postgresql")
+SERVERS = ("kiso", "granian")
 AGENT_FILES = ("AGENTS.md", "CLAUDE.md", ".mcp.json")
 
 
-def database_files(name: str, database: str) -> dict[str, str]:
-    """Settings and environment example for the chosen database."""
-    settings_source = SETTINGS.format(name=name, upper=name.upper())
-    if database == "none":
-        return {f"{name}/settings.py": settings_source}
-    declared = settings_source.replace(
-        "    pass\n", "    database: settings.DatabaseSettings\n"
+def settings_source(name: str, database: str, server: str) -> str:
+    """``settings.py``: the declared database and, for Granian, the TOML file."""
+    return SETTINGS.format(
+        name=name,
+        upper=name.upper(),
+        toml=', toml="settings.toml"' if server == "granian" else "",
+        fields=(
+            "    database: settings.DatabaseSettings\n"
+            if database != "none"
+            else "    pass\n"
+        ),
     )
-    result = {f"{name}/settings.py": declared}
+
+
+def database_files(name: str, database: str, server: str) -> dict[str, str]:
+    """Settings, TOML and environment example for the chosen database and server."""
+    result = {f"{name}/settings.py": settings_source(name, database, server)}
+    if server == "granian":
+        result["settings.toml"] = SERVER_TOML.format(upper=name.upper())
     if database == "postgresql":
         result[".env.example"] = (
             f"{name.upper()}_DATABASE__URL=postgresql://user:password@localhost:5432/{name}\n"
@@ -304,12 +321,15 @@ def files(
     source: str | None = None,
     *,
     database: str = "none",
+    server: str = "kiso",
     agent_files: bool = True,
     skills: bool = False,
 ) -> dict[str, str]:
     """Relative path to content for a new project called ``name``."""
     if database not in DATABASES:
         raise ScaffoldError(f"the database must be one of {', '.join(DATABASES)}")
+    if server not in SERVERS:
+        raise ScaffoldError(f"the server must be one of {', '.join(SERVERS)}")
     title = name.capitalize()
     values = {
         "name": name,
@@ -348,7 +368,7 @@ def files(
             ".hinoki-app-create.lock\n"
         ),
     }
-    contents.update(database_files(name, database))
+    contents.update(database_files(name, database, server))
     if not agent_files:
         for relative in AGENT_FILES:
             contents.pop(relative)
@@ -363,6 +383,7 @@ def create(
     source: str | None = None,
     *,
     database: str = "none",
+    server: str = "kiso",
     agent_files: bool = True,
     skills: bool = False,
 ) -> Path:
@@ -378,7 +399,12 @@ def create(
     if target.exists() and any(target.iterdir()):
         raise ScaffoldError(f"{target} already exists and is not empty")
     contents = files(
-        name, source, database=database, agent_files=agent_files, skills=skills
+        name,
+        source,
+        database=database,
+        server=server,
+        agent_files=agent_files,
+        skills=skills,
     )  # resolve the source before writing anything
     for relative, content in contents.items():
         path = target / relative
