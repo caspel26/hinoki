@@ -934,6 +934,67 @@ configured, unless <code>claims</code> already has them.</p>
 
 
 
+<h2 id="hinoki.crypto.ClaimsJWTAuth" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.crypto.ClaimsJWTAuth</span>
+
+
+<a href="#hinoki.crypto.ClaimsJWTAuth" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="hinoki.crypto.JWTAuth" href="#hinoki.crypto.JWTAuth">JWTAuth</a>[None]</code></p>
+
+
+
+        <p>A JWT provider whose caller comes from the signed claims alone.</p>
+<p>Subclass it and set <code>keys</code> (and usually <code>issuer</code> and <code>audience</code>)::</p>
+<div class="highlight"><pre><span></span><code>class Tokens(ClaimsJWTAuth):
+    keys = [JWTKey("2026-11", "HS256", settings.jwt_secret)]
+</code></pre></div>
+<p><code>Caller.id</code> is the non-empty string claim <code>sub</code>, <code>Caller.user</code> is
+<code>None</code> and <code>Caller.permissions</code> are the strings in the list claim named
+by <code>scope_claim</code> (none when it is absent). A token without a usable
+<code>sub</code>, or whose scope claim is not a list, is refused. Nothing is loaded
+from a database, so a token stays valid until it expires; use <code>JWTAuth</code>
+when a revoked or deleted account must be refused immediately.</p>
+<p>Because it runs no application code, the Rust server can authenticate
+generated CRUD routes that use it without entering Python. Overriding any
+method keeps the routes on the Python request pipeline.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
 <h2 id="hinoki.crypto.PasswordHasher" class="doc doc-heading">
             <span class="doc doc-object-name doc-class-name">hinoki.crypto.PasswordHasher</span>
 
@@ -1089,7 +1150,7 @@ against a fixed dummy hash so timing does not reveal who exists.</p>
             <ul><li><a href="#hinoki.crypto.JWTKey.verify_only">verify_only</a></li></ul>
           </li><li><a href="#hinoki.crypto.JWTAuth">JWTAuth</a>
             <ul><li><a href="#hinoki.crypto.JWTAuth.now">now</a></li><li><a href="#hinoki.crypto.JWTAuth.resolve_claims">resolve_claims</a></li><li><a href="#hinoki.crypto.JWTAuth.issue">issue</a></li></ul>
-          </li><li><a href="#hinoki.crypto.PasswordHasher">PasswordHasher</a>
+          </li><li><a href="#hinoki.crypto.ClaimsJWTAuth">ClaimsJWTAuth</a></li><li><a href="#hinoki.crypto.PasswordHasher">PasswordHasher</a>
             <ul><li><a href="#hinoki.crypto.PasswordHasher.hash_sync">hash_sync</a></li><li><a href="#hinoki.crypto.PasswordHasher.verify_sync">verify_sync</a></li><li><a href="#hinoki.crypto.PasswordHasher.needs_rehash">needs_rehash</a></li></ul>
           </li><li><a href="#hinoki.crypto.random_token">random_token</a></li></ul>
           
@@ -1098,7 +1159,7 @@ against a fixed dummy hash so timing does not reveal who exists.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.7</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 19:11:19 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 01:33:42 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/auth.md">Edit on GitHub</a></dd></div>
         </dl>

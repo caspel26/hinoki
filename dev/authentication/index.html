@@ -455,6 +455,9 @@ and protected routes refer to the same typed constant.</p>
 <h2 id="passwords-and-jwt">Passwords and JWT<a class="headerlink" href="#passwords-and-jwt" title="Permanent link">&para;</a></h2>
 <p><code>hinoki.crypto.PasswordHasher</code> provides Argon2id hashing and verification; <code>JWTKey</code> and <code>JWTAuth</code> issue and verify configured token algorithms. Read keys from <code>settings.Secret</code> fields and reveal them only when constructing the provider. Validate audience, issuer, expiry and key rotation settings for your deployment. See the <a href="../reference/auth/">crypto API reference</a>.</p>
 <p>For <code>JWTAuth</code>, Rust verifies the signature and registered claims using the current key snapshot. <code>now()</code> and the configured issuer, audience, leeway (0 to 120 seconds; a provider with another value fails when it is built) and expiry policy are read for each verification. A request already verifying with a captured key snapshot finishes with that snapshot; a later verification observes key rotation. Rust does not turn token claims into a <code>Caller</code>: the application's <code>resolve_claims</code> hook still runs for every valid token, and remains responsible for loading or rejecting the identity and deciding its permissions. Sync, async and sync functions returning awaitables follow the normal hook execution path.</p>
+<h3 id="claims-only-tokens-on-the-native-lane">Claims-only tokens on the native lane<a class="headerlink" href="#claims-only-tokens-on-the-native-lane" title="Permanent link">&para;</a></h3>
+<p><code>ClaimsJWTAuth</code> is a <code>JWTAuth</code> whose caller comes from the token alone: <code>sub</code> (a non-empty string) becomes <code>Caller.id</code>, the claim named by <code>scope_claim</code> (default <code>scopes</code>, a list of strings; absent means none) becomes the permissions, and there is no user object (<code>Caller.user</code> is <code>None</code>). It performs no database lookup, so a token stays valid until it expires and cannot be revoked individually; keep lifetimes short.</p>
+<p>Generated CRUD routes protected by an unmodified <code>ClaimsJWTAuth</code> can run on the native lane. Rust only admits requests: a single <code>Authorization: Bearer &lt;token&gt;</code> header whose token verifies (signature, expiry, issuer, audience, <code>sub</code>) and carries every required permission goes straight to the native action. Every other request, including a missing, malformed, expired, forged or under-privileged one, is handed to the Python pipeline, which answers exactly as it does without the native lane (<code>401</code> with the challenge, or <code>403</code>). A subclass that overrides a method, a modified instance, or any other auth class keeps the route on Python. The route's key, issuer, audience, leeway and permission snapshot is rechecked about once per second; reassigning them disarms the native plan until the worker restarts, so a rotation reaches native routes after that interval, not per verification. <code>hinoki routes --lanes</code> shows which lane each route uses.</p>
 <p>Hinoki does not create users, sessions or permission rules for your application. Those remain application data and policy.</p>
         
         <aside class="related" aria-label="Related pages">
@@ -478,15 +481,17 @@ and protected routes refer to the same typed constant.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#define-a-provider">Define a provider</a></li><li><a href="#attach-a-policy">Attach a policy</a></li><li><a href="#passwords-and-jwt">Passwords and JWT</a></li></ul>
+            <ul><li><a href="#define-a-provider">Define a provider</a></li><li><a href="#attach-a-policy">Attach a policy</a></li><li><a href="#passwords-and-jwt">Passwords and JWT</a>
+            <ul><li><a href="#claims-only-tokens-on-the-native-lane">Claims-only tokens on the native lane</a></li></ul>
+          </li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.16</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 16:48:25 UTC">November 18, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>2 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 01:33:42 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/authentication.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
