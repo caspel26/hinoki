@@ -331,6 +331,13 @@ def holds_mapping(field_type: FieldType) -> bool:
     return field_type.item is not None and holds_mapping(field_type.item)
 
 
+def stays_json(parsed: FieldType, values: dict[str, Any]) -> bool:
+    """Whether a parsed column annotation is stored as JSON: a dict, or a list
+    of dicts, or an Enum or Literal (a plain ``one_of`` constraint is not)."""
+    listed = parsed.info.one_of is not None and "one_of" not in values
+    return listed or holds_mapping(parsed)
+
+
 def resolve_model_field_type(
     cls: type[Model], name: str, hint: object, meta: FieldMeta
 ) -> FieldType:
@@ -354,10 +361,11 @@ def resolve_model_field_type(
             raise RegistrationError(
                 f"{cls.__name__}.{name}: constraints do not apply to a bytes column"
             )
-        if not holds_mapping(parsed):
+        if not stays_json(parsed, values):
             return parsed
         # A column holding a dict (also inside lists) stays a JSON column: Model
-        # writes do not validate it as a Schema dict field would.
+        # writes do not validate it as a Schema dict field would. So do the
+        # ``Enum`` and ``Literal`` annotations, which only Schema fields check.
         if values:
             raise RegistrationError(
                 f"{cls.__name__}.{name}: constraints do not apply to a JSON column"

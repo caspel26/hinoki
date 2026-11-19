@@ -109,10 +109,17 @@ class Validator:
                 return None
             return self.fail(path, "null", "null is not allowed")
         value = self.handlers[ftype.kind](ftype, data, path)
+        if value is INVALID:
+            return INVALID
+        return self.settle(ftype, value, path)
+
+    def settle(self, ftype: FieldType, value: Any, path: str) -> object:
         choices = ftype.info.one_of
-        if choices is not None and value is not INVALID and value not in choices:
+        if choices is not None and value not in choices:
             shown = ", ".join(repr(c) for c in choices[:10])
             return self.fail(path, "one_of", f"must be one of {shown}")
+        if ftype.enum_class is not None:
+            return ftype.enum_class(value)
         return value
 
     def text(self, ftype: FieldType, data: Any, path: str) -> object:

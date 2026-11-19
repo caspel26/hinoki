@@ -1271,6 +1271,8 @@ impl<'py> Encoder<'py> {
             )?;
         } else if let Some(text) = self.wire_text(value)? {
             write_string(&mut self.out, &text)?;
+        } else if let Some(member) = self.member_value(value)? {
+            self.replace(&member, depth)?;
         } else if value.hasattr("dump")? {
             self.replace(&value.call_method0("dump")?, depth)?;
         } else if let Some(hook) = self.default.clone() {
@@ -1295,6 +1297,14 @@ impl<'py> Encoder<'py> {
             return Ok(None);
         }
         crate::schema::wire_text(value)
+    }
+
+    /// The value an `Enum` member is written as, inside a schema instance.
+    fn member_value(&self, value: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        if self.schemas == 0 {
+            return Ok(None);
+        }
+        crate::pytypes::enum_value(value)
     }
 
     fn schema_object(
