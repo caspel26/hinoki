@@ -102,6 +102,8 @@ class Invalid(Exception):
 
 CHECK_ATTR = "__hinoki_check__"
 NORMALIZE_ATTR = "__hinoki_normalize__"
+BEFORE_ATTR = "__hinoki_before__"
+MAX_BEFORE_DEPTH = 64
 NORMALIZER_PARAMETER_COUNT = 2
 
 
@@ -127,6 +129,28 @@ def object_check[F: Callable[..., Any]](function: F) -> F:
     """Mark a method as a check on the whole object: ``def ok(self)``. Runs after
     every field check passed or failed (all problems are reported together)."""
     setattr(function, CHECK_ATTR, ("object", ()))
+    return function
+
+
+def before_validate[F: Callable[..., Any]](function: F) -> F:
+    """Mark a classmethod or staticmethod that reshapes raw wire input:
+    ``def prepare(cls, data: dict[str, Any]) -> dict[str, Any]``.
+
+    It runs on the decoded mapping, before any structural validation, for the
+    schema and for every schema nested in it (lists, dicts, tuples, optionals and
+    discriminated variants). Return the mapping to validate. The hook gets a shallow
+    copy: replace nested values instead of mutating them, or the caller's input
+    changes. Raise ``Invalid(code, message)`` to refuse; a ``KeyError``,
+    ``TypeError``, ``ValueError``, ``IndexError`` or ``AttributeError`` caused by
+    unexpected input answers as ``invalid_input``. The input
+    is untrusted: check types before relying on them, stay synchronous and do no
+    I/O. Plain unions of schemas that use it are refused: use a discriminator."""
+    target = descriptor_function(function)
+    if target is function:
+        raise RegistrationError(
+            "@before_validate must wrap a classmethod or staticmethod"
+        )
+    setattr(target, BEFORE_ATTR, True)
     return function
 
 
@@ -1035,8 +1059,10 @@ class Schema:
     __native_dump__: ClassVar[bool] = True
     __checks__: ClassVar[tuple[tuple[str, tuple[str, ...], str], ...]] = ()
     __normalizers__: ClassVar[tuple[tuple[str, str], ...]] = ()
+    __before__: ClassVar[tuple[str, ...]] = ()
     __declared_forms__: ClassVar[tuple[tuple[str, FieldInfo], ...] | None] = None
     __graph_normalizers__: ClassVar[bool | None] = None
+    __graph_before__: ClassVar[bool | None] = None
     __source__: ClassVar[dict[str, Any]] = {}
     __derivation__: ClassVar[tuple[Any, ...] | None] = None
     __derived_model__: ClassVar[type | None] = None
@@ -1070,6 +1096,7 @@ class Schema:
             derive_from_model(cls, source, None, (), False)
         cls.__checks__ = collect_checks(cls)
         cls.__normalizers__ = collect_normalizers(cls)
+        cls.__before__ = collect_before(cls)
         annotations = inspect.get_annotations(cls)
         validate_reserved_names(cls, annotations)
         register_computed(cls, annotations)
@@ -1089,6 +1116,7 @@ class Schema:
         else:
             if not cls.is_generic():
                 cls.computed_fields()
+                refuse_hooked_unions(cls)
 
     @classmethod
     def is_generic(cls) -> bool:
@@ -1222,6 +1250,10 @@ class Schema:
     def validate(cls, data: object) -> Self:
         """Build an instance from decoded JSON or raise ``ValidationError``
         (validated in Rust)."""
+        return cls._validate_prepared(prepare_root(cls, data))
+
+    @classmethod
+    def _validate_prepared(cls, data: object) -> Self:
         queue, token, owns_queue = begin_normalization_queue(cls)
         try:
             instance, problems = cls.native_schema().validate(data)
@@ -1246,8 +1278,10 @@ class Schema:
         """Like ``validate`` for data that is all text, such as form fields
         (``{"count": ["2"]}``) or a parsed XML tree: text is first converted, in
         Rust, to the ``int``, ``float`` and ``bool`` the fields declare. Anything
-        that does not convert is left for ``validate`` to refuse."""
-        return cls.validate(cls.native_schema().coerce_text(data))
+        that does not convert is left for ``validate`` to refuse. Before hooks see
+        the raw text (each form value is a list of strings) and run first."""
+        prepared = prepare_root(cls, data)
+        return cls._validate_prepared(cls.native_schema().coerce_text(prepared))
 
     @classmethod
     def _validate_instance(
@@ -1496,6 +1530,182 @@ def collect_normalizers(cls: type) -> tuple[tuple[str, str], ...]:
     return tuple(found.values())
 
 
+def collect_before(cls: type) -> tuple[str, ...]:
+    """Names of the ``@before_validate`` hooks, base classes first; a subclass
+    method with the same name replaces the inherited one."""
+    found: dict[str, None] = {}
+    for klass in reversed(cls.__mro__):
+        for name, value in vars(klass).items():
+            function = descriptor_function(value)
+            if getattr(function, BEFORE_ATTR, False) is True:
+                ensure_sync_check(cls, name, function)
+                found[name] = None
+            else:
+                found.pop(name, None)
+    return tuple(found)
+
+
+def graph_has_before(cls: type[Schema]) -> bool:
+    """Whether this schema graph declares a before hook (answer cached)."""
+    cached = cls.__dict__.get("__graph_before__")
+    if cached is None:
+        cached = reaches_before(cls)
+        cls.__graph_before__ = cached
+    return bool(cached)
+
+
+def reaches_before(cls: type[Schema]) -> bool:
+    pending = [cls]
+    visited: set[type] = set()
+    while pending:
+        current = pending.pop()
+        if current in visited:
+            continue
+        visited.add(current)
+        if current.__before__:
+            return True
+        pending.extend(nested_schemas(current))
+    return False
+
+
+def prepare_root(cls: type[Schema], data: object) -> object:
+    return prepare_input(cls, data, "", 0) if graph_has_before(cls) else data
+
+
+def refuse_hooked_unions(cls: type[Schema]) -> None:
+    """Refuse, when ``cls`` is defined, a plain union holding a hooked schema."""
+    for spec in cls.specs().values():
+        pending = [spec.ftype]
+        while pending:
+            ftype = pending.pop()
+            if ftype.kind == "anyof":
+                refuse_hooked_union(ftype)
+            pending.extend(ftype.children())
+
+
+def prepare_input(cls: type[Schema], data: object, path: str, depth: int) -> object:
+    """Apply the before hooks of ``cls`` and of the schemas nested in ``data``."""
+    if depth > MAX_BEFORE_DEPTH:
+        raise ValidationError(
+            [ErrorDetail(path, "too_deep", "input is nested too deep")]
+        )
+    if not isinstance(data, dict):
+        return data
+    for name in cls.__before__:
+        data = run_before(cls, name, data, path)
+    return prepare_fields(cls, data, path, depth) if graph_has_before(cls) else data
+
+
+def prepare_fields(
+    cls: type[Schema], data: dict[str, Any], path: str, depth: int
+) -> dict[str, Any]:
+    changed: dict[str, Any] = {}
+    for spec in cls.specs().values():
+        if spec.wire_name in data and holds_schema(spec.ftype):
+            where = f"{path}.{spec.wire_name}" if path else spec.wire_name
+            value = data[spec.wire_name]
+            prepared = prepare_value(spec.ftype, value, where, depth + 1)
+            if prepared is not value:
+                changed[spec.wire_name] = prepared
+    return {**data, **changed} if changed else data
+
+
+def run_before(
+    cls: type[Schema], name: str, data: dict[str, Any], path: str
+) -> dict[str, Any]:
+    try:
+        result = getattr(cls, name)(dict(data))
+    except Invalid as refusal:
+        raise ValidationError(
+            [
+                ErrorDetail(
+                    joined_path(path, refusal.path), refusal.code, refusal.message
+                )
+            ]
+        ) from None
+    except (KeyError, IndexError, TypeError, ValueError, AttributeError):
+        raise ValidationError(
+            [ErrorDetail(path, "invalid_input", "input could not be prepared")]
+        ) from None
+    if not isinstance(result, dict):
+        raise TypeError(
+            f"{cls.__name__}.{name}: a before hook must return a mapping, "
+            f"not {type(result).__name__}"
+        )
+    return result
+
+
+def joined_path(base: str, extra: str) -> str:
+    return f"{base}.{extra}" if base and extra else base or extra
+
+
+def prepare_value(ftype: FieldType, value: object, where: str, depth: int) -> object:
+    """``value`` with the before hooks applied through lists, dicts and tuples."""
+    if ftype.variants:
+        return prepare_variant(ftype, value, where, depth)
+    if ftype.schema is not None:
+        return prepare_input(ftype.schema, value, where, depth)
+    if ftype.kind == "anyof":
+        refuse_hooked_union(ftype)
+        return value
+    return prepare_container(ftype, value, where, depth)
+
+
+def prepare_container(
+    ftype: FieldType, value: object, where: str, depth: int
+) -> object:
+    if isinstance(value, list):
+        return prepare_sequence(ftype, value, where, depth)
+    if isinstance(value, dict) and ftype.item is not None:
+        return {
+            key: prepare_value(ftype.item, item, f"{where}.{key}", depth)
+            for key, item in value.items()
+        }
+    return value
+
+
+def prepare_sequence(
+    ftype: FieldType, value: list[Any], where: str, depth: int
+) -> list[Any]:
+    if ftype.kind == "tuple":
+        children: tuple[FieldType | None, ...] = ftype.items
+    else:
+        children = (ftype.item,) * len(value)
+    return [
+        item if child is None else prepare_value(child, item, f"{where}.{index}", depth)
+        for index, (child, item) in enumerate(zip(children, value, strict=False))
+    ] + value[len(children) :]
+
+
+def prepare_variant(ftype: FieldType, value: object, where: str, depth: int) -> object:
+    """The hooks of the variant a discriminated value selects; an unknown tag is
+    left for the structural validation to report."""
+    if not isinstance(value, dict):
+        return value
+    tag = value.get(ftype.discriminator_wire_name or ftype.discriminator or "")
+    for name, schema in ftype.variants:
+        if name == tag:
+            return prepare_input(schema, value, where, depth)
+    return value
+
+
+def type_reaches_before(ftype: FieldType) -> bool:
+    if ftype.schema is not None and graph_has_before(ftype.schema):
+        return True
+    if any(graph_has_before(schema) for _, schema in ftype.variants):
+        return True
+    return any(type_reaches_before(child) for child in ftype.children())
+
+
+def refuse_hooked_union(ftype: FieldType) -> None:
+    for child in ftype.items:
+        if type_reaches_before(child):
+            raise RegistrationError(
+                "a plain union holds a schema that uses @before_validate: "
+                "declare a discriminator so the hook can be applied"
+            )
+
+
 def graph_has_checks(cls: type[Schema], seen: set[type] | None = None) -> bool:
     """Whether this schema graph declares a check; recursive-safe lookup."""
     pending = [cls]
@@ -1680,7 +1890,7 @@ SOURCE_SKIP = frozenset(
         "__derivation__", "__derived_model__", "__model_fields__",
         _SUPPLIED_FIELDS, _TRACKS_SUPPLIED_FIELDS,
         "__computed_specs__", "__computed_checked__", COMPUTED_TABLE,
-        "__parameters__", "__orig_bases__", "__type_params__",
+        "__parameters__", "__orig_bases__", "__type_params__", "__graph_before__",
     }
 )  # fmt: skip
 
