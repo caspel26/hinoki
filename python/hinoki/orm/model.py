@@ -38,6 +38,7 @@ from uuid import UUID
 
 from hinoki import core
 from hinoki.blocking import run_sync
+from hinoki.db import current_owner
 from hinoki.errors import (
     ErrorDetail,
     FieldError,
@@ -1219,7 +1220,7 @@ class Model:
         transaction already rolls everything back on an error, so none is nested."""
         database = current_database()
         active = database.active()
-        if active is not None and asyncio.current_task() is not active.owner:
+        if active is not None and current_owner() is not active.owner:
             return contextlib.nullcontext()
         return database.atomic()
 
