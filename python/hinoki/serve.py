@@ -23,9 +23,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from hinoki import core
+from hinoki import __version__, core
 from hinoki.app import Hinoki
 from hinoki.routing import ROUTE_ATTR
+from hinoki.runtime import banner
 from hinoki.runtime.listener import ListenError, check_port, open_listener
 from hinoki.settings import MAX_WORKERS, AppSettings, ServerSettings, SettingsError
 from hinoki.target import load_target as import_target
@@ -178,6 +179,13 @@ def run_rust(
     workers = 1 if reload else (getattr(args, "workers", None) or settings.workers)
     try:
         check_port(address[1])  # before any lifespan or worker starts
+        banner.show(
+            settings,
+            version=__version__,
+            dev=reload,
+            workers=workers,
+            scheme="https" if settings.tls_cert_file else "http",
+        )
         if workers == 1 and not reload:
             return run_inline(app, address, settings)
         return run_supervised(args, app, address, settings, reload)
