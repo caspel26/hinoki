@@ -27,6 +27,10 @@ CATALOG: dict[str, tuple[str, str]] = {
         "A number is not less than the schema's exclusive upper limit (`lt`).",
         "Send a value strictly less than the limit shown in the message.",
     ),
+    "multiple_of": (
+        "An `int` or `Decimal` is not a whole multiple of the schema's step (`multiple_of`).",
+        "Send a value that is a multiple of the step shown in the message.",
+    ),
     "bad_request": (
         "The request is malformed in a way no more specific code covers (HTTP 400).",
         "Read the message; correct the request.",

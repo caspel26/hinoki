@@ -12,6 +12,7 @@ import re
 from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
+from fractions import Fraction
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -154,6 +155,9 @@ class Validator:
             limit = getattr(ftype.info, name)
             if limit is not None and not compare(data, limit):
                 return self.fail(path, name, f"must be {words} {limit}")
+        step = ftype.info.multiple_of
+        if step is not None and Fraction(data) % Fraction(step) != 0:
+            return self.fail(path, "multiple_of", f"must be a multiple of {step}")
         return data
 
     def integer(self, ftype: FieldType, data: Any, path: str) -> object:
