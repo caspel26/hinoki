@@ -33,8 +33,10 @@ use uuid::Uuid;
 use crate::request::{Json, JsonObject};
 
 mod coerce;
+mod internet;
 mod scalars;
 
+use internet::NetKind;
 pub(crate) use scalars::wire_text;
 pub use scalars::wire_text_of;
 use scalars::{ClockTime, DecimalNumber, Duration, DurationError};
@@ -152,6 +154,8 @@ enum Kind<R: Rules> {
     Timedelta,
     Decimal,
     Bytes,
+    /// An `ipaddress` address or network, read from text.
+    Net(NetKind),
     /// `Any` / `object`: every value is accepted as it is.
     Any,
     /// A plain union: the variants in declared order, the first that accepts
@@ -268,6 +272,8 @@ pub(crate) enum Validated {
     /// The decimal text as written (its scale is part of the value).
     Decimal(String),
     Bytes(Vec<u8>),
+    /// The text as written; the kind says which `ipaddress` class it becomes.
+    Net(NetKind, String),
     List(Vec<Validated>),
     /// A schema object, or the entries of a `dict` field in input order.
     Object(Vec<(String, Validated)>),
@@ -334,6 +340,10 @@ fn parse_node(raw: &Bound<'_, PyAny>) -> PyResult<Node<PyRules>> {
         "timedelta" => Kind::Timedelta,
         "decimal" => Kind::Decimal,
         "bytes" => Kind::Bytes,
+        "ipv4" => Kind::Net(NetKind::V4),
+        "ipv6" => Kind::Net(NetKind::V6),
+        "ipv4network" => Kind::Net(NetKind::V4Network),
+        "ipv6network" => Kind::Net(NetKind::V6Network),
         "list" => {
             let inner = item.ok_or_else(|| compile_error("list type without an item type"))?;
             Kind::List(Box::new(parse_node(&inner)?))
@@ -566,6 +576,7 @@ fn lower_kind(py: Python<'_>, kind: &Kind<PyRules>) -> Result<Kind<NativeRules>,
         Kind::Timedelta => Kind::Timedelta,
         Kind::Decimal => Kind::Decimal,
         Kind::Bytes => Kind::Bytes,
+        Kind::Net(kind) => Kind::Net(*kind),
         Kind::List(item) => Kind::List(Box::new(lower_node(py, item)?)),
         Kind::Tuple(_) | Kind::Any | Kind::AnyOf(_) => return Err(Unlowerable),
         Kind::Map { key, value } => Kind::Map {
@@ -966,6 +977,7 @@ enum Wire {
     Duration(Duration),
     Decimal,
     Bytes(Vec<u8>),
+    Net(NetKind),
 }
 
 /// Reads Python objects and builds the Python result (`CompiledSchema.validate`).
@@ -1072,6 +1084,10 @@ impl<'py> View for PyView<'_, 'py> {
             }
             Wire::Decimal => crate::pytypes::decimal_class(py)?.call1((text,)),
             Wire::Bytes(raw) => Ok(PyBytes::new(py, &raw).into_any()),
+            Wire::Net(kind) => py
+                .import("ipaddress")?
+                .getattr(kind.class_name())?
+                .call1((text,)),
         }
     }
 
@@ -1497,6 +1513,7 @@ impl<'v> View for JsonView<'v> {
             Wire::Duration(span) => Validated::Duration(span),
             Wire::Decimal => Validated::Decimal(text.to_owned()),
             Wire::Bytes(raw) => Validated::Bytes(raw),
+            Wire::Net(kind) => Validated::Net(kind, text.to_owned()),
         })
     }
 
@@ -1760,6 +1777,7 @@ impl<'a, V: View> Run<'a, V> {
             Kind::Timedelta => self.duration(data, path)?,
             Kind::Decimal => self.decimal(node, data, path)?,
             Kind::Bytes => self.binary(node, data, path)?,
+            Kind::Net(kind) => self.internet(*kind, data, path)?,
             Kind::List(item) => self.sequence(node, item, data, path, depth)?,
             Kind::Tuple(positions) => self.fixed(node, positions, data, path, depth)?,
             Kind::AnyOf(variants) => self.any_of(variants, data, path, depth)?,
@@ -2018,6 +2036,18 @@ impl<'a, V: View> Run<'a, V> {
         Ok(Some(
             self.view
                 .wire(Wire::Time(clock), text)
+                .map_err(Abort::View)?,
+        ))
+    }
+
+    fn internet(&mut self, kind: NetKind, data: &V::Data, path: &str) -> Checked<V> {
+        let text = self.plain_text(data).filter(|text| kind.accepts(text));
+        let Some(text) = text else {
+            return self.fail(path, kind.code(), kind.message().to_owned());
+        };
+        Ok(Some(
+            self.view
+                .wire(Wire::Net(kind), &text)
                 .map_err(Abort::View)?,
         ))
     }
@@ -2928,6 +2958,7 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
             | Validated::Time(_)
             | Validated::Duration(_)
             | Validated::Decimal(_)
+            | Validated::Net(..)
             | Validated::Bytes(_) => python_wire_value(py, value),
             Validated::List(items) => {
                 let list = PyList::empty(py);
@@ -2995,6 +3026,13 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
                 .call1((text,))
                 .unwrap(),
             Validated::Bytes(raw) => PyBytes::new(py, raw).into_any(),
+            Validated::Net(kind, text) => py
+                .import("ipaddress")
+                .unwrap()
+                .getattr(kind.class_name())
+                .unwrap()
+                .call1((text,))
+                .unwrap(),
             _ => unreachable!("not a wire value"),
         }
     }

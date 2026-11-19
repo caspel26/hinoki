@@ -486,6 +486,9 @@ pub(crate) fn wire_text(value: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
     {
         return value.call_method0("isoformat")?.extract().map(Some);
     }
+    if crate::pytypes::is_ip_object(value)? {
+        return value.str()?.extract().map(Some);
+    }
     Ok(None)
 }
 
