@@ -356,6 +356,11 @@ def finish_selection(
         ),
         (
             database_module is not None
+            and not orders_decimal_as_text(model, dialect_of(database_module)),
+            "decimal_order_unsupported_on_sqlite",
+        ),
+        (
+            database_module is not None
             and database_is_plain(pipeline.app, database_module, model),
             "database_methods_or_not_found_handler_customized",
         ),
@@ -905,6 +910,14 @@ def error_handlers_snapshot(app: Any) -> tuple[object, ...]:
         id(handlers),
         tuple(handlers.items()),
         tuple(errors.defaults.items()),
+    )
+
+
+def orders_decimal_as_text(model: type[Model], dialect: str | None) -> bool:
+    """SQLite stores a Decimal as text; the Python path refuses that ordering."""
+    return dialect == "sqlite" and any(
+        model.__field_types__[name.removeprefix("-")].kind == "decimal"
+        for name in model.__ordering__
     )
 
 

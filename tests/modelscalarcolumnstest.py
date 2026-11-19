@@ -12,8 +12,9 @@ import pytest
 
 from hinoki.db import Database
 from hinoki.errors import FieldError, ModelValidationError
-from hinoki.orm import Model, field, use_database
+from hinoki.orm import Model, field, ordered_by, use_database
 from hinoki.orm.migrations import create_table_sql, table_state
+from hinoki.runtime.crudplan import orders_decimal_as_text
 
 
 class Color(enum.Enum):
@@ -43,7 +44,7 @@ def test_the_columns_have_native_or_text_types() -> None:
         "day": "text",
         "at": "text",
         "span": "bigint",
-        "price": "text",
+        "price": "numeric",
         "color": "text",
         "level": "bigint",
     }
@@ -117,7 +118,10 @@ async def test_round_trip_and_filter(db: Database) -> None:
     assert loaded.at == dt.time(9, 30, 5, 250)
     assert loaded.span == dt.timedelta(days=-2, seconds=7, microseconds=3)
     assert loaded.price == Decimal("12.3400")
-    assert str(loaded.price) == "12.3400"
+    if db.dialect in {"mysql", "mariadb"}:
+        assert loaded.price == Decimal("12.3400")
+    else:
+        assert str(loaded.price) == "12.3400"
     assert loaded.color is Color.BLUE
     assert loaded.level is Level.HIGH
     assert await Entry.filter(day=dt.date(2026, 3, 4)).acount() == 1
@@ -140,14 +144,38 @@ async def test_dates_and_durations_compare_and_order(db: Database) -> None:
     assert [e.day.day for e in days] == [1, 2, 3]
 
 
-async def test_text_order_is_refused_where_it_would_be_wrong(db: Database) -> None:
-    with pytest.raises(FieldError, match="price"):
-        Entry.filter(price__gt=Decimal(1))
-    with pytest.raises(FieldError, match="price"):
-        Entry.filter(price=Decimal(1))
-    with pytest.raises(FieldError, match="price"):
-        Entry.all().order_by("price")
+async def test_decimal_columns_filter_and_order_by_value(db: Database) -> None:
+    sqlite = db.dialect == "sqlite"
+    for price in ("12.30", "-0.5", "100", "7"):
+        await Entry.acreate(day=dt.date(2026, 1, 1), price=Decimal(price))
+    assert await Entry.filter(price=Decimal("7")).acount() == 1
+    assert await Entry.filter(price__in=[Decimal("7"), 100]).acount() == 2
+    assert await Entry.filter(price__ne=Decimal("7")).acount() == 3
     assert await Entry.filter(price__isnull=True).acount() == 0
+    if sqlite:
+        with pytest.raises(FieldError, match="price"):
+            await Entry.filter(price__gt=Decimal(1))
+        with pytest.raises(FieldError, match="price"):
+            await Entry.all().order_by("price")
+        return
+    assert await Entry.filter(price=Decimal("12.3")).acount() == 1
+    assert await Entry.filter(price__gt=Decimal("7")).acount() == 2
+    assert await Entry.filter(price__lte="7").acount() == 2
+    ordered = await Entry.all().order_by("-price")
+    assert [e.price for e in ordered] == [
+        Decimal(100),
+        Decimal("12.3"),
+        Decimal(7),
+        Decimal("-0.5"),
+    ]
+
+
+def test_decimal_filters_refuse_inexact_or_non_numeric_values() -> None:
+    for bad in (1.5, True, "abc", Decimal("NaN"), object()):
+        with pytest.raises(FieldError, match="price"):
+            Entry.filter(price=bad)
+    with pytest.raises(FieldError, match="contains"):
+        Entry.filter(price__contains=Decimal(1))
 
 
 @pytest.mark.parametrize(
@@ -155,7 +183,6 @@ async def test_text_order_is_refused_where_it_would_be_wrong(db: Database) -> No
     [
         ("day", "'yesterday'"),
         ("at", "'noon'"),
-        ("price", "'abc'"),
         ("color", "'green'"),
         ("level", "7"),
     ],
@@ -167,3 +194,18 @@ async def test_a_corrupt_stored_value_is_a_field_error(
     await db.execute(f"UPDATE scalar_entries SET {column} = {value}")  # noqa: S608
     with pytest.raises(FieldError, match=column):
         await Entry.all().afirst()
+
+
+@ordered_by("-price")
+class Priced(Model, table="scalar_priced"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    price: Decimal = Decimal(0)
+
+
+def test_a_default_decimal_ordering_is_kept_off_the_native_sqlite_plan() -> None:
+    assert orders_decimal_as_text(Priced, "sqlite") is True
+    assert orders_decimal_as_text(Priced, "postgres") is False
+    assert orders_decimal_as_text(Entry, "sqlite") is False
+    with pytest.raises(FieldError, match="price"):
+        Priced.all().compile(dialect="sqlite")
+    assert "ORDER BY" in Priced.all().compile(dialect="postgres")[0]

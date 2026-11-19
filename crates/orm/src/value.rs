@@ -8,6 +8,8 @@ use time::{OffsetDateTime, UtcOffset};
 use tokio_postgres::types::{to_sql_checked, IsNull, Json, ToSql, Type};
 use uuid::Uuid;
 
+use crate::numeric;
+
 /// A database value. Parameters are sent in binary according to the type the
 /// server inferred for the placeholder; a mismatch is an error, never a cast.
 #[derive(Debug, Clone, PartialEq)]
@@ -58,8 +60,19 @@ impl Value {
             Type::INT4 => i32::try_from(i)?.to_sql(ty, out),
             Type::INT8 => i.to_sql(ty, out),
             Type::FLOAT8 => (i as f64).to_sql(ty, out),
+            Type::NUMERIC => Self::encode_numeric(&i.to_string(), out),
             _ => Err(Value::Int(i).mismatch(ty)),
         }
+    }
+
+    fn encode_numeric(
+        text: &str,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        let mut raw = Vec::new();
+        numeric::encode(text, &mut raw).map_err(|e| e.0)?;
+        out.extend_from_slice(&raw);
+        Ok(IsNull::No)
     }
 }
 
@@ -79,6 +92,7 @@ impl ToSql for Value {
                 s.to_sql(ty, out)
             }
             (Self::Bytes(b), &Type::BYTEA) => b.to_sql(ty, out),
+            (Self::Text(s), &Type::NUMERIC) => Self::encode_numeric(s, out),
             (Self::Uuid(u), &Type::UUID) => u.to_sql(ty, out),
             (Self::Timestamp(t), &Type::TIMESTAMPTZ) => t.to_sql(ty, out),
             (Self::Json(v), &(Type::JSON | Type::JSONB)) => Json(v).to_sql(ty, out),
