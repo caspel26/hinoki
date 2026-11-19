@@ -5,7 +5,7 @@ Hinoki is pre-alpha. This is a short public view of the work; implementation sta
 ## Available today
 
 - Typed Python HTTP APIs with optional architecture rules and declared errors.
-- The Rust extension currently provides path matching, selected request parsing, schema validation/serialization, cryptography, and PostgreSQL, SQLite, MySQL and MariaDB ORM execution. The ASGI adapter and application handlers run in Python, except that, on the Rust server (the default), a read-only `async def` handler the framework can prove safe is driven from Rust without an asyncio task. SQLite is the local-development default.
+- The Rust extension currently provides path matching, selected request parsing, schema validation/serialization, cryptography, and PostgreSQL, SQLite, MySQL and MariaDB ORM execution. The ASGI adapter and application handlers run in Python, except that, on Kiso (the default), a read-only `async def` handler the framework can prove safe is driven from Rust without an asyncio task. SQLite is the local-development default.
 - Sync and async handlers, settings, modules, migrations, OpenAPI, MCP tools, model lifecycle hooks, atomic writes (`atomic=True` on actions, `db.atomic` as a block or decorator in application code), response checks against annotations, route rate limit policies, and an optional admin with four themes and its own users.
 
 See the [documentation](https://caspel26.github.io/hinoki/) and runnable [examples](examples/) for current details. No performance claims are made without comparable retained measurements.
@@ -25,7 +25,7 @@ These are directions, not commitments, and none of them is available today.
 - Cursor pagination.
 - WebSockets and streaming responses.
 - Per-route CORS policies.
-- Native response compression, Prometheus metrics and reload on `SIGHUP` in Kiso, the Rust server.
+- Native response compression, Prometheus metrics and reload on `SIGHUP` in Kiso.
 - Distributing as a single package, `hinoki-api` (import and CLI stay `hinoki`), with the admin remaining an optional extra of that package rather than a separate distribution.
 
 This roadmap is intentionally curated; detailed queue notes and owner decisions are maintained locally and are not part of the public repository.
