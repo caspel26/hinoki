@@ -134,7 +134,7 @@ def make_app(url: str, **runtime: float) -> Hinoki:
 def normalized(received: Received) -> tuple[int, list[tuple[str, str]], bytes]:
     """Without the request id, the one value that differs per request."""
     pattern = re.compile(rb"[0-9a-f]{32}")
-    headers = [(k, v) for k, v in received.headers if k != "x-request-id"]
+    headers = [(k, v) for k, v in received.headers if k not in {"x-request-id", "date"}]
     return received.status, headers, pattern.sub(b"<id>", received.body)
 
 
