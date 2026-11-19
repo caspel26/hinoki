@@ -374,7 +374,7 @@ impl Backend for CoreBackend {
             refusal,
             body,
         };
-        match self.core.classify(head, true) {
+        match self.core.classify(head, true, &trace) {
             Ok(outcome) => {
                 trace.set(match outcome {
                     Outcome::Early(_) => Lane::Early,

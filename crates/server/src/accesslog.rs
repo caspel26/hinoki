@@ -11,6 +11,7 @@ use std::io::Write as _;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use hyper::StatusCode;
@@ -49,15 +50,27 @@ impl Lane {
 
 /// Written by the backend while it handles a request, read by the log line.
 #[derive(Debug, Default)]
-pub struct Trace(AtomicU8);
+pub struct Trace {
+    lane: AtomicU8,
+    route: OnceLock<Arc<str>>,
+}
 
 impl Trace {
     pub fn set(&self, lane: Lane) {
-        self.0.store(lane as u8 + 1, Ordering::Relaxed);
+        self.lane.store(lane as u8 + 1, Ordering::Relaxed);
+    }
+
+    /// The pattern of the route that matched; the first one set wins.
+    pub fn set_route(&self, pattern: Arc<str>) {
+        let _ = self.route.set(pattern);
+    }
+
+    pub fn route(&self) -> Option<&str> {
+        self.route.get().map(|pattern| &**pattern)
     }
 
     pub fn lane(&self) -> Option<Lane> {
-        match self.0.load(Ordering::Relaxed) {
+        match self.lane.load(Ordering::Relaxed) {
             1 => Some(Lane::Early),
             2 => Some(Lane::Python),
             3 => Some(Lane::Native),
@@ -75,6 +88,8 @@ pub struct Entry<'a> {
     pub status: u16,
     pub elapsed: Duration,
     pub lane: Option<Lane>,
+    /// The route pattern, e.g. `/items/{id}`, when one matched.
+    pub route: Option<&'a str>,
 }
 
 const RESET: &str = "\x1b[0m";
@@ -206,6 +221,11 @@ fn json_line(entry: &Entry<'_>, at: SystemTime) -> String {
     if let Some(lane) = entry.lane {
         let _ = write!(text, ",\"lane\":\"{}\"", lane.name());
     }
+    if let Some(route) = entry.route {
+        text.push_str(",\"route\":\"");
+        json_escaped(route, &mut text);
+        text.push('"');
+    }
     text.push('}');
     text
 }
@@ -315,6 +335,7 @@ mod tests {
             status,
             elapsed: Duration::from_micros(3_200),
             lane: None,
+            route: None,
         }
     }
 
@@ -400,6 +421,13 @@ mod tests {
         assert_eq!(trace.lane(), None);
         trace.set(Lane::Python);
         assert_eq!(trace.lane(), Some(Lane::Python));
+        assert_eq!(trace.route(), None);
+        trace.set_route(Arc::from("/items/{id}"));
+        trace.set_route(Arc::from("/other"));
+        assert_eq!(trace.route(), Some("/items/{id}"));
+        served.route = Some("/items/{id}");
+        let text = line_at(AccessLog::Json, &served, UNIX_EPOCH);
+        assert!(text.ends_with(",\"lane\":\"native\",\"route\":\"/items/{id}\"}"));
     }
 
     #[test]
