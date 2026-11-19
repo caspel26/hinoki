@@ -511,9 +511,45 @@ use <a href="../migrations/"><code>hinoki migrations status</code></a> for the l
 <a href="../migrations/#check-migration-drift"><code>hinoki migrations plan --check</code></a> for
 model-to-file drift.</p>
 <h3 id="new"><code>new</code><a class="headerlink" href="#new" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>new<span class="w"> </span>notes<span class="w"> </span>--dir<span class="w"> </span>.
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>new<span class="w"> </span>notes<span class="w"> </span>--dir<span class="w"> </span>.<span class="w">      </span><span class="c1"># or just `hinoki new` in a terminal for prompts</span>
+hinoki<span class="w"> </span>new<span class="w"> </span>notes<span class="w"> </span>--no-input<span class="w"> </span>--database<span class="w"> </span>sqlite<span class="w"> </span>--git<span class="w"> </span>--install
 </code></pre></div>
-<p><code>NAME</code> is a lowercase package name containing letters and digits; it cannot be <code>hinoki</code> or a Python standard-library module name, because those names would shadow imports used by the generated project. <code>--dir</code> chooses the parent directory and defaults to the current directory. The target <code>PATH/NAME</code> must not exist or must be empty; nothing is overwritten, and nothing is installed or run.</p>
+<p>In a terminal, <code>hinoki new</code> with no <code>NAME</code> (or with some options missing) asks for what the flags left unset: name, parent directory, database, agent files, <code>git init</code> and <code>uv sync</code>. Pass <code>--no-input</code> (or run without a terminal, as in CI) to skip every prompt and use flags and defaults; <code>NAME</code> is then required.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Effect</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--database none\|sqlite\|postgresql</code></td>
+<td><code>sqlite</code> declares <code>database: settings.DatabaseSettings</code> in the project settings (local file under <code>.hinoki/</code>); <code>postgresql</code> also writes <code>.env.example</code> with a placeholder <code>&lt;NAME&gt;_DATABASE__URL</code> to copy to <code>.env</code></td>
+<td><code>none</code></td>
+</tr>
+<tr>
+<td><code>--agent-files</code> / <code>--no-agent-files</code></td>
+<td>write or omit <code>AGENTS.md</code>, <code>CLAUDE.md</code> and <code>.mcp.json</code></td>
+<td>written</td>
+</tr>
+<tr>
+<td><code>--git</code></td>
+<td>run <code>git init</code> in the project (no commit is made)</td>
+<td>off (prompt default: yes)</td>
+</tr>
+<tr>
+<td><code>--install</code></td>
+<td>run <code>uv sync</code> in the project</td>
+<td>off (prompt default: yes)</td>
+</tr>
+</tbody>
+</table>
+<p>On a colour, UTF-8 terminal (macOS and Linux) the prompts sit on a guide rail and answer to keys: type a name (backspace edits, Ctrl-U clears), move through the database list with ↑/↓ or pick it by number, and switch yes/no with ←/→ or <code>y</code>/<code>n</code>; Enter confirms. Each answered prompt collapses into one summary line. The run then lists the key files it created, times <code>git init</code> and <code>uv sync</code> (with a spinner while they run) and ends with the next commands. Ghostty, kitty, iTerm2 and WezTerm show the Hinoki logo as an inline image; other terminals show a text wordmark. Elsewhere the prompts are numbered lists and <code>[Y/n]</code> questions answered with Enter.</p>
+<p>Output that is piped, <code>NO_COLOR</code> and <code>TERM=dumb</code> give plain ASCII with no escape sequences. <code>HINOKI_ANIMATE=0</code> (or <code>CI</code>) turns off the tagline animation and the spinner; <code>HINOKI_IMAGES=0</code> (or running inside tmux/screen) uses the text wordmark. When the terminal reports a light background through <code>COLORFGBG</code>, darker shades of the same colours are used. Ctrl-C (or Esc in the key-driven prompts) or end of input cancels before anything is written (exit status 130).</p>
+<p><code>git</code> and <code>uv</code> run only when asked; a missing tool or a failing command prints a warning and does not undo the project. Nothing else is installed or run, and no database is created or contacted.</p>
+<p><code>NAME</code> is a lowercase package name containing letters and digits; it cannot be <code>hinoki</code> or a Python standard-library module name, because those names would shadow imports used by the generated project. <code>--dir</code> chooses the parent directory and defaults to the current directory. The target <code>PATH/NAME</code> must not exist or must be empty; nothing is overwritten.</p>
 <p>This repository's pre-alpha Hinoki framework is not published on PyPI; the <a href="https://pypi.org/project/hinoki/"><code>hinoki</code> name</a> belongs to an unrelated legacy package. The generated <code>pyproject.toml</code> therefore names this repository as the source under <code>[tool.uv.sources]</code>:</p>
 <table>
 <thead>
@@ -760,8 +796,8 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class=
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 00:56:46 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>15 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 10:50:46 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>16 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
