@@ -1563,11 +1563,14 @@ call again, it replaces its own handler.</p>
 these; they do nothing when another runner starts the app.</p>
 <p><code>server</code> picks Granian (the default) or the Rust server. <code>access_log</code>
 belongs to Granian; <code>max_connections</code>, <code>header_read_timeout</code>,
-<code>body_read_timeout</code> and <code>write_timeout</code> belong to the Rust server
-(<code>None</code> keeps its default). <code>hinoki serve</code> refuses a setting the chosen
-server cannot honour. <code>tls_cert_file</code> and <code>tls_key_file</code> (PEM files, set
-together) serve HTTPS on either server; <code>http2</code> adds HTTP/2 to it (ALPN
-<code>h2</code>, TLS only, off by default).</p>
+<code>body_read_timeout</code>, <code>write_timeout</code> and <code>native_dispatch</code> belong to
+the Rust server (<code>None</code> keeps its default). <code>hinoki serve</code> refuses a
+setting the chosen server cannot honour. <code>tls_cert_file</code> and
+<code>tls_key_file</code> (PEM files, set together) serve HTTPS on either server;
+<code>http2</code> adds HTTP/2 to it (ALPN <code>h2</code>, TLS only, off by default).
+<code>native_dispatch</code> (unset means on)
+lets the Rust server run the <code>async def</code> handlers it can prove safe
+without an asyncio task; <code>False</code> keeps every handler in one.</p>
 
 
 

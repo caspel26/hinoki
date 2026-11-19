@@ -588,6 +588,12 @@
 </tr>
 <tr>
 <td><code>server</code></td>
+<td><code>native_dispatch</code></td>
+<td>unset (on)</td>
+<td>Rust server only: run the <code>async def</code> handlers it can prove safe without an asyncio task (see <a href="../serving/#the-native-handler-lane">the native handler lane</a>); <code>false</code> keeps every handler in an asyncio task; refused under Granian</td>
+</tr>
+<tr>
+<td><code>server</code></td>
 <td><code>tls_cert_file</code>, <code>tls_key_file</code></td>
 <td>unset</td>
 <td>PEM certificate chain and private key; both or neither, and both must exist. Serves HTTPS on either server; the Rust server reads them once at start</td>
@@ -995,7 +1001,7 @@ BLOG_JWT_SECRET               file         ***
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.20</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 17:11:07 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 17:45:50 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>18 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
