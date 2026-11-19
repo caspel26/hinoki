@@ -94,6 +94,11 @@ def operation_key(method: str) -> str:
     return "x-query" if method == "QUERY" else method.lower()
 
 
+def component_name(schema: type[Schema]) -> str:
+    """The component key: ``Envelope[User]`` becomes ``Envelope_User_``."""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", schema.__name__)
+
+
 def ref(name: str) -> dict[str, str]:
     return {"$ref": f"#/components/schemas/{name}"}
 
@@ -329,7 +334,7 @@ class OpenAPIBuilder:
         return ref(name)
 
     def component(self, schema: type[Schema]) -> dict[str, str]:
-        name = schema.__name__
+        name = component_name(schema)
         known = self.owners.get(name)
         if known is not None and known is not schema:
             raise RegistrationError(f"two different schemas are both named {name!r}")
@@ -416,7 +421,7 @@ class OpenAPIBuilder:
             "discriminator": {
                 "propertyName": ftype.discriminator_wire_name,
                 "mapping": {
-                    tag: f"#/components/schemas/{schema.__name__}"
+                    tag: f"#/components/schemas/{component_name(schema)}"
                     for tag, schema in variants
                 },
             },
