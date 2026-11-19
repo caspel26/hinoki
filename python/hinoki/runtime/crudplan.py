@@ -475,6 +475,7 @@ def access_is_plain(route: Any, resource: _CrudConfig, action: str) -> bool:
     return (
         type(auth).__mro__.count(ClaimsJWTAuth) == 1
         and not vars(auth)
+        and auth.header == "authorization"
         and static_state_matches(
             type(auth), CLAIMS_AUTH_METHODS, CLAIMS_AUTH_METHODS_ORIGINAL
         )
@@ -490,6 +491,7 @@ def auth_snapshot(access: Any) -> tuple[object, ...]:
         return ()
     auth = access.auth
     return (
+        auth.header,
         tuple(key.spec() for key in auth.keys),
         auth.issuer,
         auth.audience,
