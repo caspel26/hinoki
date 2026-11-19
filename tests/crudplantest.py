@@ -1,6 +1,7 @@
 """Startup compilation for the private native CRUD plans."""
 
 import asyncio
+import re
 import dataclasses
 import json
 import math
@@ -2013,7 +2014,20 @@ async def test_native_claims_auth_answers_like_the_python_lane() -> None:
                         if n not in {"date", "x-request-id"}
                     ]
                     results[lane].append(
-                        ((label, method, status, stable, content), len(served))
+                        (
+                            (
+                                label,
+                                method,
+                                status,
+                                stable,
+                                re.sub(
+                                    rb'"request_id":"[0-9a-f]+"',
+                                    b'"request_id":""',
+                                    content,
+                                ),
+                            ),
+                            len(served),
+                        )
                     )
         assert [item[0] for item in results["native"]] == [
             item[0] for item in results["python"]
