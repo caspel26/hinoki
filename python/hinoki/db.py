@@ -40,7 +40,7 @@ from hinoki.core import (
 from hinoki.modules import Module, ModuleContext
 
 if TYPE_CHECKING:
-    from hinoki.core import Param, Row, _RowPlan
+    from hinoki.core import Param, Row, _ModelRows, _RowPlan
     from hinoki.orm.options import indexed, ordered_by, table
 
 __all__ = [
@@ -135,6 +135,14 @@ class Database:
         active = self.active()
         target = active.native if active else self.engine
         return await target.fetch(sql, list(params))
+
+    async def fetch_models(
+        self, sql: str, params: list[Any], plan: _ModelRows
+    ) -> list[Any]:
+        """Rows built into finished model instances (private; ``QuerySet.fetch``)."""
+        active = self.active()
+        target = active.native if active else self.engine
+        return await target.fetch_models(sql, list(params), plan)
 
     async def _fetch_page_wire(
         self,

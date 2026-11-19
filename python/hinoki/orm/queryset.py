@@ -256,10 +256,26 @@ class QuerySet[M: Model]:
     def __await__(self) -> Generator[Any, None, builtins.list[M]]:
         return self.fetch().__await__()
 
+    def uses_stock_builders(self) -> bool:
+        """False when ``build`` or ``_hydrate`` was overridden or patched: the
+        native row builder would silently skip that code."""
+        return all(
+            getattr(getattr(self, name), "__func__", None) is getattr(QuerySet, name)
+            for name in ("build", "_hydrate")
+        )
+
     async def fetch(self) -> list[M]:
         """Run the query and build the rows; what ``await queryset`` returns."""
         database = current_database()
         sql, params = self.compile(dialect=database.dialect)
+        plan = self.model.row_plan() if self.uses_stock_builders() else None
+        if self.loading.selected:
+            plan = None
+        fetch_models = getattr(database, "fetch_models", None)
+        if plan is not None and fetch_models is not None:
+            instances: list[M] = await fetch_models(sql, list(params), plan)
+            await self.load(instances)
+            return instances
         rows = await database.fetch(sql, *params)
         return await self._hydrate(rows)
 

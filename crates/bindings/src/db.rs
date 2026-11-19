@@ -11,6 +11,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString};
 use tokio::sync::Mutex;
 
+use crate::modelrows::{models_to_py, PyModelRows};
 use crate::rows::{PageWireResult, PyRowPlan};
 
 pyo3::create_exception!(core, DatabaseError, pyo3::exceptions::PyException);
@@ -186,7 +187,7 @@ fn to_values(params: &Bound<'_, PyList>) -> PyResult<Vec<Value>> {
     params.iter().map(|p| to_value(&p)).collect()
 }
 
-fn from_value(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
+pub(crate) fn from_value(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
     Ok(match value {
         Value::Null => py.None(),
         Value::Bool(b) => b.into_pyobject(py)?.to_owned().into_any().unbind(),
@@ -227,7 +228,7 @@ pub(crate) fn rows_to_py(py: Python<'_>, rows: &[Vec<(String, Value)>]) -> PyRes
 /// thread (see `completion`).
 macro_rules! bridge {
     ($py:expr, $fut:expr, |$py2:ident, $ok:ident| $convert:expr) => {
-        crate::completion::submit($py, $fut, |$py2, $ok| $convert)
+        crate::completion::submit($py, $fut, move |$py2, $ok| $convert)
     };
 }
 
@@ -282,6 +283,18 @@ impl PyDatabase {
         let (db, values) = (self.inner.clone(), to_values(params)?);
         let fut = async move { db.fetch(&sql, &values).await };
         bridge!(py, fut, |py2, rows| rows_to_py(py2, &rows))
+    }
+
+    fn fetch_models<'py>(
+        &self,
+        py: Python<'py>,
+        sql: String,
+        params: &Bound<'py, PyList>,
+        plan: PyRef<'py, PyModelRows>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let (db, values, plan) = (self.inner.clone(), to_values(params)?, plan.inner.clone());
+        let fut = async move { db.fetch(&sql, &values).await };
+        bridge!(py, fut, |py2, rows| models_to_py(py2, &rows, &plan))
     }
 
     #[pyo3(signature = (sql, params, plan, page_info))]
@@ -399,6 +412,22 @@ impl PyTransaction {
             tx.fetch(&sql, &values).await
         };
         bridge!(py, fut, |py2, rows| rows_to_py(py2, &rows))
+    }
+
+    fn fetch_models<'py>(
+        &self,
+        py: Python<'py>,
+        sql: String,
+        params: &Bound<'py, PyList>,
+        plan: PyRef<'py, PyModelRows>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let (inner, values, plan) = (self.inner.clone(), to_values(params)?, plan.inner.clone());
+        let fut = async move {
+            let guard = inner.try_lock_owned().map_err(|_| busy_error())?;
+            let tx = guard.as_ref().ok_or_else(busy_error)?;
+            tx.fetch(&sql, &values).await
+        };
+        bridge!(py, fut, |py2, rows| models_to_py(py2, &rows, &plan))
     }
 
     #[pyo3(signature = (sql, params, plan, page_info))]
