@@ -188,7 +188,8 @@ def test_things_that_are_not_plain_async_functions_are_refused() -> None:
 
 def test_a_function_without_source_is_refused() -> None:
     namespace: dict[str, Any] = {}
-    exec("async def made(): return 1", namespace)  # noqa: S102
+    # A unique filename: "<string>" collides with execnet's own source under xdist.
+    exec(compile("async def made(): return 1", "<no-source>", "exec"), namespace)  # noqa: S102
     assert native_refusal(namespace["made"]) == "its source is not available"
 
 
