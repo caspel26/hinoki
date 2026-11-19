@@ -14,10 +14,12 @@ from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from hinoki.errors import ErrorDetail
+from hinoki.fields import SecretStr
 from hinoki.fieldtypes import FieldType, decimal_limits
 from hinoki.schemaconfig import SchemaExtra
 
@@ -104,6 +106,8 @@ class Validator:
             "ipv6": self.internet,
             "ipv4network": self.internet,
             "ipv6network": self.internet,
+            "path": self.filesystem_path,
+            "secret": self.secret,
             "list": self.sequence,
             "tuple": self.fixed,
             "anyof": self.anyof,
@@ -297,6 +301,18 @@ class Validator:
             return parse(text)
         except ValueError:
             return self.fail(path, ftype.kind, f"expected {label}")
+
+    def filesystem_path(self, ftype: FieldType, data: Any, path: str) -> object:
+        """A non-empty string without NUL, as a ``Path``."""
+        if not isinstance(data, str) or not data or "\0" in data:
+            return self.fail(path, "path", "expected a file system path")
+        if self.length(ftype, data, path) is INVALID:
+            return INVALID
+        return Path(data)
+
+    def secret(self, ftype: FieldType, data: Any, path: str) -> object:
+        text = self.text(ftype, data, path)
+        return INVALID if text is INVALID else SecretStr(str(text))
 
     def binary(self, ftype: FieldType, data: Any, path: str) -> object:
         found = BASE64.fullmatch(data) if isinstance(data, str) else None
