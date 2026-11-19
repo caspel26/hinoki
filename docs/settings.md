@@ -53,7 +53,7 @@ Settings types live in the `hinoki.settings` namespace: `from hinoki import sett
 | `server` | `workers` | `1` | `1` to `256`; `dev` uses one worker for reload |
 | `server` | `runtime_threads` | `1` | Must be positive |
 | `server` | `backlog` | `1024` | Must be positive |
-| `server` | `access_log` | `false` | Enables Granian access logging; refused when `true` with the Rust server |
+| `server` | `access_log` | unset | One line per request on either server. Unset logs in `hinoki dev` only; `true` or `false` decides for `dev` and `serve` |
 | `server` | `max_connections` | unset (10000) | Rust server only: open-connection limit, `1` to `1000000`; refused under Granian |
 | `server` | `header_read_timeout` | unset (10 seconds) | Rust server only: time to receive request headers, and the keep-alive idle limit; refused under Granian |
 | `server` | `body_read_timeout` | unset (10 seconds) | Rust server only: silence allowed while a body is read (at most half of `execution.request_timeout`); refused under Granian |
