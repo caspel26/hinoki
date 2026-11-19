@@ -114,7 +114,7 @@ def test_dict_fields_register_with_a_value_type_and_bounded_keys() -> None:
         (dict[UUID, str], r"dict keys must be str: use dict\[str, X\]"),
         (dict[str | None, str], r"dict keys must be str: use dict\[str, X\]"),
         (dict, r"use dict\[str, X\]"),
-        (dict[str, set[int]], "unsupported type"),
+        (dict[str, bytearray], "unsupported type"),
         (Annotated[dict[str, int], Field(pattern="x")], "do not apply to dict"),
         (Annotated[dict[str, int], Field(one_of=({},))], "do not apply to dict"),
         (dict[Annotated[str, Field(ge=1)], int], "keys accept only"),

@@ -144,7 +144,13 @@ def field_types(base: type) -> dict[str, object]:
 
 def is_json_field(kind: object) -> bool:
     origin = get_origin(kind)
-    if kind in (dict, list) or origin in (dict, list):
+    if kind in (dict, list, set, frozenset, tuple) or origin in (
+        dict,
+        list,
+        set,
+        frozenset,
+        tuple,
+    ):
         return True
     if origin in (typing.Union, types.UnionType):
         return any(
@@ -333,9 +339,11 @@ def holds_mapping(field_type: FieldType) -> bool:
 
 def stays_json(parsed: FieldType, values: dict[str, Any]) -> bool:
     """Whether a parsed column annotation is stored as JSON: a dict, or a list
-    of dicts, or an Enum or Literal (a plain ``one_of`` constraint is not)."""
+    of dicts, an Enum or a Literal (a plain ``one_of`` constraint is not), or a
+    set or tuple."""
     listed = parsed.info.one_of is not None and "one_of" not in values
-    return listed or holds_mapping(parsed)
+    grouped = parsed.kind == "tuple" or parsed.collection is not None
+    return listed or grouped or holds_mapping(parsed)
 
 
 def resolve_model_field_type(

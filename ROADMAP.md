@@ -13,7 +13,7 @@ See the [documentation](https://caspel26.github.io/hinoki/) and runnable [exampl
 ## Active direction
 
 - Improve the developer and documentation experience while keeping the public API small.
-- Bring `Schema` field types close to what Pydantic accepts, each step on both the Python and the Rust lane with OpenAPI, rules and documentation. Available: `dict[str, X]`, `date`, `time`, `timedelta`, `Decimal`, `bytes`, `Enum`, `StrEnum`, `IntEnum` and `Literal`. Next, in order: `set`, `frozenset` and `tuple`; plain unions, `Any`, `TypedDict` and dataclass fields; more constraints (`multiple_of`, strict mode); IP addresses and networks, URLs, `SecretStr`, `Path` and a syntactic email check; validators and computed fields where the Rust lane can stay consistent.
+- Bring `Schema` field types close to what Pydantic accepts, each step on both the Python and the Rust lane with OpenAPI, rules and documentation. Available: `dict[str, X]`, `date`, `time`, `timedelta`, `Decimal`, `bytes`, `Enum`, `StrEnum`, `IntEnum`, `Literal`, `set`, `frozenset` and `tuple`. Next, in order: plain unions, `Any`, `TypedDict` and dataclass fields; more constraints (`multiple_of`, strict mode); IP addresses and networks, URLs, `SecretStr`, `Path` and a syntactic email check; validators and computed fields where the Rust lane can stay consistent.
 - Validate the server integration, admin styles and generated typing contracts across real usage.
 - Publish only after the site and release process have been reviewed.
 
@@ -25,6 +25,6 @@ These are directions, not commitments, and none of them is available today.
 - Cursor pagination.
 - WebSockets and streaming responses.
 - Per-route CORS policies.
-- Shipping the admin as a separate optional package.
+- Distributing as a single package, `hinoki-api` (import and CLI stay `hinoki`), with the admin remaining an optional extra of that package rather than a separate distribution.
 
 This roadmap is intentionally curated; detailed queue notes and owner decisions are maintained locally and are not part of the public repository.

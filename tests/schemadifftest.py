@@ -452,3 +452,57 @@ def test_every_junk_value_in_every_enum_slot_agrees() -> None:
         for key, inner in (("shades", [junk]), ("ranks", {"a": junk})):
             data = {**base, key: inner}
             assert enum_outcome(native, data) == enum_outcome(oracle, data), (key, junk)
+
+
+class Grouped(Schema):
+    tags: Annotated[set[str], Field(max_length=3)]
+    ids: frozenset[int] = frozenset()
+    path: tuple[int, ...] = ()
+    pair: tuple[int, Annotated[str, Field(max_length=2)]] = (0, "")
+    maybe: set[float] | None = None
+    marks: list[tuple[int, bool]] = Field(default_factory=list)
+    keyed: dict[str, frozenset[str]] = Field(default_factory=dict)
+
+
+def shown(value: object) -> object:
+    if isinstance(value, set | frozenset):
+        return (type(value).__name__, sorted(repr(item) for item in value))
+    if isinstance(value, tuple | list):
+        return (type(value).__name__, [shown(item) for item in value])
+    if isinstance(value, dict):
+        return {key: shown(item) for key, item in value.items()}
+    return repr(value)
+
+
+def grouped_outcome(call: Any, data: object) -> tuple[str, Any]:
+    kind, value = outcome(call, Grouped, data)
+    if kind != "ok":
+        return kind, value
+    return kind, {name: shown(getattr(value, name)) for name in Grouped.specs()}
+
+
+def test_every_junk_value_in_every_collection_slot_agrees() -> None:
+    base: dict[str, Any] = {
+        "tags": ["a"], "ids": [1], "path": [1, 2], "pair": [1, "x"],
+        "maybe": [1.5], "marks": [[1, True]], "keyed": {"k": ["a"]},
+    }  # fmt: skip
+    for junk in [*JUNK, ["a", "a"], [1, 1], [[1], [1]], ["a", "b", "c", "d"]]:
+        for key in list(base):
+            data = {**base, key: junk}
+            assert grouped_outcome(native, data) == grouped_outcome(oracle, data), (
+                key,
+                junk,
+            )
+        for key in ("tags", "ids", "path", "maybe", "marks", "keyed"):
+            for inner in ([junk], [junk, junk]):
+                data = {**base, key: {"k": inner} if key == "keyed" else inner}
+                assert grouped_outcome(native, data) == grouped_outcome(oracle, data), (
+                    key,
+                    junk,
+                )
+        for inner in ([junk, "x"], [1, junk], [junk, junk, junk]):
+            data = {**base, "pair": inner}
+            assert grouped_outcome(native, data) == grouped_outcome(oracle, data), (
+                "pair",
+                junk,
+            )
