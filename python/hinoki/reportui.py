@@ -6,7 +6,11 @@ those commands is produced by their own modules and does not change.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import contextlib
+import io
+import sys
+import time
+from collections.abc import Callable, Sequence
 from typing import Protocol
 
 from hinoki.terminal import Style
@@ -98,3 +102,25 @@ def route_row(
 def lane_suffix(style: Style, lane: str, reason: str) -> str:
     colour = "good" if lane == "native" else "dim"
     return "  " + style.paint(f"[{lane}: {reason}]", colour)
+
+
+def run_timed(doing: str, done: str, action: Callable[[], int]) -> int:
+    """Run ``action`` behind a spinner and finish with how long it took.
+
+    Only on a terminal that animates; elsewhere ``action`` runs unchanged. Its
+    output is held back until the spinner is cleared so the two never mix.
+    """
+    style = Style.detect(sys.stdout)
+    if not (style.animated and style.unicode):
+        return action()
+    held = io.StringIO()
+    started = time.monotonic()
+    code = 1
+    try:
+        with style.spinner(doing), contextlib.redirect_stdout(held):
+            code = action()
+    finally:
+        sys.stdout.write(held.getvalue())
+    result = style.timed(done, time.monotonic() - started)
+    print(style.ok(result) if code == 0 else style.error(result))
+    return code
