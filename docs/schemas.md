@@ -37,7 +37,7 @@ class NoteOut(Schema):
 
 ## Field types
 
-A field is annotated with `str`, `int`, `float`, `bool`, `UUID`, `datetime`, `date`, `time`, `timedelta`, `Decimal`, `bytes`, an `Enum` class, a `Literal`, a nested `Schema`, `list[X]`, `set[X]`, `frozenset[X]`, `tuple[X, ...]`, `tuple[X, Y]`, `dict[str, X]` or a [discriminated union](#discriminated-unions), a [plain union](#plain-unions-and-any) such as `int | str`, `Any`, optionally `| None` (accepts `null`) and `| Unset` (may be left out of a partial update), and optionally wrapped in `Annotated[..., Field(...)]`. `X` can be any of these, so `list[dict[str, int]]` and `dict[str, list[Point]]` work. Anything else (`bytearray`, `dict[int, X]`, `TypedDict`) raises `RegistrationError` when the class is created.
+A field is annotated with `str`, `int`, `float`, `bool`, `UUID`, `datetime`, `date`, `time`, `timedelta`, `Decimal`, `bytes`, an `Enum` class, a `Literal`, a nested `Schema`, a [`TypedDict` or dataclass](#typeddict-and-dataclass-fields), `list[X]`, `set[X]`, `frozenset[X]`, `tuple[X, ...]`, `tuple[X, Y]`, `dict[str, X]` or a [discriminated union](#discriminated-unions), a [plain union](#plain-unions-and-any) such as `int | str`, `Any`, optionally `| None` (accepts `null`) and `| Unset` (may be left out of a partial update), and optionally wrapped in `Annotated[..., Field(...)]`. `X` can be any of these, so `list[dict[str, int]]` and `dict[str, list[Point]]` work. Anything else (`bytearray`, `dict[int, X]`) raises `RegistrationError` when the class is created.
 
 ### Sets and tuples
 
@@ -286,7 +286,31 @@ except ValidationError as error:
 * **OpenAPI** describes a plain union as `anyOf` of the variant schemas and `Any` as an unconstrained schema. A `Model` column annotated with a plain union or `Any` stays a JSON column.
 * `HNK-SCH-002` checks each text variant of a union for `max_length`.
 
-Not supported yet: `TypedDict` and dataclass fields.
+
+### `TypedDict` and dataclass fields
+
+A field may be annotated with a `TypedDict` or a dataclass. It is validated as a nested object and described in OpenAPI as a component named after the type.
+
+```python
+class Address(TypedDict):
+    street: str
+    zip: NotRequired[str]
+
+@dataclass
+class Geo:
+    lat: float
+    lon: float = 0.0
+
+class Place(Schema):
+    address: Address
+    geo: Geo | None = None
+```
+
+* **The value is a generated `Schema`.** Hinoki builds one `Schema` per type, with the same name and fields, and the validated value is an instance of it: `place.address.street` works, but the value is not a `dict` or a `Geo`. `dump()` gives the JSON form. Methods, `__post_init__` and base classes of the original type are not carried over.
+* **Required keys.** A `TypedDict` key that may be missing (`NotRequired`, or any key of a `total=False` class unless `Required`) becomes `| Unset`: a key the client left out stays `UNSET` and is left out of `dump()`. A dataclass field with a default or a `default_factory` is optional.
+* **Constraints.** `Annotated[..., Field(...)]` on a member of the type is honoured; constraints on the field that holds the whole type are refused, as for a nested `Schema`.
+* **Limits.** A dataclass field with `init=False` and a recursive type raise `RegistrationError`.
+* **Native lane.** The generated class is an ordinary `Schema`, so both lanes validate it the same way.
 
 ### Internet addresses, `Email`, `Url` and `Slug`
 
