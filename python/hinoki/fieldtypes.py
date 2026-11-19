@@ -172,7 +172,7 @@ def merge_field_metadata(
     for extra in extras:
         if not isinstance(extra, FieldInfo):
             continue
-        merged = {**extra.constraints(), **merged}
+        merged = {**extra.constraints(), **extra.notes(), **merged}
         if extra.alias is not None:
             alias = merge_alias(alias, extra.alias, where)
         if extra.discriminator is not None:
@@ -197,7 +197,18 @@ def field_info_from_constraints(
     discriminator: str | None = None,
 ) -> FieldInfo:
     """Build typed metadata after precedence has been resolved."""
+    description = constraints.get("description")
+    examples = constraints.get("examples")
+    if description is not None and not (
+        isinstance(description, str) and description.strip()
+    ):
+        raise RegistrationError("Field(description=...) must be non-empty text")
+    if examples is not None and not (isinstance(examples, tuple) and examples):
+        raise RegistrationError("Field(examples=...) must be a non-empty sequence")
     return FieldInfo(
+        description=description,
+        examples=examples,
+        deprecated=cast(bool | None, constraints.get("deprecated")),
         min_length=cast(int | None, constraints.get("min_length")),
         max_length=cast(int | None, constraints.get("max_length")),
         pattern=cast(str | None, constraints.get("pattern")),
@@ -354,7 +365,7 @@ def merge_single(member: object, info: FieldInfo, where: str) -> tuple[Any, Fiel
             f"{where}: conflicting aliases {inner.alias!r} and {info.alias!r}"
         )
     merged = field_info_from_constraints(
-        {**inner.constraints(), **info.constraints()},
+        {**inner.constraints(), **inner.notes(), **info.constraints(), **info.notes()},
         alias=info.alias if info.alias is not None else inner.alias,
         discriminator=info.discriminator or inner.discriminator,
     )
