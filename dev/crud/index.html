@@ -457,10 +457,10 @@ action:</p>
 <code>list</code>, <code>retrieve</code>, <code>create</code>, <code>update</code> or <code>delete</code> in the class while <code>crud</code>
 generates it raises <code>RegistrationError</code> at declaration. To write list or
 retrieve yourself, pass <code>omit=("list",)</code> (or <code>"retrieve"</code>); other actions are
-generated only when you give their schema or <code>delete=True</code>. Defining <code>store</code>,
-<code>change</code>, <code>remove</code> or <code>written_queryset</code> in a <code>crud(...)</code> class is rejected the
-same way; write that behaviour as an action, or use the
-<a href="#the-crudapi-class-form"><code>CrudAPI</code> class form</a> below.</p>
+generated only when you give their schema or <code>delete=True</code>. The write hooks
+<code>store</code>, <code>change</code>, <code>remove</code> and <code>written_queryset</code> are the supported way to
+change what a generated write does; see
+<a href="#hooks-in-the-class-form">Hooks in the class form</a>.</p>
 <h3 id="access-per-action">Access per action<a class="headerlink" href="#access-per-action" title="Permanent link">&para;</a></h3>
 <p><code>access=</code> takes one <code>Access</code>, which protects <strong>every</strong> generated action
 including reads, or <code>CrudAccess</code> to set actions apart. An action without its
@@ -479,25 +479,19 @@ own entry uses <code>default</code>; <code>None</code> means public:</p>
 <p>Here list is public, retrieve and create need <code>editor</code>, delete needs <code>admin</code>.
 Unknown action names raise <code>TypeError</code>. Writes with no policy still need
 <code>public_writes=True</code>.</p>
-<h2 id="the-crudapi-class-form">The <code>CrudAPI</code> class form<a class="headerlink" href="#the-crudapi-class-form" title="Permanent link">&para;</a></h2>
-<p><code>CrudAPI</code> generates model-backed routes on an ordinary API class. It remains
-supported and is the form that exposes the <code>store</code>, <code>change</code>, <code>remove</code> and
-<code>written_queryset</code> hooks. Declare the model in the class header, set schemas
-and options as class attributes, and include the class once in the app.
-Handwritten <code>@http.*</code> methods and mixins can live beside the generated
-actions.</p>
+<h2 id="hooks-in-the-class-form">Hooks in the class form<a class="headerlink" href="#hooks-in-the-class-form" title="Permanent link">&para;</a></h2>
+<p>Apply <code>@crud(...)</code> to a class that extends <code>API</code> to add code beside the
+generated actions: the hooks <code>get_queryset</code>, <code>to_schema</code>, <code>written_queryset</code>,
+<code>store</code>, <code>change</code> and <code>remove</code>, and handwritten <code>@http.*</code> actions. Schemas and
+options are <code>crud(...)</code> keywords, and the class is included once in the app.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">CrudAPI</span><span class="p">,</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">http</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">API</span><span class="p">,</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">crud</span><span class="p">,</span> <span class="n">http</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuerySet</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">Posts</span><span class="p">(</span><span class="n">CrudAPI</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/posts"</span><span class="p">):</span>
-    <span class="n">read_schema</span> <span class="o">=</span> <span class="n">PostOut</span>
-    <span class="n">create_schema</span> <span class="o">=</span> <span class="n">PostCreate</span>
-    <span class="n">access</span> <span class="o">=</span> <span class="n">editor</span>
-    <span class="n">owner</span> <span class="o">=</span> <span class="s2">"author_id"</span>
-
+<span class="nd">@crud</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/posts"</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">PostOut</span><span class="p">,</span> <span class="n">create</span><span class="o">=</span><span class="n">PostCreate</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">editor</span><span class="p">,</span> <span class="n">owner</span><span class="o">=</span><span class="s2">"author_id"</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Posts</span><span class="p">(</span><span class="n">API</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Post</span><span class="p">]:</span>
         <span class="k">return</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">published</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"-id"</span><span class="p">)</span>
 
@@ -512,16 +506,15 @@ actions.</p>
 <code>hinoki routes</code> command and the route registry. The class is mounted once; no import-time or
 global auto-registration occurs. A model's read schema and write schemas must
 match its fields. See <a href="../schemas/">Schemas</a> for model-derived schemas.</p>
-<p>The sections below describe the class attributes (<code>read_schema</code>,
-<code>create_schema</code>, <code>access</code>, <code>owner</code>, ...); each has a <code>crud(...)</code> keyword
-(<code>read</code>, <code>create</code>, <code>update</code>, <code>delete</code>, <code>access</code>, <code>owner</code>, <code>identity_key</code>,
-<code>assign</code>, <code>pagination</code>, <code>public_writes</code>).</p>
+<p>The sections below describe the options by their <code>crud(...)</code> keyword (<code>read</code>,
+<code>create</code>, <code>update</code>, <code>delete</code>, <code>access</code>, <code>owner</code>, <code>identity_key</code>, <code>assign</code>,
+<code>pagination</code>, <code>public_writes</code>, <code>omit</code>).</p>
 <h2 id="generated-actions">Generated actions<a class="headerlink" href="#generated-actions" title="Permanent link">&para;</a></h2>
 <p>List and retrieve are generated by default. Writes are opt-in:</p>
 <table>
 <thead>
 <tr>
-<th>Class declaration</th>
+<th>Keyword</th>
 <th>Action</th>
 <th>Method and path</th>
 <th>Success</th>
@@ -541,27 +534,28 @@ match its fields. See <a href="../schemas/">Schemas</a> for model-derived schema
 <td><code>PostOut</code></td>
 </tr>
 <tr>
-<td><code>create_schema = PostCreate</code></td>
+<td><code>create=PostCreate</code></td>
 <td><code>create</code></td>
 <td><code>POST /posts</code></td>
 <td><code>201</code>, <code>PostOut</code></td>
 </tr>
 <tr>
-<td><code>update_schema = PostPatch</code></td>
+<td><code>update=PostPatch</code></td>
 <td><code>update</code></td>
 <td><code>PATCH /posts/{item_id}</code></td>
 <td><code>200</code>, <code>PostOut</code></td>
 </tr>
 <tr>
-<td><code>deletable = True</code></td>
+<td><code>delete=True</code></td>
 <td><code>delete</code></td>
 <td><code>DELETE /posts/{item_id}</code></td>
 <td><code>204</code>, no body</td>
 </tr>
 </tbody>
 </table>
-<p>Generated writes require <code>access = ...</code>, unless <code>public_writes = True</code> is set
-deliberately. Reads are public by default; <code>read_access = ...</code> protects them.
+<p>Generated writes require <code>access=...</code>, unless <code>public_writes=True</code> is set
+deliberately. Reads are public by default; <code>CrudAccess(list=..., retrieve=...)</code>
+protects them.
 Writes run in a transaction. <code>pagination</code> selects the page-number policy for
 the generated list route.</p>
 <p>On the Rust server, eligible generated routes are selected automatically and
@@ -571,19 +565,20 @@ policy, owner/assignment rule or custom hook. Unsupported and stale plans keep
 using the Python request lane. See <a href="../serving/#generated-crud">Serving</a> for
 the runtime boundary and staleness behavior; no public switch is required.</p>
 <h2 id="reuse-and-customization">Reuse and customization<a class="headerlink" href="#reuse-and-customization" title="Permanent link">&para;</a></h2>
-<p>CRUD configuration and Python methods compose through normal inheritance.</p>
+<p>CRUD configuration is plain Python values, so share it the same way: one
+<code>Access</code> or <code>CrudAccess</code> object passed to every <code>crud(...)</code> call, or a small
+helper that wraps <code>crud(...)</code> with your defaults.</p>
 <p>Generated create actions return <code>409 Conflict</code> when the database rejects a
 unique constraint by default. Register an error handler for the database's
 unique-violation type to choose an application-specific response.
-Subclasses inherit the model and options, override options/hooks, and can set a
-new <code>path=</code>. A model-derived schema from another model is rejected during class
-creation. Mixins can provide reusable decorated routes or hooks.
-Class-level <code>access</code> and <code>read_access</code> apply to generated actions only;
-handwritten and inherited decorated methods keep the policy on their own
+Mixins can provide reusable decorated routes or hooks to a decorated class.
+<code>access</code> applies to generated actions only;
+handwritten decorated methods keep the policy on their own
 <code>@http.*</code> decorator, so protect those routes explicitly.</p>
 <p>Use <code>get_queryset(principal)</code> to build the list/detail query. It may be <code>def</code>
 or <code>async def</code>; it builds a query and should not perform database I/O. When
-reads are public, <code>principal</code> is <code>None</code>; when <code>read_access</code> is set, it is the
+reads are public, <code>principal</code> is <code>None</code>; when the list action has an access
+policy, it is the
 authenticated <code>Caller</code>. Apply tenant or visibility filters here. <code>owner</code> is an
 independent write safeguard, not read authorization. Writes are also
 constrained by this query, primary key and owner column, including in the
@@ -604,12 +599,7 @@ to <code>get_queryset</code>, <code>written_queryset</code>, <code>to_schema</co
     <span class="k">return</span> <span class="n">title</span><span class="o">.</span><span class="n">casefold</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">" "</span><span class="p">,</span> <span class="s2">"-"</span><span class="p">)</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">Posts</span><span class="p">(</span><span class="n">CrudAPI</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/posts"</span><span class="p">):</span>
-    <span class="n">read_schema</span> <span class="o">=</span> <span class="n">PostOut</span>
-    <span class="n">create_schema</span> <span class="o">=</span> <span class="n">PostCreate</span>
-    <span class="n">access</span> <span class="o">=</span> <span class="n">editor</span>
-    <span class="n">owner</span> <span class="o">=</span> <span class="s2">"author_id"</span>
-
+<span class="k">class</span><span class="w"> </span><span class="nc">Posts</span><span class="p">(</span><span class="n">API</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">store</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Post</span><span class="p">:</span>
         <span class="n">values</span><span class="p">[</span><span class="s2">"slug"</span><span class="p">]</span> <span class="o">=</span> <span class="n">slug_for</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="s2">"title"</span><span class="p">]))</span>
         <span class="k">return</span> <span class="n">Post</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="o">**</span><span class="n">values</span><span class="p">)</span>
@@ -656,15 +646,6 @@ and incompatible derived schemas. <code>only=</code> and <code>exclude=</code> s
 subject to these same checks.</p>
 <h2 id="model-hooks-and-the-rust-server">Model hooks and the Rust server<a class="headerlink" href="#model-hooks-and-the-rust-server" title="Permanent link">&para;</a></h2>
 <p>Generated create and PATCH update write through the model, so its <a href="../models/#lifecycle-hooks-and-instance-state">lifecycle hooks</a> run: create calls <code>acreate</code>, and update saves the item with the scoped query's conditions in its UPDATE, so a row that left the caller's scope since it was read is refused (<code>403</code>/<code>404</code>) exactly as on the unhooked path. A model that defines any of <code>before_save</code>, <code>before_create</code>, <code>after_create</code> or <code>after_save</code> is not eligible for the native create and update routes, which execute without Python model code; they use the Python lane, while its list, retrieve and delete routes stay native. Deleting does not run hooks.</p>
-<h2 id="existing-resource-declarations">Existing <code>Resource</code> declarations<a class="headerlink" href="#existing-resource-declarations" title="Permanent link">&para;</a></h2>
-<p>Existing pre-alpha <code>Resource(...)</code> configurations remain accepted for
-compatibility. Their <code>queryset=</code> callback is not caller-aware; the <code>store</code>, <code>change</code> and <code>remove</code>
-hooks are available on those API subclasses too. For response relations after
-a write that becomes hidden by the old queryset, its fallback read cannot
-preserve eager-loads. Migrate to the class declaration and override
-<code>written_queryset(principal)</code> when the response needs relations. Existing
-<code>output=</code> schemas may contain computed fields; class-based schemas may do the
-same through <code>to_schema</code>.</p>
 <h2 id="openapi-and-inspection">OpenAPI and inspection<a class="headerlink" href="#openapi-and-inspection" title="Permanent link">&para;</a></h2>
 <p>To inspect routes without starting the server:</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
@@ -697,14 +678,14 @@ side-effects beyond the single model mutation.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#access-per-action">Access per action</a></li><li><a href="#the-crudapi-class-form">The CrudAPI class form</a></li><li><a href="#generated-actions">Generated actions</a></li><li><a href="#reuse-and-customization">Reuse and customization</a></li><li><a href="#security-and-validation">Security and validation</a></li><li><a href="#model-hooks-and-the-rust-server">Model hooks and the Rust server</a></li><li><a href="#existing-resource-declarations">Existing Resource declarations</a></li><li><a href="#openapi-and-inspection">OpenAPI and inspection</a></li></ul>
+            <ul><li><a href="#access-per-action">Access per action</a></li><li><a href="#hooks-in-the-class-form">Hooks in the class form</a></li><li><a href="#generated-actions">Generated actions</a></li><li><a href="#reuse-and-customization">Reuse and customization</a></li><li><a href="#security-and-validation">Security and validation</a></li><li><a href="#model-hooks-and-the-rust-server">Model hooks and the Rust server</a></li><li><a href="#openapi-and-inspection">OpenAPI and inspection</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.11</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 12:40:04 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 16:25:38 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -401,7 +401,7 @@
         <p class="kicker" data-search-exclude>3.32 · Guides</p>
         <h1 id="native-crud-phase-1-end-to-end-orientation-run">Native CRUD phase 1: end-to-end orientation run<a class="headerlink" href="#native-crud-phase-1-end-to-end-orientation-run" title="Permanent link">&para;</a></h1>
 <p>This is one host-specific orientation measurement, not a performance claim or a framework ranking.
-The primary table reports five alternating pairs of Hinoki's automatically selected Rust generated <code>CrudAPI</code> path and a manually implemented equivalent Django Bolt endpoint.
+The primary table reports five alternating pairs of Hinoki's automatically selected Rust generated CRUD path (declared with the since-removed <code>CrudAPI</code> class when measured; <code>crud(...)</code> now generates the same routes) and a manually implemented equivalent Django Bolt endpoint.
 Both apps use the same PostgreSQL table and deterministic 10,000-row seed. Their list, detail, create and update responses were verified against the database before timing.</p>
 <p>Run started: 2026-11-18T03:09:11.864738+00:00. Host: Intel(R) Core(TM) i5-10300H CPU @ 2.50GHz (8 logical CPUs), Linux-7.2.11-arch1-1-x86_64-with-glibc2.44; Python 3.13.18; PostgreSQL postgres (PostgreSQL) 17.12 (Debian 17.12-1.pgdg13+1); Rust rustc 1.100.0 (0ef1bc386 2026-11-09); Oha oha 1.17.0.
 Hinoki 0.0.1 uses the Rust server and tokio-postgres; Django Bolt 0.13.0 uses Django 6.1.3 with psycopg 3.3.9 and its Actix server. Each starts 4 processes with a pool of 10 database connections per process.
@@ -518,7 +518,7 @@ Each sample's one-minute host load is checked before its server starts and must 
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.32</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 07:45:43 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 16:25:38 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/rust-crud-orientation.md">Edit on GitHub</a></dd></div>
         </dl>
