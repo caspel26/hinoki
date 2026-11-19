@@ -189,10 +189,13 @@ def test_serve_logs_requests_only_when_the_setting_is_on() -> None:
     assert '"GET /ping HTTP/1.1" 200 OK' in loud
     assert '"GET /missing?x=1 HTTP/1.1" 404 Not Found' in loud
     assert "\x1b[" not in loud  # a pipe is not a terminal: no colour
+    assert "Kiso " in loud and "serve, 1 worker, http, access log on" in loud
 
 
 def test_dev_logs_requests_unless_the_setting_is_off() -> None:
-    assert '"GET /ping HTTP/1.1" 200 OK' in run_logged("dev", {})
+    dev = run_logged("dev", {})
+    assert '"GET /ping HTTP/1.1" 200 OK' in dev
+    assert "dev, reloads on file changes, 1 worker" in dev
     off = run_logged("dev", {"SRV_SERVER__ACCESS_LOG": "false"})
     assert "HTTP/1.1" not in off
 
