@@ -5,6 +5,8 @@
 
 Lists method, path, handler and access in path order. Nothing is served and no
 database is opened; the application is built the way ``hinoki check`` builds it.
+``--lanes`` adds, for each route, whether the Rust server can run it natively
+(generated CRUD) and, if not, the reason it uses the Python lane.
 """
 
 from __future__ import annotations
@@ -14,8 +16,11 @@ import json
 import sys
 
 from hinoki.access import Access
+from hinoki.app import Hinoki
 from hinoki.checkcli import USAGE_ERRORS, build_app
 from hinoki.routing import Route
+from hinoki.runtime.crudplan import select_crud_plan
+from hinoki.runtime.pipeline import Pipeline
 
 
 def add_arguments(
@@ -26,6 +31,11 @@ def add_arguments(
     sub.add_argument("--path", default="", help="only paths starting with this")
     sub.add_argument("--method", default="", help="only this HTTP method")
     sub.add_argument("--format", choices=["text", "json"], default="text")
+    sub.add_argument(
+        "--lanes",
+        action="store_true",
+        help="show the Rust server lane of each route (always present in JSON)",
+    )
 
 
 def access_of(route: Route) -> str:
@@ -44,6 +54,21 @@ def handler_of(route: Route) -> str:
     return f"{route.handler.__module__}.{route.name}"
 
 
+def lanes_of(app: Hinoki) -> dict[int, tuple[str, str]]:
+    """Lane and reason per route (by identity), as the Rust server would select
+    them at worker startup; no database is opened."""
+    pipeline = Pipeline(app)
+    lanes: dict[int, tuple[str, str]] = {}
+    for binding in pipeline.bindings:
+        try:
+            selection, reason = select_crud_plan(binding, pipeline)
+        except Exception:
+            selection, reason = None, "native_plan_build_failed"
+        lane = "native" if selection else "python"
+        lanes[id(binding.route)] = (lane, reason)
+    return lanes
+
+
 def selected(routes: list[Route], path: str, method: str) -> list[Route]:
     chosen = [
         route
@@ -60,6 +85,8 @@ def run_routes(args: argparse.Namespace) -> int:
         print(f"error: cannot load {args.target}: {exc}", file=sys.stderr)
         return 2
     routes = selected(list(app.routes), args.path, args.method.upper())
+    lanes = lanes_of(app) if args.lanes or args.format == "json" else {}
+    unknown = ("python", "not_generated_crud_action")
     if args.format == "json":
         print(
             json.dumps(
@@ -70,6 +97,8 @@ def run_routes(args: argparse.Namespace) -> int:
                         "handler": handler_of(route),
                         "access": access_of(route),
                         "status": route.status,
+                        "lane": lanes.get(id(route), unknown)[0],
+                        "lane_reason": lanes.get(id(route), unknown)[1],
                     }
                     for route in routes
                 ],
@@ -82,8 +111,10 @@ def run_routes(args: argparse.Namespace) -> int:
         return 1
     width = max(len(route.path) for route in routes)
     for route in routes:
+        lane, reason = lanes.get(id(route), unknown)
+        suffix = f"  [{lane}: {reason}]" if args.lanes else ""
         print(
             f"{route.method:<7} {route.path:<{width}}  {access_of(route):<24} "
-            f"{handler_of(route)}"
+            f"{handler_of(route)}{suffix}"
         )
     return 0
