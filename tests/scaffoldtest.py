@@ -1,5 +1,6 @@
 """``python -m hinoki new`` and the explain_error MCP tool."""
 
+import argparse
 import json
 import os
 import subprocess
@@ -13,6 +14,7 @@ import pytest
 from hinoki.__main__ import main
 from hinoki.errorcatalog import CATALOG, explain
 from hinoki.mcp import DevProject, Server
+from hinoki.newcli import fill_from_prompts
 from hinoki.rules import RuleSet
 from hinoki.scaffold import ScaffoldError, create, files
 from tests.projects.rulesapp import create_app, rules
@@ -223,3 +225,114 @@ def test_the_project_has_a_readme_with_the_commands(tmp_path: Path) -> None:
 def test_an_empty_existing_directory_is_used(tmp_path: Path) -> None:
     (tmp_path / "shop").mkdir()
     assert (create("shop", tmp_path) / "pyproject.toml").is_file()
+
+
+def answers(*values: str) -> Any:
+    queue = iter(values)
+    return lambda _prompt: next(queue)
+
+
+def new_args(**overrides: Any) -> Any:
+    base: dict[str, Any] = {
+        "name": None,
+        "dir": None,
+        "hinoki": None,
+        "database": None,
+        "agent_files": None,
+        "git": None,
+        "install": None,
+        "no_input": False,
+    }
+    return argparse.Namespace(**{**base, **overrides})
+
+
+def test_prompts_fill_only_what_the_flags_left_unset(tmp_path: Path) -> None:
+    args = new_args(name="shop", dir=str(tmp_path), database="sqlite")
+    fill_from_prompts(args, answers("n", "", "n"))
+    assert (args.name, args.database) == ("shop", "sqlite")
+    assert (args.agent_files, args.git, args.install) == (False, True, False)
+
+
+def test_prompts_repeat_until_the_answer_is_valid() -> None:
+    args = new_args()
+    fill_from_prompts(
+        args,
+        answers(
+            "Bad-Name", "hinoki", "shop", "", "oracle", "sqlite", "maybe", "y", "", ""
+        ),
+    )
+    assert (args.name, args.dir, args.database, args.agent_files) == (
+        "shop",
+        ".",
+        "sqlite",
+        True,
+    )
+
+
+def test_a_non_interactive_run_needs_a_name_and_keeps_old_defaults(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["new", "--no-input", "--dir", str(tmp_path)]) == 2
+    assert "name is required" in capsys.readouterr().err
+    assert main(["new", "shop", "--no-input", "--dir", str(tmp_path)]) == 0
+    target = tmp_path / "shop"
+    assert (target / "AGENTS.md").exists()
+    assert not (target / ".git").exists()
+    assert "    database:" not in (target / "shop/settings.py").read_text()
+
+
+def test_agent_files_can_be_left_out(tmp_path: Path) -> None:
+    target = create("shop", tmp_path, agent_files=False)
+    assert not any(
+        (target / n).exists() for n in ("AGENTS.md", "CLAUDE.md", ".mcp.json")
+    )
+    assert (target / "hinoki-rules.toml").exists()
+
+
+def test_a_database_choice_declares_the_setting(tmp_path: Path) -> None:
+    sqlite = create("lite", tmp_path, database="sqlite")
+    assert (
+        "database: settings.DatabaseSettings"
+        in (sqlite / "lite/settings.py").read_text()
+    )
+    assert not (sqlite / ".env.example").exists()
+    pg = create("big", tmp_path, database="postgresql")
+    assert (
+        (pg / ".env.example").read_text().startswith("BIG_DATABASE__URL=postgresql://")
+    )
+    with pytest.raises(ScaffoldError):
+        create("odd", tmp_path, database="oracle")
+
+
+def test_git_and_install_run_in_the_new_project_and_failures_are_not_fatal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+
+    calls: list[tuple[list[str], Path]] = []
+
+    def fake_run(command: list[str], cwd: Path, check: bool) -> Any:
+        calls.append((command, cwd))
+        return subprocess.CompletedProcess(command, 1 if "sync" in command else 0)
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    monkeypatch.setattr("shutil.which", lambda tool: f"/bin/{tool}")
+    code = main(
+        ["new", "shop", "--no-input", "--dir", str(tmp_path), "--git", "--install"]
+    )
+    assert code == 0
+    assert [call[0][1:] for call in calls] == [["init", "-q"], ["sync"]]
+    assert all(call[1] == tmp_path / "shop" for call in calls)
+    captured = capsys.readouterr()
+    assert "warning" in captured.err
+    assert "uv sync && uv run pytest" in captured.out
+
+
+def test_a_missing_tool_is_skipped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+
+    monkeypatch.setattr("shutil.which", lambda _name: None)
+    assert main(["new", "shop", "--no-input", "--dir", str(tmp_path), "--git"]) == 0
+    assert "skipped: git is not installed" in capsys.readouterr().err
