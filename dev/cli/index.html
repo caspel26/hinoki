@@ -487,6 +487,10 @@ them with <code>uv run --project ..</code> to use the locked environment at the 
 <td>Serve project context to an MCP client over stdio. Scenario tools are off by default.</td>
 </tr>
 <tr>
+<td><code>hinoki skills list</code> / <code>install</code></td>
+<td>List the optional agent skills, or write them under <code>.claude/skills</code> in the current project; see <a href="#skills"><code>skills</code></a>.</td>
+</tr>
+<tr>
 <td><code>hinoki completion SHELL</code></td>
 <td>Print a completion script for <code>bash</code>, <code>zsh</code> or <code>fish</code>; see <a href="#help-and-completion">Help and completion</a>.</td>
 </tr>
@@ -554,6 +558,11 @@ hinoki<span class="w"> </span>new<span class="w"> </span>notes<span class="w"> <
 <td><code>--agent-files</code> / <code>--no-agent-files</code></td>
 <td>write or omit <code>AGENTS.md</code>, <code>CLAUDE.md</code> and <code>.mcp.json</code></td>
 <td>written</td>
+</tr>
+<tr>
+<td><code>--skills</code> / <code>--no-skills</code></td>
+<td>also write the optional agent skills under <code>.claude/skills</code> (see <a href="#skills"><code>skills</code></a>); the terminal prompt asks for it</td>
+<td>off</td>
 </tr>
 <tr>
 <td><code>--git</code></td>
@@ -654,6 +663,11 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>notes.main:app<span
 hinoki<span class="w"> </span>openapi<span class="w"> </span>notes.main:app<span class="w"> </span>--check<span class="w"> </span>openapi.json
 </code></pre></div>
 <p>The command builds the app without serving it or opening a database; it works even when <code>openapi_url</code> is disabled. With no file option it prints deterministic JSON (sorted keys, two-space indentation and a trailing newline). <code>--output FILE</code> writes those bytes. <code>--check FILE</code> compares parsed JSON, so formatting differences do not count as drift. Exit status is <code>0</code> when the file matches or is written, <code>1</code> when its JSON differs, and <code>2</code> when the target cannot load or the check file is missing or invalid JSON. <code>--output</code> and <code>--check</code> cannot be used together.</p>
+<p><code>--breaking-against BASELINE</code> compares the generated document with an earlier OpenAPI JSON file (the released version) and prints one <code>breaking: …</code> line per change that would break an existing client:</p>
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>openapi<span class="w"> </span>notes.main:app<span class="w"> </span>--output<span class="w"> </span>openapi-baseline.json<span class="w">   </span><span class="c1"># at release time</span>
+hinoki<span class="w"> </span>openapi<span class="w"> </span>notes.main:app<span class="w"> </span>--breaking-against<span class="w"> </span>openapi-baseline.json
+</code></pre></div>
+<p>Reported: a removed operation or success response, new or newly required request input, a removed response property, a changed type, and a request enum that narrows or a response enum that widens. Additions are compatible and are not reported. Exit status is <code>0</code> when nothing breaks, <code>1</code> when something does, and <code>2</code> when the target cannot load or the baseline is missing or not a JSON object. It cannot be combined with <code>--output</code> or <code>--check</code>. The comparison reads the documents only; it does not check behavior that an OpenAPI document does not describe.</p>
 <h3 id="version"><code>version</code><a class="headerlink" href="#version" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>version
 hinoki<span class="w"> </span>version<span class="w"> </span>--verbose
@@ -788,6 +802,38 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class
 </code></pre></div>
 <p>The development server uses MCP over stdio. It accepts <code>--rules</code>, repeatable <code>--package</code>, repeatable <code>--models</code>, and <code>--waivers</code> with the same target meanings as <code>check</code>. <code>--requests PATH</code> names the file the <code>recent_requests</code> tool reads (default <code>.hinoki/requests.jsonl</code>; see <code>server.recent_requests</code>). <code>--scenarios off|read|write</code> controls whether <code>run_scenario</code> is registered: <code>read</code> allows GET, HEAD, OPTIONS and QUERY; <code>write</code> allows every supported method. Scenarios start the real app, run handlers and lifespan hooks, and may write data even for a GET. Keep the tool server owner-controlled and point the app at a disposable database.</p>
 <p>The development MCP is separate from application MCP, which is mounted with <code>expose_as_mcp</code> and an explicit action allowlist. See the <a href="../dev-mcp/">development MCP guide</a> for tool inputs and results.</p>
+<h3 id="skills"><code>skills</code><a class="headerlink" href="#skills" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>skills<span class="w"> </span>list
+hinoki<span class="w"> </span>skills<span class="w"> </span>install<span class="w">            </span><span class="c1"># from a project directory</span>
+hinoki<span class="w"> </span>skills<span class="w"> </span>install<span class="w"> </span>--force<span class="w">    </span><span class="c1"># replace skills that already exist</span>
+</code></pre></div>
+<p>Agent skills are short Markdown playbooks that point an assistant at the real Hinoki tools (the development MCP and the CLI). <code>list</code> prints each skill name and description. <code>install</code> reads <code>hinoki.toml</code>, then writes <code>.claude/skills/&lt;skill&gt;/SKILL.md</code> for each one, with the project package name filled in; an existing file is kept and reported unless <code>--force</code> replaces it. Without a manifest it prints an error and exits <code>2</code>. <code>hinoki new --skills</code> writes the same files at creation. They are optional and never written otherwise.</p>
+<table>
+<thead>
+<tr>
+<th>Skill</th>
+<th>Playbook</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hinoki-add-endpoint</code></td>
+<td>add an action with its <code>Schema</code> types, access policy and test</td>
+</tr>
+<tr>
+<td><code>hinoki-fix-rule</code></td>
+<td>fix a rule diagnostic without editing the rules or waivers</td>
+</tr>
+<tr>
+<td><code>hinoki-review-api</code></td>
+<td>run <code>hinoki openapi --breaking-against</code> before and after a change</td>
+</tr>
+<tr>
+<td><code>hinoki-test-api</code></td>
+<td>exercise operations with the generated valid and invalid bodies of <code>hinoki.ai.samples.request_cases</code></td>
+</tr>
+</tbody>
+</table>
 <h2 id="import-target-examples">Import target examples<a class="headerlink" href="#import-target-examples" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>dev<span class="w"> </span>notes.main:app
 hinoki<span class="w"> </span>check<span class="w"> </span>tracker.app:create_app
@@ -813,7 +859,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class=
           
           
             <ul><li><a href="#commands-and-options">Commands and options</a>
-            <ul><li><a href="#help-and-completion">Help and completion</a></li><li><a href="#doctor">doctor</a></li><li><a href="#new">new</a></li><li><a href="#app">app</a></li><li><a href="#admin">admin</a></li><li><a href="#dev-and-serve">dev and serve</a></li><li><a href="#check">check</a></li><li><a href="#openapi">openapi</a></li><li><a href="#version">version</a></li><li><a href="#settings">settings</a></li><li><a href="#manage">manage</a></li><li><a href="#shell">shell</a></li><li><a href="#migrations">migrations</a></li><li><a href="#mcp">mcp</a></li></ul>
+            <ul><li><a href="#help-and-completion">Help and completion</a></li><li><a href="#doctor">doctor</a></li><li><a href="#new">new</a></li><li><a href="#app">app</a></li><li><a href="#admin">admin</a></li><li><a href="#dev-and-serve">dev and serve</a></li><li><a href="#check">check</a></li><li><a href="#openapi">openapi</a></li><li><a href="#version">version</a></li><li><a href="#settings">settings</a></li><li><a href="#manage">manage</a></li><li><a href="#shell">shell</a></li><li><a href="#migrations">migrations</a></li><li><a href="#mcp">mcp</a></li><li><a href="#skills">skills</a></li></ul>
           </li><li><a href="#import-target-examples">Import target examples</a></li></ul>
           
         </nav>
@@ -821,8 +867,8 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class=
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 21:31:01 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>19 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 21:50:52 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>20 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

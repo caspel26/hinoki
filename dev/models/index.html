@@ -494,7 +494,48 @@ unsupported types fail during model or migration validation.</p>
 </code></pre></div>
 <p>Built-in checks support string/list lengths, string patterns and membership, and numeric bounds and membership. A column that holds a dict (<code>dict[...]</code>, or <code>list[dict[...]]</code>) is a JSON column and takes no built-in checks (they are refused at class creation); validators still run on it. Before applying checks, runtime type validation follows annotations for fields that declare constraints or validators, including nested list and dict values. Invalid declarations fail when the model class is created. Validators run immediately before inserts and ORM updates, including filtered bulk updates; they do not run on construction, assignment or reads. A refusal raises <code>ModelValidationError</code> with <code>details</code> containing each field's <code>path</code>, stable <code>code</code> and <code>message</code>, before SQL is sent. In an HTTP request it produces the standard 422 validation response; the admin displays the field messages. Custom validators are synchronous; raise <code>ValueError</code> to refuse a value. Do not perform database I/O or mutate values inside a validator. Rules involving other rows, permissions or current state belong in an operation.</p>
 <p>These checks complement, rather than replace, a <code>Schema</code> at the HTTP boundary. Schema validation can report request errors before calling an operation; Model validation also protects CLI, admin and direct ORM writes. Database constraints remain authoritative, and their enforcement varies by backend; see <a href="../schemas/#built-in-and-custom-validation">Schema validation</a>.</p>
-<p>Hinoki stores PostgreSQL UUID, timestamp, JSON and byte values in their native column types. <code>ipaddress</code> addresses and networks (<code>IPv4Address</code>, <code>IPv6Address</code>, <code>IPv4Network</code>, <code>IPv6Network</code>) are stored as <code>text</code> and read back as the object; writes accept only an object of the annotated class. <code>date</code> and <code>time</code> are stored as ISO text (a <code>time</code> with microseconds always, without a timezone), <code>timedelta</code> as whole microseconds in a <code>bigint</code>, <code>Decimal</code> as its exact text and an <code>Enum</code> as its value (<code>bigint</code> when every value is an integer, <code>text</code> otherwise); each is read back as the annotated type, and a stored value that is not one raises <code>FieldError</code>. A <code>date</code> and a <code>timedelta</code> compare and order by value (<code>__gt</code>, <code>order_by</code>); a <code>Decimal</code> column does not, because its text does not order or compare by value, so filtering or ordering on it is refused (only <code>__isnull</code> works). SQLite stores UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string <code>contains</code> matching follows SQLite's case-folding behavior (ASCII case-insensitive). UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string <code>contains</code> matching follows SQLite's case-folding behavior (ASCII case-insensitive).</p>
+<p>Hinoki stores PostgreSQL UUID, timestamp, JSON and byte values in their native column types. <code>ipaddress</code> addresses and networks (<code>IPv4Address</code>, <code>IPv6Address</code>, <code>IPv4Network</code>, <code>IPv6Network</code>) are stored as <code>text</code> and read back as the object; writes accept only an object of the annotated class. <code>date</code> and <code>time</code> are stored as ISO text (a <code>time</code> with microseconds always, without a timezone), <code>timedelta</code> as whole microseconds in a <code>bigint</code> and an <code>Enum</code> as its value (<code>bigint</code> when every value is an integer, <code>text</code> otherwise); each is read back as the annotated type, and a stored value that is not one raises <code>FieldError</code>. A <code>date</code> and a <code>timedelta</code> compare and order by value (<code>__gt</code>, <code>order_by</code>). SQLite stores UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string <code>contains</code> matching follows SQLite's case-folding behavior (ASCII case-insensitive).</p>
+<h4 id="decimal-columns"><code>Decimal</code> columns<a class="headerlink" href="#decimal-columns" title="Permanent link">&para;</a></h4>
+<p>A <code>Decimal</code> field is stored exactly on every backend, but not in the same column type:</p>
+<table>
+<thead>
+<tr>
+<th>Backend</th>
+<th>Column</th>
+<th>Filters and ordering</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PostgreSQL</td>
+<td><code>numeric</code> (read and written through a binary codec)</td>
+<td>equality, <code>ne</code>, <code>in</code>, <code>isnull</code>, <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code>, <code>order_by</code></td>
+</tr>
+<tr>
+<td>MySQL / MariaDB</td>
+<td><code>decimal(65,30)</code></td>
+<td>the same; a value is read back with scale 30 (<code>Decimal("1.5")</code> returns as <code>Decimal("1.500000000000000000000000000000")</code>, equal in value)</td>
+</tr>
+<tr>
+<td>SQLite</td>
+<td><code>text</code> (its exact text)</td>
+<td><code>isnull</code>, equality, <code>ne</code> and <code>in</code> only, and equality compares the spelling (<code>12.3</code> and <code>12.30</code> differ); <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code> and <code>order_by</code> are refused, because text does not order by value</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Product</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">price</span><span class="p">:</span> <span class="n">Decimal</span>
+
+<span class="k">await</span> <span class="n">Product</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">price__gte</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">"9.99"</span><span class="p">))</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"price"</span><span class="p">)</span>  <span class="c1"># PostgreSQL, MySQL, MariaDB</span>
+<span class="k">await</span> <span class="n">Product</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">price</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">"9.99"</span><span class="p">))</span>                        <span class="c1"># every backend</span>
+</code></pre></div>
+<ul>
+<li><strong>Filter values.</strong> A filter value must be a <code>Decimal</code>, an <code>int</code> or a numeric string; a <code>float</code>, a <code>bool</code>, <code>NaN</code> and an infinity raise <code>FieldError</code>, as does <code>contains</code> on a <code>Decimal</code> column. On SQLite an unsupported comparison or ordering raises <code>FieldError</code> naming the column.</li>
+<li><strong>Range.</strong> <code>decimal(65,30)</code> keeps 30 digits after the point and 35 before it, so a MySQL or MariaDB <code>Decimal</code> field is bounded by that; PostgreSQL <code>numeric</code> is not.</li>
+<li><strong>Migrations.</strong> A new migration declares <code>numeric</code> on PostgreSQL and <code>decimal(65,30)</code> on MySQL and MariaDB; on SQLite the column stays <code>text</code>, so that backend has no column change. A table that already stores a <code>Decimal</code> as text on PostgreSQL or MySQL needs a reviewed migration that changes the column type.</li>
+<li><strong>CRUD.</strong> A generated list action whose default <code>@ordered_by</code> names a <code>Decimal</code> column uses the Python path on SQLite, where that ordering is refused.</li>
+</ul>
 <h2 id="query-rows">Query rows<a class="headerlink" href="#query-rows" title="Permanent link">&para;</a></h2>
 <p>Class methods and querysets offer sync and async variants for common operations. Async variants are preferred in async handlers:</p>
 <div class="highlight"><pre><span></span><code><span class="n">task</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">aget</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">task_id</span><span class="p">)</span>
@@ -741,7 +782,9 @@ unsupported types fail during model or migration validation.</p>
           
           
             <ul><li><a href="#define-a-model">Define a model</a>
-            <ul><li><a href="#model-field-constraints-and-validators">Model field constraints and validators</a></li></ul>
+            <ul><li><a href="#model-field-constraints-and-validators">Model field constraints and validators</a>
+            <ul><li><a href="#decimal-columns">Decimal columns</a></li></ul>
+          </li></ul>
           </li><li><a href="#query-rows">Query rows</a></li><li><a href="#reusable-queries">Reusable queries</a></li><li><a href="#create-and-update">Create and update</a>
             <ul><li><a href="#writes-that-do-not-read-the-row-back">Writes that do not read the row back</a></li></ul>
           </li><li><a href="#lifecycle-hooks-and-instance-state">Lifecycle hooks and instance state</a></li><li><a href="#share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins</a></li><li><a href="#relations">Relations</a></li><li><a href="#schema-options">Schema options</a></li><li><a href="#migrations">Migrations</a></li></ul>
@@ -751,8 +794,8 @@ unsupported types fail during model or migration validation.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 16:25:38 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>15 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 21:50:52 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>16 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

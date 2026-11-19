@@ -975,6 +975,35 @@ attribute:</p>
 <p>After normalization, field checks receive final values and object checks can compare final fields. Raise <code>Invalid(code, message)</code> to reject a value; these checks return <code>None</code> and do not transform it. Non-<code>None</code> returns and async check methods are programming errors. Applicable custom-check failures are returned together in <code>errors.ValidationError.details</code>. Checks must be side-effect free; do not query the database or call external services. Put checks that depend on current data in an operation.</p>
 <p><strong>Which lane runs what.</strong> Types and <code>Field(...)</code> constraints are checked in Rust, on the Python-object path and, for most schemas, the GIL-free JSON path. The three decorators are Python callables, so they run in Python: Rust validates the structure first, and the normalizers, field checks and object checks run only on values that passed it. Computed fields are not available yet.</p>
 <p>These decorators validate a <code>Schema</code> instance passed through <code>Schema.validate</code>; they are not run on a <code>Model</code>. Model fields have separate checks that run before ORM writes, described in <a href="../models/#model-field-constraints-and-validators">Model field constraints and validators</a>.</p>
+<h2 id="reshaping-input-with-before_validate">Reshaping input with <code>@before_validate</code><a class="headerlink" href="#reshaping-input-with-before_validate" title="Permanent link">&para;</a></h2>
+<p><code>@before_validate</code> marks a <code>classmethod</code> or <code>staticmethod</code> that receives the decoded request mapping and returns the mapping to validate. Use it to accept an older or looser input shape, such as a renamed key (unknown keys are refused, so the hook drops the old one), and still get the full structural validation afterwards.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">before_validate</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Profile</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">display_name</span><span class="p">:</span> <span class="nb">str</span>
+
+    <span class="nd">@before_validate</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">accept_legacy_name</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="s2">"name"</span> <span class="ow">in</span> <span class="n">data</span> <span class="ow">and</span> <span class="s2">"display_name"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
+            <span class="n">rest</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">value</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">key</span> <span class="o">!=</span> <span class="s2">"name"</span><span class="p">}</span>
+            <span class="k">return</span> <span class="p">{</span><span class="o">**</span><span class="n">rest</span><span class="p">,</span> <span class="s2">"display_name"</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s2">"name"</span><span class="p">]}</span>
+        <span class="k">return</span> <span class="n">data</span>
+
+
+<span class="k">assert</span> <span class="n">Profile</span><span class="o">.</span><span class="n">validate</span><span class="p">({</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Ada"</span><span class="p">})</span><span class="o">.</span><span class="n">display_name</span> <span class="o">==</span> <span class="s2">"Ada"</span>
+</code></pre></div>
+<ul>
+<li><strong>Where it runs.</strong> On the schema and on every schema nested in it (lists, dicts, tuples, optionals and discriminated variants), before any structural validation, on the Python and the Rust lane alike. Base-class hooks run before a subclass's.</li>
+<li><strong>Untrusted input.</strong> The hook sees data that has not been checked: test types before using them. It gets a shallow copy of the mapping, so replace nested values instead of mutating them. It must be synchronous and do no I/O.</li>
+<li><strong>Refusing.</strong> Raise <code>Invalid(code, message)</code> to answer 422. A <code>KeyError</code>, <code>TypeError</code>, <code>ValueError</code>, <code>IndexError</code> or <code>AttributeError</code> caused by unexpected input answers <code>invalid_input</code> rather than 500.</li>
+<li><strong>Limits.</strong> A plain union of schemas where a member has such a hook is refused at class creation: use a <a href="#discriminated-unions">discriminated union</a>. The decorator on a plain method raises <code>RegistrationError</code>.</li>
+</ul>
+<h2 id="text-that-cannot-be-stored">Text that cannot be stored<a class="headerlink" href="#text-that-cannot-be-stored" title="Permanent link">&para;</a></h2>
+<p>A string value or a dict key that contains a NUL character (<code>\u0000</code>) is refused with the code <code>nul</code>, or <code>key_nul</code> for a dict key, on both lanes. PostgreSQL cannot store NUL in <code>text</code>, so the request answers 422 instead of failing later with a server error. The check runs after the length limits and before <code>pattern</code>.</p>
 <p>See also the <a href="../glossary/">glossary</a> for what "schema" does and does not mean in these docs.</p>
         
         <aside class="related" aria-label="Related pages">
@@ -1000,15 +1029,15 @@ attribute:</p>
           
             <ul><li><a href="#field-types">Field types</a>
             <ul><li><a href="#sets-and-tuples">Sets and tuples</a></li><li><a href="#enums-and-literals">Enums and literals</a></li><li><a href="#dates-durations-decimals-and-bytes">Dates, durations, decimals and bytes</a></li><li><a href="#multiples">Multiples</a></li><li><a href="#dictionary-fields">Dictionary fields</a></li><li><a href="#plain-unions-and-any">Plain unions and Any</a></li><li><a href="#typeddict-and-dataclass-fields">TypedDict and dataclass fields</a></li><li><a href="#internet-addresses-email-url-and-slug">Internet addresses, Email, Url and Slug</a></li><li><a href="#secretstr-and-path">SecretStr and Path</a></li></ul>
-          </li><li><a href="#documenting-a-field">Documenting a field</a></li><li><a href="#computed-fields">Computed fields</a></li><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#class-configuration">Class configuration</a></li><li><a href="#generic-schemas">Generic schemas</a></li><li><a href="#discriminated-unions">Discriminated unions</a></li><li><a href="#changing-a-value">Changing a value</a></li><li><a href="#projection-options-on-dump">Projection options on dump()</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
+          </li><li><a href="#documenting-a-field">Documenting a field</a></li><li><a href="#computed-fields">Computed fields</a></li><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#class-configuration">Class configuration</a></li><li><a href="#generic-schemas">Generic schemas</a></li><li><a href="#discriminated-unions">Discriminated unions</a></li><li><a href="#changing-a-value">Changing a value</a></li><li><a href="#projection-options-on-dump">Projection options on dump()</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li><li><a href="#reshaping-input-with-before_validate">Reshaping input with @before_validate</a></li><li><a href="#text-that-cannot-be-stored">Text that cannot be stored</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 16:39:49 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>27 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 21:50:52 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>29 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

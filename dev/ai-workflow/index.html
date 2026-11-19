@@ -414,6 +414,21 @@
 <li><strong>Errors that say what to do</strong>: validation errors list every problem with its path and a stable code; <code>explain_error</code> maps a code to its meaning and fix; a registration error names the action and parameter.</li>
 </ul>
 <p>See the <a href="../dev-mcp/">development MCP guide</a> for tool arguments, result shapes and the effectful scenario option.</p>
+<h3 id="optional-agent-skills">Optional agent skills<a class="headerlink" href="#optional-agent-skills" title="Permanent link">&para;</a></h3>
+<p><code>hinoki new shop --skills</code> (or the prompt in a terminal) and <code>hinoki skills install</code> in an existing project write four Markdown playbooks under <code>.claude/skills/</code>: <code>hinoki-add-endpoint</code>, <code>hinoki-fix-rule</code>, <code>hinoki-review-api</code> and <code>hinoki-test-api</code>. Each one tells an assistant which MCP tool or CLI command to run and which changes belong to the owner (never <code>hinoki-rules.toml</code>). They are off by default; see <a href="../cli/#skills"><code>hinoki skills</code></a>.</p>
+<h3 id="checking-a-change-against-clients">Checking a change against clients<a class="headerlink" href="#checking-a-change-against-clients" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>openapi<span class="w"> </span>shop.main:app<span class="w"> </span>--output<span class="w"> </span>openapi-baseline.json<span class="w">     </span><span class="c1"># released version</span>
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>openapi<span class="w"> </span>shop.main:app<span class="w"> </span>--breaking-against<span class="w"> </span>openapi-baseline.json
+</code></pre></div>
+<p>Exit status <code>1</code> lists each change that would break an existing client (removed operations or response fields, new required request input, narrowed enums, changed types); see <a href="../cli/#openapi"><code>openapi</code></a>.</p>
+<h3 id="generated-request-bodies">Generated request bodies<a class="headerlink" href="#generated-request-bodies" title="Permanent link">&para;</a></h3>
+<p><code>hinoki.ai.samples.request_cases(app.openapi())</code> returns one <code>RequestCase</code> per operation with a JSON body: a <code>method</code>, a <code>path</code>, a <code>body</code> that satisfies the declared schema, and <code>invalid</code>, a list of <code>(description, body)</code> pairs that each break one rule (wrong type, missing property, too long, below a bound, and so on).</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.ai.samples</span><span class="w"> </span><span class="kn">import</span> <span class="n">request_cases</span>
+
+<span class="k">for</span> <span class="n">case</span> <span class="ow">in</span> <span class="n">request_cases</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">openapi</span><span class="p">()):</span>
+    <span class="o">...</span>  <span class="c1"># send case.body: expect 2xx; send each body in case.invalid: expect 422</span>
+</code></pre></div>
+<p>The generator reads only the OpenAPI document. It raises <code>CannotSample</code> for a schema it cannot build a value for (such as a regular-expression pattern), and a path with parameters needs real values before it is sent. Use a disposable database and synthetic data.</p>
 <h2 id="3-the-loop">3. The loop<a class="headerlink" href="#3-the-loop" title="Permanent link">&para;</a></h2>
 <ol>
 <li>The agent asks the MCP for the project (<code>inspect_project</code>) to read the registered routes and models.</li>
@@ -451,15 +466,17 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#1-start-a-project-an-agent-can-work-in">1. Start a project an agent can work in</a></li><li><a href="#2-what-the-agent-gets">2. What the agent gets</a></li><li><a href="#3-the-loop">3. The loop</a></li><li><a href="#4-limits-what-this-does-not-do">4. Limits (what this does not do)</a></li></ul>
+            <ul><li><a href="#1-start-a-project-an-agent-can-work-in">1. Start a project an agent can work in</a></li><li><a href="#2-what-the-agent-gets">2. What the agent gets</a>
+            <ul><li><a href="#optional-agent-skills">Optional agent skills</a></li><li><a href="#checking-a-change-against-clients">Checking a change against clients</a></li><li><a href="#generated-request-bodies">Generated request bodies</a></li></ul>
+          </li><li><a href="#3-the-loop">3. The loop</a></li><li><a href="#4-limits-what-this-does-not-do">4. Limits (what this does not do)</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.29</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 17:42:10 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 21:50:52 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/ai-workflow.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
