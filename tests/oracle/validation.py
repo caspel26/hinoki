@@ -174,6 +174,9 @@ class Validator:
             data = data.upper()
         if self.length(ftype, data, path) is INVALID:
             return INVALID
+        return self.content(ftype, data, path)
+
+    def content(self, ftype: FieldType, data: str, path: str) -> object:
         if "\0" in data:
             return self.fail(path, "nul", "must not contain NUL characters")
         pattern = ftype.info.pattern
@@ -418,6 +421,9 @@ class Validator:
     def key(self, ftype: FieldType, key: str, path: str) -> object:
         if "\0" in key:
             return self.fail(path, "key_nul", "key must not contain NUL characters")
+        return self.key_rules(ftype, key, path)
+
+    def key_rules(self, ftype: FieldType, key: str, path: str) -> object:
         info = ftype.info
         if info.min_length is not None and len(key) < info.min_length:
             bound = info.min_length
