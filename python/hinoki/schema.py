@@ -371,6 +371,10 @@ def typed_instance_value(
     path: str,
 ) -> Any:
     """Convert one non-null, non-UNSET typed value for native validation."""
+    if ftype.kind == "any":
+        return value
+    if ftype.kind == "anyof":
+        return anyof_instance_value(ftype, value, use_aliases, active, depth, path)
     if ftype.kind == "union":
         checked = tagged_union_instance_value(
             ftype, value, use_aliases, active, depth, path
@@ -383,19 +387,96 @@ def typed_instance_value(
         checked = container_instance_value(
             ftype, value, use_aliases, active, depth, path
         )
-    elif ftype.kind == "uuid":
-        checked = str(value) if isinstance(value, UUID) else _INVALID_INSTANCE_VALUE
-    elif ftype.kind == "datetime":
-        checked = (
+    else:
+        checked = scalar_instance_value(ftype, value)
+    return checked
+
+
+def scalar_instance_value(ftype: FieldType, value: Any) -> Any:
+    if ftype.kind == "uuid":
+        return str(value) if isinstance(value, UUID) else _INVALID_INSTANCE_VALUE
+    if ftype.kind == "datetime":
+        return (
             value.isoformat()
             if isinstance(value, datetime)
             else _INVALID_INSTANCE_VALUE
         )
-    elif ftype.kind in WIRE_KINDS:
-        checked = wire_instance_value(ftype.kind, value)
-    else:
-        checked = member_instance_value(ftype, value)
-    return checked
+    if ftype.kind in WIRE_KINDS:
+        return wire_instance_value(ftype.kind, value)
+    return member_instance_value(ftype, value)
+
+
+PLAIN_TYPES: dict[str, type | tuple[type, ...]] = {
+    "str": str,
+    "int": int,
+    "float": (int, float),
+    "bool": bool,
+    "uuid": UUID,
+    "datetime": datetime,
+    "date": dt.date,
+    "time": dt.time,
+    "timedelta": dt.timedelta,
+    "decimal": Decimal,
+    "bytes": bytes,
+    "dict": dict,
+    "tuple": tuple,
+}
+NOT_ACCEPTED: dict[str, type] = {"int": bool, "float": bool, "date": datetime}
+"""Instances of a wanted type that a kind does not take: ``True`` is not an
+integer or a number, a ``datetime`` is not a ``date``."""
+
+
+def variant_accepts(ftype: FieldType, value: Any) -> bool:
+    """Whether a constructed value is of the Python type this variant yields."""
+    if ftype.kind == "any":
+        return True
+    if value is None:
+        return ftype.nullable
+    return type_accepts(ftype, value)
+
+
+def type_accepts(ftype: FieldType, value: Any) -> bool:
+    if ftype.kind == "anyof":
+        return any(variant_accepts(item, value) for item in ftype.items)
+    if ftype.kind == "union":
+        return isinstance(value, tuple(schema for _, schema in ftype.variants))
+    if ftype.schema is not None:
+        return isinstance(value, ftype.schema)
+    return member_accepts(ftype, value)
+
+
+def member_accepts(ftype: FieldType, value: Any) -> bool:
+    if ftype.enum_class is not None:
+        return type(value) is ftype.enum_class
+    wanted = PLAIN_TYPES.get(ftype.kind, ())
+    if ftype.kind == "list":
+        wanted = COLLECTION_TYPES.get(ftype.collection or "", list)
+    return isinstance(value, wanted) and not isinstance(
+        value, NOT_ACCEPTED.get(ftype.kind, ())
+    )
+
+
+def anyof_instance_value(
+    ftype: FieldType,
+    value: Any,
+    use_aliases: bool,
+    active: set[int],
+    depth: int,
+    path: str,
+) -> Any:
+    """A constructed value as the wire primitive of the first variant that takes
+    its Python type; a value no variant takes is not accepted."""
+    for variant in ftype.items:
+        if variant_accepts(variant, value):
+            return instance_value(
+                variant,
+                value,
+                use_aliases=use_aliases,
+                active=active,
+                depth=depth,
+                path=path,
+            )
+    return _INVALID_INSTANCE_VALUE
 
 
 def member_instance_value(ftype: FieldType, value: Any) -> Any:
@@ -1567,7 +1648,7 @@ def node_of(
         constraints = {**constraints, "enum": ftype.enum_class}
     if ftype.collection is not None:
         constraints = {**constraints, "collection": ftype.collection}
-    if ftype.kind == "tuple":
+    if ftype.kind in {"tuple", "anyof"}:
         constraints = {
             **constraints,
             "items": [node_of(child, index_of, queue) for child in ftype.items],
@@ -1740,17 +1821,26 @@ def typed_entries(
 ) -> list[tuple[FieldType, str, Any]]:
     """``(element type, path, element)`` of a list, dict, set or tuple field
     value; empty for anything else."""
+    if ftype.kind == "anyof":
+        chosen = next((v for v in ftype.items if variant_accepts(v, value)), None)
+        return [] if chosen is None else [(chosen, path, value)]
     if ftype.kind == "tuple":
-        if not isinstance(value, tuple) or len(value) != len(ftype.items):
-            return []
-        return [
-            (child, f"{path}[{index}]", item)
-            for index, (child, item) in enumerate(zip(ftype.items, value, strict=True))
-        ]
+        return fixed_entries(ftype, value, path)
     if ftype.item is None:
         return []
     item_type = ftype.item
     return [(item_type, at, item) for at, item in container_entries(ftype, value, path)]
+
+
+def fixed_entries(
+    ftype: FieldType, value: Any, path: str
+) -> list[tuple[FieldType, str, Any]]:
+    if not isinstance(value, tuple) or len(value) != len(ftype.items):
+        return []
+    return [
+        (child, f"{path}[{index}]", item)
+        for index, (child, item) in enumerate(zip(ftype.items, value, strict=True))
+    ]
 
 
 def container_entries(ftype: FieldType, value: Any, path: str) -> list[tuple[str, Any]]:

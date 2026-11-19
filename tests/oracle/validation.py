@@ -94,6 +94,8 @@ class Validator:
             "bytes": self.binary,
             "list": self.sequence,
             "tuple": self.fixed,
+            "anyof": self.anyof,
+            "any": lambda _ftype, data, _path: data,
             "dict": self.mapping,
             "schema": self.schema,
         }
@@ -300,6 +302,18 @@ class Validator:
             return INVALID
         collected = {"set": set, "frozenset": frozenset, "tuple": tuple}
         return collected.get(ftype.collection or "", list)(items)
+
+    def anyof(self, ftype: FieldType, data: Any, path: str) -> object:
+        before = len(self.errors)
+        for variant in ftype.items:
+            try:
+                value = self.check(variant, data, path)
+            except TooManyErrors:
+                value = INVALID
+            del self.errors[before:]
+            if value is not INVALID:
+                return value
+        return self.fail(path, "union", "does not match any allowed type")
 
     def fixed(self, ftype: FieldType, data: Any, path: str) -> object:
         if not isinstance(data, list):

@@ -354,13 +354,18 @@ class OpenAPIBuilder:
 
     def shape(self, ftype: FieldType) -> dict[str, Any]:
         """The JSON Schema of a field type before its constraints are added."""
+        if ftype.kind == "anyof":
+            return {"anyOf": [self.field(child) for child in ftype.items]}
         if ftype.item is not None or ftype.kind == "tuple":
             return self.container(ftype, ftype.item)
+        if ftype.kind in {"schema", "union"}:
+            return self.reference(ftype)
+        return dict(KIND_SCHEMAS.get(ftype.kind, {}))
+
+    def reference(self, ftype: FieldType) -> dict[str, Any]:
         if ftype.kind == "schema" and ftype.schema is not None:
             return self.component(ftype.schema)
-        if ftype.kind == "union":
-            return self.union(ftype)
-        return dict(KIND_SCHEMAS[ftype.kind])
+        return self.union(ftype)
 
     def container(self, ftype: FieldType, item: FieldType | None) -> dict[str, Any]:
         """A list, set or tuple as an array; a dict as an object whose property
@@ -397,6 +402,8 @@ class OpenAPIBuilder:
 
     def field(self, ftype: FieldType) -> dict[str, Any]:
         base = self.shape(ftype)
+        if ftype.kind == "any":
+            return base
         skipped = UNDESCRIBED.get(ftype.kind, frozenset())
         for name, value in ftype.info.constraints().items():
             if name in skipped:
