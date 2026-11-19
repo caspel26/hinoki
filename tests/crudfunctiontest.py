@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from hinoki import (
+    API,
     UNSET,
     Access,
     BearerAuth,
@@ -129,19 +130,19 @@ def test_public_writes_must_be_explicit() -> None:
 
 def test_omit_leaves_an_action_to_handwritten_code() -> None:
     @crud(Note, path="/notes", read=NoteOut, access=writer, omit=("list",))
-    class Notes:
+    class Notes(API):
         @http.get("/")
         async def listing(self, request: Request) -> list[NoteOut]:
             return []
 
     assert Notes.__name__ == "Notes"
-    names = {route.handler.__name__ for route in cast(Any, Notes).routes()}
+    names = {route.handler.__name__ for route in Notes.routes()}
     assert names == {"listing", "retrieve"}
 
 
 def test_decorator_keeps_hooks_and_handwritten_actions() -> None:
     @crud(Note, path="/notes", read=NoteOut, access=writer)
-    class Notes:
+    class Notes(API):
         def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Note]:
             return Note.all()
 
@@ -157,7 +158,7 @@ def test_a_generated_action_cannot_also_be_handwritten() -> None:
     with pytest.raises(RegistrationError, match="both generated and handwritten"):
 
         @crud(Note, path="/notes", read=NoteOut, access=writer)
-        class Notes:
+        class Notes(API):
             @http.get("/")
             async def list(self, request: Request) -> list[NoteOut]:
                 return []
@@ -167,9 +168,17 @@ def test_only_get_queryset_and_to_schema_are_hooks() -> None:
     with pytest.raises(RegistrationError, match="only get_queryset and to_schema"):
 
         @crud(Note, path="/notes", read=NoteOut, access=writer, create=NoteIn)
-        class Notes:
+        class Notes(API):
             async def store(self, values: dict[str, Any], principal: Any) -> Any:
                 return await Note.acreate(**values)
+
+
+def test_a_crud_class_must_extend_api_only() -> None:
+    with pytest.raises(RegistrationError, match="exactly one base, API"):
+
+        @crud(Note, path="/notes", read=NoteOut, access=writer)
+        class Notes:  # type: ignore[type-var]
+            pass
 
 
 def test_declarations_are_checked_like_the_class_form() -> None:
@@ -179,12 +188,11 @@ def test_declarations_are_checked_like_the_class_form() -> None:
 
 def test_super_works_inside_a_decorated_class() -> None:
     @crud(Note, path="/notes", read=NoteOut, access=writer)
-    class Notes:
+    class Notes(API):
         def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Note]:
             return cast(QuerySet[Note], super().get_queryset(principal))  # type: ignore[misc]
 
-    api = cast(Any, Notes)
-    assert api().get_queryset(None) is not None
+    assert Notes().get_queryset(None) is not None
 
 
 def test_subclasses_cannot_weaken_per_action_access_with_legacy_attributes() -> None:
@@ -209,7 +217,7 @@ async def test_function_form_runs_against_a_database(pool: Pool) -> None:
         identity_key=str,
         access=writer,
     )
-    class Notes:
+    class Notes(API):
         def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Note]:
             assert principal is not None
             return Note.filter(owner=principal.user)
