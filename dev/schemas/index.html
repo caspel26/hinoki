@@ -425,7 +425,56 @@
 </ul>
 <p><code>Schema.validate(data)</code> reports structural problems together. Values are not coerced; for data that is all text, such as form fields, <code>Schema.validate_text(data)</code> first converts values to the <code>int</code>, <code>float</code> and <code>bool</code> fields declare (and wraps a lone value of a <code>list</code> field), in Rust, then runs the same strict <code>validate</code>. A value that does not convert is left as text and fails validation with the usual type error; <code>str</code>, <code>UUID</code> and <code>datetime</code> are checked as text. Declare field constraints with <code>Field(...)</code>; use <code>@field_normalize</code> for narrow, typed string canonicalization and <code>@field_check</code>/<code>@object_check</code> for synchronous rejection checks.</p>
 <h2 id="field-types">Field types<a class="headerlink" href="#field-types" title="Permanent link">&para;</a></h2>
-<p>A field is annotated with <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>, <code>UUID</code>, <code>datetime</code>, <code>date</code>, <code>time</code>, <code>timedelta</code>, <code>Decimal</code>, <code>bytes</code>, a nested <code>Schema</code>, <code>list[X]</code>, <code>dict[str, X]</code> or a <a href="#discriminated-unions">discriminated union</a>, optionally <code>| None</code> (accepts <code>null</code>) and <code>| Unset</code> (may be left out of a partial update), and optionally wrapped in <code>Annotated[..., Field(...)]</code>. <code>X</code> can be any of these, so <code>list[dict[str, int]]</code> and <code>dict[str, list[Point]]</code> work. Anything else (<code>set</code>, <code>tuple</code>, <code>bytearray</code>, <code>Any</code>, plain unions, <code>dict[int, X]</code>) raises <code>RegistrationError</code> when the class is created.</p>
+<p>A field is annotated with <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>, <code>UUID</code>, <code>datetime</code>, <code>date</code>, <code>time</code>, <code>timedelta</code>, <code>Decimal</code>, <code>bytes</code>, an <code>Enum</code> class, a <code>Literal</code>, a nested <code>Schema</code>, <code>list[X]</code>, <code>dict[str, X]</code> or a <a href="#discriminated-unions">discriminated union</a>, optionally <code>| None</code> (accepts <code>null</code>) and <code>| Unset</code> (may be left out of a partial update), and optionally wrapped in <code>Annotated[..., Field(...)]</code>. <code>X</code> can be any of these, so <code>list[dict[str, int]]</code> and <code>dict[str, list[Point]]</code> work. Anything else (<code>set</code>, <code>tuple</code>, <code>bytearray</code>, <code>Any</code>, plain unions, <code>dict[int, X]</code>) raises <code>RegistrationError</code> when the class is created.</p>
+<h3 id="enums-and-literals">Enums and literals<a class="headerlink" href="#enums-and-literals" title="Permanent link">&para;</a></h3>
+<p>An <code>Enum</code>, <code>StrEnum</code> or <code>IntEnum</code> class, or a <code>Literal</code> of strings or of integers, accepts only the listed values. On the wire the value is the member's value; validation returns the member itself:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">enum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">ValidationError</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Status</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">StrEnum</span><span class="p">):</span>
+    <span class="n">DRAFT</span> <span class="o">=</span> <span class="s2">"draft"</span>
+    <span class="n">PUBLISHED</span> <span class="o">=</span> <span class="s2">"published"</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Priority</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">IntEnum</span><span class="p">):</span>
+    <span class="n">LOW</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">HIGH</span> <span class="o">=</span> <span class="mi">3</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Ticket</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">channel</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"web"</span><span class="p">,</span> <span class="s2">"email"</span><span class="p">]</span>
+    <span class="n">status</span><span class="p">:</span> <span class="n">Status</span> <span class="o">=</span> <span class="n">Status</span><span class="o">.</span><span class="n">DRAFT</span>
+    <span class="n">priority</span><span class="p">:</span> <span class="n">Priority</span> <span class="o">=</span> <span class="n">Priority</span><span class="o">.</span><span class="n">LOW</span>
+    <span class="n">retries</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+
+<span class="n">ticket</span> <span class="o">=</span> <span class="n">Ticket</span><span class="o">.</span><span class="n">validate</span><span class="p">({</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"web"</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"published"</span><span class="p">,</span> <span class="s2">"priority"</span><span class="p">:</span> <span class="mi">3</span><span class="p">})</span>
+<span class="k">assert</span> <span class="n">ticket</span><span class="o">.</span><span class="n">status</span> <span class="ow">is</span> <span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span> <span class="ow">and</span> <span class="n">ticket</span><span class="o">.</span><span class="n">priority</span> <span class="ow">is</span> <span class="n">Priority</span><span class="o">.</span><span class="n">HIGH</span>
+<span class="k">assert</span> <span class="n">ticket</span><span class="o">.</span><span class="n">dump</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span>
+    <span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"web"</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"published"</span><span class="p">,</span> <span class="s2">"priority"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">"retries"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">Ticket</span><span class="o">.</span><span class="n">validate</span><span class="p">({</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"sms"</span><span class="p">,</span> <span class="s2">"priority"</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span>
+<span class="k">except</span> <span class="n">ValidationError</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+    <span class="k">assert</span> <span class="p">[(</span><span class="n">d</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">code</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">error</span><span class="o">.</span><span class="n">details</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"channel"</span><span class="p">,</span> <span class="s2">"one_of"</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"priority"</span><span class="p">,</span> <span class="s2">"one_of"</span><span class="p">),</span>
+    <span class="p">]</span>
+</code></pre></div>
+<ul>
+<li><strong>Values, not names.</strong> The names of the members never appear on the wire; the error message lists the accepted values (<code>must be one of 'web', 'email'</code>). Matching is strict: <code>"3"</code> and <code>3.0</code> are not <code>3</code>, and <code>True</code> is not <code>1</code>. Wrong types answer <code>type</code>, a value outside the list answers <code>one_of</code>.</li>
+<li><strong>One kind of value.</strong> All values are <code>str</code>, or all are <code>int</code> (64-bit, never <code>bool</code>). A mixed <code>Enum</code> or <code>Literal</code>, <code>None</code> inside a <code>Literal</code> (write <code>Literal["a"] | None</code>), a <code>Flag</code> enum, an enum without members, an enum member inside a <code>Literal</code> (use the class) and values of any other type raise <code>RegistrationError</code>. Aliases of a member count once. <code>Field(...)</code> constraints, including <code>one_of</code>, are refused on these fields: the type is the list.</li>
+<li><strong>Construction</strong> takes members for an enum field (<code>Ticket(status=Status.DRAFT)</code>) and the listed values for a <code>Literal</code>; a plain <code>"draft"</code> is refused for an enum field. <code>validate</code> and the request sources read the value, and a member of a <code>StrEnum</code> is read as its text.</li>
+<li><strong>Output.</strong> <code>dump()</code>, responses and the JSON encoder write the member's value (inside <code>Schema</code> instances); <code>to_dict()</code> keeps the member.</li>
+<li><strong>Text sources.</strong> Form, query and XML values are text; an <code>IntEnum</code> or an <code>int</code> <code>Literal</code> reads its number like an <code>int</code> field does.</li>
+<li><strong>Models.</strong> A <code>Model</code> column annotated with an enum or a <code>Literal</code> stays a JSON column; only <code>Schema</code> fields check the values.</li>
+<li><strong>OpenAPI</strong> documents the field as its <code>type</code> (<code>string</code> or <code>integer</code>) with an <code>enum</code> list of the values, inline in the property.</li>
+</ul>
 <h3 id="dates-durations-decimals-and-bytes">Dates, durations, decimals and bytes<a class="headerlink" href="#dates-durations-decimals-and-bytes" title="Permanent link">&para;</a></h3>
 <p><code>date</code>, <code>time</code>, <code>timedelta</code>, <code>Decimal</code> and <code>bytes</code> travel as JSON strings and are validated identically by the Python and the Rust lane:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">dt</span>
@@ -614,7 +663,7 @@
     <span class="k">return</span> <span class="n">data</span>
 </code></pre></div>
 <p><code>PetRequest.validate({"pet": {"type": "cat", "name": "Mugi"}})</code> returns a <code>PetRequest</code> whose <code>pet</code> is a <code>Cat</code>; manual construction takes an already validated variant instance, such as <code>PetRequest(pet=Dog(kind="dog", walks=2))</code>. A dict is not coerced into a variant. <code>list[Pet]</code>, nested Schema fields, nullable unions and <code>Unset</code> use the same discriminator rules. Unknown tags produce a field error at the tag's wire path without echoing the submitted value. The handler is not called for an invalid body, whether it is synchronous or asynchronous.</p>
-<p>Each variant's tag field is required and cannot have a default. Tags must be unique strings, variants must be distinct Schema classes, and variant classes cannot override <code>dump()</code> because the override could remove or change the tag on the wire. Plain unions without <code>Field(discriminator=...)</code>, <code>Literal</code>, non-Schema variants, and unions directly in handler body or return annotations are not supported; wrap the union in a Schema for route input and output. The runtime check of return values is separate and applies to every action.</p>
+<p>Each variant's tag field is required and cannot have a default. Tags must be unique strings, variants must be distinct Schema classes, and variant classes cannot override <code>dump()</code> because the override could remove or change the tag on the wire. Plain unions without <code>Field(discriminator=...)</code>, non-Schema variants, and unions directly in handler body or return annotations are not supported; wrap the union in a Schema for route input and output. The runtime check of return values is separate and applies to every action.</p>
 <h2 id="projection-options-on-dump">Projection options on <code>dump()</code><a class="headerlink" href="#projection-options-on-dump" title="Permanent link">&para;</a></h2>
 <p>Use <code>dump()</code> when application code needs a JSON-compatible projection of a Schema. <code>include</code> and <code>exclude</code> accept Python field names and apply to the top-level fields only; exclusion wins if a field appears in both. There are no dotted paths or nested selection maps. Nested Schemas and supported lists are converted recursively, with <code>by_alias</code> applied at every Schema level.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
@@ -703,7 +752,7 @@
           
           
             <ul><li><a href="#field-types">Field types</a>
-            <ul><li><a href="#dates-durations-decimals-and-bytes">Dates, durations, decimals and bytes</a></li><li><a href="#dictionary-fields">Dictionary fields</a></li></ul>
+            <ul><li><a href="#enums-and-literals">Enums and literals</a></li><li><a href="#dates-durations-decimals-and-bytes">Dates, durations, decimals and bytes</a></li><li><a href="#dictionary-fields">Dictionary fields</a></li></ul>
           </li><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#class-configuration">Class configuration</a></li><li><a href="#discriminated-unions">Discriminated unions</a></li><li><a href="#projection-options-on-dump">Projection options on dump()</a></li><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li></ul>
           
         </nav>
@@ -711,8 +760,8 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 23:07:50 UTC">November 18, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>14 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 00:18:44 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>16 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
