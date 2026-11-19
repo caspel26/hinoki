@@ -51,7 +51,7 @@ POOL = 10
 CONCURRENCY = 64
 SERVER_CPUS = "0-3"
 LOAD_CPUS = "6-7"
-STACKS = ("rust", "granian")
+STACKS = ("kiso", "granian")
 SMALL = {"title": "Baseline", "body": "x" * 64, "count": 3}
 BIG_10K = {"title": "Baseline", "body": "x" * 10_000, "count": 3}
 BIG_100K = {"title": "Baseline", "body": "x" * 100_000, "count": 3}
@@ -210,7 +210,7 @@ def verify(output: Path) -> dict[str, Any]:
         finally:
             stop_server(process)
     for scenario, by_stack in seen.items():
-        rust, granian = by_stack["rust"], by_stack["granian"]
+        rust, granian = by_stack["kiso"], by_stack["granian"]
         if (rust["status"], rust["body"]) != (granian["status"], granian["body"]):
             raise SystemExit(f"{scenario}: the two stacks answered differently")
     (output / "verification.json").write_text(json.dumps(seen, indent=2) + "\n")

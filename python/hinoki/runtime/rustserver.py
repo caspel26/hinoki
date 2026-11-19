@@ -13,7 +13,7 @@ applies as on the ASGI path: the native layer matches the TCP peer against it
 (for the request id and the policy headers of its own answers) and the pipeline
 resolves the forwarded scheme and client of queued requests from the same peer.
 
-``hinoki serve --server rust`` runs one worker in the CLI process, or, for
+``hinoki serve --server kiso`` runs one worker in the CLI process, or, for
 several workers (and always under ``hinoki dev``), starts this module as a
 process per worker from ``hinoki.runtime.supervisor``, which owns the listening
 socket and passes it down. Run by hand it binds itself:
