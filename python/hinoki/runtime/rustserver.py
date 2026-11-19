@@ -146,6 +146,8 @@ class RustWorker:
         parent: int | None = None,
         native_dispatch: bool = True,
         access_log: str | None = None,
+        access_log_skip: Sequence[str] | None = None,
+        access_log_slow_ms: float | None = None,
     ) -> None:
         self.adapter = app.asgi()
         self.pipeline = self.adapter.pipeline
@@ -161,6 +163,8 @@ class RustWorker:
         self.backlog = backlog
         self.native_dispatch = native_dispatch
         self.access_log = access_log
+        self.access_log_skip = access_log_skip
+        self.access_log_slow_ms = access_log_slow_ms
         self.lane: NativeLane | None = None
         # An inherited listening descriptor (a supervisor owns the socket); the
         # native server takes it over. Without one, the worker binds itself.
@@ -228,6 +232,8 @@ class RustWorker:
                 self.tls_key_file,
                 self.http2,
                 self.access_log,
+                self.access_log_skip,
+                self.access_log_slow_ms,
             )
         except BaseException:
             self.core._disarm_crud_plans()
@@ -600,6 +606,8 @@ def build_worker(
         listener_fd=listener_fd,
         parent=parent,
         access_log=access_style(settings, dev),
+        access_log_skip=settings.access_log_skip,
+        access_log_slow_ms=settings.access_log_slow_ms,
         **limits,
     )
 

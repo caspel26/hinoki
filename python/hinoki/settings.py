@@ -53,7 +53,12 @@ RUST_ONLY = (
     "native_dispatch",
 )
 # What Granian cannot honour: the limits above and how Kiso formats its log.
-KISO_ONLY = (*RUST_ONLY, "access_log_format")
+KISO_ONLY = (
+    *RUST_ONLY,
+    "access_log_format",
+    "access_log_skip",
+    "access_log_slow_ms",
+)
 QUOTED = 2  # shortest quoted value: the two quotes
 MAX_CORS_AGE = 86400
 HSTS_MAX_SECONDS = 63_072_000
@@ -1048,9 +1053,13 @@ class ServerSettings(Settings):
     chooses how a line looks; unset, it is ``pretty`` on a colour terminal and
     ``plain`` otherwise, and setting it turns the log on unless ``access_log`` is
     ``False``. ``json`` writes one object per line with an RFC 3339 UTC ``time``.
+    ``access_log_skip`` (Rust server only) lists paths the log leaves out, such
+    as health checks: exact, or a prefix when the entry ends with ``*``.
+    ``access_log_slow_ms`` keeps only answers at least that slow. Both always
+    keep failures (status 400 and up).
     ``max_connections``, ``header_read_timeout``,
     ``body_read_timeout``, ``write_timeout``, ``native_dispatch`` and
-    ``access_log_format`` belong to
+    ``access_log_format``, ``access_log_skip`` and ``access_log_slow_ms`` belong to
     the Rust server (``None`` keeps its default). ``hinoki serve`` refuses a
     setting the chosen server cannot honour. ``tls_cert_file`` and
     ``tls_key_file`` (PEM files, set together) serve HTTPS on either server;
@@ -1067,6 +1076,8 @@ class ServerSettings(Settings):
     backlog: int = 1024
     access_log: bool | None = None
     access_log_format: Literal["pretty", "plain", "json"] | None = None
+    access_log_skip: tuple[str, ...] | None = None
+    access_log_slow_ms: float | None = None
     trusted_proxies: tuple[str, ...] = ()
     request_id_header: str = "x-request-id"
     trust_request_id: bool = False
@@ -1100,6 +1111,7 @@ class ServerSettings(Settings):
                     "trusted_proxies entries must be IP addresses or CIDRs"
                 ) from exc
         self.validate_rust_limits()
+        self.validate_access_log()
         self.validate_tls()
         if TOKEN.fullmatch(self.request_id_header) is None:
             raise ValueError("request_id_header must be an HTTP token")
@@ -1121,6 +1133,14 @@ class ServerSettings(Settings):
                 raise ValueError(
                     f"{name} must be above 0 and at most {MAX_READ_TIMEOUT}"
                 )
+
+    def validate_access_log(self) -> None:
+        slow = self.access_log_slow_ms
+        if slow is not None and not 0 <= slow <= MAX_READ_TIMEOUT * 1000:
+            raise ValueError("access_log_slow_ms must be a number of milliseconds >= 0")
+        for rule in self.access_log_skip or ():
+            if not rule.startswith("/"):
+                raise ValueError(f"access_log_skip entries start with '/': {rule!r}")
 
     def validate_tls(self) -> None:
         if (self.tls_cert_file is None) != (self.tls_key_file is None):

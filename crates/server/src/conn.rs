@@ -26,7 +26,7 @@ use hyper::header::{HeaderName, HeaderValue};
 use hyper::http::request::Parts;
 use hyper::{Method, Request, Response, StatusCode, Version};
 
-use crate::accesslog::{self, AccessLog};
+use crate::accesslog::{self, AccessLog, LogFilter};
 use crate::body::BodyReader;
 use crate::early::Early;
 use crate::framing::Signals;
@@ -177,6 +177,8 @@ pub struct Transport {
     pub signals: Arc<Signals>,
     /// Log every answer in this style; `None` logs nothing.
     pub access_log: Option<AccessLog>,
+    /// Which answers that log keeps.
+    pub log_filter: Arc<LogFilter>,
 }
 
 /// The parts of a request an access-log line needs, kept past the handoff.
@@ -238,7 +240,13 @@ pub async fn respond<B: Backend>(
         .map(|style| (style, incoming.clone_head()));
     let answer = backend.handle(incoming).await;
     if let Some((style, head)) = logged {
-        head.log(style, answer.status, started.elapsed());
+        let elapsed = started.elapsed();
+        if transport
+            .log_filter
+            .keeps(&head.path, answer.status, elapsed)
+        {
+            head.log(style, answer.status, elapsed);
+        }
     }
     let mut response = response_of(answer, head_only);
     let unread = finished.is_some_and(|done| !done.load(Ordering::Acquire));

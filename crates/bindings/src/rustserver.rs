@@ -15,7 +15,9 @@ use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use hinoki_server::{serve, AccessLog, Answer, Backend, Closed, Early, Incoming, ServerConfig};
+use hinoki_server::{
+    serve, AccessLog, Answer, Backend, Closed, Early, Incoming, LogFilter, ServerConfig,
+};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use socket2::{Socket, Type};
@@ -452,7 +454,7 @@ impl RustServer {
         core, host, port, max_connections=10_000, header_read_timeout=10.0,
         shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
         fd=None, write_timeout=30.0, tls_cert=None, tls_key=None, http2=false,
-        access_log=None
+        access_log=None, access_log_skip=None, access_log_slow_ms=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start(
@@ -470,6 +472,8 @@ impl RustServer {
         tls_key: Option<String>,
         http2: bool,
         access_log: Option<&str>,
+        access_log_skip: Option<Vec<String>>,
+        access_log_slow_ms: Option<f64>,
     ) -> PyResult<Self> {
         // First, so that every later error closes the descriptor with it.
         let inherited = fd.map(inherited_listener).transpose()?;
@@ -490,6 +494,12 @@ impl RustServer {
             shutdown_timeout: seconds("shutdown_timeout", shutdown_timeout)?,
             max_header_bytes,
             access_log: access_style(access_log)?,
+            log_filter: Arc::new(LogFilter {
+                skip: access_log_skip.unwrap_or_default(),
+                slow: access_log_slow_ms
+                    .map(|ms| seconds("access_log_slow_ms", ms / 1000.0))
+                    .transpose()?,
+            }),
             ..ServerConfig::default()
         };
         let tls = match (tls_cert, tls_key) {
