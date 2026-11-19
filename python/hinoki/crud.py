@@ -885,9 +885,11 @@ class CrudDeclaration:
             self.built = self.build(name, {"__module__": __name__})
         return self.built
 
-    def __call__(self, cls: type) -> type[CrudAPI]:
-        if cls.__bases__ != (object,):
-            raise RegistrationError(f"{cls.__name__}: a crud(...) class has no bases")
+    def __call__[T: API](self, cls: type[T]) -> type[T]:
+        if cls.__bases__ != (API,):
+            raise RegistrationError(
+                f"{cls.__name__}: a crud(...) class has exactly one base, API"
+            )
         names = set(vars(cls))
         both = sorted(names & set(self.generated))
         if both:
@@ -906,7 +908,7 @@ class CrudDeclaration:
             cls.__name__, {k: v for k, v in vars(cls).items() if k not in skip}
         )
         rebind_class_cells(cls, built)
-        return built
+        return cast(type[T], built)
 
     def build(self, name: str, namespace: dict[str, Any]) -> type[CrudAPI]:
         return cast(

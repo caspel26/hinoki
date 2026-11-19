@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from hinoki import Caller, crud, errors, http
+from hinoki import API, Caller, crud, errors, http
 from hinoki.orm import QuerySet
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 
@@ -50,7 +50,7 @@ def health() -> HealthOut:
     owner="author_id",
     omit=("list", "retrieve"),
 )
-class Posts:
+class Posts(API):
     """Generated create and delete (owner enforced), handwritten reads."""
 
     async def to_schema(self, post: Post) -> PostOut:
