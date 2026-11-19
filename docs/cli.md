@@ -25,7 +25,7 @@ them with `uv run --project ..` to use the locked environment at the parent.
 | `hinoki dev TARGET` | Run an app with reload during development. |
 | `hinoki serve TARGET` | Run without reload, using the `server` settings group. |
 | `hinoki check TARGET` | Run the application's configured rules; `--rules` and `--package` select rule and source targets. |
-| `hinoki routes TARGET` | List every method, path, handler and access policy in path order. `--path` and `--method` filter; `--format json` is machine readable. Nothing is served. |
+| `hinoki routes TARGET` | List every method, path, handler and access policy in path order. `--path` and `--method` filter; `--format json` is machine readable. `--lanes` adds, per route, whether the [Rust server](serving.md#generated-crud) runs it natively (`native`) or through the Python pipeline (`python`) with the reason; JSON always includes `lane` and `lane_reason`. Nothing is served and no database is opened. |
 | `hinoki openapi TARGET` | Print or write the generated OpenAPI document, or check a JSON file for drift. Nothing is served and no database is opened. |
 | `hinoki version` | Show the Hinoki version; `--verbose` includes Python, platform, native core and optional Granian details. `--format json` is machine readable. |
 | `hinoki settings TARGET` | Show effective settings and their source, with secrets redacted. `--dotenv` and `--toml` select optional files. |
