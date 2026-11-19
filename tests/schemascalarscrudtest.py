@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from hinoki import CrudAPI, Hinoki, Schema
+from hinoki import API, Hinoki, Schema, crud
 from hinoki.db import Database, DatabaseModule
 from hinoki.fieldtypes import MAX_BYTES_LENGTH
 from hinoki.orm import Model, field
@@ -35,10 +35,9 @@ class BlobIn(Schema, model=Blob):
     pass
 
 
-class Blobs(CrudAPI, model=Blob, path="/blobs"):
-    read_schema = BlobOut
-    create_schema = BlobIn
-    public_writes = True
+@crud(Blob, path="/blobs", read=BlobOut, create=BlobIn, public_writes=True)
+class Blobs(API):
+    pass
 
 
 DATABASES = (

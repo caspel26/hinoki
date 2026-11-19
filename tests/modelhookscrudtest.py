@@ -7,8 +7,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import Hinoki, Schema, Unset, http
-from hinoki.crud import CrudAPI
+from hinoki import API, Hinoki, Schema, Unset, crud, http
 from hinoki.db import Database, DatabaseModule
 from hinoki.fields import UNSET
 from hinoki.orm import Model, pk
@@ -49,12 +48,17 @@ class PostPatch(Schema):
     title: str | Unset = UNSET
 
 
-class Posts(CrudAPI, model=Post, path="/posts"):
-    read_schema = PostOut
-    create_schema = PostIn
-    update_schema = PostPatch
-    deletable = True
-    public_writes = True
+@crud(
+    Post,
+    path="/posts",
+    read=PostOut,
+    create=PostIn,
+    update=PostPatch,
+    delete=True,
+    public_writes=True,
+)
+class Posts(API):
+    pass
 
 
 def body(**values: Any) -> bytes:
@@ -138,12 +142,8 @@ class DocPatch(Schema):
     title: str | Unset = UNSET
 
 
-class Docs(CrudAPI, model=Doc, path="/docs"):
-    read_schema = DocOut
-    create_schema = DocIn
-    update_schema = DocPatch
-    public_writes = True
-
+@crud(Doc, path="/docs", read=DocOut, create=DocIn, update=DocPatch, public_writes=True)
+class Docs(API):
     def get_queryset(self, principal: object) -> Any:
         return Doc.filter(tenant="a")
 

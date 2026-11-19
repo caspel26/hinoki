@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import CrudAPI, Hinoki, Schema, Unset, core
+from hinoki import API, Hinoki, Schema, Unset, core, crud
 from hinoki.db import Database, DatabaseModule
 from hinoki.fields import UNSET
 from hinoki.orm import Model, field, timestamps
@@ -51,12 +51,17 @@ class PartPatch(Schema):
     stock: int | Unset = UNSET
 
 
-class Parts(CrudAPI, model=Part, path="/parts"):
-    read_schema = PartOut
-    create_schema = PartIn
-    update_schema = PartPatch
-    deletable = True
-    public_writes = True
+@crud(
+    Part,
+    path="/parts",
+    read=PartOut,
+    create=PartIn,
+    update=PartPatch,
+    delete=True,
+    public_writes=True,
+)
+class Parts(API):
+    pass
 
 
 class Score(Model, table="crud_parity_scores"):
@@ -78,11 +83,16 @@ class ScoreIn(Schema):
     score: float = 1
 
 
-class Scores(CrudAPI, model=Score, path="/scores"):
-    read_schema = ScoreOut
-    create_schema = ScoreIn
-    deletable = True
-    public_writes = True
+@crud(
+    Score,
+    path="/scores",
+    read=ScoreOut,
+    create=ScoreIn,
+    delete=True,
+    public_writes=True,
+)
+class Scores(API):
+    pass
 
 
 DATABASES = (

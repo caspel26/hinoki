@@ -22,7 +22,7 @@ from hinoki import (
     Access,
     BearerAuth,
     Caller,
-    CrudAPI,
+    CrudAccess,
     Field,
     Hinoki,
     Mount,
@@ -34,7 +34,7 @@ from hinoki import (
     http,
 )
 from hinoki.__main__ import main
-from hinoki.crud import caller_id, crud
+from hinoki.crud import CrudBase, caller_id, crud
 from hinoki.crypto import ClaimsJWTAuth, JWTKey
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import Conflict
@@ -81,12 +81,15 @@ class PlanItemPatch(Schema):
     label: str | Unset = UNSET
 
 
-class PlanItems(CrudAPI, model=PlanItem, path="/plan-items"):
-    read_schema = PlanItemOut
-    create_schema = PlanItemIn
-    update_schema = PlanItemPatch
-    deletable = True
-    public_writes = True
+PlanItems = crud(
+    PlanItem,
+    path="/plan-items",
+    read=PlanItemOut,
+    create=PlanItemIn,
+    update=PlanItemPatch,
+    delete=True,
+    public_writes=True,
+).api()
 
 
 def unique_to_conflict(error: core.UniqueViolation) -> Conflict:
@@ -155,7 +158,7 @@ def test_unprefixed_retrieve_route_matches_its_generated_suffix() -> None:
     owner = SimpleNamespace(prefix="")
 
     assert crudplan_module.route_matches_action(
-        route, "retrieve", cast(type[CrudAPI], owner)
+        route, "retrieve", cast(type[CrudBase], owner)
     )
 
 
@@ -1623,12 +1626,14 @@ class Tokens(BearerAuth[str]):
         return Caller(id=token, user=token, permissions=frozenset())
 
 
-def variant_pipeline(read: type[Schema], **attributes: object) -> Pipeline:
-    def fill(namespace: dict[str, object]) -> None:
-        namespace.update(read_schema=read, public_writes=True, **attributes)
-
-    owner = types.new_class(
-        "Variant", (CrudAPI,), {"model": NoteItem, "path": "/notes"}, fill
+def variant_pipeline(
+    read: type[Schema],
+    hooks: dict[str, object] | None = None,
+    **options: Any,
+) -> Pipeline:
+    options.setdefault("public_writes", True)
+    owner: type[API] = crud(NoteItem, path="/notes", read=read, **options)(
+        types.new_class("Variant", (API,), {}, lambda ns: ns.update(hooks or {}))
     )
     return Pipeline(
         Hinoki(
@@ -1758,22 +1763,27 @@ def custom_queryset(_self: object) -> QuerySet[NoteItem]:
 
 
 @pytest.mark.parametrize(
-    "attributes",
+    "options",
     [
-        {"read_access": Access(auth=Tokens(), permissions=[])},
+        {
+            "access": CrudAccess(
+                list=Access(auth=Tokens(), permissions=[]),
+                retrieve=Access(auth=Tokens(), permissions=[]),
+            )
+        },
         {"access": Access(auth=Tokens(), permissions=[]), "owner": "name"},
         {"access": Access(auth=Tokens(), permissions=[]), "assign": {"name": str}},
-        {"get_queryset": custom_queryset},
-        {"to_schema": lambda _self, item: item},
+        {"hooks": {"get_queryset": custom_queryset}},
+        {"hooks": {"to_schema": lambda _self, item: item}},
     ],
     ids=["read_access", "owner", "assign", "get_queryset", "to_schema"],
 )
-def test_customized_owner_keeps_lane_c(attributes: dict[str, object]) -> None:
-    assert reasons(variant_pipeline(PlainRead, **attributes)) <= {
+def test_customized_owner_keeps_lane_c(options: dict[str, Any]) -> None:
+    assert reasons(variant_pipeline(PlainRead, **options)) <= {
         "custom_route_or_access_policy",
         "custom_owner_type",
     }
-    assert "eligible" not in reasons(variant_pipeline(PlainRead, **attributes))
+    assert "eligible" not in reasons(variant_pipeline(PlainRead, **options))
 
 
 def test_custom_parser_or_renderer_keeps_lane_c() -> None:
@@ -1863,13 +1873,21 @@ def claims_token(claims: dict[str, Any], key: bytes = b"k" * 32) -> str:
     return core.jwt_encode(core.encode_json(claims), (None, "HS256", key, False))
 
 
-class ClaimsItems(CrudAPI, model=PlanItem, path="/claims-items"):
-    read_schema = PlanItemOut
-    create_schema = PlanItemIn
-    update_schema = PlanItemPatch
-    deletable = True
-    read_access = Access(ClaimsTokens(), permissions=["items:read"])
-    access = Access(ClaimsTokens(), permissions=["items:write"])
+@crud(
+    PlanItem,
+    path="/claims-items",
+    read=PlanItemOut,
+    create=PlanItemIn,
+    update=PlanItemPatch,
+    delete=True,
+    access=CrudAccess(
+        default=Access(ClaimsTokens(), permissions=["items:write"]),
+        list=Access(ClaimsTokens(), permissions=["items:read"]),
+        retrieve=Access(ClaimsTokens(), permissions=["items:read"]),
+    ),
+)
+class ClaimsItems(API):
+    pass
 
 
 def claims_app(url: str) -> Hinoki:
@@ -1918,23 +1936,25 @@ def test_a_custom_provider_or_instance_override_keeps_the_python_lane() -> None:
         def resolve_claims(self, claims: dict[str, Any]) -> None:
             return None
 
-    class Variant(CrudAPI, model=PlanItem, path="/variant"):
-        read_schema = PlanItemOut
-        read_access = Access(Custom(), permissions=[])
+    def declared(path: str, tokens: ClaimsJWTAuth) -> type[API]:
+        return crud(
+            PlanItem,
+            path=path,
+            read=PlanItemOut,
+            access=CrudAccess(
+                list=Access(tokens, permissions=[]),
+                retrieve=Access(tokens, permissions=[]),
+            ),
+        )(types.new_class("Declared", (API,)))
 
     class Elsewhere(ClaimsTokens):
         header = "x-token"
 
-    class Moved(CrudAPI, model=PlanItem, path="/moved"):
-        read_schema = PlanItemOut
-        read_access = Access(Elsewhere(), permissions=[])
-
     tokens = ClaimsTokens()
     tokens.now = lambda: 0  # type: ignore[method-assign]
-
-    class Patched(CrudAPI, model=PlanItem, path="/patched"):
-        read_schema = PlanItemOut
-        read_access = Access(tokens, permissions=[])
+    Variant = declared("/variant", Custom())
+    Moved = declared("/moved", Elsewhere())
+    Patched = declared("/patched", tokens)
 
     for owner in (Variant, Patched, Moved):
         pipeline = Pipeline(
@@ -2092,15 +2112,21 @@ class OwnedNotePatch(Schema):
     title: str | Unset = UNSET
 
 
-class OwnedNotes(CrudAPI, model=OwnedNote, path="/owned-notes"):
-    read_schema = OwnedNoteOut
-    create_schema = OwnedNoteIn
-    update_schema = OwnedNotePatch
-    deletable = True
-    read_access = Access(ClaimsTokens(), permissions=["notes:read"])
-    access = Access(ClaimsTokens(), permissions=["notes:write"])
-    owner = "owner_id"
-    identity_key = caller_id
+OwnedNotes = crud(
+    OwnedNote,
+    path="/owned-notes",
+    read=OwnedNoteOut,
+    create=OwnedNoteIn,
+    update=OwnedNotePatch,
+    delete=True,
+    access=CrudAccess(
+        default=Access(ClaimsTokens(), permissions=["notes:write"]),
+        list=Access(ClaimsTokens(), permissions=["notes:read"]),
+        retrieve=Access(ClaimsTokens(), permissions=["notes:read"]),
+    ),
+    owner="owner_id",
+    identity_key=caller_id,
+).api()
 
 
 def owned_pipeline(url: str = "sqlite:///crud-plan-unused.sqlite3") -> Pipeline:
@@ -2124,23 +2150,20 @@ def test_owner_scope_is_not_native_on_mysql() -> None:
     ids=["custom_identity"],
 )
 def test_other_owner_declarations_keep_the_python_lane(
-    attributes: dict[str, object],
+    attributes: dict[str, Any],
 ) -> None:
-    def fill(namespace: dict[str, object]) -> None:
-        namespace.update(
-            read_schema=OwnedNoteOut,
-            create_schema=OwnedNoteIn,
-            update_schema=OwnedNotePatch,
-            deletable=True,
-            access=Access(ClaimsTokens(), permissions=["notes:write"]),
-            owner="owner_id",
-            identity_key=caller_id,
-        )
-        namespace.update(attributes)
-
-    variant = types.new_class(
-        "Variant", (CrudAPI,), {"model": OwnedNote, "path": "/variant-notes"}, fill
-    )
+    options: dict[str, Any] = {
+        "create": OwnedNoteIn,
+        "update": OwnedNotePatch,
+        "delete": True,
+        "access": Access(ClaimsTokens(), permissions=["notes:write"]),
+        "owner": "owner_id",
+        "identity_key": caller_id,
+    }
+    options.update(attributes)
+    variant: type[API] = crud(
+        OwnedNote, path="/variant-notes", read=OwnedNoteOut, **options
+    )(types.new_class("Variant", (API,)))
     pipeline = Pipeline(
         Hinoki(
             include=[variant],

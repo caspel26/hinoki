@@ -3,7 +3,7 @@
 from typing import Any
 from uuid import UUID, uuid4
 
-from hinoki import Caller, CrudAPI, Schema
+from hinoki import API, Caller, Schema, crud
 from hinoki.orm import Model, QuerySet, field
 
 
@@ -21,11 +21,8 @@ class PostCreate(Schema):
     title: str
 
 
-class Posts(CrudAPI, model=Post, path="/posts"):
-    read_schema = PostOut
-    create_schema = PostCreate
-    public_writes = True
-
+@crud(Post, path="/posts", read=PostOut, create=PostCreate, public_writes=True)
+class Posts(API):
     def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Post]:
         del principal
         return Post.all()

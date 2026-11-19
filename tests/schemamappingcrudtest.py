@@ -8,7 +8,7 @@ from typing import Annotated
 
 import pytest
 
-from hinoki import CrudAPI, Field, Hinoki, Schema
+from hinoki import API, Field, Hinoki, Schema, crud
 from hinoki.db import Database, DatabaseModule
 from hinoki.fieldtypes import MAX_MAPPING_ITEMS
 from hinoki.orm import Model, field
@@ -36,10 +36,9 @@ class SettingIn(Schema):
     payload: dict[str, int]
 
 
-class Settings(CrudAPI, model=Setting, path="/settings"):
-    read_schema = SettingOut
-    create_schema = SettingIn
-    public_writes = True
+@crud(Setting, path="/settings", read=SettingOut, create=SettingIn, public_writes=True)
+class Settings(API):
+    pass
 
 
 DATABASES = (
