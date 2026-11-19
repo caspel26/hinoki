@@ -57,7 +57,7 @@ Settings types live in the `hinoki.settings` namespace: `from hinoki import sett
 | `server` | `access_log` | unset | One line per request on either server. Unset logs in `hinoki dev` only (or whenever `access_log_format` is set); `true` or `false` decides for `dev` and `serve` |
 | `server` | `access_log_skip` | unset | Kiso only: paths the log leaves out, exact or a `*` prefix; failures are still logged |
 | `server` | `access_log_slow_ms` | unset | Kiso only: keep only answers at least this slow (ms); failures are still logged |
-| `server` | `access_log_format` | unset | Kiso only (Granian refuses it): `pretty`, `plain` or `json`. Unset is `pretty` on a colour terminal and `plain` otherwise |
+| `server` | `access_log_format` | unset | Kiso only (Granian refuses it): `pretty`, `plain`, `json` or `logger` (route to the `hinoki.access` Python logger). Unset is `pretty` on a colour terminal and `plain` otherwise |
 | `server` | `max_connections` | unset (10000) | Rust server only: open-connection limit, `1` to `1000000`; refused under Granian |
 | `server` | `header_read_timeout` | unset (10 seconds) | Rust server only: time to receive request headers, and the keep-alive idle limit; refused under Granian |
 | `server` | `body_read_timeout` | unset (10 seconds) | Rust server only: silence allowed while a body is read (at most half of `execution.request_timeout`); refused under Granian |
@@ -125,7 +125,7 @@ LOGGING = {
 BLOG_LOGGING__CONFIG=myapp.logs:LOGGING
 ```
 
-The value may also name a function that returns the mapping. It is applied when each worker starts, right after Hinoki's own `hinoki` logger setup, with `disable_existing_loggers` off unless your mapping sets it. A mapping that configures the `hinoki` logger replaces Hinoki's handler on it. A target that cannot be imported or is not a mapping raises during startup. Kiso's access log is written by the Rust server and is not routed through these loggers.
+The value may also name a function that returns the mapping. It is applied when each worker starts, right after Hinoki's own `hinoki` logger setup, with `disable_existing_loggers` off unless your mapping sets it. A mapping that configures the `hinoki` logger replaces Hinoki's handler on it. A target that cannot be imported or is not a mapping raises during startup. Kiso's access log is written by the Rust server; set `server.access_log_format = "logger"` to route it through the `hinoki.access` logger.
 
 From a trusted peer, Hinoki accepts a single `X-Forwarded-Proto` value of `http` or `https` and walks a bounded `X-Forwarded-For` chain from the peer side to the first untrusted address. `Request.scheme` and `Request.client` use those validated values. Invalid, repeated or ambiguous values fall back to the socket scope. `X-Forwarded-Host` is never used: `Host`, `allowed_hosts` and generated URLs continue to use the original Host header.
 

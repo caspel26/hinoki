@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import runpy
 import sys
 import warnings
@@ -74,6 +76,7 @@ def _worker() -> Any:
     worker.access_log = None
     worker.access_log_skip = None
     worker.access_log_slow_ms = None
+    worker.access_log_sink = None
     worker.lane = None
     worker.header_read_timeout = 5.0
     worker.body_read_timeout = 20.0
@@ -778,3 +781,20 @@ def test_module_entrypoint_exits_with_main_result(
         with pytest.raises(SystemExit) as caught:
             runpy.run_module("hinoki.runtime.rustserver", run_name="__main__")
     assert caught.value.code == 17
+
+
+def test_log_access_attaches_the_parsed_record(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    record = {
+        "peer": "10.0.0.1:5",
+        "method": "GET",
+        "path": "/x",
+        "status": 200,
+        "duration_ms": 1.25,
+        "lane": "native",
+    }
+    with caplog.at_level(logging.INFO, logger="hinoki.access"):
+        rustserver.log_access([json.dumps(record)])
+    assert caplog.records[0].getMessage() == "10.0.0.1:5 GET /x 200 1.2ms"
+    assert caplog.records[0].access == record  # type: ignore[attr-defined]

@@ -209,6 +209,15 @@ def test_the_json_format_writes_one_object_per_request() -> None:
     assert "\x1b[" not in output
 
 
+def test_the_logger_format_routes_access_records_through_logging() -> None:
+    output = run_logged(
+        "serve", {"SRV_SERVER__ACCESS_LOG_FORMAT": "logger"}, "--workers", "1"
+    )
+    line = next(item for item in output.splitlines() if " GET /missing " in item)
+    assert "INFO hinoki.access: 127.0.0.1:" in line and " 404 " in line
+    assert "HTTP/1.1" not in output
+
+
 def test_skipped_paths_and_a_slow_floor_leave_successes_out_not_failures() -> None:
     output = run_logged(
         "serve",
