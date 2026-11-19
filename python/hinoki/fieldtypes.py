@@ -3,13 +3,23 @@
 from __future__ import annotations
 
 import dataclasses
+import enum
 import re
 import types
 import typing
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Annotated, Any, cast, get_args, get_origin
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Any,
+    Literal,
+    cast,
+    get_args,
+    get_origin,
+)
 from uuid import UUID
 
 from hinoki import core
@@ -86,6 +96,10 @@ class FieldType:
     request bodies) when no ``max_length`` is declared: the entries of a dict
     field, the characters of its keys. Stored rows and server-built values are
     not held to it."""
+    enum_class: type[enum.Enum] | None = None
+    """The ``Enum`` class of an enum field. Its kind is that of its values
+    (``str`` or ``int``) and ``info.one_of`` lists them: validation checks the
+    value, then the member replaces it."""
 
 
 def is_union(annotation: object) -> bool:
@@ -417,6 +431,9 @@ def build(
 ) -> FieldType:
     item: FieldType | None = None
     schema: type[Schema] | None = None
+    listed = listed_values(base, where)
+    if listed is not None:
+        return build_listed(listed, info, nullable, allows_unset, where)
     if base in SCALARS:
         kind = SCALARS[base]
     elif get_origin(base) is list:
@@ -441,6 +458,78 @@ def build(
     return FieldType(
         kind, nullable, allows_unset, info, item, schema, input_max_length=default
     )
+
+
+INT64_MIN = -(2**63)
+INT64_MAX = 2**63 - 1
+
+
+def listed_values(
+    base: Any, where: str
+) -> tuple[str, tuple[Any, ...], type[enum.Enum] | None] | None:
+    """The kind, values and ``Enum`` class of a ``Literal[...]`` or ``Enum``
+    annotation, or ``None`` for any other type."""
+    if get_origin(base) is Literal:
+        values = get_args(base)
+        return value_kind(values, where, "a Literal"), unique(values), None
+    if isinstance(base, type) and issubclass(base, enum.Enum):
+        if issubclass(base, enum.Flag):
+            raise RegistrationError(f"{where}: Flag enums are not supported")
+        values = tuple(member.value for member in base)
+        if not values:
+            raise RegistrationError(f"{where}: {base.__name__} has no members")
+        return value_kind(values, where, base.__name__), unique(values), base
+    return None
+
+
+def unique(values: Sequence[Any]) -> tuple[Any, ...]:
+    return tuple(dict.fromkeys(values))
+
+
+def value_kind(values: Sequence[Any], where: str, what: str) -> str:
+    """``str`` or ``int`` for values that are all of one of the two types."""
+    kinds = {value_type(value, where, what) for value in values}
+    if len(kinds) > 1:
+        raise RegistrationError(
+            f"{where}: {what} mixes str and int values; list values of one type"
+        )
+    kind = kinds.pop()
+    if kind == "int" and any(not INT64_MIN <= value <= INT64_MAX for value in values):
+        raise RegistrationError(f"{where}: {what} has an int outside the 64-bit range")
+    return kind
+
+
+def value_type(value: Any, where: str, what: str) -> str:
+    if value is None:
+        raise RegistrationError(
+            f"{where}: {what} cannot list None: declare `X | None` instead"
+        )
+    if isinstance(value, enum.Enum):
+        raise RegistrationError(
+            f"{where}: {what} cannot list enum members: use the Enum class as the type"
+        )
+    if isinstance(value, bool) or not isinstance(value, str | int):
+        raise RegistrationError(
+            f"{where}: {what} values must be str or int, not {type(value).__name__}"
+        )
+    return "str" if isinstance(value, str) else "int"
+
+
+def build_listed(
+    listed: tuple[str, tuple[Any, ...], type[enum.Enum] | None],
+    info: FieldInfo,
+    nullable: bool,
+    allows_unset: bool,
+    where: str,
+) -> FieldType:
+    kind, values, enum_class = listed
+    if info.constraints():
+        raise RegistrationError(
+            f"{where}: a Literal or Enum field lists its own values and takes no "
+            "constraints"
+        )
+    info = dataclasses.replace(info, one_of=values)
+    return FieldType(kind, nullable, allows_unset, info, enum_class=enum_class)
 
 
 def check_constraints(info: FieldInfo, kind: str, where: str) -> None:
