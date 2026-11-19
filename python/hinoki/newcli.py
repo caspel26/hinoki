@@ -43,6 +43,12 @@ def add_arguments(new: argparse.ArgumentParser) -> None:
         help="write AGENTS.md, CLAUDE.md and .mcp.json (default: yes)",
     )
     new.add_argument(
+        "--skills",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="write optional agent skills under .claude/skills (default: no)",
+    )
+    new.add_argument(
         "--git",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -363,6 +369,7 @@ def run_new(args: argparse.Namespace, ask: Ask = input) -> int:
             args.hinoki,
             database=args.database or "none",
             agent_files=args.agent_files is not False,
+            skills=args.skills is True,
         )
     except ScaffoldError as error:
         print(style.error(str(error)), file=sys.stderr)
