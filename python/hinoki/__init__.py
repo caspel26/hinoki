@@ -16,7 +16,6 @@ from hinoki.auth import (
     Permission,
 )
 from hinoki.core import core_version
-from hinoki.crud import Crud, CrudAccess, crud
 from hinoki.derive import derive
 from hinoki.fields import Email, Slug, Url
 from hinoki.http.request import Request
@@ -33,6 +32,7 @@ from hinoki.parsers import (
 )
 from hinoki.ratelimit import RateLimitContext, RateLimitPolicy
 from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer, XMLRenderer
+from hinoki.resources import Crud, CrudAccess, crud
 from hinoki.routing import Includable, Mount, Route, RouteGroup
 from hinoki.rules import Actions, Imports, Models, Schemas, Transactions
 from hinoki.runtime.config import RuntimeConfig
