@@ -66,6 +66,7 @@ MIN_UNION_VARIANTS = 2
 MAX_UNION_VARIANTS = 16
 MAX_DISCRIMINATOR_BYTES = 128
 DICT_ARGUMENTS = 2
+TUPLE_ARGUMENTS = 2
 CONTROL_CHARACTER_LIMIT = 32
 DELETE_CHARACTER = 127
 MAX_MAPPING_KEY_LENGTH = 256
@@ -100,6 +101,18 @@ class FieldType:
     """The ``Enum`` class of an enum field. Its kind is that of its values
     (``str`` or ``int``) and ``info.one_of`` lists them: validation checks the
     value, then the member replaces it."""
+    collection: str | None = None
+    """``"set"``, ``"frozenset"`` or ``"tuple"`` on a ``list`` field: the wire form
+    is an array of ``item``; the validated value is built as this container."""
+    items: tuple[FieldType, ...] = ()
+    """The element types, by position, of a fixed ``tuple`` field (kind
+    ``"tuple"``); its length is its ``min_length`` and ``max_length``."""
+
+    def children(self) -> tuple[FieldType, ...]:
+        """The types of the elements (or dict values) a value of this type holds."""
+        if self.kind == "tuple":
+            return self.items
+        return () if self.item is None else (self.item,)
 
 
 def is_union(annotation: object) -> bool:
@@ -441,10 +454,10 @@ def build(
         item = parse_annotation(
             get_args(base)[0], f"{where}[]", input_bounds=input_bounds
         )
-    elif base is dict or get_origin(base) is dict:
-        mapping = build_mapping(base, info, where, input_bounds)
+    elif base is dict or get_origin(base) in {dict, set, frozenset, tuple}:
+        grouped = build_grouped(base, info, where, input_bounds)
         return dataclasses.replace(
-            mapping, nullable=nullable, allows_unset=allows_unset
+            grouped, nullable=nullable, allows_unset=allows_unset
         )
     elif isinstance(base, type) and hasattr(base, "__hinoki_schema__"):
         kind, schema = "schema", base
@@ -543,6 +556,76 @@ def check_constraints(info: FieldInfo, kind: str, where: str) -> None:
         )
     if kind in {"str", "int", "float"}:
         check_one_of(info, kind, where)
+
+
+def is_hashable(ftype: FieldType) -> bool:
+    """Whether the validated values of this type can be set members."""
+    if ftype.kind == "list":
+        return ftype.collection in {"frozenset", "tuple"} and is_hashable(
+            cast(FieldType, ftype.item)
+        )
+    if ftype.kind == "tuple":
+        return all(is_hashable(item) for item in ftype.items)
+    return ftype.kind not in {"dict", "schema", "union"}
+
+
+def build_grouped(
+    base: Any, info: FieldInfo, where: str, input_bounds: bool
+) -> FieldType:
+    """A ``dict``, ``set``, ``frozenset`` or ``tuple`` annotation."""
+    if base is dict or get_origin(base) is dict:
+        return build_mapping(base, info, where, input_bounds)
+    return build_collection(base, info, where, input_bounds)
+
+
+def build_collection(
+    base: Any, info: FieldInfo, where: str, input_bounds: bool
+) -> FieldType:
+    """``set[X]``, ``frozenset[X]``, ``tuple[X, ...]`` (an array of ``X`` built as
+    that container) and ``tuple[X, Y]`` (an array of exactly those positions)."""
+    origin = cast(type, get_origin(base))
+    arguments = get_args(base)
+    if not arguments:
+        raise RegistrationError(
+            f"{where}: an empty tuple type is unsupported; write tuple[X, ...] "
+            "or tuple[X, Y]"
+            if origin is tuple
+            else f"{where}: a {origin.__name__} field needs its item type"
+        )
+    if Ellipsis in arguments and not (
+        origin is tuple and len(arguments) == TUPLE_ARGUMENTS and arguments[1] is ...
+    ):
+        raise RegistrationError(
+            f"{where}: Ellipsis is only valid as tuple[X, ...]; a set or a fixed "
+            "tuple lists its types"
+        )
+    if origin is tuple and arguments[-1] is not ...:
+        return build_fixed_tuple(arguments, info, where, input_bounds)
+    if len(arguments) != (TUPLE_ARGUMENTS if origin is tuple else 1):
+        raise RegistrationError(f"{where}: {origin.__name__} takes one item type")
+    check_constraints(info, "list", where)
+    item = parse_annotation(arguments[0], f"{where}[]", input_bounds=input_bounds)
+    if origin is not tuple and not is_hashable(item):
+        raise RegistrationError(
+            f"{where}: {origin.__name__} items must be hashable (a scalar, an Enum, "
+            "a frozenset or a tuple of those), not a Schema, list, dict or set"
+        )
+    return FieldType("list", info=info, item=item, collection=origin.__name__)
+
+
+def build_fixed_tuple(
+    arguments: tuple[Any, ...], info: FieldInfo, where: str, input_bounds: bool
+) -> FieldType:
+    if info.constraints():
+        raise RegistrationError(
+            f"{where}: a fixed tuple takes no constraints; its length is its types"
+        )
+    items = tuple(
+        parse_annotation(argument, f"{where}[{index}]", input_bounds=input_bounds)
+        for index, argument in enumerate(arguments)
+    )
+    sized = dataclasses.replace(info, min_length=len(items), max_length=len(items))
+    return FieldType("tuple", info=sized, items=items)
 
 
 def build_mapping(

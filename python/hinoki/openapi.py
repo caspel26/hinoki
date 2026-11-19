@@ -354,7 +354,7 @@ class OpenAPIBuilder:
 
     def shape(self, ftype: FieldType) -> dict[str, Any]:
         """The JSON Schema of a field type before its constraints are added."""
-        if ftype.item is not None:
+        if ftype.item is not None or ftype.kind == "tuple":
             return self.container(ftype, ftype.item)
         if ftype.kind == "schema" and ftype.schema is not None:
             return self.component(ftype.schema)
@@ -362,16 +362,25 @@ class OpenAPIBuilder:
             return self.union(ftype)
         return dict(KIND_SCHEMAS[ftype.kind])
 
-    def container(self, ftype: FieldType, item: FieldType) -> dict[str, Any]:
-        """A list as an array of its items; a dict as an object whose property
+    def container(self, ftype: FieldType, item: FieldType | None) -> dict[str, Any]:
+        """A list, set or tuple as an array; a dict as an object whose property
         names follow the key type and whose values follow the value type."""
+        if item is None:
+            return {
+                "type": "array",
+                "prefixItems": [self.field(child) for child in ftype.items],
+                "items": False,
+            }
         if ftype.kind == "dict" and ftype.key is not None:
             return {
                 "type": "object",
                 "additionalProperties": self.field(item),
                 "propertyNames": self.field(ftype.key),
             }
-        return {"type": "array", "items": self.field(item)}
+        array: dict[str, Any] = {"type": "array", "items": self.field(item)}
+        if ftype.collection in {"set", "frozenset"}:
+            array["uniqueItems"] = True
+        return array
 
     def union(self, ftype: FieldType) -> dict[str, Any]:
         variants = [(tag, schema) for tag, schema in ftype.variants]
