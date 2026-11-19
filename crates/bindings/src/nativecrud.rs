@@ -522,6 +522,7 @@ fn validated_value(kind: &str, value: Validated) -> Option<Value> {
         | Validated::Time(_)
         | Validated::Duration(_)
         | Validated::Decimal(_)
+        | Validated::Net(..)
         | Validated::List(_)
         | Validated::Object(_) => return None,
     };
