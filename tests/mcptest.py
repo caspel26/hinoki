@@ -95,6 +95,7 @@ def test_tools_are_listed_as_read_only(server: Server) -> None:
         "explain_error",
         "check_project",
         "propose_model",
+        "recent_requests",
     }
     assert all(t["annotations"]["readOnlyHint"] for t in tools.values())
     assert tools["explain_action"]["inputSchema"]["required"] == ["action"]
@@ -213,6 +214,7 @@ def test_run_mcp_restores_stdout_after_serving(
         models=None,
         waivers=None,
         scenarios="off",
+        requests=None,
     )
     assert mcp.run_mcp(args) == 0
     assert sys.stdout is protocol
@@ -584,3 +586,34 @@ def test_propose_model_rejects_non_class_owner_and_uses_explicit_names() -> None
     result = propose("Article", "articles_v2", [{"name": "title"}], path="/articles/v2")
     assert 'table="articles_v2"' in result["source"]
     assert '"/articles/v2"' in result["source"]
+
+
+def test_recent_requests_filters_the_recorded_file(tmp_path: Path) -> None:
+    file = tmp_path / "requests.jsonl"
+    lines = [
+        {"path": "/a", "status": 200},
+        {"path": "/b", "status": 500},
+        {"path": "/b/x", "status": 404},
+    ]
+    file.write_text("".join(json.dumps(item) + "\n" for item in lines))
+    project = DevProject(
+        create_app(), rules, waivers=tmp_path / "none.toml", requests=file
+    )
+    tool = Server(project)
+    found = call(tool, "recent_requests", status_min=400, path_contains="/b")
+    paths = [r["path"] for r in found["result"]["structuredContent"]["requests"]]
+    assert paths == ["/b", "/b/x"]
+    last = call(tool, "recent_requests", limit=1)
+    assert last["result"]["structuredContent"]["requests"][0]["path"] == "/b/x"
+    for bad in ({"limit": 0}, {"status_min": "x"}, {"path_contains": 1}):
+        assert call(tool, "recent_requests", **bad)["result"]["isError"]
+
+
+def test_recent_requests_explains_a_missing_file(
+    server: Server, tmp_path: Path
+) -> None:
+    project = DevProject(
+        create_app(), rules, waivers=tmp_path / "w.toml", requests=tmp_path / "no.jsonl"
+    )
+    data = call(Server(project), "recent_requests")["result"]["structuredContent"]
+    assert data["requests"] == [] and "recent_requests" in data["note"]
