@@ -48,6 +48,14 @@ def sql_of(query: QuerySet[Any]) -> tuple[str, list[Any]]:
     return query.compile()
 
 
+@pytest.mark.parametrize("text", ["abc", b"abc"])
+def test_in_refuses_a_string_instead_of_matching_its_characters(
+    text: str | bytes,
+) -> None:
+    with pytest.raises(FieldError, match=r"title__in needs a list"):
+        Post.filter(title__in=text)
+
+
 def test_filters_order_and_paging_compile_to_parameterised_sql() -> None:
     query = (
         Post.filter(published=True, stars__gte=3, title__in=["a", "b"])
