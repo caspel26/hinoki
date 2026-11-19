@@ -1,11 +1,12 @@
 """The Rust validator must agree with the pure-Python oracle on every input."""
 
 import datetime as dt
+import enum
 import math
 import random
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
 import pytest
@@ -401,3 +402,53 @@ def test_every_junk_value_in_every_wire_slot_agrees(junk: Any) -> None:
         inner = [junk] if key == "blobs" else {"a": junk}
         data = {**base, key: inner}
         assert wire_outcome(native, data) == wire_outcome(oracle, data), (key, junk)
+
+
+class Shade(enum.StrEnum):
+    DARK = "dark"
+    LIGHT = "light"
+
+
+class Rank(enum.IntEnum):
+    LOW = 1
+    HIGH = 3
+
+
+class Mode(enum.Enum):
+    FAST = "fast"
+    SLOW = "slow"
+
+
+class Choice(Schema):
+    shade: Shade
+    rank: Rank | None = None
+    mode: Mode | Unset = UNSET
+    kind: Literal["a", "b"] = "a"
+    size: Literal[1, 2] | None = None
+    shades: list[Shade] = Field(default_factory=list)
+    ranks: dict[str, Rank] = Field(default_factory=dict)
+
+
+ENUM_JUNK: list[Any] = [
+    *JUNK, "dark", "light", "DARK", "fast", "slow", "a", "b", 1, 2, 3, 1.0,
+    Shade.DARK, Rank.HIGH, Mode.FAST,
+]  # fmt: skip
+
+
+def enum_outcome(call: Any, data: object) -> tuple[str, Any]:
+    kind, value = outcome(call, Choice, data)
+    return (kind, repr(value)) if kind == "ok" else (kind, value)
+
+
+def test_every_junk_value_in_every_enum_slot_agrees() -> None:
+    base: dict[str, Any] = {
+        "shade": "dark", "rank": 1, "mode": "fast", "kind": "a", "size": 1,
+        "shades": ["dark"], "ranks": {"a": 3},
+    }  # fmt: skip
+    for junk in ENUM_JUNK:
+        for key in list(base):
+            data = {**base, key: junk}
+            assert enum_outcome(native, data) == enum_outcome(oracle, data), (key, junk)
+        for key, inner in (("shades", [junk]), ("ranks", {"a": junk})):
+            data = {**base, key: inner}
+            assert enum_outcome(native, data) == enum_outcome(oracle, data), (key, junk)
