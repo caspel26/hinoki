@@ -470,6 +470,12 @@ index; see <a href="../getting-started/">installation</a> for setup.</p>
 <td>Kiso only: comma-separated paths the log leaves out (health checks); exact, or a prefix when the entry ends with <code>*</code></td>
 </tr>
 <tr>
+<td><code>server.server_timing</code></td>
+<td><code>BLOG_SERVER__SERVER_TIMING</code></td>
+<td>unset</td>
+<td>Kiso only: add a <code>Server-Timing</code> header (<code>kiso;dur=3.2;desc="native"</code>: milliseconds the server took and the serving lane); unset means <code>hinoki dev</code> only</td>
+</tr>
+<tr>
 <td><code>server.recent_requests</code></td>
 <td><code>BLOG_SERVER__RECENT_REQUESTS</code></td>
 <td>unset</td>
@@ -555,7 +561,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <td>applied</td>
 </tr>
 <tr>
-<td><code>max_connections</code>, <code>header_read_timeout</code>, <code>body_read_timeout</code>, <code>write_timeout</code>, <code>native_dispatch</code>, <code>access_log_format</code>, <code>access_log_skip</code>, <code>access_log_slow_ms</code>, <code>recent_requests</code></td>
+<td><code>max_connections</code>, <code>header_read_timeout</code>, <code>body_read_timeout</code>, <code>write_timeout</code>, <code>native_dispatch</code>, <code>access_log_format</code>, <code>access_log_skip</code>, <code>access_log_slow_ms</code>, <code>recent_requests</code>, <code>server_timing</code></td>
 <td>applied when set</td>
 <td>refused when set</td>
 </tr>
@@ -674,7 +680,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 22:12:16 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 23:12:45 UTC">November 19, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>24 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
