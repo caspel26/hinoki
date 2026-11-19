@@ -5,9 +5,11 @@ import asyncio
 import os
 import sys
 from pathlib import Path
+from typing import cast
 
 from hinoki import (
     admincli,
+    completioncli,
     doctorcli,
     openapicli,
     projectcli,
@@ -18,6 +20,7 @@ from hinoki import (
     versioncli,
 )
 from hinoki.checkcli import add_arguments, run_check
+from hinoki.clihelp import HinokiParser
 from hinoki.db import Database, DatabaseError
 from hinoki.errors import MigrationError
 from hinoki.orm import migrator
@@ -34,6 +37,7 @@ from hinoki.projectmigrations import (
 from hinoki.projectmigrations import (
     database_dialect as _database_dialect,
 )
+from hinoki.reportui import run_timed
 
 
 def database_dialect(url: str) -> str:
@@ -42,8 +46,11 @@ def database_dialect(url: str) -> str:
 
 
 def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(prog="hinoki")
-    commands = root.add_subparsers(dest="group", required=True)
+    root = HinokiParser(prog="hinoki", group_commands=True)
+    commands = cast(
+        "argparse._SubParsersAction[argparse.ArgumentParser]",
+        root.add_subparsers(dest="group", required=True, metavar="<command>"),
+    )
     add_arguments(commands)
     settingscli.add_arguments(commands)
     routescli.add_arguments(commands)
@@ -53,6 +60,7 @@ def parser() -> argparse.ArgumentParser:
     admincli.add_arguments(commands)
     doctorcli.add_arguments(commands)
     shellcli.add_arguments(commands)
+    completioncli.add_arguments(commands)
     serve.add_arguments(commands)
     commands.add_parser("manage", help="run an app's management commands")
     group = commands.add_parser(
@@ -265,10 +273,16 @@ def plan_check_option_error(args: argparse.Namespace) -> str | None:
 def run_migration_action(args: argparse.Namespace) -> int:
     """Execute one validated migration subcommand."""
     if args.action == "plan":
-        return run_plan(args)
+        return run_timed("planning", "planned", lambda: run_plan(args))
     if args.action == "sql":
         run_sql(args)
         return 0
+    if args.action == "apply":
+        return run_timed("applying", "applied", lambda: run_database_action(args))
+    return run_database_action(args)
+
+
+def run_database_action(args: argparse.Namespace) -> int:
     asyncio.run(run_database(args))
     return 0
 
@@ -340,6 +354,8 @@ def main(argv: list[str] | None = None) -> int:
         "dev": serve.run_dev,
         "serve": serve.run_serve,
     }
+    if args.group == "completion":
+        return completioncli.run(args, parser())
     return commands[args.group](args)
 
 
