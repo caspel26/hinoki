@@ -13,8 +13,9 @@ A project made by `hinoki new` is ready for a coding agent: rules already on, an
 ```sh
 hinoki new shop    # asks for the directory, database, server, agent files, skills, git and uv sync
 cd shop
-pytest
-hinoki check
+uv sync            # unless you answered yes to uv sync
+uv run pytest
+uv run hinoki check
 ```
 
 The generated tests pass and `hinoki check` exits 0; this repository's own test suite generates a project and runs both on every change.
