@@ -45,7 +45,7 @@ def greeting(
         return [PLAIN_GREETING]
     return [
         style.banner("interactive shell", f"v{__version__}"),
-        style.line("start", style.bold("shell") + style.dim("  ctrl-d to exit")),
+        style.rail_head("shell", "ctrl-d to exit"),
         style.line("rail"),
         row(style, "app", style.text(title)),
         row(style, "settings", style.text(settings)),
