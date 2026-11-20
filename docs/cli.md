@@ -75,7 +75,7 @@ It completes command, subcommand and option names; it does not complete option v
 
 ### Terminal output
 
-On a colour terminal, `doctor`, `check` and `routes` print a coloured report: a status glyph per check (`✔` ok, `▲` warning, `✘` failed or violated, `–` skipped) with the fix on its own line, and routes with coloured methods. When output is piped or redirected, or with `NO_COLOR` or `TERM=dumb`, the text is plain and unchanged, and `--format json` is never styled.
+On a colour terminal, `doctor`, `check` and `routes` print a coloured report: a status glyph per check (`✔` ok, `▲` warning, `✘` failed or violated, `?` unverifiable, `–` skipped or waived) with the fix on its own line, and routes with coloured methods. The `check` summary is green only when the exit code is `0`. When output is piped or redirected, or with `NO_COLOR` or `TERM=dumb`, the text is plain and unchanged, and `--format json` is never styled.
 
 ## `app` {#app}
 
