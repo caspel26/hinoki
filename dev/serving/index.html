@@ -444,7 +444,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:01:27 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:48:01 UTC">November 20, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -459,6 +459,13 @@ reload, with the workers your settings ask for. Both read the application from
 <code>project.application</code> in <code>hinoki.toml</code>. To run another application, pass its
 target: <code>module:app</code>, such as <code>hinoki dev notes.main:app</code>. A function callable
 without arguments that returns an application (a factory) is also accepted.</p>
+<p>On Kiso, when the application sets <code>docs_url</code>, <code>hinoki dev</code> prints the address of
+the documentation page under the <code>listening on</code> line, for example
+<code>docs: http://127.0.0.1:8000/docs</code>, with the address in the brand colour on a
+terminal that takes colour (plain text in a pipe, in CI or with <code>NO_COLOR</code> set);
+nothing is printed when <code>docs_url</code> is unset.
+<code>hinoki serve</code> prints it too when it runs a supervisor (more than one worker),
+but not with a single worker, which runs in the command's own process.</p>
 <p>Each worker imports the target, then opens what the application owns (database
 pool, modules) in its lifespan and closes it on shutdown. Importing your code
 never opens a connection. See <a href="../settings/#8-database-connection-ownership">database connection ownership</a>.</p>
@@ -781,7 +788,7 @@ sockets, TLS, the access log, the limits and the end of the response.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:01:27 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:48:01 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
