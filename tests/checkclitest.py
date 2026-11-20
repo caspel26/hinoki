@@ -244,3 +244,13 @@ def test_a_broken_waiver_file_exits_2(
     bad = write(tmp_path / "w.toml", "[[waiver")
     assert main(["check", APP, "--waivers", str(bad)]) == 2
     assert "error:" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("command", ["check", "mcp"])
+def test_waivers_help_names_the_real_default(
+    command: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit):
+        main([command, "--help"])
+    shown = " ".join(capsys.readouterr().out.split())
+    assert "Hinoki(waivers=...), else hinoki-rules.toml at the project root" in shown
