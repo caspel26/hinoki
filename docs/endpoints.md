@@ -228,4 +228,3 @@ async def raw_invoice(invoice_id: UUID) -> InvoiceOut:
 - [Errors](errors.md)
 - [Parsers and renderers](codecs.md)
 - [Authentication](authentication.md)
-
