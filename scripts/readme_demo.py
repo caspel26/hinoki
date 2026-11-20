@@ -65,7 +65,7 @@ PAD_X = MARGIN_X + INSET_X
 PAD_Y = MARGIN_Y + BAR + INSET_Y
 TITLE = "hinoki \u2014 notes"
 TAGLINE = "Typed Python APIs. Architecture rules you can run."
-SITE = "caspel26.github.io/hinoki"
+SITE = "hinoki.caspel.dev"
 CARD_MS = 1600  # the title card before and after the session
 
 ENTER, DOWN, CTRL_C = "\r", "\x1b[B", "\x03"

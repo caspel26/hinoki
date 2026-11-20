@@ -9,7 +9,7 @@ Hinoki is pre-alpha. This is a short public view of the work; implementation sta
 - Sync and async handlers, settings, modules, migrations, OpenAPI, MCP tools, model lifecycle hooks, `bulk_*`/`abulk_*` writes, atomic writes (`atomic=True` on actions, `db.atomic` as a block or decorator in application code), response checks against annotations, route rate limit policies, and an optional admin with four themes and its own users.
 - Typed `http.Middleware` that runs identically on Kiso and Granian (it moves the matched routes onto the Python lane), and WSGI callables served by Kiso with `--interface wsgi` through a bounded thread pool and a streamed response. The WSGI path crosses Python objects and is not native. Hinoki handlers cannot yet stream responses.
 
-See the [documentation](https://caspel26.github.io/hinoki/) and runnable [examples](examples/) for current details. No performance claims are made without comparable retained measurements.
+See the [documentation](https://hinoki.caspel.dev/) and runnable [examples](examples/) for current details. No performance claims are made without comparable retained measurements.
 
 ## Active direction
 

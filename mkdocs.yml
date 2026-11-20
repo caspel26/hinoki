@@ -1,6 +1,6 @@
 site_name: Hinoki
 site_description: A Python API framework that checks its own architecture.
-site_url: https://caspel26.github.io/hinoki/
+site_url: https://hinoki.caspel.dev/
 docs_dir: docs
 strict: true
 exclude_docs: |
