@@ -47,7 +47,7 @@ def test_a_new_unprotected_write_would_be_caught() -> None:
     @http.delete("/posts/purge")
     def purge(request: Request) -> None: ...
 
-    purge.__module__ = "blog.api"
+    purge.__module__ = "blog.apps.blog.api"
     fresh.include(purge)
     chosen = [r for r in blog_rules.rules if r.id in {"HNK-ACC-001", "HNK-TXN-001"}]
     found = RuleSet(*chosen).run(Project(fresh))

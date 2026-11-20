@@ -7,8 +7,8 @@ from collections.abc import AsyncIterator, Sequence
 from typing import Any, ClassVar
 
 import pytest
-from blog.accounts import build_accounts
-from blog.models import User
+from blog.apps.blog.accounts import build_accounts
+from blog.apps.blog.models import User
 from blog.routes import routes
 from blog.settings import BlogSettings
 

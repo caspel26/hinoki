@@ -7,11 +7,11 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from tracker import operations
-from tracker.errors import DoneTasksAreKept, TaskAlreadyDone
+from tracker.apps.tracker import operations
+from tracker.apps.tracker.errors import DoneTasksAreKept, TaskAlreadyDone
+from tracker.apps.tracker.models import Member, Task
+from tracker.apps.tracker.schemas import TaskIn
 from tracker.main import app
-from tracker.models import Member, Task
-from tracker.schemas import TaskIn
 from tracker.settings import TrackerSettings
 
 from hinoki.__main__ import main
@@ -22,7 +22,14 @@ from tests.harness import Client, Pool
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(URL is None, reason="no database")
-MIGRATIONS = Path(__file__).parent.parent / "examples" / "tracker" / "migrations"
+MIGRATIONS = (
+    Path(__file__).parent.parent
+    / "examples"
+    / "tracker"
+    / "apps"
+    / "tracker"
+    / "migrations"
+)
 DROP = (
     "DROP TABLE IF EXISTS tracker_tasks",
     "DROP TABLE IF EXISTS tracker_members",

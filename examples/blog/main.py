@@ -11,7 +11,7 @@ module builds declarations only; the pool opens in the worker's lifespan.
 
 from hinoki import Hinoki
 
-from .accounts import build_accounts
+from .apps.blog.accounts import build_accounts
 from .routes import routes
 from .rules import blog_rules
 from .settings import BlogSettings
