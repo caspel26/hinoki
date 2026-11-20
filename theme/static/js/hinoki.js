@@ -9,38 +9,9 @@
   const base = (window.HN && window.HN.base) || ".";
   const root = document.documentElement;
 
-  const RULES = {
-    "HNK-ACC-001": {
-      phase: "startup",
-      title: "Every matching action names an Access policy",
-      decl: "Actions.require_access(match, except_)",
-      fix: "add access=<policy> to the action (or list it in except_ when it is public on purpose)",
-    },
-    "HNK-TXN-001": {
-      phase: "startup",
-      title: "State-changing actions use atomic=True",
-      decl: "Transactions.require_atomic(methods)",
-      fix: "add atomic=True to the action (or declare it on a RouteGroup(..., atomic=True) group)",
-    },
-    "HNK-API-001": {
-      phase: "startup",
-      title: "No action returns a Model; responses are Schema classes",
-      decl: "Actions.forbid_model_responses(match, except_)",
-      fix: "return a Schema such as PostOut.from_model(row)",
-    },
-    "HNK-SCH-001": {
-      phase: "startup",
-      title: "Named fields never appear in a response Schema",
-      decl: "Schemas.forbid_exposure(*fields)",
-      fix: "remove the field from the response Schema, or return a Schema that does not carry it",
-    },
-    "HNK-IMP-001": {
-      phase: "static",
-      title: "Modules under a source never import a target",
-      decl: "Imports.forbid(source, target)",
-      fix: "move the code to an allowed layer, or depend on it through the layer in between",
-    },
-  };
+  /* Generated from the rule classes by docsite/hooks.py, on pages that mention a rule. */
+  const RULES = (window.HN && window.HN.rules) || {};
+  const RULE_ID = /(HNK-[A-Z]+-\d{3})/;
 
   const url = (path) => `${base.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
   const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -255,10 +226,16 @@
     }
     if (event.key !== "Tab") return;
     const panel = menuPanel();
-    const focusable = panel ? $$('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])', panel) : [];
+    const focusable = panel
+      ? $$('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])', panel).filter((el) => el.getClientRects().length)
+      : [];
+    if (!focusable.length) return;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
+    if (!panel.contains(document.activeElement)) {
+      event.preventDefault();
+      first.focus();
+    } else if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
       last.focus();
     } else if (!event.shiftKey && document.activeElement === last) {
@@ -295,14 +272,24 @@
   let items = [];
   let sel = 0;
 
+  /* Headings arrive HTML-escaped in the index (`&lt;name&gt;`); body text does not. */
+  const decoder = document.createElement("textarea");
+  const decode = (s) => {
+    decoder.innerHTML = s;
+    return decoder.value;
+  };
+
   const loadIndex = async () => {
     if (docs) return;
     try {
       const res = await fetch(url("search/search_index.json"));
       const data = await res.json();
-      docs = data.docs || [];
+      docs = (data.docs || []).map((d) => {
+        const title = decode(d.title);
+        return { ...d, title, lowTitle: title.toLowerCase(), lowText: d.text.toLowerCase(), page: !d.location.includes("#") };
+      });
       docs.forEach((d) => {
-        if (!d.location.includes("#")) titles[d.location] = d.title;
+        if (d.page) titles[d.location] = d.title;
       });
     } catch (e) {
       docs = [];
@@ -318,41 +305,76 @@
   ];
 
   const tokens = (q) => q.toLowerCase().split(/[^a-z0-9_.=\-]+/).filter(Boolean);
+  const escRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const occurrences = (hay, t) => {
+    let n = 0;
+    for (let i = hay.indexOf(t); i >= 0 && n < 6; i = hay.indexOf(t, i + t.length)) n++;
+    return n;
+  };
+
+  /* A whole word in the title beats a title prefix, which beats a substring. */
+  const titleScore = (title, t) => {
+    if (!title.includes(t)) return 0;
+    if (new RegExp(`(^|[^a-z0-9_])${escRe(t)}($|[^a-z0-9_])`).test(title)) return 16;
+    return title.startsWith(t) ? 14 : 9;
+  };
+
+  /* -1 when a token is missing. Titles count fully only when they hold every
+     token; the query as a phrase and an exact-case title add a bonus. */
+  const score = (d, q, ts) => {
+    let inTitle = 0;
+    let titled = 0;
+    let inText = 0;
+    for (const t of ts) {
+      const s = titleScore(d.lowTitle, t);
+      const n = occurrences(d.lowText, t);
+      if (!s && !n) return -1;
+      inTitle += s;
+      titled += s ? 1 : 0;
+      inText += n ? 1 + n : 0;
+    }
+    const phrase = ts.join(" ");
+    let total = (titled === ts.length ? inTitle : inTitle / 2) + inText;
+    if (d.lowTitle === phrase) total += 30;
+    else if (ts.length > 1 && d.lowTitle.includes(phrase)) total += 20;
+    if (ts.length > 1 && d.lowText.includes(phrase)) total += 20;
+    if (d.title === q) total += 5;
+    return total + (d.page ? 3 : 0);
+  };
+
+  const sectionOf = (location) => {
+    if (location.startsWith("reference/")) return "API reference";
+    if (location.startsWith("tutorial/")) return "Tutorial";
+    return location ? "Guides" : "Home";
+  };
+
+  /* API symbols show their qualified name, so `db.atomic` and `Database.atomic` differ. */
+  const hintOf = (d) => {
+    if (d.page) return sectionOf(d.location);
+    const [page, anchor] = d.location.split("#");
+    return anchor.startsWith("hinoki.") ? anchor : titles[page] || page;
+  };
 
   const search = (q) => {
     const ts = tokens(q);
     if (!ts.length || !docs) return [];
     const out = [];
     for (const d of docs) {
-      const title = d.title.toLowerCase();
-      const text = d.text.toLowerCase();
-      let score = 0;
-      let ok = true;
-      for (const t of ts) {
-        const inTitle = title.includes(t);
-        const inText = text.includes(t);
-        if (!inTitle && !inText) {
-          ok = false;
-          break;
-        }
-        score += (inTitle ? (title.startsWith(t) ? 14 : 9) : 0) + (inText ? 2 : 0);
-      }
-      if (!ok) continue;
-      if (!d.location.includes("#")) score += 3;
-      out.push({ d, score, text });
+      const s = score(d, q, ts);
+      if (s >= 0) out.push({ d, s });
     }
-    out.sort((a, b) => b.score - a.score);
-    return out.slice(0, 9).map(({ d, text }) => {
-      const first = ts.map((t) => text.indexOf(t)).filter((i) => i >= 0).sort((a, b) => a - b)[0] || 0;
+    out.sort((a, b) => b.s - a.s);
+    return out.slice(0, 9).map(({ d }) => {
+      const first = ts.map((t) => d.lowText.indexOf(t)).filter((i) => i >= 0).sort((a, b) => a - b)[0] || 0;
       const start = Math.max(0, first - 40);
       let snippet = esc(d.text.slice(start, start + 150).replace(/¶/g, ""));
       ts.forEach((t) => {
-        snippet = snippet.replace(new RegExp(`(${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"), "<mark>$1</mark>");
+        snippet = snippet.replace(new RegExp(`(${escRe(esc(t))})`, "gi"), "<mark>$1</mark>");
       });
-      const page = d.location.split("#")[0];
       return {
         title: d.title,
-        hint: d.location.includes("#") ? titles[page] || page : "",
+        hint: hintOf(d),
         snippet: (start > 0 ? "…" : "") + snippet,
         href: url(d.location),
       };
@@ -630,7 +652,7 @@
   const wrapRules = (container) => {
     const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
       acceptNode: (n) =>
-        /HNK-(ACC|TXN|API|SCH|IMP)-001/.test(n.nodeValue) && !n.parentElement.closest("a, button, h1, .rule-ref")
+        RULE_ID.test(n.nodeValue) && !n.parentElement.closest("a, button, h1, .rule-ref")
           ? NodeFilter.FILTER_ACCEPT
           : NodeFilter.FILTER_REJECT,
     });
@@ -638,7 +660,7 @@
     while (walker.nextNode()) nodes.push(walker.currentNode);
     nodes.forEach((node) => {
       const frag = document.createDocumentFragment();
-      node.nodeValue.split(/(HNK-(?:ACC|TXN|API|SCH|IMP)-001)/).forEach((part) => {
+      node.nodeValue.split(RULE_ID).forEach((part) => {
         if (RULES[part]) {
           const b = document.createElement("button");
           b.type = "button";
@@ -686,11 +708,19 @@
     const marker = $(".toc__marker", toc);
     const heads = links.map((a) => document.getElementById(decodeURIComponent(a.hash.slice(1)))).filter(Boolean);
     let current = null;
+    /* At the bottom of the page a short final section never reaches the
+       threshold: prefer the visible heading the URL names, else the last visible one. */
+    const bottomIndex = () => {
+      const visible = heads.map((h, i) => (h.getBoundingClientRect().top < innerHeight ? i : -1)).filter((i) => i >= 0);
+      const named = heads.findIndex((h) => location.hash && h.id === decodeURIComponent(location.hash.slice(1)));
+      return visible.includes(named) ? named : visible.length ? visible[visible.length - 1] : -1;
+    };
     const setActive = () => {
       let idx = -1;
       heads.forEach((h, i) => {
         if (h.getBoundingClientRect().top <= 140) idx = i;
       });
+      if (scrollY > 0 && innerHeight + scrollY >= document.documentElement.scrollHeight - 2) idx = Math.max(idx, bottomIndex());
       const a = idx >= 0 ? links[idx] : null;
       if (a === current) return;
       current = a;
@@ -704,6 +734,7 @@
       }
     };
     addEventListener("scroll", setActive, { passive: true });
+    addEventListener("hashchange", setActive);
     setActive();
   }
 
