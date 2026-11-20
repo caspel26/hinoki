@@ -74,7 +74,7 @@ hinoki migrations apply billing
 
 | Command | Effect |
 | --- | --- |
-| `status [APP]` | lists applied and pending migrations; creates the ledger if missing |
+| `status [APP]` | lists applied and pending migrations (nothing when there are none); creates the ledger, and a SQLite file, if missing |
 | `sql NAME` | prints one migration's SQL; add `--app APP` only when the name is ambiguous |
 | `apply [APP]` | applies pending migrations of every app, or of `APP` and its prerequisites, in dependency order |
 
@@ -100,13 +100,16 @@ started. The command never falls back to another database: it stops with exit
 - the application cannot be imported (the message names the missing module or
   attribute) or its settings cannot be loaded;
 - it installs a database module of its own whose URL Hinoki cannot read;
-- the database is in-memory SQLite (`sqlite://:memory:`), where nothing it
-  migrates would survive.
+- the application's database is in-memory SQLite (`sqlite://:memory:`), where
+  nothing it migrates would survive. A `--database sqlite://:memory:` URL is
+  refused with exit `1` instead, because SQLite needs a file URL there.
 
 Fix the application, or choose the database with `--database` or
 `HINOKI_DATABASE_URL`, which skip step 3 and never import the application. An
-application without a database uses the local SQLite default. Outside a
-project (`--models`/`--dir`), step 3 is skipped.
+application without a database still migrates the local SQLite default, but
+the server has none to use: declare `database: settings.DatabaseSettings`
+([configure a database](databases.md#set-up-a-database-in-four-steps)).
+Outside a project (`--models`/`--dir`), step 3 is skipped.
 
 `plan`, `status` and `apply` print the chosen database and its source on
 standard error. Everything before the host (user and password) and the URL
@@ -118,9 +121,12 @@ database: postgresql://***@db.internal/notes (from settings: ProjectSettings.dat
 ```
 
 A relative SQLite path from the settings or the default is anchored beside
-`hinoki.toml`, so a subdirectory uses the same file; a relative SQLite URL
-given with `--database` or `HINOKI_DATABASE_URL` stays relative to the current
-directory. A connection failure prints `error: database: …` and exits `1`. A
+`hinoki.toml`, so migrations run from a subdirectory use the same file; a
+relative SQLite URL given with `--database` or `HINOKI_DATABASE_URL` stays
+relative to the current directory. The server and `hinoki settings` do not
+anchor: they resolve the path, and read `.env`, from the directory they start
+in, so start them from the project root. A connection failure prints
+`error: database: …` and exits `1`. A
 `--database` URL is visible in the process list and shell history: do not put
 a password in it.
 
