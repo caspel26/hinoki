@@ -288,6 +288,10 @@
               
             
               
+                <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../pagination/"><span>Pagination</span></a></li>
               
             
@@ -437,8 +441,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:58:00 UTC">November 20, 2026</span></span>
-            <span>8 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:10:21 UTC">November 20, 2026</span></span>
+            <span>11 min read</span>
           </p>
           
         </header>
@@ -483,14 +487,19 @@ never opens a connection. See <a href="../settings/#8-database-connection-owners
 <td>Granian's</td>
 </tr>
 <tr>
-<td>ASGI middleware around the app</td>
+<td>Hinoki <a href="../middleware/">middleware</a></td>
+<td>Yes; the route runs in Python instead of the native lane</td>
+<td>Yes, identical</td>
+</tr>
+<tr>
+<td>ASGI wrapper around the app</td>
 <td>Not possible: there is no ASGI boundary</td>
 <td>Yes, run the wrapper with <code>granian</code> (<a href="#metrics-and-tracing">metrics</a>)</td>
 </tr>
 <tr>
 <td>WSGI</td>
-<td>–</td>
-<td><code>granian --interface wsgi</code> (<a href="#wsgi">WSGI</a>)</td>
+<td><code>--interface wsgi</code>: Python threads behind Kiso's listener, not native (<a href="#wsgi">WSGI</a>)</td>
+<td><code>--interface wsgi</code></td>
 </tr>
 </tbody>
 </table>
@@ -684,24 +693,51 @@ wrap the application:</p>
 
 <span class="n">wsgi_app</span> <span class="o">=</span> <span class="n">WSGIAdapter</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
 </code></pre></div>
-<div class="language-sh highlight"><pre><span></span><code>granian<span class="w"> </span>--interface<span class="w"> </span>wsgi<span class="w"> </span>wsgi:wsgi_app
+<div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>serve<span class="w"> </span>wsgi:wsgi_app<span class="w"> </span>--interface<span class="w"> </span>wsgi<span class="w">                    </span><span class="c1"># Kiso</span>
+hinoki<span class="w"> </span>serve<span class="w"> </span>wsgi:wsgi_app<span class="w"> </span>--interface<span class="w"> </span>wsgi<span class="w"> </span>--server<span class="w"> </span>granian<span class="w">   </span><span class="c1"># Granian</span>
 </code></pre></div>
+<p><code>--interface wsgi</code> (or <code>server.interface = "wsgi"</code> on the application the
+<code>WSGIAdapter</code> wraps) tells <code>hinoki serve</code> that the target is a WSGI callable
+rather than a Hinoki application; the default is <code>asgi</code>. The target may be a
+<code>WSGIAdapter</code> or any <code>(environ, start_response)</code> callable, but not a factory
+and not a <code>Hinoki</code> application (the error names <code>WSGIAdapter</code>). A project
+whose <code>server.interface</code> is <code>wsgi</code> refuses an ASGI target unless you pass
+<code>--interface asgi</code>. <code>granian --interface wsgi wsgi:wsgi_app</code> still works for a
+deployment that runs Granian directly.</p>
+<h3 id="wsgi-on-kiso">WSGI on Kiso<a class="headerlink" href="#wsgi-on-kiso" title="Permanent link">&para;</a></h3>
+<p>Kiso owns the listener and calls the callable from a fixed pool of Python
+threads (<code>execution.sync_workers</code>) with a queue of <code>execution.sync_queue</code>
+waiting requests; beyond both the answer is <code>503</code> with <code>Retry-After: 1</code>. <strong>This
+path is not native</strong>: the application, the environment and every response chunk
+are Python objects, and the request crosses the interpreter lock. Rust owns the
+sockets, TLS, the access log, the limits and the end of the response.</p>
+<ul>
+<li><strong>Request body.</strong> Read in full before the call, up to <code>execution.max_body_bytes</code>: <code>413</code> above it, <code>408</code> if it stalls, <code>400</code> if malformed. Kiso therefore answers <code>413</code> for a body Granian's WSGI interface would pass on (Granian has no limit).</li>
+<li><strong>Response.</strong> Streamed: the head goes out with the first piece, a slow client slows the application down (a bounded buffer), and a client that leaves makes the next write fail and closes the iterable. An exception before the head answers <code>500</code> with an empty body and the traceback in the log; after it, the stream is reset instead of ending as complete.</li>
+<li><strong>Timeout.</strong> <code>execution.request_timeout</code> bounds the time until the response starts (<code>504</code>). A running sync call cannot be stopped; it keeps its thread until it returns.</li>
+<li><strong>Applies:</strong> TLS and HTTP/2, <code>access_log</code> and <code>access_log_format</code>, <code>server_timing</code>, <code>max_connections</code>, header and body timeouts, <code>--workers</code> and graceful shutdown (<code>lifecycle.shutdown_timeout</code>).</li>
+<li><strong>Does not apply:</strong> the native lane (<code>native_dispatch</code> is refused), host, CORS and redirect policies of the server (a wrapped Hinoki application still applies its own), and <code>trusted_proxies</code> (refused: the client address is the TCP peer).</li>
+<li><strong>Lifespan.</strong> A plain callable has none. A <code>WSGIAdapter</code> starts its application's modules when the worker starts, not on the first request, and stops them on a graceful stop.</li>
+</ul>
+<p>The adapter itself buffers its responses, so streaming reaches the client only from a plain callable. Its other specifics below apply on both servers.</p>
 <p>The adapter drives the same ASGI callable on a background event loop that it owns, so routing, binding, access, errors, limits and the OpenAPI document behave as under ASGI. Specifics:</p>
 <ul>
-<li><strong>Startup is lazy.</strong> Modules (including the database pool) start on the first request of each worker process, so a pre-forking server can import the file in its master process. If startup fails, every request answers <code>503</code> with <code>not_ready</code> and the error is logged.</li>
+<li><strong>Startup is lazy</strong> under Granian (Kiso starts them with the worker). Modules (including the database pool) start on the first request of each worker process, so a pre-forking server can import the file in its master process. If startup fails, every request answers <code>503</code> with <code>not_ready</code> and the error is logged.</li>
 <li><strong>Shutdown</strong> runs on <code>WSGIAdapter.close()</code> or, otherwise, at interpreter exit. A server that kills workers without exiting normally skips it, as it would any <code>atexit</code> hook.</li>
 <li><strong>Async handlers</strong> run on the adapter's loop and <strong>sync handlers</strong> on the bounded executor, as under ASGI. Each WSGI server thread blocks for the duration of its request, so concurrency is the server's thread count rather than the event loop.</li>
 <li><strong>Bodies are buffered.</strong> Request bodies are read up to <code>max_body_bytes</code> plus one byte, so an oversized upload still answers <code>413</code>. Responses are complete before they are sent; streaming responses are not available, and a client disconnect is not reported to the handler.</li>
 <li><strong>Paths.</strong> The server decodes the path once and the adapter passes it on without decoding again, so a client's <code>%2520</code> reaches the handler as <code>%20</code>, as under ASGI. A percent-encoded slash (<code>%2F</code>) cannot be told apart from a real one in WSGI and is not available inside a path parameter. A bad <code>Content-Length</code> answers <code>400</code>.</li>
 <li><strong>One protocol per process.</strong> Do not serve the same application object over ASGI and WSGI in one process; the adapter owns its own loop and module lifespan. Run two processes if you need both.</li>
 </ul>
-<p>The path is checked against Granian's WSGI interface (<code>--interface wsgi</code>, with one and two workers), not against every WSGI server.</p>
+<p>The path is checked against Kiso and Granian (<code>--interface wsgi</code>, with one and two workers) by a parity test, not against every WSGI server.</p>
 <h2 id="errors-and-edge-cases">Errors and edge cases<a class="headerlink" href="#errors-and-edge-cases" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>error: X is neither an application nor a factory</code>: the target names something else, for example an ASGI wrapper; run wrappers with <code>granian</code>.</li>
 <li><code>error: Granian is not installed; install the server extra</code>: run <code>uv sync</code> in a generated project (it depends on <code>hinoki[server]</code>), or use Kiso.</li>
 <li><code>hinoki dev</code> reloads with <code>watchfiles</code>, also part of the <code>server</code> extra, on either server; without it <code>dev</code> exits with that message and <code>serve</code> still works.</li>
 <li><code>--workers</code> outside the supported range is refused on Kiso; <code>0</code> means "use <code>server.workers</code>".</li>
+<li><code>--interface wsgi</code> with <code>server.native_dispatch</code> or <code>server.trusted_proxies</code> set on Kiso exits with status <code>2</code> and names the setting.</li>
+<li><code>--interface wsgi</code> with a <code>Hinoki</code> application, a factory or a non-callable exits with an error that points to <code>WSGIAdapter</code>.</li>
 <li>A Kiso-only setting under <code>--server granian</code> exits with status <code>2</code> and names the setting.</li>
 </ul>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
@@ -732,12 +768,14 @@ wrap the application:</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#choose-a-server">Choose a server</a></li><li><a href="#set-host-port-and-workers">Set host, port and workers</a></li><li><a href="#settings-that-apply-to-one-server-only">Settings that apply to one server only</a></li><li><a href="#optional-startup-probe">Optional startup probe</a></li><li><a href="#other-runners">Other runners</a></li><li><a href="#metrics-and-tracing">Metrics and tracing</a></li><li><a href="#wsgi">WSGI</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#choose-a-server">Choose a server</a></li><li><a href="#set-host-port-and-workers">Set host, port and workers</a></li><li><a href="#settings-that-apply-to-one-server-only">Settings that apply to one server only</a></li><li><a href="#optional-startup-probe">Optional startup probe</a></li><li><a href="#other-runners">Other runners</a></li><li><a href="#metrics-and-tracing">Metrics and tracing</a></li><li><a href="#wsgi">WSGI</a>
+            <ul><li><a href="#wsgi-on-kiso">WSGI on Kiso</a></li></ul>
+          </li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:58:00 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:10:21 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

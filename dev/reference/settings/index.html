@@ -270,7 +270,7 @@
           <p class="page-meta" data-search-exclude>
             
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></span>
-            <span>8 min read</span>
+            <span>9 min read</span>
           </p>
           
         </header>
@@ -1596,6 +1596,9 @@ The message is shown in <code>SettingsError</code>: never put a field's value in
         <p>How <code>hinoki serve</code> and <code>dev</code> run the application. <code>serve</code> applies
 these; they do nothing when another runner starts the app.</p>
 <p><code>server</code> picks Kiso, Hinoki's Rust server (the default), or Granian.
+<code>interface</code> is how the server calls the target: <code>asgi</code> (a Hinoki
+application) or <code>wsgi</code> (a WSGI callable, such as a <code>WSGIAdapter</code>); the
+<code>--interface</code> flag overrides it.
 <code>access_log</code>
 prints one line per request on either server; unset, <code>hinoki dev</code> logs and
 <code>hinoki serve</code> does not, and <code>True</code> or <code>False</code> decides for both.

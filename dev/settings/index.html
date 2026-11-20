@@ -288,6 +288,10 @@
               
             
               
+                <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../pagination/"><span>Pagination</span></a></li>
               
             
@@ -592,6 +596,12 @@ generated <code>main.py</code> sets them with <code>Hinoki(...)</code> arguments
 <td><code>server</code></td>
 <td><code>kiso</code></td>
 <td><code>granian</code> or <code>kiso</code>; <code>--server</code> overrides it. See <a href="../kiso/">Kiso server</a></td>
+</tr>
+<tr>
+<td><code>server</code></td>
+<td><code>interface</code></td>
+<td><code>asgi</code></td>
+<td><code>asgi</code> or <code>wsgi</code>: what <code>hinoki serve</code> calls (a Hinoki application or a WSGI callable); <code>--interface</code> overrides it. See <a href="../serving/#wsgi">WSGI</a></td>
 </tr>
 <tr>
 <td><code>pagination</code></td>
