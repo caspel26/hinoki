@@ -1,11 +1,13 @@
 """The native lane: an async handler driven from Rust instead of an asyncio task.
 
-A route is served here only when everything it does is known at startup: an
-unguarded, non-atomic ``async def`` that ``nativeproof`` shows awaits nothing
-but stock ORM reads. Its coroutine then runs without a task: the first step on
-the loop thread, each database wait on the native runtime, every later step
-back on the loop thread (so a task the handler spawns sees the loop). The
-request timeout is the driver's deadline.
+A route is served here only when everything it does is known at startup: a
+non-atomic ``async def`` that ``nativeproof`` shows awaits nothing but stock
+ORM reads. A guarded route (access policy, rate limit, ``Query`` schema or
+several renderers) runs its guards first, inside the same coroutine. The
+coroutine runs without a task: the first step on the loop thread, each
+database wait on the native runtime, every later step back on the loop thread
+(so a task the handler spawns sees the loop). The request timeout is the
+driver's deadline.
 
 A request the lane cannot serve (an input error, a route outside it) takes the
 asyncio path. A coroutine that awaits something only asyncio can run (a
@@ -26,13 +28,14 @@ from typing import TYPE_CHECKING, Any
 from hinoki import core
 from hinoki.runtime.binding import BODY_METHODS, Binding
 from hinoki.runtime.nativeproof import native_refusal
+from hinoki.runtime.pipeline import NativeBody
 from hinoki.runtime.responses import HTTPError, Response
 from hinoki.runtime.servercore import native_handler_eligible, route_guarded
 
 if TYPE_CHECKING:
     import contextvars
 
-    from hinoki.runtime.pipeline import Pipeline
+    from hinoki.runtime.pipeline import BodySource, Pipeline
 
 log = logging.getLogger("hinoki.runtime")
 
@@ -47,8 +50,6 @@ def lane_refusal(binding: Binding) -> str | None:
         reason = "not natively eligible"
     elif route.method in BODY_METHODS:
         reason = "takes a request body"
-    elif route_guarded(binding):
-        reason = "guarded (access, rate limit, query schema or several renderers)"
     elif route.atomic:
         reason = "runs in a transaction"
     return reason or native_refusal(route.handler)
@@ -108,9 +109,14 @@ class NativeLane:
         actions: frozenset[int],
         tasks: set[asyncio.Task[None]],
         fail: Callable[[core.PreparedRequest], None],
+        source: Callable[[core.PreparedRequest], BodySource],
     ) -> None:
         self.pipeline = pipeline
         self.actions = actions
+        self.guarded = frozenset(
+            action for action in actions if route_guarded(pipeline.bindings[action])
+        )
+        self.source = source
         self.tasks = tasks
         self.fail = fail
         self.runs: set[Run] = set()
@@ -134,7 +140,9 @@ class NativeLane:
         run = Run(request, binding, self.pipeline.native_context(request.request_id))
         timeout = self.pipeline.app.runtime.request_timeout
         deadline = None if timeout is None else max(1, int(timeout * 1000))
-        coro = self.pipeline.drive_native(binding, request.native_args)
+        coro = self.pipeline.drive_native(
+            binding, request.native_args, self._request_data(request, action)
+        )
         self.runs.add(run)
         try:
             run.handle = core.run_native(
@@ -149,6 +157,16 @@ class NativeLane:
             self.runs.discard(run)
             raise
         return True
+
+    def _request_data(
+        self, request: core.PreparedRequest, action: int
+    ) -> NativeBody | None:
+        """What a guard reads beyond the prepared inputs, for a guarded route."""
+        if action not in self.guarded:
+            return None
+        return NativeBody(
+            self.source(request), request.headers, request.query, request.client
+        )
 
     def cancel_all(self) -> None:
         """Cancel every driven handler, as shutdown cancels the request tasks."""

@@ -297,7 +297,9 @@ class KisoWorker:
             )
         if not actions:
             return None
-        return NativeLane(self.pipeline, frozenset(actions), self.tasks, self._fail)
+        return NativeLane(
+            self.pipeline, frozenset(actions), self.tasks, self._fail, RustBody
+        )
 
     def _activate_crud_plans(self) -> None:
         """Attach the worker-owned pool clone and arm still-valid plans."""

@@ -439,11 +439,21 @@ class Pipeline:
         context.sync_runner.set(self.executor.run)
         database_var.set(self.ctx.find(Database))
 
-    async def drive_native(self, binding: Binding, args: dict[str, object]) -> Response:
-        """The coroutine Rust drives for an unguarded, non-atomic native route:
-        the handler call and its encoding, with no timeout and no error
-        translation (the driver owns the deadline and the caller the errors)."""
-        return await self._native_result(binding, args)
+    async def drive_native(
+        self,
+        binding: Binding,
+        args: dict[str, object],
+        native: NativeBody | None = None,
+    ) -> Response:
+        """The coroutine Rust drives for a non-atomic native route: for a
+        guarded route first the admission of the caller and the request values
+        (``native`` carries the headers and the peer), then the handler call and
+        its encoding, with no timeout and no error translation (the driver owns
+        the deadline and the caller the errors). A guard that awaits something
+        only asyncio can run hands the coroutine over like a handler does."""
+        if native is not None:
+            args = await self._native_arguments(binding, args, None, native)
+        return await self._native_result(binding, args, native)
 
     async def native_continue(
         self,
