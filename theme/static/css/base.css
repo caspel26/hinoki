@@ -242,12 +242,13 @@ kbd {
 }
 
 .top__link {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   height: 36px;
-  padding: 0 14px;
-  border-radius: 999px;
+  padding: 0 12px;
+  border-radius: 6px;
   color: var(--hn-text-2);
   font-size: var(--fs-m);
   font-weight: 550;
@@ -267,8 +268,18 @@ kbd {
 }
 
 .top__link.is-active {
-  color: var(--hn-text);
-  background: var(--hn-tint-brand);
+  color: var(--hn-brand);
+}
+
+.top__link.is-active::after {
+  position: absolute;
+  right: 12px;
+  bottom: -2px;
+  left: 12px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--hn-brand);
+  content: "";
 }
 
 .top__link:hover .i,
@@ -457,10 +468,12 @@ body.menu-open .menu-icon-close {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: var(--sp-2) 6px var(--sp-1);
+  padding: var(--sp-2) 12px var(--sp-1);
   color: var(--hn-text-3);
-  font-size: var(--fs-xs);
+  font-size: 12px;
   font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .side__group > span .i {
@@ -481,19 +494,12 @@ body.menu-open .menu-icon-close {
   align-items: baseline;
   gap: 10px;
   padding: 7px 12px;
-  border-radius: 999px;
+  border-radius: 6px;
   color: var(--hn-text-2);
   font-size: var(--fs-m);
   line-height: 1.4;
   text-decoration: none;
   transition: color var(--hn-dur-1) var(--hn-ease), background var(--hn-dur-1) var(--hn-ease);
-}
-
-.side__link i {
-  min-width: 28px;
-  color: var(--hn-text-3);
-  font: 500 11px/1 var(--hn-font-mono);
-  font-style: normal;
 }
 
 .side__link:hover {
@@ -504,10 +510,6 @@ body.menu-open .menu-icon-close {
 .side__link.is-active {
   color: var(--hn-text);
   font-weight: 600;
-}
-
-.side__link.is-active i {
-  color: var(--hn-brand);
 }
 
 .side__link .i {
@@ -521,7 +523,9 @@ body.menu-open .menu-icon-close {
 }
 
 .side__link.is-active {
-  background: var(--hn-tint-brand);
+  border-radius: 0 6px 6px 0;
+  background: var(--hn-brand-tint);
+  box-shadow: inset 2px 0 0 var(--hn-brand);
 }
 
 .main {
@@ -1307,11 +1311,6 @@ body.menu-open .overlay {
     font-size: 16px;
   }
 
-  .side__link i {
-    min-width: 28px;
-    font-size: 12px;
-  }
-
   .side__label {
     margin-bottom: 8px;
     font-size: 12px;
@@ -1400,6 +1399,39 @@ body.menu-open .overlay {
 @media (max-width: 374px) {
   .top [data-project-stage] {
     display: none;
+  }
+}
+
+/* Below 360 px the GitHub link moves from the header into the sheet. */
+.side__repo {
+  display: none;
+}
+
+.side__gh {
+  flex: none;
+  align-self: center;
+  width: 16px;
+  height: 16px;
+  color: var(--hn-text-3);
+}
+
+@media (max-width: 359px) {
+  .top__inner {
+    gap: 2px;
+  }
+
+  .top .icon-btn,
+  .top .search-btn {
+    width: 36px;
+    min-width: 36px;
+  }
+
+  .top__repo {
+    display: none;
+  }
+
+  .side__repo {
+    display: block;
   }
 }
 

@@ -702,8 +702,8 @@ html:not(.js) .prose table {
 }
 
 .doc-object.doc-attribute > .doc-signature.highlight {
-  display: inline-block;
-  max-width: 100%;
+  display: block;
+  width: 100%;
   margin: var(--sp-1) 0 var(--sp-3);
   border-color: var(--hn-edge);
   border-radius: 12px;
