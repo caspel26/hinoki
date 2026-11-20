@@ -103,7 +103,7 @@ data.
 HTTP error that is missing from its `errors=` declaration, so the OpenAPI
 document cannot drift from what the action really does.
 
-Both clients have `get`, `post`, `put`, `patch`, `delete`, `head`, `options` and
+`ASGIClient` and `SyncClient` (for synchronous tests, [below](#synchronous-tests-and-time)) both have `get`, `post`, `put`, `patch`, `delete`, `head`, `options` and
 `query` (the HTTP `QUERY` method; its body goes in `json=` or `body=`, while the
 `query=` option of every call is the query string), plus
 `request(method, path, ...)` for any other method.
