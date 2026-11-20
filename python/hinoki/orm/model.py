@@ -665,6 +665,7 @@ class Model:
     __primary_key__: ClassVar[str] = ""
     __relations__: ClassVar[dict[str, Relation]] = {}
     __unique__: ClassVar[tuple[tuple[str, ...], ...]] = ()
+    __unique_names__: ClassVar[dict[tuple[str, ...], str]] = {}
     __indexes__: ClassVar[tuple[tuple[str, ...], ...]] = ()
     __field_indexes__: ClassVar[tuple[tuple[str, ...], ...]] = ()
     __decorated_indexes__: ClassVar[tuple[tuple[str, ...], ...]] = ()
@@ -882,6 +883,9 @@ class Model:
         without it, whether or not a decorator is applied."""
         bases = cls.option_bases()
         cls.__unique__ = without_repeats([g for b in bases for g in b.__unique__])
+        cls.__unique_names__ = {
+            group: name for b in bases for group, name in b.__unique_names__.items()
+        }
         indexes = [g for b in bases for g in b.__indexes__ if cls.keeps_index(b, g)]
         inherited_indexes = [g for g in indexes if g not in cls.__field_indexes__]
         cls.__indexes__ = without_repeats([*indexes, *cls.__field_indexes__])
@@ -897,6 +901,7 @@ class Model:
         }
         if unique:
             cls.__unique__ = cls.check_unique(unique)
+            cls.__unique_names__ = {}
             inherited["unique"] = False
         cls.__inherited_options__ = frozenset(k for k, v in inherited.items() if v)
 
