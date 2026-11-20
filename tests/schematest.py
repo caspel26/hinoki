@@ -28,7 +28,7 @@ class PostCreate(Schema):
 
 class PostPatch(Schema):
     title: str | Unset = UNSET
-    subtitle: str | None | Unset = UNSET
+    subtitle: str | Unset | None = UNSET
 
 
 class Extended(PostCreate):

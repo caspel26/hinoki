@@ -16,9 +16,10 @@ A server process serves one `Hinoki` object, the one `hinoki serve module:app` o
 
 ```python
 # blog/main.py
-app = Hinoki(settings=BlogSettings, rules=blog_rules)     # routes come from hinoki.toml
+app = Hinoki(settings=BlogSettings, rules=blog_rules)  # routes come from hinoki.toml
 
-@app.error_handler(stripe.CardError)                      # decorators on the app
+
+@app.error_handler(stripe.CardError)  # decorators on the app
 def card_error(error: stripe.CardError) -> errors.APIError:
     return errors.APIError(error.user_message, status=402, code="card_declined")
 ```

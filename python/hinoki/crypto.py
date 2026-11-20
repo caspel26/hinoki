@@ -229,7 +229,7 @@ class JWTAuth[T](BearerAuth[T]):
     @abstractmethod
     def resolve_claims(
         self, claims: dict[str, Any]
-    ) -> Caller[T] | None | Awaitable[Caller[T] | None]:
+    ) -> Caller[T] | Awaitable[Caller[T] | None] | None:
         """The principal for verified claims, or ``None`` to refuse; ``async def``
         or plain ``def``."""
 

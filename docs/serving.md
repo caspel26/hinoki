@@ -152,10 +152,12 @@ The settings class says its own prefix and `.env` file, so nothing is repeated a
 ```python
 from hinoki import settings
 
+
 class BlogSettings(settings.AppSettings, prefix="BLOG_", dotenv=".env"):
     database_url: settings.Secret
 
-app_settings = BlogSettings.load()          # reads BLOG_* and .env
+
+app_settings = BlogSettings.load()  # reads BLOG_* and .env
 ```
 
 ## Other runners
@@ -193,7 +195,10 @@ class Timing:
         finally:  # status stays None when the request was aborted before a response began
             self.record(scope["method"], status, time.monotonic() - started)
 
-app = Timing(create_app(), record=my_metrics.observe)   # run this with Granian or any ASGI server
+
+app = Timing(
+    create_app(), record=my_metrics.observe
+)  # run this with Granian or any ASGI server
 ```
 
 What this measures is the time from the ASGI call to the last byte handed to the server, not what a client perceives. Keep method and status as labels; do **not** label by `scope["path"]` (it holds ids and has unbounded cardinality), the request ID (it is for correlating logs: `logging.include_request_id` adds it to each Hinoki log line) or the caller. Hinoki does not currently expose the matched route template to a wrapper, so per-route metrics need an application-level counter inside the handler or a gap report so a hook can be designed.
