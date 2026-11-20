@@ -67,6 +67,15 @@ access = CrudAccess(
 
 Here list and retrieve are public, create and update need `billing_staff`, delete needs `billing_admin`. Unknown action names raise `TypeError`. Generated writes always need a policy: a write left without one raises `RegistrationError` (when a `@crud` class is declared, or when a `crud(...)` value is included) unless you pass `public_writes=True` on purpose. The `access=` of `crud(...)` covers generated actions only; a handwritten action in the class form states its own.
 
+Rules see a generated action under the module that calls `crud(...)`: the value in `notes/apps/billing/routes.py` produces `notes.apps.billing.routes.InvoiceCrud.list`, `.retrieve`, `.create`, `.update` and `.delete`, and the class form uses its class (`notes.apps.billing.api.Invoices.list`). So the scaffold's `match="notes.*"` rules check them, and a public list goes in `except_` like any other action:
+
+```python
+Actions.require_access(
+    match="notes.*",
+    except_=["notes.api.health", "notes.apps.billing.routes.InvoiceCrud.list"],
+)
+```
+
 ## Hooks in the class form
 
 Apply `@crud(...)` to a class whose only base is `API`. These methods change what the generated actions do; every other decorated method is a handwritten action:
