@@ -136,7 +136,7 @@ def add_arguments(
     new = commands.add_parser("new", help="create a project an AI agent can work in")
     add_new_arguments(new)
     server = commands.add_parser(
-        "mcp", help="serve read-only project context over MCP (stdio)"
+        "mcp", help="serve project context to a coding agent over MCP (stdio)"
     )
     server.add_argument(
         "target", nargs="?", help="module:app or module:factory (default: project app)"
@@ -153,6 +153,6 @@ def add_arguments(
         "--scenarios",
         choices=["off", "read", "write"],
         default="off",
-        help="offer run_scenario: read = GET only, write = any method "
+        help="offer run_scenario: read = GET, HEAD, OPTIONS, QUERY, write = any method "
         "(runs real handlers: use a disposable database)",
     )

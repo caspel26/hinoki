@@ -34,6 +34,7 @@ Because the initial `list_100` Hinoki CV exceeded 15%, five additional alternati
 | Scenario | Hinoki median req/s (range, CV) | Django Bolt median req/s (range, CV) |
 | --- | ---: | ---: |
 | list_100, pairs 6-10 | 5088.4 (5073.4-5128.2, 0.4%) | 2080.8 (2066.3-2085.8, 0.4%) |
+
 The supplemental block is internally stable, while the initial Hinoki list_100 series remains unstable and shows a change in throughput regime. Treat both blocks as host-specific orientation data; the stable follow-up does not erase the initial variance.
 
 The supplemental update series stopped at Hinoki pair 7 after unsuccessful responses (status distribution: 200 = 3,554, 500 = 20). Its server log reports database connection acquisition timeouts. The failed sample and log are retained and excluded from throughput summaries; the initial update series remains volatile (Hinoki CV 11.8%, Django Bolt CV 23.5%).
