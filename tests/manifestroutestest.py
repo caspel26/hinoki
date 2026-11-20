@@ -232,3 +232,26 @@ def test_manifest_routes_outside_a_project_is_an_error(
         importlib.import_module("loose")
     with pytest.raises(ProjectError, match=missing):
         manifest_routes(outside)
+
+
+def test_manifest_routes_finds_the_project_above_a_symlinked_package(
+    project: tuple[Path, str], tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    root, _ = project
+    store = tmp_path_factory.mktemp("store")  # no hinoki.toml above it
+    linked = root / "linked"
+    linked.symlink_to(store, target_is_directory=True)
+    app = Hinoki(include=manifest_routes(linked))
+    assert paths(app) == ["/health", "/posts", "/invoicing"]
+
+
+def test_manifest_routes_names_both_directories_it_searched(
+    tmp_path: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    store = tmp_path_factory.mktemp("store")
+    linked = tmp_path / "linked"
+    linked.symlink_to(store, target_is_directory=True)
+    with pytest.raises(ProjectError) as raised:
+        manifest_routes(linked)
+    assert "linked" in str(raised.value)
+    assert store.name in str(raised.value)
