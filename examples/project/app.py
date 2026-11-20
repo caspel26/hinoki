@@ -1,6 +1,6 @@
 """A small app for trying project management commands.
 
-Run ``uv run --project .. hinoki manage greet`` from the examples project root, or pass
+Run ``uv run hinoki manage greet`` from the examples project root, or pass
 ``management:app`` explicitly outside a registered project.
 """
 
