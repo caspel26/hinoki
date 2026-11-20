@@ -53,6 +53,10 @@ the referenced primary key.
 | `OnDelete.SET_NULL` | the column becomes `NULL`; the field must be `\| None` |
 | `OnDelete.NO_ACTION` | like `RESTRICT`, checked at the end of the statement |
 
+A refused delete raises `hinoki.db.DatabaseError` (`database request failed`),
+not `UniqueViolation`, so it is not translated to `409`: check for references
+first, or register an error handler for it.
+
 Text such as `on_delete="cascade"`, and `SET_NULL` on a non-nullable field, are
 refused with `RegistrationError` at import:
 

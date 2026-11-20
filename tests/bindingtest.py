@@ -58,9 +58,30 @@ class WithStatic(API, path="/static"):
     def only(request: Request) -> None: ...
 
 
+class RouteOverStatic(API, path="/static"):
+    @http.get("/x")
+    @staticmethod
+    def only(request: Request) -> None: ...
+
+
+class RouteOverClassMethod(API, path="/class"):
+    @http.get("/x")
+    @classmethod
+    def only(cls, request: Request) -> None: ...
+
+
 @pytest.mark.parametrize(
     "target",
-    [repeated, positional_only, star_args, star_kwargs, NeedsArgs, WithStatic],
+    [
+        repeated,
+        positional_only,
+        star_args,
+        star_kwargs,
+        NeedsArgs,
+        WithStatic,
+        RouteOverStatic,
+        RouteOverClassMethod,
+    ],
 )
 def test_unusable_declarations_fail_at_include(target: object) -> None:
     with pytest.raises((RegistrationError, ValueError)):

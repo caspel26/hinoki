@@ -42,7 +42,7 @@ def card_error(error: stripe.CardError) -> errors.APIError:
 
 ## One request
 
-The server hands each request through the Python adapter to the compiled router and binding layer. Hinoki authenticates the caller, checks access, validates inputs, runs the handler, checks the return value against its annotation and renders the response. A transactional action commits after the response is prepared; a failure rolls back before it becomes an HTTP error. The ASGI boundary still crosses Python objects: the runtime is not an all-Rust server. Details: [request lifecycle](request-lifecycle.md).
+The server hands each request to the compiled router and binding layer: Kiso, the default server, does so from Rust and queues matched requests for the Python pipeline; with Granian the request crosses the ASGI adapter first. Hinoki authenticates the caller, checks access, validates inputs, runs the handler, checks the return value against its annotation and renders the response. A transactional action commits after the response is prepared; a failure rolls back before it becomes an HTTP error. Handwritten handlers and hooks run in Python on both servers: the runtime is not an all-Rust server. Details: [request lifecycle](request-lifecycle.md).
 
 ## Worker resources
 
