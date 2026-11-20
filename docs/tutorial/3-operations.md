@@ -22,11 +22,11 @@ def mine(owner_id: UUID) -> QuerySet[Task]:
 
 
 async def list_tasks(owner_id: UUID, page: PageParams) -> Page[Task]:
-    return await mine(owner_id).apaginate(page)   # Task is @ordered_by newest first
+    return await mine(owner_id).apaginate(page)  # Task is @ordered_by newest first
 
 
 async def create_task(owner_id: UUID, data: TaskIn) -> Task:
-    return await Task.acreate(data, owner_id=owner_id)   # the server's value wins
+    return await Task.acreate(data, owner_id=owner_id)  # the server's value wins
 
 
 async def complete_task(owner_id: UUID, task_id: UUID) -> Task:
@@ -37,7 +37,7 @@ async def complete_task(owner_id: UUID, task_id: UUID) -> Task:
     )
     if changed:
         return changed[0]
-    await mine(owner_id).filter(id=task_id).aget()   # missing or not yours: 404
+    await mine(owner_id).filter(id=task_id).aget()  # missing or not yours: 404
     raise TaskAlreadyDone()
 ```
 
