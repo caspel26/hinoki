@@ -448,9 +448,10 @@ def test_the_banner_is_a_rounded_box_with_the_wordmark_that_fits_the_terminal(
     style = Style.detect(Tty(), {"TERM": "xterm-256color"})  # type: ignore[arg-type]
     lines = box_lines(style.banner("new project", "v1.2.3"))
 
-    assert lines[0].startswith("  \u256d\u2500 \u25e2\u25e4 hinoki \u2500")
+    assert lines[0].startswith("  \u256d\u2500 Hinoki \u2500")
     assert lines[0].endswith("\u256e")
-    assert lines[-1].startswith("  \u2570") and lines[-1].endswith("\u256f")
+    assert lines[-1] == "  \u2570" + "\u2500" * (len(lines[0]) - 4) + "\u256f"
+    assert "\u25e2" not in "".join(lines) and "\u25e4" not in "".join(lines)
     assert {len(line) for line in lines} == {len(lines[0])}
     assert len(lines[0]) <= min(columns, 62)
     row = next(line for line in lines if "Python API framework" in line)
@@ -463,7 +464,7 @@ def test_the_ascii_banner_box_names_the_command_without_unicode() -> None:
     lines = box_lines(text)
 
     assert text.isascii()
-    assert lines[0].startswith("  +- hinoki -") and lines[-1].startswith("  +--")
+    assert lines[0].startswith("  +- Hinoki -") and lines[-1].startswith("  +--")
     assert {len(line) for line in lines} == {len(lines[0])}
     assert "new project" in text and "v1.2.3" in text
 
@@ -483,7 +484,7 @@ def test_the_wordmark_keeps_the_terminal_foreground_on_a_light_16_colour_theme()
     style = Style(color=True, unicode=True, depth="16", light=True)
     text = style.banner("new project", "v1.2.3")
 
-    assert "97m" not in text and "\x1b[1;39mh" in text
+    assert "97m" not in text and "\x1b[1;39mH" in text
 
 
 def test_an_image_terminal_shows_the_logo_then_the_tagline_without_a_box() -> None:

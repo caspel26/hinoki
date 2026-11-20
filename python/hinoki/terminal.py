@@ -273,22 +273,15 @@ class Style:
         """One line on the guide rail: a glyph in the margin, then ``text``."""
         return f"  {self.glyph(kind)}  {text}".rstrip()
 
-    def mark(self) -> str:
-        """The logo's two triangles as text, in the brand's shade and light."""
-        return self.paint("\u25e2", "shade", bold=True) + self.paint(
-            "\u25e4", "light", bold=True
-        )
-
-    def wordmark(self) -> str:
-        """The logo as text: the mark, then ivory letters with violet dots on
-        the i's (just the bold name without Unicode)."""
+    def wordmark(self, name: str = "Hinoki") -> str:
+        """The name in ivory letters with violet dots on the i's (just the bold
+        name without Unicode)."""
         if not self.unicode:
-            return self.bold("hinoki")
-        letters = "".join(
+            return self.bold(name)
+        return "".join(
             self.paint(letter, "dot", bold=True) if letter == "i" else self.bold(letter)
-            for letter in "hinoki"
+            for letter in name
         )
-        return f"{self.mark()} {letters}"
 
     def prefix(self) -> str:
         """``hinoki`` and an arrow: the brand name that leads the guide rail."""
@@ -321,20 +314,28 @@ class Style:
         fill = " " * (room - visible_width(body))
         return f"  {vertical}{' ' * BOX_PAD}{body}{fill}{' ' * BOX_PAD}{vertical}"
 
-    def box_top(self, width: int) -> str:
+    def box_top(self, width: int, name: str = "Hinoki") -> str:
         corner, end, _, _, line, _ = BOX_UNICODE if self.unicode else BOX_ASCII
-        title = self.wordmark()
+        title = self.wordmark(name)
         rule = line * (width - visible_width(title) - 5)
         return f"  {self.edge(corner + line)} {title} {self.edge(rule + end)}"
 
     def box_bottom(self, width: int) -> str:
         _, _, corner, end, line, _ = BOX_UNICODE if self.unicode else BOX_ASCII
-        if not self.unicode:
-            return f"  {self.edge(corner + line * (width - 2) + end)}"
-        # The faint mark sits in the border, outside any text a user selects.
-        watermark = self.paint("\u25e2", "shade") + self.paint("\u25e4", "dim")
-        rule = self.edge(corner + line * (width - 7))
-        return f"  {rule} {watermark} {self.edge(line + end)}"
+        return f"  {self.edge(corner + line * (width - 2) + end)}"
+
+    def framed(self, name: str, rows: list[tuple[str, str]]) -> str:
+        """A box titled with the wordmark of ``name``; each row has a left and
+        a right part, and a row must already fit ``box_room()`` columns."""
+        width = self.box_width()
+        blank = self.box_row(width - 2, "")
+        body = "\n".join(self.box_row(width - 2, left, right) for left, right in rows)
+        top = self.box_top(width, name)
+        return f"\n{top}\n{blank}\n{body}\n{blank}\n{self.box_bottom(width)}"
+
+    def box_room(self) -> int:
+        """Columns of text that fit on one row inside the box."""
+        return self.box_width() - 2 - 2 * BOX_PAD
 
     def boxed(self, title: str, detail: str) -> tuple[str, Row, str]:
         """The banner as a box: what is above the tagline row, the row, and
