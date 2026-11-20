@@ -243,3 +243,20 @@ async def test_a_sync_bulk_lets_a_hook_open_its_own_scope(tmp_path: Path) -> Non
             assert [row.id for row in await Audited.all().order_by("id")] == [1, 2]
     finally:
         opened.close()
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(lambda: Tag.bulk_create([]), id="create-empty"),
+        pytest.param(lambda: Tag.bulk_update([]), id="update-empty"),
+        pytest.param(lambda: Tag.bulk_delete([]), id="delete-empty"),
+        pytest.param(lambda: Tag.bulk_create([{"bogus": 1}]), id="create-invalid"),
+        pytest.param(lambda: Tag.bulk_update([Tag(name="a")]), id="update-unsaved"),
+    ],
+)
+async def test_a_sync_bulk_on_the_event_loop_is_refused_before_anything_else(
+    call: Callable[[], object],
+) -> None:
+    with pytest.raises(RuntimeError, match=r"await the a\.\.\. variant"):
+        call()
