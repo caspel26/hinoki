@@ -545,10 +545,15 @@ body.menu-open .menu-icon-close {
 }
 
 .margin__label {
-  margin: 0 0 var(--sp-2);
+  margin: 0;
   color: var(--hn-text);
   font-size: var(--fs-s);
   font-weight: 650;
+}
+
+/* The label belongs to the list: undo the column gap between them. */
+.margin__label + .toc {
+  margin-top: calc(var(--sp-2) - var(--sp-6));
 }
 
 .toc {
@@ -605,9 +610,10 @@ body.menu-open .menu-icon-close {
 
 .titleblock div {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--sp-3);
+  gap: 2px var(--sp-2);
   padding: 8px 12px;
 }
 
@@ -621,8 +627,9 @@ body.menu-open .menu-icon-close {
 }
 
 .titleblock dd {
-  margin: 0;
+  margin: 0 0 0 auto;
   text-align: right;
+  white-space: nowrap;
 }
 
 .titleblock a {

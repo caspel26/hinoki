@@ -204,6 +204,7 @@
   background: var(--hn-surface-2);
   color: var(--hn-text);
   font-size: 0.88em;
+  overflow-wrap: anywhere;
 }
 
 .prose a > code {
