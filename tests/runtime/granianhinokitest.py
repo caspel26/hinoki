@@ -81,8 +81,16 @@ def test_two_workers_run_separate_lifespans(tmp_path: Path) -> None:
     proc = spawn(TARGET, log, port, workers=2)
     try:
         wait_ready(port, "/fast")
-        pids = {fetch(port, "/fast") for _ in range(40)}
-        starters = {pid for pid, event in events(log) if event == "start:gamma"}
+        # wait_ready returns once the first worker answers; the second may still
+        # be starting, so poll until both have started and both have served.
+        pids: set[object] = set()
+        starters: set[object] = set()
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline and not (
+            len(pids) == 2 and len(starters) == 2
+        ):
+            pids.add(fetch(port, "/fast"))
+            starters = {pid for pid, event in events(log) if event == "start:gamma"}
         assert len(starters) == 2
         assert len(pids) == 2
     finally:
