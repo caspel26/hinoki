@@ -135,6 +135,18 @@ async def test_only_a_superuser_sees_and_opens_the_users_section(
         ).status == 404  # a grant is not enough
 
 
+async def test_the_users_section_is_titled_in_the_plural(
+    world: tuple[ASGIClient, Database],
+) -> None:
+    client, _ = world
+    await accounts().create_user("root", PASSWORD, superuser=True)
+    root = await sign_in(client, "root")
+
+    page = str((await client.get("/admin/users", headers=root)).body)
+
+    assert re.search(r"<h1[^>]*>\s*Users\s*</h1>", page), page
+
+
 async def test_the_form_asks_for_a_password_and_lists_the_permissions_of_other_models(
     world: tuple[ASGIClient, Database],
 ) -> None:
