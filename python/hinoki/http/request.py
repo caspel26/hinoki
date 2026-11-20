@@ -9,6 +9,7 @@ I/O.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator, Mapping, Sequence
 from typing import Any
 
@@ -52,15 +53,17 @@ class Headers(Mapping[str, str]):
         return len(self.items_)
 
 
+QUOTED = re.compile(r'"(?:[^"\\]|\\.)*"')
+
+
 def media_type(raw: str) -> str:
     """The media type of a Content-Type value without parameters, lower-case."""
-    kind = raw.split(";", maxsplit=1)[0]
-    if "," in kind:
-        # Repeated headers arrive joined with ", ": which value counts is
-        # ambiguous, and proxies may pick a different one. A comma inside a
-        # quoted parameter is legitimate and is not checked here.
+    # A comma inside a quoted parameter is legitimate; any other comma means
+    # repeated headers joined with ", ", where which value counts is ambiguous
+    # and proxies may pick a different one.
+    if "," in QUOTED.sub("", raw):
         raise InvalidBody("invalid_content_type", "several Content-Type values")
-    return kind.strip().lower()
+    return raw.split(";", maxsplit=1)[0].strip().lower()
 
 
 class Request:
