@@ -320,37 +320,39 @@ version = "0.0.1"
 source = { editable = "../../" }
 
 [package.metadata]
-requires-dist = [{ name = "granian", extras = ["reload"], marker = "extra == 'server'", specifier = ">=2.8,<3" }]
+requires-dist = [{ name = "granian", extras = ["reload"], marker = "extra == 'server'", specifier = ">=2.8.8,<3" }]
 provides-extras = ["server"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "complexipy", specifier = "==9.0.0" },
-    { name = "granian", extras = ["reload"], specifier = ">=2.8,<3" },
+    { name = "granian", extras = ["reload"], specifier = ">=2.8.8,<3" },
     { name = "mypy", specifier = ">=1.14" },
     { name = "openapi-spec-validator", specifier = ">=0.7" },
     { name = "pre-commit", specifier = ">=4.0" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-asyncio", specifier = ">=1.0" },
     { name = "pytest-cov", specifier = ">=6.0" },
-    { name = "ruff", specifier = "==0.15.12" },
+    { name = "pytest-xdist", specifier = ">=3.6" },
+    { name = "ruff", specifier = "==0.17.5" },
 ]
 docs = [
     { name = "mike", specifier = "==2.2.0" },
     { name = "mkdocs-git-revision-date-localized-plugin", specifier = ">=1.7.0" },
     { name = "mkdocs-material", specifier = ">=9.6" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.27" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.8" },
 ]
 lint = [
     { name = "complexipy", specifier = "==9.0.0" },
-    { name = "ruff", specifier = "==0.15.12" },
+    { name = "ruff", specifier = "==0.17.5" },
 ]
 test = [
-    { name = "granian", extras = ["reload"], specifier = ">=2.8,<3" },
+    { name = "granian", extras = ["reload"], specifier = ">=2.8.8,<3" },
     { name = "openapi-spec-validator", specifier = ">=0.7" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-asyncio", specifier = ">=1.0" },
     { name = "pytest-cov", specifier = ">=6.0" },
+    { name = "pytest-xdist", specifier = ">=3.6" },
 ]
 typecheck = [{ name = "mypy", specifier = ">=1.14" }]
 
