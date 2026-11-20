@@ -602,19 +602,19 @@ passes silently.</p>
 <tr>
 <td>Application startup (<code>hinoki dev</code>, <code>hinoki serve</code>, any ASGI server, the test clients)</td>
 <td>startup rules of <code>rules=</code></td>
-<td>not read</td>
+<td>the <a href="#which-waiver-file">waiver file</a></td>
 <td>startup fails with <code>RegistrationError</code> listing every failing diagnostic</td>
 </tr>
 <tr>
 <td><code>hinoki check</code></td>
 <td>both phases (or <code>--phase</code>)</td>
-<td><code>hinoki-rules.toml</code></td>
+<td>the waiver file, or <code>--waivers</code></td>
 <td>exit code <code>1</code></td>
 </tr>
 <tr>
 <td><code>hinoki mcp</code></td>
 <td>both phases</td>
-<td><code>hinoki-rules.toml</code></td>
+<td>the waiver file, or <code>--waivers</code></td>
 <td>reported to the agent</td>
 </tr>
 </tbody>
@@ -705,7 +705,8 @@ for a known violation the owner accepts for a while. It lives in
 <p><code>rule</code>, <code>target</code>, <code>reason</code> and <code>owner</code> are required. <code>target</code> is an <code>fnmatch</code>
 pattern on the diagnostic's subject and must be bounded: a literal prefix of at
 least five characters containing a dot (<code>shop.api.*</code>, never <code>*</code>). <code>expires</code> is
-optional and must be a TOML date, written without quotes. The waived diagnostic
+optional and must be a TOML date, written without quotes; the waiver applies
+through that day and expires once the current UTC date is later. The waived diagnostic
 keeps its line and gains the decision:</p>
 <div class="highlight"><pre><span></span><code>tests/projects/rulesapp.py:7: HNK-ACC-001 [waived] GET /health (health) declares no access policy
   fix: add access=&lt;policy&gt; to the action (or list it in except_ when it is public on purpose)
@@ -713,14 +714,62 @@ keeps its line and gains the decision:</p>
 </code></pre></div>
 <p>An expired waiver stops applying and reports <code>HNK-WVR-002</code>; one that matches
 nothing reports <code>HNK-WVR-001</code> (both warnings). A diagnostic that means "the rule
-could not do its job" cannot be waived. An invalid file makes <code>hinoki check</code> exit
-with <code>2</code>.</p>
-<div class="admonition warning">
-<p class="admonition-title">Waivers are read by tools, not by the application</p>
-<p>Startup enforcement does not read <code>hinoki-rules.toml</code>, so a waived startup
-violation still stops the app. Use <code>except_</code> in the <code>RuleSet</code> for exceptions
-the running application must accept.</p>
-</div>
+could not do its job" cannot be waived. An invalid or unreadable file makes
+<code>hinoki check</code> exit with <code>2</code>.</p>
+<h3 id="which-waiver-file">Which waiver file<a class="headerlink" href="#which-waiver-file" title="Permanent link">&para;</a></h3>
+<p><code>hinoki check</code>, <code>hinoki mcp</code> and application startup read the same file:</p>
+<ol>
+<li>The file named by <code>Hinoki(waivers=...)</code>, or by <code>--waivers</code> on <code>check</code> and
+   <code>mcp</code>. A named file must exist.</li>
+<li>Otherwise <code>hinoki-rules.toml</code> at the project root: the directory of the
+   nearest <code>hinoki.toml</code>, searched from the working directory upwards. Running
+   from a subdirectory of the project finds the same file.</li>
+<li>Without a <code>hinoki.toml</code>, <code>hinoki-rules.toml</code> in the working directory.</li>
+</ol>
+<div class="highlight"><pre><span></span><code><span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">rules</span><span class="o">=</span><span class="n">rules</span><span class="p">,</span> <span class="n">waivers</span><span class="o">=</span><span class="s2">"config/hinoki-rules.toml"</span><span class="p">)</span>
+</code></pre></div>
+<p>A missing default file means no waivers. A directory or a broken symbolic link
+with that name is an error, not an absent file. <code>hinoki mcp --waivers PATH</code> also
+applies <code>PATH</code> to the app that <code>run_scenario</code> starts.</p>
+<h3 id="waivers-at-startup">Waivers at startup<a class="headerlink" href="#waivers-at-startup" title="Permanent link">&para;</a></h3>
+<p>Application startup applies the waiver file the same way as <code>hinoki check</code>.
+This app requires access on every
+action, yet it starts and serves <code>/health</code> because the owner waived it:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># shop/main.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Actions</span><span class="p">,</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Request</span><span class="p">,</span> <span class="n">http</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">RuleSet</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/health"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">health</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"ok"</span><span class="p">}</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">rules</span><span class="o">=</span><span class="n">RuleSet</span><span class="p">(</span><span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">()),</span> <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">health</span><span class="p">])</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="c1"># hinoki-rules.toml</span>
+<span class="k">[[waiver]]</span>
+<span class="n">rule</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"HNK-ACC-001"</span>
+<span class="n">target</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"shop.main.health"</span>
+<span class="n">reason</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"liveness probe is public by design"</span>
+<span class="n">owner</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"platform-team"</span>
+</code></pre></div>
+<p>Without the waiver, <code>hinoki serve shop.main:app</code> fails at startup with
+<code>RegistrationError: 1 rule violation(s)</code>.</p>
+<p>At startup:</p>
+<ul>
+<li>An absent default file means no waivers.</li>
+<li>An invalid or unreadable file, or a missing file named with <code>waivers=</code>, fails
+  startup with <code>RegistrationError</code> ("invalid waivers:
+  .../hinoki-rules.toml: waiver #1: missing target"), even with
+  <code>enforce_rules=False</code>.</li>
+<li>An expired waiver does not apply: the violation fails startup and the
+  <code>RegistrationError</code> also lists the <code>HNK-WVR-002</code> notice. Without a remaining
+  violation the notice is logged as a warning.</li>
+<li><code>HNK-WVR-001</code> (unused waiver) is reported only by <code>hinoki check</code> and
+  <code>hinoki mcp</code>: startup runs only the startup rules, so a waiver for a static
+  rule such as <code>HNK-IMP-001</code> is expected to match nothing there.</li>
+</ul>
 <p>Waivers are the owner's decision: tools read the file and never write it. Put it
 under CODEOWNERS; the generated <code>AGENTS.md</code> tells agents the same.</p>
 <h2 id="your-own-rules">Your own rules<a class="headerlink" href="#your-own-rules" title="Permanent link">&para;</a></h2>
@@ -788,15 +837,17 @@ same ID twice.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#the-eleven-rules">The eleven rules</a></li><li><a href="#choose-what-a-rule-covers">Choose what a rule covers</a></li><li><a href="#when-rules-run">When rules run</a></li><li><a href="#read-the-results">Read the results</a></li><li><a href="#accept-an-exception-with-a-waiver">Accept an exception with a waiver</a></li><li><a href="#your-own-rules">Your own rules</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#the-eleven-rules">The eleven rules</a></li><li><a href="#choose-what-a-rule-covers">Choose what a rule covers</a></li><li><a href="#when-rules-run">When rules run</a></li><li><a href="#read-the-results">Read the results</a></li><li><a href="#accept-an-exception-with-a-waiver">Accept an exception with a waiver</a>
+            <ul><li><a href="#which-waiver-file">Which waiver file</a></li><li><a href="#waivers-at-startup">Waivers at startup</a></li></ul>
+          </li><li><a href="#your-own-rules">Your own rules</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.26</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>8 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 13:09:13 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>9 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/rules.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

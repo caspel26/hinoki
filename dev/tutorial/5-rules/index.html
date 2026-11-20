@@ -299,8 +299,9 @@ decorator, then run the check again:</p>
 <p>The command exits with status 1. Remove <code>atomic=False</code> to restore the check.</p>
 <h2 id="waivers">Waivers<a class="headerlink" href="#waivers" title="Permanent link">&para;</a></h2>
 <p>An accepted exception is a <strong>waiver</strong> in <code>hinoki-rules.toml</code>, with a reason, an
-owner and a bounded target. The project owner writes waivers; tools and agents
-read them but never edit them to make a check pass.</p>
+owner and a bounded target. <code>hinoki check</code> and application startup apply the
+same waivers. The project owner writes waivers; tools and agents read them but
+never edit them to make a check pass.</p>
 <h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Rules are Python values in the project, checked by <code>hinoki check</code> and at startup.</li>
@@ -337,7 +338,7 @@ read them but never edit them to make a check pass.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.6</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:52:10 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/5-rules.md">Edit on GitHub</a></dd></div>
         </dl>
