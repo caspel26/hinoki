@@ -79,7 +79,7 @@ On a colour terminal, `doctor`, `check` and `routes` print a coloured report: a 
 
 ## `app` {#app}
 
-The generated `hinoki.toml` registers the default app and its models and migrations. Add modules without moving files by creating another app:
+The generated `hinoki.toml` registers no app: the project package keeps `main.py`, settings, rules and the health route, and models live in apps. Create each one with:
 
 ```sh
 uv run hinoki app create billing
@@ -148,8 +148,8 @@ even if you run the command from a subdirectory; relative SQLite URLs given
 with `--database` or `HINOKI_DATABASE_URL` remain relative to the current
 working directory. Added
 apps have separate migration ledger namespaces, so identical numbered
-filenames do not collide; the scaffolded root app retains its existing
-unprefixed migration keys. `apply billing` includes its declared prerequisite
+filenames do not collide; a project whose root package was
+registered as an app (older scaffolds) retains its unprefixed migration keys. `apply billing` includes its declared prerequisite
 apps for migration application.
 
 `plan --check` fails CI (exit 1) when the models have changes that no migration
