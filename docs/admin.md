@@ -108,7 +108,7 @@ Usernames are stored in lower case: 1 to 150 letters, digits and `. _ @ + -`, st
 ### Sessions and cookies
 
 * The session is a random token in the `hinoki_admin_session` cookie: `HttpOnly`, `SameSite=Lax`, scoped to the admin's path. The database stores only its SHA-256, so a copy of the table cannot be replayed.
-* Forms carry a signed CSRF token. The sign-in form's token must match the `SameSite=Strict` `hinoki_csrf` cookie and pass the `Origin` check; other forms are bound to the signed-in user.
+* Every form carries a signed CSRF token that must equal the `SameSite=Strict` `hinoki_csrf` cookie. On the sign-in form the token is signed for signing in; on every other form it is bound to the signed-in user. A form is also refused when the browser marks it as sent from another site (`Sec-Fetch-Site: cross-site` or `same-site`) or its `Origin` header names another host; a request without these headers relies on the token alone.
 * Cookies are `Secure` on HTTPS. Behind a TLS-terminating proxy, set `server.trusted_proxies` so the forwarded scheme is believed, or pass `Admin(secure_cookies=True)`: cookies are then always `Secure` and named `__Secure-hinoki_admin_session` and `__Secure-hinoki_csrf`, so a sibling site cannot plant them. Changing the option signs everyone out once.
 * A session ends after `admin.session_hours`, after `admin.idle_minutes` without a request, on sign-out, on a password change and when its user is deactivated. Reactivating a user never revives an old session.
 
