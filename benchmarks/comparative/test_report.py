@@ -131,7 +131,11 @@ def test_report_has_sorted_median_bars_and_a_semantic_table_per_scenario() -> No
     assert 'scope="col">p99 ms<' in rendered
     assert 'class="bench-bar" style="width:100.00%"' in rendered
     assert "Bars show median requests per second" in rendered
-    assert '<span class="bench-name" title="Hinoki · Granian">Hinoki</span>' in rendered
+    assert (
+        '<span class="bench-name"><b>Hinoki</b><small>Granian</small></span>'
+        in rendered
+    )
+    assert rendered.count('<details class="bench-details">') == 4
 
 
 def test_unstable_scenario_is_withheld_and_stable_ones_are_reported() -> None:
@@ -361,6 +365,147 @@ def test_each_chart_uses_its_own_zero_based_scale_and_sorts_medians() -> None:
     assert "width:100.00%" in rendered
     assert "width:63.33%" in rendered
     assert "Median shown as a point" not in rendered
+
+
+def write_pair_fixture(
+    directory: Path, rates: dict[str, tuple[float, ...]], create_rates: Any = None
+) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "environment.json").write_text(
+        json.dumps(
+            {
+                "date": "2026-11-17",
+                "cpu": "CPU",
+                "cores": 8,
+                "machine": "Linux",
+                "loadavg_at_start": [0.1, 0.2, 0.3],
+                "postgres": "PostgreSQL 17",
+                "oha": "oha 1.17",
+                "settings": {
+                    "server_mode": "same-granian",
+                    "stacks": list(rates),
+                    "workers": 4,
+                    "server_cpus": "0-3",
+                    "load_cpus": "6-7",
+                    "concurrency": 64,
+                    "warmup_s": 10,
+                    "runs": 3,
+                    "duration_s": 20,
+                },
+            }
+        )
+    )
+    for stack, stack_rates in rates.items():
+        (directory / f"{stack}-verify.txt").write_text("OK")
+        for scenario in report.SCENARIOS:
+            values = (
+                create_rates
+                if scenario == "create" and create_rates and stack == "hinoki-granian"
+                else stack_rates
+            )
+            for index, rate in enumerate(values, start=1):
+                (directory / f"{stack}-{scenario}-{index}.json").write_text(
+                    json.dumps(sample(rate))
+                )
+
+
+def test_each_scenario_states_a_headline_and_a_multiplier_over_the_slowest() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        directory = Path(temporary)
+        write_pair_fixture(
+            directory,
+            {
+                "hinoki-granian": (30.0, 32.0, 28.0),
+                "fastapi-granian": (18.0, 20.0, 19.0),
+            },
+        )
+        rendered = report.render_mode(directory)
+
+    assert (
+        "Highest median: <b>Hinoki · Granian</b> at 30 requests/s, "
+        "1.58&times; the slowest stack (FastAPI · Granian)."
+    ) in rendered
+    assert '<span class="bench-ratio">1.58&times;</span>' in rendered
+    assert '<span class="bench-ratio">1.00&times;</span>' in rendered
+    assert rendered.count('<div class="bench-row is-hinoki">') == 4
+    assert rendered.count('<div class="bench-row">') == 4
+    assert "overlap" not in rendered
+
+
+def test_headline_discloses_when_the_top_two_run_ranges_overlap() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        directory = Path(temporary)
+        write_pair_fixture(
+            directory,
+            {
+                "hinoki-granian": (30.0, 31.0, 26.0),
+                "fastapi-granian": (28.0, 29.0, 27.0),
+            },
+        )
+        rendered = report.render_mode(directory)
+
+    assert (
+        "The run ranges of the top two stacks overlap, so their order is not settled."
+        in rendered
+    )
+
+
+def test_summary_cards_link_every_scenario_including_withheld_ones() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        directory = Path(temporary) / "2026-11-17" / "same-granian"
+        write_pair_fixture(
+            directory,
+            {
+                "hinoki-granian": (30.0, 30.5, 29.5),
+                "fastapi-granian": (18.0, 18.5, 17.5),
+            },
+            create_rates=(10.0, 40.0, 90.0),
+        )
+        rendered = report.render_mode(directory)
+
+    assert rendered.count('class="bench-card"') == 3
+    assert rendered.count('class="bench-card is-withheld"') == 1
+    assert 'href="#bench-2026-11-17-same-granian-detail"' in rendered
+    assert (
+        '<section class="bench-scenario" id="bench-2026-11-17-same-granian-detail"'
+        in rendered
+    )
+    assert 'href="#bench-2026-11-17-same-granian-withheld"' in rendered
+
+
+def test_single_stack_view_shows_values_without_a_multiplier() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        directory = Path(temporary)
+        write_pair_fixture(directory, {"hinoki-kiso": (30.0, 31.0, 29.0)})
+        rendered = report.render_mode(directory)
+
+    assert "bench-ratio" not in rendered
+    assert "Median: <b>Hinoki · Kiso</b> at 30 requests/s." in rendered
+
+
+def test_page_has_no_front_matter_and_only_describes_rendered_setups(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        results = Path(temporary) / "results" / "2026-11-17"
+        for mode in ("documented", "same-granian"):
+            write_report_fixture(results / mode, stack="hinoki", workers=4)
+            env_path = results / mode / "environment.json"
+            env = json.loads(env_path.read_text())
+            env["settings"]["server_mode"] = mode
+            env_path.write_text(json.dumps(env))
+        report.main([results / "documented", results / "same-granian"])
+        page = capsys.readouterr().out
+
+    assert not page.startswith("---")
+    assert "status:" not in page
+    assert "## One API. Two server setups." in page
+    assert "Kiso" not in page
+    assert "--server-mode kiso" not in page
+    assert (
+        "compare each stack on its documented server or compare the three ASGI stacks on Granian"
+        in page
+    )
 
 
 def test_page_has_the_sections_a_reader_needs_in_order() -> None:
