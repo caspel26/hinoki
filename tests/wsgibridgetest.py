@@ -1,6 +1,6 @@
 """The PEP 3333 bridge Kiso hosts a WSGI callable with, against a fake call."""
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -79,6 +79,27 @@ def test_server_name_falls_back_to_the_listener() -> None:
     assert "CONTENT_LENGTH" not in environ
 
 
+def test_repeated_cookie_headers_are_joined_by_a_semicolon() -> None:
+    call = FakeCall(headers=[(b"cookie", b"a=1"), (b"cookie", b"b=2")])
+    assert build_environ(call, ("h", 80))["HTTP_COOKIE"] == "a=1; b=2"
+
+
+def test_header_names_with_an_underscore_are_dropped() -> None:
+    call = FakeCall(
+        headers=[
+            (b"x-foo", b"dashed"),
+            (b"X_Foo", b"spoofed"),
+            (b"Remote_User", b"admin"),
+            (b"Content_Type", b"text/evil"),
+        ]
+    )
+    environ = build_environ(call, ("h", 80))
+    assert environ["HTTP_X_FOO"] == "dashed"
+    assert "HTTP_REMOTE_USER" not in environ
+    assert "CONTENT_TYPE" not in environ
+    assert "HTTP_CONTENT_TYPE" not in environ
+
+
 @pytest.mark.parametrize(
     ("value", "scheme", "expected"),
     [
@@ -110,6 +131,7 @@ def test_a_status_line_gives_its_code() -> None:
         [(b"a", "b")],
         [("Connection", "close")],
         [("Transfer-Encoding", "chunked")],
+        [("X-Evil", "a\r\nset-cookie: b=1")],
     ],
 )
 def test_invalid_response_headers_are_refused(headers: object) -> None:
@@ -171,6 +193,27 @@ def test_the_iterable_is_closed_even_when_it_fails() -> None:
         Bridge(app, "127.0.0.1", 80)(call)
     assert closed == [True]
     assert not call.finished  # the host answers the failure
+
+
+def test_a_close_that_fails_after_a_complete_body_still_finishes(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class Body:
+        def __iter__(self) -> Iterator[bytes]:
+            return iter([b"done"])
+
+        def close(self) -> None:
+            raise RuntimeError("close failed")
+
+    def app(environ: dict[str, Any], start_response: StartResponse) -> Body:
+        start_response("200 OK", [])
+        return Body()
+
+    with caplog.at_level("ERROR", logger="hinoki.runtime"):
+        call = run(app)
+    assert call.sent == [b"done"]
+    assert call.finished
+    assert "close failed" in caplog.text
 
 
 def test_a_vanished_client_stops_the_iteration_and_closes_it() -> None:

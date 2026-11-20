@@ -99,6 +99,31 @@ def test_invalid_replies_are_refused_when_built(arguments: dict[str, object]) ->
         Response(**arguments)  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize(
+    ("headers", "message"),
+    [
+        ([(b"content-length", b"100")], "set by the server"),
+        ([(b"Transfer-Encoding", b"chunked")], "set by the server"),
+        ([(b"x-a", b"a\r\nx-b: c")], "invalid characters"),
+        ([(b"bad name", b"x")], "invalid header name"),
+    ],
+)
+def test_a_raw_response_is_checked_like_a_built_one(
+    headers: list[tuple[bytes, bytes]], message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        Response.raw(200, b"hi", headers)
+
+
+def test_a_raw_response_keeps_valid_parts() -> None:
+    response = Response.raw(201, b"hi", [(b"X-A", b"1")])
+    assert (response.status, response.body, response.headers) == (
+        201,
+        b"hi",
+        [(b"x-a", b"1")],
+    )
+
+
 def test_response_is_public_from_package_and_http_module() -> None:
     assert ModuleResponse is Response
     assert "Reply" not in hinoki.__all__
