@@ -3,11 +3,15 @@
 //! is never mistaken for a complete body.
 
 use std::net::SocketAddr;
+use std::sync::mpsc::Receiver;
 use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
-use kiso::{serve, Aborted, Answer, Backend, Delivery, Incoming, ServerConfig, Streamed};
+use kiso::{
+    serve, Aborted, AccessLog, Answer, Backend, Delivery, Incoming, LogFilter, ServerConfig, Sink,
+    Streamed,
+};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, watch, Notify};
@@ -27,20 +31,40 @@ impl Backend for Producer {
 
     async fn deliver(&self, request: Incoming) -> Delivery {
         let (sender, chunks) = mpsc::channel(1);
+        let mut headers = vec![(b"content-type".to_vec(), b"text/plain".to_vec())];
         match request.path.as_str() {
             "/two" => self.two(sender),
             "/forever" => self.forever(sender),
+            "/short" | "/long" => {
+                let declared: &[u8] = if request.path == "/short" {
+                    b"100"
+                } else {
+                    b"1"
+                };
+                headers.push((b"content-length".to_vec(), declared.to_vec()));
+                Self::hi(sender);
+            }
+            "/crlf" => {
+                headers.push((b"x-bad".to_vec(), b"a\r\nx-evil: 1".to_vec()));
+                Self::hi(sender);
+            }
             _ => self.broken(sender),
         }
         Delivery::Streamed(Streamed {
             status: 200,
-            headers: vec![(b"content-type".to_vec(), b"text/plain".to_vec())],
+            headers,
             chunks,
         })
     }
 }
 
 impl Producer {
+    fn hi(sender: mpsc::Sender<kiso::Chunk>) {
+        tokio::spawn(async move {
+            let _ = sender.send(Ok(Bytes::from_static(b"hi"))).await;
+        });
+    }
+
     fn two(&self, sender: mpsc::Sender<kiso::Chunk>) {
         let release = Arc::clone(&self.release);
         tokio::spawn(async move {
@@ -71,17 +95,42 @@ impl Producer {
 }
 
 async fn start(backend: Arc<Producer>) -> (SocketAddr, watch::Sender<bool>) {
+    start_with(backend, ServerConfig::default()).await
+}
+
+async fn start_with(
+    backend: Arc<Producer>,
+    config: ServerConfig,
+) -> (SocketAddr, watch::Sender<bool>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let (stop, receiver) = watch::channel(false);
-    tokio::spawn(serve(
-        listener,
-        backend,
-        ServerConfig::default(),
-        None,
-        receiver,
-    ));
+    tokio::spawn(serve(listener, backend, config, None, receiver));
     (addr, stop)
+}
+
+/// A server whose access log records go to the returned receiver only.
+async fn logged() -> (SocketAddr, watch::Sender<bool>, Receiver<String>) {
+    let (sink, records) = Sink::new(16);
+    let config = ServerConfig {
+        access_log: Some(AccessLog::Logger),
+        log_filter: Arc::new(LogFilter {
+            sink: Some(sink),
+            ..LogFilter::default()
+        }),
+        ..ServerConfig::default()
+    };
+    let (addr, stop) = start_with(Arc::new(Producer::default()), config).await;
+    (addr, stop, records)
+}
+
+async fn everything(addr: SocketAddr, path: &str) -> String {
+    let mut stream = request(addr, "GET", path).await;
+    let mut read = Vec::new();
+    let _ = timeout(WAIT, stream.read_to_end(&mut read))
+        .await
+        .expect("the connection closes");
+    String::from_utf8_lossy(&read).to_string()
 }
 
 async fn request(addr: SocketAddr, method: &str, path: &str) -> TcpStream {
@@ -153,4 +202,33 @@ async fn head_gets_the_head_and_no_body() {
     let text = String::from_utf8_lossy(&head).to_string();
     assert!(text.starts_with("HTTP/1.1 200"), "{text}");
     assert!(!text.contains("first"));
+}
+
+#[tokio::test]
+async fn a_body_shorter_than_its_content_length_closes_the_connection() {
+    let (addr, _stop, _records) = logged().await;
+    let text = everything(addr, "/short").await;
+    assert!(text.starts_with("HTTP/1.1 200"), "{text}");
+    let (_, body) = text.split_once("\r\n\r\n").expect("a head");
+    assert!("hi".starts_with(body), "{text}");
+}
+
+#[tokio::test]
+async fn a_body_longer_than_its_content_length_closes_the_connection() {
+    let (addr, _stop, _records) = logged().await;
+    let text = everything(addr, "/long").await;
+    assert!(text.starts_with("HTTP/1.1 200"), "{text}");
+    assert!(!text.ends_with("hi"), "{text}");
+}
+
+#[tokio::test]
+async fn a_head_the_transport_refuses_is_logged_as_the_500_it_became() {
+    let (addr, _stop, records) = logged().await;
+    let mut stream = request(addr, "GET", "/crlf").await;
+    let head = read_until(&mut stream, b"\r\n\r\n").await;
+    let text = String::from_utf8_lossy(&head).to_string();
+    assert!(text.starts_with("HTTP/1.1 500"), "{text}");
+    assert!(!text.contains("x-evil"), "{text}");
+    let record = records.recv_timeout(WAIT).expect("an access record");
+    assert!(record.contains("\"status\":500"), "{record}");
 }
