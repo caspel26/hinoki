@@ -70,7 +70,7 @@ HTTPS terminates somewhere you control (set `Admin(secure_cookies=True)` behind 
 
 ## 10. Rules to turn on from day one
 
-`hinoki new` generates a project with `HNK-ACC-001`, `HNK-TXN-001` and `HNK-SCH-001` enabled. Add `Imports.forbid` for the layer direction in section 1. Waivers live in `hinoki-rules.toml`, are decided by the owner, have a reason and a bounded target, and are never edited by tools or agents to make a check pass.
+`hinoki new` generates a project with eight rules enabled (`HNK-ACC-001`, `HNK-ACC-002`, `HNK-API-001`, `HNK-API-002`, `HNK-API-003`, `HNK-TXN-001`, `HNK-SCH-001`, `HNK-SCH-002`) and the two model rules (`HNK-DB-001`, `HNK-DB-002`) commented out until the first model exists. Turn them on then, and add `Imports.forbid` (`HNK-IMP-001`) for the layer direction in section 1. Waivers live in `hinoki-rules.toml`, are decided by the owner, have a reason and a bounded target, and are never edited by tools or agents to make a check pass.
 
 ## 11. Anti-patterns
 

@@ -79,3 +79,17 @@ The types are available from `hinoki.http`, from `hinoki`, or from their modules
 ::: hinoki.errors.NotFound
 
 ::: hinoki.errors.Conflict
+
+::: hinoki.errors.TooManyRequests
+
+::: hinoki.errors.UniqueConflict
+
+::: hinoki.errors.ObjectNotFound
+
+::: hinoki.errors.ErrorRegistry
+
+## Rate limits
+
+::: hinoki.ratelimit.RateLimitPolicy
+
+::: hinoki.ratelimit.RateLimitContext

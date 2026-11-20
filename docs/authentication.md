@@ -58,6 +58,16 @@ Absent credentials let the provider decline; invalid supplied credentials produc
 
 ## Attach a policy
 
+An `Access` names a provider and the permissions an action needs; reuse one policy on every action that needs it. Without permissions it admits any authenticated caller (`HNK-ACC-002` flags that; see [rules](rules.md)).
+
+```python
+from hinoki import Access
+
+editor = Access(auth=TokenAuth(), permissions=[BlogPermission.WRITE])
+```
+
+Then name it on the action:
+
 ```python
 from blog.models import User
 from blog.security import editor
@@ -73,7 +83,7 @@ async def list_my_posts(caller: Caller[User]) -> list[PostOut]:
 
 `Caller[T]` is injected when annotated. Use `caller.user` for the application user and `caller.permissions` for the resolved permission set. Do not accept an owner id from untrusted input when it should come from the caller.
 
-`RouteGroup` can provide a default policy for a function group. An action may override it intentionally. The `Actions.require_access` rule can flag routes with no policy.
+`RouteGroup` can provide a default policy for a function group. An action may override it intentionally. The `Actions.require_access` rule can flag routes with no policy. A protected action answers `401` with a `WWW-Authenticate` challenge when credentials are missing or invalid, and `403` when the caller lacks a permission.
 
 ## Passwords and JWT
 
@@ -84,6 +94,31 @@ For `JWTAuth`, Rust verifies the signature and registered claims using the curre
 ### Claims-only tokens on the native lane
 
 `ClaimsJWTAuth` is a `JWTAuth` whose caller comes from the token alone: `sub` (a non-empty string) becomes `Caller.id`, the claim named by `scope_claim` (default `scopes`, a list of strings; absent means none) becomes the permissions, and there is no user object (`Caller.user` is `None`). It performs no database lookup, so a token stays valid until it expires and cannot be revoked individually; keep lifetimes short.
+
+```python
+from hinoki import Access, Caller, http
+from hinoki.crypto import ClaimsJWTAuth, JWTKey
+
+
+class Tokens(ClaimsJWTAuth):
+    keys = [JWTKey("2026-11", "HS256", b"0123456789abcdef0123456789abcdef")]  # read it from a Secret
+    issuer = "https://api.example.com"
+    audience = "notes"
+
+
+tokens = Tokens()
+writer = Access(auth=tokens, permissions=["posts:write"])
+
+
+@http.get("/me", access=writer)
+async def me(caller: Caller[None]) -> dict[str, object]:
+    return {"id": caller.id, "permissions": sorted(caller.permissions)}
+
+
+token = tokens.issue({"sub": "u1", "scopes": ["posts:write"]}, ttl=900)
+```
+
+`issue` signs with the first key that can sign and sets `iat`, `exp`, and `iss`/`aud` when configured. A token without the scope answers `403`; a missing or invalid one answers `401`.
 
 Generated CRUD routes protected by an unmodified `ClaimsJWTAuth` can run on the native lane. Rust only admits requests: a single `Authorization: Bearer <token>` header whose token verifies (signature, expiry, issuer, audience, `sub`) and carries every required permission goes straight to the native action. Every other request, including a missing, malformed, expired, forged or under-privileged one, is handed to the Python pipeline, which answers exactly as it does without the native lane (`401` with the challenge, or `403`). With `owner` and `identity_key = caller_id`, create, update and delete are native too: Rust sets the owner column from `sub`, and update/delete are constrained to rows that `sub` owns. Foreign or missing rows, and MySQL/MariaDB, are answered by the Python pipeline. A subclass that overrides a method, a modified instance, or any other auth class keeps the route on Python. The route's key, issuer, audience, leeway and permission snapshot is rechecked about once per second; reassigning them disarms the native plan until the worker restarts, so a rotation reaches native routes after that interval, not per verification. `hinoki routes --lanes` shows which lane each route uses.
 

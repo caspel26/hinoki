@@ -16,6 +16,8 @@
 
 ::: hinoki.rules.Transactions
 
+::: hinoki.rules.Models
+
 ::: hinoki.rules.Schemas
 
 ::: hinoki.rules.Imports

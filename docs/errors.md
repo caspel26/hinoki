@@ -46,15 +46,16 @@ class PaymentDeclined(errors.BadRequest):  # answers 400 on its own
 
 
 class QuotaExceeded(errors.APIError):  # any other status
-    status = 429
+    status = 402
     code = "quota_exceeded"
+    message = "The quota is used up."
 ```
 
 Declare them on the action with `errors=(PaymentDeclined,)` for the contract (OpenAPI, MCP, `strict_errors`). Nothing else is needed.
 
 ## Exceptions you cannot change
 
-A library or the database raises its own exception, which is not an HTTP error, and the client would receive `500 internal_error`. Answer it with a function on the app, as FastAPI does. The function receives the exception and returns the `APIError` to send; an instance can set its own `status`:
+A library or the database raises its own exception, which is not an HTTP error, and the client would receive `500 internal_error`. Answer it with a function on the app. The function receives the exception and returns the `APIError` to send; an instance can set its own `status`:
 
 ```python
 app = Hinoki(include=[...])
@@ -67,7 +68,7 @@ def card_error(error: stripe.CardError) -> errors.APIError:
 
 * The most specific class wins: a handler for `HardQuota` is used before one for its base `Quota`. Application handlers are consulted before the built-in ones.
 * A handler may be `def` or `async def`. One that fails, or does not return an `APIError`, counts as "not handled" and the client receives `500 internal_error` without the exception text.
-* An exception type can be registered once, and only before the app serves (afterwards `RegistrationError`). The decorator returns the function unchanged. A class or a value that is not a function is refused with `TypeError`.
+* An exception type can be registered once (a second registration raises `ValueError`), and only before the app serves (afterwards `RegistrationError`). The decorator returns the function unchanged. A class or a value that is not a function is refused with `TypeError`.
 * `app.errors.handle(Kind)` is the same call without the `app` checks.
 * With a factory (`create_app()`), call `app.error_handler(Kind)(handler)` after building the app; the decorator form needs the application at module level. See [one application object](concepts.md#one-application-object).
 
@@ -85,6 +86,6 @@ Every HTTP request receives a request ID in the configured `server.request_id_he
 
 ## Check the contract
 
-Use `ASGIClient(..., strict_errors=True)` in tests to fail if a handler returns an error that it did not declare. `hinoki check` can also enforce rules about access and transaction declarations; see [rules](rules.md).
+Use `ASGIClient(..., strict_errors=True)` in tests to fail if a handler returns an error that it did not declare (an error answered by an `app.error_handler` counts too). `hinoki check` can also enforce rules about access, transaction, response and schema declarations; see [rules](rules.md).
 
 Earlier revisions exported these names from `hinoki` itself and kept the HTTP errors in `hinoki.httperrors`; both are gone. Use `errors.<Name>`; `from hinoki import NotFound` raises `ImportError`.
