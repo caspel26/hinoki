@@ -624,6 +624,14 @@ unsupported types fail during model or migration validation.</p>
 </code></pre></div>
 <p>Server-supplied keywords take precedence over values from a <code>Schema</code>. A loaded model remembers its stored values; <code>asave()</code> updates changed columns and refuses primary-key changes. For a conditional write, use <code>aupdate_where</code> so ownership and state checks are part of the SQL condition. <code>QuerySet.aupdate(...)</code> and <code>adelete()</code> act on every row the filters match; they ignore ordering and refuse a queryset with <code>limit</code> or <code>offset</code>, so select the rows first and then filter on their keys (<code>filter(id__in=[...])</code>).</p>
 <p>The model constructor is statically typed. Some keyword-based model methods still have broader type-checker signatures; see <a href="../typing/">typing</a>.</p>
+<h3 id="writing-many-rows-at-once">Writing many rows at once<a class="headerlink" href="#writing-many-rows-at-once" title="Permanent link">&para;</a></h3>
+<p><code>abulk_create</code>, <code>abulk_update</code> and <code>abulk_delete</code> (sync: <code>bulk_create</code>, <code>bulk_update</code>, <code>bulk_delete</code>) each run in one transaction, a savepoint inside an open one, so a failure leaves nothing behind:</p>
+<div class="highlight"><pre><span></span><code><span class="n">tasks</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">abulk_create</span><span class="p">([</span><span class="n">TaskIn</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"a"</span><span class="p">),</span> <span class="p">{</span><span class="s2">"title"</span><span class="p">:</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"owner_id"</span><span class="p">:</span> <span class="n">me</span><span class="p">}])</span>
+<span class="n">tasks</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">done</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">abulk_update</span><span class="p">(</span><span class="n">tasks</span><span class="p">)</span>  <span class="c1"># saves the changed rows</span>
+<span class="n">deleted</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">abulk_delete</span><span class="p">([</span><span class="n">tasks</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">other_id</span><span class="p">])</span>  <span class="c1"># instances or primary keys</span>
+</code></pre></div>
+<p><code>abulk_create</code> takes <code>Schema</code> objects or dicts of field values and returns the rows in order; defaults, factories, validation and write hooks apply as for <code>acreate</code>, and <code>returning=False</code> works the same way. <code>abulk_update</code> saves each instance's changes as <code>asave</code> does, writes nothing for an unchanged one and refuses an unsaved instance. <code>abulk_delete</code> returns how many rows existed and deletes in chunks of at most 10 000 keys. These methods run one statement per row (or per chunk for delete), not a single multi-row <code>INSERT</code>; they give atomicity, not a batching speed-up. Like <code>adelete</code>, <code>abulk_delete</code> runs no hooks.</p>
 <h3 id="writes-that-do-not-read-the-row-back">Writes that do not read the row back<a class="headerlink" href="#writes-that-do-not-read-the-row-back" title="Permanent link">&para;</a></h3>
 <p>By default every write returns the row as the database stored it: PostgreSQL and SQLite add <code>RETURNING</code> with every column, and MySQL/MariaDB select the row again in the same transaction. When the caller does not need that row, pass <code>returning=False</code>; the statement then has no <code>RETURNING</code> (and no follow-up <code>SELECT</code> on MySQL/MariaDB):</p>
 <div class="highlight"><pre><span></span><code><span class="n">task</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Draft"</span><span class="p">,</span> <span class="n">owner_id</span><span class="o">=</span><span class="n">me</span><span class="p">,</span> <span class="n">returning</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># as sent</span>
@@ -791,7 +799,7 @@ unsupported types fail during model or migration validation.</p>
             <ul><li><a href="#decimal-columns">Decimal columns</a></li></ul>
           </li></ul>
           </li><li><a href="#query-rows">Query rows</a></li><li><a href="#reusable-queries">Reusable queries</a></li><li><a href="#create-and-update">Create and update</a>
-            <ul><li><a href="#writes-that-do-not-read-the-row-back">Writes that do not read the row back</a></li></ul>
+            <ul><li><a href="#writing-many-rows-at-once">Writing many rows at once</a></li><li><a href="#writes-that-do-not-read-the-row-back">Writes that do not read the row back</a></li></ul>
           </li><li><a href="#lifecycle-hooks-and-instance-state">Lifecycle hooks and instance state</a></li><li><a href="#share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins</a></li><li><a href="#relations">Relations</a></li><li><a href="#schema-options">Schema options</a></li><li><a href="#migrations">Migrations</a></li></ul>
           
         </nav>
@@ -799,8 +807,8 @@ unsupported types fail during model or migration validation.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>16 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 02:05:40 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>17 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
