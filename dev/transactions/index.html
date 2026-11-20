@@ -411,15 +411,18 @@
 <p>For a function route group, <code>RouteGroup(..., atomic=True)</code> makes write methods (<code>POST</code>, <code>PUT</code>, <code>PATCH</code>, <code>DELETE</code>) atomic by default. An individual action can opt out explicitly with <code>atomic=False</code>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">tasks</span> <span class="o">=</span> <span class="n">RouteGroup</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">member_only</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
-<span class="nd">@tasks</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>                    <span class="c1"># atomic</span>
+
+<span class="nd">@tasks</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>  <span class="c1"># atomic</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_task</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">TaskInput</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskOutput</span><span class="p">:</span> <span class="o">...</span>
 
-<span class="nd">@tasks</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/</span><span class="si">{task_id}</span><span class="s2">/ping"</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>    <span class="c1"># not atomic</span>
+
+<span class="nd">@tasks</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/</span><span class="si">{task_id}</span><span class="s2">/ping"</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># not atomic</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">ping</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
 <h2 id="atomic-blocks-and-functions-in-application-code">Atomic blocks and functions in application code<a class="headerlink" href="#atomic-blocks-and-functions-in-application-code" title="Permanent link">&para;</a></h2>
 <p><code>db.atomic</code> (<code>from hinoki import db</code>) opens the same kind of scope in your own code, on the database that is current for the task: the one a request makes active, or the one set with <code>hinoki.orm.use_database(...)</code>. Use it as a block:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">db</span>
+
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">transfer</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">Account</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="n">Account</span><span class="p">,</span> <span class="n">amount</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="k">async</span> <span class="k">with</span> <span class="n">db</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
@@ -434,6 +437,7 @@
     <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">project_id</span><span class="o">=</span><span class="n">project_id</span><span class="p">)</span><span class="o">.</span><span class="n">aupdate</span><span class="p">({</span><span class="s2">"done"</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
     <span class="k">await</span> <span class="n">Project</span><span class="o">.</span><span class="n">aupdate</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">project_id</span><span class="p">,</span> <span class="n">closed</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
+
 <span class="nd">@db</span><span class="o">.</span><span class="n">atomic</span><span class="p">()</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">reopen_project</span><span class="p">(</span><span class="n">project_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
@@ -444,11 +448,11 @@
 <div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">with</span> <span class="n">db</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
     <span class="k">await</span> <span class="n">Order</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="k">async</span> <span class="k">with</span> <span class="n">db</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>          <span class="c1"># SAVEPOINT</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="n">db</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>  <span class="c1"># SAVEPOINT</span>
             <span class="k">await</span> <span class="n">Coupon</span><span class="o">.</span><span class="n">aupdate</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">coupon_id</span><span class="p">,</span> <span class="n">used</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">raise</span> <span class="n">CouponExpired</span><span class="p">()</span>
     <span class="k">except</span> <span class="n">CouponExpired</span><span class="p">:</span>
-        <span class="k">pass</span>                             <span class="c1"># only the coupon update is undone</span>
+        <span class="k">pass</span>  <span class="c1"># only the coupon update is undone</span>
 <span class="c1"># the order commits here</span>
 </code></pre></div>
 <p>A child task cannot share its parent's active transaction: opening a nested scope from another task raises <code>DatabaseError</code>.</p>
@@ -495,7 +499,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.19</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 21:17:53 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/transactions.md">Edit on GitHub</a></dd></div>
         </dl>

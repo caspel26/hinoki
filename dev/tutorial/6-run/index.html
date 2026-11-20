@@ -263,9 +263,7 @@
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">create_app</span><span class="p">(</span><span class="n">database_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Hinoki</span><span class="p">:</span>
-    <span class="n">overrides</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="p">{</span><span class="s2">"database"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"url"</span><span class="p">:</span> <span class="n">database_url</span><span class="p">}}</span> <span class="k">if</span> <span class="n">database_url</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{}</span>
-    <span class="p">)</span>
+    <span class="n">overrides</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"database"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"url"</span><span class="p">:</span> <span class="n">database_url</span><span class="p">}}</span> <span class="k">if</span> <span class="n">database_url</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{}</span>
     <span class="n">app_settings</span> <span class="o">=</span> <span class="n">TrackerSettings</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">overrides</span><span class="o">=</span><span class="n">overrides</span><span class="p">)</span>
     <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
         <span class="n">settings</span><span class="o">=</span><span class="n">app_settings</span><span class="p">,</span>
@@ -358,7 +356,7 @@ declare. For tests without <code>async</code>, use <code>SyncClient</code>.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.7</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 17:42:10 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/6-run.md">Edit on GitHub</a></dd></div>
         </dl>

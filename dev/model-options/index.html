@@ -420,7 +420,9 @@
 <span class="nd">@db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s2">"saved_links"</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Bookmark</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"Saved link"</span><span class="p">,</span> <span class="n">plural</span><span class="o">=</span><span class="s2">"Saved links"</span><span class="p">):</span>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
-    <span class="n">owner_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span><span class="n">Member</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">RESTRICT</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"bookmarks"</span><span class="p">)</span>
+    <span class="n">owner_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span>
+        <span class="n">Member</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">RESTRICT</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"bookmarks"</span>
+    <span class="p">)</span>
     <span class="n">url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
     <span class="n">updated_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
@@ -507,7 +509,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.6</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 01:44:51 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-options.md">Edit on GitHub</a></dd></div>
         </dl>

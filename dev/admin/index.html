@@ -406,22 +406,25 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mount</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">Admin</span><span class="p">,</span> <span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">Tone</span><span class="p">,</span> <span class="n">action</span>
 
+
 <span class="k">class</span><span class="w"> </span><span class="nc">PostAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">):</span>
     <span class="n">columns</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"published"</span><span class="p">,</span> <span class="s2">"author_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
     <span class="n">readonly</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"created_at"</span><span class="p">,)</span>
     <span class="n">badges</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"published"</span><span class="p">:</span> <span class="p">{</span><span class="kc">True</span><span class="p">:</span> <span class="p">(</span><span class="s2">"Published"</span><span class="p">,</span> <span class="n">Tone</span><span class="o">.</span><span class="n">OK</span><span class="p">),</span> <span class="kc">False</span><span class="p">:</span> <span class="p">(</span><span class="s2">"Draft"</span><span class="p">,</span> <span class="n">Tone</span><span class="o">.</span><span class="n">WARN</span><span class="p">)}}</span>
-    <span class="n">tabs</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"published"</span><span class="p">,)</span>                       <span class="c1"># one tab for each badge: Published | Draft</span>
+    <span class="n">tabs</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"published"</span><span class="p">,)</span>  <span class="c1"># one tab for each badge: Published | Draft</span>
     <span class="n">fieldsets</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"Organization"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"author_id"</span><span class="p">,</span> <span class="s2">"published"</span><span class="p">)}</span>
 
     <span class="nd">@action</span><span class="p">(</span><span class="n">confirm</span><span class="o">=</span><span class="s2">"Publish the selected posts?"</span><span class="p">)</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">publish</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">posts</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>
         <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">id</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">posts</span><span class="p">])</span><span class="o">.</span><span class="n">aupdate</span><span class="p">({</span><span class="s2">"published"</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
 
+
 <span class="k">def</span><span class="w"> </span><span class="nf">build_admin</span><span class="p">(</span><span class="n">theme</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"studio"</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Admin</span><span class="p">:</span>
     <span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">theme</span><span class="o">=</span><span class="n">theme</span><span class="p">,</span> <span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">,</span> <span class="n">per_page</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
-    <span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">PostAdmin</span><span class="p">)</span>                    <span class="c1"># a customised admin ...</span>
-    <span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">User</span><span class="p">)</span>                         <span class="c1"># ... or a model, for the default admin</span>
+    <span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">PostAdmin</span><span class="p">)</span>  <span class="c1"># a customised admin ...</span>
+    <span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">User</span><span class="p">)</span>  <span class="c1"># ... or a model, for the default admin</span>
     <span class="k">return</span> <span class="n">site</span>
+
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">BlogSettings</span><span class="o">.</span><span class="n">load</span><span class="p">(),</span> <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">Mount</span><span class="p">(</span><span class="s2">"/admin"</span><span class="p">,</span> <span class="n">build_admin</span><span class="p">())])</span>
 </code></pre></div>
@@ -438,7 +441,7 @@
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>admin
 </code></pre></div>
 <p>The admin also needs its signing secret: <code>admin.secret</code> in the settings (<code>PREFIX_ADMIN__SECRET</code>, at least 32 bytes). The sessions and passwords follow <code>admin.session_hours</code> (12), <code>admin.idle_minutes</code> (120) and <code>admin.min_password_length</code> (12).</p>
-<div class="highlight"><pre><span></span><code><span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">)</span>           <span class="c1"># its own users; nothing else to pass</span>
+<div class="highlight"><pre><span></span><code><span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">)</span>  <span class="c1"># its own users; nothing else to pass</span>
 <span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">PostAdmin</span><span class="p">)</span>
 <span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">User</span><span class="p">)</span>
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">BlogSettings</span><span class="o">.</span><span class="n">load</span><span class="p">(),</span> <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">Mount</span><span class="p">(</span><span class="s2">"/admin"</span><span class="p">,</span> <span class="n">site</span><span class="p">)])</span>
@@ -474,12 +477,16 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
     <span class="c1"># never widen it</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">can</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"delete"</span> <span class="ow">and</span> <span class="n">row</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">row</span><span class="o">.</span><span class="n">published</span><span class="p">:</span>
-            <span class="k">return</span> <span class="kc">False</span>                       <span class="c1"># published posts are never deleted here</span>
+            <span class="k">return</span> <span class="kc">False</span>  <span class="c1"># published posts are never deleted here</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">can</span><span class="p">(</span><span class="n">principal</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">row</span><span class="p">)</span>
 
     <span class="c1"># what a list cell shows: a Badge or an Avatar for something richer than text</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">display</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">column</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">Avatar</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">if</span> <span class="n">column</span> <span class="o">==</span> <span class="s2">"author_id"</span> <span class="k">else</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">column</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">Avatar</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">column</span> <span class="o">==</span> <span class="s2">"author_id"</span>
+            <span class="k">else</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">column</span><span class="p">)</span>
+        <span class="p">)</span>
 
     <span class="c1"># cross-field validation before anything is written: {field: message} refuses</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">principal</span><span class="p">,</span> <span class="n">row</span><span class="p">):</span>
@@ -495,7 +502,7 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">remove</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>
         <span class="k">if</span> <span class="k">await</span> <span class="n">has_comments</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="n">Refusal</span><span class="p">(</span><span class="s2">"Delete the comments first."</span><span class="p">)</span>   <span class="c1"># shown on the page</span>
+            <span class="k">raise</span> <span class="n">Refusal</span><span class="p">(</span><span class="s2">"Delete the comments first."</span><span class="p">)</span>  <span class="c1"># shown on the page</span>
         <span class="k">await</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">principal</span><span class="p">)</span>
 </code></pre></div>
 <p><code>Refusal</code> (from <code>hinoki.admin</code>) raised inside <code>save</code> or <code>remove</code> rolls the write back and shows its message to the person instead of an error page.</p>
@@ -519,8 +526,18 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
     <span class="n">studio</span><span class="p">,</span>
     <span class="n">name</span><span class="o">=</span><span class="s2">"forest"</span><span class="p">,</span>
     <span class="n">label</span><span class="o">=</span><span class="s2">"Forest"</span><span class="p">,</span>
-    <span class="n">light</span><span class="o">=</span><span class="p">{</span><span class="o">**</span><span class="n">studio</span><span class="o">.</span><span class="n">light</span><span class="p">,</span> <span class="s2">"accent"</span><span class="p">:</span> <span class="s2">"#1f6f50"</span><span class="p">,</span> <span class="s2">"accent-hover"</span><span class="p">:</span> <span class="s2">"#17543c"</span><span class="p">,</span> <span class="s2">"bg"</span><span class="p">:</span> <span class="s2">"#f6f8f5"</span><span class="p">},</span>
-    <span class="n">dark</span><span class="o">=</span><span class="p">{</span><span class="o">**</span><span class="n">studio</span><span class="o">.</span><span class="n">dark</span><span class="p">,</span> <span class="s2">"accent"</span><span class="p">:</span> <span class="s2">"#5cc79b"</span><span class="p">,</span> <span class="s2">"accent-hover"</span><span class="p">:</span> <span class="s2">"#7ad6b0"</span><span class="p">,</span> <span class="s2">"bg"</span><span class="p">:</span> <span class="s2">"#0f1a14"</span><span class="p">},</span>
+    <span class="n">light</span><span class="o">=</span><span class="p">{</span>
+        <span class="o">**</span><span class="n">studio</span><span class="o">.</span><span class="n">light</span><span class="p">,</span>
+        <span class="s2">"accent"</span><span class="p">:</span> <span class="s2">"#1f6f50"</span><span class="p">,</span>
+        <span class="s2">"accent-hover"</span><span class="p">:</span> <span class="s2">"#17543c"</span><span class="p">,</span>
+        <span class="s2">"bg"</span><span class="p">:</span> <span class="s2">"#f6f8f5"</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="n">dark</span><span class="o">=</span><span class="p">{</span>
+        <span class="o">**</span><span class="n">studio</span><span class="o">.</span><span class="n">dark</span><span class="p">,</span>
+        <span class="s2">"accent"</span><span class="p">:</span> <span class="s2">"#5cc79b"</span><span class="p">,</span>
+        <span class="s2">"accent-hover"</span><span class="p">:</span> <span class="s2">"#7ad6b0"</span><span class="p">,</span>
+        <span class="s2">"bg"</span><span class="p">:</span> <span class="s2">"#0f1a14"</span><span class="p">,</span>
+    <span class="p">},</span>
     <span class="n">layout</span><span class="o">=</span><span class="s2">"topbar"</span><span class="p">,</span>
     <span class="n">extra_css</span><span class="o">=</span><span class="s2">".hn-brand-text strong { letter-spacing: .04em; }"</span><span class="p">,</span>
 <span class="p">)</span>
@@ -643,7 +660,7 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.26</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 22:15:08 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>13 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>

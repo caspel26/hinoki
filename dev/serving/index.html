@@ -590,10 +590,12 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <p>The settings class says its own prefix and <code>.env</code> file, so nothing is repeated at the call site:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
 
+
 <span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"BLOG_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>
     <span class="n">database_url</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">Secret</span>
 
-<span class="n">app_settings</span> <span class="o">=</span> <span class="n">BlogSettings</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>          <span class="c1"># reads BLOG_* and .env</span>
+
+<span class="n">app_settings</span> <span class="o">=</span> <span class="n">BlogSettings</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>  <span class="c1"># reads BLOG_* and .env</span>
 </code></pre></div>
 <h2 id="other-runners">Other runners<a class="headerlink" href="#other-runners" title="Permanent link">&para;</a></h2>
 <p><code>dev</code> and <code>serve</code> are conveniences. The application is a plain ASGI app, so <code>granian --interface asgi --factory blog.main:create_app</code> (or another ASGI server) works too; run that command from <code>examples/</code> with the locked environment active. The <code>server</code> group is ignored, because only <code>hinoki serve</code> applies it.</p>
@@ -625,7 +627,10 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <span class="k">finally</span><span class="p">:</span>  <span class="c1"># status stays None when the request was aborted before a response began</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="p">(</span><span class="n">scope</span><span class="p">[</span><span class="s2">"method"</span><span class="p">],</span> <span class="n">status</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">-</span> <span class="n">started</span><span class="p">)</span>
 
-<span class="n">app</span> <span class="o">=</span> <span class="n">Timing</span><span class="p">(</span><span class="n">create_app</span><span class="p">(),</span> <span class="n">record</span><span class="o">=</span><span class="n">my_metrics</span><span class="o">.</span><span class="n">observe</span><span class="p">)</span>   <span class="c1"># run this with Granian or any ASGI server</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Timing</span><span class="p">(</span>
+    <span class="n">create_app</span><span class="p">(),</span> <span class="n">record</span><span class="o">=</span><span class="n">my_metrics</span><span class="o">.</span><span class="n">observe</span>
+<span class="p">)</span>  <span class="c1"># run this with Granian or any ASGI server</span>
 </code></pre></div>
 <p>What this measures is the time from the ASGI call to the last byte handed to the server, not what a client perceives. Keep method and status as labels; do <strong>not</strong> label by <code>scope["path"]</code> (it holds ids and has unbounded cardinality), the request ID (it is for correlating logs: <code>logging.include_request_id</code> adds it to each Hinoki log line) or the caller. Hinoki does not currently expose the matched route template to a wrapper, so per-route metrics need an application-level counter inside the handler or a gap report so a hook can be designed.</p>
 <p>Kiso (<code>--server kiso</code>) has no ASGI boundary, so this wrapper does not apply to it and it has no instrumentation seam today. Use the server's own limits and the request log of your proxy, or serve with Granian when you need to wrap the application.</p>
@@ -680,7 +685,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.21</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 00:10:17 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>24 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>

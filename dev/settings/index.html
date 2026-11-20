@@ -405,9 +405,10 @@
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
 
-<span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">):</span>          <span class="c1"># keeps the built-in groups</span>
-    <span class="n">database</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">DatabaseSettings</span>                   <span class="c1"># url: settings.Secret, max_size: int</span>
-    <span class="n">jwt_secret</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">Secret</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>             <span class="c1"># optional secret</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">):</span>  <span class="c1"># keeps the built-in groups</span>
+    <span class="n">database</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">DatabaseSettings</span>  <span class="c1"># url: settings.Secret, max_size: int</span>
+    <span class="n">jwt_secret</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">Secret</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># optional secret</span>
     <span class="n">admin_theme</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"studio"</span><span class="p">,</span> <span class="s2">"console"</span><span class="p">,</span> <span class="s2">"paper"</span><span class="p">,</span> <span class="s2">"bento"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"studio"</span>
 </code></pre></div>
 <p>Settings types live in the <code>hinoki.settings</code> namespace: <code>from hinoki import settings</code>, then <code>settings.AppSettings</code>, <code>settings.DatabaseSettings</code>, <code>settings.Secret</code>, <code>settings.Settings</code> and <code>settings.SettingsError</code>. Name your own subclass for your project (<code>BlogSettings</code> above) and keep a loaded value in a variable such as <code>app_settings</code>, so the namespace is not shadowed. Earlier revisions exported these types from <code>hinoki</code> itself and called the base class <code>FrameworkSettings</code>; <code>from hinoki import FrameworkSettings</code> now raises <code>ImportError</code>.</p>
@@ -807,8 +808,11 @@
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">settings</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"BLOG_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>  <span class="c1"># where to read</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span>
+    <span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"BLOG_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span>
+<span class="p">):</span>  <span class="c1"># where to read</span>
     <span class="n">database</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">DatabaseSettings</span>  <span class="c1"># also opens the database for each worker</span>
+
 
 <span class="k">def</span><span class="w"> </span><span class="nf">create_app</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Hinoki</span><span class="p">:</span>
     <span class="n">app_settings</span> <span class="o">=</span> <span class="n">BlogSettings</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
@@ -850,8 +854,8 @@
 </tbody>
 </table>
 <p>TOML tables map to settings groups. For example, <code>[database]</code> with <code>max_size = 12</code> sets <code>database.max_size</code>. Arrays remain typed arrays. Environment and dotenv values still use the strict text conversion described below. TOML cannot contain <code>settings.Secret</code> values; put secrets in environment variables, <code>*_FILE</code> files, or a secret manager that exports one of those sources.</p>
-<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"BLOG_"</span><span class="p">,</span> <span class="n">toml</span><span class="o">=</span><span class="s2">"settings.toml"</span><span class="p">):</span>
-    <span class="o">...</span>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"BLOG_"</span><span class="p">,</span> <span class="n">toml</span><span class="o">=</span><span class="s2">"settings.toml"</span><span class="p">):</span> <span class="o">...</span>
+
 
 <span class="n">app_settings</span> <span class="o">=</span> <span class="n">BlogSettings</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>  <span class="c1"># reads the declared file by default</span>
 </code></pre></div>
@@ -988,6 +992,7 @@ BLOG_JWT_SECRET               file         ***
 <p>The choices are enums rather than arbitrary strings, and environment/TOML values must match the listed wire values exactly. <code>FrameOptions</code> provides <code>deny</code> and <code>sameorigin</code>. <code>ReferrerPolicy</code> provides <code>no-referrer</code>, <code>no-referrer-when-downgrade</code>, <code>same-origin</code>, <code>origin</code>, <code>strict-origin</code>, <code>origin-when-cross-origin</code>, <code>strict-origin-when-cross-origin</code> and <code>unsafe-url</code>. <code>unsafe-url</code> can disclose the full referring URL to another origin; use it only when that is intended.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
 
+
 <span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">):</span>
     <span class="n">security</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">SecuritySettings</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">SecuritySettings</span><span class="p">(</span>
         <span class="n">redirect_https</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
@@ -1008,6 +1013,7 @@ BLOG_JWT_SECRET               file         ***
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">BlogSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"BLOG_"</span><span class="p">):</span>
     <span class="n">database</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">DatabaseSettings</span>
+
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">BlogSettings</span><span class="p">,</span> <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">health</span><span class="p">,</span> <span class="n">Posts</span><span class="p">])</span>
 </code></pre></div>
@@ -1050,7 +1056,7 @@ BLOG_JWT_SECRET               file         ***
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.20</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 00:10:17 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>19 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>

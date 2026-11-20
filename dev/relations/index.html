@@ -457,7 +457,9 @@
 <h2 id="foreign-keys-in-abstract-models-and-mixins">Foreign keys in abstract models and mixins<a class="headerlink" href="#foreign-keys-in-abstract-models-and-mixins" title="Permanent link">&para;</a></h2>
 <p>A foreign key declared in an <a href="../models/#share-fields-abstract-models-and-mixins">abstract model or a mixin</a> is registered once for each table model that inherits it. The forward relation keeps its name on every model. The reverse name must differ, so write it with the <code>{model}</code> placeholder, which becomes the inheriting class's name in lower case:</p>
 <div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Owned</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">abstract</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-    <span class="n">team_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span><span class="n">Team</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"</span><span class="si">{model}</span><span class="s2">_set"</span><span class="p">)</span>
+    <span class="n">team_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span>
+        <span class="n">Team</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"</span><span class="si">{model}</span><span class="s2">_set"</span>
+    <span class="p">)</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Article</span><span class="p">(</span><span class="n">Owned</span><span class="p">):</span>
@@ -546,8 +548,12 @@ duplicates before applying the constraint.</p>
 <span class="nd">@unique</span><span class="p">(</span><span class="s2">"post_id"</span><span class="p">,</span> <span class="s2">"tag_id"</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">PostTag</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
-    <span class="n">post_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"tag_links"</span><span class="p">)</span>
-    <span class="n">tag_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span><span class="n">Tag</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"post_links"</span><span class="p">)</span>
+    <span class="n">post_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span>
+        <span class="n">Post</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"tag_links"</span>
+    <span class="p">)</span>
+    <span class="n">tag_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span>
+        <span class="n">Tag</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"post_links"</span>
+    <span class="p">)</span>
 </code></pre></div>
 <p>Create a link by inserting a <code>PostTag</code> row. To read a post's tags, query the join model and load its <code>tag</code> foreign key in the same query:</p>
 <div class="highlight"><pre><span></span><code><span class="n">post</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Release notes"</span><span class="p">)</span>
@@ -584,7 +590,7 @@ duplicates before applying the constraint.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.8</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:30:43 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/relations.md">Edit on GitHub</a></dd></div>
         </dl>

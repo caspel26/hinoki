@@ -261,7 +261,7 @@
 
 <span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/quotes/</span><span class="si">{symbol}</span><span class="s2">"</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">quote</span><span class="p">(</span><span class="n">symbol</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Quote</span><span class="p">:</span>
-    <span class="n">raw</span> <span class="o">=</span> <span class="k">await</span> <span class="n">pricing_client</span><span class="o">.</span><span class="n">fetch</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span>    <span class="c1"># any library, returning plain data</span>
+    <span class="n">raw</span> <span class="o">=</span> <span class="k">await</span> <span class="n">pricing_client</span><span class="o">.</span><span class="n">fetch</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span>  <span class="c1"># any library, returning plain data</span>
     <span class="k">return</span> <span class="n">Quote</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="n">raw</span><span class="p">[</span><span class="s2">"symbol"</span><span class="p">],</span> <span class="n">price</span><span class="o">=</span><span class="n">raw</span><span class="p">[</span><span class="s2">"price"</span><span class="p">])</span>
 </code></pre></div>
 <p>Keep the translation at the edge of the handler and keep your own database access (for a second store, for example) in a <a href="../modules/">module</a> so its lifetime follows the worker. Hinoki does not protect or time-box what that code does.</p>
@@ -363,7 +363,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 13:22:06 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/ecosystem.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -651,8 +651,10 @@ action and becomes immutable after successful inclusion.</p>
 <p><strong>Use functions and a <code>RouteGroup</code> for ordinary endpoints.</strong> The action's shared policy sits in one place, the handlers are plain functions that a test can call, and a simple public one can be served natively. The group below states access, transactions and the errors its actions may raise once:</p>
 <div class="highlight"><pre><span></span><code><span class="n">tasks</span> <span class="o">=</span> <span class="n">RouteGroup</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">member_only</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">NotFound</span><span class="p">,))</span>
 
+
 <span class="nd">@tasks</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">listing</span><span class="p">(</span><span class="n">page</span><span class="p">:</span> <span class="n">PageParams</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Page</span><span class="p">[</span><span class="n">TaskOut</span><span class="p">]:</span> <span class="o">...</span>
+
 
 <span class="nd">@tasks</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">TaskIn</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">TaskOut</span><span class="p">:</span> <span class="o">...</span>
@@ -761,10 +763,11 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
 <p>Hinoki ships no limiter. A route names a policy, and the application owns the rule, the key and the storage, because a counter kept in one worker's memory is wrong across workers and after a restart. The option is <code>rate_limit=</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">LoginLimit</span><span class="p">:</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="n">RateLimitContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">store</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">resource</span><span class="p">(</span><span class="n">RedisStore</span><span class="p">)</span>            <span class="c1"># provided by a module, per worker</span>
+        <span class="n">store</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">resource</span><span class="p">(</span><span class="n">RedisStore</span><span class="p">)</span>  <span class="c1"># provided by a module, per worker</span>
         <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"login:</span><span class="si">{</span><span class="n">context</span><span class="o">.</span><span class="n">client</span><span class="si">}</span><span class="s2">"</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="k">await</span> <span class="n">store</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="mi">60</span><span class="p">):</span>
             <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">TooManyRequests</span><span class="p">(</span><span class="n">retry_after</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
+
 
 <span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/auth/login"</span><span class="p">,</span> <span class="n">rate_limit</span><span class="o">=</span><span class="n">LoginLimit</span><span class="p">())</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">login</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">LoginIn</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SessionOut</span><span class="p">:</span> <span class="o">...</span>
@@ -777,7 +780,7 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
 <p>Every action's return value is checked against its return annotation, and the annotation itself is checked when the app starts. There is nothing to switch on.</p>
 <div class="highlight"><pre><span></span><code><span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/notes/</span><span class="si">{note_id}</span><span class="s2">"</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">detail</span><span class="p">(</span><span class="n">note_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NoteOut</span><span class="p">:</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="n">note_id</span><span class="p">}</span>          <span class="c1"># a dict is not a NoteOut: 500 internal_error</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="n">note_id</span><span class="p">}</span>  <span class="c1"># a dict is not a NoteOut: 500 internal_error</span>
 </code></pre></div>
 <ul>
 <li><strong>At startup.</strong> An annotation that cannot be checked stops the app with a <code>RegistrationError</code> that names the action: no annotation, <code>Any</code>, <code>object</code>, <code>set[...]</code>, a plain class, or <code>Response</code> inside a collection. Annotate a concrete type, or declare the action with <code>validate_response=False</code> to skip the check for that action.</li>
@@ -794,11 +797,14 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
 <div class="highlight"><pre><span></span><code><span class="c1"># before</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">get</span>
 
+
 <span class="nd">@get</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">listing</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">TaskOut</span><span class="p">]:</span> <span class="o">...</span>
 
+
 <span class="c1"># now</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">http</span>
+
 
 <span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">listing</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">TaskOut</span><span class="p">]:</span> <span class="o">...</span>
@@ -835,7 +841,7 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.10</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 16:25:38 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>18 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>

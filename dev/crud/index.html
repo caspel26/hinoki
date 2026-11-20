@@ -409,8 +409,7 @@ or handwritten <code>@http.*</code> actions beside the generated ones.</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">app.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">editor</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">PostOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">):</span>
-    <span class="o">...</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PostOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">):</span> <span class="o">...</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">PostCreate</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
@@ -490,7 +489,14 @@ options are <code>crud(...)</code> keywords, and the class is included once in t
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuerySet</span>
 
 
-<span class="nd">@crud</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/posts"</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">PostOut</span><span class="p">,</span> <span class="n">create</span><span class="o">=</span><span class="n">PostCreate</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">editor</span><span class="p">,</span> <span class="n">owner</span><span class="o">=</span><span class="s2">"author_id"</span><span class="p">)</span>
+<span class="nd">@crud</span><span class="p">(</span>
+    <span class="n">Post</span><span class="p">,</span>
+    <span class="n">path</span><span class="o">=</span><span class="s2">"/posts"</span><span class="p">,</span>
+    <span class="n">read</span><span class="o">=</span><span class="n">PostOut</span><span class="p">,</span>
+    <span class="n">create</span><span class="o">=</span><span class="n">PostCreate</span><span class="p">,</span>
+    <span class="n">access</span><span class="o">=</span><span class="n">editor</span><span class="p">,</span>
+    <span class="n">owner</span><span class="o">=</span><span class="s2">"author_id"</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Posts</span><span class="p">(</span><span class="n">API</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Post</span><span class="p">]:</span>
         <span class="k">return</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">published</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"-id"</span><span class="p">)</span>
@@ -686,7 +692,7 @@ side-effects beyond the single model mutation.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.11</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 00:10:17 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>

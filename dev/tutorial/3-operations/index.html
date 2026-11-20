@@ -268,11 +268,11 @@
 
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_tasks</span><span class="p">(</span><span class="n">owner_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">page</span><span class="p">:</span> <span class="n">PageParams</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Page</span><span class="p">[</span><span class="n">Task</span><span class="p">]:</span>
-    <span class="k">return</span> <span class="k">await</span> <span class="n">mine</span><span class="p">(</span><span class="n">owner_id</span><span class="p">)</span><span class="o">.</span><span class="n">apaginate</span><span class="p">(</span><span class="n">page</span><span class="p">)</span>   <span class="c1"># Task is @ordered_by newest first</span>
+    <span class="k">return</span> <span class="k">await</span> <span class="n">mine</span><span class="p">(</span><span class="n">owner_id</span><span class="p">)</span><span class="o">.</span><span class="n">apaginate</span><span class="p">(</span><span class="n">page</span><span class="p">)</span>  <span class="c1"># Task is @ordered_by newest first</span>
 
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_task</span><span class="p">(</span><span class="n">owner_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">TaskIn</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Task</span><span class="p">:</span>
-    <span class="k">return</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">owner_id</span><span class="o">=</span><span class="n">owner_id</span><span class="p">)</span>   <span class="c1"># the server's value wins</span>
+    <span class="k">return</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">owner_id</span><span class="o">=</span><span class="n">owner_id</span><span class="p">)</span>  <span class="c1"># the server's value wins</span>
 
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">complete_task</span><span class="p">(</span><span class="n">owner_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">task_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Task</span><span class="p">:</span>
@@ -283,7 +283,7 @@
     <span class="p">)</span>
     <span class="k">if</span> <span class="n">changed</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">changed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="k">await</span> <span class="n">mine</span><span class="p">(</span><span class="n">owner_id</span><span class="p">)</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">task_id</span><span class="p">)</span><span class="o">.</span><span class="n">aget</span><span class="p">()</span>   <span class="c1"># missing or not yours: 404</span>
+    <span class="k">await</span> <span class="n">mine</span><span class="p">(</span><span class="n">owner_id</span><span class="p">)</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">task_id</span><span class="p">)</span><span class="o">.</span><span class="n">aget</span><span class="p">()</span>  <span class="c1"># missing or not yours: 404</span>
     <span class="k">raise</span> <span class="n">TaskAlreadyDone</span><span class="p">()</span>
 </code></pre></div>
 <p>The important line is the <code>WHERE</code>: the owner is part of the statement. There is no "read the row, check the owner, then update" gap, and another member's task looks exactly like a missing one (404), so nothing leaks.</p>
@@ -321,7 +321,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:30:43 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/3-operations.md">Edit on GitHub</a></dd></div>
         </dl>

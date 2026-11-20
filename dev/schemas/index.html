@@ -411,6 +411,7 @@
     <span class="n">title</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">)]</span>
     <span class="n">body</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
 
+
 <span class="k">class</span><span class="w"> </span><span class="nc">NoteOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
@@ -487,7 +488,10 @@
 <span class="n">ticket</span> <span class="o">=</span> <span class="n">Ticket</span><span class="o">.</span><span class="n">validate</span><span class="p">({</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"web"</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"published"</span><span class="p">,</span> <span class="s2">"priority"</span><span class="p">:</span> <span class="mi">3</span><span class="p">})</span>
 <span class="k">assert</span> <span class="n">ticket</span><span class="o">.</span><span class="n">status</span> <span class="ow">is</span> <span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span> <span class="ow">and</span> <span class="n">ticket</span><span class="o">.</span><span class="n">priority</span> <span class="ow">is</span> <span class="n">Priority</span><span class="o">.</span><span class="n">HIGH</span>
 <span class="k">assert</span> <span class="n">ticket</span><span class="o">.</span><span class="n">dump</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span>
-    <span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"web"</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"published"</span><span class="p">,</span> <span class="s2">"priority"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">"retries"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"web"</span><span class="p">,</span>
+    <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"published"</span><span class="p">,</span>
+    <span class="s2">"priority"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="s2">"retries"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
 <span class="p">}</span>
 
 <span class="k">try</span><span class="p">:</span>
@@ -618,12 +622,18 @@
     <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
 
 
-<span class="n">Locale</span> <span class="o">=</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="sa">r</span><span class="s2">"[a-z]</span><span class="si">{2}</span><span class="s2">(-[A-Z]</span><span class="si">{2}</span><span class="s2">)?"</span><span class="p">)]</span>
+<span class="n">Locale</span> <span class="o">=</span> <span class="n">Annotated</span><span class="p">[</span>
+    <span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="sa">r</span><span class="s2">"[a-z]</span><span class="si">{2}</span><span class="s2">(-[A-Z]</span><span class="si">{2}</span><span class="s2">)?"</span><span class="p">)</span>
+<span class="p">]</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Place</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">labels</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">40</span><span class="p">)]],</span> <span class="n">Field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">20</span><span class="p">)]</span>
-    <span class="n">names</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">Locale</span><span class="p">,</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">)]]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">labels</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">40</span><span class="p">)]],</span> <span class="n">Field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="n">names</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">Locale</span><span class="p">,</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">)]]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+        <span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span>
+    <span class="p">)</span>
     <span class="n">points</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Point</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
 
 
@@ -691,10 +701,12 @@
     <span class="n">street</span><span class="p">:</span> <span class="nb">str</span>
     <span class="nb">zip</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
 
+
 <span class="nd">@dataclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Geo</span><span class="p">:</span>
     <span class="n">lat</span><span class="p">:</span> <span class="nb">float</span>
     <span class="n">lon</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Place</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
     <span class="n">address</span><span class="p">:</span> <span class="n">Address</span>
@@ -851,12 +863,15 @@ attribute:</p>
 <p>Declare type parameters with the Python 3.12 syntax and parameterize the class where it is used. <code>Envelope[User]</code> is a real, cached <code>Schema</code> subclass: it validates on both lanes, appears in the OpenAPI document as its own component (<code>Envelope_User_</code>) and keeps <code>Field(...)</code> metadata, defaults, checks and computed fields.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
 
+
 <span class="k">class</span><span class="w"> </span><span class="nc">User</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Envelope</span><span class="p">[</span><span class="n">T</span><span class="p">](</span><span class="n">Schema</span><span class="p">):</span>
     <span class="n">data</span><span class="p">:</span> <span class="n">T</span>
     <span class="n">count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+
 
 <span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/user"</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">show</span><span class="p">(</span><span class="n">request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Envelope</span><span class="p">[</span><span class="n">User</span><span class="p">]:</span>
@@ -914,9 +929,7 @@ attribute:</p>
 <span class="n">person</span> <span class="o">=</span> <span class="n">PersonOut</span><span class="o">.</span><span class="n">validate</span><span class="p">({</span><span class="s2">"firstName"</span><span class="p">:</span> <span class="s2">"Aki"</span><span class="p">})</span>
 <span class="k">assert</span> <span class="n">person</span><span class="o">.</span><span class="n">dump</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"firstName"</span><span class="p">:</span> <span class="s2">"Aki"</span><span class="p">,</span> <span class="s2">"bio"</span><span class="p">:</span> <span class="s2">""</span><span class="p">}</span>
 <span class="k">assert</span> <span class="n">person</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">exclude_unset</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"firstName"</span><span class="p">:</span> <span class="s2">"Aki"</span><span class="p">}</span>
-<span class="k">assert</span> <span class="n">person</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">{</span><span class="s2">"first_name"</span><span class="p">},</span> <span class="n">by_alias</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span>
-    <span class="s2">"first_name"</span><span class="p">:</span> <span class="s2">"Aki"</span>
-<span class="p">}</span>
+<span class="k">assert</span> <span class="n">person</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">{</span><span class="s2">"first_name"</span><span class="p">},</span> <span class="n">by_alias</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"first_name"</span><span class="p">:</span> <span class="s2">"Aki"</span><span class="p">}</span>
 <span class="k">assert</span> <span class="n">person</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="nb">set</span><span class="p">())</span> <span class="o">==</span> <span class="p">{}</span>
 </code></pre></div>
 <p><code>exclude_unset=True</code> omits values supplied by dataclass defaults or default factories when the caller did not provide that field. It does not compare values with defaults: explicitly passing <code>bio=""</code>, <code>None</code>, <code>0</code>, <code>False</code> or an empty collection keeps that value. <code>UNSET</code> is omitted regardless of this option. <code>from_model()</code> tracks attributes it actually reads and values passed via <code>**extra</code>; missing optional attributes that use Schema defaults remain unset. A custom <code>__post_init__</code> changing a field does not make it supplied. A custom <code>__init__</code> has no reliable input-presence information, so <code>exclude_unset=True</code> raises <code>TypeError</code> for its instances.</p>
@@ -927,6 +940,7 @@ attribute:</p>
 <p><code>Field(strip=True)</code>, <code>Field(lower=True)</code> and <code>Field(upper=True)</code> normalise a <code>str</code> field before anything else is checked, so <code>min_length</code>, <code>pattern</code> and <code>one_of</code> see the normalised text and the value you read is the normalised one:</p>
 <div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Signup</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
     <span class="n">handle</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">strip</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">min_length</span><span class="o">=</span><span class="mi">3</span><span class="p">)]</span>
+
 
 <span class="n">Signup</span><span class="o">.</span><span class="n">validate</span><span class="p">({</span><span class="s2">"handle"</span><span class="p">:</span> <span class="s2">"  AbC "</span><span class="p">})</span><span class="o">.</span><span class="n">handle</span>  <span class="c1"># "abc"</span>
 </code></pre></div>
@@ -1036,7 +1050,7 @@ attribute:</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 21:50:52 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>29 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
