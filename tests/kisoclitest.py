@@ -10,6 +10,7 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -666,6 +667,40 @@ def test_a_worker_starts_with_sigint_blocked_and_the_supervisor_mask_is_restored
     assert signal.SIGINT in masks[0]  # inherited across exec by the worker
     assert signal.pthread_sigmask(signal.SIG_BLOCK, []) == before
     listener.close()
+
+
+def test_a_supervised_worker_takes_interrupts_back_before_loading_the_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hinoki.runtime import kiso  # noqa: PLC0415
+
+    class Loaded(Exception):
+        pass
+
+    masks: list[set[int | signal.Signals]] = []
+    handlers: list[object] = []
+
+    def load(_: str) -> None:
+        masks.append(signal.pthread_sigmask(signal.SIG_BLOCK, []))
+        handlers.append(signal.getsignal(signal.SIGINT))
+        raise Loaded
+
+    monkeypatch.setattr(kiso, "load_target", load)
+    previous = signal.getsignal(signal.SIGINT)
+    mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
+    try:
+        # A Ctrl-C while blocked, pending on this thread alone: a process-wide
+        # one could land on another thread of the test run.
+        signal.pthread_kill(threading.get_ident(), signal.SIGINT)
+        with pytest.raises(Loaded):  # not KeyboardInterrupt
+            kiso.main(["app:make", "--parent", str(os.getppid())])
+    finally:
+        signal.signal(signal.SIGINT, lambda *_: None)  # drain a still-pending one
+        signal.pthread_sigmask(signal.SIG_SETMASK, mask)
+        signal.signal(signal.SIGINT, previous)
+    assert signal.SIGINT not in masks[0]  # threads and children start unblocked
+    assert callable(handlers[0])  # a Python handler, which exec resets, not SIG_IGN
+    assert handlers[0] is not signal.default_int_handler
 
 
 def test_supervisor_second_signal_kills_and_terminate_skips_exited_workers() -> None:
