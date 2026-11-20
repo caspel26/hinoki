@@ -45,7 +45,7 @@ refuses to start while one is violated.
 From `examples/`:
 
 ```sh
-uv run hinoki check tracker.app:create_app
+uv run hinoki check tracker.main:app
 ```
 
 ```text

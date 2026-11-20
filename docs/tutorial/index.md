@@ -47,4 +47,4 @@ cd examples
 
 That directory hosts three applications (Notes, Tracker and Blog) under one
 `hinoki.toml`, so server and check commands name the application, such as
-`tracker.app:create_app`. In your own project they take no target.
+`tracker.main:app`. In your own project they take no target.

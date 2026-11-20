@@ -104,7 +104,7 @@ cookies or the raw body. File uploads are covered in
 ## Register the routes
 
 In a project, `routes.py` lists the groups and `hinoki.toml` mounts them
-([chapter 8](8-projects.md)). Tracker's factory includes `tasks` directly,
+([chapter 8](8-projects.md)). Tracker's `main.py` includes `tasks` directly,
 because `examples/` hosts three applications ([chapter 6](6-run.md)).
 
 ## Recap
