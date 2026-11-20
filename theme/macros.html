@@ -4,3 +4,39 @@
   {%- elif item.children -%}{{ first_url(item.children | first) }}
   {%- endif -%}
 {%- endmacro %}
+
+{#- Lucide icon name for a navigation section or group title (empty when unmapped). -#}
+{% macro section_icon(title) -%}
+  {{- {
+    "Get started": "rocket",
+    "Tutorial": "graduation-cap",
+    "Guides": "book-open",
+    "Data": "database",
+    "Endpoints": "route",
+    "Security and checks": "shield-check",
+    "Runtime": "server",
+    "Integrations": "plug",
+    "Operating": "gauge",
+    "Concepts": "lightbulb",
+    "Reference": "braces",
+    "Project": "folder-git-2",
+  }.get(title, "") -}}
+{%- endmacro %}
+
+{#- Page icon: front matter `icon:`, then a few page-specific icons, then the group or section icon. -#}
+{% macro page_icon(page, section_title) -%}
+  {{- (page.meta.icon if page and page.meta and page.meta.icon else none)
+      or {"rules/": "list-checks", "cli/": "terminal"}.get(page.url if page else "", none)
+      or (section_icon(page.parent.title) if page and page.parent else none)
+      or section_icon(section_title) -}}
+{%- endmacro %}
+
+{#- Decorative icon; always placed next to visible text. -#}
+{% macro icon(name, size="") -%}
+  {%- if name -%}<span class="i i--{{ name }}{% if size %} i--{{ size }}{% endif %}" aria-hidden="true"></span>{%- endif -%}
+{%- endmacro %}
+
+{#- GitHub entry for the mobile sheets; CSS shows it only where the header link is hidden. -#}
+{% macro repo_item(url) -%}
+<li class="side__repo"><a class="side__link" href="{{ url }}"><svg class="side__gh" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg><span>GitHub</span></a></li>
+{%- endmacro %}

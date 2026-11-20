@@ -62,6 +62,23 @@
 
   --radius-xl: 28px;
   --header-h: 76px;
+
+  /* Reading scale and rhythm. */
+  --fs-body: 17px;
+  --lh-body: 1.7;
+  --fs-h1: clamp(30px, 1.4vw + 22px, 40px);
+  --fs-h2: 24px;
+  --fs-h3: 19px;
+  --fs-h4: 16px;
+  --fw-h: 600;
+  --measure: 72ch;
+  --flow: 1.15em;
+  --radius-code: 10px;
+  --radius-card: 12px;
+
+  --icon-s: 16px;
+  --icon-m: 20px;
+  --icon-stroke: 1.75;
 }
 
 :root[data-theme="dark"] {
@@ -87,7 +104,7 @@
   --hn-tint-brand: #2a2734;
   --hn-tint-info: #252a34;
   --hn-tint-success: #242d2e;
-  --hn-tint-warning: #2f2b28;
+  --hn-tint-warning: #342c20;
   --hn-tint-error: #332329;
   --hn-tint-wood: #2f2c2b;
   --hn-brand-tint: rgb(185 160 231 / 0.12);
@@ -111,6 +128,14 @@
   --hn-syn-function: #e9e4f7;
   --hn-syn-name: #eeedf2;
   --hn-syn-operator: #cfcdd8;
+
+  --hn-code-bg: #16131d;
+  --hn-code-chrome: #1c1826;
+  --hn-code-edge: #2c2640;
+  --hn-code-fg: #e6e0f5;
+  --hn-icon: #b9a0e7;
+  --hn-icon-tint: #2a2734;
+  --hn-watermark: rgb(185 160 231 / 0.05);
 }
 
 :root[data-theme="light"] {
@@ -136,7 +161,7 @@
   --hn-tint-brand: #efecf6;
   --hn-tint-info: #ebf0f5;
   --hn-tint-success: #eaf1ef;
-  --hn-tint-warning: #f3efe8;
+  --hn-tint-warning: #f6eedf;
   --hn-tint-error: #f8ecee;
   --hn-tint-wood: #f3eeea;
   --hn-brand-tint: rgb(95 61 165 / 0.08);
@@ -160,13 +185,24 @@
   --hn-syn-function: #3b2470;
   --hn-syn-name: #1d1a24;
   --hn-syn-operator: #4d4859;
+  --hn-syn-type: #8a5d16;
+  --hn-syn-builtin: #386b99;
+
+  --hn-code-bg: #faf8fc;
+  --hn-code-chrome: #f1edf7;
+  --hn-code-edge: #e2dbee;
+  --hn-code-fg: #2a2238;
+  --hn-icon: #5f3da5;
+  --hn-icon-tint: #efecf6;
+  --hn-watermark: rgb(95 61 165 / 0.045);
 }
 
-/* Code surfaces use the Lilac Nights editor palette in both site themes. */
+/* Editor surfaces (home panels, explorer, command blocks) keep the Lilac Nights palette in both
+   site themes. Documentation code blocks use it only in the dark theme. */
 .ide,
-.highlight,
 .hn-explorer__detail,
-.hn-cmdblock {
+.hn-cmdblock,
+[data-theme="dark"] .highlight {
   --ide-bg: #211a2e;
   --ide-chrome: #15111f;
   --ide-side: #1a1526;
@@ -216,3 +252,37 @@
 :is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .gi { display: inline-block; width: 100%; background: rgb(143 220 152 / 0.12); color: #8fdc98; }
 :is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .gd { display: inline-block; width: 100%; background: rgb(255 107 133 / 0.14); color: #ff6b85; }
 :is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .b { color: #8ec5ff; font-style: italic; }
+
+/* Documentation code blocks sit on the reading surface: a light lavender card in the light theme,
+   a deep plum one in the dark theme. */
+.highlight,
+[data-theme="dark"] .highlight {
+  --ide-bg: var(--hn-code-bg);
+  --ide-chrome: var(--hn-code-chrome);
+  --ide-edge: var(--hn-code-edge);
+  --ide-fg: var(--hn-code-fg);
+}
+
+[data-theme="light"] .highlight {
+  --ide-line: rgb(95 61 165 / 0.08);
+  --ide-sel: #d9cfee;
+  --ide-muted: #5f596a;
+  --ide-accent: #5f3da5;
+  color: var(--ide-fg);
+}
+
+[data-theme="light"] .highlight :is(.c, .c1, .cm, .cp, .ch, .cs) { color: var(--hn-syn-comment); font-style: italic; }
+[data-theme="light"] .highlight :is(.k, .kn, .kd, .kp, .kr, .ow, .bp) { color: var(--hn-syn-keyword); font-weight: 600; }
+[data-theme="light"] .highlight :is(.kt, .nc, .nn, .ne, .t) { color: var(--hn-syn-type); }
+[data-theme="light"] .highlight :is(.kc, .m, .mi, .mf, .mh, .mo, .il) { color: var(--hn-syn-number); }
+[data-theme="light"] .highlight :is(.nb, .fm, .b) { color: var(--hn-syn-builtin); }
+[data-theme="light"] .highlight :is(.nf, .f) { color: var(--hn-syn-function); font-weight: 600; }
+[data-theme="light"] .highlight :is(.nd, .d) { color: var(--hn-syn-decorator); }
+[data-theme="light"] .highlight :is(.s, .s1, .s2, .sa, .sb, .sc, .sd, .sh, .si, .sx, .ss, .se, .sr) { color: var(--hn-syn-string); }
+[data-theme="light"] .highlight :is(.o, .p) { color: var(--hn-syn-operator); }
+[data-theme="light"] .highlight :is(.n, .nv, .vm) { color: var(--hn-syn-name); }
+[data-theme="light"] .highlight :is(.na, .nx, .nl, .py) { color: var(--hn-syn-function); }
+[data-theme="light"] .highlight .gp { color: var(--hn-syn-comment); }
+[data-theme="light"] .highlight .go { color: var(--hn-text-2); }
+[data-theme="light"] .highlight .gi { background: var(--hn-tint-success); color: var(--hn-green); }
+[data-theme="light"] .highlight .gd { background: var(--hn-tint-error); color: var(--hn-red); }
