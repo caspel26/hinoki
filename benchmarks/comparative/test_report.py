@@ -416,3 +416,33 @@ def test_page_has_the_sections_a_reader_needs_in_order() -> None:
     assert '=== "Each stack on its own server"' in page
     assert '!!! warning "Read this first"' in page
     assert page.index("FIELD NOTE") < page.index("# Benchmarks")
+
+
+def test_kiso_view_is_its_own_tab_with_a_single_stack() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        directory = Path(temporary) / "results" / "kiso"
+        write_report_fixture(directory, stack="hinoki-kiso", workers=4)
+        env_path = directory / "environment.json"
+        env = json.loads(env_path.read_text())
+        env["settings"]["server_mode"] = "kiso"
+        env_path.write_text(json.dumps(env))
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            report.main([directory])
+        page = buffer.getvalue()
+
+    assert '=== "Hinoki on its Rust server"' in page
+    assert "Hinoki · Kiso" in page
+
+
+def test_run_py_offers_a_kiso_mode_that_serves_with_the_rust_server() -> None:
+    import run  # type: ignore[import-not-found]
+
+    assert run.SERVER_MODES["kiso"] is run.KISO_SERVERS
+    command, _ = run.KISO_SERVERS["hinoki-kiso"]
+    assert command[:2] == ["hinoki", "serve"]
+    assert command[command.index("--server") + 1] == "kiso"
+    assert run.LABELS["hinoki-kiso"] == report.FRAMEWORKS["hinoki-kiso"]
+    assert not set(run.KISO_SERVERS) & (
+        set(run.DOCUMENTED_SERVERS) | set(run.GRANIAN_SERVERS)
+    )
