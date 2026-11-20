@@ -14,7 +14,7 @@ use rustls::crypto::ring::default_provider;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::ServerConfig;
-use tokio_rustls::TlsAcceptor;
+pub use tokio_rustls::TlsAcceptor;
 
 /// Why a certificate or key could not be used.
 #[derive(Debug)]

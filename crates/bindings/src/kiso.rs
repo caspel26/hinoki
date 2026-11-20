@@ -479,33 +479,26 @@ fn access_style(name: Option<&str>) -> PyResult<Option<AccessLog>> {
     }
 }
 
-/// A listening HTTP/1.1 (and, over TLS, HTTP/2) server on the shared tokio runtime.
-#[pyclass(name = "KisoServer", module = "hinoki.core", frozen)]
-pub struct KisoServer {
-    addr: SocketAddr,
-    reader: UnixStream,
-    stop: watch::Sender<bool>,
-    task: Mutex<Option<JoinHandle<Closed>>>,
+/// What every server needs before it can accept: its limits, TLS and a bound
+/// non-blocking listener.
+pub(crate) struct Shared {
+    pub(crate) config: ServerConfig,
+    pub(crate) tls: Option<kiso::tls::TlsAcceptor>,
+    pub(crate) listener: std::net::TcpListener,
+    pub(crate) addr: SocketAddr,
 }
 
-#[pymethods]
-impl KisoServer {
-    /// Serve on the listening socket `fd`, which the caller created and detached
-    /// (this takes ownership of it as soon as it runs: on any error the
-    /// descriptor is closed, so the caller must not use it again), or bind `host:port` (port 0 picks a free
-    /// one) when there is none. Errors are raised here, before anything is
-    /// accepted.
-    #[staticmethod]
-    #[pyo3(signature = (
-        core, host, port, max_connections=10_000, header_read_timeout=10.0,
-        shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
-        fd=None, write_timeout=30.0, tls_cert=None, tls_key=None, http2=false,
-        access_log=None, access_log_skip=None, access_log_slow_ms=None,
-        access_log_sink=None, server_timing=false
-    ))]
+pub(crate) type TlsArgs = (Option<String>, Option<String>, bool);
+pub(crate) type LogArgs = (
+    Option<String>,
+    Option<Vec<String>>,
+    Option<f64>,
+    Option<Py<PyAny>>,
+);
+
+impl Shared {
     #[allow(clippy::too_many_arguments)]
-    fn start(
-        core: &ServerCore,
+    pub(crate) fn prepare(
         host: &str,
         port: u16,
         max_connections: usize,
@@ -515,18 +508,13 @@ impl KisoServer {
         body_read_timeout: f64,
         fd: Option<i32>,
         write_timeout: f64,
-        tls_cert: Option<String>,
-        tls_key: Option<String>,
-        http2: bool,
-        access_log: Option<&str>,
-        access_log_skip: Option<Vec<String>>,
-        access_log_slow_ms: Option<f64>,
-        access_log_sink: Option<Py<PyAny>>,
+        (tls_cert, tls_key, http2): TlsArgs,
+        (access_log, access_log_skip, access_log_slow_ms, access_log_sink): LogArgs,
         server_timing: bool,
     ) -> PyResult<Self> {
         // First, so that every later error closes the descriptor with it.
         let inherited = fd.map(inherited_listener).transpose()?;
-        let style = access_style(access_log)?;
+        let style = access_style(access_log.as_deref())?;
         let sink = access_sink(style, access_log_sink)?;
         if max_connections == 0 {
             return Err(PyValueError::new_err("max_connections must be >= 1"));
@@ -578,6 +566,84 @@ impl KisoServer {
         };
         listener.set_nonblocking(true).map_err(io_error)?;
         let addr = listener.local_addr().map_err(io_error)?;
+        Ok(Self {
+            config,
+            tls,
+            listener,
+            addr,
+        })
+    }
+}
+
+/// A listening HTTP/1.1 (and, over TLS, HTTP/2) server on the shared tokio runtime.
+#[pyclass(name = "KisoServer", module = "hinoki.core", frozen)]
+pub struct KisoServer {
+    addr: SocketAddr,
+    reader: UnixStream,
+    stop: watch::Sender<bool>,
+    task: Mutex<Option<JoinHandle<Closed>>>,
+}
+
+#[pymethods]
+impl KisoServer {
+    /// Serve on the listening socket `fd`, which the caller created and detached
+    /// (this takes ownership of it as soon as it runs: on any error the
+    /// descriptor is closed, so the caller must not use it again), or bind `host:port` (port 0 picks a free
+    /// one) when there is none. Errors are raised here, before anything is
+    /// accepted.
+    #[staticmethod]
+    #[pyo3(signature = (
+        core, host, port, max_connections=10_000, header_read_timeout=10.0,
+        shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
+        fd=None, write_timeout=30.0, tls_cert=None, tls_key=None, http2=false,
+        access_log=None, access_log_skip=None, access_log_slow_ms=None,
+        access_log_sink=None, server_timing=false
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn start(
+        core: &ServerCore,
+        host: &str,
+        port: u16,
+        max_connections: usize,
+        header_read_timeout: f64,
+        shutdown_timeout: f64,
+        max_header_bytes: usize,
+        body_read_timeout: f64,
+        fd: Option<i32>,
+        write_timeout: f64,
+        tls_cert: Option<String>,
+        tls_key: Option<String>,
+        http2: bool,
+        access_log: Option<&str>,
+        access_log_skip: Option<Vec<String>>,
+        access_log_slow_ms: Option<f64>,
+        access_log_sink: Option<Py<PyAny>>,
+        server_timing: bool,
+    ) -> PyResult<Self> {
+        let Shared {
+            config,
+            tls,
+            listener,
+            addr,
+        } = Shared::prepare(
+            host,
+            port,
+            max_connections,
+            header_read_timeout,
+            shutdown_timeout,
+            max_header_bytes,
+            body_read_timeout,
+            fd,
+            write_timeout,
+            (tls_cert, tls_key, http2),
+            (
+                access_log.map(str::to_owned),
+                access_log_skip,
+                access_log_slow_ms,
+                access_log_sink,
+            ),
+            server_timing,
+        )?;
         let (reader, writer) = UnixStream::pair().map_err(io_error)?;
         reader.set_nonblocking(true).map_err(io_error)?;
         writer.set_nonblocking(true).map_err(io_error)?;
