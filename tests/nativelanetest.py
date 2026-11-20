@@ -5,7 +5,7 @@ answer every request alike."""
 import asyncio
 import os
 import re
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, ClassVar
@@ -236,20 +236,101 @@ async def limited_body(data: NewNote) -> dict[str, str]:
     return {"title": data.title}
 
 
+class Rename(Schema):
+    title: str
+
+
+@http.post("/lane/write/{id}", status=201)
+async def write_create(id: int, data: Rename) -> dict[str, Any]:
+    created = await LaneNote.acreate(id=id, title=data.title)
+    return {"id": created.id, "title": created.title}
+
+
+@http.put("/lane/write/{id}")
+async def write_rename(id: int, data: Rename) -> dict[str, Any]:
+    updated = await LaneNote.aupdate(id=id, title=data.title)
+    return {"id": updated.id, "title": updated.title}
+
+
+@http.delete("/lane/write/{id}")
+async def write_remove(id: int) -> dict[str, int]:
+    return {"deleted": await LaneNote.adelete(id=id)}
+
+
+@http.patch("/lane/write")
+async def write_many(data: Rename) -> dict[str, Any]:
+    changed = await LaneNote.filter(id__in=[1, 2]).aupdate({"title": data.title})
+    return {"changed": sorted(row.id for row in changed)}
+
+
+@http.post("/lane/write-bulk", status=201)
+async def write_bulk(data: Rename) -> dict[str, int]:
+    rows = await LaneNote.abulk_create(
+        [{"id": 20, "title": data.title}, {"id": 21, "title": data.title}]
+    )
+    return {"created": len(rows)}
+
+
+@http.post("/lane/write-bulk-clash", status=201)
+async def write_bulk_clash(data: Rename) -> dict[str, int]:
+    rows = await LaneNote.abulk_create(
+        [{"id": 30, "title": data.title}, {"id": 1, "title": data.title}]
+    )
+    return {"created": len(rows)}
+
+
+@http.post("/lane/write-atomic/{id}", status=201, atomic=True)
+async def write_atomic(id: int, data: Rename) -> dict[str, int]:
+    await LaneNote.acreate(id=id, title=data.title)
+    await LaneNote.aget(id=999)
+    return {"id": id}
+
+
+@http.post("/lane/write-atomic-bulk/{id}", status=201, atomic=True)
+async def write_atomic_bulk(id: int, data: Rename) -> dict[str, int]:
+    rows = await LaneNote.abulk_create(
+        [{"id": id, "title": data.title}, {"id": id + 1, "title": data.title}]
+    )
+    await LaneNote.abulk_create([{"id": id + 2, "title": data.title}])
+    await LaneNote.aget(id=999 if id == 50 else 1)
+    return {"created": len(rows)}
+
+
+@http.post("/lane/write-atomic-ok/{id}", status=201, atomic=True)
+async def write_atomic_ok(id: int, data: Rename) -> dict[str, int]:
+    await LaneNote.acreate(id=id, title=data.title)
+    await LaneNote.adelete(id=1)
+    return {"id": id}
+
+
 HANDLERS = (note, notes, count, pure, seen_context, boom, missing, sleeping, plain)
 GUARDED = (guarded, slow_auth, limited, limited_sync, search, negotiated)
 BODIES = (echo, replace, amend, find, atomic_read, atomic_write, limited_body)
+WRITES = (
+    write_create,
+    write_rename,
+    write_remove,
+    write_many,
+    write_bulk,
+    write_bulk_clash,
+    write_atomic,
+    write_atomic_ok,
+    write_atomic_bulk,
+)
 SERVED = {"/lane/note/{id}", "/lane/notes", "/lane/count", "/lane/pure"}
 SERVED |= {"/lane/context", "/lane/boom", "/lane/not-found"}
 SERVED |= {"/lane/guarded/{id}", "/lane/slow-auth", "/lane/limited"}
 SERVED |= {"/lane/limited-sync", "/lane/search", "/lane/negotiated"}
 SERVED |= {"/lane/echo", "/lane/limited-body", "/lane/find"}
 SERVED |= {"/lane/atomic/{id}", "/lane/atomic"}
+SERVED |= {"/lane/write/{id}", "/lane/write", "/lane/write-bulk"}
+SERVED |= {"/lane/write-bulk-clash", "/lane/write-atomic/{id}"}
+SERVED |= {"/lane/write-atomic-ok/{id}", "/lane/write-atomic-bulk/{id}"}
 
 
 def make_app(url: str, **runtime: float) -> Hinoki:
     app = Hinoki(runtime=RuntimeConfig(**runtime))  # type: ignore[arg-type]
-    app.include(*HANDLERS, *GUARDED, *BODIES)
+    app.include(*HANDLERS, *GUARDED, *BODIES, *WRITES)
     app.install(DatabaseModule(url), Holder())
     return app
 
@@ -261,7 +342,7 @@ def normalized(received: Received) -> tuple[int, list[tuple[str, str]], bytes]:
     return received.status, headers, pattern.sub(b"<id>", received.body)
 
 
-Sent = str | tuple[str, str] | tuple[str, str, str, bytes]
+Sent = str | tuple[str, str] | tuple[str, str, str] | tuple[str, str, str, bytes]
 
 
 def request_of(sent: Sent) -> tuple[str, str, str, bytes]:
@@ -270,15 +351,23 @@ def request_of(sent: Sent) -> tuple[str, str, str, bytes]:
         return "GET", sent, "", b""
     if len(sent) == 2:
         return "GET", sent[0], sent[1], b""
+    if len(sent) == 3:
+        return sent[0], sent[1], sent[2], b""
     method, target, extra, body = sent
     return method, target, f"{extra}content-length: {len(body)}\r\n", body
 
 
 async def serve_all(
-    url: str, targets: Sequence[Sent], *, native: bool
+    url: str,
+    targets: Sequence[Sent],
+    *,
+    native: bool,
+    after_start: Callable[[], None] | None = None,
 ) -> tuple[list[Received], list[int]]:
     worker = KisoWorker(make_app(url), "127.0.0.1", 0, native_dispatch=native)
     port = await worker.start()
+    if after_start is not None:
+        after_start()
     started: list[int] = []
     if worker.lane is not None:
         begin = worker.lane.start
@@ -468,6 +557,86 @@ async def test_a_driven_handler_runs_in_its_own_request_context(
     ids = {first.json()["request_id"], second.json()["request_id"]}
     assert len(ids) == 2
     assert first.header("x-request-id") == first.json()["request_id"]
+
+
+WRITE_TARGETS: list[Sent] = [
+    ("POST", "/lane/write/10", JSON, b'{"title":"ten"}'),
+    ("POST", "/lane/write/10", JSON, b'{"title":"again"}'),
+    ("GET", "/lane/note/10", ""),
+    ("PUT", "/lane/write/10", JSON, b'{"title":"renamed"}'),
+    ("PUT", "/lane/write/99", JSON, b'{"title":"nobody"}'),
+    ("GET", "/lane/note/10", ""),
+    ("PATCH", "/lane/write", JSON, b'{"title":"both"}'),
+    ("DELETE", "/lane/write/10", ""),
+    ("DELETE", "/lane/write/10", ""),
+    ("GET", "/lane/note/10", ""),
+    ("POST", "/lane/write-bulk", JSON, b'{"title":"bulk"}'),
+    ("POST", "/lane/write-bulk", JSON, b'{"title":"bulk"}'),
+    ("POST", "/lane/write-bulk-clash", JSON, b'{"title":"clash"}'),
+    ("GET", "/lane/note/30", ""),
+    ("POST", "/lane/write-atomic/40", JSON, b'{"title":"gone"}'),
+    ("GET", "/lane/note/40", ""),
+    ("POST", "/lane/write-atomic-ok/41", JSON, b'{"title":"kept"}'),
+    ("GET", "/lane/note/41", ""),
+    ("GET", "/lane/note/1", ""),
+    ("GET", "/lane/count", ""),
+    ("POST", "/lane/write/11", JSON, b"{nope"),
+]
+
+
+async def test_writes_take_the_lane_like_the_asyncio_path(url: str) -> None:
+    oracle, none = await serve_all(url, WRITE_TARGETS, native=False)
+    served, started = await serve_all(url, WRITE_TARGETS, native=True)
+    assert none == []
+    assert [normalized(r) for r in served] == [normalized(r) for r in oracle]
+    statuses = [r.status for r in served]
+    assert statuses[:4] == [201, 409, 200, 200]
+    assert served[3].json() == {"id": 10, "title": "renamed"}
+    assert statuses[4] == 404
+    assert statuses[12] == 409
+    assert served[13].status == 404
+    assert served[15].status == 404
+    assert served[17].json() == {"id": 41, "title": "kept"}
+    assert served[18].status == 404
+    assert started == [1] * len(WRITE_TARGETS)
+
+
+HOOK_TARGETS: list[Sent] = [
+    ("POST", "/lane/write-atomic-bulk/60", JSON, b'{"title":"kept"}'),
+    ("GET", "/lane/note/61", ""),
+    ("POST", "/lane/write-atomic-bulk/50", JSON, b'{"title":"gone"}'),
+    ("GET", "/lane/note/50", ""),
+    ("GET", "/lane/note/51", ""),
+    ("POST", "/lane/write/70", JSON, b'{"title":"hooked"}'),
+    ("PUT", "/lane/write/70", JSON, b'{"title":"hooked again"}'),
+    ("GET", "/lane/note/70", ""),
+]
+
+
+async def test_a_hook_added_after_startup_hands_over_without_losing_the_transaction(
+    url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The proof saw no hook, so the request starts in the lane; the hook awaits
+    asyncio, the request moves to a task in the middle of the transaction, and
+    savepoints opened after that must still nest and roll back."""
+    calls: list[int] = []
+
+    async def after_save(self: LaneNote) -> None:
+        calls.append(self.id)
+        await asyncio.sleep(0)
+
+    def hook() -> None:
+        monkeypatch.setattr(LaneNote, "after_save", after_save)
+
+    oracle, none = await serve_all(url, HOOK_TARGETS, native=False, after_start=hook)
+    monkeypatch.undo()
+    oracle_calls, calls[:] = list(calls), []
+    served, started = await serve_all(url, HOOK_TARGETS, native=True, after_start=hook)
+    assert none == []
+    assert [normalized(r) for r in served] == [normalized(r) for r in oracle]
+    assert calls == oracle_calls
+    assert [r.status for r in served] == [201, 200, 404, 404, 404, 201, 200, 200]
+    assert started == [1] * len(HOOK_TARGETS)
 
 
 async def test_lane_refusal_names_why_a_route_stays_on_asyncio(

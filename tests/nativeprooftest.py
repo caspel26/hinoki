@@ -18,6 +18,23 @@ class ProofNote(Model):
     title: str
 
 
+class HookedNote(Model):
+    id: int = field(primary_key=True)
+    title: str
+
+    async def after_save(self) -> None:
+        await asyncio.sleep(0)
+
+
+class ReplacedNote(Model):
+    id: int = field(primary_key=True)
+    title: str
+
+    async def write_insert(self, returning: bool) -> None:
+        await asyncio.sleep(0)
+        await super().write_insert(returning)
+
+
 class OverriddenNote(Model):
     id: int = field(primary_key=True)
 
@@ -91,7 +108,26 @@ async def overridden() -> Any:
 
 
 async def writes(id: int) -> Any:
-    return await ProofNote.aupdate(title="x")
+    await ProofNote.acreate(title="x")
+    await ProofNote.aupdate(id=id, title="x")
+    await ProofNote.filter(id=id).aupdate({"title": "y"})
+    return await ProofNote.adelete(id=id)
+
+
+async def hooked_write() -> Any:
+    return await HookedNote.acreate(title="x")
+
+
+async def hooked_queryset_write() -> Any:
+    return await HookedNote.filter(id=1).adelete()
+
+
+async def replaced_write_path() -> Any:
+    return await ReplacedNote.acreate(title="x")
+
+
+async def unknown_write() -> Any:
+    return await ProofNote.filter(id=1).aupdate_from()  # type: ignore[attr-defined]
 
 
 async def chained_past_a_terminal(id: int) -> Any:
@@ -140,7 +176,10 @@ async def non_awaited_task() -> None:
         (unknown_name, "an await is not a call on a model"),
         (local_shadow, "ProofNote is a local name"),
         (overridden, "OverriddenNote.aget is overridden"),
-        (writes, "ProofNote.aupdate is not a native query"),
+        (hooked_write, "HookedNote has write hooks"),
+        (hooked_queryset_write, "HookedNote has write hooks"),
+        (replaced_write_path, "ReplacedNote.write_insert is overridden"),
+        (unknown_write, "aupdate_from is not a native query step"),
         (chained_past_a_terminal, "aget is followed by more calls"),
         (async_with, "it uses AsyncWith"),
         (async_for, "it uses AsyncFor"),
@@ -153,6 +192,10 @@ def test_anything_else_stays_on_the_python_path(
     handler: Callable[..., Any], reason: str
 ) -> None:
     assert native_refusal(handler) == reason
+
+
+def test_stock_writes_on_a_hookless_model_are_native() -> None:
+    assert native_refusal(writes) is None
 
 
 def test_an_unproven_await_nested_in_an_argument_is_found() -> None:
