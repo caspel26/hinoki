@@ -401,9 +401,12 @@
         <p class="kicker" data-search-exclude>3.17 · Guides</p>
         <h1 id="rules-architecture-you-can-check">Rules: architecture you can check<a class="headerlink" href="#rules-architecture-you-can-check" title="Permanent link">&para;</a></h1>
 <p>Rules are optional, typed promises about your application that a tool checks and that fail with a stable ID, a location and an explanation. They are not a linter for style and not an AI prompt: each rule is a Python object with deterministic behaviour. Nothing runs unless you enable rules.</p>
-<p>The built-in set is intentionally small: access declarations, atomic writes, response types, model responses, pagination, permissions, request text limits, table names, foreign-key indexes, schema exposure and import direction. Add a custom <code>Rule</code> only when a project has a concrete invariant that these checks cannot express.</p>
+<p>Hinoki ships eleven built-in rules, each with a stable ID. The set is intentionally small: access declarations, atomic writes, response types, model responses, pagination, permissions, request text limits, table names, foreign-key indexes, schema exposure and import direction. Add a custom <code>Rule</code> only when a project has a concrete invariant that these checks cannot express.</p>
 <h2 id="enable-them-the-blog-and-the-tracker-enable-all-of-them">Enable them (the blog and the tracker enable all of them)<a class="headerlink" href="#enable-them-the-blog-and-the-tracker-enable-all-of-them" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="c1"># examples/blog/rules.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Actions</span><span class="p">,</span> <span class="n">Imports</span><span class="p">,</span> <span class="n">Models</span><span class="p">,</span> <span class="n">Schemas</span><span class="p">,</span> <span class="n">Transactions</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">RuleSet</span>
+
 <span class="n">blog_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
     <span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"blog.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="n">PUBLIC</span><span class="p">),</span>  <span class="c1"># HNK-ACC-001</span>
     <span class="n">Actions</span><span class="o">.</span><span class="n">require_permissions</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"blog.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="n">PUBLIC</span><span class="p">),</span>  <span class="c1"># HNK-ACC-002</span>
@@ -459,7 +462,7 @@
 <td><code>HNK-API-002</code></td>
 <td><code>Actions.require_return_type(match, except_)</code></td>
 <td>startup</td>
-<td>every matching action annotates a concrete return type (not missing, <code>Any</code> or <code>object</code>; <code>None</code> is fine for a 204)</td>
+<td>every matching action annotates a concrete return type (not missing, <code>Any</code> or <code>object</code>; <code>None</code> is fine for a 204). An action with a missing or unusable annotation already stops the app at startup unless it sets <code>validate_response=False</code>, so this rule matters for those actions</td>
 </tr>
 <tr>
 <td><code>HNK-API-003</code></td>
@@ -499,32 +502,48 @@
 </tr>
 </tbody>
 </table>
-<p>The model rules take <code>match</code> as an <code>fnmatch</code> pattern on the model's module (<code>blog.*</code>); a pattern that matches no model is reported as unverifiable.</p>
+<p>The model rules take <code>match</code> as an <code>fnmatch</code> pattern on the model's module (<code>blog.*</code>); a pattern that matches no model is reported as unverifiable. A project created by <code>hinoki new</code> enables the first eight rules (<code>HNK-ACC-001</code>, <code>HNK-ACC-002</code>, <code>HNK-API-001</code> to <code>HNK-API-003</code>, <code>HNK-TXN-001</code>, <code>HNK-SCH-001</code>, <code>HNK-SCH-002</code>) and carries the two model rules commented out until its first model exists; <code>Imports.forbid</code> is yours to add.</p>
 <p><code>match</code> and <code>except_</code> patterns on action rules use <code>fnmatch</code> on the action's full qualified name (<code>pkg.api.Posts.create</code>, named after the class it is mounted on). A bare name such as <code>health</code> matches nothing: write <code>*.health</code>.</p>
 <h2 id="run-them">Run them<a class="headerlink" href="#run-them" title="Permanent link">&para;</a></h2>
 <p>The Blog target is part of the checked-in project in <code>examples/</code>. Run this from
-that directory, using the locked environment in the parent directory:</p>
+that directory, using the locked environment in the parent directory (the blog's admin needs <code>BLOG_ADMIN__SECRET</code>, see its README):</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
+<span class="nb">export</span><span class="w"> </span><span class="nv">BLOG_ADMIN__SECRET</span><span class="o">=</span><span class="s1">'a-local-development-secret-with-32-bytes'</span>
 uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>check<span class="w"> </span>blog.main:create_app<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--rules<span class="w"> </span>blog.rules:blog_rules<span class="w"> </span>--package<span class="w"> </span>blog
 <span class="c1"># 11 rule(s): 0 violated, 0 unverifiable, 0 waived       (exit 0)</span>
 </code></pre></div>
 <p>A broken promise (a deliberately bad app from the tests):</p>
 <div class="highlight"><pre><span></span><code>tests/projects/rulesapp.py:7: HNK-ACC-001 [violated] GET /health (health) declares no access policy
+  fix: add access=&lt;policy&gt; to the action (or list it in except_ when it is public on purpose)
 tests/projects/rulesapp.py:12: HNK-ACC-001 [violated] POST /items (create) declares no access policy
+  fix: add access=&lt;policy&gt; to the action (or list it in except_ when it is public on purpose)
 tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does not declare atomic=True
+  fix: add atomic=True to the action (or declare it on a RouteGroup(..., atomic=True) group)
 2 rule(s): 3 violated, 0 unverifiable, 0 waived        (exit 1)
 </code></pre></div>
-<p>The other rules report the same way. This output comes from a small project whose <code>api.py</code> returns a <code>Model</code>, exposes <code>token</code> in a response <code>Schema</code>, and whose <code>models.py</code> imports <code>api</code>:</p>
-<div class="highlight"><pre><span></span><code>shop/api.py:13: HNK-API-001 [violated] GET /members/{member_id} (one) returns the model Member; return a Schema
-  fix: return a Schema (for example PostOut.from_model(row))
-shop/api.py:7: HNK-SCH-001 [violated] MemberOut.token is exposed by GET /members
+<p>The other rules report the same way. This output comes from a small project whose <code>api.py</code> returns a <code>Model</code>, returns a plain <code>list</code> from a <code>GET</code>, exposes <code>token</code> in a response <code>Schema</code>, leaves a request text field unbounded, and whose <code>models.py</code> leaves a table name derived, a foreign key unindexed and imports <code>api</code>:</p>
+<div class="highlight"><pre><span></span><code>shop/api.py:25: HNK-ACC-002 [violated] GET /members/{member_id} (one) names an Access policy without permissions
+  fix: name at least one permission in the Access policy of the action
+shop/api.py:25: HNK-API-001 [violated] GET /members/{member_id} (one) returns the model Member; return a Schema
+  fix: return a Schema (for example PostOut.from_model(row)) instead of the Model
+shop/api.py:35: HNK-API-002 [violated] POST /members (create) does not declare a concrete return type
+  fix: annotate the action's return type (a Schema, or None for status 204)
+shop/api.py:30: HNK-API-003 [violated] GET /members (listing) returns a plain list, not a Page
+  fix: return Page[Item] and paginate the action instead of returning a list
+shop/api.py:16: HNK-SCH-001 [violated] MemberOut.token is exposed by GET /members
   fix: remove the field from the response Schema, or return a Schema that does not carry it
-shop/models.py:11: HNK-IMP-001 [violated] shop.models imports shop.api, which is forbidden for shop.models
+shop/api.py:21: HNK-SCH-002 [violated] MemberIn.name is read from POST /members without a max_length
+  fix: bound the field: Annotated[str, Field(max_length=...)] or one_of=...
+shop/models.py:4: HNK-DB-001 [violated] Member uses the derived table name 'shop_members'
+  fix: name the table with @db.table(...) or table=... on the model
+shop/models.py:9: HNK-DB-002 [violated] Order.member_id references Member and has no index
+  fix: index the column: field(index=True) or @db.indexed(...)
+shop/models.py:14: HNK-IMP-001 [violated] shop.models imports shop.api, which is forbidden for shop.models
   fix: move the code to an allowed layer, or depend on it through the layer in between
-3 rule(s): 3 violated, 0 unverifiable, 0 waived        (exit 1)
 </code></pre></div>
-<p><code>--format json</code> prints the same diagnostics as versioned data (<code>schema_version</code>, <code>summary</code>, and per diagnostic <code>rule</code>, <code>severity</code>, <code>phase</code>, <code>status</code>, <code>message</code>, <code>location</code>, <code>explanation</code>, <code>subject</code>, <code>waiver</code>) for CI, editors and agents. <code>--phase static|startup</code> selects a phase; exit codes are 0 clean, 1 violations, 2 the check could not run.</p>
+<p>(The output above is excerpted: <code>HNK-ACC-001</code>, <code>HNK-TXN-001</code> and the rest of the diagnostics are listed the same way.) When the return type does not name its schema, <code>HNK-SCH-001</code> reports <code>[unverifiable]</code> instead of passing silently.</p>
+<p><code>--format json</code> prints the same diagnostics as versioned data (<code>schema_version</code>, <code>rules</code>, <code>summary</code>, and per diagnostic <code>rule</code>, <code>severity</code>, <code>phase</code>, <code>status</code>, <code>message</code>, <code>location</code>, <code>explanation</code>, <code>subject</code>, <code>waiver</code>, <code>fix</code>) for CI, editors and agents. <code>--phase static|startup</code> selects a phase; exit codes are 0 clean, 1 violations, 2 the check could not run.</p>
 <p>Statuses: <strong>violated</strong> (demonstrated), <strong>unverifiable</strong> (the check could not decide, for example a dynamic import, a rule that matched nothing, or a rule that crashed: this fails the build too, it is never a pass), <strong>waived</strong>.</p>
 <h2 id="exceptions-waivers">Exceptions (waivers)<a class="headerlink" href="#exceptions-waivers" title="Permanent link">&para;</a></h2>
 <p><code>hinoki-rules.toml</code> next to the project:</p>
@@ -536,11 +555,38 @@ shop/models.py:11: HNK-IMP-001 [violated] shop.models imports shop.api, which is
 <span class="n">expires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ld">2027-01-31</span><span class="w">                          </span><span class="c1"># optional</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>tests/projects/rulesapp.py:7: HNK-ACC-001 [waived] GET /health (health) declares no access policy
+  fix: add access=&lt;policy&gt; to the action (or list it in except_ when it is public on purpose)
+...
     waived: liveness probe is public by design (platform-team, until 2027-01-31)
+2 rule(s): 2 violated, 0 unverifiable, 1 waived
 </code></pre></div>
 <p>A waiver needs a reason, an owner and a bounded target; an expired one stops applying and says so; a waiver that matches nothing is reported. A diagnostic that means "the rule could not do its job" cannot be waived. <strong>Waivers are the owner's decision</strong>: the tools read the file and never write it (put it under CODEOWNERS); <code>AGENTS.md</code> in a generated project tells agents the same.</p>
 <h2 id="your-own-rules">Your own rules<a class="headerlink" href="#your-own-rules" title="Permanent link">&para;</a></h2>
-<p>Subclass <code>hinoki.rules.Rule</code> with a stable <code>id</code>, a <code>phase</code>, an <code>explanation</code> and <code>check(project)</code> yielding <code>Diagnostic</code>s (use <code>self.diagnostic(message, location, subject=...)</code>). A rule that needs side effects (runs code, files, network, a database) declares them in <code>effects</code> and only runs with <code>check --allow-effects</code>.</p>
+<p>Subclass <code>hinoki.rules.Rule</code> with a stable <code>id</code>, a <code>phase</code> (<code>Phase.STARTUP</code> by default), an <code>explanation</code>, an optional <code>fix</code> line and <code>check(project)</code> yielding <code>Diagnostic</code>s (use <code>self.diagnostic(message, location, subject=...)</code>; <code>hinoki.rules.qualified(route)</code> gives an action's waiver subject). A rule that needs side effects (runs code, files, network, a database) declares them in <code>effects</code> and only runs with <code>check --allow-effects</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">Project</span><span class="p">,</span> <span class="n">Rule</span><span class="p">,</span> <span class="n">RuleSet</span><span class="p">,</span> <span class="n">qualified</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">NoDelete</span><span class="p">(</span><span class="n">Rule</span><span class="p">):</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="s2">"ACME-API-001"</span>
+    <span class="n">explanation</span> <span class="o">=</span> <span class="s2">"This project archives rows instead of deleting them."</span>
+    <span class="n">fix</span> <span class="o">=</span> <span class="s2">"use PATCH to set archived=true"</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project</span><span class="p">:</span> <span class="n">Project</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">route</span> <span class="ow">in</span> <span class="n">project</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">routes</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">route</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s2">"DELETE"</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="bp">self</span><span class="o">.</span><span class="n">diagnostic</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"DELETE </span><span class="si">{</span><span class="n">route</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2"> removes a row"</span><span class="p">,</span>
+                    <span class="s2">"api.py:1"</span><span class="p">,</span>
+                    <span class="n">subject</span><span class="o">=</span><span class="n">qualified</span><span class="p">(</span><span class="n">route</span><span class="p">),</span>
+                <span class="p">)</span>
+
+
+<span class="n">rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span><span class="n">NoDelete</span><span class="p">())</span>  <span class="c1"># Hinoki(..., rules=rules)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>api.py:1: ACME-API-001 [violated] DELETE /things/{thing_id} removes a row
+  fix: use PATCH to set archived=true
+1 rule(s): 1 violated, 0 unverifiable, 0 waived
+</code></pre></div>
 <h2 id="seeing-them-from-an-agent">Seeing them from an agent<a class="headerlink" href="#seeing-them-from-an-agent" title="Permanent link">&para;</a></h2>
 <p>The development MCP (<code>hinoki mcp</code>) exposes project inspection and rule diagnostics as read-only tools. See <a href="../ai-workflow/">development tools</a>. Rules inspect declarations and source structure; they do not prove what every function body does.</p>
         
@@ -572,8 +618,8 @@ shop/models.py:11: HNK-IMP-001 [violated] shop.models imports shop.api, which is
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.17</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 02:57:18 UTC">November 20, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>5 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/rules.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

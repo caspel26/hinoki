@@ -3707,6 +3707,371 @@ override them, which is how a handler answers with a status of its own:
     </div>
 
 </div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.errors.TooManyRequests" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.errors.TooManyRequests</span>
+
+
+<a href="#hinoki.errors.TooManyRequests" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="hinoki.errors.APIError" href="#hinoki.errors.APIError">APIError</a></code></p>
+
+
+
+        <p>The one error a <code>rate_limit</code> policy may raise to refuse a request.</p>
+<p><code>retry_after</code> is a whole number of seconds from 1 to 86,400, sent as
+<code>Retry-After</code>; anything else is refused when the error is created.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.errors.UniqueConflict" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.errors.UniqueConflict</span>
+
+
+<a href="#hinoki.errors.UniqueConflict" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="hinoki.errors.Conflict" href="#hinoki.errors.Conflict">Conflict</a></code></p>
+
+
+
+        <p>A unique value is already in use: the answer to a <code>UniqueViolation</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.errors.ObjectNotFound" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.errors.ObjectNotFound</span>
+
+
+<a href="#hinoki.errors.ObjectNotFound" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="hinoki.errors.ModelError">ModelError</span></code></p>
+
+
+
+        <p>A query that must return one row returned none. Each model has its own
+subclass as <code>Model.NotFound</code>; HTTP maps it to 404.</p>
+
+
+
+
+
+
+
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.errors.ErrorRegistry" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.errors.ErrorRegistry</span>
+
+
+<a href="#hinoki.errors.ErrorRegistry" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Maps exception classes to handlers; the most specific class wins.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.errors.ErrorRegistry.is_builtin" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">is_builtin</span>
+
+
+<a href="#hinoki.errors.ErrorRegistry.is_builtin" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">is_builtin</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">Exception</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Whether only synchronous built-in translations can answer <code>exc</code>:
+no application handler matches it.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.errors.ErrorRegistry.translate_builtin" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">translate_builtin</span>
+
+
+<a href="#hinoki.errors.ErrorRegistry.translate_builtin" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">translate_builtin</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">Exception</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">APIError</span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p><code>translate</code> for an exception <code>is_builtin</code> accepted, without a
+coroutine.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.errors.ErrorRegistry.translate" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">translate</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.errors.ErrorRegistry.translate" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">translate</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">Exception</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">APIError</span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The public error for <code>exc</code>, or <code>None</code> if nothing handles it.</p>
+<p>A handler that fails or returns something else is treated as unhandled.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="rate-limits">Rate limits<a class="headerlink" href="#rate-limits" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.ratelimit.RateLimitPolicy" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.ratelimit.RateLimitPolicy</span>
+
+
+<a href="#hinoki.ratelimit.RateLimitPolicy" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
+
+
+
+        <p>Anything with a <code>check</code> method, <code>def</code> or <code>async def</code>.</p>
+<p>A sync <code>check</code> runs on the bounded executor and must use sync clients with
+finite timeouts; an async one runs on the event loop.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.ratelimit.RateLimitContext" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.ratelimit.RateLimitContext</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.ratelimit.RateLimitContext" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>What a policy may decide from: no headers, credentials, body or query.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.ratelimit.RateLimitContext.resource" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">resource</span>
+
+
+<a href="#hinoki.ratelimit.RateLimitContext.resource" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">resource</span><span class="p">(</span><span class="n">kind</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">T</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">T</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The worker-owned resource of this type that a module provided (for
+example a Redis client or the <code>Database</code>); <code>LookupError</code> if none.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
         
       </article>
 
@@ -3740,14 +4105,18 @@ override them, which is how a handler answers with a status of its own:
             <ul><li><a href="#hinoki.http.response.Response.__slots__">__slots__</a></li><li><a href="#hinoki.http.response.Response.status">status</a></li><li><a href="#hinoki.http.response.Response.body">body</a></li><li><a href="#hinoki.http.response.Response.headers">headers</a></li><li><a href="#hinoki.http.response.Response.__init__">__init__</a></li></ul>
           </li><li><a href="#hinoki.http.response.set_cookie">set_cookie</a></li><li><a href="#hinoki.access.Access">Access</a>
             <ul><li><a href="#hinoki.access.Access.auth">auth</a></li><li><a href="#hinoki.access.Access.permissions">permissions</a></li><li><a href="#hinoki.access.Access.__init__">__init__</a></li></ul>
-          </li><li><a href="#hinoki.errors.APIError">APIError</a></li><li><a href="#hinoki.errors.BadRequest">BadRequest</a></li><li><a href="#hinoki.errors.Unauthorized">Unauthorized</a></li><li><a href="#hinoki.errors.Forbidden">Forbidden</a></li><li><a href="#hinoki.errors.NotFound">NotFound</a></li><li><a href="#hinoki.errors.Conflict">Conflict</a></li></ul>
+          </li><li><a href="#hinoki.errors.APIError">APIError</a></li><li><a href="#hinoki.errors.BadRequest">BadRequest</a></li><li><a href="#hinoki.errors.Unauthorized">Unauthorized</a></li><li><a href="#hinoki.errors.Forbidden">Forbidden</a></li><li><a href="#hinoki.errors.NotFound">NotFound</a></li><li><a href="#hinoki.errors.Conflict">Conflict</a></li><li><a href="#hinoki.errors.TooManyRequests">TooManyRequests</a></li><li><a href="#hinoki.errors.UniqueConflict">UniqueConflict</a></li><li><a href="#hinoki.errors.ObjectNotFound">ObjectNotFound</a></li><li><a href="#hinoki.errors.ErrorRegistry">ErrorRegistry</a>
+            <ul><li><a href="#hinoki.errors.ErrorRegistry.is_builtin">is_builtin</a></li><li><a href="#hinoki.errors.ErrorRegistry.translate_builtin">translate_builtin</a></li><li><a href="#hinoki.errors.ErrorRegistry.translate">translate</a></li></ul>
+          </li><li><a href="#rate-limits">Rate limits</a></li><li><a href="#hinoki.ratelimit.RateLimitPolicy">RateLimitPolicy</a></li><li><a href="#hinoki.ratelimit.RateLimitContext">RateLimitContext</a>
+            <ul><li><a href="#hinoki.ratelimit.RateLimitContext.resource">resource</a></li></ul>
+          </li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.2</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 03:05:52 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/web.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -1533,6 +1533,124 @@ every field check passed or failed (all problems are reported together).</p>
 
 </div>
 
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.schema.before_validate" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.schema.before_validate</span>
+
+
+<a href="#hinoki.schema.before_validate" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">before_validate</span><span class="p">(</span><span class="n">function</span><span class="p">:</span> <span class="n">F</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">F</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Mark a classmethod or staticmethod that reshapes raw wire input:
+<code>def prepare(cls, data: dict[str, Any]) -&gt; dict[str, Any]</code>.</p>
+<p>It runs on the decoded mapping, before any structural validation, for the
+schema and for every schema nested in it (lists, dicts, tuples, optionals and
+discriminated variants). Return the mapping to validate. The hook gets a shallow
+copy: replace nested values instead of mutating them, or the caller's input
+changes. Raise <code>Invalid(code, message)</code> to refuse; a <code>KeyError</code>,
+<code>TypeError</code>, <code>ValueError</code>, <code>IndexError</code> or <code>AttributeError</code> caused by
+unexpected input answers as <code>invalid_input</code>. The input
+is untrusted: check types before relying on them, stay synchronous and do no
+I/O. Plain unions of schemas that use it are refused: use a discriminator.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.computed.computed_field" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.computed.computed_field</span>
+
+
+<a href="#hinoki.computed.computed_field" class="headerlink" title="Permanent link">&para;</a></h2>
+          <div class="doc-overloads">
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">computed_field</span><span class="p">(</span><span class="n">function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">T</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">T</span>
+</code></pre></div><div class="doc-signature highlight"><pre><span></span><code><span class="nf">computed_field</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">alias</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">examples</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">T</span><span class="p">]],</span> <span class="n">T</span><span class="p">]</span>
+</code></pre></div>          </div>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">computed_field</span><span class="p">(</span>
+    <span class="n">function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">/</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">alias</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">examples</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Declare a read-only value derived from the other fields of a <code>Schema</code>.</p>
+<p><code>@computed_field def full_name(self) -&gt; str</code> reads like an attribute, is
+written by <code>dump()</code> and by JSON responses after the declared fields, and
+is documented as a <code>readOnly</code> property. It is never accepted as input and
+never stored. The return annotation gives its OpenAPI type; the method must
+be synchronous, take no arguments and not do I/O.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.fields.SecretStr" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.fields.SecretStr</span>
+
+
+<a href="#hinoki.fields.SecretStr" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A string that never shows itself: <code>repr</code>, <code>str</code>, <code>dump()</code> and JSON
+responses give <code>**********</code>; <code>get_secret_value()</code> returns the text.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
 <div class="doc doc-object doc-class">
 
 
@@ -1649,14 +1767,14 @@ deprecated; it requires the legacy <code>model=</code> Schema class keyword.</p>
           
             <ul><li><a href="#hinoki.schema.Schema">Schema</a>
             <ul><li><a href="#hinoki.schema.Schema.__hinoki_schema__">__hinoki_schema__</a></li><li><a href="#hinoki.schema.Schema.__specs__">__specs__</a></li><li><a href="#hinoki.schema.Schema.__assigned_field_info__">__assigned_field_info__</a></li><li><a href="#hinoki.schema.Schema.__native__">__native__</a></li><li><a href="#hinoki.schema.Schema.__native_dump__">__native_dump__</a></li><li><a href="#hinoki.schema.Schema.__checks__">__checks__</a></li><li><a href="#hinoki.schema.Schema.__normalizers__">__normalizers__</a></li><li><a href="#hinoki.schema.Schema.__before__">__before__</a></li><li><a href="#hinoki.schema.Schema.__declared_forms__">__declared_forms__</a></li><li><a href="#hinoki.schema.Schema.__float_fields__">__float_fields__</a></li><li><a href="#hinoki.schema.Schema.__graph_normalizers__">__graph_normalizers__</a></li><li><a href="#hinoki.schema.Schema.__graph_before__">__graph_before__</a></li><li><a href="#hinoki.schema.Schema.__source__">__source__</a></li><li><a href="#hinoki.schema.Schema.__derivation__">__derivation__</a></li><li><a href="#hinoki.schema.Schema.__derived_model__">__derived_model__</a></li><li><a href="#hinoki.schema.Schema.__schema_config__">__schema_config__</a></li><li><a href="#hinoki.schema.Schema.__computed_specs__">__computed_specs__</a></li><li><a href="#hinoki.schema.Schema.__computed_checked__">__computed_checked__</a></li><li><a href="#hinoki.schema.Schema.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.schema.Schema.is_generic">is_generic</a></li><li><a href="#hinoki.schema.Schema.__class_getitem__">__class_getitem__</a></li><li><a href="#hinoki.schema.Schema.computed_fields">computed_fields</a></li><li><a href="#hinoki.schema.Schema.apply_default">apply_default</a></li><li><a href="#hinoki.schema.Schema.specs">specs</a></li><li><a href="#hinoki.schema.Schema.build_specs">build_specs</a></li><li><a href="#hinoki.schema.Schema.validate_normalizers">validate_normalizers</a></li><li><a href="#hinoki.schema.Schema.native_schema">native_schema</a></li><li><a href="#hinoki.schema.Schema.validate">validate</a></li><li><a href="#hinoki.schema.Schema._validate_prepared">_validate_prepared</a></li><li><a href="#hinoki.schema.Schema.validate_text">validate_text</a></li><li><a href="#hinoki.schema.Schema._validate_instance">_validate_instance</a></li><li><a href="#hinoki.schema.Schema.fields">fields</a></li><li><a href="#hinoki.schema.Schema.to_dict">to_dict</a></li><li><a href="#hinoki.schema.Schema.replace">replace</a></li><li><a href="#hinoki.schema.Schema.from_models">from_models</a></li><li><a href="#hinoki.schema.Schema.from_model">from_model</a></li><li><a href="#hinoki.schema.Schema.dump">dump</a></li></ul>
-          </li><li><a href="#hinoki.schemaconfig.SchemaConfig">SchemaConfig</a></li><li><a href="#hinoki.schemaconfig.SchemaExtra">SchemaExtra</a></li><li><a href="#hinoki.fields.Field">Field</a></li><li><a href="#hinoki.schema.Invalid">Invalid</a></li><li><a href="#hinoki.schema.Unset">Unset</a></li><li><a href="#hinoki.schema.field_check">field_check</a></li><li><a href="#hinoki.schema.field_normalize">field_normalize</a></li><li><a href="#hinoki.schema.object_check">object_check</a></li><li><a href="#hinoki.errors.ValidationError">ValidationError</a></li><li><a href="#hinoki.fields.UNSET">UNSET</a></li><li><a href="#hinoki.derive.derive">derive</a></li></ul>
+          </li><li><a href="#hinoki.schemaconfig.SchemaConfig">SchemaConfig</a></li><li><a href="#hinoki.schemaconfig.SchemaExtra">SchemaExtra</a></li><li><a href="#hinoki.fields.Field">Field</a></li><li><a href="#hinoki.schema.Invalid">Invalid</a></li><li><a href="#hinoki.schema.Unset">Unset</a></li><li><a href="#hinoki.schema.field_check">field_check</a></li><li><a href="#hinoki.schema.field_normalize">field_normalize</a></li><li><a href="#hinoki.schema.object_check">object_check</a></li><li><a href="#hinoki.schema.before_validate">before_validate</a></li><li><a href="#hinoki.computed.computed_field">computed_field</a></li><li><a href="#hinoki.fields.SecretStr">SecretStr</a></li><li><a href="#hinoki.errors.ValidationError">ValidationError</a></li><li><a href="#hinoki.fields.UNSET">UNSET</a></li><li><a href="#hinoki.derive.derive">derive</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.4</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 16, 2026 04:39:35 UTC">November 16, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/schemas.md">Edit on GitHub</a></dd></div>
         </dl>

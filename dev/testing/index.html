@@ -410,7 +410,7 @@
     <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"title"</span><span class="p">:</span> <span class="s2">"Write docs"</span><span class="p">},</span> <span class="n">token</span><span class="o">=</span><span class="s2">"member"</span><span class="p">)</span>
     <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">201</span>
 </code></pre></div>
-<p>Its context manager runs module lifespans and the application's startup and shutdown hooks. If the application declares a database, point it to a disposable PostgreSQL database. <code>strict_errors=True</code> catches an HTTP error returned by an action but missing from its <code>errors=</code> declaration.</p>
+<p>Its context manager runs module lifespans and the application's startup and shutdown hooks. If the application declares a database, point it to a disposable database (a SQLite file or a PostgreSQL database). <code>strict_errors=True</code> catches an HTTP error returned by an action but missing from its <code>errors=</code> declaration.</p>
 <p>Both clients have <code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code>, <code>delete</code>, <code>head</code>, <code>options</code> and <code>query</code> (the HTTP <code>QUERY</code> method; its body goes in <code>json=</code> or <code>body=</code>, while the <code>query=</code> option of every call is the query string), plus <code>request(method, path, ...)</code> for any other method.</p>
 <h2 id="test-file-uploads">Test file uploads<a class="headerlink" href="#test-file-uploads" title="Permanent link">&para;</a></h2>
 <p><code>ASGIClient</code> and <code>SyncClient</code> accept <code>data=</code> and <code>files=</code> and build the multipart boundary and <code>Content-Type</code> header for you. Use a sequence of file tuples to send repeated field names in order:</p>
@@ -475,7 +475,7 @@ cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.22</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 17:11:07 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/testing.md">Edit on GitHub</a></dd></div>
         </dl>

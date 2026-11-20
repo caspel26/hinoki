@@ -531,10 +531,10 @@ unsupported types fail during model or migration validation.</p>
     <span class="n">price</span><span class="p">:</span> <span class="n">Decimal</span>
 
 
-<span class="k">await</span> <span class="n">Product</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">price__gte</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">"9.99"</span><span class="p">))</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span>
+<span class="k">await</span> <span class="n">Product</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">price__gte</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">"9.99"</span><span class="p">))</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span>
     <span class="s2">"price"</span>
 <span class="p">)</span>  <span class="c1"># PostgreSQL, MySQL, MariaDB</span>
-<span class="k">await</span> <span class="n">Product</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">price</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">"9.99"</span><span class="p">))</span>  <span class="c1"># every backend</span>
+<span class="k">await</span> <span class="n">Product</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">price</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">"9.99"</span><span class="p">))</span>  <span class="c1"># every backend</span>
 </code></pre></div>
 <ul>
 <li><strong>Filter values.</strong> A filter value must be a <code>Decimal</code>, an <code>int</code> or a numeric string; a <code>float</code>, a <code>bool</code>, <code>NaN</code> and an infinity raise <code>FieldError</code>, as does <code>contains</code> on a <code>Decimal</code> column. On SQLite an unsupported comparison or ordering raises <code>FieldError</code> naming the column.</li>
@@ -674,7 +674,7 @@ unsupported types fail during model or migration validation.</p>
 </table>
 <p>What <code>returning=False</code> gives back is the client's side of the write. An insert sends every column, after defaults and factories ran in Python, so the returned instance holds exactly those values and remembers them, so a later <code>asave()</code> updates the row instead of inserting it again. An update returns no values at all; the <code>@timestamps</code> column is still set by the clock and validation still runs. Nothing is re-read from the database, so anything the database changes on the way in is not reflected: timestamp precision, numeric scale, JSON normalization, column types that store a different representation and triggers. Read the row with <code>aget</code> when you need the stored values.</p>
 <p>The count is the number the database reports. PostgreSQL and SQLite count the rows the statement matched; MySQL and MariaDB, with the driver's default connection settings, count the rows whose values actually changed, so a row that already held the new values counts 0.</p>
-<p>The cost of the default is the data sent back. In a raw-SQL measurement on PostgreSQL 17 with 16 statements in flight, a statement returning every column of a narrow row took 83.7 µs per operation against 75.8 µs returning only the key (+10%); with a ~10 KB <code>jsonb</code> column it took 143.4 µs against 75.9 µs (+89%). This is a single-machine measurement, not a guarantee for other workloads.</p>
+<p>The cost of the default is the data sent back, which grows with the width of the row and with large columns such as JSON.</p>
 <p><code>returning</code> is a keyword-only option of these methods, so a model cannot declare a field named <code>returning</code>: the class definition raises <code>RegistrationError</code> and asks for another name.</p>
 <h2 id="lifecycle-hooks-and-instance-state">Lifecycle hooks and instance state<a class="headerlink" href="#lifecycle-hooks-and-instance-state" title="Permanent link">&para;</a></h2>
 <p>A model can react to its own writes by defining <code>before_save</code>, <code>before_create</code>, <code>after_create</code> and <code>after_save</code>. Each is an ordinary method, <code>def</code> or <code>async def</code>, taking only <code>self</code>; a model that defines none pays nothing.</p>
@@ -814,8 +814,8 @@ unsupported types fail during model or migration validation.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 02:57:18 UTC">November 20, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>18 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>17 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

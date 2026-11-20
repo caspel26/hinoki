@@ -240,7 +240,7 @@
 <h2 id="a-model-is-stored-data-a-schema-is-api-data">A model is stored data; a Schema is API data<a class="headerlink" href="#a-model-is-stored-data-a-schema-is-api-data" title="Permanent link">&para;</a></h2>
 <p><code>Model</code> describes a database row and its queries (SQLite, PostgreSQL, MySQL or MariaDB). <code>Schema</code> validates the values an endpoint accepts or returns. A response schema should expose only the fields clients are meant to see. Model-derived <code>Schema</code> classes are a convenience, not a replacement for deciding that boundary.</p>
 <h2 id="a-declaration-is-reused">A declaration is reused<a class="headerlink" href="#a-declaration-is-reused" title="Permanent link">&para;</a></h2>
-<p>An action's Python signature and decorator options describe routing, binding, access, transaction behavior, expected errors, OpenAPI and MCP metadata. A route can be included as a standalone function, grouped in an <code>API</code> resource class, or collected in an includable <code>RouteGroup</code> of functions with shared defaults.</p>
+<p>An action's Python signature and decorator options describe routing, binding, access, <code>atomic</code> transactions, expected errors, OpenAPI and MCP metadata. A route can be included as a standalone function, grouped in an <code>API</code> resource class, or collected in an includable <code>RouteGroup</code> of functions with shared defaults.</p>
 <h2 id="one-application-object">One application object<a class="headerlink" href="#one-application-object" title="Permanent link">&para;</a></h2>
 <p>A server process serves one <code>Hinoki</code> object, the one <code>hinoki serve module:app</code> or <code>project.application</code> in <code>hinoki.toml</code> names. Declare it at module level, as the generated project does:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># blog/main.py</span>
@@ -257,7 +257,7 @@
 <h2 id="worker-resources">Worker resources<a class="headerlink" href="#worker-resources" title="Permanent link">&para;</a></h2>
 <p>Each server worker owns its module lifespan and database pool. Startup creates resources; shutdown closes them. A pool is not opened at import or shared across workers. Scripts outside the server manage their own short-lived connections.</p>
 <h2 id="optional-rules">Optional rules<a class="headerlink" href="#optional-rules" title="Permanent link">&para;</a></h2>
-<p>Rules inspect declared routes, schemas, imports or other known project structure. They report a violation or say they could not verify the promise. They do not prove arbitrary function behavior. Enable the checks that suit the application and run them both at startup and in development.</p>
+<p>Rules inspect declared routes, schemas, models, imports or other known project structure. Hinoki ships eleven; see <a href="../rules/">rules</a>. They report a violation or say they could not verify the promise. They do not prove arbitrary function behavior. Enable the checks that suit the application and run them both at startup and in development.</p>
 <h2 id="where-to-continue">Where to continue<a class="headerlink" href="#where-to-continue" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../request-lifecycle/">Request lifecycle</a></li>
@@ -289,7 +289,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.1</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/concepts.md">Edit on GitHub</a></dd></div>
         </dl>

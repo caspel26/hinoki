@@ -476,9 +476,14 @@
 <h2 id="upload-files">Upload files<a class="headerlink" href="#upload-files" title="Permanent link">&para;</a></h2>
 <p>An action that binds an <code>UploadedFile</code> and has no parsers of its own gets <code>MultiPartParser()</code> with its default limits (100 parts, 1 MiB per part), unless the application's <code>parsers=</code> already include a <code>MultiPartParser</code>, which is then used. Other actions accept multipart only when it is listed. The parser handles bounded multipart bytes in Rust, then Python creates <code>UploadedFile</code> objects. For typed handler binding, annotate a parameter as <code>UploadedFile</code>, <code>UploadedFile | None = None</code>, or <code>list[UploadedFile]</code>; the parameter name selects the multipart field. A single value rejects duplicates, while a list preserves repeated values. The same objects are visible through <code>request.FILES</code>; text fields are available in <code>request.POST</code>. See <a href="../endpoints/#upload-files">endpoint upload declarations</a> for a complete example and status-code behavior.</p>
 <p>The complete request body and every part are buffered in memory. The default body cap is 1 MiB; increasing it also increases potential memory use across concurrent requests. This parser does not stream or spool files. Keep both the runtime body cap and <code>max_part_bytes</code> bounded, and treat filenames and media types as untrusted client input.</p>
+<p><code>JSONParser</code>, <code>JSONRenderer</code>, <code>HTMLRenderer</code>, <code>XMLParser</code>, <code>XMLRenderer</code>, <code>FormParser</code>, <code>MultiPartParser</code> and <code>BytesParser</code> are importable from <code>hinoki</code>; <code>TextParser</code> and <code>TextRenderer</code> come from <code>hinoki.parsers</code> and <code>hinoki.renderers</code>.</p>
 <h2 id="choose-them">Choose them<a class="headerlink" href="#choose-them" title="Permanent link">&para;</a></h2>
 <p>Per action, or for the whole application (an action's own choice wins):</p>
-<div class="highlight"><pre><span></span><code><span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">renderers</span><span class="o">=</span><span class="p">[</span><span class="n">JSONRenderer</span><span class="p">(</span><span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">TextRenderer</span><span class="p">()])</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">JSONParser</span><span class="p">,</span> <span class="n">JSONRenderer</span><span class="p">,</span> <span class="n">Request</span><span class="p">,</span> <span class="n">http</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.parsers</span><span class="w"> </span><span class="kn">import</span> <span class="n">TextParser</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.renderers</span><span class="w"> </span><span class="kn">import</span> <span class="n">TextRenderer</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">renderers</span><span class="o">=</span><span class="p">[</span><span class="n">JSONRenderer</span><span class="p">(</span><span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">TextRenderer</span><span class="p">()])</span>
 
 
 <span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/report"</span><span class="p">,</span> <span class="n">renderers</span><span class="o">=</span><span class="p">[</span><span class="n">JSONRenderer</span><span class="p">(</span><span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">)])</span>
@@ -543,7 +548,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.15</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/codecs.md">Edit on GitHub</a></dd></div>
         </dl>

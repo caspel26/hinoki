@@ -828,6 +828,31 @@ The message is shown in <code>SettingsError</code>: never put a field's value in
 
 
 
+<h3 id="hinoki.settings.AppSettings.admin" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">admin</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.AppSettings.admin" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">admin</span><span class="p">:</span> <span class="n">AdminSettings</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span>
+    <span class="n">default_factory</span><span class="o">=</span><span class="n">AdminSettings</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="hinoki.settings.AppSettings.timezone" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">timezone</span>
 
@@ -1772,6 +1797,123 @@ without an asyncio task; <code>False</code> keeps every handler in one.</p>
 
 
 
+<h3 id="hinoki.settings.ServerSettings.access_log_format" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">access_log_format</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.access_log_format" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">access_log_format</span><span class="p">:</span> <span class="p">(</span>
+    <span class="n">Literal</span><span class="p">[</span><span class="s2">"pretty"</span><span class="p">,</span> <span class="s2">"plain"</span><span class="p">,</span> <span class="s2">"json"</span><span class="p">,</span> <span class="s2">"logger"</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.access_log_skip" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">access_log_skip</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.access_log_skip" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">access_log_skip</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.access_log_slow_ms" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">access_log_slow_ms</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.access_log_slow_ms" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">access_log_slow_ms</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.recent_requests" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">recent_requests</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.recent_requests" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">recent_requests</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.server_timing" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">server_timing</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.server_timing" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">server_timing</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="hinoki.settings.ServerSettings.max_connections" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">max_connections</span>
 
@@ -1829,6 +1971,121 @@ without an asyncio task; <code>False</code> keeps every handler in one.</p>
 
 <a href="#hinoki.settings.ServerSettings.body_read_timeout" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="doc-signature highlight"><pre><span></span><code><span class="n">body_read_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.write_timeout" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">write_timeout</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.write_timeout" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">write_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.tls_cert_file" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">tls_cert_file</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.tls_cert_file" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">tls_cert_file</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.tls_key_file" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">tls_key_file</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.tls_key_file" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">tls_key_file</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.http2" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">http2</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.http2" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">http2</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.native_dispatch" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">native_dispatch</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.native_dispatch" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">native_dispatch</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2421,6 +2678,156 @@ without an asyncio task; <code>False</code> keeps every handler in one.</p>
 
 
 
+<h2 id="hinoki.settings.AdminSettings" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.settings.AdminSettings</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.settings.AdminSettings" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="hinoki.settings.Settings
+
+
+  
+      dataclass
+  " href="#hinoki.settings.Settings">Settings</a></code></p>
+
+
+
+        <p>The admin site: the secret that keys its CSRF tokens and the rules of
+its own users' sessions and passwords.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.AdminSettings.secret" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">secret</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.AdminSettings.secret" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">secret</span><span class="p">:</span> <span class="n">Secret</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.AdminSettings.session_hours" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">session_hours</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.AdminSettings.session_hours" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">session_hours</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">12</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.AdminSettings.idle_minutes" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">idle_minutes</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.AdminSettings.idle_minutes" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">idle_minutes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">120</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.AdminSettings.min_password_length" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">min_password_length</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.AdminSettings.min_password_length" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">min_password_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">12</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
 <h2 id="hinoki.settings.FrameOptions" class="doc doc-heading">
             <span class="doc doc-object-name doc-class-name">hinoki.settings.FrameOptions</span>
 
@@ -2852,7 +3259,7 @@ With <code>engine</code>, <code>url</code> holds the URL built from the fields.<
           </li><li><a href="#hinoki.settings.Secret">Secret</a>
             <ul><li><a href="#hinoki.settings.Secret.reveal">reveal</a></li></ul>
           </li><li><a href="#hinoki.settings.SettingsError">SettingsError</a></li><li><a href="#hinoki.settings.AppSettings">AppSettings</a>
-            <ul><li><a href="#hinoki.settings.AppSettings.execution">execution</a></li><li><a href="#hinoki.settings.AppSettings.lifecycle">lifecycle</a></li><li><a href="#hinoki.settings.AppSettings.logging">logging</a></li><li><a href="#hinoki.settings.AppSettings.docs">docs</a></li><li><a href="#hinoki.settings.AppSettings.server">server</a></li><li><a href="#hinoki.settings.AppSettings.pagination">pagination</a></li><li><a href="#hinoki.settings.AppSettings.cors">cors</a></li><li><a href="#hinoki.settings.AppSettings.security">security</a></li><li><a href="#hinoki.settings.AppSettings.timezone">timezone</a></li><li><a href="#hinoki.settings.AppSettings.debug">debug</a></li><li><a href="#hinoki.settings.AppSettings.allowed_hosts">allowed_hosts</a></li><li><a href="#hinoki.settings.AppSettings.runtime_config">runtime_config</a></li></ul>
+            <ul><li><a href="#hinoki.settings.AppSettings.execution">execution</a></li><li><a href="#hinoki.settings.AppSettings.lifecycle">lifecycle</a></li><li><a href="#hinoki.settings.AppSettings.logging">logging</a></li><li><a href="#hinoki.settings.AppSettings.docs">docs</a></li><li><a href="#hinoki.settings.AppSettings.server">server</a></li><li><a href="#hinoki.settings.AppSettings.pagination">pagination</a></li><li><a href="#hinoki.settings.AppSettings.cors">cors</a></li><li><a href="#hinoki.settings.AppSettings.security">security</a></li><li><a href="#hinoki.settings.AppSettings.admin">admin</a></li><li><a href="#hinoki.settings.AppSettings.timezone">timezone</a></li><li><a href="#hinoki.settings.AppSettings.debug">debug</a></li><li><a href="#hinoki.settings.AppSettings.allowed_hosts">allowed_hosts</a></li><li><a href="#hinoki.settings.AppSettings.runtime_config">runtime_config</a></li></ul>
           </li><li><a href="#hinoki.settings.ExecutionSettings">ExecutionSettings</a>
             <ul><li><a href="#hinoki.settings.ExecutionSettings.sync_workers">sync_workers</a></li><li><a href="#hinoki.settings.ExecutionSettings.sync_queue">sync_queue</a></li><li><a href="#hinoki.settings.ExecutionSettings.request_timeout">request_timeout</a></li><li><a href="#hinoki.settings.ExecutionSettings.max_body_bytes">max_body_bytes</a></li><li><a href="#hinoki.settings.ExecutionSettings.max_query_bytes">max_query_bytes</a></li><li><a href="#hinoki.settings.ExecutionSettings.max_header_bytes">max_header_bytes</a></li></ul>
           </li><li><a href="#hinoki.settings.LifecycleSettings">LifecycleSettings</a>
@@ -2862,13 +3269,15 @@ With <code>engine</code>, <code>url</code> holds the URL built from the fields.<
           </li><li><a href="#hinoki.settings.DocsSettings">DocsSettings</a>
             <ul><li><a href="#hinoki.settings.DocsSettings.title">title</a></li><li><a href="#hinoki.settings.DocsSettings.version">version</a></li><li><a href="#hinoki.settings.DocsSettings.openapi_url">openapi_url</a></li><li><a href="#hinoki.settings.DocsSettings.docs_url">docs_url</a></li><li><a href="#hinoki.settings.DocsSettings.redoc_url">redoc_url</a></li></ul>
           </li><li><a href="#hinoki.settings.ServerSettings">ServerSettings</a>
-            <ul><li><a href="#hinoki.settings.ServerSettings.server">server</a></li><li><a href="#hinoki.settings.ServerSettings.host">host</a></li><li><a href="#hinoki.settings.ServerSettings.port">port</a></li><li><a href="#hinoki.settings.ServerSettings.workers">workers</a></li><li><a href="#hinoki.settings.ServerSettings.runtime_threads">runtime_threads</a></li><li><a href="#hinoki.settings.ServerSettings.backlog">backlog</a></li><li><a href="#hinoki.settings.ServerSettings.access_log">access_log</a></li><li><a href="#hinoki.settings.ServerSettings.max_connections">max_connections</a></li><li><a href="#hinoki.settings.ServerSettings.header_read_timeout">header_read_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.body_read_timeout">body_read_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.trusted_proxies">trusted_proxies</a></li><li><a href="#hinoki.settings.ServerSettings.request_id_header">request_id_header</a></li><li><a href="#hinoki.settings.ServerSettings.trust_request_id">trust_request_id</a></li></ul>
+            <ul><li><a href="#hinoki.settings.ServerSettings.server">server</a></li><li><a href="#hinoki.settings.ServerSettings.host">host</a></li><li><a href="#hinoki.settings.ServerSettings.port">port</a></li><li><a href="#hinoki.settings.ServerSettings.workers">workers</a></li><li><a href="#hinoki.settings.ServerSettings.runtime_threads">runtime_threads</a></li><li><a href="#hinoki.settings.ServerSettings.backlog">backlog</a></li><li><a href="#hinoki.settings.ServerSettings.access_log">access_log</a></li><li><a href="#hinoki.settings.ServerSettings.access_log_format">access_log_format</a></li><li><a href="#hinoki.settings.ServerSettings.access_log_skip">access_log_skip</a></li><li><a href="#hinoki.settings.ServerSettings.access_log_slow_ms">access_log_slow_ms</a></li><li><a href="#hinoki.settings.ServerSettings.recent_requests">recent_requests</a></li><li><a href="#hinoki.settings.ServerSettings.server_timing">server_timing</a></li><li><a href="#hinoki.settings.ServerSettings.max_connections">max_connections</a></li><li><a href="#hinoki.settings.ServerSettings.header_read_timeout">header_read_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.body_read_timeout">body_read_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.write_timeout">write_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.tls_cert_file">tls_cert_file</a></li><li><a href="#hinoki.settings.ServerSettings.tls_key_file">tls_key_file</a></li><li><a href="#hinoki.settings.ServerSettings.http2">http2</a></li><li><a href="#hinoki.settings.ServerSettings.native_dispatch">native_dispatch</a></li><li><a href="#hinoki.settings.ServerSettings.trusted_proxies">trusted_proxies</a></li><li><a href="#hinoki.settings.ServerSettings.request_id_header">request_id_header</a></li><li><a href="#hinoki.settings.ServerSettings.trust_request_id">trust_request_id</a></li></ul>
           </li><li><a href="#hinoki.settings.PaginationSettings">PaginationSettings</a>
             <ul><li><a href="#hinoki.settings.PaginationSettings.page_size">page_size</a></li><li><a href="#hinoki.settings.PaginationSettings.max_page_size">max_page_size</a></li></ul>
           </li><li><a href="#hinoki.settings.CorsSettings">CorsSettings</a>
             <ul><li><a href="#hinoki.settings.CorsSettings.origins">origins</a></li><li><a href="#hinoki.settings.CorsSettings.methods">methods</a></li><li><a href="#hinoki.settings.CorsSettings.headers">headers</a></li><li><a href="#hinoki.settings.CorsSettings.expose_headers">expose_headers</a></li><li><a href="#hinoki.settings.CorsSettings.credentials">credentials</a></li><li><a href="#hinoki.settings.CorsSettings.max_age">max_age</a></li></ul>
           </li><li><a href="#hinoki.settings.SecuritySettings">SecuritySettings</a>
             <ul><li><a href="#hinoki.settings.SecuritySettings.redirect_https">redirect_https</a></li><li><a href="#hinoki.settings.SecuritySettings.hsts_seconds">hsts_seconds</a></li><li><a href="#hinoki.settings.SecuritySettings.hsts_include_subdomains">hsts_include_subdomains</a></li><li><a href="#hinoki.settings.SecuritySettings.hsts_preload">hsts_preload</a></li><li><a href="#hinoki.settings.SecuritySettings.frame_options">frame_options</a></li><li><a href="#hinoki.settings.SecuritySettings.referrer_policy">referrer_policy</a></li></ul>
+          </li><li><a href="#hinoki.settings.AdminSettings">AdminSettings</a>
+            <ul><li><a href="#hinoki.settings.AdminSettings.secret">secret</a></li><li><a href="#hinoki.settings.AdminSettings.session_hours">session_hours</a></li><li><a href="#hinoki.settings.AdminSettings.idle_minutes">idle_minutes</a></li><li><a href="#hinoki.settings.AdminSettings.min_password_length">min_password_length</a></li></ul>
           </li><li><a href="#hinoki.settings.FrameOptions">FrameOptions</a></li><li><a href="#hinoki.settings.ReferrerPolicy">ReferrerPolicy</a></li><li><a href="#hinoki.settings.DatabaseSettings">DatabaseSettings</a>
             <ul><li><a href="#hinoki.settings.DatabaseSettings.url">url</a></li><li><a href="#hinoki.settings.DatabaseSettings.engine">engine</a></li><li><a href="#hinoki.settings.DatabaseSettings.name">name</a></li><li><a href="#hinoki.settings.DatabaseSettings.user">user</a></li><li><a href="#hinoki.settings.DatabaseSettings.password">password</a></li><li><a href="#hinoki.settings.DatabaseSettings.host">host</a></li><li><a href="#hinoki.settings.DatabaseSettings.port">port</a></li><li><a href="#hinoki.settings.DatabaseSettings.options">options</a></li><li><a href="#hinoki.settings.DatabaseSettings.max_size">max_size</a></li></ul>
           </li><li><a href="#hinoki.settings.DatabaseEngine">DatabaseEngine</a></li></ul>
@@ -2878,7 +3287,7 @@ With <code>engine</code>, <code>url</code> holds the URL built from the fields.<
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.9</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 13:06:27 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/settings.md">Edit on GitHub</a></dd></div>
         </dl>

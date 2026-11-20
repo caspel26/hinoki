@@ -416,7 +416,7 @@
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">greet</span><span class="p">])</span>
 </code></pre></div>
-<p>Use <code>@http.get</code>, <code>@http.post</code>, <code>@http.put</code>, <code>@http.patch</code>, <code>@http.delete</code> or <code>@http.query</code> (<code>from hinoki import http</code>). Hinoki also answers <code>HEAD</code> through each <code>GET</code> route: it runs the GET response path and returns the same status and representation headers without a body. The GET handler therefore runs for HEAD requests too. A <code>405</code> response's <code>Allow</code> header includes <code>HEAD</code> whenever <code>GET</code> is available. Supported decorator arguments include <code>status</code>, <code>access</code>, <code>transaction</code>, <code>pagination</code>, <code>parsers</code>, <code>renderers</code>, <code>errors</code> and <code>replaces</code>. Each is checked when the route is declared or registered.</p>
+<p>Use <code>@http.get</code>, <code>@http.post</code>, <code>@http.put</code>, <code>@http.patch</code>, <code>@http.delete</code> or <code>@http.query</code> (<code>from hinoki import http</code>). Hinoki also answers <code>HEAD</code> through each <code>GET</code> route: it runs the GET response path and returns the same status and representation headers without a body. The GET handler therefore runs for HEAD requests too. A <code>405</code> response's <code>Allow</code> header includes <code>HEAD</code> whenever <code>GET</code> is available. The decorator arguments are <code>status</code>, <code>access</code>, <code>atomic</code>, <code>pagination</code>, <code>parsers</code>, <code>renderers</code>, <code>errors</code>, <code>replaces</code>, <code>validate_response</code> and <code>rate_limit</code>. Each is checked when the route is declared or registered. <code>atomic=True</code> runs the action in a transaction (<a href="../transactions/">transactions</a>); there is no <code>transaction</code> argument.</p>
 <h2 id="read-with-a-body-httpquery">Read with a body: <code>@http.query</code><a class="headerlink" href="#read-with-a-body-httpquery" title="Permanent link">&para;</a></h2>
 <p><code>QUERY</code> is the HTTP method for a read whose input does not fit a query string: it is safe and idempotent like <code>GET</code>, and carries a body like <code>POST</code>. Declare it the same way as the other methods:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
@@ -461,16 +461,16 @@
     <span class="n">locale</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"accept-language"</span><span class="p">,</span> <span class="s2">"en"</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">TaskView</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">task_id</span><span class="p">,</span> <span class="n">locale</span><span class="o">=</span><span class="n">locale</span><span class="p">)</span>
 </code></pre></div>
-<p>Request path, query and body values are validated before the handler runs; a Schema body uses <code>Schema.validate()</code> and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper Schema field (<code>Annotated[Cat | Dog, Field(discriminator="kind")]</code>); bare union body parameters are not supported. Hinoki does not coerce input values into different types, with one explicit exception: a <code>Form[Schema]</code> body (<a href="#form-bodies">text sources</a>). Return annotations describe OpenAPI and output serialization. When the annotation is one concrete Schema (also inside <code>Annotated[...]</code>), a directly returned Model is projected through that Schema, and an instance of a subclass is sent with only the declared Schema's fields; a row that fails the Schema's constraints is a <code>500 internal_error</code>, not a client error. Other response values, such as a returned <code>dict</code>, are sent unchanged and are not validated at runtime (<a href="../model-schemas/#return-a-model-from-a-schema-annotated-handler">details</a>). Use a wrapper Schema for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.</p>
+<p>Request path, query and body values are validated before the handler runs; a Schema body uses <code>Schema.validate()</code> and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper Schema field (<code>Annotated[Cat | Dog, Field(discriminator="kind")]</code>); bare union body parameters are not supported. Hinoki does not coerce input values into different types, with one explicit exception: a <code>Form[Schema]</code> body (<a href="#form-bodies">text sources</a>). Return annotations describe OpenAPI and output serialization, and the returned value is checked against them (<a href="#the-response-is-checked-against-the-annotation">the response check</a>). When the annotation is one concrete Schema (also inside <code>Annotated[...]</code>), a directly returned Model is projected through that Schema, and an instance of a subclass is sent with only the declared Schema's fields; a row that fails the Schema's constraints is a <code>500 internal_error</code>, not a client error. A returned <code>dict</code> where a <code>Schema</code> is declared is also a <code>500 internal_error</code>; it is accepted only where the annotation is a <code>dict</code> (<a href="../model-schemas/#return-a-model-from-a-schema-annotated-handler">details</a>). Use a wrapper Schema for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.</p>
 <h2 id="query-strings-as-a-schema">Query strings as a Schema<a class="headerlink" href="#query-strings-as-a-schema" title="Permanent link">&para;</a></h2>
 <p><code>Query[...]</code> reads a whole query string into a <code>Schema</code>, for any method, so a filter set can be declared and reused once:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Query</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Query</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Search</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
     <span class="n">term</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
-    <span class="n">ids</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">ids</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
 
 
 <span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/items"</span><span class="p">)</span>
@@ -480,13 +480,13 @@
 <p>Text is converted to the <code>int</code>, <code>float</code> and <code>bool</code> the <code>Schema</code> declares before the strict validation (a repeated key fills a <code>list</code> field, a single one still does). A value that does not convert, a repeated key for a scalar, a missing required field and an unknown key (by default) are <code>422</code> errors, reported with the parameter name as prefix. The <code>Schema</code> owns the whole query string, so the action takes no other query or page parameters, at most one <code>Query[...]</code>, and it cannot be a path parameter. OpenAPI lists one query parameter per field.</p>
 <h2 id="form-bodies">Form bodies<a class="headerlink" href="#form-bodies" title="Permanent link">&para;</a></h2>
 <p>A plain <code>Schema</code> parameter is a strict JSON body. Wrap it in <code>Form[...]</code> to read the same <code>Schema</code> from a form, whose values are all text:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Form</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Form</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Signup</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">age</span><span class="p">:</span> <span class="nb">int</span>
-    <span class="n">tags</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">tags</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
 
 
 <span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/signup"</span><span class="p">)</span>
@@ -639,7 +639,7 @@ action and becomes immutable after successful inclusion.</p>
 <tr>
 <td>Inheritance</td>
 <td>none: compose with decorators and groups</td>
-<td>subclasses extend a base, override an action, or drop an inherited one by redefining it without a decorator (or <code>replaces=</code>)</td>
+<td>subclasses extend a base, override an action with <code>replaces=</code>, or drop a generated one with <code>omit=</code></td>
 </tr>
 <tr>
 <td>Generated routes and write hooks</td>
@@ -749,10 +749,10 @@ where their behavior is genuinely the same. Route collisions are still checked
 after prefixes are composed.</p>
 <p><code>Includable</code> is the type of everything <code>include</code> accepts: an <code>API</code> class, a decorated function, a <code>RouteGroup</code>, a <code>Mount</code>, an object with an <code>api()</code> method (the admin, which is included as it is) or a list or tuple of those. Annotate a feature's list with it (<code>routes: list[Includable]</code>) and the type checker rejects anything else. <code>include</code> spreads nested lists and tuples in place, so order is the order you wrote. <code>Mount(prefix, *items)</code> prepends its prefix to every route it holds; mounts nest and prefixes join from the outside in. The prefix starts with <code>/</code> and does not end with one. Items you do not mount keep their own paths, so small apps can stay a flat list. Mounting changes only the path: access, errors and transactions are unchanged, and a route that ends up at the same method and path as another still fails at declaration time. A <code>RouteGroup</code> reached twice, an item that is not an action, class or group, or a module passed instead of its list is refused and named; a module gets a hint to export a list.</p>
 <p>If a feature declares its own prefix (a <code>RouteGroup("/tasks")</code> or <code>API, path="/tasks"</code>), mounting adds to it. Pick one place for each prefix: feature-relative paths with <code>Mount</code> at the root is the layout that keeps the whole map readable in <code>main.py</code>.</p>
-<p>To see the resulting map without starting the server, run <code>hinoki routes blog.main:create_app --path /posts</code> (the blog example):</p>
+<p>To see the resulting map without starting the server, run <code>hinoki routes blog.main:create_app --path /posts</code> from <code>examples/</code> (the blog example; its admin needs <code>BLOG_ADMIN__SECRET</code> set, see its README):</p>
 <div class="highlight"><pre><span></span><code>GET     /posts                    public                   blog.api.Posts.listing
-POST    /posts                    TokenAuth[posts:write]   hinoki.crud.create
-DELETE  /posts/{item_id}          TokenAuth[posts:write]   hinoki.crud.delete
+POST    /posts                    TokenAuth[posts:write]   hinoki.resources.create
+DELETE  /posts/{item_id}          TokenAuth[posts:write]   hinoki.resources.delete
 GET     /posts/{item_id}          public                   blog.api.Posts.one
 POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publish
 </code></pre></div>
@@ -841,8 +841,8 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.10</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>18 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>19 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

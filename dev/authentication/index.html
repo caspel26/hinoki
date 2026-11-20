@@ -439,6 +439,12 @@ and protected routes refer to the same typed constant.</p>
 <p>The <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/security.py">Blog security module</a> contains the same provider and its reusable policies.</p>
 <p>Absent credentials let the provider decline; invalid supplied credentials produce <code>401</code>. A valid caller without a required permission receives <code>403</code>.</p>
 <h2 id="attach-a-policy">Attach a policy<a class="headerlink" href="#attach-a-policy" title="Permanent link">&para;</a></h2>
+<p>An <code>Access</code> names a provider and the permissions an action needs; reuse one policy on every action that needs it. Without permissions it admits any authenticated caller (<code>HNK-ACC-002</code> flags that; see <a href="../rules/">rules</a>).</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Access</span>
+
+<span class="n">editor</span> <span class="o">=</span> <span class="n">Access</span><span class="p">(</span><span class="n">auth</span><span class="o">=</span><span class="n">TokenAuth</span><span class="p">(),</span> <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">BlogPermission</span><span class="o">.</span><span class="n">WRITE</span><span class="p">])</span>
+</code></pre></div>
+<p>Then name it on the action:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">User</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">blog.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">editor</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">blog.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">PostOut</span>
@@ -451,12 +457,36 @@ and protected routes refer to the same typed constant.</p>
     <span class="k">return</span> <span class="p">[]</span>
 </code></pre></div>
 <p><code>Caller[T]</code> is injected when annotated. Use <code>caller.user</code> for the application user and <code>caller.permissions</code> for the resolved permission set. Do not accept an owner id from untrusted input when it should come from the caller.</p>
-<p><code>RouteGroup</code> can provide a default policy for a function group. An action may override it intentionally. The <code>Actions.require_access</code> rule can flag routes with no policy.</p>
+<p><code>RouteGroup</code> can provide a default policy for a function group. An action may override it intentionally. The <code>Actions.require_access</code> rule can flag routes with no policy. A protected action answers <code>401</code> with a <code>WWW-Authenticate</code> challenge when credentials are missing or invalid, and <code>403</code> when the caller lacks a permission.</p>
 <h2 id="passwords-and-jwt">Passwords and JWT<a class="headerlink" href="#passwords-and-jwt" title="Permanent link">&para;</a></h2>
 <p><code>hinoki.crypto.PasswordHasher</code> provides Argon2id hashing and verification; <code>JWTKey</code> and <code>JWTAuth</code> issue and verify configured token algorithms. Read keys from <code>settings.Secret</code> fields and reveal them only when constructing the provider. Validate audience, issuer, expiry and key rotation settings for your deployment. See the <a href="../reference/auth/">crypto API reference</a>.</p>
 <p>For <code>JWTAuth</code>, Rust verifies the signature and registered claims using the current key snapshot. <code>now()</code> and the configured issuer, audience, leeway (0 to 120 seconds; a provider with another value fails when it is built) and expiry policy are read for each verification. A request already verifying with a captured key snapshot finishes with that snapshot; a later verification observes key rotation. Rust does not turn token claims into a <code>Caller</code>: the application's <code>resolve_claims</code> hook still runs for every valid token, and remains responsible for loading or rejecting the identity and deciding its permissions. Sync, async and sync functions returning awaitables follow the normal hook execution path.</p>
 <h3 id="claims-only-tokens-on-the-native-lane">Claims-only tokens on the native lane<a class="headerlink" href="#claims-only-tokens-on-the-native-lane" title="Permanent link">&para;</a></h3>
 <p><code>ClaimsJWTAuth</code> is a <code>JWTAuth</code> whose caller comes from the token alone: <code>sub</code> (a non-empty string) becomes <code>Caller.id</code>, the claim named by <code>scope_claim</code> (default <code>scopes</code>, a list of strings; absent means none) becomes the permissions, and there is no user object (<code>Caller.user</code> is <code>None</code>). It performs no database lookup, so a token stays valid until it expires and cannot be revoked individually; keep lifetimes short.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Access</span><span class="p">,</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">http</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.crypto</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClaimsJWTAuth</span><span class="p">,</span> <span class="n">JWTKey</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Tokens</span><span class="p">(</span><span class="n">ClaimsJWTAuth</span><span class="p">):</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">JWTKey</span><span class="p">(</span><span class="s2">"2026-11"</span><span class="p">,</span> <span class="s2">"HS256"</span><span class="p">,</span> <span class="sa">b</span><span class="s2">"0123456789abcdef0123456789abcdef"</span><span class="p">)</span>
+    <span class="p">]</span>  <span class="c1"># read it from a Secret</span>
+    <span class="n">issuer</span> <span class="o">=</span> <span class="s2">"https://api.example.com"</span>
+    <span class="n">audience</span> <span class="o">=</span> <span class="s2">"notes"</span>
+
+
+<span class="n">tokens</span> <span class="o">=</span> <span class="n">Tokens</span><span class="p">()</span>
+<span class="n">writer</span> <span class="o">=</span> <span class="n">Access</span><span class="p">(</span><span class="n">auth</span><span class="o">=</span><span class="n">tokens</span><span class="p">,</span> <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="s2">"posts:write"</span><span class="p">])</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/me"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">writer</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">me</span><span class="p">(</span><span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="kc">None</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="n">caller</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="s2">"permissions"</span><span class="p">:</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">caller</span><span class="o">.</span><span class="n">permissions</span><span class="p">)}</span>
+
+
+<span class="n">token</span> <span class="o">=</span> <span class="n">tokens</span><span class="o">.</span><span class="n">issue</span><span class="p">({</span><span class="s2">"sub"</span><span class="p">:</span> <span class="s2">"u1"</span><span class="p">,</span> <span class="s2">"scopes"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"posts:write"</span><span class="p">]},</span> <span class="n">ttl</span><span class="o">=</span><span class="mi">900</span><span class="p">)</span>
+</code></pre></div>
+<p><code>issue</code> signs with the first key that can sign and sets <code>iat</code>, <code>exp</code>, and <code>iss</code>/<code>aud</code> when configured. A token without the scope answers <code>403</code>; a missing or invalid one answers <code>401</code>.</p>
 <p>Generated CRUD routes protected by an unmodified <code>ClaimsJWTAuth</code> can run on the native lane. Rust only admits requests: a single <code>Authorization: Bearer &lt;token&gt;</code> header whose token verifies (signature, expiry, issuer, audience, <code>sub</code>) and carries every required permission goes straight to the native action. Every other request, including a missing, malformed, expired, forged or under-privileged one, is handed to the Python pipeline, which answers exactly as it does without the native lane (<code>401</code> with the challenge, or <code>403</code>). With <code>owner</code> and <code>identity_key = caller_id</code>, create, update and delete are native too: Rust sets the owner column from <code>sub</code>, and update/delete are constrained to rows that <code>sub</code> owns. Foreign or missing rows, and MySQL/MariaDB, are answered by the Python pipeline. A subclass that overrides a method, a modified instance, or any other auth class keeps the route on Python. The route's key, issuer, audience, leeway and permission snapshot is rechecked about once per second; reassigning them disarms the native plan until the worker restarts, so a rotation reaches native routes after that interval, not per verification. <code>hinoki routes --lanes</code> shows which lane each route uses.</p>
 <p>Rust verifies the token on these routes too: a handler route protected by an unmodified <code>ClaimsJWTAuth</code> (not generated CRUD) is authenticated by Rust, which admits the caller or answers <code>401</code> or <code>403</code> itself with the same body and <code>WWW-Authenticate</code> challenge as Python, in the same order relative to path/query errors, the rate limit and body validation. Rust defers to Python for anything it cannot decide identically: several <code>Authorization</code> headers, a value that is not a plain <code>Bearer &lt;token&gt;</code>, or a request Rust already found malformed. A rate limit still runs afterwards in Python, with the admitted caller. Error handlers registered with <code>app.errors</code> do not apply to these answers, on either path, because they translate other exceptions. The provider and policy are checked about once per second as for CRUD routes.</p>
 <p>Hinoki does not create users, sessions or permission rules for your application. Those remain application data and policy.</p>
@@ -491,8 +521,8 @@ and protected routes refer to the same typed constant.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.16</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 03:55:46 UTC">November 20, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>4 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:49:20 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/authentication.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

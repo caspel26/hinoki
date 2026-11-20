@@ -403,13 +403,14 @@
 <p><code>crud(...)</code> generates model-backed routes. Include it once in the app for plain
 CRUD, or apply it to a class when you need <code>get_queryset</code>/<code>to_schema</code> hooks
 or handwritten <code>@http.*</code> actions beside the generated ones.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">crud</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">crud</span><span class="p">,</span> <span class="n">derive</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">app.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">app.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">editor</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">PostOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">):</span> <span class="o">...</span>
+<span class="nd">@derive</span><span class="p">(</span><span class="n">Post</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PostOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">PostCreate</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
@@ -431,9 +432,9 @@ or handwritten <code>@http.*</code> actions beside the generated ones.</p>
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">posts</span><span class="p">])</span>
 </code></pre></div>
 <p>Add code with the class form. The class extends <code>API</code> (its only base);
-<code>get_queryset(self, principal)</code> and
-<code>to_schema(self, item)</code> are the only hooks; anything else is a handwritten
-action:</p>
+the hooks <code>get_queryset</code>, <code>to_schema</code>, <code>written_queryset</code>, <code>store</code>, <code>change</code> and
+<code>remove</code> change what the generated actions do, and anything else is a
+handwritten action:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">API</span><span class="p">,</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">crud</span><span class="p">,</span> <span class="n">http</span>
@@ -626,12 +627,14 @@ external events directly from them. Hooks are trusted application code: do not
 bypass the supplied scoped queryset with an unscoped model write or raw SQL.
 Hinoki checks the persisted item after create/update for model identity and
 server-assigned field invariants, but cannot sandbox arbitrary hook side effects.</p>
-<p>Replace a generated action with a same-name decorated method, or use
-<code>replaces=Crud.CREATE</code> (or another <code>Crud</code> member) on a differently named route.
-An undecorated method named <code>list</code>, <code>retrieve</code>, <code>create</code>, <code>update</code> or <code>delete</code>
-intentionally shadows and removes that generated route. A differently named
-method without <code>replaces=</code> is a separate route and may collide by path/method;
-route registration reports duplicates.</p>
+<p>Replace a generated action with a differently named decorated method that
+names it: <code>@http.post("/make", replaces=Crud.CREATE)</code> (<code>Crud</code> is in
+<code>hinoki.resources</code>). A method that has the name of an action <code>crud(...)</code>
+still generates (<code>list</code>, <code>retrieve</code>, <code>create</code>, <code>update</code>, <code>delete</code>) raises
+<code>RegistrationError</code> when the class is declared, and for <code>list</code> and <code>retrieve</code>
+<code>omit=</code> drops the generated route so that a handwritten one can take its place.
+A decorated method without <code>replaces=</code> is a separate route and may collide by
+path/method; route registration reports duplicates.</p>
 <h2 id="security-and-validation">Security and validation<a class="headerlink" href="#security-and-validation" title="Permanent link">&para;</a></h2>
 <p>Set <code>owner = "author_id"</code> to assign that column from the authenticated caller
 on create and constrain update/delete. <code>identity_key</code> extracts the owner value
@@ -692,7 +695,7 @@ side-effects beyond the single model mutation.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.11</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>

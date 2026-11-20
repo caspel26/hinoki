@@ -240,10 +240,10 @@
 <ol>
 <li>Kiso accepts the HTTP request, answers what needs no application code and hands the rest to the request pipeline; see <a href="../serving/#kiso">serving</a>. (With <code>--server granian</code>, Granian accepts it and calls the ASGI application, which reaches the same pipeline.)</li>
 <li>Hinoki matches the method and path.</li>
-<li>For an action with an access policy, its authentication provider resolves a caller and the policy checks permissions. The request body has not been read yet, so an unauthenticated client cannot make the server buffer it.</li>
+<li>For an action with an access policy, its authentication provider resolves a caller and the policy checks permissions. A <code>rate_limit=</code> policy runs next. The request body has not been read yet, so an unauthenticated or rate-limited client cannot make the server buffer it.</li>
 <li>Hinoki negotiates the response type from <code>Accept</code> (<code>406</code> when nothing fits), reads the body of <code>POST</code>/<code>PUT</code>/<code>PATCH</code>/<code>QUERY</code> requests, then binds and validates path, query, header and body values before the handler runs.</li>
 <li>For <code>atomic=True</code>, Hinoki opens a transaction before calling the handler.</li>
-<li>The handler returns. Hinoki prepares the response: a configured renderer turns the value into bytes. The declared response type is not checked at runtime.</li>
+<li>The handler returns. Hinoki checks the value against the return annotation (a mismatch is <code>500 internal_error</code>, inside the transaction, unless the action sets <code>validate_response=False</code>), then a configured renderer turns it into bytes. A returned <code>Response</code> is not checked or rendered.</li>
 <li>The transaction commits after successful response preparation. An exception or cancellation rolls back before an HTTP error is produced.</li>
 </ol>
 <p>An unhandled exception does not become a successful response. A failed commit is an error. A response renderer should not perform hidden database I/O.</p>
@@ -274,7 +274,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.2</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 00:10:17 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/request-lifecycle.md">Edit on GitHub</a></dd></div>
         </dl>

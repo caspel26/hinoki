@@ -325,7 +325,9 @@ migrations and creates the Ann and Ben members used by the bearer tokens below:
 </code></pre></div>
 <p>This is an excerpt of <code>test_every_business_error_of_the_tracker_is_declared</code>;
 its <code>members</code> fixture creates the two users and provides a fresh migrated
-database. Run the repository test with a disposable PostgreSQL URL:</p>
+database. Run the repository test with a disposable database URL, which the
+fixture empties first (PostgreSQL, or a throwaway SQLite file such as
+<code>sqlite://./.hinoki/tracker-test.sqlite3</code>):</p>
 <div class="highlight"><pre><span></span><code><span class="nv">HINOKI_TEST_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$TRACKER_DATABASE__URL</span><span class="s2">"</span><span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/trackertest.py
 </code></pre></div>
 <p><code>strict_errors=True</code> fails the test if an action answers an error it did not
@@ -356,7 +358,7 @@ declare. For tests without <code>async</code>, use <code>SyncClient</code>.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.7</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/6-run.md">Edit on GitHub</a></dd></div>
         </dl>

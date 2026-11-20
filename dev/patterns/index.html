@@ -333,7 +333,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 <h2 id="9-security-defaults-to-keep">9. Security defaults to keep<a class="headerlink" href="#9-security-defaults-to-keep" title="Permanent link">&para;</a></h2>
 <p>HTTPS terminates somewhere you control (set <code>Admin(secure_cookies=True)</code> behind a proxy); <code>Access</code> on everything that is not public on purpose; CSRF on every cookie-authenticated form (the admin does it); strict CSP; passwords with Argon2id only; JWT keys with a fixed algorithm and a <code>kid</code>; no token, password or hash in logs or error bodies; uploads held within the 1 MiB body cap unless you add streaming; real personal data never in tests or fixtures.</p>
 <h2 id="10-rules-to-turn-on-from-day-one">10. Rules to turn on from day one<a class="headerlink" href="#10-rules-to-turn-on-from-day-one" title="Permanent link">&para;</a></h2>
-<p><code>hinoki new</code> generates a project with <code>HNK-ACC-001</code>, <code>HNK-TXN-001</code> and <code>HNK-SCH-001</code> enabled. Add <code>Imports.forbid</code> for the layer direction in section 1. Waivers live in <code>hinoki-rules.toml</code>, are decided by the owner, have a reason and a bounded target, and are never edited by tools or agents to make a check pass.</p>
+<p><code>hinoki new</code> generates a project with eight rules enabled (<code>HNK-ACC-001</code>, <code>HNK-ACC-002</code>, <code>HNK-API-001</code>, <code>HNK-API-002</code>, <code>HNK-API-003</code>, <code>HNK-TXN-001</code>, <code>HNK-SCH-001</code>, <code>HNK-SCH-002</code>) and the two model rules (<code>HNK-DB-001</code>, <code>HNK-DB-002</code>) commented out until the first model exists. Turn them on then, and add <code>Imports.forbid</code> (<code>HNK-IMP-001</code>) for the layer direction in section 1. Waivers live in <code>hinoki-rules.toml</code>, are decided by the owner, have a reason and a bounded target, and are never edited by tools or agents to make a check pass.</p>
 <h2 id="11-anti-patterns">11. Anti-patterns<a class="headerlink" href="#11-anti-patterns" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Returning a <code>Model</code> or a dict built from one.</li>
@@ -379,7 +379,7 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.3</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 21:17:53 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/patterns.md">Edit on GitHub</a></dd></div>
         </dl>

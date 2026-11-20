@@ -439,7 +439,7 @@
 </ul>
 <h2 id="integrations">Integrations<a class="headerlink" href="#integrations" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../admin/">Admin</a>: An optional module that gives staff a list, search, create, edit, bulk delete and a dashboard for your models; it is included in the framework package and mounted explicitly.</li>
+<li><a href="../admin/">Admin</a>: An optional module that gives staff a list, search, create, edit, bulk delete and a dashboard for your models, with its own users, a sign-in page and per-model permissions; it is included in the framework package and mounted explicitly.</li>
 <li><a href="../app-mcp/">Application MCP</a>: expose_as_mcp turns selected HTTP actions into tools for an MCP client.</li>
 <li><a href="../dev-mcp/">Development MCP</a>: CLI-hosted tools describe an app and its rules to an agent.</li>
 <li><a href="../ai-workflow/">Development tools</a>: Scaffold a project and give a coding agent rules, error explanations and an MCP server.</li>
@@ -447,14 +447,22 @@
 <h2 id="operating">Operating<a class="headerlink" href="#operating" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../sync-async/">Sync and async</a>: Hinoki runs on one event loop per worker; synchronous handlers run on a bounded worker pool.</li>
-<li><a href="../benchmarks/">Benchmarks</a>: retained measurements with their environment, method and limits, including a separate native CRUD orientation run.</li>
+<li><a href="../benchmarks/">Benchmarks</a>: retained measurements with their environment, method and limits.</li>
+<li><a href="../rust-crud-orientation/">Native CRUD orientation</a>: a separate, workload-specific measurement of generated CRUD on the native path.</li>
+<li><a href="../troubleshooting/">Troubleshooting</a>: common startup, import and configuration errors and their fixes.</li>
+<li><a href="../toolchain/">Toolchain and CI</a>: the local and CI commands for Python, Rust, database-backed tests, packaging and the docs build.</li>
 </ul>
 <h2 id="where-to-go-next">Where to go next<a class="headerlink" href="#where-to-go-next" title="Permanent link">&para;</a></h2>
 <ul>
+<li><a href="../getting-started/">Installation</a> and the <a href="../quick-start/">quick start</a>: install from a checkout and run the Notes API.</li>
 <li><a href="../concepts/">Concepts</a>: the request lifecycle, architecture patterns and the vocabulary.</li>
+<li><a href="../request-lifecycle/">Request lifecycle</a>: the order of parsing, validation, access, handler, transaction and response.</li>
+<li><a href="../patterns/">Architecture patterns</a>: how to structure an application, with reasons.</li>
+<li><a href="../glossary/">Glossary</a>: one word, one meaning, including the four senses of "schema".</li>
 <li><a href="../ecosystem/">Own schemas and ORM</a>: what owning <code>Schema</code> and <code>Model</code> means for other libraries, and the extension points that exist.</li>
 <li><a href="../reference/">Reference</a>: public symbols, signatures and docstrings.</li>
 <li><a href="../status/">Status</a>: what works today and what does not yet.</li>
+<li><a href="../documentation-versions/">Documentation versions</a>: how <code>dev</code> and release docs are published.</li>
 </ul>
         
       </article>
@@ -480,7 +488,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.1</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 00:10:17 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/guides.md">Edit on GitHub</a></dd></div>
         </dl>

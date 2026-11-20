@@ -531,8 +531,7 @@ first. Hinoki does not run migrations automatically at app startup.</p>
 <p>On a fresh local checkout, <code>hinoki migrations ... apply</code> uses the default
 SQLite URL when <code>HINOKI_DATABASE_URL</code> is unset. Opening that URL creates
 <code>.hinoki/local.sqlite3</code> if it does not exist; applying creates the migration
-ledger and runs the pending SQL files. As with Django's separate
-<code>makemigrations</code> and <code>migrate</code> steps, first run <code>plan</code> to generate migration
+ledger and runs the pending SQL files. First run <code>plan</code> to generate migration
 files from model changes, then run <code>apply</code> to create the tables. <code>status</code> also
 opens the selected database and creates its ledger table if needed.</p>
 <p>Migration behavior differs by backend:</p>
@@ -591,7 +590,7 @@ types, raw SQL placeholders and backend limits.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.2</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 10:07:38 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/databases.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -250,6 +250,12 @@ backend URL, network reachability and database availability from the same
 environment as the worker. Check the backend-specific URL, TLS and migration
 limits in <a href="../databases/">Configure a database</a>. Use one worker and a small pool
 while debugging; total maximum connections are replicas × workers × pool size.</p>
+<h2 id="servername-is-not-supported-by-the-granian-server"><code>server.&lt;name&gt; is not supported by the granian server</code><a class="headerlink" href="#servername-is-not-supported-by-the-granian-server" title="Permanent link">&para;</a></h2>
+<p><code>hinoki serve</code> refuses a setting that the chosen server cannot honour instead of ignoring it, and exits with status 2. Unset the setting or run on Kiso (<code>--server kiso</code>, the default). See <a href="../serving/#settings-that-apply-to-one-server-only">settings that apply to one server only</a>.</p>
+<h2 id="cannot-listen-on-hostport"><code>cannot listen on HOST:PORT</code><a class="headerlink" href="#cannot-listen-on-hostport" title="Permanent link">&para;</a></h2>
+<p>The address is in use or the host or port is invalid. Stop the other process or pass another <code>--port</code>; the command exits with status 2.</p>
+<h2 id="every-request-answers-400-disallowed_host-or-503-not_ready">Every request answers <code>400 disallowed_host</code> or <code>503 not_ready</code><a class="headerlink" href="#every-request-answers-400-disallowed_host-or-503-not_ready" title="Permanent link">&para;</a></h2>
+<p><code>400 disallowed_host</code> means the <code>Host</code> header is not in <code>allowed_hosts</code> (<a href="../settings/#allowed_hosts">settings</a>). <code>503 not_ready</code> is answered while a worker's startup has not finished and once shutdown has begun (<a href="../serving/#optional-startup-probe">serving</a>).</p>
 <h2 id="a-related-field-is-not-loaded">A related field is not loaded<a class="headerlink" href="#a-related-field-is-not-loaded" title="Permanent link">&para;</a></h2>
 <p>Foreign-key attributes do not trigger queries. Add <code>select_related("author")</code> or <code>prefetch_related("posts")</code> to the query that needs the relation.</p>
 <h2 id="hinoki-check-reports-unverifiable"><code>hinoki check</code> reports <code>unverifiable</code><a class="headerlink" href="#hinoki-check-reports-unverifiable" title="Permanent link">&para;</a></h2>
@@ -281,14 +287,14 @@ migration state.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#cannot-load-moduleattribute">cannot load module:attribute</a></li><li><a href="#settings-report-a-missing-or-unknown-variable">Settings report a missing or unknown variable</a></li><li><a href="#database-connection-fails-at-startup">Database connection fails at startup</a></li><li><a href="#a-related-field-is-not-loaded">A related field is not loaded</a></li><li><a href="#hinoki-check-reports-unverifiable">hinoki check reports unverifiable</a></li><li><a href="#a-sync-handler-or-auth-provider-stalls">A sync handler or auth provider stalls</a></li><li><a href="#a-migration-is-marked-destructive">A migration is marked destructive</a></li></ul>
+            <ul><li><a href="#cannot-load-moduleattribute">cannot load module:attribute</a></li><li><a href="#settings-report-a-missing-or-unknown-variable">Settings report a missing or unknown variable</a></li><li><a href="#database-connection-fails-at-startup">Database connection fails at startup</a></li><li><a href="#servername-is-not-supported-by-the-granian-server">server.&lt;name&gt; is not supported by the granian server</a></li><li><a href="#cannot-listen-on-hostport">cannot listen on HOST:PORT</a></li><li><a href="#every-request-answers-400-disallowed_host-or-503-not_ready">Every request answers 400 disallowed_host or 503 not_ready</a></li><li><a href="#a-related-field-is-not-loaded">A related field is not loaded</a></li><li><a href="#hinoki-check-reports-unverifiable">hinoki check reports unverifiable</a></li><li><a href="#a-sync-handler-or-auth-provider-stalls">A sync handler or auth provider stalls</a></li><li><a href="#a-migration-is-marked-destructive">A migration is marked destructive</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>6.5</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 13:06:27 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/troubleshooting.md">Edit on GitHub</a></dd></div>
         </dl>
