@@ -72,12 +72,25 @@ GRANIAN_SERVERS = {
          "DJANGO_SETTINGS_MODULE": "dj_settings"},
     ),
 }  # fmt: skip
+KISO_SERVERS = {
+    "hinoki-kiso": (
+        ["hinoki", "serve", "hinoki_app:app", "--server", "kiso", "--workers",
+         str(WORKERS), "--host", "127.0.0.1", "--port", str(PORT)],
+        {"BENCH_DATABASE__URL": DB, "BENCH_DATABASE__MAX_SIZE": str(POOL)},
+    ),
+}  # fmt: skip
+SERVER_MODES = {
+    "documented": DOCUMENTED_SERVERS,
+    "same-granian": GRANIAN_SERVERS,
+    "kiso": KISO_SERVERS,
+}
 LABELS = {
     "hinoki": "Hinoki · Granian",
     "fastapi": "FastAPI · Uvicorn",
     "ninja": "Django Ninja · Uvicorn",
     "bolt": "Django Bolt · Actix",
     "hinoki-granian": "Hinoki · Granian",
+    "hinoki-kiso": "Hinoki · Kiso",
     "fastapi-granian": "FastAPI · Granian",
     "ninja-granian": "Django Ninja · Granian",
 }
@@ -116,7 +129,7 @@ def wait_ready(timeout: float = 60) -> None:
 
 
 def start(name: str, log: Path) -> subprocess.Popen:
-    servers = DOCUMENTED_SERVERS if name in DOCUMENTED_SERVERS else GRANIAN_SERVERS
+    servers = next(table for table in SERVER_MODES.values() if name in table)
     command, env = servers[name]
     full_env = {**os.environ, "PYTHONPATH": str(HERE), **env}
     for variable in (
@@ -258,7 +271,7 @@ def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--framework", default="all")
     parser.add_argument(
-        "--server-mode", choices=("documented", "same-granian"), default="documented"
+        "--server-mode", choices=tuple(SERVER_MODES), default="documented"
     )
     parser.add_argument("--out", type=Path, default=HERE / "results" / "scratch")
     parser.add_argument("--runs", type=int, default=5)
@@ -271,9 +284,7 @@ def arguments() -> argparse.Namespace:
 
 
 def selected_stacks(args: argparse.Namespace) -> list[str]:
-    names = list(
-        DOCUMENTED_SERVERS if args.server_mode == "documented" else GRANIAN_SERVERS
-    )
+    names = list(SERVER_MODES[args.server_mode])
     if args.framework != "all":
         if args.framework not in names:
             raise SystemExit(
