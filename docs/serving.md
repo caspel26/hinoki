@@ -77,7 +77,7 @@ They come from the application's `server` settings group; flags override them:
 | `server.access_log_format` | `NOTES_SERVER__ACCESS_LOG_FORMAT` | unset | Kiso only: `pretty`, `plain`, `json` or `logger`. Unset is `pretty` on a colour terminal and `plain` otherwise |
 | `server.server` | `NOTES_SERVER__SERVER` | `kiso` | `--server` |
 
-The connection limits and timeouts (`max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`), `native_dispatch`, the TLS files and `http2`, and `trusted_proxies` are described under [Kiso](kiso.md) and in the [settings table](settings.md#built-in-fields-and-defaults).
+The connection limits and timeouts (`max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`), `native_dispatch`, the TLS files and `http2`, and `trusted_proxies` are described under [Kiso](kiso.md) and in the [settings table](settings.md#built-in-fields-and-defaults). Left unset, they are `None` in `hinoki settings` and Kiso applies its own defaults (for example 10000 connections and a 10-second header timeout), so that Granian can refuse the Kiso-only ones only when you set them.
 
 `dev` always runs one worker with reload. `hinoki settings` shows what is in
 effect ([Inspect an application](inspect.md#settings)).
