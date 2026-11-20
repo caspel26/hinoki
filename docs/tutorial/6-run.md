@@ -89,7 +89,7 @@ application is the tracker, `TRACKER_DATABASE__URL` alone configures both
 The application reads its settings at import, so the test configuration sets
 the database variable first. In the repository, `tests/conftest.py` copies
 `HINOKI_TEST_DATABASE_URL` to `TRACKER_DATABASE__URL` before any test module
-imports `tracker.main` ([testing](../testing.md#use-a-test-database)).
+imports `tracker.main` ([testing](../testing.md#use-a-disposable-database)).
 
 Operations need no HTTP, so test them directly. Then drive the whole stack with
 the in-process client:
