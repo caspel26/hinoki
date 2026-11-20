@@ -734,9 +734,10 @@ class CrudDeclaration:
     """What ``crud(...)`` returns: include it for plain CRUD, or apply it to a
     class that adds hooks and handwritten actions."""
 
-    def __init__(self, config: _CrudConfig, path: str) -> None:
+    def __init__(self, config: _CrudConfig, path: str, module: str = __name__) -> None:
         self.config = config
         self.path = path
+        self.module = module
         self.generated = [
             name
             for name in ACTIONS
@@ -745,10 +746,11 @@ class CrudDeclaration:
         self.built: type[CrudBase] | None = None
 
     def api(self) -> type[CrudBase]:
-        """The generated API class (built once)."""
+        """The generated API class (built once), named after the module that
+        called ``crud(...)`` so rules scoped to that module see its actions."""
         if self.built is None:
             name = f"{self.config.model.__name__}Crud"
-            self.built = self.build(name, {"__module__": __name__})
+            self.built = self.build(name, {"__module__": self.module})
         return self.built
 
     def __call__[T: API](self, cls: type[T]) -> type[T]:
@@ -837,4 +839,11 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
         actions=actions,
         omit=frozenset(omit),
     )
-    return CrudDeclaration(config, path)
+    return CrudDeclaration(config, path, caller_module())
+
+
+def caller_module() -> str:
+    """The module that called ``crud(...)``: two frames up from here."""
+    frame = inspect.currentframe()
+    caller = frame.f_back.f_back if frame and frame.f_back else None
+    return str(caller.f_globals.get("__name__", __name__)) if caller else __name__
