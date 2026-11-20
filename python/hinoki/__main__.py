@@ -28,9 +28,9 @@ from hinoki.orm.migrations import Plan, migration_files, models_of, plan
 from hinoki.project import ProjectError, ProjectManifest, resolve_target
 from hinoki.projectmigrations import (
     URL_VARIABLE,
+    SettingsLoadError,
     manifest_for,
     migration_database,
-    migration_database_url,
     plan_project,
     run_database_project,
     sql_project,
@@ -195,7 +195,7 @@ def migration_plans(args: argparse.Namespace) -> list[tuple[str | None, Plan]]:
         if args.app is None and len(manifest.apps) > 1 and (args.check or args.dry_run):
             if args.name is not None:
                 raise MigrationError("--name requires --app for a multi-app preview")
-            dialect = database_dialect(migration_database_url(args, manifest))
+            dialect = plan_dialect(args, manifest)
             return [
                 (
                     app.name,
@@ -212,16 +212,22 @@ def migration_plans(args: argparse.Namespace) -> list[tuple[str | None, Plan]]:
         return [focused_plan(args, manifest)]
     if not args.models:
         raise MigrationError("pass --models without a project hinoki.toml")
-    database_url = migration_database_url(args, manifest)
     result = plan(
         models_of(args.models),
         Path(args.dir or "migrations"),
         args.name,
         allow_destructive=args.allow_destructive or args.check or args.dry_run,
         write=not args.dry_run and not args.check,
-        dialect=database_dialect(database_url),
+        dialect=plan_dialect(args, manifest),
     )
     return [(None, result)]
+
+
+def plan_dialect(args: argparse.Namespace, manifest: ProjectManifest | None) -> str:
+    """Resolve and report the database whose SQL dialect the plan uses."""
+    target = migration_database(args, manifest)
+    print(target.describe(), file=sys.stderr)
+    return database_dialect(target.url)
 
 
 def focused_plan(
@@ -235,7 +241,7 @@ def focused_plan(
             "`hinoki migrations plan <app>`"
         )
     app = manifest.app(args.app)
-    return app.name, plan_project(args, manifest)
+    return app.name, plan_project(args, manifest, dialect=plan_dialect(args, manifest))
 
 
 async def run_database(args: argparse.Namespace) -> None:
@@ -341,6 +347,9 @@ def run_migrations(args: argparse.Namespace) -> int:
 def run_migrations_with_error_handling(args: argparse.Namespace) -> int:
     try:
         return run_migration_action(args)
+    except SettingsLoadError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     except (MigrationError, ProjectError) as error:
         print(f"error: {error}", file=sys.stderr)
         print(

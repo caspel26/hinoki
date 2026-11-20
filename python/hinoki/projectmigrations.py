@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
-import sys
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,12 @@ from hinoki.settings import LOCAL_DATABASE_URL, DatabaseSettings, SettingsError
 
 URL_VARIABLE = "HINOKI_DATABASE_URL"
 DEFAULT_SOURCE = "local SQLite default"
+UNPARSEABLE = "<unparseable URL>"
+_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*\Z")
+
+
+class SettingsLoadError(ProjectError):
+    """The project application, and so its database setting, cannot be loaded."""
 
 
 @dataclass(frozen=True)
@@ -49,24 +56,43 @@ class MigrationDatabase:
 
     def describe(self) -> str:
         """One line naming the database and its source, without credentials."""
-        return f"database: {redacted_url(self.url)} (from {self.source})"
+        return f"database: {self.display()}"
+
+    def display(self) -> str:
+        """The masked URL and its source."""
+        return f"{redacted_url(self.url)} (from {self.source})"
 
 
 def redacted_url(url: str) -> str:
-    """The URL with its password masked and its query options elided."""
-    parts = urlsplit(url)
-    netloc = parts.netloc
-    if parts.password is not None:
-        netloc = f"{parts.username or ''}:***@{netloc.rpartition('@')[2]}"
-    query = "?..." if parts.query else ""
-    return f"{parts.scheme}://{netloc}{parts.path}{query}"
+    """The URL with everything before its last ``@`` and its options masked.
+
+    Text that does not parse cleanly is not echoed at all.
+    """
+    scheme, separator, rest = url.partition("://")
+    if not separator or not _SCHEME.match(scheme):
+        return UNPARSEABLE
+    if any(char.isspace() for char in rest):
+        return f"{scheme}://{UNPARSEABLE}"
+    _credentials, at, location = rest.rpartition("@")
+    try:
+        parts = urlsplit(f"{scheme}://{location}")
+        _ = parts.port
+    except ValueError:
+        return f"{scheme}://{UNPARSEABLE}"
+    masked = "***@" if at else ""
+    options = "?..." if parts.query or parts.fragment else ""
+    return f"{scheme}://{masked}{parts.netloc}{parts.path}{options}"
 
 
 def migration_database(
     args: argparse.Namespace, manifest: ProjectManifest | None
 ) -> MigrationDatabase:
     """Resolve ``--database``, then ``HINOKI_DATABASE_URL``, then the project
-    application's ``database`` setting, then the local SQLite default."""
+    application's ``database`` setting, then the local SQLite default.
+
+    Raises ``SettingsLoadError`` when a project's application cannot be loaded,
+    rather than guessing a database.
+    """
     if getattr(args, "database", None):
         return MigrationDatabase(args.database, "--database")
     environment = os.environ.get(URL_VARIABLE)
@@ -87,19 +113,19 @@ def migration_database_url(
 def _settings_database(manifest: ProjectManifest) -> tuple[str, str] | None:
     """The URL and source of the application's ``database`` setting, if any.
 
-    Building the application reads its settings but opens no connection.
+    The application is built from the project root, so relative settings files
+    such as ``.env`` are the ones the server reads when started there. Building
+    it reads the settings but opens no connection.
     """
     add_project_root(manifest)
     try:
-        app = build_app(manifest.application)
-    except (Exception, SystemExit) as error:  # any failure keeps today's default
-        print(
-            f"warning: cannot load the application's settings ({_reason(error)}); "
-            "migrations use HINOKI_DATABASE_URL, --database or the local SQLite "
-            "default",
-            file=sys.stderr,
-        )
-        return None
+        with contextlib.chdir(manifest.root):
+            app = build_app(manifest.application)
+    except (Exception, SystemExit) as error:  # never guess another database
+        raise SettingsLoadError(
+            f"cannot load the application's settings ({_reason(error)}); fix "
+            f"them, or choose the database with --database or {URL_VARIABLE}"
+        ) from None
     group = getattr(app.settings, "database", None)
     if not isinstance(group, DatabaseSettings):
         return None
@@ -120,7 +146,13 @@ def _anchor_sqlite(url: str, manifest: ProjectManifest | None) -> str:
     """Root a relative SQLite path at the project, not the working directory."""
     if manifest is None or not url.startswith("sqlite://"):
         return url
-    path = Path(url.removeprefix("sqlite://"))
+    location = url.removeprefix("sqlite://")
+    if location.partition("?")[0] == ":memory:":
+        raise MigrationError(
+            "the database setting is an in-memory SQLite database, which "
+            "migrations cannot keep; configure a file or server database"
+        )
+    path = Path(location)
     if path.is_absolute():
         return url
     return f"sqlite://{(manifest.root / path).resolve()}"
