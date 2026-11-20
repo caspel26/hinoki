@@ -35,10 +35,10 @@
 <p align="center">
   <picture>
     <source media="(prefers-reduced-motion: reduce)" srcset="assets/readme/demo.png">
-    <img src="assets/readme/demo.gif" alt="In a terminal window, hinoki new shows the Hinoki banner, asks for a project name, a parent directory, a database and a server, and creates the notes project. In the project, hinoki dev starts the Kiso server. hinoki check reports that POST /notes does not declare atomic=True; after atomic=True is added to the route group, it reports no violated rules." width="840">
+    <img src="assets/readme/demo.gif" alt="In a terminal window, hinoki new shows the Hinoki banner, asks for a project name, a database and a server, and creates the notebook project. hinoki app create notes adds a notes app, and its api.py declares a POST /notes action. hinoki check reports that POST /notes does not declare atomic=True; after atomic=True is added to the route group, it reports no violated rules. hinoki dev starts the Kiso server, and a curl request to POST /notes returns 201 Created with the new note." width="840">
   </picture>
 </p>
-<p align="center"><sub>Real terminal output recorded by <a href="scripts/readme_demo.py"><code>scripts/readme_demo.py</code></a>; waits are shortened.</sub></p>
+<p align="center"><sub>Real terminal output recorded by <a href="scripts/readme_demo.py"><code>scripts/readme_demo.py</code></a>; waits are shortened, and the app's source files and migrations are written off screen.</sub></p>
 
 > [!WARNING]
 > **Pre-alpha, not released.** The API and the migration format may change. The [`hinoki` package on PyPI](https://pypi.org/project/hinoki/) is an unrelated project: install Hinoki from this repository and use disposable data.
