@@ -98,6 +98,112 @@ def test_project_migrations_default_to_sqlite_and_initialize_local_database(
     assert (project / ".hinoki/local.sqlite3").is_file()
 
 
+def test_project_migrations_use_the_application_settings_database(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = create("settingsdb", tmp_path, database="sqlite")
+    monkeypatch.chdir(project)
+    monkeypatch.delenv("HINOKI_DATABASE_URL", raising=False)
+    target = tmp_path / "configured.sqlite3"
+    monkeypatch.setenv("SETTINGSDB_DATABASE__URL", f"sqlite://{target}")
+
+    assert main(["migrations", "apply"]) == 0
+    assert target.is_file()
+    assert not (project / ".hinoki/local.sqlite3").exists()
+    capsys.readouterr()
+
+    assert main(["migrations", "status"]) == 0
+    captured = capsys.readouterr()
+    assert (
+        f"database: sqlite://{target} (from settings: ProjectSettings.database)"
+        in captured.err
+    )
+
+
+def test_project_settings_relative_sqlite_is_rooted_at_the_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = create("relativedb", tmp_path, database="sqlite")
+    monkeypatch.chdir(project / "relativedb")
+    monkeypatch.delenv("HINOKI_DATABASE_URL", raising=False)
+    monkeypatch.setenv("RELATIVEDB_DATABASE__URL", "sqlite://./data.sqlite3")
+
+    assert main(["migrations", "apply"]) == 0
+
+    assert (project / "data.sqlite3").is_file()
+    assert not (project / "relativedb/data.sqlite3").exists()
+
+
+@pytest.mark.parametrize("source", ["environment", "argument"])
+def test_project_migration_database_override_beats_the_application_settings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    source: str,
+) -> None:
+    name = f"override{source}"
+    project = create(name, tmp_path, database="sqlite")
+    monkeypatch.chdir(project)
+    configured = tmp_path / "configured.sqlite3"
+    chosen = tmp_path / "chosen.sqlite3"
+    monkeypatch.setenv(f"{name.upper()}_DATABASE__URL", f"sqlite://{configured}")
+    monkeypatch.setenv("HINOKI_DATABASE_URL", f"sqlite://{chosen}")
+    args = ["migrations", "apply"]
+    label = "HINOKI_DATABASE_URL"
+    if source == "argument":
+        environment = tmp_path / "environment.sqlite3"
+        monkeypatch.setenv("HINOKI_DATABASE_URL", f"sqlite://{environment}")
+        args.extend(["--database", f"sqlite://{chosen}"])
+        label = "--database"
+
+    assert main(args) == 0
+
+    assert chosen.is_file()
+    assert not configured.exists()
+    assert f"database: sqlite://{chosen} (from {label})" in capsys.readouterr().err
+
+
+def test_project_migrations_fall_back_to_local_sqlite_when_settings_fail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = create("brokensettings", tmp_path, database="sqlite")
+    monkeypatch.chdir(project)
+    monkeypatch.delenv("HINOKI_DATABASE_URL", raising=False)
+    monkeypatch.setenv("BROKENSETTINGS_DATABASE__MAX_SIZE", "0")
+
+    assert main(["migrations", "apply"]) == 0
+
+    assert (project / ".hinoki/local.sqlite3").is_file()
+    err = capsys.readouterr().err
+    assert "cannot load the application's settings" in err
+    assert "(from local SQLite default)" in err
+
+
+def test_project_migration_status_never_prints_the_settings_password(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = create("secretdb", tmp_path, database="postgresql")
+    monkeypatch.chdir(project)
+    monkeypatch.delenv("HINOKI_DATABASE_URL", raising=False)
+    monkeypatch.setenv(
+        "SECRETDB_DATABASE__URL",
+        "postgres://owner:secret-pw@127.0.0.1:1/none?password=secret-pw",
+    )
+
+    assert main(["migrations", "status"]) == 1
+
+    err = capsys.readouterr().err
+    assert "database: postgres://owner:***@127.0.0.1:1/none?..." in err
+    assert "(from settings: ProjectSettings.database)" in err
+    assert "secret-pw" not in err
+
+
 def test_project_migration_check_fails_on_file_drift_without_database_io(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
