@@ -13,6 +13,7 @@ See ``docs/SETTINGS-DESIGN.md``. Errors name keys and reasons, never values.
 from __future__ import annotations
 
 import dataclasses
+import difflib
 import functools
 import hmac
 import ipaddress
@@ -189,10 +190,11 @@ class Settings:
         """Build the settings. Precedence: ``overrides``, ``env`` (default: the
         process environment), dotenv, TOML file, and field defaults.
 
-        ``strict`` (default) makes a variable that starts with ``prefix`` but
-        names no field an error, which catches typos; pass ``strict=False`` when
-        another program shares the prefix. With an empty prefix nothing can be
-        told apart from the rest of the environment, so no typo check happens.
+        ``strict`` (default) makes a variable that starts with ``prefix`` and
+        looks like a setting but names no field an error, which catches typos;
+        other variables that only share the prefix are ignored. With an empty
+        prefix nothing can be told apart from the rest of the environment, so
+        no typo check happens.
 
         ``prefix``, ``dotenv`` and ``toml`` default to what the class declared."""
         prefix = cls.__env_prefix__ if prefix is None else prefix
@@ -200,12 +202,8 @@ class Settings:
         toml = cls.__toml__ if toml is None else toml
         source, _, problems = gather(cls, prefix, env, dotenv, toml)
         found = build(cls, prefix, source, dict(overrides or {}), problems)
-        known = known_keys(cls, prefix)
-        problems += [
-            f"{key}: unknown setting"
-            for key in sorted(source)
-            if strict and prefix and key.startswith(prefix) and key not in known
-        ]
+        if strict and prefix:
+            problems += unknown_settings(source, prefix, known_keys(cls, prefix))
         if problems or found is None:
             raise SettingsError(problems or ["could not build the settings"])
         return typing.cast(Self, found)
@@ -580,6 +578,35 @@ def known_keys(cls: type[Settings], prefix: str, path: str = "") -> set[str]:
         else:
             keys.add(prefix + key)
     return keys
+
+
+TYPO_SIMILARITY = 0.8
+
+
+def unknown_settings(
+    source: Mapping[str, Any], prefix: str, known: set[str]
+) -> list[str]:
+    """Problems for variables with the prefix that look like a misspelt
+    setting: their first word starts a known setting (``SERVER__PROT``,
+    ``SERVER_PORT``) or they are close to one (``DEBUGG``). Others, such as
+    systemd's ``JOURNAL_STREAM`` for the prefix ``JOURNAL_``, belong to another
+    program and are ignored."""
+    names = [key.removeprefix(prefix) for key in known]
+    words = {_first_word(name) for name in names}
+    return [
+        f"{key}: unknown setting"
+        for key in sorted(source)
+        if key.startswith(prefix)
+        and key not in known
+        and (
+            _first_word(rest := key.removeprefix(prefix)) in words
+            or difflib.get_close_matches(rest, names, n=1, cutoff=TYPO_SIMILARITY)
+        )
+    ]
+
+
+def _first_word(name: str) -> str:
+    return name.split("_", 1)[0]
 
 
 MISSING = object()
