@@ -146,7 +146,7 @@ The fix line each rule prints:
 | `HNK-SCH-001` | remove the field from the response Schema, or return a Schema that does not carry it |
 | `HNK-SCH-002` | bound the field: Annotated[str, Field(max_length=...)] or one_of=... |
 | `HNK-DB-001` | name the table with @db.table(...) or table=... on the model |
-| `HNK-DB-002` | index the column: field(index=True) or @db.indexed(...) |
+| `HNK-DB-002` | index the column: @db.indexed("<column>") on the model, or an index or unique group that starts with it |
 | `HNK-IMP-001` | move the code to an allowed layer, or depend on it through the layer in between |
 
 `hinoki check --format json` prints the same diagnostics as versioned data
