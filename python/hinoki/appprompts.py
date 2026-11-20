@@ -12,12 +12,11 @@ from hinoki.newcli import (
     Questions,
     cancelled,
     show_banner,
-    shown_path,
 )
 from hinoki.project import ProjectManifest
 from hinoki.prompts import Check, Prompter, keys_available, raw_keys
 from hinoki.scaffold import NAME, RESERVED_NAMES
-from hinoki.terminal import Style
+from hinoki.terminal import Style, shown_path
 
 APP_FILES = (
     ("models.py", "tables of the app"),

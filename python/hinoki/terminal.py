@@ -104,6 +104,16 @@ def elapsed(seconds: float) -> str:
     return f"{seconds:.1f}s"
 
 
+def shown_path(target: Path) -> str:
+    """``target`` relative to here when inside it, else with ``~`` for home."""
+    try:
+        return str(target.relative_to(Path.cwd()))
+    except ValueError:
+        home = str(Path.home())
+        text = str(target)
+        return "~" + text[len(home) :] if text.startswith(home + os.sep) else text
+
+
 LOGO = Path(__file__).with_name("logo.png")
 LOGO_ROWS = 3
 SPINNER = "\u280b\u2819\u2839\u2838\u283c\u2834\u2826\u2827\u2807\u280f"
