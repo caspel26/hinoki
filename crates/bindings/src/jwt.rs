@@ -144,6 +144,19 @@ impl<'de> serde::Deserialize<'de> for Strict {
 /// with this key; a token must not be able to forge one.
 const NUMBER_MARKER: &[u8] = b"$serde_json::private";
 
+fn finite(value: &Value) -> bool {
+    match value {
+        Value::Number(n) => !n.is_f64() || n.as_f64().is_some_and(f64::is_finite),
+        Value::Array(items) => items.iter().all(finite),
+        Value::Object(map) => match map.get("$serde_json::private::Number") {
+            // A number the parser kept as text: only a real number carries this key.
+            Some(Value::String(text)) => text.parse::<f64>().is_ok_and(f64::is_finite),
+            _ => map.values().all(finite),
+        },
+        _ => true,
+    }
+}
+
 fn object(bytes: &[u8]) -> Result<Map<String, Value>, Fail> {
     if bytes
         .windows(NUMBER_MARKER.len())
@@ -152,7 +165,7 @@ fn object(bytes: &[u8]) -> Result<Map<String, Value>, Fail> {
         return Err(Fail::Malformed);
     }
     match serde_json::from_slice::<Strict>(bytes) {
-        Ok(Strict(Value::Object(map))) => Ok(map),
+        Ok(Strict(Value::Object(map))) if map.values().all(finite) => Ok(map),
         _ => Err(Fail::Malformed),
     }
 }
@@ -794,6 +807,17 @@ mod tests {
             decode(&format!("{crit}.{body}.AAAA"), &[hs(None)], &rules(1)),
             Err(Fail::Algorithm)
         );
+    }
+
+    #[test]
+    fn a_payload_number_out_of_float_range_is_refused() {
+        for payload in [
+            &br#"{"exp":9,"x":1e400}"#[..],
+            &br#"{"exp":9,"x":[-1e999]}"#[..],
+        ] {
+            assert!(object(payload).is_err(), "{payload:?}");
+        }
+        assert!(object(br#"{"exp":9,"x":1.5e300}"#).is_ok());
     }
 
     #[test]
