@@ -1008,6 +1008,7 @@ def test_multi_app_plan_without_an_app_names_the_positional_form(
     error = capsys.readouterr().err
     assert f"multiple apps ({name}, billing)" in error
     assert "`hinoki migrations plan <app>`" in error
+    assert "inspect with `hinoki migrations plan`" not in error
     assert not list(project.rglob("*.sql"))
 
 
