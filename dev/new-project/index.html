@@ -444,7 +444,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:06:00 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:33:10 UTC">November 20, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -468,7 +468,7 @@ From the Hinoki checkout:</p>
 <tbody>
 <tr>
 <td>Project name</td>
-<td>lower-case letters and digits, starting with a letter</td>
+<td>lower-case letters and digits, single underscores between words, starting with a letter</td>
 <td>none</td>
 </tr>
 <tr>
@@ -513,7 +513,7 @@ From the Hinoki checkout:</p>
 </tr>
 <tr>
 <td>App name (only after yes)</td>
-<td>lower-case letters and digits, starting with a letter; an invalid name is asked again</td>
+<td>the same rule as the project name; an invalid name is asked again</td>
 <td><code>core</code></td>
 </tr>
 </tbody>
@@ -678,8 +678,10 @@ database</a> lists the URL forms and the connection fields.</p>
 <p>Output that is piped, <code>NO_COLOR</code> and <code>TERM=dumb</code> give plain ASCII with no escape sequences. <code>HINOKI_ANIMATE=0</code> (or <code>CI</code>) turns off the tagline animation and the spinner; <code>HINOKI_IMAGES=0</code> (or running inside tmux/screen) uses the text wordmark. When the terminal reports a light background through <code>COLORFGBG</code>, darker shades of the same colours are used. Ctrl-C or Esc cancels before anything is written (exit status 130); so does the end of input.</p>
 <h2 id="errors-and-edge-cases">Errors and edge cases<a class="headerlink" href="#errors-and-edge-cases" title="Permanent link">&para;</a></h2>
 <ul>
-<li>The name must be lower-case letters and digits starting with a letter, and not
-  <code>hinoki</code> or a standard-library module such as <code>json</code>, which would shadow
+<li>The name must be lower-case letters and digits, with single underscores between
+  words (<code>my_shop</code>, <code>api_v1</code>), starting with a letter, and not
+  <code>hinoki</code>, a Python keyword or a standard-library module such as <code>json</code>, which
+  would shadow
   imports in the project. A refused name is asked again; with <code>--no-input</code> the
   command exits 2.</li>
 <li>An app name follows the same rule. A refused name is asked again; <code>--app</code> with a bad
@@ -724,7 +726,7 @@ database</a> lists the URL forms and the connection fields.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:06:00 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:33:10 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/new-project.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
