@@ -39,13 +39,12 @@ from hinoki import core
 from hinoki.db import Database
 from hinoki.errors import InvalidBody
 from hinoki.runtime import banner
-from hinoki.runtime.binding import BODY_METHODS
 from hinoki.runtime.listener import inherited_address, open_listener
-from hinoki.runtime.nativelane import NativeLane, lane_refusal
+from hinoki.runtime.nativelane import NativeLane, lane_refusal, needs_request_data
 from hinoki.runtime.pipeline import NativeBody
 from hinoki.runtime.recent import RequestRecorder
 from hinoki.runtime.responses import HTTPError, Response
-from hinoki.runtime.servercore import build_server_core, route_guarded
+from hinoki.runtime.servercore import build_server_core
 from hinoki.serve import load_target, settings_of
 from hinoki.settings import RUST_ONLY, ServerSettings
 
@@ -470,7 +469,7 @@ class KisoWorker:
                 NativeBody(
                     RustBody(request), request.headers, request.query, request.client
                 )
-                if request.method in BODY_METHODS or route_guarded(binding)
+                if needs_request_data(binding)
                 else None,
             ), True
         failure = request._take_native_failure()

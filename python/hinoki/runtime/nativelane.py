@@ -3,11 +3,12 @@
 A route is served here only when everything it does is known at startup: a
 non-atomic ``async def`` that ``nativeproof`` shows awaits nothing but stock
 ORM reads. A guarded route (access policy, rate limit, ``Query`` schema or
-several renderers) runs its guards first, inside the same coroutine. The
-coroutine runs without a task: the first step on the loop thread, each
-database wait on the native runtime, every later step back on the loop thread
-(so a task the handler spawns sees the loop). The request timeout is the
-driver's deadline.
+several renderers) runs its guards first, and a body method reads and checks
+its body, inside the same coroutine; the body read is a native wait too. The
+coroutine runs without a task: the first step on
+the loop thread, each database wait on the native runtime, every later step
+back on the loop thread (so a task the handler spawns sees the loop). The
+request timeout is the driver's deadline.
 
 A request the lane cannot serve (an input error, a route outside it) takes the
 asyncio path. A coroutine that awaits something only asyncio can run (a
@@ -40,6 +41,11 @@ if TYPE_CHECKING:
 log = logging.getLogger("hinoki.runtime")
 
 
+def needs_request_data(binding: Binding) -> bool:
+    """Whether the route reads the headers, the peer or the body itself."""
+    return binding.route.method in BODY_METHODS or route_guarded(binding)
+
+
 def lane_refusal(binding: Binding) -> str | None:
     """Why the native lane does not serve this route, or ``None`` when it does."""
     route = binding.route
@@ -48,8 +54,6 @@ def lane_refusal(binding: Binding) -> str | None:
         reason = "not an async def handler"
     elif not native_handler_eligible(binding):
         reason = "not natively eligible"
-    elif route.method in BODY_METHODS:
-        reason = "takes a request body"
     elif route.atomic:
         reason = "runs in a transaction"
     return reason or native_refusal(route.handler)
@@ -113,8 +117,10 @@ class NativeLane:
     ) -> None:
         self.pipeline = pipeline
         self.actions = actions
-        self.guarded = frozenset(
-            action for action in actions if route_guarded(pipeline.bindings[action])
+        self.with_data = frozenset(
+            action
+            for action in actions
+            if needs_request_data(pipeline.bindings[action])
         )
         self.source = source
         self.tasks = tasks
@@ -161,8 +167,8 @@ class NativeLane:
     def _request_data(
         self, request: core.PreparedRequest, action: int
     ) -> NativeBody | None:
-        """What a guard reads beyond the prepared inputs, for a guarded route."""
-        if action not in self.guarded:
+        """What the guards and the body read beyond the prepared inputs."""
+        if action not in self.with_data:
             return None
         return NativeBody(
             self.source(request), request.headers, request.query, request.client
