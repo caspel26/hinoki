@@ -338,7 +338,9 @@ async def test_serve_handles_pipeline_errors_head_and_native_final_responses(
     native = _Request(native_handler=True, action="native")
     worker.pipeline.bindings = {
         "native": SimpleNamespace(
-            route=SimpleNamespace(access=None, rate_limit=None, renderers=[]),
+            route=SimpleNamespace(
+                method="GET", access=None, rate_limit=None, renderers=[]
+            ),
             query_param=None,
         )
     }

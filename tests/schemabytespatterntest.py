@@ -102,7 +102,7 @@ BODIES = [
 
 async def test_the_native_lane_matches_like_the_python_lane() -> None:
     app = Hinoki(include=[upload])
-    worker = KisoWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0, native_dispatch=False)
     lanes: list[str] = []
     pipeline = worker.pipeline
     pipeline.handle_native = recording(lanes, "native", pipeline.handle_native)  # type: ignore[method-assign]
