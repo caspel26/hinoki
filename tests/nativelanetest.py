@@ -12,9 +12,22 @@ from typing import Any, ClassVar
 
 import pytest
 
-from hinoki import Hinoki, Module, RuntimeConfig, http
+from hinoki import (
+    Access,
+    Caller,
+    Hinoki,
+    HTMLRenderer,
+    JSONRenderer,
+    Module,
+    Query,
+    RateLimitContext,
+    RuntimeConfig,
+    Schema,
+    http,
+)
 from hinoki.context import request_id
 from hinoki.db import Database, DatabaseModule
+from hinoki.errors import TooManyRequests
 from hinoki.modules import ModuleContext
 from hinoki.orm import Model, field
 from hinoki.orm.options import table
@@ -22,6 +35,7 @@ from hinoki.routescli import lanes_of
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.nativelane import lane_refusal, resume
 from tests.kisoservertest import Received, fetch
+from tests.providers import TokenAuth
 
 POSTGRES = os.environ.get("HINOKI_TEST_DATABASE_URL")
 
@@ -119,14 +133,74 @@ def plain() -> dict[str, str]:
     return {"plain": "sync"}
 
 
+class SlowTokens(TokenAuth):
+    """A provider that waits on asyncio, so the guard hands the coroutine over."""
+
+    async def resolve_token(self, token: str) -> Caller[str] | None:
+        await asyncio.sleep(0.001)
+        return await super().resolve_token(token)
+
+
+class RefuseAll:
+    async def check(self, context: RateLimitContext) -> None:
+        raise TooManyRequests(7)
+
+
+class RefuseSync:
+    def check(self, context: RateLimitContext) -> None:
+        raise TooManyRequests(3)
+
+
+class Search(Schema):
+    below: int = 10
+
+
+STAFF = Access(auth=TokenAuth(), permissions=["posts:write"])
+
+
+@http.get("/lane/guarded/{id}", access=STAFF)
+async def guarded(id: int, who: Caller[str]) -> dict[str, Any]:
+    found = await LaneNote.aget(id=id)
+    return {"id": found.id, "title": found.title, "who": who.id}
+
+
+@http.get("/lane/slow-auth", access=Access(auth=SlowTokens()))
+async def slow_auth(who: Caller[str]) -> dict[str, str]:
+    return {"who": who.id}
+
+
+@http.get("/lane/limited", rate_limit=RefuseAll())
+async def limited() -> dict[str, str]:
+    return {"ran": "yes"}
+
+
+@http.get("/lane/limited-sync", rate_limit=RefuseSync())
+async def limited_sync() -> dict[str, str]:
+    return {"ran": "yes"}
+
+
+@http.get("/lane/search")
+async def search(filters: Query[Search]) -> dict[str, int]:
+    rows = await LaneNote.all().order_by("id").limit(filters.below)
+    return {"count": len(rows)}
+
+
+@http.get("/lane/negotiated", renderers=[JSONRenderer(), HTMLRenderer()])
+async def negotiated() -> str:
+    return "<p>hello</p>"
+
+
 HANDLERS = (note, notes, count, pure, seen_context, boom, missing, sleeping, plain)
+GUARDED = (guarded, slow_auth, limited, limited_sync, search, negotiated)
 SERVED = {"/lane/note/{id}", "/lane/notes", "/lane/count", "/lane/pure"}
 SERVED |= {"/lane/context", "/lane/boom", "/lane/not-found"}
+SERVED |= {"/lane/guarded/{id}", "/lane/slow-auth", "/lane/limited"}
+SERVED |= {"/lane/limited-sync", "/lane/search", "/lane/negotiated"}
 
 
 def make_app(url: str, **runtime: float) -> Hinoki:
     app = Hinoki(runtime=RuntimeConfig(**runtime))  # type: ignore[arg-type]
-    app.include(*HANDLERS)
+    app.include(*HANDLERS, *GUARDED)
     app.install(DatabaseModule(url), Holder())
     return app
 
@@ -139,7 +213,7 @@ def normalized(received: Received) -> tuple[int, list[tuple[str, str]], bytes]:
 
 
 async def serve_all(
-    url: str, targets: list[str], *, native: bool
+    url: str, targets: list[str | tuple[str, str]], *, native: bool
 ) -> tuple[list[Received], list[int]]:
     worker = KisoWorker(make_app(url), "127.0.0.1", 0, native_dispatch=native)
     port = await worker.start()
@@ -154,7 +228,8 @@ async def serve_all(
 
         worker.lane.start = recorded  # type: ignore[method-assign]
     try:
-        return [await fetch(port, "GET", target) for target in targets], started
+        pairs = [(t, "") if isinstance(t, str) else t for t in targets]
+        return [await fetch(port, "GET", t, extra) for t, extra in pairs], started
     finally:
         await worker.stop()
 
@@ -190,6 +265,54 @@ async def test_the_lane_answers_like_the_asyncio_path(url: str) -> None:
     # unknown path never leaves Rust.
     assert started.count(1) == 9
     assert started.count(0) == 4
+
+
+def bearer(token: str) -> str:
+    return f"authorization: Bearer {token}\r\n"
+
+
+GUARDED_TARGETS: list[str | tuple[str, str]] = [
+    ("/lane/guarded/1", bearer("editor-token")),
+    ("/lane/guarded/9", bearer("editor-token")),
+    ("/lane/guarded/1", bearer("reader-token")),
+    ("/lane/guarded/1", bearer("nobody")),
+    ("/lane/guarded/1", ""),
+    ("/lane/slow-auth", bearer("editor-token")),
+    ("/lane/slow-auth", ""),
+    "/lane/limited",
+    "/lane/limited-sync",
+    "/lane/search",
+    "/lane/search?below=2",
+    "/lane/search?below=x",
+    "/lane/search?other=1",
+    "/lane/negotiated",
+    ("/lane/negotiated", "accept: text/html\r\n"),
+    ("/lane/negotiated", "accept: image/png\r\n"),
+]
+
+
+async def test_guarded_routes_take_the_lane_like_the_asyncio_path(url: str) -> None:
+    oracle, none = await serve_all(url, GUARDED_TARGETS, native=False)
+    served, started = await serve_all(url, GUARDED_TARGETS, native=True)
+    assert none == []
+    assert [normalized(r) for r in served] == [normalized(r) for r in oracle]
+    assert [r.status for r in served] == [
+        200, 404, 403, 401, 401, 200, 401, 429, 429, 200, 200, 422, 422,
+        200, 200, 406,
+    ]  # fmt: skip
+    # Only the unacceptable request stays off the lane: Rust refuses it. The
+    # guards judge credentials and query values inside the lane.
+    assert started.count(0) == 1
+    assert started.count(1) == 15
+
+
+async def test_a_guard_waiting_on_asyncio_does_not_run_the_handler_twice(
+    url: str,
+) -> None:
+    served, _ = await serve_all(
+        url, [("/lane/slow-auth", bearer("editor-token"))] * 5, native=True
+    )
+    assert [r.json() for r in served] == [{"who": "u-editor"}] * 5
 
 
 async def test_a_driven_handler_runs_in_its_own_request_context(
