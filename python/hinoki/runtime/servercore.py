@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import logging
 from http import HTTPStatus
+from typing import Any
 
 from hinoki import core
 from hinoki.context import request_id
+from hinoki.errors import Forbidden, Unauthorized
 from hinoki.parsers import is_native_parser
 from hinoki.renderers import is_native_renderer
 from hinoki.runtime.binding import (
@@ -24,9 +26,15 @@ from hinoki.runtime.binding import (
     Binding,
     Param,
 )
-from hinoki.runtime.crudplan import CrudPlanSelection, select_crud_plan
-from hinoki.runtime.pipeline import Pipeline
-from hinoki.runtime.responses import RETRY_LATER, HTTPError
+from hinoki.runtime.crudplan import (
+    CrudPlanSelection,
+    auth_snapshot,
+    claims_access_is_plain,
+    native_claims_auth,
+    select_crud_plan,
+)
+from hinoki.runtime.pipeline import Pipeline, docs_response
+from hinoki.runtime.responses import RETRY_LATER, HTTPError, Response, public_error
 
 log = logging.getLogger("hinoki.server")
 
@@ -83,11 +91,60 @@ def early_bodies() -> list[tuple[str, bytes]]:
                         available="application/json",
                     ).response.body,
                 ),
+                *(
+                    (kind, public_error(error).body)
+                    for kind, error in (
+                        ("unauthorized", Unauthorized()),
+                        ("invalid_credentials", Unauthorized("Invalid credentials.")),
+                        ("forbidden", Forbidden()),
+                    )
+                ),
             ]
         )
         return rendered
     finally:
         request_id.reset(token)
+
+
+def claims_route_access(binding: Binding) -> Any:
+    """The route's access policy when Rust can authenticate it, else ``None``."""
+    access = binding.route.access
+    if (
+        access is not None
+        and native_handler_eligible(binding)
+        and claims_access_is_plain(access)
+    ):
+        return access
+    return None
+
+
+def route_auth_state(access: Any) -> tuple[object, ...]:
+    """What Rust copied from the provider, to notice a later change."""
+    return (auth_snapshot(access), access.auth.challenge)
+
+
+def route_auth_of(
+    pipeline: Pipeline,
+) -> list[tuple[int, core._ClaimsAuth, bytes | None]]:
+    """The claims-only provider of every native route that Rust authenticates,
+    with the challenge Python puts on its ``401``."""
+    found = []
+    for action, binding in enumerate(pipeline.bindings):
+        access = claims_route_access(binding)
+        claims = native_claims_auth(access) if access is not None else None
+        if claims is not None:
+            challenge = access.auth.challenge
+            found.append((action, claims, challenge.encode() if challenge else None))
+    return found
+
+
+def route_auth_stale(binding: Binding, access: Any, state: tuple[object, ...]) -> bool:
+    """Whether the route's access or its provider no longer is what Rust holds."""
+    return (
+        binding.route.access is not access
+        or claims_route_access(binding) is None
+        or route_auth_state(access) != state
+    )
 
 
 def route_spec(
@@ -142,11 +199,23 @@ def route_guarded(binding: Binding) -> bool:
     )
 
 
+def stock_owner(owner: type) -> bool:
+    """Creating the class-API instance runs no application code: it keeps
+    ``object``'s constructor, so a request may build it wherever its handler is
+    driven."""
+    return type(owner) is type and all(
+        "__init__" not in vars(base) and "__new__" not in vars(base)
+        for base in owner.__mro__[:-1]
+    )
+
+
 def native_handler_eligible(binding: Binding) -> bool:
     """Select the automatic native response path for a simple GET or DELETE, or
     for a body method with one ``Schema`` body and only built-in parsers."""
     route = binding.route
-    if route.owner is not None:
+    if route.owner is not None and not (
+        stock_owner(route.owner) and not getattr(route.owner, "response_headers", ())
+    ):
         return False
     if route.method in BODY_METHODS:
         if (
@@ -205,6 +274,22 @@ def hosts_of(pipeline: Pipeline) -> tuple[list[bytes], list[bytes]] | None:
     )
 
 
+def static_pages_of(
+    pipeline: Pipeline,
+) -> list[tuple[str, list[tuple[bytes, bytes]], bytes]]:
+    """The OpenAPI document and documentation pages as the answers the Python
+    pipeline would give, so Rust can serve them without crossing into Python."""
+    pages = []
+    url = pipeline.app.openapi_url
+    if pipeline.document is not None and url is not None:
+        answer = Response.json(HTTPStatus.OK, pipeline.document)
+        pages.append((url, list(answer.headers), answer.body))
+    for path, page in pipeline.docs.items():
+        answer = docs_response(page)
+        pages.append((path, list(answer.headers), answer.body))
+    return pages
+
+
 def build_server_core(pipeline: Pipeline) -> core.ServerCore:
     """The classifier for one worker. It starts not ready; the lifespan flips it."""
     app = pipeline.app
@@ -257,4 +342,6 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
         ),
         hosts=hosts_of(pipeline),
         redirect_https=pipeline.security.redirect_https,
+        static_pages=static_pages_of(pipeline),
+        route_auth=route_auth_of(pipeline),
     )

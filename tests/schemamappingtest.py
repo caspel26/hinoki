@@ -437,11 +437,11 @@ async def test_the_native_lane_validates_and_encodes_dicts_like_the_python_lane(
 ):
     app = Hinoki()
     app.include(echo_labels, echo_rich)
-    worker = KisoWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0, native_dispatch=False)
     lanes: list[str] = []
     pipeline = worker.pipeline
     pipeline.handle_native = recording(lanes, "native", pipeline.handle_native)  # type: ignore[method-assign]
-    pipeline.handle = recording(lanes, "python", pipeline.handle)  # type: ignore[method-assign]
+    pipeline.handle_unfinished = recording(lanes, "python", pipeline.handle_unfinished)  # type: ignore[method-assign]
     bodies = [
         ("/mapping/labels", b'{"labels": {"b": "2", "a": "1", "b": "3"}}'),
         ("/mapping/labels", b'{"labels": {"a": 1, "__proto__": "x"}}'),

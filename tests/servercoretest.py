@@ -501,22 +501,27 @@ def test_in_flight_bound_answers_503_and_a_dropped_request_frees_its_slot() -> N
     assert server.submit("GET", "/ping", b"", []).early is None
 
 
-def test_docs_and_openapi_paths_go_to_python() -> None:
+def test_docs_and_openapi_paths_are_answered_natively() -> None:
     app = Hinoki(openapi_url="/openapi.json", docs_url="/docs")
     app.include(ping)
     server = classifier(app)
     for path in ("/openapi.json", "/docs"):
         submission = server.submit("GET", path, b"", [])
-        assert submission.early is None
-    assert [r.action for r in server.drain(10)] == [None, None]
+        assert submission.early is not None
+        assert submission.early[0] == 200
+    posted = server.submit("POST", "/docs", b"", [])
+    assert posted.early is not None
+    assert posted.early[0] == 404
+    assert server.drain(10) == []
 
 
-def test_native_policies_run_before_unrouted_python_fallback() -> None:
+def test_native_policies_run_before_unrouted_answers() -> None:
     app = Hinoki(settings=AppSettings(allowed_hosts=("example.com",)))
     server = classifier(app)
     submission = server.submit("GET", "/anything", b"", [(b"host", b"example.com")])
-    assert submission.early is None
-    assert [request.action for request in server.drain(1)] == [None]
+    assert submission.early is not None
+    assert normalized(*submission.early)[0] == 404
+    assert server.drain(1) == []
     denied = server.submit("GET", "/anything", b"", [(b"host", b"wrong.example")])
     assert denied.early is not None
     assert normalized(*denied.early)[0] == 400
@@ -687,9 +692,9 @@ def test_an_asterisk_target_is_not_redirected() -> None:
     app.include(native)
     server = classifier(app)
     submission = server.submit("OPTIONS", "*", b"", [(b"host", b"example.com")])
-    assert submission.early is None  # the Python pipeline answers it
-    [request] = server.drain(1)
-    assert request.action is None
+    assert submission.early is not None  # not redirected: a plain 404, as in Python
+    assert submission.early[0] == 404
+    assert server.drain(1) == []
 
 
 def test_https_selects_the_https_policy_headers() -> None:
@@ -764,13 +769,15 @@ def test_reply_is_stable_and_a_dropped_request_is_an_error() -> None:
         lost.reply()
 
 
-def test_python_paths_are_compared_decoded_and_odd_targets_go_to_python() -> None:
+def test_encoded_page_paths_are_answered_and_odd_targets_go_to_python() -> None:
     app = Hinoki(openapi_url="/openapi.json", docs_url="/docs")
     app.include(ping)
     server = classifier(app)
-    server.submit("GET", "/openapi%2Ejson", b"", [])
+    answered = server.submit("GET", "/openapi%2Ejson", b"", [])
+    assert answered.early is not None
+    assert answered.early[0] == 200
     server.submit("GET", "/café", b"", [])
-    assert [r.action for r in server.drain(10)] == [None, None]
+    assert [r.action for r in server.drain(10)] == [None]
 
 
 def test_body_methods_are_native_only_with_one_schema_body_and_built_in_parsers() -> (

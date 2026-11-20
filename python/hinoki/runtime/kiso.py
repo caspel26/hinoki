@@ -30,22 +30,27 @@ import logging
 import os
 import signal
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from http import HTTPStatus
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
 
-from hinoki import core
+from hinoki import context, core
 from hinoki.db import Database
 from hinoki.errors import InvalidBody
 from hinoki.runtime import banner
-from hinoki.runtime.binding import BODY_METHODS
 from hinoki.runtime.listener import inherited_address, open_listener
-from hinoki.runtime.nativelane import NativeLane, lane_refusal
+from hinoki.runtime.nativelane import NativeLane, lane_refusal, needs_request_data
 from hinoki.runtime.pipeline import NativeBody
 from hinoki.runtime.recent import RequestRecorder
 from hinoki.runtime.responses import HTTPError, Response
-from hinoki.runtime.servercore import build_server_core, route_guarded
+from hinoki.runtime.servercore import (
+    build_server_core,
+    claims_route_access,
+    route_auth_stale,
+    route_auth_state,
+)
 from hinoki.serve import load_target, settings_of
 from hinoki.settings import RUST_ONLY, ServerSettings
 
@@ -149,6 +154,9 @@ def scope_of(
 
 class KisoWorker:
     """Runs one application on the Rust server inside the current event loop."""
+
+    # The routes Rust authenticates, with what it copied; set at startup.
+    _route_auth: Mapping[int, tuple[Any, tuple[object, ...]]] = MappingProxyType({})
 
     def __init__(  # noqa: PLR0913 - one parameter per native limit
         self,
@@ -277,6 +285,11 @@ class KisoWorker:
         loop = asyncio.get_running_loop()
         loop.add_reader(server.wake_fd, self._wake, server)
         self.timer = loop.call_later(HOUSEKEEPING, self._tick)
+        self._route_auth = {
+            action: (access, route_auth_state(access))
+            for action, binding in enumerate(self.pipeline.bindings)
+            if (access := claims_route_access(binding)) is not None
+        }
         self.core.set_ready(True)
         return server.port
 
@@ -297,7 +310,9 @@ class KisoWorker:
             )
         if not actions:
             return None
-        return NativeLane(self.pipeline, frozenset(actions), self.tasks, self._fail)
+        return NativeLane(
+            self.pipeline, frozenset(actions), self.tasks, self._fail, RustBody
+        )
 
     def _activate_crud_plans(self) -> None:
         """Attach the worker-owned pool clone and arm still-valid plans."""
@@ -356,6 +371,27 @@ class KisoWorker:
             self.pipeline.crud_plan_reasons[action] = "native_plan_stale"
             log.warning("native CRUD plan %s disarmed after staleness check", action)
 
+    def _check_route_auth(self) -> None:
+        """Send a route back to Python once its access policy or provider no
+        longer is what Rust holds (a key, issuer, audience, leeway, scope claim,
+        permission or challenge changed)."""
+        armed = {}
+        for action, held in self._route_auth.items():
+            if self._route_auth_stale(action, held):
+                self.core._disarm_route_auth(action)
+                log.warning("native authentication of route %s disarmed", action)
+            else:
+                armed[action] = held
+        self._route_auth = armed
+
+    def _route_auth_stale(
+        self, action: int, held: tuple[Any, tuple[object, ...]]
+    ) -> bool:
+        try:
+            return route_auth_stale(self.pipeline.bindings[action], *held)
+        except Exception:
+            return True
+
     def _tick(self) -> None:
         """One pass, then the next: a failing pass must not end the chain (it
         also detects a dead supervisor)."""
@@ -378,6 +414,7 @@ class KisoWorker:
                 ignored,
             )
         self._check_crud_snapshots()
+        self._check_route_auth()
         if self.parent is not None and os.getppid() != self.parent:
             log.error("the supervisor is gone; stopping")
             self.stopping.set()
@@ -414,9 +451,57 @@ class KisoWorker:
     def _spawn(self, request: core.PreparedRequest) -> None:
         if self.lane is not None and self.lane.start(request):
             return
-        task = asyncio.create_task(self._serve(request))
+        failure = request._take_native_failure()
+        if failure is not None and self._answer_failure(request, failure):
+            return
+        task = asyncio.create_task(
+            self._serve(request)
+            if failure is None
+            else self._serve_failure(request, failure)
+        )
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
+
+    async def _serve_failure(
+        self, request: core.PreparedRequest, failure: core.NativeFailure
+    ) -> None:
+        """Translate a Rust CRUD failure an application error handler may
+        need a coroutine for."""
+        if request.id_ignored:
+            log.warning("ignored invalid request ID from trusted proxy")
+        try:
+            response = await self._serve_native_failure(request, failure)
+            request.respond_final(response.status, response.headers, response.body)
+        except Exception:
+            log.exception("request %s failed", request.request_id)
+            self._fail(request)
+
+    def _answer_failure(
+        self, request: core.PreparedRequest, failure: core.NativeFailure
+    ) -> bool:
+        """Answer a Rust CRUD failure in place when no application error
+        handler can match; ``False`` leaves it to a task."""
+        action = request.action
+        if action is None:
+            return False
+        try:
+            response = self.pipeline.crud_failure_now(
+                action, request.request_id, failure
+            )
+        except Exception:
+            log.exception("request %s failed", request.request_id)
+            self._fail(request)
+            return True
+        if response is None:
+            return False
+        if request.id_ignored:
+            log.warning("ignored invalid request ID from trusted proxy")
+        try:
+            request.respond_final(response.status, response.headers, response.body)
+        except Exception:
+            log.exception("request %s could not be answered", request.request_id)
+            self._fail(request)
+        return True
 
     def _fail(self, request: core.PreparedRequest) -> None:
         """Answer a request the worker could not serve with the usual 500."""
@@ -466,9 +551,13 @@ class KisoWorker:
                 request.native_args,
                 request.native_error,
                 NativeBody(
-                    RustBody(request), request.headers, request.query, request.client
+                    RustBody(request),
+                    request.headers,
+                    request.query,
+                    request.client,
+                    request.native_principal,
                 )
-                if request.method in BODY_METHODS or route_guarded(binding)
+                if needs_request_data(binding)
                 else None,
             ), True
         failure = request._take_native_failure()
@@ -482,7 +571,7 @@ class KisoWorker:
             if request.action is None
             else (request.action, request.prepared_path_params)
         )
-        return await self.pipeline.handle(
+        return await self.pipeline.handle_unfinished(
             scope_of(request, self.address, self.scheme),
             RustBody(request),
             request.request_id,
@@ -502,11 +591,16 @@ class KisoWorker:
             log.exception("request %s failed", request.request_id)
             self._fail(request)
             return
-        body = b"" if request.method == "HEAD" else response.body
         if native_final:
             request.respond_final(response.status, response.headers, response.body)
         else:
-            request.respond(response.status, response.headers, body)
+            # Set by the pipeline in this task's context while it answered.
+            request.respond_routed(
+                response.status,
+                response.headers,
+                response.body,
+                context.route_headers.get(),
+            )
 
     async def stop(self) -> int:
         """Stop accepting, let running requests finish (up to the shutdown

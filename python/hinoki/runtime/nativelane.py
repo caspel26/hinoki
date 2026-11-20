@@ -1,11 +1,14 @@
 """The native lane: an async handler driven from Rust instead of an asyncio task.
 
 A route is served here only when everything it does is known at startup: an
-unguarded, non-atomic ``async def`` that ``nativeproof`` shows awaits nothing
-but stock ORM reads. Its coroutine then runs without a task: the first step on
-the loop thread, each database wait on the native runtime, every later step
-back on the loop thread (so a task the handler spawns sees the loop). The
-request timeout is the driver's deadline.
+``async def`` that ``nativeproof`` shows awaits nothing but stock ORM reads;
+an ``atomic`` route runs it inside the transaction the lane opens. A guarded
+route (access policy, rate limit, ``Query`` schema or several renderers) runs
+its guards first, and a body method reads and checks its body, inside the same
+coroutine; the body read is a native wait too. The coroutine runs without a
+task: the first step on the loop thread, each database wait on the native
+runtime, every later step back on the loop thread (so a task the handler
+spawns sees the loop). The request timeout is the driver's deadline.
 
 A request the lane cannot serve (an input error, a route outside it) takes the
 asyncio path. A coroutine that awaits something only asyncio can run (a
@@ -24,17 +27,24 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 from hinoki import core
+from hinoki.db import NATIVE_OWNER, current, current_owner
 from hinoki.runtime.binding import BODY_METHODS, Binding
 from hinoki.runtime.nativeproof import native_refusal
+from hinoki.runtime.pipeline import NativeBody
 from hinoki.runtime.responses import HTTPError, Response
 from hinoki.runtime.servercore import native_handler_eligible, route_guarded
 
 if TYPE_CHECKING:
     import contextvars
 
-    from hinoki.runtime.pipeline import Pipeline
+    from hinoki.runtime.pipeline import BodySource, Pipeline
 
 log = logging.getLogger("hinoki.runtime")
+
+
+def needs_request_data(binding: Binding) -> bool:
+    """Whether the route reads the headers, the peer or the body itself."""
+    return binding.route.method in BODY_METHODS or route_guarded(binding)
 
 
 def lane_refusal(binding: Binding) -> str | None:
@@ -45,12 +55,6 @@ def lane_refusal(binding: Binding) -> str | None:
         reason = "not an async def handler"
     elif not native_handler_eligible(binding):
         reason = "not natively eligible"
-    elif route.method in BODY_METHODS:
-        reason = "takes a request body"
-    elif route_guarded(binding):
-        reason = "guarded (access, rate limit, query schema or several renderers)"
-    elif route.atomic:
-        reason = "runs in a transaction"
     return reason or native_refusal(route.handler)
 
 
@@ -58,11 +62,21 @@ def timeout_response() -> Response:
     return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
 
 
+def adopt_transaction() -> None:
+    """The transaction a driven handler opened passes to the task now running
+    it, so a savepoint opened after the handover is the owner's, not a stranger's."""
+    active = current.get()
+    if active is not None and active.owner is NATIVE_OWNER:
+        active.owner = current_owner()
+
+
 @types.coroutine
 def resume(coro: Any, yielded: Any) -> Generator[Any, Any, Any]:
     """Continue ``coro`` in an asyncio task after it yielded ``yielded`` (a
     future or bare yield only asyncio can wait for): hand it to the task, and
-    send or throw what comes back into ``coro``."""
+    send or throw what comes back into ``coro``. The task adopts the open
+    transaction."""
+    adopt_transaction()
     while True:
         try:
             sent = yield yielded
@@ -108,9 +122,16 @@ class NativeLane:
         actions: frozenset[int],
         tasks: set[asyncio.Task[None]],
         fail: Callable[[core.PreparedRequest], None],
+        source: Callable[[core.PreparedRequest], BodySource],
     ) -> None:
         self.pipeline = pipeline
         self.actions = actions
+        self.with_data = frozenset(
+            action
+            for action in actions
+            if needs_request_data(pipeline.bindings[action])
+        )
+        self.source = source
         self.tasks = tasks
         self.fail = fail
         self.runs: set[Run] = set()
@@ -134,7 +155,9 @@ class NativeLane:
         run = Run(request, binding, self.pipeline.native_context(request.request_id))
         timeout = self.pipeline.app.runtime.request_timeout
         deadline = None if timeout is None else max(1, int(timeout * 1000))
-        coro = self.pipeline.drive_native(binding, request.native_args)
+        coro = self.pipeline.drive_native(
+            binding, request.native_args, self._request_data(request, action)
+        )
         self.runs.add(run)
         try:
             run.handle = core.run_native(
@@ -149,6 +172,20 @@ class NativeLane:
             self.runs.discard(run)
             raise
         return True
+
+    def _request_data(
+        self, request: core.PreparedRequest, action: int
+    ) -> NativeBody | None:
+        """What the guards and the body read beyond the prepared inputs."""
+        if action not in self.with_data:
+            return None
+        return NativeBody(
+            self.source(request),
+            request.headers,
+            request.query,
+            request.client,
+            request.native_principal,
+        )
 
     def cancel_all(self) -> None:
         """Cancel every driven handler, as shutdown cancels the request tasks."""
@@ -185,7 +222,7 @@ class NativeLane:
                 self._respond(run, run.ctx.run(timeout_response))
             # Cancelled at shutdown: dropped unanswered, as a cancelled task is.
         elif isinstance(error, Exception):
-            self._track(self._translate(run, error), run.ctx)
+            self._translate_now(run, error)
         else:
             log.error("native handler of %s ended with %r", run.rid, error)
             self.fail(run.request)
@@ -211,6 +248,19 @@ class NativeLane:
             self._broken(run)
             return
         self._respond(run, response)
+
+    def _translate_now(self, run: Run, error: Exception) -> None:
+        """Answer in place when no application error handler can match, else
+        translate in a task."""
+        try:
+            response = run.ctx.run(self.pipeline.native_failure_now, error, run.rid)
+        except Exception:
+            self._broken(run)
+            return
+        if response is None:
+            self._track(self._translate(run, error), run.ctx)
+        else:
+            self._respond(run, response)
 
     async def _translate(self, run: Run, error: Exception) -> None:
         await self._answer(run, self.pipeline.native_failure(error, run.rid))

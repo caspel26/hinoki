@@ -32,8 +32,34 @@ from hinoki.orm.model import Model
 
 MODEL_STARTS = frozenset({"filter", "all"})
 MODEL_TERMINALS = frozenset({"aget", "aget_or_none"})
+MODEL_WRITES = frozenset(
+    {
+        "acreate",
+        "aupdate",
+        "aupdate_where",
+        "adelete",
+        "abulk_create",
+        "abulk_update",
+        "abulk_delete",
+    }
+)
 QUERYSET_BUILDERS = frozenset({"filter", "order_by", "limit", "offset"})
 QUERYSET_TERMINALS = frozenset({"aget", "afirst", "acount", "aexists"})
+QUERYSET_WRITES = frozenset({"aupdate", "adelete"})
+# What a write calls on the model: none of it may be replaced.
+WRITE_PATH = (
+    "insert",
+    "write_insert",
+    "write_update",
+    "save_with",
+    "asave",
+    "from_schema",
+    "merged_values",
+    "load_stored",
+    "validate_values",
+    "hook_transaction",
+    "run_hooks",
+)
 TASK_MODULES = frozenset({"asyncio", "_asyncio", "anyio"})
 TASK_APIS = frozenset({"asyncio", "anyio", "current_task", "all_tasks"})
 MISSING = object()
@@ -106,23 +132,48 @@ def chain_of(operand: ast.expr) -> tuple[ast.expr, list[str]]:
     return current, links
 
 
+def is_stock(model: type[Model], name: str) -> bool:
+    stock = getattr(Model, name, None)
+    own = getattr(model, name, None)
+    return getattr(own, "__func__", own) is getattr(stock, "__func__", stock)
+
+
+def check_write(model: type[Model]) -> None:
+    """A write is native only for a model whose write path is stock and that
+    has no hook: a hook is application code that may await anything."""
+    for name in WRITE_PATH:
+        if not is_stock(model, name):
+            raise ProofError(f"{model.__name__}.{name} is overridden")
+    if model.write_hooks():
+        raise ProofError(f"{model.__name__} has write hooks")
+
+
 def check_chain(model: type[Model], links: list[str]) -> None:
     first, rest = links[0], links[1:]
-    stock = getattr(Model, first, None)
-    own = getattr(model, first, None)
-    if getattr(own, "__func__", own) is not getattr(stock, "__func__", stock):
+    if not is_stock(model, first):
         raise ProofError(f"{model.__name__}.{first} is overridden")
-    if first in MODEL_TERMINALS:
+    if first in MODEL_TERMINALS | MODEL_WRITES:
         if rest:
             raise ProofError(f"{first} is followed by more calls")
+        if first in MODEL_WRITES:
+            check_write(model)
         return
     if first not in MODEL_STARTS:
         raise ProofError(f"{model.__name__}.{first} is not a native query")
-    for name in rest[:-1]:
+    check_steps(model, rest)
+
+
+def check_steps(model: type[Model], steps: list[str]) -> None:
+    for name in steps[:-1]:
         if name not in QUERYSET_BUILDERS:
             raise ProofError(f"{name} is not a native query step")
-    if rest and rest[-1] not in QUERYSET_BUILDERS | QUERYSET_TERMINALS:
-        raise ProofError(f"{rest[-1]} is not a native query step")
+    if not steps:
+        return
+    last = steps[-1]
+    if last not in QUERYSET_BUILDERS | QUERYSET_TERMINALS | QUERYSET_WRITES:
+        raise ProofError(f"{last} is not a native query step")
+    if last in QUERYSET_WRITES:
+        check_write(model)
 
 
 def check_await(func: types.FunctionType, node: ast.Await) -> None:

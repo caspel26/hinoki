@@ -22,6 +22,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, cast
 
 from hinoki import context, core
+from hinoki.auth import Caller
 from hinoki.context import request_id
 from hinoki.db import Database
 from hinoki.docsui import CSP, Page
@@ -67,6 +68,7 @@ from hinoki.runtime.responses import (
     HTTPError,
     Response,
     error_response,
+    error_response_now,
 )
 from hinoki.runtime.security import headers_for, https_redirect
 from hinoki.schema import Schema, encode
@@ -74,7 +76,6 @@ from hinoki.settings import AppSettings, SecuritySettings
 
 if TYPE_CHECKING:
     from hinoki.app import Hinoki
-    from hinoki.auth import Caller
     from hinoki.ratelimit import RateLimitPolicy
 
 log = logging.getLogger("hinoki.runtime")
@@ -95,6 +96,8 @@ class NativeBody(NamedTuple):
     headers: list[tuple[bytes, bytes]]
     query: bytes
     client: tuple[str, int] | None
+    # The caller Rust already authenticated: the `sub` and every string scope.
+    principal: tuple[str, list[str]] | None = None
 
 
 class BodySource(Protocol):
@@ -248,12 +251,34 @@ class Pipeline:
         that already chose the request id passes it as ``rid``, and one that
         already matched the route passes ``route`` (the action number and the
         raw, still percent-encoded path parameters), so it is not looked up again."""
+        scope, rid, response = await self._answer(scope, source, rid, route)
+        return self.with_headers(response, scope, rid)
+
+    async def handle_unfinished(
+        self,
+        scope: Scope,
+        source: BodySource,
+        rid: str,
+        route: MatchedRoute | None = None,
+    ) -> Response:
+        """``handle`` without the final headers, for a transport that adds them
+        itself with the route headers this leaves in ``context.route_headers``
+        (Kiso: ``PreparedRequest.respond_routed``)."""
+        return (await self._answer(scope, source, rid, route))[2]
+
+    async def _answer(
+        self,
+        scope: Scope,
+        source: BodySource,
+        rid: str | None,
+        route: MatchedRoute | None,
+    ) -> tuple[Scope, str, Response]:
         scope, trusted = effective_scope(scope, self.trusted_proxies)
         rid = rid or self._request_id(scope, trusted)
         response = await self._in_request_context(
             rid, self._respond(scope, source, rid, route)
         )
-        return self.with_headers(response, scope, rid)
+        return scope, rid, response
 
     async def handle_native(
         self,
@@ -418,6 +443,36 @@ class Pipeline:
             response = await self.native_failure(exc, rid)
         return response
 
+    def native_failure_now(self, exc: Exception, rid: str) -> Response | None:
+        """``native_failure`` without a coroutine; ``None`` when an application
+        error handler may need to await. Run it in the request's context."""
+        if isinstance(exc, ExecutorSaturated):
+            return HTTPError(
+                HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
+            ).response
+        return error_response_now(exc, rid, self.app.errors, self.debug)
+
+    def crud_failure_now(
+        self, action: int, rid: str, failure: core.NativeFailure
+    ) -> Response | None:
+        """The answer for a Rust CRUD failure that needs no coroutine, or
+        ``None`` to translate it with ``handle_native_failure``."""
+        if failure[0] == "timeout":
+            return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
+        ctx = self.native_context(rid)
+        return ctx.run(self._crud_failure_now, action, rid, failure)
+
+    def _crud_failure_now(
+        self, action: int, rid: str, failure: core.NativeFailure
+    ) -> Response | None:
+        try:
+            exception = self._default_error(
+                self._native_failure_exception(action, failure)
+            )
+        except Exception as exc:
+            exception = exc
+        return error_response_now(exception, rid, self.app.errors, self.debug)
+
     async def native_failure(self, exc: Exception, rid: str) -> Response:
         """The answer for an error a native handler raised."""
         if isinstance(exc, ExecutorSaturated):
@@ -439,11 +494,23 @@ class Pipeline:
         context.sync_runner.set(self.executor.run)
         database_var.set(self.ctx.find(Database))
 
-    async def drive_native(self, binding: Binding, args: dict[str, object]) -> Response:
-        """The coroutine Rust drives for an unguarded, non-atomic native route:
-        the handler call and its encoding, with no timeout and no error
-        translation (the driver owns the deadline and the caller the errors)."""
-        return await self._native_result(binding, args)
+    async def drive_native(
+        self,
+        binding: Binding,
+        args: dict[str, object],
+        native: NativeBody | None = None,
+    ) -> Response:
+        """The coroutine Rust drives for a native route: first, for a guarded
+        route or a body method, the admission of the caller and the request
+        values (``native`` carries the headers, the peer and the body), then
+        the handler call and its encoding, inside the transaction of an
+        ``atomic`` route, with no timeout and no error translation (the driver
+        owns the deadline and the caller the errors). A guard that awaits
+        something only asyncio can run hands the coroutine over like a handler
+        does."""
+        if native is not None:
+            args = await self._native_arguments(binding, args, None, native)
+        return await self._call_native(binding, args, native)
 
     async def native_continue(
         self,
@@ -834,7 +901,10 @@ class Pipeline:
         if input_error is not None and input_error[0] == "bad_path_encoding":
             raise native_input_exception(input_error)
         principal = None
-        if access is not None:
+        if access is not None and native.principal is not None:
+            subject, scopes = native.principal
+            principal = Caller(subject, None, frozenset(scopes))
+        elif access is not None:
             query = parse_query(native.query)
             principal = await authorize(access, core.header_dict(native.headers), query)
         if binding.route.rate_limit is not None:

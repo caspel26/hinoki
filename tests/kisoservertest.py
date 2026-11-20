@@ -44,6 +44,7 @@ from hinoki import (
     core,
     http,
 )
+from hinoki.api import API
 from hinoki.context import request_id
 from hinoki.errors import TooManyRequests
 from hinoki.http.request import Request
@@ -1624,6 +1625,116 @@ async def test_native_handler_answers_carry_the_pipeline_cors_headers(
             native = final_answer(received.status, received.headers, received.body)
             assert native[0] == status
             assert native == await pipeline_answer(worker, method, target, headers)
+    finally:
+        await worker.stop()
+
+
+class Branded(API):
+    response_headers = (("x-brand", "kiso"), ("x-frame-options", "ALLOWALL"))
+
+    @http.get("/branded")
+    def show(self) -> dict[str, str]:
+        return {"brand": "kiso"}
+
+
+@pytest.mark.parametrize("method", ["GET", "HEAD", "DELETE"])
+@pytest.mark.parametrize(
+    "origin", ["https://client.example", "https://evil.example", ""]
+)
+async def test_unrouted_answers_under_policies_match_the_pipeline(
+    origin: str, method: str
+) -> None:
+    app = Hinoki(
+        include=[Branded],
+        settings=AppSettings(
+            allowed_hosts=("t",),
+            cors=CorsSettings(origins=("https://client.example",), credentials=True),
+        ),
+    )
+    worker = KisoWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    headers = [(b"host", b"t")] + ([(b"origin", origin.encode())] if origin else [])
+    extra = f"origin: {origin}\r\n" if origin else ""
+    try:
+        lanes = record_lanes(worker)
+        for target, status in {"/missing": 404, "/branded": 405}.items():
+            if method != "DELETE" and target == "/branded":
+                continue
+            received = await fetch(port, method, target, extra=extra)
+            served = final_answer(received.status, received.headers, received.body)
+            assert served[0] == status
+            assert served == await pipeline_answer(worker, method, target, headers)
+        assert lanes == []
+    finally:
+        await worker.stop()
+
+
+@pytest.mark.parametrize("method", ["GET", "HEAD"])
+@pytest.mark.parametrize("origin", ["https://client.example", ""])
+async def test_documentation_pages_are_answered_without_python(
+    origin: str, method: str
+) -> None:
+    app = Hinoki(
+        include=[Branded],
+        openapi_url="/openapi.json",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        settings=AppSettings(
+            cors=CorsSettings(origins=("https://client.example",), credentials=True)
+        ),
+    )
+    worker = KisoWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    headers = [(b"host", b"t")] + ([(b"origin", origin.encode())] if origin else [])
+    extra = f"origin: {origin}\r\n" if origin else ""
+    targets = [app.openapi_url, *worker.pipeline.docs, "/openapi%2Ejson"]
+    try:
+        assert len(targets) > 3
+        lanes = record_lanes(worker)
+        for target in targets:
+            assert target is not None
+            received = await fetch(port, method, target, extra=extra)
+            served = final_answer(received.status, received.headers, received.body)
+            assert served[0] == 200
+            oracle = target.replace("%2E", ".")
+            assert served == await pipeline_answer(worker, method, oracle, headers)
+        assert lanes == []
+    finally:
+        await worker.stop()
+
+
+@pytest.mark.parametrize(
+    "origin", ["https://client.example", "https://evil.example", ""]
+)
+@pytest.mark.parametrize("method", ["GET", "HEAD"])
+async def test_pipeline_answers_carry_the_headers_the_adapter_gives(
+    origin: str, method: str
+) -> None:
+    app = Hinoki(
+        include=[Branded, context_sync, private, native_limited],
+        settings=AppSettings(
+            cors=CorsSettings(origins=("https://client.example",), credentials=True)
+        ),
+    )
+    worker = KisoWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    headers = [(b"host", b"t")] + ([(b"origin", origin.encode())] if origin else [])
+    extra = f"origin: {origin}\r\n" if origin else ""
+    targets = {
+        "/branded": 200,
+        "/context-sync": 200,
+        "/private": 401,
+        "/native/limited/1": 429,
+    }
+    try:
+        for target, status in targets.items():
+            lanes = record_lanes(worker)
+            received = await fetch(port, method, target, extra=extra)
+            if target == "/branded":
+                assert lanes == [False]
+            served = final_answer(received.status, received.headers, received.body)
+            assert served[0] == status
+            assert served == await pipeline_answer(worker, method, target, headers)
     finally:
         await worker.stop()
 

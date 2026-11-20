@@ -217,7 +217,7 @@ async def test_a_bad_percent_encoding_in_a_matched_param_is_a_400() -> None:
     assert answer.json()["error"] == "bad_path_encoding"
 
 
-async def test_unrouted_requests_are_still_looked_up_by_python() -> None:
+async def test_unrouted_requests_are_answered_natively_under_policies() -> None:
     settings = AppSettings(allowed_hosts=("t",))
     app = Hinoki(include=[info, item], settings=settings)
     lookups = CountingLookup(app)
@@ -229,7 +229,7 @@ async def test_unrouted_requests_are_still_looked_up_by_python() -> None:
     assert wrong.status == 405
     assert wrong.header("allow") == "GET, HEAD"
     assert non_ascii.status == 404
-    assert [path for _, path in lookups.calls] == ["/nope", "/info", "/caf%C3%A9"]
+    assert lookups.calls == []
 
 
 async def test_a_native_answer_reports_an_ignored_trusted_id(

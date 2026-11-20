@@ -159,11 +159,11 @@ BODIES = [
 async def test_the_native_lane_validates_and_encodes_like_the_python_lane() -> None:
     app = Hinoki()
     app.include(json_pick, query_pick)
-    worker = KisoWorker(app, "127.0.0.1", 0)
+    worker = KisoWorker(app, "127.0.0.1", 0, native_dispatch=False)
     lanes: list[str] = []
     pipeline = worker.pipeline
     pipeline.handle_native = recording(lanes, "native", pipeline.handle_native)  # type: ignore[method-assign]
-    pipeline.handle = recording(lanes, "python", pipeline.handle)  # type: ignore[method-assign]
+    pipeline.handle_unfinished = recording(lanes, "python", pipeline.handle_unfinished)  # type: ignore[method-assign]
     query = "/enumlanes/query?colour=red&level=1&tone=warm"
     port = await worker.start()
     try:

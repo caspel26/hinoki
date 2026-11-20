@@ -114,6 +114,27 @@ async def error_response(
     if known is not None:
         return known
     public = exc if isinstance(exc, APIError) else await registry.translate(exc)
+    return _translated(public, exc, rid, debug)
+
+
+def error_response_now(
+    exc: Exception, rid: str, registry: ErrorRegistry, debug: bool = False
+) -> Response | None:
+    """``error_response`` without a coroutine, or ``None`` when an application
+    handler matches ``exc`` and may need to await."""
+    known = builtin_error(exc)
+    if known is not None:
+        return known
+    if isinstance(exc, APIError):
+        return public_error(exc)
+    if not registry.is_builtin(exc):
+        return None
+    return _translated(registry.translate_builtin(exc), exc, rid, debug)
+
+
+def _translated(
+    public: APIError | None, exc: Exception, rid: str, debug: bool
+) -> Response:
     if public is not None:
         return public_error(public)
     log.error("unhandled error in request %s", rid, exc_info=exc)
