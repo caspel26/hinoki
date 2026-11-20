@@ -1637,6 +1637,40 @@ class Branded(API):
         return {"brand": "kiso"}
 
 
+@pytest.mark.parametrize("method", ["GET", "HEAD"])
+@pytest.mark.parametrize("origin", ["https://client.example", ""])
+async def test_documentation_pages_are_answered_without_python(
+    origin: str, method: str
+) -> None:
+    app = Hinoki(
+        include=[Branded],
+        openapi_url="/openapi.json",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        settings=AppSettings(
+            cors=CorsSettings(origins=("https://client.example",), credentials=True)
+        ),
+    )
+    worker = KisoWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    headers = [(b"host", b"t")] + ([(b"origin", origin.encode())] if origin else [])
+    extra = f"origin: {origin}\r\n" if origin else ""
+    targets = [app.openapi_url, *worker.pipeline.docs, "/openapi%2Ejson"]
+    try:
+        assert len(targets) > 3
+        lanes = record_lanes(worker)
+        for target in targets:
+            assert target is not None
+            received = await fetch(port, method, target, extra=extra)
+            served = final_answer(received.status, received.headers, received.body)
+            assert served[0] == 200
+            oracle = target.replace("%2E", ".")
+            assert served == await pipeline_answer(worker, method, oracle, headers)
+        assert lanes == []
+    finally:
+        await worker.stop()
+
+
 @pytest.mark.parametrize(
     "origin", ["https://client.example", "https://evil.example", ""]
 )
