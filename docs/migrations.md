@@ -105,6 +105,8 @@ Existing projects without a `hinoki.toml` can continue using explicit `--models 
 
 Use a disposable database to review a migration before running it against important data.
 
+Concurrent `apply` runs are serialized: each migration file runs in one transaction that takes a PostgreSQL advisory lock, a MySQL/MariaDB migration lock or, on SQLite, `BEGIN IMMEDIATE`, and reads the ledger inside it, so a file is applied once. On SQLite a second runner waits for the write lock for at most the busy timeout (5 seconds) and then fails with a locked-database error, so run `apply` from one process, as a deployment step.
+
 SQLite uses table rebuilds when a schema change cannot be expressed safely with `ALTER TABLE`. Review the generated SQL carefully. Dropping columns, changing types or constraints, and adding non-null columns can be destructive and require `--allow-destructive`. Hinoki holds the SQLite pool during a migration, suspends foreign-key enforcement on reserved connections, runs `PRAGMA foreign_key_check` before commit, and rolls the migration back if references are invalid.
 
 MySQL and MariaDB migrations declare foreign keys at table level. For databases
