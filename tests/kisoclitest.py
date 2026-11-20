@@ -23,7 +23,7 @@ import hinoki.serve as serve_module
 from hinoki import Hinoki, core
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.listener import ListenError, inherited_address, open_listener
-from hinoki.runtime.supervisor import Supervisor
+from hinoki.runtime.supervisor import Supervisor, docs_line
 from hinoki.serve import add_arguments, choose_server, granian_tls
 from hinoki.settings import (
     MAX_WORKERS,
@@ -32,6 +32,7 @@ from hinoki.settings import (
     ServerSettings,
     SettingsError,
 )
+from hinoki.terminal import ANSI, Style
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -395,6 +396,16 @@ def test_run_supervised_passes_the_applications_docs_url(
     serve_module.run_supervised(args, app, ("127.0.0.1", 8123), settings, True)
     assert supervisor.return_value.docs == "/docs"
     listener.close()
+
+
+@pytest.mark.parametrize("colour", [False, True])
+def test_the_docs_line_is_coloured_only_where_the_terminal_takes_colour(
+    colour: bool,
+) -> None:
+    style = Style(color=colour, depth="truecolor")
+    line = docs_line("http://127.0.0.1:8000/docs", style)
+    assert ANSI.sub("", line) == "docs: http://127.0.0.1:8000/docs"
+    assert ("\x1b[" in line) is colour
 
 
 @pytest.mark.parametrize(
