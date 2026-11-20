@@ -146,10 +146,15 @@
 .kicker {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: 10px;
   margin: 0 0 var(--sp-3);
   color: var(--hn-brand);
   font: 500 13px/1.4 var(--hn-font-sans);
+}
+
+.kicker__sep {
+  margin: 0 6px;
+  color: var(--hn-text-3);
 }
 
 /* ---------- Code ---------- */
@@ -268,6 +273,12 @@
 
 .copy-btn.is-done {
   color: var(--hn-green);
+}
+
+@media (max-width: 560px) {
+  .copy-btn__label {
+    display: none;
+  }
 }
 
 /* One-line or unlabelled blocks: no header, the copy button sits at the right edge. */

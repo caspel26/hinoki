@@ -256,9 +256,8 @@ kbd {
   transition: color var(--hn-dur-1) var(--hn-ease), background var(--hn-dur-2) var(--hn-ease);
 }
 
-.top__link b {
+.top__link .i {
   color: var(--hn-text-3);
-  font: 500 11px/1 var(--hn-font-mono);
   transition: color var(--hn-dur-1) var(--hn-ease);
 }
 
@@ -272,8 +271,9 @@ kbd {
   background: var(--hn-tint-brand);
 }
 
-.top__link.is-active b {
-  color: var(--hn-brand);
+.top__link:hover .i,
+.top__link.is-active .i {
+  color: var(--hn-icon);
 }
 
 .top__actions {
@@ -406,16 +406,15 @@ body.menu-open .menu-icon-close {
 
 .side__sec {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--sp-2);
   margin: 0 0 var(--sp-3);
   font-size: var(--fs-base);
   font-weight: 650;
 }
 
-.side__sec b {
-  color: var(--hn-brand);
-  font: 500 11px/1 var(--hn-font-mono);
+.side__sec .i {
+  color: var(--hn-icon);
 }
 
 .side__label {
@@ -433,11 +432,18 @@ body.menu-open .menu-icon-close {
 }
 
 .side__group > span {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: var(--sp-2) 6px var(--sp-1);
   color: var(--hn-text-3);
   font-size: var(--fs-xs);
   font-weight: 600;
+}
+
+.side__group > span .i {
+  --icon-s: 14px;
+  color: var(--hn-icon);
 }
 
 .side__list {
@@ -480,6 +486,16 @@ body.menu-open .menu-icon-close {
 
 .side__link.is-active i {
   color: var(--hn-brand);
+}
+
+.side__link .i {
+  align-self: center;
+  color: var(--hn-text-3);
+}
+
+.side__link:hover .i,
+.side__link.is-active .i {
+  color: var(--hn-icon);
 }
 
 .side__link.is-active {
@@ -937,7 +953,7 @@ body.menu-open .overlay {
 
 @media (max-width: 1240px) {
   .status-chip,
-  .top__link b {
+  .top__link .i {
     display: none;
   }
 

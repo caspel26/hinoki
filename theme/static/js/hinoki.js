@@ -497,7 +497,7 @@
     btn.type = "button";
     btn.className = "copy-btn";
     btn.setAttribute("aria-label", "Copy code");
-    btn.innerHTML = '<span class="copy-btn__label">Copy</span>';
+    btn.innerHTML = '<span class="i i--copy" aria-hidden="true"></span><span class="copy-btn__label">Copy</span>';
     btn.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(code.innerText.replace(/\n$/, ""));
@@ -505,11 +505,14 @@
         toast("Copy failed: select the code instead");
         return;
       }
+      const icon = $(".i", btn);
       btn.classList.add("is-done");
+      icon.className = "i i--check";
       $(".copy-btn__label", btn).textContent = "Copied";
       toast("Copied to clipboard");
       setTimeout(() => {
         btn.classList.remove("is-done");
+        icon.className = "i i--copy";
         $(".copy-btn__label", btn).textContent = "Copy";
       }, 1400);
     });

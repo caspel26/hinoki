@@ -4,3 +4,34 @@
   {%- elif item.children -%}{{ first_url(item.children | first) }}
   {%- endif -%}
 {%- endmacro %}
+
+{#- Lucide icon name for a navigation section or group title (empty when unmapped). -#}
+{% macro section_icon(title) -%}
+  {{- {
+    "Get started": "rocket",
+    "Tutorial": "graduation-cap",
+    "Guides": "book-open",
+    "Data": "database",
+    "Endpoints": "route",
+    "Security and checks": "shield-check",
+    "Runtime": "server",
+    "Integrations": "plug",
+    "Operating": "gauge",
+    "Concepts": "lightbulb",
+    "Reference": "braces",
+    "Project": "folder-git-2",
+  }.get(title, "") -}}
+{%- endmacro %}
+
+{#- Page icon: front matter `icon:`, then a few page-specific icons, then the group or section icon. -#}
+{% macro page_icon(page, section_title) -%}
+  {{- (page.meta.icon if page and page.meta and page.meta.icon else none)
+      or {"rules/": "list-checks", "cli/": "terminal"}.get(page.url if page else "", none)
+      or (section_icon(page.parent.title) if page and page.parent else none)
+      or section_icon(section_title) -}}
+{%- endmacro %}
+
+{#- Decorative icon; always placed next to visible text. -#}
+{% macro icon(name, size="") -%}
+  {%- if name -%}<span class="i i--{{ name }}{% if size %} i--{{ size }}{% endif %}" aria-hidden="true"></span>{%- endif -%}
+{%- endmacro %}

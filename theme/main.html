@@ -30,6 +30,7 @@
   <link rel="stylesheet" href="{{ 'static/css/tokens.css' | url }}">
   <link rel="stylesheet" href="{{ 'static/css/base.css' | url }}">
   <link rel="stylesheet" href="{{ 'static/css/prose.css' | url }}">
+  <link rel="stylesheet" href="{{ 'static/css/icons.css' | url }}">
   <link rel="stylesheet" href="{{ 'static/css/benchmarks.css' | url }}">
   {% block styles %}{% endblock %}
 </head>
@@ -57,11 +58,9 @@
         <nav class="docs-version__menu" id="docs-version-menu" data-docs-version-menu aria-label="Documentation versions" hidden></nav>
       </div>
       <nav class="top__nav" aria-label="Sections">
-        {% set ns = namespace(i=0) %}
         {% for item in nav %}
           {% if not item.is_homepage and (item.children or item.url) %}
-            {% set ns.i = ns.i + 1 %}
-            <a class="top__link{% if item.active %} is-active{% endif %}" href="{{ m.first_url(item) | url }}"><b>{{ '%02d' % ns.i }}</b>{{ item.title }}</a>
+            <a class="top__link{% if item.active %} is-active{% endif %}" href="{{ m.first_url(item) | url }}"{% if item.active %} aria-current="true"{% endif %}>{{ m.icon(m.section_icon(item.title)) }}{{ item.title }}</a>
           {% endif %}
         {% endfor %}
       </nav>
@@ -92,11 +91,9 @@
     </div>
     <div class="side__scroll">
       <ul class="side__list">
-        {% set mobile_ns = namespace(i=0) %}
         {% for item in nav %}
           {% if not item.is_homepage and (item.children or item.url) %}
-            {% set mobile_ns.i = mobile_ns.i + 1 %}
-            <li><a class="side__link" href="{{ m.first_url(item) | url }}"><i>{{ '%02d' % mobile_ns.i }}</i><span>{{ item.title }}</span></a></li>
+            <li><a class="side__link" href="{{ m.first_url(item) | url }}">{{ m.icon(m.section_icon(item.title)) }}<span>{{ item.title }}</span></a></li>
           {% endif %}
         {% endfor %}
       </ul>
@@ -132,23 +129,21 @@
         <nav class="side__sections" aria-label="Documentation sections">
           <p class="side__label">Sections</p>
           <ul class="side__list">
-            {% set mobile_ns = namespace(i=0) %}
             {% for item in nav %}
               {% if not item.is_homepage and (item.children or item.url) %}
-                {% set mobile_ns.i = mobile_ns.i + 1 %}
-                <li><a class="side__link{% if item.active %} is-active{% endif %}" href="{{ m.first_url(item) | url }}"><i>{{ '%02d' % mobile_ns.i }}</i><span>{{ item.title }}</span></a></li>
+                <li><a class="side__link{% if item.active %} is-active{% endif %}" href="{{ m.first_url(item) | url }}">{{ m.icon(m.section_icon(item.title)) }}<span>{{ item.title }}</span></a></li>
               {% endif %}
             {% endfor %}
           </ul>
         </nav>
         {% if sec.active %}
-          <p class="side__sec"><b>{{ '%02d' % sec.n }}</b>{{ sec.active.title }}</p>
+          <p class="side__sec">{{ m.icon(m.section_icon(sec.active.title)) }}{{ sec.active.title }}</p>
           <p class="side__label">In this section</p>
           {% macro render(items, leaf_list, secn) %}
             <ul class="side__list">
             {% for i in items %}
               {% if i.children %}
-                <li class="side__group"><span>{{ i.title }}</span>{{ render(i.children, leaf_list, secn) }}</li>
+                <li class="side__group"><span>{{ m.icon(m.section_icon(i.title)) }}{{ i.title }}</span>{{ render(i.children, leaf_list, secn) }}</li>
               {% elif i.url %}
                 <li><a class="side__link{% if i.active %} is-active{% endif %}" href="{{ i.url | url }}"><i>{{ secn }}.{{ leaf_list.index(i.url) + 1 }}</i><span>{{ i.title }}</span></a></li>
               {% endif %}
@@ -162,7 +157,7 @@
 
     <main class="main" id="main">
       <article class="prose" style="--sheet: '{{ sheet }}'">
-        {% if sec.active %}<p class="kicker" data-search-exclude>{{ sec.active.title }}</p>{% endif %}
+        {% if sec.active %}<p class="kicker" data-search-exclude><span class="i-tile">{{ m.icon(m.page_icon(page, sec.active.title), "m") }}</span><span>{{ sec.active.title }}{% if page.parent and page.parent.title != sec.active.title %}<span class="kicker__sep" aria-hidden="true">/</span>{{ page.parent.title }}{% endif %}</span></p>{% endif %}
         {{ page.content }}
         {% if page.meta and page.meta.related_pages %}
         <aside class="related" aria-label="Related pages">
