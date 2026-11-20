@@ -7,7 +7,6 @@ remain the safe choice for migration-backed histories and stable physical names.
 
 ::: hinoki.orm.Model
     options:
-      members: true
       show_if_no_docstring: true
       inherited_members: false
 
@@ -33,14 +32,12 @@ Model write validation raises `ModelValidationError` from `hinoki.errors`, with 
 
 ::: hinoki.orm.QuerySet
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.pagination.PageParams
 
 ::: hinoki.pagination.Page
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.pagination.PageNumberPagination
