@@ -73,6 +73,25 @@ Create the tables once, with the same variable:
 NOTES_DATABASE__URL=sqlite://./.hinoki/test.sqlite3 uv run hinoki migrations apply
 ```
 
+When `settings.toml` sets `engine` and its connection fields, a URL conflicts
+with them (`set either url or engine with its fields, not both`). Override the
+fields instead, and clear the server-only ones SQLite refuses:
+
+```python
+# conftest.py
+import os
+
+os.environ.update(
+    NOTES_DATABASE__ENGINE="sqlite",
+    NOTES_DATABASE__NAME=".hinoki/test.sqlite3",
+    NOTES_DATABASE__HOST="",
+    NOTES_DATABASE__USER="",
+)
+```
+
+Apply the migrations with the same variables, and pass the same keys under
+`"database"` to `overrides=` in the example below.
+
 When one test needs other settings, build a second application from the same
 routes instead of changing the shared one:
 
