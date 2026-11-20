@@ -89,28 +89,32 @@ hinoki migrations apply billing
    for example `NOTES_DATABASE__URL` or `.env`;
 4. local SQLite, `sqlite://./.hinoki/local.sqlite3`.
 
-The application is imported to read its settings, but no connection opens
-until the command needs one, and nothing is started. If the settings cannot be
-loaded, the command prints a warning and continues with the local SQLite
-default, as when the application declares no `database` setting. Outside a
-project (`--models`/`--dir`), step 3 is skipped.
+The application is imported from the project root to read its settings, so
+`.env` and other relative settings files are the ones beside `hinoki.toml`,
+even from a subdirectory. No connection opens until the command needs one, and
+nothing is started. If the application or its settings cannot be loaded, the
+command stops with exit `1` and asks you to fix the settings or to choose the
+database with `--database` or `HINOKI_DATABASE_URL`; it never falls back to
+another database. An application without a `database` setting uses the local
+SQLite default. An in-memory SQLite setting (`sqlite://:memory:`) is refused,
+because nothing it migrates would survive. Outside a project
+(`--models`/`--dir`), step 3 is skipped.
 
-`status` and `apply` print the chosen database and its source on standard
-error, with the password and URL options masked:
+`plan`, `status` and `apply` print the chosen database and its source on
+standard error. Everything before the host (user and password) and the URL
+options are masked, and a URL that does not parse is not echoed:
 
 ```text
 $ NOTES_DATABASE__URL=postgresql://notes:secret@db.internal/notes hinoki migrations status
-database: postgresql://notes:***@db.internal/notes (from settings: ProjectSettings.database)
+database: postgresql://***@db.internal/notes (from settings: ProjectSettings.database)
 ```
 
 A relative SQLite path from the settings or the default is anchored beside
 `hinoki.toml`, so a subdirectory uses the same file; a relative SQLite URL
 given with `--database` or `HINOKI_DATABASE_URL` stays relative to the current
-directory. Settings files such as `.env` are read relative to the current
-directory, so run the commands from the directory you start the server in. A
-connection failure prints `error: database: …` and exits `1`. A `--database`
-URL is visible in the process list and shell history: do not put a password in
-it.
+directory. A connection failure prints `error: database: …` and exits `1`. A
+`--database` URL is visible in the process list and shell history: do not put
+a password in it.
 
 The root app keeps unprefixed ledger keys; added apps use namespaced keys, so
 `accounts/0001-initial.sql` and `billing/0001-initial.sql` are distinct records.

@@ -168,7 +168,7 @@ them set, the local SQLite default is anchored beside `hinoki.toml`:
 
 ```sh
 export NOTES_DATABASE__URL=postgresql://notes:secret@db.internal/notes
-hinoki migrations status   # database: postgresql://notes:***@db.internal/notes (from settings: ...)
+hinoki migrations status   # database: postgresql://***@db.internal/notes (from settings: ...)
 hinoki migrations apply
 ```
 
