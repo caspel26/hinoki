@@ -26,7 +26,7 @@ from hinoki.db import Database, DatabaseError
 from hinoki.errors import MigrationError
 from hinoki.orm import migrator
 from hinoki.orm.migrations import Plan, migration_files, models_of, plan
-from hinoki.project import ProjectError
+from hinoki.project import ProjectError, ProjectManifest, resolve_target
 from hinoki.projectmigrations import (
     URL_VARIABLE,
     manifest_for,
@@ -44,6 +44,10 @@ from hinoki.reportui import run_timed
 def database_dialect(url: str) -> str:
     """Return the SQL dialect selected by a database URL scheme."""
     return _database_dialect(url)
+
+
+# Commands whose optional TARGET defaults to the manifest's ``project.application``.
+TARGETED = frozenset({"check", "dev", "mcp", "openapi", "routes", "serve", "settings"})
 
 
 def parser() -> argparse.ArgumentParser:
@@ -112,7 +116,9 @@ def parser() -> argparse.ArgumentParser:
         sub.add_argument("--app", help="project app (same as the argument)")
     show = actions.add_parser("sql", help="print one migration's SQL")
     show.add_argument("name")
-    show.add_argument("--app", help="project app containing the migration")
+    show.add_argument(
+        "--app", help="project app containing the migration (default: search all)"
+    )
     group.set_defaults(group_help=group.format_help())
     return root
 
@@ -197,8 +203,7 @@ def migration_plans(args: argparse.Namespace) -> list[tuple[str | None, Plan]]:
                 )
                 for app in manifest.ordered_apps()
             ]
-        app = manifest.app(args.app)
-        return [(app.name, plan_project(args, manifest))]
+        return [focused_plan(args, manifest)]
     if not args.models:
         raise MigrationError("pass --models without a project hinoki.toml")
     database_url = migration_database_url(args, manifest)
@@ -211,6 +216,20 @@ def migration_plans(args: argparse.Namespace) -> list[tuple[str | None, Plan]]:
         dialect=database_dialect(database_url),
     )
     return [(None, result)]
+
+
+def focused_plan(
+    args: argparse.Namespace, manifest: ProjectManifest
+) -> tuple[str, Plan]:
+    """Plan the one selected app; several apps and no name ask for the name."""
+    if args.app is None and len(manifest.apps) > 1:
+        names = ", ".join(app.name for app in manifest.ordered_apps())
+        raise ProjectError(
+            f"this project has multiple apps ({names}); name one with "
+            "`hinoki migrations plan <app>`"
+        )
+    app = manifest.app(args.app)
+    return app.name, plan_project(args, manifest)
 
 
 async def run_database(args: argparse.Namespace) -> None:
@@ -359,6 +378,12 @@ def main(argv: list[str] | None = None) -> int:
     }
     if args.group == "completion":
         return completioncli.run(args, parser())
+    if args.group in TARGETED:
+        try:
+            args.target = resolve_target(args.target)
+        except ProjectError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 2
     return commands[args.group](args)
 
 

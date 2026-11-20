@@ -30,7 +30,11 @@ def add_arguments(
     commands: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
     sub = commands.add_parser("routes", help="list the application's routes")
-    sub.add_argument("target", help="module:app, or a factory returning the app")
+    sub.add_argument(
+        "target",
+        nargs="?",
+        help="module:app, or a factory returning the app (default: project app)",
+    )
     sub.add_argument("--path", default="", help="only paths starting with this")
     sub.add_argument("--method", default="", help="only this HTTP method")
     sub.add_argument("--format", choices=["text", "json"], default="text")

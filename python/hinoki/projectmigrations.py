@@ -361,10 +361,28 @@ async def run_database_project(
 
 
 def sql_project(args: argparse.Namespace, manifest: ProjectManifest) -> None:
-    app = manifest.app(args.app)
+    """Print one migration; without ``--app`` search every app for the name."""
+    apps = (
+        [manifest.app(args.app).name]
+        if args.app is not None
+        else [app.name for app in manifest.ordered_apps()]
+    )
     directories = manifest.migration_directories()
-    for path in migration_files(directories[app.name]):
-        if path.stem == args.name:
-            print(path.read_text(encoding="utf-8"), end="")
-            return
-    raise MigrationError(f"app {app.name!r} has no migration named {args.name!r}")
+    found = [
+        (name, path)
+        for name in apps
+        for path in migration_files(directories[name])
+        if path.stem == args.name
+    ]
+    if len(found) == 1:
+        print(found[0][1].read_text(encoding="utf-8"), end="")
+        return
+    if found:
+        owners = ", ".join(name for name, _path in found)
+        raise MigrationError(
+            f"migration {args.name!r} exists in apps {owners}; "
+            "choose one with --app <app>"
+        )
+    if len(apps) == 1:
+        raise MigrationError(f"app {apps[0]!r} has no migration named {args.name!r}")
+    raise MigrationError(f"no app has a migration named {args.name!r}")

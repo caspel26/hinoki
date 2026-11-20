@@ -18,7 +18,9 @@ def add_arguments(
     command = commands.add_parser(
         "openapi", help="print, write or check an application's OpenAPI document"
     )
-    command.add_argument("target", help="module:app or module:factory")
+    command.add_argument(
+        "target", nargs="?", help="module:app or module:factory (default: project app)"
+    )
     output = command.add_mutually_exclusive_group()
     output.add_argument("--output", type=Path, help="write the document to this file")
     output.add_argument(

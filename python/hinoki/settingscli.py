@@ -26,7 +26,11 @@ def add_arguments(
     sub = commands.add_parser(
         "settings", help="show the effective settings and where each value comes from"
     )
-    sub.add_argument("target", help="module:SettingsClass, or the app")
+    sub.add_argument(
+        "target",
+        nargs="?",
+        help="module:SettingsClass, or the app (default: project app)",
+    )
     sub.add_argument(
         "--prefix", default=None, help="variable prefix (default: the class's own)"
     )

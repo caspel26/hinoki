@@ -306,18 +306,18 @@ def report_created(style: Style, target: Path, name: str) -> None:
     print(style.line("rail"))
 
 
-def next_commands(target: Path, name: str, synced: bool) -> list[str]:
+def next_commands(target: Path, synced: bool) -> list[str]:
     commands = [f"cd {shown_path(target)}"]
     if not synced:
         commands.append("uv sync")
-    return [*commands, "uv run pytest", f"uv run hinoki dev {name}.main:app"]
+    return [*commands, "uv run pytest", "uv run hinoki dev"]
 
 
 def next_steps(
-    style: Style, target: Path, name: str, synced: bool, seconds: float = 0.0
+    style: Style, target: Path, synced: bool, seconds: float = 0.0
 ) -> list[str]:
     if not style.color:
-        commands = [f"cd {target}", *next_commands(target, name, synced)[1:]]
+        commands = [f"cd {target}", *next_commands(target, synced)[1:]]
         return [f"next: {' && '.join(commands[:-1])}"]
     prompt = style.paint("$", "brand")
     ready = style.bold("Your project is ready")
@@ -326,7 +326,7 @@ def next_steps(
         style.line("active", style.bold("Next steps")),
         *(
             style.line("rail", f"{prompt} {style.text(command)}")
-            for command in next_commands(target, name, synced)
+            for command in next_commands(target, synced)
         ),
         style.line("rail"),
         style.line("end", f"{ready}  {style.dim(elapsed(seconds))}"),
@@ -402,8 +402,6 @@ def run_new(args: argparse.Namespace, ask: Ask = input) -> int:
         run_tool(["git", "init"], target, style)
     if args.install:
         synced = run_tool(["uv", "sync"], target, style)
-    for line in next_steps(
-        style, target, args.name, synced, time.monotonic() - started
-    ):
+    for line in next_steps(style, target, synced, time.monotonic() - started):
         print(line)
     return 0

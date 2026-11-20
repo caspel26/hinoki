@@ -1,12 +1,14 @@
-"""``hinoki dev|serve TARGET``: run an application on Kiso, Hinoki's Rust server
+"""``hinoki dev|serve [TARGET]``: run an application on Kiso, Hinoki's Rust server
 (the default), or under Granian.
 
+    hinoki dev                                         # the project's application
     hinoki dev   blog.main:create_app                  # reload on change
     hinoki serve blog.main:create_app                  # production-style, no reload
     hinoki serve blog.main:create_app --server granian # Granian instead
 
 ``TARGET`` is ``module:name`` where ``name`` is an application (``Hinoki``) or
-a function returning one. The host, port, worker count and server come from the
+a function returning one; inside a project it defaults to ``project.application``
+from ``hinoki.toml``. The host, port, worker count and server come from the
 application's ``server`` settings group (``AppSettings.server``), and the
 flags below override them. Kiso is part of the native extension;
 Granian is an optional dependency (``pip install hinoki[server]``) and so is
@@ -40,7 +42,11 @@ def add_arguments(
         ("serve", "run for production: no reload, workers from the settings"),
     ):
         sub = commands.add_parser(name, help=text)
-        sub.add_argument("target", help="module:application or module:factory")
+        sub.add_argument(
+            "target",
+            nargs="?",
+            help="module:application or module:factory (default: project app)",
+        )
         sub.add_argument("--host", help="override server.host")
         sub.add_argument("--port", type=int, help="override server.port")
         sub.add_argument(

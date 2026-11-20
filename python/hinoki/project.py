@@ -401,3 +401,19 @@ def add_project_root(manifest: ProjectManifest) -> None:
     root = str(manifest.root)
     if root not in sys.path:
         sys.path.insert(0, root)
+
+
+def resolve_target(target: str | None) -> str:
+    """Return an explicit ``TARGET``, or the manifest's ``project.application``.
+
+    The default also puts the project root on this process's ``sys.path``. An
+    explicit target is returned unchanged and never reads the manifest.
+    """
+    if target is not None:
+        return target
+    path = find_manifest_or_none()
+    if path is None:
+        raise ProjectError("pass TARGET outside a project with hinoki.toml")
+    manifest = load_manifest(path)
+    add_project_root(manifest)
+    return manifest.application
