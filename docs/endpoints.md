@@ -287,8 +287,10 @@ Both forms declare the same actions with the same decorators. They differ in fou
 ```python
 tasks = RouteGroup("/tasks", access=member_only, atomic=True, errors=(errors.NotFound,))
 
+
 @tasks.get("/")
 async def listing(page: PageParams, caller: Caller[Member]) -> Page[TaskOut]: ...
+
 
 @tasks.post("/", status=201)
 async def create(data: TaskIn, caller: Caller[Member]) -> TaskOut: ...
@@ -433,10 +435,11 @@ Hinoki ships no limiter. A route names a policy, and the application owns the ru
 ```python
 class LoginLimit:
     async def check(self, context: RateLimitContext) -> None:
-        store = context.resource(RedisStore)            # provided by a module, per worker
+        store = context.resource(RedisStore)  # provided by a module, per worker
         key = f"login:{context.client}"
         if not await store.allow(key, limit=5, window=60):
             raise errors.TooManyRequests(retry_after=60)
+
 
 @http.post("/auth/login", rate_limit=LoginLimit())
 async def login(data: LoginIn) -> SessionOut: ...
@@ -457,7 +460,7 @@ Every action's return value is checked against its return annotation, and the an
 ```python
 @http.get("/notes/{note_id}")
 async def detail(note_id: int) -> NoteOut:
-    return {"id": note_id}          # a dict is not a NoteOut: 500 internal_error
+    return {"id": note_id}  # a dict is not a NoteOut: 500 internal_error
 ```
 
 - **At startup.** An annotation that cannot be checked stops the app with a `RegistrationError` that names the action: no annotation, `Any`, `object`, `set[...]`, a plain class, or `Response` inside a collection. Annotate a concrete type, or declare the action with `validate_response=False` to skip the check for that action.
@@ -480,11 +483,14 @@ Earlier revisions exported `get`, `post`, `put`, `patch` and `delete` from `hino
 # before
 from hinoki import get
 
+
 @get("/tasks")
 async def listing() -> list[TaskOut]: ...
 
+
 # now
 from hinoki import http
+
 
 @http.get("/tasks")
 async def listing() -> list[TaskOut]: ...

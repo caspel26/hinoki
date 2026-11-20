@@ -667,7 +667,7 @@ def test_update_schemas_cannot_carry_the_key_or_loud_defaults() -> None:
         hidden: bool = False
 
     class Nullable(Schema):
-        owner: str | None | Unset = UNSET
+        owner: str | Unset | None = UNSET
 
     for schema, message in (
         (WithKey, "must not contain"),

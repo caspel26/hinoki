@@ -17,21 +17,21 @@ The built-in set is intentionally small: access declarations, atomic writes, res
 ```python
 # examples/blog/rules.py
 blog_rules = RuleSet(
-    Actions.require_access(match="blog.*", except_=PUBLIC),            # HNK-ACC-001
-    Actions.require_permissions(match="blog.*", except_=PUBLIC),       # HNK-ACC-002
-    Actions.forbid_model_responses(match="blog.*"),                    # HNK-API-001
-    Actions.require_return_type(match="blog.*"),                       # HNK-API-002
-    Actions.require_pagination(match="blog.*"),                        # HNK-API-003
-    Transactions.require_atomic(except_=["blog.accounts.*.login"]),    # HNK-TXN-001
-    Schemas.forbid_exposure("token", "password_hash"),                 # HNK-SCH-001
-    Schemas.require_string_limits(),                                   # HNK-SCH-002
-    Models.require_explicit_table(match="blog.*"),                     # HNK-DB-001
-    Models.require_foreign_key_index(match="blog.*"),                  # HNK-DB-002
-    Imports.forbid(source="blog.models", target="blog.api"),           # HNK-IMP-001
+    Actions.require_access(match="blog.*", except_=PUBLIC),  # HNK-ACC-001
+    Actions.require_permissions(match="blog.*", except_=PUBLIC),  # HNK-ACC-002
+    Actions.forbid_model_responses(match="blog.*"),  # HNK-API-001
+    Actions.require_return_type(match="blog.*"),  # HNK-API-002
+    Actions.require_pagination(match="blog.*"),  # HNK-API-003
+    Transactions.require_atomic(except_=["blog.accounts.*.login"]),  # HNK-TXN-001
+    Schemas.forbid_exposure("token", "password_hash"),  # HNK-SCH-001
+    Schemas.require_string_limits(),  # HNK-SCH-002
+    Models.require_explicit_table(match="blog.*"),  # HNK-DB-001
+    Models.require_foreign_key_index(match="blog.*"),  # HNK-DB-002
+    Imports.forbid(source="blog.models", target="blog.api"),  # HNK-IMP-001
 )
 
 # examples/blog/main.py
-app = Hinoki(..., rules=blog_rules)   # startup rules fail the app if a promise is broken
+app = Hinoki(..., rules=blog_rules)  # startup rules fail the app if a promise is broken
 ```
 
 | ID | Rule | Phase | Checks |

@@ -22,7 +22,7 @@ def out(task: Task) -> TaskOut:
     return TaskOut.from_model(task)
 
 
-tasks = RouteGroup("/tasks", access=member_only, atomic=True)   # stated once
+tasks = RouteGroup("/tasks", access=member_only, atomic=True)  # stated once
 
 
 @tasks.get("/", pagination=PageNumberPagination())
