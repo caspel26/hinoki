@@ -100,7 +100,7 @@ name; `apply` runs every app in dependency order.
     migrations; `plan`, `status` and `apply` print the database they chose. With no
     database configured, `apply` creates `.hinoki/local.sqlite3` beside
     `hinoki.toml`. `HINOKI_DATABASE_URL` overrides the setting for one run.
-    If the settings cannot be loaded, the commands stop instead of guessing.
+    If the application cannot be loaded, the commands stop (exit 2) instead of guessing.
     Migrations never run when the application starts.
 
 ## Check the project

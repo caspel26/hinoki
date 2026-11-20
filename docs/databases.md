@@ -159,9 +159,14 @@ from hinoki.db import DatabaseModule
 app.install(DatabaseModule(url, max_size=4))
 ```
 
+The migration commands use this module's URL too, and print
+`(from application: DatabaseModule)`. A database module of your own whose URL
+Hinoki cannot read stops them; pass `--database` or `HINOKI_DATABASE_URL`.
+
 ## Migrations use the application's database
 
-`hinoki migrations` reads the `database` setting of the project's application,
+`hinoki migrations` reads the database of the project's application (its
+`DatabaseModule`, or its `database` setting),
 so the variables above configure both the server and the migration commands.
 `--database` or `HINOKI_DATABASE_URL` override it for one run; with none of
 them set, the local SQLite default is anchored beside `hinoki.toml`:

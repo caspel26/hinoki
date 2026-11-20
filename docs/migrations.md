@@ -84,21 +84,29 @@ hinoki migrations apply billing
 
 1. `--database URL`;
 2. the `HINOKI_DATABASE_URL` environment variable;
-3. the `database` setting of the project's application (`project.application`
-   in `hinoki.toml`), read from its settings sources as the server reads them,
-   for example `NOTES_DATABASE__URL` or `.env`;
+3. the project's application (`project.application` in `hinoki.toml`): a
+   `DatabaseModule` it passes in `modules=` or installs with `app.install(...)`,
+   otherwise its `database` setting, read from its settings sources as the
+   server reads them, for example `NOTES_DATABASE__URL` or `.env`;
 4. local SQLite, `sqlite://./.hinoki/local.sqlite3`.
 
 The application is imported from the project root to read its settings, so
 `.env` and other relative settings files are the ones beside `hinoki.toml`,
-even from a subdirectory. No connection opens until the command needs one, and
-nothing is started. If the application or its settings cannot be loaded, the
-command stops with exit `1` and asks you to fix the settings or to choose the
-database with `--database` or `HINOKI_DATABASE_URL`; it never falls back to
-another database. An application without a `database` setting uses the local
-SQLite default. An in-memory SQLite setting (`sqlite://:memory:`) is refused,
-because nothing it migrates would survive. Outside a project
-(`--models`/`--dir`), step 3 is skipped.
+even from a subdirectory. Anything it prints while importing goes to standard
+error. No connection opens until the command needs one, and nothing is
+started. The command never falls back to another database: it stops with exit
+`2` when
+
+- the application cannot be imported (the message names the missing module or
+  attribute) or its settings cannot be loaded;
+- it installs a database module of its own whose URL Hinoki cannot read;
+- the database is in-memory SQLite (`sqlite://:memory:`), where nothing it
+  migrates would survive.
+
+Fix the application, or choose the database with `--database` or
+`HINOKI_DATABASE_URL`, which skip step 3 and never import the application. An
+application without a database uses the local SQLite default. Outside a
+project (`--models`/`--dir`), step 3 is skipped.
 
 `plan`, `status` and `apply` print the chosen database and its source on
 standard error. Everything before the host (user and password) and the URL
@@ -133,11 +141,19 @@ hinoki migrations plan --check
 ```
 
 Exits `1` when any app has model changes without a migration file, destructive
-ones included, and `0` otherwise. It covers every app in dependency order
-(`plan billing --check`: that app and its prerequisites), writes nothing and
-opens no database, but imports every registered model and migration module, so
-those imports must be safe in CI. `status` compares files with a live
-database instead.
+ones included, `0` otherwise, and `2` when the database whose dialect it plans
+for cannot be resolved ([which database](#which-database)). It covers every
+app in dependency order (`plan billing --check`: that app and its
+prerequisites), writes nothing and opens no connection. It imports every
+registered model and migration module and, unless `--database` or
+`HINOKI_DATABASE_URL` names the database, the project's application to read
+its database, so those imports must be safe in CI:
+
+```sh
+HINOKI_DATABASE_URL=postgresql://ci@localhost/notes hinoki migrations plan --check
+```
+
+`status` compares files with a live database instead.
 
 ## Apps and dependencies
 
