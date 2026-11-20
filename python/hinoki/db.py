@@ -305,12 +305,16 @@ class Atomic:
     """
 
     def __init__(self) -> None:
-        self.scopes: list[AtomicScope] = []
+        # Per task, so one object reused by concurrent tasks cannot pop
+        # another task's scope.
+        self.scopes: ContextVar[tuple[AtomicScope, ...]] = ContextVar(
+            "hinoki_atomic_scopes", default=()
+        )
 
     async def __aenter__(self) -> AtomicScope:
         scope = current_scope()
         await scope.__aenter__()
-        self.scopes.append(scope)
+        self.scopes.set((*self.scopes.get(), scope))
         return scope
 
     async def __aexit__(
@@ -319,9 +323,11 @@ class Atomic:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        if not self.scopes:
+        stack = self.scopes.get()
+        if not stack:
             raise RuntimeError("atomic scope was not entered")
-        await self.scopes.pop().__aexit__(exc_type, exc, tb)
+        self.scopes.set(stack[:-1])
+        await stack[-1].__aexit__(exc_type, exc, tb)
 
     def __call__[**P, R](
         self, func: Callable[P, Coroutine[Any, Any, R]]
