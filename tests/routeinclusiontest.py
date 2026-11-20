@@ -9,6 +9,7 @@ from hinoki import API, Hinoki, Includable, Mount, RouteGroup, http
 from hinoki.__main__ import main
 from hinoki.errors import RegistrationError
 from hinoki.http.request import Request
+from hinoki.rules import qualified
 
 APP = "tests.routeinclusiontest:make_app"
 
@@ -80,6 +81,38 @@ def test_routes_command_filters_and_prints_json(
     assert found[0]["handler"].endswith("routeinclusiontest.listing")
     assert main(["routes", APP, "--method", "delete"]) == 1
     assert main(["routes", "no.such.module:app"]) == 2
+
+
+class Shared(API):
+    @http.get("/")
+    def listing(self) -> None: ...
+
+
+class Notes(Shared, path="/notes"):
+    pass
+
+
+class Tags(Shared, path="/tags"):
+    pass
+
+
+def make_inherited() -> Hinoki:
+    return Hinoki(include=[Notes, Tags])
+
+
+def test_routes_names_handlers_as_rules_and_waivers_do(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target = "tests.routeinclusiontest:make_inherited"
+    assert main(["routes", target, "--format", "json"]) == 0
+    found = json.loads(capsys.readouterr().out)
+    assert [r["handler"] for r in found] == [
+        "tests.routeinclusiontest.Notes.listing",
+        "tests.routeinclusiontest.Tags.listing",
+    ]
+    assert [r["handler"] for r in found] == [
+        qualified(r) for r in make_inherited().routes
+    ]
 
 
 def test_mount_places_a_feature_under_a_prefix_chosen_at_the_root() -> None:

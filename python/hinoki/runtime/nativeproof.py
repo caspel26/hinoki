@@ -59,6 +59,10 @@ WRITE_PATH = (
     "validate_values",
     "hook_transaction",
     "run_hooks",
+    "bulk_instances",
+    "insert_all",
+    "saved_rows",
+    "save_all",
 )
 TASK_MODULES = frozenset({"asyncio", "_asyncio", "anyio"})
 TASK_APIS = frozenset({"asyncio", "anyio", "current_task", "all_tasks"})
