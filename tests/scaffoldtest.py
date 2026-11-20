@@ -258,6 +258,8 @@ def new_args(**overrides: Any) -> Any:
         "skills": None,
         "git": None,
         "install": None,
+        "app": None,
+        "no_app": False,
         "no_input": False,
     }
     return argparse.Namespace(**{**base, **overrides})
@@ -265,7 +267,7 @@ def new_args(**overrides: Any) -> Any:
 
 def test_prompts_fill_only_what_the_flags_left_unset(tmp_path: Path) -> None:
     args = new_args(name="shop", dir=str(tmp_path), database="sqlite")
-    fill_from_prompts(args, answers("", "n", "", "", "n"))
+    fill_from_prompts(args, answers("", "n", "", "", "n", "n"))
     assert (args.name, args.database, args.server) == ("shop", "sqlite", "kiso")
     assert (args.agent_files, args.skills, args.git, args.install) == (
         False,
@@ -285,7 +287,7 @@ def test_the_skills_question_can_be_answered_yes() -> None:
         git=False,
         install=False,
     )
-    fill_from_prompts(args, answers("y"))
+    fill_from_prompts(args, answers("y", "n"))
     assert args.skills is True
 
 
@@ -307,6 +309,7 @@ def test_prompts_repeat_until_the_answer_is_valid() -> None:
             "",
             "",
             "",
+            "n",
         ),
     )
     assert (args.name, args.dir, args.database, args.server, args.agent_files) == (
@@ -552,7 +555,7 @@ def test_the_database_prompt_accepts_a_number_or_a_name(
         git=False,
         install=False,
     )
-    fill_from_prompts(args, answers("7", "2"))
+    fill_from_prompts(args, answers("7", "2", "n"))
     assert args.database == "sqlite"
     listing = capsys.readouterr().out
     assert "1) none" in listing and "3) postgresql" in listing
@@ -565,7 +568,7 @@ def test_the_database_prompt_accepts_a_number_or_a_name(
         git=False,
         install=False,
     )
-    fill_from_prompts(args, answers("postgresql"))
+    fill_from_prompts(args, answers("postgresql", "n"))
     assert args.database == "postgresql"
 
 
@@ -577,7 +580,7 @@ def keyed(text: str) -> tuple[Prompter, io.StringIO]:
 
 def test_key_driven_prompts_settle_into_a_summary_line() -> None:
     prompter, out = keyed(
-        "Bad\r\x7f\x7f\x7fshop\r\r\x1b[B\x1b[B\x1b[A\r\x1b[B\rn\r\r\r\r"
+        "Bad\r\x7f\x7f\x7fshop\r\r\x1b[B\x1b[B\x1b[A\r\x1b[B\rn\r\r\r\rn\r"
     )
     args = new_args()
     newcli.fill(args, prompter)
@@ -631,3 +634,117 @@ def test_cancelling_a_prompt_creates_nothing(
     assert newcli.run_new(args, interrupted) == 130
     assert "nothing was created" in capsys.readouterr().err
     assert not any(tmp_path.iterdir())
+
+
+def registered_apps(project: Path) -> list[str]:
+    manifest = tomllib.loads((project / "hinoki.toml").read_text())
+    return [app["name"] for app in manifest.get("apps", [])]
+
+
+def fill_app_question(*values: str, **overrides: Any) -> Any:
+    args = new_args(
+        name="shop",
+        dir=".",
+        database="none",
+        server="kiso",
+        agent_files=True,
+        skills=False,
+        git=False,
+        install=False,
+        **overrides,
+    )
+    fill_from_prompts(args, answers(*values))
+    return args
+
+
+def test_the_last_question_offers_an_app_and_declining_asks_no_name() -> None:
+    assert fill_app_question("n").app is None
+    assert fill_app_question("y", "").app == newcli.DEFAULT_APP
+
+
+def test_the_app_name_is_asked_again_until_it_is_valid(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert fill_app_question("y", "my_posts", "json", "Posts", "posts").app == "posts"
+    assert capsys.readouterr().err.count("lower-case letters and digits") == 3
+
+
+def test_app_flags_skip_the_question() -> None:
+    assert fill_app_question(app="posts").app == "posts"
+    assert fill_app_question(no_app=True).app is None
+
+
+def test_a_terminal_run_creates_the_app_named_at_the_prompt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(newcli, "interactive", lambda _args: True)
+    args = new_args(dir=str(tmp_path))
+    prompts = answers("shop", "", "", "n", "n", "n", "n", "y", "posts")
+    assert newcli.run_new(args, prompts) == 0
+    project = tmp_path / "shop"
+    assert registered_apps(project) == ["posts"]
+    assert (project / "shop/apps/posts/models.py").is_file()
+    out = capsys.readouterr().out
+    assert "created app posts" in out and "app create" not in out
+
+
+def test_declining_the_prompt_keeps_a_project_without_apps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(newcli, "interactive", lambda _args: True)
+    args = new_args(dir=str(tmp_path))
+    prompts = answers("shop", "", "", "n", "n", "n", "n", "n")
+    assert newcli.run_new(args, prompts) == 0
+    assert registered_apps(tmp_path / "shop") == []
+    assert "hinoki app create" in capsys.readouterr().out
+
+
+def test_end_of_input_at_the_app_question_creates_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(newcli, "interactive", lambda _args: True)
+    queue = iter(["shop", "", "", "n", "n", "n", "n"])
+
+    def ask(_prompt: str) -> str:
+        try:
+            return next(queue)
+        except StopIteration:
+            raise EOFError from None
+
+    assert newcli.run_new(new_args(dir=str(tmp_path)), ask) == 130
+    assert "nothing was created" in capsys.readouterr().err
+    assert not any(tmp_path.iterdir())
+
+
+def test_without_a_terminal_nothing_is_asked_and_no_app_is_created(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["new", "shop", "--dir", str(tmp_path)]) == 0
+    assert registered_apps(tmp_path / "shop") == []
+    assert "Create an app" not in capsys.readouterr().out
+
+
+def test_the_app_flag_creates_the_app_without_asking(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["new", "shop", "--app", "posts", "--dir", str(tmp_path)]) == 0
+    assert registered_apps(tmp_path / "shop") == ["posts"]
+    assert "created app posts" in capsys.readouterr().out
+
+
+def test_the_no_app_flag_creates_no_app(tmp_path: Path) -> None:
+    assert main(["new", "shop", "--no-app", "--dir", str(tmp_path)]) == 0
+    assert registered_apps(tmp_path / "shop") == []
+
+
+def test_a_bad_app_flag_is_refused_before_anything_is_created(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["new", "shop", "--app", "my_posts", "--dir", str(tmp_path)]) == 2
+    assert "lower-case letters and digits" in capsys.readouterr().err
+    assert not any(tmp_path.iterdir())
+
+
+def test_the_app_flags_exclude_each_other(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit):
+        main(["new", "shop", "--app", "posts", "--no-app", "--dir", str(tmp_path)])
