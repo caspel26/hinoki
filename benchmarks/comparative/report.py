@@ -326,7 +326,7 @@ def summary_card(scenario: str, rows: Rows, chart_id: str) -> str:
     elif is_hinoki(label):
         note = f"{ratio(top['median'], rows[-1][1]['median'])} the slowest"
     else:
-        note = hinoki_card_note(rows)
+        note = hinoki_summary_line(rows)
     return (
         f'<a class="bench-card" href="#{chart_id}-{scenario}">'
         f'<span class="bench-card__kind">{html.escape(scenario.upper())}</span>'
@@ -337,7 +337,7 @@ def summary_card(scenario: str, rows: Rows, chart_id: str) -> str:
     )
 
 
-def hinoki_card_note(rows: Rows) -> str:
+def hinoki_summary_line(rows: Rows) -> str:
     slowest = rows[-1][1]["median"]
     for label, row in rows:
         if is_hinoki(label):
