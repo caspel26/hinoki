@@ -205,7 +205,8 @@ def run_console(
         if compiled is None:
             continue
         source = ""
-        _run_compiled(runtime, compiled, output)
+        if _run_compiled(runtime, compiled, output):
+            return
 
 
 def terminal_reader(stdin: TextIO, stdout: TextIO) -> Callable[[str], str]:
@@ -221,10 +222,13 @@ def _read_line(stdin: TextIO, stdout: TextIO, prompt: str) -> str:
     return line.rstrip("\r\n")
 
 
-def _run_compiled(runtime: ShellRuntime, compiled: CodeType, output: TextIO) -> None:
+def _run_compiled(runtime: ShellRuntime, compiled: CodeType, output: TextIO) -> bool:
+    """Run one cell; ``True`` when it asked to leave the shell (``exit()``)."""
     try:
         runtime.run_cell(compiled)
     except _EvaluationError as error:
+        if isinstance(error.cause, SystemExit):
+            return True
         if isinstance(error.cause, KeyboardInterrupt):
             print("KeyboardInterrupt", file=output)
         else:
@@ -233,3 +237,4 @@ def _run_compiled(runtime: ShellRuntime, compiled: CodeType, output: TextIO) -> 
         print("KeyboardInterrupt", file=output)
     except BaseException:
         traceback.print_exc(file=output)
+    return False
