@@ -623,6 +623,7 @@ version = "0.0.1"
 dependencies = [
  "argon2",
  "base64",
+ "bytes",
  "ed25519-dalek",
  "getrandom 0.4.3",
  "hinoki-orm",
