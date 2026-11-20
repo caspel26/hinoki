@@ -336,11 +336,24 @@ def manifest_routes(start: Path | None = None) -> list[Includable]:
     project this raises ``ProjectError``.
     """
     directory = start if start is not None else _caller_directory(sys._getframe(1))
-    path = find_manifest_or_none(directory)
+    written = (directory if directory is not None else Path.cwd()).absolute()
+    resolved = written.resolve()
+    path = find_manifest_or_none(resolved) or _manifest_along(written)
     if path is None:
-        shown = directory if directory is not None else Path.cwd()
-        raise ProjectError(f"no hinoki.toml found in {shown} or above it")
+        searched = str(written)
+        if resolved != written:
+            searched += f" (resolved: {resolved})"
+        raise ProjectError(f"no hinoki.toml found in {searched} or above it")
     return load_manifest(path).route_items()
+
+
+def _manifest_along(directory: Path) -> Path | None:
+    """The manifest above ``directory`` as written, symlinks unresolved: a
+    package linked into a project is still found from inside it."""
+    for candidate in (directory, *directory.parents):
+        if (candidate / "hinoki.toml").is_file():
+            return candidate / "hinoki.toml"
+    return None
 
 
 def _caller_directory(frame: FrameType) -> Path | None:
