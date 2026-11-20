@@ -80,7 +80,7 @@ def add_arguments(new: argparse.ArgumentParser) -> None:
     )
 
 
-DOCS = "https://caspel26.github.io/hinoki/"
+DOCS = "https://hinoki.caspel.dev/"
 DATABASE_OPTIONS = (
     ("none", "no database setting"),
     ("sqlite", "local file in .hinoki/"),
