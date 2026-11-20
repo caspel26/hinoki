@@ -15,6 +15,7 @@ from hinoki.errors import (
     RegistrationError,
 )
 from hinoki.http.request import Request
+from hinoki.runtime.responses import public_error
 from tests.harness import Pool
 
 
@@ -263,8 +264,6 @@ async def test_an_application_handler_replaces_the_unique_default(pool: Pool) ->
 
 
 def test_error_headers_are_checked_like_response_headers() -> None:
-    from hinoki.runtime.responses import public_error
-
     error = BadRequest(
         headers={
             "x-hint": "retry",
