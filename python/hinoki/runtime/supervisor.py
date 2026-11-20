@@ -75,9 +75,10 @@ class Supervisor:
 
     def spawn(self) -> subprocess.Popen[bytes]:
         """Start a worker with SIGINT blocked: a terminal Ctrl-C reaches the
-        whole process group, and while the worker still imports the target it
+        whole process group, and while the worker still imports Hinoki it
         would end it with a traceback. The supervisor owns the stop (SIGTERM);
-        the worker unblocks SIGINT once its own handler is installed."""
+        the worker unblocks SIGINT first thing, behind a no-op handler
+        (``kiso.take_interrupts``)."""
         previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
         try:
             return subprocess.Popen(  # noqa: S603 - our own interpreter and module

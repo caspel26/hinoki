@@ -681,8 +681,6 @@ class KisoWorker:
             interrupt = self._on_signal if self.parent is None else self._ignore_signal
             loop.add_signal_handler(signal.SIGINT, interrupt)
             loop.add_signal_handler(signal.SIGHUP, interrupt)
-            # A supervised worker starts with SIGINT blocked (see Supervisor.spawn).
-            signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
             if self.parent is None:
                 shown = f"[{self.host}]" if ":" in self.host else self.host
                 print(f"listening on {self.scheme}://{shown}:{port}", flush=True)
@@ -761,6 +759,21 @@ def build_worker(
     )
 
 
+def take_interrupts() -> None:
+    """A supervised worker starts with SIGINT blocked (``Supervisor.spawn``).
+    Unblock it before loading the target or starting a thread, since threads
+    and the processes a handler starts inherit the mask. A no-op Python handler
+    keeps a Ctrl-C during start-up from raising a traceback; unlike ``SIG_IGN``,
+    exec resets it, so child processes still stop on Ctrl-C. ``run`` replaces
+    it with the loop's handler."""
+    signal.signal(signal.SIGINT, _ignore_interrupt)
+    signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
+
+
+def _ignore_interrupt(_number: int, _frame: object) -> None:
+    return None
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m hinoki.runtime.kiso")
     parser.add_argument("target", help="module:application or module:factory")
@@ -772,8 +785,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--parent", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
-    if args.parent is not None and os.getppid() != args.parent:
-        return 1  # the supervisor died before this worker ran
+    if args.parent is not None:
+        take_interrupts()
+        if os.getppid() != args.parent:
+            return 1  # the supervisor died before this worker ran
     if args.fd is not None:
         os.set_inheritable(args.fd, False)  # nothing a handler starts keeps it
     host, port = (
