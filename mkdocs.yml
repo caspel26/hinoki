@@ -105,7 +105,8 @@ nav:
           - Requests and responses: endpoints.md
           - Generate CRUD routes: crud.md
           - Errors: errors.md
-          - Middleware: middleware.md          - Pagination: pagination.md
+          - Middleware: middleware.md
+          - Pagination: pagination.md
           - Parsers and renderers: codecs.md
           - OpenAPI document: openapi.md
       - Security and checks:
