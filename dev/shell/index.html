@@ -437,8 +437,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
-            <span>2 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 17:35:27 UTC">November 20, 2026</span></span>
+            <span>3 min read</span>
           </p>
           
         </header>
@@ -520,7 +520,8 @@ and Python's <code>&gt;&gt;&gt;</code> / <code>...</code> prompts.</p>
 <li>Without a terminal the shell exits 2: "<code>hinoki shell</code> requires an interactive
   terminal".</li>
 <li>Ctrl-D exits, Ctrl-C at the prompt exits, Ctrl-C during a cell interrupts that
-  cell.</li>
+  cell. <code>exit()</code>, <code>quit()</code> or <code>raise SystemExit</code> in a cell also end the session
+  and close the app modules; the shell exits 0 whatever code is passed.</li>
 <li>A model module that does not import stops the shell with
   <code>cannot load model module '…'</code>; a duplicate class name with
   <code>model name 'Invoice' occurs in both '…' and '…'</code>. Both exit 2.</li>
@@ -560,7 +561,7 @@ and Python's <code>&gt;&gt;&gt;</code> / <code>...</code> prompts.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 17:35:27 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/shell.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
