@@ -118,7 +118,8 @@ async def _drain_native_uninterruptibly(
     while not drain_task.done():
         try:
             await asyncio.shield(drain_task)
-        except asyncio.CancelledError:
+        # The drain must finish; the interruption is reported to the caller.
+        except asyncio.CancelledError:  # NOSONAR
             interrupted = True
     return drain_task.result(), interrupted
 
