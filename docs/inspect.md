@@ -82,8 +82,11 @@ GET     /health                         public                   notes.api.healt
 ```
 
 Each row is method, path, access (the provider and its permissions, or `public`)
-and handler, sorted by path. `--path` keeps paths that start with the prefix,
-`--method` one method; no match prints `no routes match` and exits 1:
+and handler, sorted by path. The handler is the action's rule subject, the name
+that `except_` and waivers match: an action of an `API` class is named after the
+class it is mounted on, even when it inherits the method. `--path` keeps paths
+that start with the prefix, `--method` one method; no match prints
+`no routes match` and exits 1:
 
 ```sh
 uv run hinoki routes --path /billing --method GET

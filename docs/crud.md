@@ -180,11 +180,11 @@ hinoki routes --path /billing/invoices
 ```
 
 ```text
-GET     /billing/invoices            StaffTokens[billing:manage] hinoki.resources.list
-POST    /billing/invoices            StaffTokens[billing:manage] hinoki.resources.create
-DELETE  /billing/invoices/{item_id}  StaffTokens[billing:manage] hinoki.resources.delete
-GET     /billing/invoices/{item_id}  StaffTokens[billing:manage] hinoki.resources.retrieve
-PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] hinoki.resources.update
+GET     /billing/invoices            StaffTokens[billing:manage] notes.apps.billing.routes.InvoiceCrud.list
+POST    /billing/invoices            StaffTokens[billing:manage] notes.apps.billing.routes.InvoiceCrud.create
+DELETE  /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.billing.routes.InvoiceCrud.delete
+GET     /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.billing.routes.InvoiceCrud.retrieve
+PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.billing.routes.InvoiceCrud.update
 ```
 
 Generated routes appear in the OpenAPI document with their schemas, access policies, status codes and pagination. See the [CRUD API reference](reference/crud.md). Prefer a handwritten action when a workflow has its own state transitions, errors or side effects beyond one model mutation.
