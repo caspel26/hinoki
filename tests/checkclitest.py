@@ -232,7 +232,20 @@ def test_check_without_rules_passes_and_says_zero(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     assert main(["check", APP]) == 0
-    assert "0 rule(s)" in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert "0 rule(s)" in captured.out
+    assert "warning: no rules were run" in captured.err
+    assert "Hinoki(rules=" in captured.err
+
+
+def test_check_with_rules_prints_no_warning(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["check", APP, "--rules", RULES])
+    assert "warning" not in capsys.readouterr().err
 
 
 def test_target_imports_from_the_current_project_directory(
