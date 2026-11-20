@@ -455,28 +455,85 @@
     }
   });
 
-  /* ---------- Copy buttons ---------- */
-  $$(".highlight").forEach((block) => {
-    if (block.closest("[data-no-copy]")) return;
+  /* ---------- Code block headers and copy buttons ---------- */
+  const LANGS = { python: "Python", pycon: "Python", py: "Python", toml: "TOML", sh: "Shell", bash: "Shell", shell: "Shell", console: "Shell", json: "JSON", sql: "SQL", yaml: "YAML", css: "CSS", html: "HTML", rust: "Rust", js: "JavaScript" };
+  const FILE_LINE = /^\s*(?:#|\/\/)\s*([\w.\/-]+\.\w+(?:\s+\([^)\n]*\))?)\s*$/;
+
+  // Removes the first displayed line of a highlighted block (a "# path/file.py" comment).
+  const dropFirstLine = (code) => {
+    for (const node of [...code.childNodes]) {
+      const text = node.textContent;
+      const nl = text.indexOf("\n");
+      if (nl < 0) {
+        node.remove();
+        continue;
+      }
+      if (node.nodeType === Node.TEXT_NODE) node.nodeValue = text.slice(nl + 1);
+      else node.remove();
+      return;
+    }
+  };
+
+  const codeFile = (block, code) => {
+    const title = $(".filename", block);
+    if (title) {
+      const name = title.textContent.trim();
+      title.remove();
+      return name;
+    }
+    const m = FILE_LINE.exec(code.textContent.split("\n", 1)[0]);
+    if (!m) return "";
+    dropFirstLine(code);
+    return m[1];
+  };
+
+  const codeLang = (block) => {
+    const cls = [...block.classList].find((c) => c.startsWith("language-"));
+    return (cls && LANGS[cls.slice(9)]) || "";
+  };
+
+  const copyButton = (code) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "copy-btn";
-    btn.textContent = "Copy";
     btn.setAttribute("aria-label", "Copy code");
+    btn.innerHTML = '<span class="copy-btn__label">Copy</span>';
     btn.addEventListener("click", async () => {
-      const code = $("pre", block);
       try {
         await navigator.clipboard.writeText(code.innerText.replace(/\n$/, ""));
       } catch (e) {
+        toast("Copy failed: select the code instead");
         return;
       }
-      btn.textContent = "Copied";
+      btn.classList.add("is-done");
+      $(".copy-btn__label", btn).textContent = "Copied";
       toast("Copied to clipboard");
       setTimeout(() => {
-        btn.textContent = "Copy";
+        btn.classList.remove("is-done");
+        $(".copy-btn__label", btn).textContent = "Copy";
       }, 1400);
     });
-    block.appendChild(btn);
+    return btn;
+  };
+
+  $$(".highlight").forEach((block) => {
+    if (block.closest("[data-no-copy]") || block.classList.contains("doc-signature")) return;
+    const code = $("pre code", block) || $("pre", block);
+    if (!code) return;
+    const file = codeFile(block, code);
+    const lang = codeLang(block);
+    const lines = code.textContent.replace(/\n$/, "").split("\n").length;
+    const btn = copyButton(code);
+    if (file || (lang && lines >= 2)) {
+      const head = document.createElement("div");
+      head.className = "code-head";
+      head.innerHTML = `<span class="code-head__file">${esc(file)}</span><span class="code-head__lang">${esc(lang)}</span>`;
+      head.appendChild(btn);
+      block.prepend(head);
+    } else {
+      block.classList.add("is-compact");
+      block.appendChild(btn);
+    }
   });
 
   /* ---------- Diagnostics in rule output ---------- */

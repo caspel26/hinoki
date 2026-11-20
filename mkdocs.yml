@@ -38,6 +38,7 @@ markdown_extensions:
       permalink: true
   - pymdownx.details
   - pymdownx.highlight:
+      pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.superfences
   - pymdownx.tabbed:

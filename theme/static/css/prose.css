@@ -178,18 +178,18 @@
   position: relative;
   margin: var(--sp-5) 0;
   border: 1px solid var(--ide-edge);
-  border-radius: 18px;
+  border-radius: var(--radius-code);
   background: var(--ide-bg);
-  box-shadow: 0 14px 34px -22px rgb(20 10 40 / 0.55);
+  box-shadow: none;
   overflow: hidden;
 }
 
 .highlight pre {
   margin: 0;
-  padding: var(--sp-4) 20px;
+  padding: 14px 16px;
   overflow-x: auto;
   color: var(--ide-fg);
-  font: 400 13.5px/1.7 var(--hn-font-mono);
+  font: 400 13.5px/1.65 var(--hn-font-mono);
   tab-size: 4;
   scrollbar-width: thin;
   scrollbar-color: var(--ide-sel) transparent;
@@ -199,9 +199,45 @@
   font: inherit;
 }
 
+/* Header row added by hinoki.js: file name, language and copy button. */
+.code-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 6px 0 14px;
+  border-bottom: 1px solid var(--ide-edge);
+  background: var(--ide-chrome);
+  color: var(--ide-muted);
+  font: 500 12px/1 var(--hn-font-mono);
+}
+
+.code-head__file {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ide-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-head__lang {
+  margin-left: auto;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.code-head__lang:empty {
+  display: none;
+}
+
+.code-head__lang:empty + .copy-btn {
+  margin-left: auto;
+}
+
 .highlight .filename {
   display: block;
-  padding: 8px 20px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--ide-edge);
   background: var(--ide-chrome);
   color: var(--ide-muted);
@@ -209,43 +245,46 @@
 }
 
 .copy-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 28px;
   height: 28px;
-  padding: 0 12px;
-  border: 1px solid var(--ide-edge);
-  border-radius: 999px;
-  background: var(--ide-chrome);
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: var(--ide-muted);
-  font: 500 12px/1 var(--hn-font-mono);
-  opacity: 0;
-  transform: translateY(-2px);
-  transition: opacity 140ms var(--hn-ease), transform 200ms var(--hn-ease), color 120ms, border-color 120ms;
-}
-
-.highlight:hover .copy-btn,
-.copy-btn:focus-visible {
-  opacity: 1;
-  transform: none;
+  font: 500 12px/1 var(--hn-font-sans);
+  transition: color var(--hn-dur-1) var(--hn-ease), background var(--hn-dur-1) var(--hn-ease);
 }
 
 .copy-btn:hover {
-  border-color: var(--ide-accent);
+  background: color-mix(in srgb, var(--ide-fg) 8%, transparent);
   color: var(--ide-fg);
 }
 
-@media (hover: none) {
-  .copy-btn {
-    opacity: 1;
-    transform: none;
-  }
+.copy-btn.is-done {
+  color: var(--hn-green);
+}
+
+/* One-line or unlabelled blocks: no header, the copy button sits at the right edge. */
+.highlight.is-compact pre {
+  padding-right: 56px;
+}
+
+.highlight.is-compact > .copy-btn {
+  position: absolute;
+  top: 11px;
+  right: 8px;
 }
 
 .highlight .hll {
   display: block;
-  margin: 0 -20px;
-  padding: 0 20px;
+  margin: 0 -16px;
+  padding: 0 16px;
   background: var(--ide-line);
   box-shadow: inset 2px 0 0 var(--ide-accent);
 }
