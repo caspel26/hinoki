@@ -38,7 +38,7 @@ class Invoice(Model):
 | update (`asave` of a loaded instance, `aupdate_from`) | `before_save`, write, `after_save` |
 
 `before_*` hooks may change the values about to be written. `after_*` hooks see
-the stored row (generated keys, database defaults, `@timestamps`). An update
+the stored row (generated keys, database defaults, `@db.timestamps()`). An update
 with no changed column after `before_save` writes nothing and skips
 `after_save`. To extend an inherited hook, call `super()`.
 

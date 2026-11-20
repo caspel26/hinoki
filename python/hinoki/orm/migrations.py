@@ -32,7 +32,7 @@ from hinoki.orm.relations import ON_DELETE
 from hinoki.target import add_project_to_import_path
 
 MAX_IDENTIFIER = 63  # PostgreSQL truncates longer names
-
+UNIQUE_KEYS: tuple[tuple[str, Any], ...] = (("unique", []), ("unique_names", {}))
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,62}")
 NAME = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 FILE = re.compile(r"(\d{4})-([a-z0-9]+(?:-[a-z0-9]+)*)\.sql")
@@ -176,11 +176,67 @@ def table_state(model: type[Model], dialect: str = "postgres") -> State:  # noqa
     for item in dataclasses.fields(model):  # type: ignore[arg-type]
         meta: FieldMeta = item.metadata.get(MARK, FieldMeta())
         columns[item.name] = column_state(model, item.name, hints[item.name], meta)
-    return {
+    state: State = {
         "columns": columns,
         "unique": [list(group) for group in model.__unique__],
         "indexes": [list(group) for group in model.__indexes__],
     }
+    if model.__unique_names__:
+        state["unique_names"] = {
+            name: list(group) for group, name in model.__unique_names__.items()
+        }
+    return state
+
+
+def unique_changed(old: State, new: State) -> bool:
+    """Whether the composite unique constraints or their names differ."""
+    return any(old.get(key, empty) != new.get(key, empty) for key, empty in UNIQUE_KEYS)
+
+
+def unique_constraint_sql(group: list[str], spec: State, dialect: str) -> str:
+    """``UNIQUE (...)``, prefixed by ``CONSTRAINT <name>`` when it is named."""
+    names = {tuple(cols): name for name, cols in spec.get("unique_names", {}).items()}
+    columns = f"UNIQUE ({', '.join(quote(c, dialect) for c in group)})"
+    name = names.get(tuple(group))
+    return columns if name is None else f"CONSTRAINT {quote(name, dialect)} {columns}"
+
+
+def check_constraint_names(tables: State) -> None:
+    """Named unique constraints must not reuse a name the database already
+    holds: PostgreSQL keeps tables, indexes and unique constraints in one
+    namespace per schema, and MySQL and MariaDB compare names without case. A
+    name is checked against every table, generated index and foreign-key name
+    (for each backend's length limit) and the other constraint names."""
+    taken: dict[str, str] = {}
+    for table, spec in tables.items():
+        for name, owner in generated_names(table, spec):
+            taken.setdefault(name.casefold(), owner)
+    for table, spec in tables.items():
+        for name in spec.get("unique_names", {}):
+            holder = taken.get(name.casefold())
+            if holder is not None:
+                raise MigrationError(
+                    f"{table}: unique constraint name {name!r} is already used by "
+                    f"{holder}; choose another name"
+                )
+            taken[name.casefold()] = f"a unique constraint of {table}"
+
+
+def generated_names(table: str, spec: State) -> list[tuple[str, str]]:
+    """The table's own name and the index and foreign-key names Hinoki
+    generates for it, with a description of each."""
+    found = [(table, f"table {table}")]
+    for dialect in ("postgres", "mysql"):
+        found.extend(
+            (index_name(table, columns, dialect), f"an index of {table}")
+            for columns in spec.get("indexes", [])
+        )
+        found.extend(
+            (foreign_key_name(table, column, dialect), f"a foreign key of {table}")
+            for column, state in spec["columns"].items()
+            if state["references"] is not None
+        )
+    return found
 
 
 def family(sql_type: str) -> str:
@@ -235,6 +291,7 @@ def state_of(
         owners.append(model)
         external[model.__table__] = table_state(model)
     check_references(state, {"tables": external})
+    check_constraint_names({**external, **tables})
     return state
 
 
@@ -371,7 +428,7 @@ def create_table_sql(name: str, spec: State, dialect: str = "postgres") -> str:
         for c, s in spec["columns"].items()
     ]
     lines.extend(
-        f"    UNIQUE ({', '.join(quote(c, dialect) for c in group)})"
+        f"    {unique_constraint_sql(group, spec, dialect)}"
         for group in spec.get("unique", [])
     )
     if mysql_family:
@@ -547,6 +604,7 @@ def _sqlite_rebuild_warnings(old: State, new: State) -> list[str]:
         for name in old["columns"]
         if name not in new["columns"]
     )
+    # A rename alone rebuilds the table under the same rules: nothing to reject.
     if old.get("unique", []) != new.get("unique", []):
         destructive.append(
             "changing composite unique constraints may reject existing rows"
@@ -612,15 +670,15 @@ def stored_columns(state: State, dialect: str) -> dict[str, State]:
 
 def table_changes(table: str, old: State, new: State, dialect: str) -> list[Operation]:
     if dialect == "sqlite":
-        if stored_columns(old, dialect) != stored_columns(new, dialect) or old.get(
-            "unique", []
-        ) != new.get("unique", []):
+        if stored_columns(old, dialect) != stored_columns(new, dialect) or (
+            unique_changed(old, new)
+        ):
             return [sqlite_rebuild(table, old, new, dialect)]
         created, dropped = index_changes(table, old, new, dialect)
         return [*dropped, *created]
     operations: list[Operation] = []
     refuse_unbounded_keys(table, new, dialect)
-    if old.get("unique", []) != new.get("unique", []):
+    if unique_changed(old, new):
         raise MigrationError(
             f"{table}: changing composite unique constraints is not planned "
             "automatically; write that migration by hand"

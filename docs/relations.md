@@ -122,16 +122,13 @@ There is no implicit join table or `through=`: declare the association model.
 
 ```python
 # notes/apps/billing/models.py (continued)
-from hinoki.orm import unique
-
-
 class Tag(Model):
     id: UUID = pk(default_factory=uuid4)
     name: str = field(max_length=40, unique=True)
     invoice_links: ClassVar["Related[list[InvoiceTag]]"]
 
 
-@unique("invoice_id", "tag_id")
+@db.unique("invoice_id", "tag_id")
 @db.indexed("tag_id")
 class InvoiceTag(Model):
     id: UUID = pk(default_factory=uuid4)

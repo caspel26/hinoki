@@ -12,8 +12,9 @@ or ``use_database`` made active): ``async with db.atomic():`` for a block, or
 
 The namespace also carries the model declaration decorators, so a models
 module reads ``from hinoki import db`` and then ``@db.table("posts")``,
-``@db.indexed("created_at")`` and ``@db.ordered_by("-created_at")``. They are
-the decorators of ``hinoki.orm.options`` (the same objects), loaded on first
+``@db.unique("author_id", "slug")``, ``@db.indexed("created_at")``,
+``@db.ordered_by("-created_at")`` and ``@db.timestamps()``. They are the
+decorators of ``hinoki.orm.options`` (the same objects), loaded on first
 access.
 """
 
@@ -42,7 +43,7 @@ from hinoki.modules import Module, ModuleContext
 
 if TYPE_CHECKING:
     from hinoki.core import Param, Row, _ModelRows, _RowPlan
-    from hinoki.orm.options import indexed, ordered_by, table
+    from hinoki.orm.options import indexed, ordered_by, table, timestamps, unique
 
 __all__ = [
     "Atomic",
@@ -56,6 +57,8 @@ __all__ = [
     "indexed",
     "ordered_by",
     "table",
+    "timestamps",
+    "unique",
 ]
 
 log = logging.getLogger("hinoki.db")
@@ -64,7 +67,7 @@ log = logging.getLogger("hinoki.db")
 # The model decorators are those of hinoki.orm.options, re-exported lazily:
 # hinoki.orm imports this module (hinoki.orm.context), so a module-level import
 # here would be circular, and importing hinoki.db should not load the ORM.
-MODEL_DECORATORS = frozenset({"indexed", "ordered_by", "table"})
+MODEL_DECORATORS = frozenset({"indexed", "ordered_by", "table", "timestamps", "unique"})
 
 if not TYPE_CHECKING:
 

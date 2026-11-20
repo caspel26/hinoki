@@ -10,9 +10,10 @@ from typing import cast
 
 import pytest
 
-from hinoki import projectmigrations
+from hinoki import db, projectmigrations
 from hinoki.db import Database
 from hinoki.errors import MigrationError
+from hinoki.orm import Model, field, pk
 from hinoki.project import ProjectApp, ProjectError, ProjectManifest
 
 
@@ -340,3 +341,27 @@ def test_sql_project_prints_matching_migration_or_reports_missing(
     args.name = "9999-missing"
     with pytest.raises(MigrationError, match="has no migration named"):
         projectmigrations.sql_project(args, manifest)
+
+
+def test_plan_project_sees_constraint_names_of_unrelated_apps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def paired(table: str) -> type[Model]:
+        @db.unique("a", "b", name="uq_shared_pair")
+        class Pair(Model, table=table):
+            id: int = pk()
+            a: str = field(max_length=20, default="")
+            b: str = field(max_length=20, default="")
+
+        return Pair
+
+    apps = (
+        ProjectApp("billing", "sample.billing", "billing_migrations", ()),
+        ProjectApp("crm", "sample.crm", "crm_migrations", ()),
+    )
+    manifest = _manifest(tmp_path, apps)
+    models = {"billing": [paired("pp_invoices")], "crm": [paired("pp_contacts")]}
+    monkeypatch.setattr(ProjectManifest, "all_models", lambda _self: models)
+    args = argparse.Namespace(app="billing")
+    with pytest.raises(MigrationError, match=r"uq_shared_pair.*pp_invoices"):
+        projectmigrations.plan_project(args, manifest)

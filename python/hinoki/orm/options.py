@@ -1,14 +1,16 @@
 """Model options as decorators, read like the action decorators.
 
     @db.table("saved_links")
-    @unique("owner_id", "url")
+    @db.unique("owner_id", "url")
     @db.indexed("created_at")
     @db.ordered_by("-created_at")
+    @db.timestamps()
     class Bookmark(Model, label="Saved link"):
         ...
 
 The decorators are also importable from ``hinoki.db`` (``db.table``,
-``db.indexed``, ``db.ordered_by``). The table name is derived from the class
+``db.unique``, ``db.indexed``, ``db.ordered_by``, ``db.timestamps``), which is
+the documented spelling. The table name is derived from the class
 name unless ``@table`` or the ``table=`` class keyword names it; ``label`` and
 ``plural`` are class keywords. Constraints and behaviour are decorators that
 validate their column names when applied and return the same class. Apply them
@@ -22,6 +24,7 @@ to it.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from datetime import datetime
 from typing import get_type_hints
@@ -31,6 +34,8 @@ from hinoki.orm.model import Model
 from hinoki.utils import Clock, utc_now
 
 MIN_UNIQUE = 2
+MAX_CONSTRAINT_NAME = 63  # PostgreSQL truncates longer identifiers
+CONSTRAINT_NAME = re.compile(rf"[A-Za-z_][A-Za-z0-9_]{{0,{MAX_CONSTRAINT_NAME - 1}}}")
 
 
 def known(model: type[Model], columns: tuple[str, ...], option: str) -> None:
@@ -42,9 +47,16 @@ def known(model: type[Model], columns: tuple[str, ...], option: str) -> None:
         )
 
 
-def unique[M: type[Model]](*columns: str) -> Callable[[M], M]:
+def unique[M: type[Model]](*columns: str, name: str | None = None) -> Callable[[M], M]:
     """A composite uniqueness constraint over two or more columns (single
-    columns use ``field(unique=True)``)."""
+    columns use ``field(unique=True)``). ``name`` names the constraint in the
+    database; without it the backend chooses one."""
+
+    if name is not None and not is_constraint_name(name):
+        raise RegistrationError(
+            f"@unique{columns}: constraint name {name!r} must be an identifier "
+            f"of at most {MAX_CONSTRAINT_NAME} letters, digits or underscores"
+        )
 
     def apply(model: M) -> M:
         if len(columns) < MIN_UNIQUE:
@@ -53,13 +65,40 @@ def unique[M: type[Model]](*columns: str) -> Callable[[M], M]:
                 "field(unique=True) for one"
             )
         known(model, columns, "unique")
-        current = () if model.replace_inherited("unique") else model.__unique__
+        replaced = model.replace_inherited("unique")
+        current = () if replaced else model.__unique__
         if columns in current:
             raise RegistrationError(f"{model.__name__}: @unique{columns} twice")
+        names = {} if replaced else dict(model.__unique_names__)
+        if name is not None:
+            names[columns] = checked_name(model, names, name)
         model.__unique__ = (columns, *current)  # top-to-bottom order
+        model.__unique_names__ = names
         return model
 
     return apply
+
+
+def checked_name(
+    model: type[Model], names: dict[tuple[str, ...], str], name: str
+) -> str:
+    """A constraint name the model may declare. Names compare without case,
+    as MySQL and MariaDB do. An abstract model may not name one: every table
+    inheriting it would repeat the name."""
+    if model.__abstract__:
+        raise RegistrationError(
+            f"{model.__name__}: an abstract model cannot name a unique constraint "
+            f"({name!r}); name it on each table model instead"
+        )
+    taken = next((n for n in names.values() if n.casefold() == name.casefold()), None)
+    if taken is not None:
+        raise RegistrationError(f"{model.__name__}: constraint name {taken!r} twice")
+    return name
+
+
+def is_constraint_name(name: object) -> bool:
+    """An identifier every backend accepts without truncating it."""
+    return type(name) is str and bool(CONSTRAINT_NAME.fullmatch(name))
 
 
 def table[M: type[Model]](name: str) -> Callable[[M], M]:
@@ -141,8 +180,15 @@ def timestamps[M: type[Model]](
     """Update a declared datetime column on each ORM update statement.
 
     Timestamp columns remain ordinary model fields, visible to type checkers
-    and migrations. Declare their creation defaults with ``utc_now``.
+    and migrations. Declare their creation defaults with ``utc_now``. The
+    decorator is always called: ``@db.timestamps()``.
     """
+
+    if type(updated_at) is not str:
+        raise RegistrationError(
+            "timestamps is called with the column name: write @db.timestamps() "
+            "or @db.timestamps('modified_at')"
+        )
 
     def apply(model: M) -> M:
         known(model, (updated_at,), "timestamps")
