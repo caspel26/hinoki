@@ -107,11 +107,9 @@ LOGO = ROOT / "python" / "hinoki" / "logo.png"
 LOGO_ROWS = 3  # rows hinoki reserves for the inline logo
 LOGO_CELL = 0xE000  # private-use cells that stand for the logo: + row * 256 + column
 LOGO_START = b"\x1b_Ga=T"  # the kitty sequence that places the logo
-LOGO_SEQUENCE = re.compile(
-    rb"\x1b_Ga=T[^;\x1b]*m=0;[^\x1b]*\x1b\\"
-    rb"|\x1b_Ga=T[^;\x1b]*m=1;[^\x1b]*\x1b\\(?:\x1b_Gm=1;[^\x1b]*\x1b\\)*"
-    rb"\x1b_Gm=0;[^\x1b]*\x1b\\"
-)
+LOGO_CHUNK = re.compile(
+    rb"\x1b_G([^;\x1b]*);[^\x1b]*\x1b\\"
+)  # one kitty graphics chunk
 TICK = 20  # ms: one frame at 50 fps, the shortest GIF delay browsers honour
 INTRO_MS, OUTRO_MS = 1800, 700  # the title card that opens and closes the loop
 FADE_MS = 200  # cross-fade between the title card and the terminal
@@ -346,6 +344,17 @@ def logo_columns() -> int:
     return round(LOGO_ROWS * CELL_H * width / height / CELL_W)
 
 
+def logo_end(data: bytes, start: int) -> int | None:
+    """The offset just past the logo sequence that begins at ``start``, or
+    ``None`` while its last chunk has not arrived yet."""
+    position = start
+    while chunk := LOGO_CHUNK.match(data, position):
+        position = chunk.end()
+        if b"m=1" not in chunk.group(1).split(b","):
+            return position
+    return None
+
+
 def logo_cells() -> bytes:
     """What stands for the logo on the screen: marker cells over ``LOGO_ROWS``
     rows, leaving the cursor after the last one as a kitty terminal does."""
@@ -396,10 +405,15 @@ class Session:
         sequence cut short by a read waits for the rest."""
         data = self.pending + data
         self.pending = b""
-        start = data.find(LOGO_START)
-        if start != -1 and not LOGO_SEQUENCE.match(data, start):
-            self.pending, data = data[start:], data[:start]
-        return LOGO_SEQUENCE.sub(lambda _: logo_cells(), data)
+        out = b""
+        while (start := data.find(LOGO_START)) != -1:
+            end = logo_end(data, start)
+            if end is None:
+                self.pending = data[start:]
+                return out + data[:start]
+            out += data[:start] + logo_cells()
+            data = data[end:]
+        return out + data
 
     def text(self) -> str:
         return "\n".join(self.screen.display)
