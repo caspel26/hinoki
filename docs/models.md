@@ -1,18 +1,20 @@
 ---
 status: implemented
 related:
+  - model-options.md
+  - queries.md
   - relations.md
   - migrations.md
-  - model-options.md
 ---
 
-# Models and queries
+# Define models
 
-`Model` maps a Python class to one database table. SQLite, PostgreSQL, MySQL and MariaDB are supported. Its annotated fields define the columns; queries are explicit and do not load relations implicitly. See [configure a database](databases.md) for setup and backend-specific limits.
-
-## Define a model
+A `Model` maps a Python class to one table. Annotated fields are the columns;
+indexes, ordering and other options are [decorators](model-options.md). A model
+never opens a connection on import and never loads a relation implicitly.
 
 ```python
+# notes/apps/billing/models.py
 from datetime import datetime
 from uuid import UUID, uuid4
 
@@ -21,348 +23,237 @@ from hinoki.orm import Model, OnDelete, field, foreign_key, pk
 from hinoki.utils import utc_now
 
 
-class Member(Model):
+class Customer(Model):
     id: UUID = pk(default_factory=uuid4)
-    email: str = field(unique=True, max_length=254)
+    name: str = field(max_length=120)
+    email: str = field(max_length=254, unique=True)
 
 
-@db.indexed("owner_id", "created_at")
+@db.indexed("customer_id", "created_at")
 @db.ordered_by("-created_at", "-id")
-@db.table("tasks")
-class Task(Model):
+class Invoice(Model):
     id: UUID = pk(default_factory=uuid4)
-    owner_id: UUID = foreign_key(
-        Member, on_delete=OnDelete.RESTRICT, related_name="tasks"
+    customer_id: UUID = foreign_key(
+        Customer, on_delete=OnDelete.RESTRICT, related_name="invoices"
     )
-    title: str = field(max_length=120)
-    done: bool = False
+    reference: str = field(max_length=40, unique=True)
+    paid: bool = False
     created_at: datetime = field(default_factory=utc_now)
 ```
 
-For a fresh model, Hinoki derives the table name as `<app>_<models>` and human
-display names from the class. The app is the package that holds the model's
-`models` module: `shop.apps.billing.models` is `billing`, `shop.models` and
-`shop.models.invoice` are `shop`; a module without a `models` segment uses its own
-last name. The model part is the class name in snake case and plural, so
-`Invoice` in `billing` becomes `billing_invoices` and `LineItem` becomes
-`billing_line_items`. Display names are `Invoice` and `Invoices`; `UserProfile`
-becomes `User profile` and `User profiles`. The class keyword `app="billing"` replaces the
-app part (lowercase letters, digits and underscores). `@db.table(...)` or the
-compatible `table=` class keyword, along with `label=` and `plural=`, provide
-optional overrides, and an explicit table name is never prefixed. Keep an explicit
-table name when it pins an existing migration history or when
-the physical table needs another name. This matters when renaming a Python
-class or moving its module: changing an implicit table name is planned as a table
-drop/create and is protected by the destructive-migration guard, not treated as a
-data-safe rename. A project whose tables were created under the earlier default (the
-plural class name without the app) pins them with `@db.table("old_name")` before planning again.
-The optional `HNK-DB-001` rule (`Models.require_explicit_table`) can require every
-model to pin its table. Irregular or localized plurals such as `Person`/`People`
-should set the table name and `plural=` explicitly. The fallback inflection is deterministic, small and English-oriented, and does not guess
-irregular nouns. It splits underscores and CamelCase into words and applies these
-suffixes to the final word of the table and display names: consonant plus `y` becomes `ies`; `s`, `x`,
-`z`, `ch` and `sh` take `es`; other words take `s`. Display labels retain
-uppercase acronyms (`APIKey` becomes `API key` / `API keys`). Thus `Person`
-defaults to `persons` (`Persons`), and `Analysis` to `analysises`; provide explicit values
-when those mechanical defaults are not right. Generated identifiers must be
-portable ASCII SQL names of at most 63 characters. Names beginning with
-SQLite's reserved `sqlite_` prefix and Hinoki's `hinoki_migrations` ledger name
-are rejected with a hint to name the table. A class whose derived name is
-rejected is still defined, so `@db.table(...)` can name its table (`@db.table("cafes")`
-on `class Café(Model)` works); without an explicit name the error is raised when
-the model is used: a query or write, a migration plan, a project or Admin
-registration, or a foreign key to it. Physical-table conflicts are reported
-when models are aggregated for migrations, projects or one Admin instance.
+The tables are `billing_customers` and `billing_invoices`. Changing a model
+never changes the database: create the tables with
+`hinoki migrations plan billing` and `hinoki migrations apply`
+([migrations](migrations.md)).
 
-A model has exactly one primary key. `pk()` is the field-specifier shorthand for
-`field(primary_key=True, ...)`; pass `default` or `default_factory` explicitly
-when the key is optional in the constructor. The key's type cannot be nullable
-(`int | None` raises `RegistrationError` when the model is defined). Fields are keyword-only when
-constructing a model. Single-column uniqueness is `field(unique=True)`; use
-`@unique("a", "b")` for a composite constraint. There is no nested `class Meta`.
+## Declare columns
 
-Supported field metadata includes primary key, uniqueness, a single-column
-index (`field(index=True)`), maximum string length, defaults and foreign-key behavior.
-Optional built-in constraints and custom synchronous validators can also check
-values before ORM writes. Database types are inferred from annotations;
-unsupported types fail during model or migration validation.
+| Declaration | Column |
+| --- | --- |
+| `name: str` | required, not null |
+| `note: str \| None = None` | nullable, optional in the constructor |
+| `paid: bool = False` | default value |
+| `id: UUID = pk(default_factory=uuid4)` | the primary key |
+| `email: str = field(max_length=254, unique=True)` | bounded text, unique |
+| `created_at: datetime = field(default_factory=utc_now, index=True)` | factory default, single-column index |
+| `customer_id: UUID = foreign_key(Customer, on_delete=...)` | a reference ([relations](relations.md)) |
 
-### Model field constraints and validators
+`field()` takes `unique`, `index`, `max_length`, `default`, `default_factory`,
+`constraints` and `validators`. The annotation gives the type and nullability.
 
-`field()` metadata describes the database column and its migration: `max_length` becomes a bounded string column and a derived `Schema` constraint, `unique` becomes a database constraint, and `default` / `default_factory` provide values when constructing an instance. A `foreign_key(...)` declares the referenced table and its `OnDelete` behavior. The Python annotation supplies the column type and nullability.
+* **One primary key.** `pk()` declares it; pass `default` or
+  `default_factory` when the constructor may omit it. A nullable key
+  (`int | None`) raises `RegistrationError` when the class is defined.
+* **Keyword-only constructor.** `Invoice(reference="INV-1", customer_id=c.id)`.
+* **Indexes.** `field(index=True)` indexes one column; it cannot be combined
+  with `unique=True` or `pk()`, which are already indexed. A `foreign_key` has
+  no `index=` option: index it with `@db.indexed(...)`, or a composite index
+  that starts with it, as `Invoice` does ([model options](model-options.md)).
+* **Composite uniqueness** is `@unique("a", "b")`; there is no nested
+  `class Meta`.
 
-Use `constraints=Field(...)` for built-in value checks and `validators=(...)` for synchronous, application-specific checks. Existing `max_length=` remains a shorthand:
+## Column types
+
+| Python type | Stored as | Read back as |
+| --- | --- | --- |
+| `str`, `int`, `float`, `bool` | the backend's text, integer, float and boolean types | the same type |
+| `UUID`, `datetime` | native on PostgreSQL; text on SQLite | `UUID`, `datetime` |
+| `dict[...]`, `list[...]` | JSON (JSON text on SQLite, text alias on MariaDB) | decoded by the annotation |
+| `bytes` | `BYTEA` on PostgreSQL, blob on SQLite | `bytes` |
+| `date`, `time` | ISO text (`time` with microseconds, no timezone) | `date`, `time` |
+| `timedelta` | whole microseconds, `bigint` | `timedelta` |
+| `Enum` subclass | its value: `bigint` when every value is an integer, else text | the member |
+| `IPv4Address`, `IPv6Address`, `IPv4Network`, `IPv6Network` | text | the `ipaddress` object; writes accept only that class |
+| `Decimal` | exact, per backend (below) | `Decimal` |
+
+A stored value that does not read back as its annotation raises `FieldError`.
+`date` and `timedelta` compare and order by value. A set, tuple, `Literal`,
+plain union or `Any` column has no SQL type: the migration planner reports
+`no SQL type`. SQLite's `contains` folds ASCII case only.
+
+### `Decimal` columns
+
+| Backend | Column | Filters and ordering |
+| --- | --- | --- |
+| PostgreSQL | `numeric` | `=`, `ne`, `in`, `isnull`, `gt`, `gte`, `lt`, `lte`, `order_by` |
+| MySQL, MariaDB | `decimal(65,30)` | the same; read back with scale 30 (`Decimal("1.5")` returns as `Decimal("1.500…0")`, equal in value) |
+| SQLite | `text` (its exact spelling) | `=`, `ne`, `in`, `isnull` only; `12.3` and `12.30` differ; range filters and `order_by` raise `FieldError` |
 
 ```python
-from uuid import UUID, uuid4
+# notes/apps/billing/models.py (continued)
+from decimal import Decimal
 
+
+class Price(Model):
+    id: UUID = pk(default_factory=uuid4)
+    amount: Decimal
+```
+
+```python
+# inside an async operation
+# every backend
+cheap = await Price.filter(amount=Decimal("9.99"))
+# not SQLite
+ordered = await Price.filter(amount__gte=Decimal("5")).order_by("amount")
+```
+
+* A filter value is a `Decimal`, an `int` or a numeric string; a `float`, a
+  `bool`, `NaN`, an infinity or `contains` raises `FieldError`.
+* `decimal(65,30)` bounds MySQL and MariaDB to 35 digits before the point;
+  PostgreSQL `numeric` is unbounded.
+* A table that already stores a `Decimal` as text on PostgreSQL or MySQL needs a
+  reviewed migration that changes the column type.
+* A generated CRUD list whose `@db.ordered_by` names a `Decimal` column takes the
+  Python path on SQLite, where that ordering is refused.
+
+## Table and display names
+
+Hinoki derives the table name `<app>_<models>` and display names from the class.
+
+| Model | Module | Table | Labels |
+| --- | --- | --- | --- |
+| `Invoice` | `notes.apps.billing.models` | `billing_invoices` | Invoice / Invoices |
+| `LineItem` | `notes.apps.billing.models` | `billing_line_items` | Line item / Line items |
+| `Note` | `notes.models` or `notes.models.note` | `notes_notes` | Note / Notes |
+| `APIKey` | `notes.models` | `notes_api_keys` | API key / API keys |
+
+The app is the package that holds the `models` module; a module without a
+`models` segment uses its own last name. The plural is a small English rule:
+consonant + `y` → `ies`; `s`, `x`, `z`, `ch`, `sh` → `es`; otherwise `s`. It
+does not know irregular nouns (`Person` → `persons`).
+
+| Override | Form |
+| --- | --- |
+| app part of the name | `class Invoice(Model, app="accounts")` |
+| whole table name (never prefixed) | `@db.table("invoices")` |
+| display names | `class Person(Model, label="Person", plural="People")` |
+
+Pin the table name with `@db.table(...)` when a model already has migration
+history and you rename the class or move its module: a changed derived name is
+planned as a drop and a create, which the destructive-migration guard stops; it
+is never a rename. The optional `HNK-DB-001` rule
+(`Models.require_explicit_table`) requires every matching model to pin it.
+
+Names must be portable ASCII of at most 63 characters. A derived name that is
+rejected (`sqlite_…`, `hinoki_migrations`, non-ASCII such as `class Café`) does
+not stop the class from being defined: `@db.table("cafes")` can still name it.
+Without one, the error is raised when the model is first used (query, write,
+migration plan, project or admin registration, or a foreign key to it).
+
+## Model field constraints and validators
+
+`field()` can also check values before every ORM write. Use
+`constraints=Field(...)` for built-in checks and `validators=(...)` for
+synchronous application rules:
+
+```python
+# notes/apps/billing/models.py (continued)
 from hinoki import Field
-from hinoki.orm import Model, field
 
 
-def normalized(value: str) -> None:
+def no_padding(value: str) -> None:
     if value != value.strip():
         raise ValueError("surrounding whitespace is not allowed")
 
 
 class Product(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
+    id: UUID = pk(default_factory=uuid4)
     sku: str = field(
-        max_length=32,
-        constraints=Field(min_length=3, pattern=r"[A-Z0-9-]+"),
+        max_length=32, constraints=Field(min_length=3, pattern=r"[A-Z0-9-]+")
     )
     price: float = field(constraints=Field(gt=0))
-    name: str = field(max_length=120, validators=(normalized,))
+    name: str = field(max_length=120, validators=(no_padding,))
 ```
 
-Built-in checks support string/list lengths, string patterns and membership, and numeric bounds and membership. A column that holds a dict (`dict[...]`, or `list[dict[...]]`) is a JSON column and takes no built-in checks (they are refused at class creation); validators still run on it. Before applying checks, runtime type validation follows annotations for fields that declare constraints or validators, including nested list and dict values. Invalid declarations fail when the model class is created. Validators run immediately before inserts and ORM updates, including filtered bulk updates; they do not run on construction, assignment or reads. A refusal raises `ModelValidationError` with `details` containing each field's `path`, stable `code` and `message`, before SQL is sent. In an HTTP request it produces the standard 422 validation response; the admin displays the field messages. Custom validators are synchronous; raise `ValueError` to refuse a value. Do not perform database I/O or mutate values inside a validator. Rules involving other rows, permissions or current state belong in an operation.
+* **When.** Immediately before inserts and ORM updates, filtered bulk updates
+  included; never on construction, assignment or reads. Invalid declarations
+  fail when the class is created.
+* **Checks.** String and list lengths, patterns, membership and numeric bounds.
+  A JSON column (`dict[...]`, `list[dict[...]]`) takes no built-in checks;
+  validators still run on it.
+* **Failure.** `ModelValidationError`, before any SQL, with `details` holding
+  each field's `path`, `code` and `message`. In a request it becomes the
+  standard 422 response; the admin shows the messages.
+* **Validators** are synchronous, raise `ValueError` to refuse, perform no I/O
+  and do not change the value. Rules about other rows, permissions or current
+  state belong in an operation.
 
-These checks complement, rather than replace, a `Schema` at the HTTP boundary. Schema validation can report request errors before calling an operation; Model validation also protects CLI, admin and direct ORM writes. Database constraints remain authoritative, and their enforcement varies by backend; see [Schema validation](schemas.md#built-in-and-custom-validation).
-
-Hinoki stores PostgreSQL UUID, timestamp, JSON and byte values in their native column types. `ipaddress` addresses and networks (`IPv4Address`, `IPv6Address`, `IPv4Network`, `IPv6Network`) are stored as `text` and read back as the object; writes accept only an object of the annotated class. `date` and `time` are stored as ISO text (a `time` with microseconds always, without a timezone), `timedelta` as whole microseconds in a `bigint` and an `Enum` as its value (`bigint` when every value is an integer, `text` otherwise); each is read back as the annotated type, and a stored value that is not one raises `FieldError`. A `date` and a `timedelta` compare and order by value (`__gt`, `order_by`). SQLite stores UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string `contains` matching follows SQLite's case-folding behavior (ASCII case-insensitive).
-
-#### `Decimal` columns
-
-A `Decimal` field is stored exactly on every backend, but not in the same column type:
-
-| Backend | Column | Filters and ordering |
-|---|---|---|
-| PostgreSQL | `numeric` (read and written through a binary codec) | equality, `ne`, `in`, `isnull`, `gt`, `gte`, `lt`, `lte`, `order_by` |
-| MySQL / MariaDB | `decimal(65,30)` | the same; a value is read back with scale 30 (`Decimal("1.5")` returns as `Decimal("1.500000000000000000000000000000")`, equal in value) |
-| SQLite | `text` (its exact text) | `isnull`, equality, `ne` and `in` only, and equality compares the spelling (`12.3` and `12.30` differ); `gt`, `gte`, `lt`, `lte` and `order_by` are refused, because text does not order by value |
-
-```python
-class Product(Model):
-    name: str
-    price: Decimal
-
-
-await Product.filter(price__gte=Decimal("9.99")).order_by(
-    "price"
-)  # PostgreSQL, MySQL, MariaDB
-await Product.filter(price=Decimal("9.99"))  # every backend
-```
-
-* **Filter values.** A filter value must be a `Decimal`, an `int` or a numeric string; a `float`, a `bool`, `NaN` and an infinity raise `FieldError`, as does `contains` on a `Decimal` column. On SQLite an unsupported comparison or ordering raises `FieldError` naming the column.
-* **Range.** `decimal(65,30)` keeps 30 digits after the point and 35 before it, so a MySQL or MariaDB `Decimal` field is bounded by that; PostgreSQL `numeric` is not.
-* **Migrations.** A new migration declares `numeric` on PostgreSQL and `decimal(65,30)` on MySQL and MariaDB; on SQLite the column stays `text`, so that backend has no column change. A table that already stores a `Decimal` as text on PostgreSQL or MySQL needs a reviewed migration that changes the column type.
-* **CRUD.** A generated list action whose default `@ordered_by` names a `Decimal` column uses the Python path on SQLite, where that ordering is refused.
-
-## Query rows
-
-Class methods and querysets offer sync and async variants for common operations. Async variants are preferred in async handlers:
-
-```python
-task = await Task.aget(id=task_id)
-tasks = await Task.all().filter(owner_id=member_id, done=False).order_by("title")
-page = await Task.all().filter(done=False).apaginate(PageParams(page=1, page_size=20))
-```
-
-Filters accept validated field names and supported comparison/membership operators. Values are bound parameters; SQL identifiers are compiled from model metadata. Query methods do not issue SQL until an evaluation method such as awaiting the query, `aget`, `acount`, `aupdate` or `adelete` is called.
-
-Filter semantics follow SQL:
-
-* `field__ne=value` compiles to `<>`, so rows where the column is `NULL` are not returned. Filter on `isnull` separately when those rows matter.
-* `contains` matches text case-insensitively and treats `%`, `_` and `\` in the value literally. On SQLite the case folding is ASCII-only. On MySQL and MariaDB the escaping assumes the connection does not use the `NO_BACKSLASH_ESCAPES` SQL mode, which is off by default.
-* `apaginate` runs the count and the page as two statements, so rows written between them can make `total` and `items` disagree slightly.
-
-`@ordered_by` supplies ordering only when a query does not specify `order_by`. An explicit order replaces it. Counts and bulk updates do not inherit default ordering.
-
-## Reusable queries
-
-A reusable query is a typed class method that returns a `QuerySet`. Hinoki has no hidden default manager: `Model.all()` always means every row.
-
-```python
-from datetime import datetime
-from typing import Self
-from uuid import UUID, uuid4
-
-from hinoki.orm import Model, QuerySet, field
-
-
-class Task(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-    title: str = field(max_length=200)
-    done: bool = False
-    deleted_at: datetime | None = None
-
-    @classmethod
-    def active(cls) -> QuerySet[Self]:
-        return cls.filter(deleted_at=None)
-
-
-open_tasks = await Task.active().filter(done=False).order_by("title")
-everything = await Task.all()  # the explicit way around the policy
-```
-
-Pass the method where the framework asks for a base query, so every operation built on it sees the same rows:
-
-```python
-from hinoki import API, crud
-
-
-@crud(Task, path="/tasks", read=TaskOut)
-class Tasks(API):
-    def get_queryset(self, principal):
-        return Task.active()
-
-
-class TaskAdmin(ModelAdmin, model=Task):
-    def queryset(self, principal):
-        return Task.active()
-```
-
-Choose the place by what the rule is:
-
-| Rule | Where | Why |
-| --- | --- | --- |
-| Row order | `@ordered_by(...)` ([model options](model-options.md)) | declared once, replaced by any explicit `order_by` |
-| A policy the whole app shares, such as hiding soft-deleted rows | a named class method such as `Task.active()`, used in the `get_queryset()` hook of a `@crud(...)` class or the admin's `queryset()` | visible at each call site and in review; nothing is hidden implicitly |
-| Rows that depend on the caller | the `get_queryset(principal)` hook of a `@crud(...)` class or `ModelAdmin.queryset(principal)` | the caller is available there; model-level code never sees it |
-
-Authorization must not depend on a default that a call to `all()` or a raw query can skip: keep ownership and permission checks in `access=`, `owner=` and `ModelAdmin.can()`, and treat a reusable query as convenience, not as the security boundary.
-
-To generate write routes as well, pass `create=` or `update=` and/or
-`delete=True` to `crud(...)`; protect generated writes with `access=...`. See
-[Generate CRUD routes](crud.md) for the full route and ownership contract.
-
-## Create and update
-
-```python
-task = await Task.acreate(TaskInput(title="Write docs"), owner_id=member_id)
-task.done = True
-await task.asave()  # updates changed columns
-```
-
-Server-supplied keywords take precedence over values from a `Schema`. A loaded model remembers its stored values; `asave()` updates changed columns and refuses primary-key changes. For a conditional write, use `aupdate_where` so ownership and state checks are part of the SQL condition. `QuerySet.aupdate(...)` and `adelete()` act on every row the filters match; they ignore ordering and refuse a queryset with `limit` or `offset`, so select the rows first and then filter on their keys (`filter(id__in=[...])`).
-
-The model constructor is statically typed. Some keyword-based model methods still have broader type-checker signatures; see [typing](typing.md).
-
-### Writing many rows at once
-
-`abulk_create`, `abulk_update` and `abulk_delete` (sync: `bulk_create`, `bulk_update`, `bulk_delete`) each run in one transaction, a savepoint inside an open one, so a failure leaves nothing behind:
-
-```python
-tasks = await Task.abulk_create([TaskIn(title="a"), {"title": "b", "owner_id": me}])
-tasks[0].done = True
-await Task.abulk_update(tasks)  # saves the changed rows
-deleted = await Task.abulk_delete([tasks[0], other_id])  # instances or primary keys
-```
-
-`abulk_create` takes `Schema` objects or dicts of field values and returns the rows in order; defaults, factories, validation and write hooks apply as for `acreate`, and `returning=False` works the same way. `abulk_update` saves each instance's changes as `asave` does, writes nothing for an unchanged one and refuses an unsaved instance. `abulk_delete` returns how many rows existed and deletes in chunks of at most 10 000 keys. These methods run one statement per row (or per chunk for delete), not a single multi-row `INSERT`; they give atomicity, not a batching speed-up. Like `adelete`, `abulk_delete` runs no hooks.
-
-### Writes that do not read the row back
-
-By default every write returns the row as the database stored it: PostgreSQL and SQLite add `RETURNING` with every column, and MySQL/MariaDB select the row again in the same transaction. When the caller does not need that row, pass `returning=False`; the statement then has no `RETURNING` (and no follow-up `SELECT` on MySQL/MariaDB):
-
-```python
-task = await Task.acreate(title="Draft", owner_id=me, returning=False)  # as sent
-count = await Task.aupdate(id=task.id, done=True, returning=False)  # rows written
-count = await Task.aupdate_where({"owner_id": me}, {"done": True}, returning=False)
-count = await Task.filter(owner_id=me).aupdate({"done": False}, returning=False)
-```
-
-| Method | Default | `returning=False` |
-| --- | --- | --- |
-| `acreate`, `insert` (`create`) | the stored row | the same instance, holding the values that were sent |
-| `aupdate` (`update`) | the stored row, `Model.NotFound` if no row matches | `int` row count; 0 when no row matches, no `NotFound` |
-| `aupdate_where`, `QuerySet.aupdate` (`update_where`, `update`) | `list` of stored rows | `int` row count |
-
-What `returning=False` gives back is the client's side of the write. An insert sends every column, after defaults and factories ran in Python, so the returned instance holds exactly those values and remembers them, so a later `asave()` updates the row instead of inserting it again. An update returns no values at all; the `@timestamps` column is still set by the clock and validation still runs. Nothing is re-read from the database, so anything the database changes on the way in is not reflected: timestamp precision, numeric scale, JSON normalization, column types that store a different representation and triggers. Read the row with `aget` when you need the stored values.
-
-The count is the number the database reports. PostgreSQL and SQLite count the rows the statement matched; MySQL and MariaDB, with the driver's default connection settings, count the rows whose values actually changed, so a row that already held the new values counts 0.
-
-The cost of the default is the data sent back, which grows with the width of the row and with large columns such as JSON.
-
-`returning` is a keyword-only option of these methods, so a model cannot declare a field named `returning`: the class definition raises `RegistrationError` and asks for another name.
-
-## Lifecycle hooks and instance state
-
-A model can react to its own writes by defining `before_save`, `before_create`, `after_create` and `after_save`. Each is an ordinary method, `def` or `async def`, taking only `self`; a model that defines none pays nothing.
-
-```python
-class Post(Model):
-    id: UUID = pk(default_factory=uuid4)
-    title: str
-    slug: str = ""
-
-    async def before_save(self) -> None:
-        if self.was_changed("title"):
-            self.slug = slugify(self.title)
-
-    async def after_create(self) -> None:
-        self.after_commit(lambda: notify_followers(self.id))
-```
-
-| Write | Order |
-| --- | --- |
-| insert (`acreate`, `insert`, `asave` of a new instance) | `before_save`, `before_create`, the write, `after_create`, `after_save` |
-| update (`asave` of a loaded instance, `aupdate_from`) | `before_save`, the write, `after_save` |
-
-`before_*` hooks see the values about to be written and may change them; the write sees the result. `after_*` hooks run after the statement, with the stored row loaded into the instance (generated keys, database defaults, `@timestamps`). An update with no changed column after `before_save` writes nothing and skips `after_save`. To extend a hook that a base model or mixin already defines, call `super()`; a subclass method replaces the inherited one like any other override.
-
-The instance reports its own state, so a hook, or any code holding the instance, needs no event object or global context:
-
-| Member | Meaning |
-| --- | --- |
-| `is_new` | `True` until the row has been written or loaded; still `True` inside `before_*` and `after_*` of an insert |
-| `is_dirty` | `True` for a new instance, or when a column differs from the stored row |
-| `changes` | `{column: Change(old, new)}` for the columns that differ; a new instance lists every column with `old=UNSET`. Computed when read |
-| `was_changed("title")` | whether one column differs; a name that is not a column raises `FieldError` |
-
-The stored values are taken again after the `after_*` hooks, so `changes` still shows what this write changed while they run.
-
-When any hook is defined, the write runs in a transaction (a savepoint when one is already open), so an exception in any hook rolls the write back and reaches the caller. `after_*` hooks run before the commit; the work that must happen only after it goes through `self.after_commit(callback)` (a sync or async callable without arguments). Callbacks run in registration order after the outermost transaction commits; a rollback of the transaction, or of the savepoint they were registered in, drops them, and an exception in one is logged without undoing the commit. See [transactions](transactions.md#after-commit-callbacks).
-
-Limits, by design: hooks belong to instances. `QuerySet.aupdate`, `adelete`, `Model.aupdate`, `aupdate_where` and raw SQL do not run them. Sync hooks run inline on the event loop, so keep them short and use `async def` for I/O. `is_new`, `is_dirty`, `changes`, `was_changed`, `after_commit` and the four hook names are reserved: a field cannot use them. A hooked write opens a savepoint inside an open transaction; from a helper task of a transaction it joins that transaction instead (this is how the sync model methods of a sync handler write), and an error still rolls the whole transaction back. A hook assigned to the class after it was created is picked up on the next write. Generated CRUD and the admin create and edit forms save through the same methods, so the hooks run there too; deleting runs none. See [CRUD](crud.md#model-hooks-and-kiso).
+These checks protect CLI, admin and direct ORM writes; a `Schema` still
+validates HTTP input first ([validate input](schema-validation.md)). Database
+constraints remain authoritative.
 
 ## Share fields: abstract models and mixins
 
-Fields, options and methods that several models need can live in a base class. An **abstract model** has no table of its own: it is not migrated, cannot be queried or saved, and exists to be subclassed.
+An abstract model has no table: it is not migrated, cannot be queried and only
+exists to be subclassed.
 
 ```python
-from datetime import datetime
-from uuid import UUID, uuid4
-
-from hinoki.orm import Model, field, indexed, ordered_by, timestamps
-from hinoki.utils import utc_now
+# notes/apps/billing/models.py (continued)
+from hinoki.orm import timestamps
 
 
 class Keyed(Model, abstract=True):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
+    id: UUID = pk(default_factory=uuid4)
 
 
 @timestamps()
-@indexed("updated_at")
-@ordered_by("-updated_at")
+@db.ordered_by("-updated_at")
 class Tracked(Model, abstract=True):
     created_at: datetime = field(default_factory=utc_now)
-    updated_at: datetime = field(default_factory=utc_now)
+    updated_at: datetime = field(default_factory=utc_now, index=True)
 
 
 class Article(Keyed, Tracked):
     title: str = field(max_length=120)
 ```
 
-`Article` has the columns `created_at`, `updated_at`, `id` and `title`, is ordered by `-updated_at`, has the index and refreshes `updated_at` on every update. `Tracked.all()` raises `ModelError`: query `Article`.
+`Article` has `created_at`, `updated_at`, `id` and `title`, is ordered by
+`-updated_at`, indexes `updated_at` and refreshes it on every update.
+`Tracked.all()` raises `ModelError`.
 
-* `abstract=True` is not inherited. A subclass is a table model unless it says `abstract=True` again; its table name is derived unless `table=` overrides it. An abstract model needs no primary key; a table model needs exactly one, its own or an inherited one.
-* **Options** declared on abstract bases are inherited: every base's `@unique` constraints and `@indexed` indexes, and the order and timestamp column of the first base (in the order the bases resolve) that sets one. Applying a decorator on the subclass *replaces* what was inherited for that kind of option; it does not add to it. A `field(index=True)` index belongs to its column instead: it is inherited with the column, and a subclass that redeclares the column without `index=True` drops it, with or without decorators. To keep an inherited index while adding one, declare both on the subclass. Options you do not touch stay inherited. A replacement made in an abstract base holds for everything below it: a model reads its options from the abstract bases it lists, and each of those already carries what it inherited and replaced.
-* **Plain mixins** work too: a class that is not a model contributes the fields it annotates, `field(...)` and `foreign_key(...)` included, and its methods. An annotation marked `ClassVar` is not a field. A type checker does not see a plain mixin's fields as constructor arguments, so prefer an abstract model when you construct instances with those fields.
-* **One name, two types.** If two bases give the same field name different types and the class does not declare that field itself, the class is refused with an error naming both bases. The same type from two bases is accepted, and a class (or an abstract subclass) that redeclares a field decides its type. A type checker still reports a redeclaration with an incompatible type, as it does for any class.
-* **Subclassing a table model** is allowed: the subclass gets a copy of the parent's columns in a separate table, derived from the subclass name unless `table=` overrides it. `hinoki migrations plan` shows the new table. The two tables are unrelated: there is no join between them and a query on the parent does not return the subclass's rows. A table model does not pass its options on; only abstract bases do.
-* **Column order** follows Python's dataclass rules: the fields of model bases come first, starting from the last base listed, then the fields of plain mixins, then the class's own. Hinoki does not depend on the order; a new table is created with it.
+* `abstract=True` is not inherited; an abstract model needs no primary key, a
+  table model needs exactly one, its own or inherited.
+* **Options** from abstract bases are inherited: all `@unique` and
+  `@db.indexed`, and the order and timestamp column of the first base that sets
+  one. A decorator on the subclass *replaces* that kind of option. A
+  `field(index=True)` index belongs to its column and is dropped when a subclass
+  redeclares the column without it.
+* **Plain mixins** (non-model classes) contribute annotated fields and methods;
+  `ClassVar` annotations are not fields. Type checkers do not see mixin fields
+  as constructor arguments: prefer an abstract model.
+* **Conflicting types.** Two bases giving one field different types are refused
+  unless the class redeclares the field.
+* **Subclassing a table model** copies its columns into a separate, unrelated
+  table; no join, no shared rows, no inherited options.
+* **Column order** follows dataclass rules: model bases (last listed first),
+  then mixins, then the class's own fields.
 
-A foreign key in an abstract model or a mixin needs a reverse name that differs per subclass; see [relations](relations.md#foreign-keys-in-abstract-models-and-mixins).
+A foreign key in an abstract model needs a per-subclass reverse name; see
+[relations](relations.md#foreign-keys-in-abstract-models-and-mixins).
 
-## Relations
+## See also
 
-Declare a foreign-key column with `foreign_key(OtherModel, ...)`. It creates the `other_id` column and a named relation (`row.other`), but reading the relation does not fetch data. Load it explicitly with `select_related` or `prefetch_related`. For many-to-many data, declare an association model with two foreign keys and a composite `@unique` constraint; see [relations and loading](relations.md).
-
-## Schema options
-
-Use [model option decorators](model-options.md) for indexes, ordering and composite uniqueness. Use [schemas](schemas.md) to define request and response data; a model does not decide which columns cross the HTTP boundary.
-
-## Migrations
-
-Model changes do not alter a database. Generate and review migration files, then apply them deliberately with the [migration commands](migrations.md).
+- [Model options](model-options.md)
+- [Query and write rows](queries.md)
+- [Relations](relations.md)
+- [Migrations](migrations.md)

@@ -1,190 +1,192 @@
 ---
 status: implemented
+related:
+  - models.md
+  - queries.md
+  - migrations.md
 ---
 
-# Relations, many-to-many and loading
+# Relations
 
-Hinoki stores relations as ordinary foreign-key columns and loads related rows only when a query asks for them. Attribute access never performs hidden I/O.
+A relation is an ordinary foreign-key column. Related rows load only when a
+query asks for them: attribute access never performs I/O.
 
 ## Declare a foreign key
 
 ```python
+# notes/apps/billing/models.py
+from typing import ClassVar
 from uuid import UUID, uuid4
 
-from hinoki.orm import Model, OnDelete, field, foreign_key
+from hinoki import db
+from hinoki.orm import Model, OnDelete, Related, field, foreign_key, pk
 
 
-class Author(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-    name: str
+class Customer(Model):
+    id: UUID = pk(default_factory=uuid4)
+    name: str = field(max_length=120)
+    invoices: ClassVar["Related[list[Invoice]]"]
 
 
-class Post(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-    author_id: UUID = foreign_key(
-        Author,
-        on_delete=OnDelete.RESTRICT,
-        related_name="posts",
+@db.indexed("customer_id")
+class Invoice(Model):
+    id: UUID = pk(default_factory=uuid4)
+    customer_id: UUID = foreign_key(
+        Customer, on_delete=OnDelete.RESTRICT, related_name="invoices"
     )
-    title: str
+    reference: str = field(max_length=40, unique=True)
+    customer: ClassVar[Related[Customer]]
 ```
 
-The `author_id` field is stored on `posts`. The forward relation is `post.author`; `author.posts` is the reverse relation. The foreign-key type must match the referenced primary-key type. `on_delete` is required, so what happens to a row when the row it references is deleted is always a decision. Its value is a member of the `OnDelete` enum (`from hinoki.orm import OnDelete`):
+`customer_id` is stored on `billing_invoices`. `invoice.customer` is the
+forward relation (named after the column without `_id`); `customer.invoices` is
+the reverse relation, created only when `related_name` is set. The
+`ClassVar[Related[...]]` lines are for type checkers. The column type must match
+the referenced primary key.
+
+`on_delete` is required and takes an `OnDelete` member:
 
 | `on_delete` | When the referenced row is deleted |
 | --- | --- |
-| `OnDelete.RESTRICT` | The delete is refused while referencing rows exist |
-| `OnDelete.CASCADE` | The referencing rows are deleted too |
-| `OnDelete.SET_NULL` | The column is set to `NULL`; the field must be annotated `| None` |
-| `OnDelete.NO_ACTION` | Like `RESTRICT`, checked by the database at the end of the statement |
+| `OnDelete.RESTRICT` | the delete is refused while references exist |
+| `OnDelete.CASCADE` | referencing rows are deleted too |
+| `OnDelete.SET_NULL` | the column becomes `NULL`; the field must be `\| None` |
+| `OnDelete.NO_ACTION` | like `RESTRICT`, checked at the end of the statement |
 
-Only enum members are accepted. Text such as `on_delete="cascade"`, which earlier revisions took, is reported by a type checker and refused with a `RegistrationError` when the module is imported. `OnDelete.SET_NULL` on a field without `| None` is refused the same way, before any migration is planned:
-
-```python
-class Note(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-    post_id: UUID | None = foreign_key(Post, on_delete=OnDelete.SET_NULL, default=None)
-```
-
-The rule is written into the `REFERENCES ... ON DELETE` clause of the generated migration and enforced by the database.
-
-## Foreign keys in abstract models and mixins
-
-A foreign key declared in an [abstract model or a mixin](models.md#share-fields-abstract-models-and-mixins) is registered once for each table model that inherits it. The forward relation keeps its name on every model. The reverse name must differ, so write it with the `{model}` placeholder, which becomes the inheriting class's name in lower case:
+Text such as `on_delete="cascade"`, and `SET_NULL` on a non-nullable field, are
+refused with `RegistrationError` at import:
 
 ```python
-class Owned(Model, abstract=True):
-    team_id: UUID = foreign_key(
-        Team, on_delete=OnDelete.CASCADE, related_name="{model}_set"
+# notes/apps/billing/models.py (continued)
+@db.indexed("invoice_id")
+class Payment(Model):
+    id: UUID = pk(default_factory=uuid4)
+    invoice_id: UUID | None = foreign_key(
+        Invoice, on_delete=OnDelete.SET_NULL, default=None
     )
-
-
-class Article(Owned):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-
-
-class Page(Owned):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
 ```
 
-`Team` gets the reverse relations `article_set` and `page_set`. With a fixed `related_name`, the second model that inherits the field is refused with an error naming both models. A table model that subclasses another table model copies the column and the forward relation; it gets a reverse relation of its own only when the name uses the placeholder, because a fixed name already belongs to its parent. A foreign key cannot reference an abstract model, which has no table. `{model}` is the only placeholder. Without `related_name` there is no reverse relation and nothing can collide.
+The rule becomes the migration's `REFERENCES … ON DELETE` clause and the
+database enforces it.
 
-## Load related rows explicitly
-
-Use `select_related` for a forward foreign key when a query needs one related row (one `LEFT JOIN` in the same statement; `acount()` and `apaginate()` leave that join out of their `COUNT`, since loading a to-one relation cannot change the row count, but keep a join that a filter such as `author__name=...` needs). Use `prefetch_related` for a reverse or collection relation; it issues a separate bounded query and attaches the results.
+## Load related rows
 
 ```python
-posts = await Post.all().select_related("author")
-for post in posts:
-    print(post.author.name)
+# inside an async operation
+invoices = await Invoice.all().select_related("customer")
+names = [invoice.customer.name for invoice in invoices]
+
+customers = await Customer.all().prefetch_related("invoices")
+counts = {c.id: len(c.invoices) for c in customers}
 ```
 
-Accessing an unloaded relation raises a relation-loading error. Load the relation explicitly so the query is visible in the calling code.
+| Method | Use for | SQL |
+| --- | --- | --- |
+| `select_related("customer")` | a forward foreign key (one row) | one `LEFT JOIN` in the same statement |
+| `prefetch_related("invoices")` | a reverse or collection relation | one separate, bounded query |
 
-## One-to-one relations
+Reading a relation that was not loaded raises `RelationNotLoaded`. `acount()`
+and `apaginate()` drop a `select_related` join from their `COUNT` (a to-one
+join cannot change the count) but keep a join a filter needs, such as
+`customer__name=...`.
 
-A one-to-one relation uses the same foreign-key declaration with `unique=True`;
-there is no separate field helper. The unique constraint enforces that each
-target is referenced by at most one row. Keep the reverse relation explicit
-with `related_name`:
+## One-to-one
+
+A one-to-one relation is a foreign key with `unique=True`:
 
 ```python
-from __future__ import annotations
-
-from typing import ClassVar
-from uuid import UUID, uuid4
-
-from hinoki.orm import Model, OnDelete, field, foreign_key
-from hinoki.orm.relations import Related
-
-
-class User(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-    profile: ClassVar[Related[Profile | None]]
-
-
-class Profile(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-    user_id: UUID = foreign_key(
-        User,
-        on_delete=OnDelete.CASCADE,
-        unique=True,
-        related_name="profile",
+# notes/apps/billing/models.py (continued)
+class BillingProfile(Model):
+    id: UUID = pk(default_factory=uuid4)
+    customer_id: UUID = foreign_key(
+        Customer, on_delete=OnDelete.CASCADE, unique=True, related_name="profile"
     )
-    user: ClassVar[Related[User]]
+    vat_number: str = field(max_length=20)
+    customer: ClassVar[Related[Customer]]
 ```
 
-The forward `profile.user` relation has one required target. The reverse
-`user.profile` relation is `Profile | None`: a user may not have a profile.
-Load it explicitly and in a bounded number of queries:
+Add `profile: ClassVar["Related[BillingProfile | None]"]` to `Customer` for
+type checkers. `profile.customer` has one required target; `customer.profile` is
+`BillingProfile | None`. Load them with `select_related("customer")` and
+`prefetch_related("profile")`. If the database has drifted and holds several
+rows for one customer, `prefetch_related` raises `MultipleObjectsReturned`.
+
+The migration creates the foreign key and the unique constraint together. It
+fails on existing duplicates; clean them up first. Turning an existing foreign
+key into `unique=True` rebuilds the table on SQLite and needs a hand-written
+migration on PostgreSQL, MySQL and MariaDB.
+
+## Many-to-many
+
+There is no implicit join table or `through=`: declare the association model.
 
 ```python
-profiles = await Profile.all().select_related("user")
-users = await User.all().prefetch_related("profile")
-```
-
-`select_related` joins the forward target into the profile query;
-`prefetch_related` uses one batched query for profiles and returns one profile
-or `None` per user. Neither access pattern performs lazy queries. If a database
-has drifted and contains multiple rows despite the unique declaration,
-`prefetch_related` raises `MultipleObjectsReturned` rather than choosing one.
-Migrations create the FK and unique constraint together; applying a unique
-constraint to existing duplicate data fails and requires an explicit data
-cleanup before retrying. When changing an existing foreign key to `unique=True`,
-SQLite rebuilds the table and may reject duplicates; MySQL, MariaDB and
-PostgreSQL require a hand-written migration for the uniqueness change. Resolve
-duplicates before applying the constraint.
-
-Many-to-many relationships are represented by an explicit join model with two foreign keys and a composite `@unique` constraint. There is no implicit many-to-many table or `through=` shortcut.
-
-## Model a many-to-many relationship
-
-Define a model for the association table. Each row links one post to one tag; the composite uniqueness constraint prevents the same pair from being inserted twice.
-
-```python
-from typing import ClassVar
-from uuid import UUID, uuid4
-
-from hinoki.orm import Model, OnDelete, field, foreign_key, unique
-from hinoki.orm.relations import Related
-
-
-class Post(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-    title: str
-    tag_links: ClassVar["Related[list[PostTag]]"]
+# notes/apps/billing/models.py (continued)
+from hinoki.orm import unique
 
 
 class Tag(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-    name: str
-    post_links: ClassVar["Related[list[PostTag]]"]
+    id: UUID = pk(default_factory=uuid4)
+    name: str = field(max_length=40, unique=True)
+    invoice_links: ClassVar["Related[list[InvoiceTag]]"]
 
 
-@unique("post_id", "tag_id")
-class PostTag(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-    post_id: UUID = foreign_key(
-        Post, on_delete=OnDelete.CASCADE, related_name="tag_links"
+@unique("invoice_id", "tag_id")
+@db.indexed("tag_id")
+class InvoiceTag(Model):
+    id: UUID = pk(default_factory=uuid4)
+    invoice_id: UUID = foreign_key(
+        Invoice, on_delete=OnDelete.CASCADE, related_name="tag_links"
     )
     tag_id: UUID = foreign_key(
-        Tag, on_delete=OnDelete.CASCADE, related_name="post_links"
+        Tag, on_delete=OnDelete.CASCADE, related_name="invoice_links"
     )
 ```
 
-Create a link by inserting a `PostTag` row. To read a post's tags, query the join model and load its `tag` foreign key in the same query:
+The composite unique constraint stops duplicate pairs and indexes `invoice_id`;
+`@db.indexed("tag_id")` indexes the other side. Link and read:
 
 ```python
-post = await Post.acreate(title="Release notes")
-tag = await Tag.acreate(name="docs")
-await PostTag.acreate(post_id=post.id, tag_id=tag.id)
+# inside an async operation
+tag = await Tag.acreate(name="priority")
+await InvoiceTag.acreate(invoice_id=invoice.id, tag_id=tag.id)
 
-links = await PostTag.filter(post_id=post.id).select_related("tag")
+links = await InvoiceTag.filter(invoice_id=invoice.id).select_related("tag")
 tag_names = [link.tag.name for link in links]
 ```
 
-The reverse `post.tag_links` relation contains `PostTag` rows; load it with `prefetch_related("tag_links")` before accessing it. It does not return `Tag` objects or fetch data on attribute access. A join model can also carry its own fields, such as the time a tag was added. Include all three models in the migration plan so the association table and its uniqueness constraint are created together.
+`invoice.tag_links` holds `InvoiceTag` rows (load it with
+`prefetch_related("tag_links")`), not `Tag` objects. The association model can
+carry its own columns, such as when the tag was added.
 
-This explicit form supports association rows and their foreign-key relations. Hinoki does not currently generate the join model or expose a direct `post.tags` relation.
+## Foreign keys in abstract models and mixins
 
-See [models and queries](models.md) and [migrations](migrations.md) for schema changes to foreign keys.
+A foreign key in an [abstract model or mixin](models.md#share-fields-abstract-models-and-mixins)
+is registered once per table model that inherits it. Give the reverse relation
+a per-model name with the `{model}` placeholder (the class name in lower case):
+
+```python
+# notes/apps/billing/models.py (continued)
+class CustomerOwned(Model, abstract=True):
+    customer_id: UUID = foreign_key(
+        Customer, on_delete=OnDelete.CASCADE, related_name="{model}_set"
+    )
+
+
+class CreditNote(CustomerOwned):
+    id: UUID = pk(default_factory=uuid4)
+
+
+class Estimate(CustomerOwned):
+    id: UUID = pk(default_factory=uuid4)
+```
+
+`Customer` gets `creditnote_set` and `estimate_set`. A fixed `related_name`
+makes the second inheriting model fail with an error naming both. Without
+`related_name` there is no reverse relation. A foreign key cannot reference an
+abstract model. `{model}` is the only placeholder.
+
+## See also
+
+- [Query and write rows](queries.md)
+- [Migrations](migrations.md): foreign-key changes and backend notes
