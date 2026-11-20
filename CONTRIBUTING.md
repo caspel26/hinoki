@@ -1,6 +1,6 @@
 # Contributing to Hinoki
 
-Hinoki is pre-alpha. Read [`AGENTS.md`](AGENTS.md) (the working rules, also for AI agents), [`ROADMAP.md`](ROADMAP.md) (public project status) and [`docs/toolchain.md`](docs/toolchain.md).
+Hinoki is pre-alpha. Read [`CLAUDE.md`](CLAUDE.md) (the working rules, also for AI agents; `AGENTS.md` links to it), [`ROADMAP.md`](ROADMAP.md) (public project status) and [`docs/toolchain.md`](docs/toolchain.md).
 
 ```sh
 uv sync --locked
