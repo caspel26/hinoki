@@ -119,7 +119,7 @@ uv run hinoki admin create-superuser ada            # asks for the password twic
 printf '%s\n' "$ADA_PASSWORD" | uv run hinoki admin set-password ada --password-stdin
 ```
 
-A password is read from a terminal prompt or, with `--password-stdin`, from one line of standard input; it is never taken from the command line, where other users of the machine could read it, and it is never printed. Without a terminal and without the flag the command stops; with the flag on a terminal it still prompts without echo, and a line longer than a password can be is refused unread. Ctrl-C or Ctrl-D at the prompt exits with status `2`, and a refused connection is reported as such (status `1`), not as missing tables. The database is `HINOKI_DATABASE_URL`, `--database`, or the project's local SQLite, as for `hinoki migrations`. The user tables must exist: register and apply them first (`hinoki app add admin ...`, `hinoki migrations apply admin`, see [who may sign in](admin.md#who-may-sign-in)); otherwise the command exits 1 and says so. Usernames are lower-cased; the shortest password is `admin.min_password_length`. Exit status is `0` on success, `2` for a refused input (a taken name, a weak or mistyped password, an unknown user).
+A password is read from a terminal prompt or, with `--password-stdin`, from one line of standard input; it is never taken from the command line, where other users of the machine could read it, and it is never printed. Without a terminal and without the flag the command stops; with the flag on a terminal it still prompts without echo, and a line longer than a password can be is refused unread. Ctrl-C or Ctrl-D at the prompt exits with status `2`, and a refused connection is reported as such (status `1`), not as missing tables. The database is chosen as for `hinoki migrations`: `--database`, `HINOKI_DATABASE_URL`, the project application's `database` setting, then the project's local SQLite. The user tables must exist: register and apply them first (`hinoki app add admin ...`, `hinoki migrations apply admin`, see [who may sign in](admin.md#who-may-sign-in)); otherwise the command exits 1 and says so. Usernames are lower-cased; the shortest password is `admin.min_password_length`. Exit status is `0` on success, `2` for a refused input (a taken name, a weak or mistyped password, an unknown user).
 
 ## `migrations` {#migrations}
 
@@ -141,10 +141,12 @@ likewise requires an app in a multi-app project. `--name` is optional for a
 focused plan: Hinoki derives a stable slug from the first planned schema change
 (for example, `create-table-notes`); pass `--name initial-notes` to override
 it. All-app previews cannot use `--name`. Numbering is automatic. `apply`
-initializes the configured local SQLite database when no database URL is set.
-In a manifest project the implicit `.hinoki/local.sqlite3` file is rooted
-beside `hinoki.toml`, even if you run the command from a subdirectory; explicit
-relative SQLite URLs remain relative to the current working directory. Added
+initializes the configured local SQLite database when no database is configured.
+In a manifest project the implicit `.hinoki/local.sqlite3` file, and a relative
+SQLite path from the application's settings, are rooted beside `hinoki.toml`,
+even if you run the command from a subdirectory; relative SQLite URLs given
+with `--database` or `HINOKI_DATABASE_URL` remain relative to the current
+working directory. Added
 apps have separate migration ledger namespaces, so identical numbered
 filenames do not collide; the scaffolded root app retains its existing
 unprefixed migration keys. `--app billing` includes its declared prerequisite
@@ -163,7 +165,7 @@ hinoki migrations --dir myapp/migrations apply
 hinoki migrations --dir myapp/migrations sql 0001-initial
 ```
 
-`plan` requires `--models MODULE`; `--name` is an optional slug override and is derived from the first planned schema change when omitted. `--dry-run` prints operations without writing files. Destructive operations require `--allow-destructive`. Without `HINOKI_DATABASE_URL`, plan/status/apply target the local SQLite file at `.hinoki/local.sqlite3`; `--database URL` selects another supported backend. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints `error: database: …` with a `fix:` line and exits 1; the URL is not printed. `sql NAME` prints a migration's SQL. Use a disposable database while reviewing migrations.
+`plan` requires `--models MODULE`; `--name` is an optional slug override and is derived from the first planned schema change when omitted. `--dry-run` prints operations without writing files. Destructive operations require `--allow-destructive`. plan/status/apply target `--database`, then `HINOKI_DATABASE_URL`, then the `database` setting of the project's application, then the local SQLite file at `.hinoki/local.sqlite3` ([which database](migrations.md#which-database)); `status` and `apply` print the chosen database and its source on standard error with the password masked. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints `error: database: …` with a `fix:` line and exits 1; the error itself does not repeat the URL. `sql NAME` prints a migration's SQL. Use a disposable database while reviewing migrations.
 
 On an animated terminal, `plan` and `apply` show a spinner while they work and finish with a timing line (`✔ applied   1.2s`); the commands' own output is printed unchanged before it. Piped output, `NO_COLOR`, `TERM=dumb`, `CI` and `HINOKI_ANIMATE=0` print only the commands' own output.
 

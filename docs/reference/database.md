@@ -13,8 +13,9 @@ the dialect automatically.
 
 Database URLs are secrets, so configure them through the environment rather
 than TOML. For local development, leave the URL unset to use the default
-SQLite file. To select another database for migration commands, set
-`HINOKI_DATABASE_URL`; an app can use its own secret environment setting. TOML may configure
+SQLite file. The migration commands read the application's `database` setting
+too; `HINOKI_DATABASE_URL` overrides it for them ([which
+database](../migrations.md#which-database)). TOML may configure
 non-secret pool options, for example:
 
 ```toml

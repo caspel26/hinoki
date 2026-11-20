@@ -83,6 +83,7 @@ uv run hinoki migrations apply
 ```text
 create table billing_invoices
 wrote …/notes/apps/billing/migrations/0001-create-table-billing-invoices.sql
+database: sqlite:///…/notes/.hinoki/local.sqlite3 (from local SQLite default)
 notes: nothing to apply
 billing: 0001-create-table-billing-invoices
 ```
@@ -93,8 +94,11 @@ next migration; the number and the slug come from the change. Review the
 name; `apply` runs every app in dependency order.
 
 !!! note "Where the data goes"
-    With no database URL, `apply` creates `.hinoki/local.sqlite3` beside
-    `hinoki.toml`. Set `HINOKI_DATABASE_URL` to target another database.
+    `apply` uses the application's `database` setting, so the variable that
+    configures the server, such as `NOTES_DATABASE__URL`, also configures the
+    migrations; `status` and `apply` print the database they chose. With no
+    database configured, `apply` creates `.hinoki/local.sqlite3` beside
+    `hinoki.toml`. `HINOKI_DATABASE_URL` overrides the setting for one run.
     Migrations never run when the application starts.
 
 ## Check the project

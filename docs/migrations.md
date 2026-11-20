@@ -38,10 +38,10 @@ In a project with several apps, `plan` needs the app name; `--check` and
 `--dry-run` without one cover every app.
 
 !!! warning "Plan for the backend you deploy"
-    The SQL uses the dialect of the selected URL: `--database`, then
-    `HINOKI_DATABASE_URL`, then local SQLite. Export the production backend's
-    URL (a disposable database of the same kind) before planning. The state
-    file is backend-neutral.
+    The SQL uses the dialect of the [selected database](#which-database):
+    usually the application's own `database` setting. Point it at the
+    production backend (a disposable database of the same kind) before
+    planning. The state file is backend-neutral.
 
 ## Review before applying
 
@@ -66,7 +66,6 @@ migration.
 ## Apply and inspect
 
 ```sh
-export HINOKI_DATABASE_URL="$NOTES_DATABASE__URL"
 hinoki migrations status
 hinoki migrations sql 0001-create-table-billing-invoices
 hinoki migrations apply
@@ -79,13 +78,39 @@ hinoki migrations apply billing
 | `sql NAME` | prints one migration's SQL; add `--app APP` only when the name is ambiguous |
 | `apply [APP]` | applies pending migrations of every app, or of `APP` and its prerequisites, in dependency order |
 
-The database is chosen the same way as for `plan`; application settings such
-as `NOTES_DATABASE__URL` are not read. The implicit SQLite default
-(`sqlite://./.hinoki/local.sqlite3`) is anchored beside `hinoki.toml`, so a
-subdirectory uses the same file; an explicit relative SQLite URL stays relative
-to the current directory. A connection failure prints `error: database: …`
-without the URL and exits `1`. A `--database` URL is visible in the process
-list and shell history: do not put a password in it.
+### Which database
+
+`plan`, `status` and `apply` use the first of:
+
+1. `--database URL`;
+2. the `HINOKI_DATABASE_URL` environment variable;
+3. the `database` setting of the project's application (`project.application`
+   in `hinoki.toml`), read from its settings sources as the server reads them,
+   for example `NOTES_DATABASE__URL` or `.env`;
+4. local SQLite, `sqlite://./.hinoki/local.sqlite3`.
+
+The application is imported to read its settings, but no connection opens
+until the command needs one, and nothing is started. If the settings cannot be
+loaded, the command prints a warning and continues with the local SQLite
+default, as when the application declares no `database` setting. Outside a
+project (`--models`/`--dir`), step 3 is skipped.
+
+`status` and `apply` print the chosen database and its source on standard
+error, with the password and URL options masked:
+
+```text
+$ NOTES_DATABASE__URL=postgresql://notes:secret@db.internal/notes hinoki migrations status
+database: postgresql://notes:***@db.internal/notes (from settings: ProjectSettings.database)
+```
+
+A relative SQLite path from the settings or the default is anchored beside
+`hinoki.toml`, so a subdirectory uses the same file; a relative SQLite URL
+given with `--database` or `HINOKI_DATABASE_URL` stays relative to the current
+directory. Settings files such as `.env` are read relative to the current
+directory, so run the commands from the directory you start the server in. A
+connection failure prints `error: database: …` and exits `1`. A `--database`
+URL is visible in the process list and shell history: do not put a password in
+it.
 
 The root app keeps unprefixed ledger keys; added apps use namespaced keys, so
 `accounts/0001-initial.sql` and `billing/0001-initial.sql` are distinct records.
