@@ -72,6 +72,7 @@ def close_project_sync(project_id: int) -> None:
     Task.update_where({"project_id": project_id}, {"done": True})
     Project.update(id=project_id, closed=True)
 
+
 def archive(project: Project) -> None:
     with db.atomic():
         project.archived = True
