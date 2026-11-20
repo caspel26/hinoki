@@ -40,11 +40,13 @@ use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
 use bytes::Bytes;
-use http_body_util::{BodyExt, Full};
+use http_body_util::BodyExt;
 use hyper::body::{Body, Frame, SizeHint};
 use hyper::Response;
 use tokio::sync::Notify;
 use tokio::time::timeout;
+
+use crate::stream::{Aborted, Live, Reply};
 
 /// Size of the DATA frames a response is cut into.
 const CHUNK: usize = 16 * 1024;
@@ -179,18 +181,49 @@ impl Drop for Entry {
 /// A response body that reaches hyper in [`CHUNK`]-sized frames.
 pub struct Chunked {
     rest: Bytes,
+    /// A body still being produced; `rest` is empty while this is set.
+    live: Option<Live>,
     entry: Entry,
+}
+
+impl Chunked {
+    /// A frame of a body the backend is still producing. A producer that
+    /// failed is not a client reset, so the entry is complete either way.
+    fn poll_live(
+        live: &mut Live,
+        entry: &mut Entry,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Bytes>, Aborted>>> {
+        match live.poll_piece(cx, CHUNK) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(Some(Ok(chunk))) => {
+                entry.streams.touch(entry.id);
+                Poll::Ready(Some(Ok(Frame::data(chunk))))
+            }
+            Poll::Ready(Some(Err(aborted))) => {
+                entry.done = true;
+                Poll::Ready(Some(Err(aborted)))
+            }
+            Poll::Ready(None) => {
+                entry.done = true;
+                Poll::Ready(None)
+            }
+        }
+    }
 }
 
 impl Body for Chunked {
     type Data = Bytes;
-    type Error = Infallible;
+    type Error = Aborted;
 
     fn poll_frame(
         self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Frame<Bytes>, Infallible>>> {
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Bytes>, Aborted>>> {
         let this = self.get_mut();
+        if let Some(live) = this.live.as_mut() {
+            return Self::poll_live(live, &mut this.entry, cx);
+        }
         if this.rest.is_empty() {
             this.entry.done = true;
             return Poll::Ready(None);
@@ -211,11 +244,17 @@ impl Body for Chunked {
     }
 
     fn is_end_stream(&self) -> bool {
-        self.rest.is_empty()
+        match &self.live {
+            Some(live) => live.is_done(),
+            None => self.rest.is_empty(),
+        }
     }
 
     fn size_hint(&self) -> SizeHint {
-        SizeHint::with_exact(self.rest.len() as u64)
+        match &self.live {
+            Some(_) => SizeHint::default(),
+            None => SizeHint::with_exact(self.rest.len() as u64),
+        }
     }
 }
 
@@ -223,18 +262,23 @@ impl Body for Chunked {
 /// entry alive until hyper drops the body. Dropped before it completes (the
 /// client reset the stream), the entry counts as a reset.
 pub async fn track(
-    answered: impl Future<Output = Result<Response<Full<Bytes>>, Infallible>>,
+    answered: impl Future<Output = Result<Response<Reply>, Infallible>>,
     mut entry: Entry,
 ) -> Result<Response<Chunked>, Infallible> {
     let Ok(response) = answered.await;
     let (parts, body) = response.into_parts();
-    let Ok(collected) = body.collect().await;
-    let rest = collected.to_bytes();
-    entry.done = rest.is_empty();
-    if !rest.is_empty() {
+    let (rest, live) = match body {
+        Reply::Whole(full) => {
+            let Ok(collected) = full.collect().await;
+            (collected.to_bytes(), None)
+        }
+        Reply::Live(live) => (Bytes::new(), Some(live)),
+    };
+    entry.done = rest.is_empty() && live.is_none();
+    if !rest.is_empty() || live.is_some() {
         entry.sending = true;
         entry.streams.touch(entry.id);
         entry.streams.changed.notify_one();
     }
-    Ok(Response::from_parts(parts, Chunked { rest, entry }))
+    Ok(Response::from_parts(parts, Chunked { rest, live, entry }))
 }
