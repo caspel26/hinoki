@@ -1,7 +1,3 @@
----
-status: implemented
----
-
 <p class="bench-eyebrow">FIELD NOTE · 2026-11-17 16:55:42 +0100 · Linux-7.2.11-arch1-1-x86_64-with-glibc2.44</p>
 
 # Benchmarks
