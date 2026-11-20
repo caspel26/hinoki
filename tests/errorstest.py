@@ -260,3 +260,23 @@ async def test_an_application_handler_replaces_the_unique_default(pool: Pool) ->
     )
     reply = await (await pool.start(app)).request("GET", "/unique")
     assert reply.body["error"] == "already_taken"
+
+
+def test_error_headers_are_checked_like_response_headers() -> None:
+    from hinoki.runtime.responses import public_error
+
+    error = BadRequest(
+        headers={
+            "x-hint": "retry",
+            "x-split": "v\r\nset-cookie: s=1",
+            "content-length": "999",
+            "transfer-encoding": "chunked",
+            "bad name": "x",
+        }
+    )
+
+    names = [name for name, _ in public_error(error).headers]
+
+    assert names.count(b"content-length") <= 1 and b"transfer-encoding" not in names
+    assert b"x-hint" in names
+    assert b"x-split" not in names and b"bad name" not in names
