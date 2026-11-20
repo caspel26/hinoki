@@ -37,7 +37,8 @@ CROSS_SITE = {"cross-site", "same-site"}
 class Csrf:
     """Token issue and verification for one admin."""
 
-    def __init__(self, secret: str | bytes) -> None:
+    def __init__(self, secret: str | bytes, cookie: str = COOKIE) -> None:
+        self.cookie = cookie
         key = secret.encode() if isinstance(secret, str) else bytes(secret)
         if len(key) < MIN_SECRET:
             raise ValueError(f"the admin secret needs at least {MIN_SECRET} bytes")
@@ -59,14 +60,14 @@ class Csrf:
 
     def issue(self, request: Request, subject: str) -> tuple[str, bool]:
         """``(token, is_new)``: reuse the caller's genuine cookie, else mint one."""
-        existing = request.COOKIES.get(COOKIE, "")
+        existing = request.COOKIES.get(self.cookie, "")
         if self.genuine(existing, subject):
             return existing, False
         return self.mint(subject), True
 
     def valid(self, request: Request, subject: str) -> bool:
         """Cookie equals field, the MAC is ours for this subject, same site."""
-        cookie = request.COOKIES.get(COOKIE, "")
+        cookie = request.COOKIES.get(self.cookie, "")
         sent = request.POST.get(FIELD, "")
         return (
             same_site(request)
@@ -87,12 +88,17 @@ def same_site(request: Request) -> bool:
 
 
 def cookie_header(
-    request: Request, token: str, prefix: str, *, secure: bool | None = None
+    request: Request,
+    token: str,
+    prefix: str,
+    *,
+    secure: bool | None = None,
+    name: str = COOKIE,
 ) -> tuple[str, str]:
     """The ``set-cookie`` header; ``secure=None`` follows the request scheme (set
     it explicitly behind a TLS-terminating proxy)."""
     return set_cookie(
-        COOKIE,
+        name,
         token,
         path=prefix or "/",
         http_only=True,

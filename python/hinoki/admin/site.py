@@ -266,7 +266,11 @@ class Site:
         if self.fresh:
             headers.append(
                 cookie_header(
-                    self.request, self.token, admin.base, secure=admin.secure_cookies
+                    self.request,
+                    self.token,
+                    admin.base,
+                    secure=admin.secure_cookies,
+                    name=admin.csrf.cookie,
                 )
             )
         return Response(status, html, headers, "text/html; charset=utf-8")
