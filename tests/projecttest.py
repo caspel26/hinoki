@@ -1253,7 +1253,9 @@ def test_a_new_project_serves_its_routes_from_the_manifest(
         monkeypatch.delitem(sys.modules, name)
     manifest = (project / "hinoki.toml").read_text(encoding="utf-8")
     assert 'routes = "routedsample.routes:routes"' in manifest
-    assert "include=[" not in (project / "routedsample" / "main.py").read_text()
+    assert "include=manifest_routes()" in (
+        project / "routedsample" / "main.py"
+    ).read_text(encoding="utf-8")
 
     app = importlib.import_module("routedsample.main").app
     assert [route.path for route in app.routes] == ["/health"]
@@ -1270,12 +1272,21 @@ def test_app_create_registers_the_routes_of_the_new_app(
     for name in [key for key in sys.modules if key.startswith("billedsample")]:
         monkeypatch.delitem(sys.modules, name)
 
-    assert main(["app", "create", "billing"]) == 0
-    routes_file = project / "billedsample" / "apps" / "billing" / "routes.py"
-    assert "routes: list[object] = []" in routes_file.read_text(encoding="utf-8")
+    assert main(["app", "create", "billing", "--prefix", "/payments"]) == 0
+    app_directory = project / "billedsample" / "apps" / "billing"
+    routes_file = app_directory / "routes.py"
+    routes_text = routes_file.read_text(encoding="utf-8")
+    assert "routes: list[Includable] = []" in routes_text
+    assert "mounted at /payments by hinoki.toml" in routes_text
+    assert "# from billedsample.apps.billing.api import" in routes_text
+    assert "RouteGroup(" in (app_directory / "api.py").read_text(encoding="utf-8")
+    app = importlib.import_module("billedsample.main").app
+    assert [route.path for route in app.routes] == ["/health"]
+    for name in [key for key in sys.modules if key.startswith("billedsample")]:
+        monkeypatch.delitem(sys.modules, name)
     manifest = (project / "hinoki.toml").read_text(encoding="utf-8")
     assert 'routes = "billedsample.apps.billing.routes:routes"' in manifest
-    assert 'prefix = "/billing"' in manifest
+    assert 'prefix = "/payments"' in manifest
 
     routes_file.write_text(
         "from hinoki import http\n\n\n"
@@ -1284,17 +1295,17 @@ def test_app_create_registers_the_routes_of_the_new_app(
         encoding="utf-8",
     )
     app = importlib.import_module("billedsample.main").app
-    assert [route.path for route in app.routes] == ["/health", "/billing/invoices"]
+    assert [route.path for route in app.routes] == ["/health", "/payments/invoices"]
 
     capsys.readouterr()
     assert main(["app", "list"]) == 0
     listing = capsys.readouterr().out
-    assert "routes: billedsample.apps.billing.routes:routes at /billing" in listing
+    assert "routes: billedsample.apps.billing.routes:routes at /payments" in listing
     assert main(["app", "list", "--format", "json"]) == 0
     rows = json.loads(capsys.readouterr().out)["apps"]
     assert [(row["name"], row["prefix"]) for row in rows] == [
         ("billedsample", ""),
-        ("billing", "/billing"),
+        ("billing", "/payments"),
     ]
 
 
