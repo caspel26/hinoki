@@ -441,7 +441,20 @@
 <span class="nd">@db</span><span class="o">.</span><span class="n">atomic</span><span class="p">()</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">reopen_project</span><span class="p">(</span><span class="n">project_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
-<p>Each call of a decorated function opens its own scope: returning commits, an exception rolls back and propagates. The wrapper keeps the function's name, docstring, signature and annotations (<code>functools.wraps</code>). <code>db.atomic</code> wraps coroutine functions only: decorating a plain <code>def</code> raises <code>TypeError</code> when the decorator is applied, because raw database operations are async-only (see <a href="../sync-async/">sync and async</a>).</p>
+<p>Each call of a decorated function opens its own scope: returning commits, an exception rolls back and propagates. The wrapper keeps the function's name, docstring, signature and annotations (<code>functools.wraps</code>).</p>
+<p>In a sync handler, hook or helper, use the same API without <code>await</code>: <code>with db.atomic():</code> as a block, or <code>@db.atomic</code> on a plain <code>def</code>. The sync model methods (<code>create</code>, <code>update</code>, <code>bulk_create</code>, ...) inside it run in the same transaction:</p>
+<div class="highlight"><pre><span></span><code><span class="nd">@db</span><span class="o">.</span><span class="n">atomic</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">close_project_sync</span><span class="p">(</span><span class="n">project_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">Task</span><span class="o">.</span><span class="n">update_where</span><span class="p">({</span><span class="s2">"project_id"</span><span class="p">:</span> <span class="n">project_id</span><span class="p">},</span> <span class="p">{</span><span class="s2">"done"</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+    <span class="n">Project</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">project_id</span><span class="p">,</span> <span class="n">closed</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">archive</span><span class="p">(</span><span class="n">project</span><span class="p">:</span> <span class="n">Project</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">with</span> <span class="n">db</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+        <span class="n">project</span><span class="o">.</span><span class="n">archived</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">project</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+</code></pre></div>
+<p>The sync forms only work on a worker thread served by Hinoki, as the sync model methods do; on the event loop they raise <code>RuntimeError</code> (use <code>async with</code> there). A nested sync scope is a savepoint, like the async one. Raw <code>Database.execute</code> and <code>fetch</code> remain async-only (see <a href="../sync-async/">sync and async</a>).</p>
 <p><code>db.atomic()</code> is <code>current_database().atomic()</code> resolved when the block is entered or the function is called. When you hold a <code>Database</code> yourself (a script, a module lifespan, <code>ctx.get(Database)</code>), call <code>database.atomic()</code> directly; it behaves the same. <code>Database.migration()</code> is the separate, exclusive scope used for migrations.</p>
 <h3 id="nesting-and-savepoints">Nesting and savepoints<a class="headerlink" href="#nesting-and-savepoints" title="Permanent link">&para;</a></h3>
 <p>A scope opened while another scope of the same task is already open becomes a savepoint, whether it comes from <code>atomic=True</code>, <code>async with</code>, or a decorated function. An exception inside the inner scope rolls back only that savepoint; the outer transaction continues and commits when it ends. A decorated function called from an <code>atomic=True</code> action therefore joins the request's transaction as a savepoint rather than committing on its own.</p>
@@ -499,7 +512,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.19</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 02:12:16 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/transactions.md">Edit on GitHub</a></dd></div>
         </dl>
