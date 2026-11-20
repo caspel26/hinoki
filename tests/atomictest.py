@@ -1,5 +1,6 @@
 """``db.atomic``: an atomic block or coroutine function on the current database."""
 
+import asyncio
 import inspect
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
@@ -235,3 +236,43 @@ async def test_a_decorated_function_rolls_back_on_the_native_lane(
     finally:
         await worker.stop()
     assert await names(database) == ["native"]
+
+
+class FakeScope:
+    def __init__(self, name: str, log: list[tuple[str, bool]]) -> None:
+        self.name = name
+        self.log = log
+
+    async def __aenter__(self) -> "FakeScope":
+        return self
+
+    async def __aexit__(self, exc_type: object, *rest: object) -> None:
+        self.log.append((self.name, exc_type is not None))
+
+
+async def test_one_atomic_object_keeps_a_scope_stack_per_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    log: list[tuple[str, bool]] = []
+    names_iter = iter(["a", "b"])
+    monkeypatch.setattr(
+        "hinoki.db.current_scope", lambda: FakeScope(next(names_iter), log)
+    )
+    shared = db.atomic()
+    first_in = asyncio.Event()
+    second_in = asyncio.Event()
+
+    async def first() -> None:
+        async with shared:
+            first_in.set()
+            await second_in.wait()
+            raise ValueError
+
+    async def second() -> None:
+        await first_in.wait()
+        async with shared:
+            second_in.set()
+            await asyncio.sleep(0.05)
+
+    await asyncio.gather(first(), second(), return_exceptions=True)
+    assert sorted(log) == [("a", True), ("b", False)]
