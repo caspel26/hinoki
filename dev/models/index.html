@@ -548,6 +548,12 @@ unsupported types fail during model or migration validation.</p>
 <span class="n">page</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">done</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">apaginate</span><span class="p">(</span><span class="n">PageParams</span><span class="p">(</span><span class="n">page</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">page_size</span><span class="o">=</span><span class="mi">20</span><span class="p">))</span>
 </code></pre></div>
 <p>Filters accept validated field names and supported comparison/membership operators. Values are bound parameters; SQL identifiers are compiled from model metadata. Query methods do not issue SQL until an evaluation method such as awaiting the query, <code>aget</code>, <code>acount</code>, <code>aupdate</code> or <code>adelete</code> is called.</p>
+<p>Filter semantics follow SQL:</p>
+<ul>
+<li><code>field__ne=value</code> compiles to <code>&lt;&gt;</code>, so rows where the column is <code>NULL</code> are not returned. Filter on <code>isnull</code> separately when those rows matter.</li>
+<li><code>contains</code> matches text case-insensitively and treats <code>%</code>, <code>_</code> and <code>\</code> in the value literally. On SQLite the case folding is ASCII-only. On MySQL and MariaDB the escaping assumes the connection does not use the <code>NO_BACKSLASH_ESCAPES</code> SQL mode, which is off by default.</li>
+<li><code>apaginate</code> runs the count and the page as two statements, so rows written between them can make <code>total</code> and <code>items</code> disagree slightly.</li>
+</ul>
 <p><code>@ordered_by</code> supplies ordering only when a query does not specify <code>order_by</code>. An explicit order replaces it. Counts and bulk updates do not inherit default ordering.</p>
 <h2 id="reusable-queries">Reusable queries<a class="headerlink" href="#reusable-queries" title="Permanent link">&para;</a></h2>
 <p>A reusable query is a typed class method that returns a <code>QuerySet</code>. Hinoki has no hidden default manager: <code>Model.all()</code> always means every row.</p>
@@ -807,7 +813,7 @@ unsupported types fail during model or migration validation.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 02:05:40 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 02:29:10 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>17 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
