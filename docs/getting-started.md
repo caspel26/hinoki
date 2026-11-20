@@ -1,26 +1,38 @@
+---
+status: implemented
+related:
+  - quick-start.md
+  - cli.md
+---
+
 # Installation
 
-Hinoki is pre-alpha and this repository is not published on PyPI. The [`hinoki` project name](https://pypi.org/project/hinoki/) currently resolves to an unrelated legacy package. Install this repository from source with [uv](https://docs.astral.sh/uv/) and a stable Rust toolchain:
+Hinoki is pre-alpha and installs from a source checkout. You need:
+
+- Python 3.12 or newer
+- [uv](https://docs.astral.sh/uv/) 0.9 or newer
+- a stable Rust toolchain from [rustup](https://rustup.rs/)
+
+## Install from source
 
 ```sh
 git clone https://github.com/caspel26/hinoki
 cd hinoki
 uv sync --locked
+uv run hinoki version
 ```
 
-`uv sync` builds the native extension and installs the development tools.
+`uv sync --locked` builds the Rust extension and installs the development tools.
+The last command confirms the installation:
 
-## Create a project
-
-The CLI creates a small app with typed settings, default rules, tests and agent instructions:
-
-```sh
-uv run hinoki new bookmarks --dir ..
-cd ../bookmarks
-uv sync
-uv run pytest
+```text
+hinoki 0.0.1
 ```
 
-The generated project includes a health route listed in `routes.py` (the manifest points to it), a test that needs no database, a `README.md` with its commands and a development MCP configuration. Review `AGENTS.md` for its project commands and conventions. `pyproject.toml` names this repository as the source for `uv`, so it does not install the unrelated package by name; see [`hinoki new`](cli.md#new) to choose a checkout or a git revision with `--hinoki`.
+!!! warning "Not on PyPI"
+    The [`hinoki` name on PyPI](https://pypi.org/project/hinoki/) belongs to an
+    unrelated legacy package: do not install Hinoki by name. A project created
+    with `hinoki new` points `uv` at this checkout in `pyproject.toml`
+    (`[tool.uv.sources]`), so `uv sync` never fetches that package.
 
-Continue with the [Quick start](quick-start.md) to run the Notes API, create its table with a reviewed migration and make a request.
+Next: the [Quick start](quick-start.md) creates and serves a project.

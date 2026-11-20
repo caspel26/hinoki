@@ -85,48 +85,60 @@ nav:
       - Overview: guides.md
       - Data:
           - Configure a database: databases.md
-          - Models and queries: models.md
-          - Schemas: schemas.md
-          - Model-derived schemas: model-schemas.md
+          - Define models: models.md
           - Model options: model-options.md
-          - Utilities: utilities.md
           - Relations: relations.md
+          - Query and write rows: queries.md
+          - Lifecycle hooks: model-hooks.md
           - Migrations: migrations.md
+          - Schemas: schemas.md
+          - Scalar field types: schema-types.md
+          - Collections and unions: schema-collections.md
+          - Validate input: schema-validation.md
+          - Schemas from models: model-schemas.md
+          - Time and utilities: utilities.md
       - Endpoints:
-          - Endpoint declarations: endpoints.md
+          - Function-based APIs: function-endpoints.md
+          - Class-based APIs: class-endpoints.md
+          - Register routes: routes.md
+          - Requests and responses: endpoints.md
           - Generate CRUD routes: crud.md
-          - OpenAPI: openapi.md
           - Errors: errors.md
           - Pagination: pagination.md
           - Parsers and renderers: codecs.md
+          - OpenAPI document: openapi.md
       - Security and checks:
           - Authentication and access: authentication.md
+          - Hosts, CORS and HTTPS: web-security.md
           - Rules: rules.md
       - Runtime:
           - Application modules: modules.md
           - Transactions: transactions.md
           - Settings: settings.md
-          - Serving: serving.md
-          - Testing: testing.md
+          - Serve an application: serving.md
+          - Kiso server: kiso.md
+          - Test an application: testing.md
           - Command line: cli.md
+          - Create a project: new-project.md
+          - Inspect an application: inspect.md
           - Interactive shell: shell.md
           - Typing: typing.md
       - Integrations:
-          - Admin: admin.md
-          - Application MCP: app-mcp.md
+          - Add an admin: admin.md
+          - Customize the admin: admin-customize.md
+          - Expose actions over MCP: app-mcp.md
           - Development MCP: dev-mcp.md
-          - Development tools: ai-workflow.md
+          - Build with a coding agent: ai-workflow.md
       - Operating:
-          - Sync and async: sync-async.md
-          - Benchmarks:
-              - Comparative results: benchmarks.md
-              - Native CRUD orientation: rust-crud-orientation.md
+          - Sync and async code: sync-async.md
+          - Benchmarks: benchmarks.md
+          - Generated CRUD on the native path: rust-crud-orientation.md
   - Concepts:
-      - Overview: concepts.md
+      - Concepts: concepts.md
       - Request lifecycle: request-lifecycle.md
-      - Architecture patterns: patterns.md
-      - Own schemas and ORM: ecosystem.md
+      - Structure an application: patterns.md
       - Glossary: glossary.md
+      - Use other libraries: ecosystem.md
   - Reference:
       - Overview: reference/index.md
       - Core API: reference/web.md
@@ -139,7 +151,7 @@ nav:
       - Settings: reference/settings.md
       - Rules: reference/rules.md
       - Modules and runtime: reference/runtime.md
-      - MCP and scaffold: reference/tools.md
+      - AI tools: reference/tools.md
       - Admin: reference/admin.md
       - Testing: reference/testing.md
       - Utilities: reference/utilities.md

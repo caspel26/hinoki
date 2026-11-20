@@ -1,4 +1,11 @@
-# Toolchain
+---
+status: implemented
+related:
+  - documentation-versions.md
+  - benchmarks.md
+---
+
+# Toolchain and CI
 
 All Python commands run through **uv** with the lock enforced; Rust through **Cargo**. CI runs the same commands.
 

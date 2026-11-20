@@ -1,57 +1,109 @@
 ---
 status: implemented
+related:
+  - models.md
+  - migrations.md
+  - utilities.md
 ---
 
 # Model options
 
-Options that describe a model beyond its columns are **decorators**, read like the action decorators. Hinoki has no nested `class Meta`. Only what is needed when the class is created stays a class keyword.
+Options that describe a model beyond its columns are decorators, read top to
+bottom like action decorators. There is no nested `class Meta`; only names stay
+class keywords.
 
 ```python
+# notes/apps/billing/models.py
 from datetime import datetime
 from uuid import UUID, uuid4
 
 from hinoki import db
-from hinoki.orm import Model, OnDelete, field, foreign_key, timestamps, unique
+from hinoki.orm import Model, OnDelete, field, foreign_key, pk, timestamps, unique
 from hinoki.utils import utc_now
 
-
-class Member(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
+from .customers import Customer
 
 
-@unique("owner_id", "url")
-@db.indexed("owner_id", "created_at")
+@unique("customer_id", "reference")
+@db.indexed("customer_id", "created_at")
 @db.ordered_by("-created_at", "-id")
 @timestamps()
-@db.table("saved_links")
-class Bookmark(Model, label="Saved link", plural="Saved links"):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-    owner_id: UUID = foreign_key(
-        Member, on_delete=OnDelete.RESTRICT, related_name="bookmarks"
+class Quote(Model, label="Quote", plural="Quotes"):
+    id: UUID = pk(default_factory=uuid4)
+    customer_id: UUID = foreign_key(
+        Customer, on_delete=OnDelete.RESTRICT, related_name="quotes"
     )
-    url: str = field(max_length=500)
+    reference: str = field(max_length=40)
     created_at: datetime = field(default_factory=utc_now)
     updated_at: datetime = field(default_factory=utc_now)
 ```
 
 | Option | Form | Effect |
 | --- | --- | --- |
-| table | `@db.table("saved_links")` or `table="saved_links"` (optional) | overrides the default `<app>_<models>` table name derived from the class and its module; the two forms may be combined only with the same name |
-| app | `app="billing"` (optional class keyword) | replaces the app part of the derived `<app>_<models>` table name; ignored when the table is named explicitly |
-| labels | `label=`, `plural=` (optional class keywords) | override the humanized singular and plural display names derived from the class |
-| composite uniqueness | `@unique("a", "b")` | a `UNIQUE (a, b)` constraint; a single column uses `field(unique=True)` |
-| index | `field(index=True)` for one column; `@db.indexed("a", "b")` for one or more columns | a `CREATE INDEX` planned by the migration tool; adding or removing one is a non-destructive migration |
-| default order | `@db.ordered_by("-created_at", "id")` | every query without `order_by` (lists, pages) is ordered this way; `"-"` is descending; an explicit `order_by` replaces it, counts and bulk updates ignore it |
-| update timestamp | `@timestamps()` | refresh a declared `updated_at: datetime` field for every ORM update statement; use `@timestamps("modified_at", clock=...)` to customize |
+| single-column index | `field(index=True)` | `CREATE INDEX` on one column |
+| composite or foreign-key index | `@db.indexed("a", "b")` | `CREATE INDEX` on the columns, in order |
+| composite uniqueness | `@unique("a", "b")` | `UNIQUE (a, b)`; one column uses `field(unique=True)` |
+| default order | `@db.ordered_by("-created_at", "id")` | order of queries without `order_by`; `-` is descending |
+| update timestamp | `@timestamps()` | refreshes `updated_at` on every ORM update |
+| table name | `@db.table("quotes")` (optional) | replaces the derived `<app>_<models>` name |
+| app part of the name | `app="sales"` (class keyword, optional) | replaces `<app>`; ignored with an explicit table |
+| display names | `label=`, `plural=` (class keywords, optional) | replace the derived singular and plural |
 
-* `pk(default_factory=...)` is a shorthand for a primary key field; it requires an explicit default or factory for static constructor typing. Existing `field(primary_key=True, ...)` remains valid.
-* `db.table`, `db.indexed` and `db.ordered_by` are the same decorators as `hinoki.orm.table`, `indexed` and `ordered_by`; import them from either place. Naming the table twice with different names (two `@db.table` decorators, or one and `table=`) is an error that names both.
-* `field(index=...)` takes `True` or `False`; other values are refused. A primary key or unique field already has an index; `field(index=True)` cannot be combined with either. Declaring the same one-column index through `field(index=True)` and `@db.indexed("column")` produces one index.
-* Column names are checked when the decorator is applied; a typo fails at import with the model and the unknown names.
-* Stacked decorators are stored in reading order (top to bottom).
-* A model inherits the options of its [abstract bases](models.md#share-fields-abstract-models-and-mixins). A decorator on the subclass replaces everything inherited for that kind of option (`@db.indexed` replaces the inherited indexes, and so on) and leaves the other kinds inherited. A `field(index=True)` index stays with its column: it is inherited while the column keeps `index=True`, and dropped when the subclass redeclares the column without it. A model that subclasses a table model does not inherit that parent's options.
-* Apply options before the model is used: the migration planner, the query layer and the admin read them from the class.
-* The fallback table/display names use a small deterministic English suffix rule, not an inflector. Use explicit values for irregular, already-plural or localized names. Pin the table name with `@db.table(...)` or `table=` when a class has an existing migration history; changing an implicit name is a guarded drop/create, not a table rename.
-* Index names are `ix_<table>_<columns>_<digest>`. The digest covers the table and each column name with its length, so `indexed("a_b")` and `indexed("a", "b")` never collide; the readable part is cut to the backend's identifier limit (63 bytes on PostgreSQL, 64 on MySQL and MariaDB).
+`unique` and `timestamps` are imported from `hinoki.orm`; `indexed`,
+`ordered_by` and `table` from `hinoki.db` (the same objects as in
+`hinoki.orm`).
 
-Not yet: partial or expression indexes and soft delete. For timestamps, see [utilities](utilities.md); fields are declared explicitly and migrations remain visible.
+## Indexes
+
+Use `field(index=True)` for one ordinary column and `@db.indexed(...)` for a
+composite index. A `foreign_key` has no `index=` option: index it with
+`@db.indexed("customer_id")`, or with a composite index that starts with it.
+The optional `HNK-DB-002` rule (`Models.require_foreign_key_index`) checks this.
+
+* `index=` takes `True` or `False`; a primary key or unique column is already
+  indexed and refuses `index=True`.
+* `field(index=True)` and `@db.indexed("column")` on the same column produce
+  one index.
+* Names are `ix_<table>_<columns>_<digest>`, cut to the backend limit (63 bytes
+  on PostgreSQL, 64 on MySQL and MariaDB); the digest keeps
+  `indexed("a_b")` and `indexed("a", "b")` apart.
+* Adding or removing an index is a non-destructive migration.
+
+## Default order
+
+`@db.ordered_by(...)` orders every query that has no `order_by`, lists and
+pages included. An explicit `order_by` replaces it; counts and bulk updates
+ignore it. End with a unique column (`"-id"`) so pages are stable.
+
+## Update timestamps
+
+`@timestamps()` sets a declared, non-nullable `updated_at: datetime` on every
+ORM update statement. `@timestamps("modified_at", clock=my_clock)` names another
+column or injects a clock. See [utilities](utilities.md#model-update-timestamps).
+
+## Names
+
+Leave the table name derived for new models. Pin it with `@db.table(...)` when
+the model has migration history and its class or module may change: a changed
+derived name is planned as a guarded drop and create, never a rename. Naming
+the table twice with different names (`@db.table` twice, or with `table=`) is
+an error naming both. Use `label=`/`plural=` for irregular or localized nouns.
+See [table and display names](models.md#table-and-display-names).
+
+## Rules for all options
+
+* Column names are checked when the decorator runs; a typo fails at import with
+  the model and the unknown names.
+* Apply options before the model is used: the migration planner, the query
+  layer and the admin read them from the class.
+* Options of [abstract bases](models.md#share-fields-abstract-models-and-mixins)
+  are inherited; a decorator on the subclass replaces that kind of option. A
+  table model does not pass its options to a subclass.
+
+!!! note "Not yet"
+    Partial and expression indexes, and soft delete, are not available.
+
+## See also
+
+- [Define models](models.md)
+- [Migrations](migrations.md)

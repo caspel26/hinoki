@@ -1,294 +1,172 @@
 ---
 status: implemented
 related:
+  - class-endpoints.md
   - models.md
-  - endpoints.md
   - authentication.md
-  - openapi.md
   - pagination.md
-  - serving.md
+  - kiso.md
 ---
 
 # Generate CRUD routes
 
-`crud(...)` generates model-backed routes. Include it once in the app for plain
-CRUD, or apply it to a class when you need `get_queryset`/`to_schema` hooks
-or handwritten `@http.*` actions beside the generated ones.
+`crud(...)` generates model-backed routes: list and retrieve always, create, update and delete when you ask for them. Use it as a value in `routes.py` for plain CRUD, or apply it to an `API` class to add hooks and handwritten actions ([class-based APIs](class-endpoints.md)).
 
 ```python
-from hinoki import Hinoki, Schema, crud, derive
+# notes/apps/billing/routes.py
+from hinoki import Includable, crud
 
-from app.models import Post
-from app.security import editor
+from notes.security import billing_staff
 
+from .models import Invoice
+from .schemas import InvoiceIn, InvoiceOut, InvoicePatch
 
-@derive(Post)
-class PostOut(Schema): ...
-
-
-class PostCreate(Schema):
-    title: str
-    slug: str
-    body: str
-
-
-posts = crud(
-    Post,
-    path="/posts",
-    read=PostOut,
-    create=PostCreate,
-    delete=True,
-    access=editor,
-    owner="author_id",
-)
-
-app = Hinoki(include=[posts])
+routes: list[Includable] = [
+    crud(
+        Invoice,
+        path="/invoices",
+        read=InvoiceOut,
+        create=InvoiceIn,
+        update=InvoicePatch,
+        delete=True,
+        access=billing_staff,
+    ),
+]
 ```
-
-Add code with the class form. The class extends `API` (its only base);
-the hooks `get_queryset`, `to_schema`, `written_queryset`, `store`, `change` and
-`remove` change what the generated actions do, and anything else is a
-handwritten action:
 
 ```python
-from typing import Any
-
-from hinoki import API, Caller, crud, http
-from hinoki.orm import QuerySet
-
-
-@crud(Post, path="/posts", read=PostOut, create=PostCreate, access=editor)
-class Posts(API):
-    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Post]:
-        return Post.filter(published=True).order_by("-id")
-
-    @http.get("/health")
-    async def health(self) -> dict[str, str]:
-        return {"status": "ok"}
-
-
-app = Hinoki(include=[Posts])
+# notes/apps/billing/schemas.py (continued)
+@derive(Invoice, only=("reference", "paid"), partial=True)
+class InvoicePatch(Schema): ...
 ```
-
-A generated action is generated **or** handwritten, never both: defining
-`list`, `retrieve`, `create`, `update` or `delete` in the class while `crud`
-generates it raises `RegistrationError` at declaration. To write list or
-retrieve yourself, pass `omit=("list",)` (or `"retrieve"`); other actions are
-generated only when you give their schema or `delete=True`. The write hooks
-`store`, `change`, `remove` and `written_queryset` are the supported way to
-change what a generated write does; see
-[Hooks in the class form](#hooks-in-the-class-form).
-
-### Access per action
-
-`access=` takes one `Access`, which protects **every** generated action
-including reads, or `CrudAccess` to set actions apart. An action without its
-own entry uses `default`; `None` means public:
-
-```python
-from hinoki import CrudAccess
-
-posts = crud(
-    Post,
-    path="/posts",
-    read=PostOut,
-    create=PostCreate,
-    delete=True,
-    access=CrudAccess(default=editor, list=None, delete=admin),
-)
-```
-
-Here list is public, retrieve and create need `editor`, delete needs `admin`.
-Unknown action names raise `TypeError`. Writes with no policy still need
-`public_writes=True`.
-
-## Hooks in the class form
-
-Apply `@crud(...)` to a class that extends `API` to add code beside the
-generated actions: the hooks `get_queryset`, `to_schema`, `written_queryset`,
-`store`, `change` and `remove`, and handwritten `@http.*` actions. Schemas and
-options are `crud(...)` keywords, and the class is included once in the app.
-
-```python
-from typing import Any
-
-from hinoki import API, Caller, Hinoki, crud, http
-from hinoki.orm import QuerySet
-
-
-@crud(
-    Post,
-    path="/posts",
-    read=PostOut,
-    create=PostCreate,
-    access=editor,
-    owner="author_id",
-)
-class Posts(API):
-    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Post]:
-        return Post.filter(published=True).order_by("-id")
-
-    @http.get("/health")
-    async def health(self) -> dict[str, str]:
-        return {"status": "ok"}
-
-
-app = Hinoki(include=[Posts])
-```
-
-The generated actions are ordinary API routes, visible to OpenAPI, the
-`hinoki routes` command and the route registry. The class is mounted once; no import-time or
-global auto-registration occurs. A model's read schema and write schemas must
-match its fields. See [Schemas](schemas.md) for model-derived schemas.
-
-The sections below describe the options by their `crud(...)` keyword (`read`,
-`create`, `update`, `delete`, `access`, `owner`, `identity_key`, `assign`,
-`pagination`, `public_writes`, `omit`).
 
 ## Generated actions
 
-List and retrieve are generated by default. Writes are opt-in:
-
 | Keyword | Action | Method and path | Success |
 | --- | --- | --- | --- |
-| Always | `list` | `GET /posts` | Paginated `Page[PostOut]` |
-| Always | `retrieve` | `GET /posts/{item_id}` | `PostOut` |
-| `create=PostCreate` | `create` | `POST /posts` | `201`, `PostOut` |
-| `update=PostPatch` | `update` | `PATCH /posts/{item_id}` | `200`, `PostOut` |
-| `delete=True` | `delete` | `DELETE /posts/{item_id}` | `204`, no body |
+| always | `list` | `GET /invoices` | `Page[InvoiceOut]` |
+| always | `retrieve` | `GET /invoices/{item_id}` | `InvoiceOut` |
+| `create=InvoiceIn` | `create` | `POST /invoices` | `201`, `InvoiceOut` |
+| `update=InvoicePatch` | `update` | `PATCH /invoices/{item_id}` | `200`, `InvoiceOut` |
+| `delete=True` | `delete` | `DELETE /invoices/{item_id}` | `204`, no body |
 
-Generated writes require `access=...`, unless `public_writes=True` is set
-deliberately. Reads are public by default; `CrudAccess(list=..., retrieve=...)`
-protects them.
-Writes run in a transaction. `pagination` selects the page-number policy for
-the generated list route.
+Writes run in a transaction. `pagination=` selects the page-number policy of the list route (default `PageNumberPagination()`). `omit=("list",)` or `omit=("retrieve",)` drops a read so that you can write it yourself. The generated actions are ordinary routes, visible to OpenAPI, `hinoki routes` and the route registry; nothing is registered at import time.
 
-On Kiso, eligible generated routes are selected automatically and
-execute in Rust. List, retrieve, create, PATCH update and delete are eligible
-when their schemas and model are supported and the resource has no access
-policy, owner/assignment rule or custom hook. Unsupported and stale plans keep
-using the Python request lane. See [Serving](serving.md#generated-crud) for
-the runtime boundary and staleness behavior; no public switch is required.
+### Access per action
 
-## Reuse and customization
-
-CRUD configuration is plain Python values, so share it the same way: one
-`Access` or `CrudAccess` object passed to every `crud(...)` call, or a small
-helper that wraps `crud(...)` with your defaults.
-
-Generated create actions return `409 Conflict` when the database rejects a
-unique constraint by default. Register an error handler for the database's
-unique-violation type to choose an application-specific response.
-Mixins can provide reusable decorated routes or hooks to a decorated class.
-`access` applies to generated actions only;
-handwritten decorated methods keep the policy on their own
-`@http.*` decorator, so protect those routes explicitly.
-
-Use `get_queryset(principal)` to build the list/detail query. It may be `def`
-or `async def`; it builds a query and should not perform database I/O. When
-reads are public, `principal` is `None`; when the list action has an access
-policy, it is the
-authenticated `Caller`. Apply tenant or visibility filters here. `owner` is an
-independent write safeguard, not read authorization. Writes are also
-constrained by this query, primary key and owner column, including in the
-mutation statement.
-
-Override `to_schema(item)` with `def` or `async def` for a response shape that
-needs loaded relations; relations are never loaded implicitly. Override
-`written_queryset(principal)` with either form to load response relations after
-a successful write, independently of filters that might hide the changed row
-from subsequent list requests.
-
-Generated write routes call these overridable hooks inside their transaction.
-Each hook may be a normal `def` or `async def`. Sync hooks run on Hinoki's
-bounded worker executor, where synchronous ORM methods are available; async
-hooks run on the event loop and should use the async ORM methods. This applies
-to `get_queryset`, `written_queryset`, `to_schema`, `store`, `change` and
-`remove`.
-
-For a synchronous hook, use synchronous ORM methods and return the model:
+`access=` takes one `Access`, which protects **every** generated action including reads, or `CrudAccess` to set actions apart. An action without its own entry uses `default`; `None` means public:
 
 ```python
-def slug_for(title: str) -> str:
-    return title.casefold().replace(" ", "-")
+# notes/apps/billing/routes.py (variant)
+from hinoki import CrudAccess
 
-
-class Posts(API):
-    def store(self, values: dict[str, Any], principal: Caller[Any]) -> Post:
-        values["slug"] = slug_for(str(values["title"]))
-        return Post.create(**values)
+access = CrudAccess(
+    default=billing_staff, list=None, retrieve=None, delete=billing_admin
+)
 ```
 
-An async hook uses the async ORM method:
+Here list and retrieve are public, create and update need `billing_staff`, delete needs `billing_admin`. Unknown action names raise `TypeError`. Generated writes always need a policy: a write left without one raises `RegistrationError` (when a `@crud` class is declared, or when a `crud(...)` value is included) unless you pass `public_writes=True` on purpose. The `access=` of `crud(...)` covers generated actions only; a handwritten action in the class form states its own.
+
+## Hooks in the class form
+
+Apply `@crud(...)` to a class whose only base is `API`. These methods change what the generated actions do; every other decorated method is a handwritten action:
+
+| Hook | Called for | Purpose |
+| --- | --- | --- |
+| `get_queryset(principal)` | every action | The base query: tenant or visibility filters. Builds a query, does no I/O |
+| `to_schema(item)` | every answer | A response shape that needs loaded relations |
+| `written_queryset(principal)` | after a write | Loads response relations of the written row |
+| `store(values, principal)` | create | Creates the row |
+| `change(item, scoped_queryset, values, principal)` | update | Updates the row |
+| `remove(item, scoped_queryset, principal)` | delete | Deletes the row |
 
 ```python
-async def store(self, values: dict[str, Any], principal: Caller[Any]) -> Post:
-    values["slug"] = slug_for(str(values["title"]))
-    return await Post.acreate(**values)
+# notes/apps/billing/api.py
+from typing import Any
+
+from hinoki import API, Caller, crud
+
+from notes.security import billing_staff
+
+from .models import Invoice
+from .schemas import InvoiceIn, InvoiceOut
+
+
+def normalised(reference: str) -> str:
+    return reference.strip().upper()
+
+
+@crud(
+    Invoice, path="/invoices", read=InvoiceOut, create=InvoiceIn, access=billing_staff
+)
+class Invoices(API):
+    async def store(self, values: dict[str, Any], principal: Caller[Any]) -> Invoice:
+        values["reference"] = normalised(str(values["reference"]))
+        return await Invoice.acreate(**values)
 ```
 
-A sync override uses `Post.create(**values)`; it should not call async ORM
-methods or return an un-awaited coroutine.
+Each hook may be `def` or `async def`. Sync hooks run on Hinoki's bounded executor and use the sync ORM methods (`Invoice.create(**values)`); async hooks run on the event loop and use the async ones. A sync hook must not return an un-awaited coroutine.
 
-`change(item, scoped_queryset, values, principal)` and
-`remove(item, scoped_queryset, principal)` receive the target and the
-query already limited by visibility, key and ownership. Call `super()` to keep
-the default scoped database mutation. Hooks may use transactional database
-operations; they do not run after commit, so do not send mail or publish
-external events directly from them. Hooks are trusted application code: do not
-bypass the supplied scoped queryset with an unscoped model write or raw SQL.
-Hinoki checks the persisted item after create/update for model identity and
-server-assigned field invariants, but cannot sandbox arbitrary hook side effects.
+When reads are public, `principal` is `None`; when the action has an access policy, it is the authenticated `Caller`. Apply tenant or visibility filters in `get_queryset`; `owner=` is an independent write safeguard, not read authorization. Relations are never loaded implicitly: load them in `to_schema`, and in `written_queryset` for the answer to a write, independently of filters that might hide the changed row from later list requests. Writes are constrained by the query of `get_queryset`, the primary key and the owner column, inside the mutation statement. `change` and `remove` receive that scoped query; call `super()` to keep the default mutation.
 
-Replace a generated action with a differently named decorated method that
-names it: `@http.post("/make", replaces=Crud.CREATE)` (`Crud` is in
-`hinoki.resources`). A method that has the name of an action `crud(...)`
-still generates (`list`, `retrieve`, `create`, `update`, `delete`) raises
-`RegistrationError` when the class is declared, and for `list` and `retrieve`
-`omit=` drops the generated route so that a handwritten one can take its place.
-A decorated method without `replaces=` is a separate route and may collide by
-path/method; route registration reports duplicates.
+Hooks run inside the transaction and before the commit, so do not send mail or publish external events from them. They are trusted application code: do not bypass the scoped query with an unscoped write or raw SQL. Hinoki checks the persisted item after create and update for model identity and server-assigned fields, but cannot sandbox arbitrary side effects.
+
+### Generate or hand-write
+
+Each action is generated **or** handwritten, never both:
+
+| To hand-write | Do this |
+| --- | --- |
+| `create`, `update`, `delete` | Leave `create=`, `update=` or `delete=True` out, and declare your own method |
+| `list`, `retrieve` | Pass `omit=("list",)` or `omit=("retrieve",)` and declare a method with another name |
+
+A method named like an action that `crud(...)` still generates (`list`, `retrieve`, `create`, `update`, `delete`) raises `RegistrationError` when the class is declared. A handwritten route at the same method and path as a generated one fails when the class is included.
+
+## Reuse
+
+CRUD configuration is plain Python values. Share one `Access` or `CrudAccess`, or bind your defaults once:
+
+```python
+# notes/apps/billing/resources.py
+from functools import partial
+
+from hinoki import crud
+
+from notes.security import billing_staff
+
+staff_crud = partial(crud, access=billing_staff)
+```
+
+`staff_crud(Invoice, path="/invoices", read=InvoiceOut)` works as a value and as a class decorator. A `@crud` class accepts no base other than `API`, so mixins do not apply.
 
 ## Security and validation
 
-Set `owner = "author_id"` to assign that column from the authenticated caller
-on create and constrain update/delete. `identity_key` extracts the owner value
-from `Caller.user`; its default reads `.id`. `assign` maps additional
-server-owned columns to functions of the caller's user object. Client schemas
-cannot accept server-assigned fields. Generated writes require an access
-policy even when `owner` is configured.
+Set `owner="author_id"` to assign that column from the authenticated caller on create and constrain update and delete. `identity_key` extracts the owner value from `Caller.user`; its default reads `.id`. `assign` maps additional server-owned columns to functions of the caller's user object. Client schemas cannot accept server-assigned fields. Generated writes require an access policy even when `owner` is configured.
 
-With `ClaimsJWTAuth` there is no user object, so use
-`identity_key = caller_id` (from `hinoki.resources`): the owner value is then the
-caller's `Caller.id` (the token `sub`). A foreign update or delete answers `403`
-and a missing row `404`, as without the native lane. This is the only owner
-declaration that can run natively; see
-[authentication](authentication.md#claims-only-tokens-on-the-native-lane).
+With `ClaimsJWTAuth` there is no user object, so use `identity_key=caller_id` (from `hinoki.resources`): the owner value is then the caller's `Caller.id` (the token `sub`). A foreign update or delete answers `403` and a missing row `404`. This is the only owner declaration that can run natively; see [authentication](authentication.md#claims-only-tokens-on-the-native-lane).
 
-At class declaration Hinoki rejects abstract models, unknown schema fields,
-unsafe nullable fields, missing required create values, update schemas that
-can overwrite omitted fields, primary-key updates, unknown assigned columns,
-and incompatible derived schemas. `only=` and `exclude=` schemas remain
-subject to these same checks.
+At declaration Hinoki rejects abstract models, unknown schema fields, unsafe nullable fields, missing required create values, update schemas that can overwrite omitted fields, primary-key updates, unknown assigned columns and incompatible derived schemas. `only=` and `exclude=` schemas remain subject to the same checks.
 
-A stored row that the `read=` schema refuses (for example a `max_length` that the data exceeds) is a server-side fault, not a client error: the action answers `500` and the response does not repeat the stored values; the server-side error names the model, the read schema, the field and the code. Client input that fails a create or update schema still answers `422`.
+A stored row that the `read=` schema refuses (for example a `max_length` that the data exceeds) is a server fault: the action answers `500`, the response does not repeat the stored values, and the server log names the model, the read schema, the field and the code. Client input that fails a create or update schema answers `422`. A create that breaks a unique constraint answers `409 unique_conflict` unless an error handler you register says otherwise.
 
 ## Model hooks and Kiso
 
-Generated create and PATCH update write through the model, so its [lifecycle hooks](models.md#lifecycle-hooks-and-instance-state) run: create calls `acreate`, and update saves the item with the scoped query's conditions in its UPDATE, so a row that left the caller's scope since it was read is refused (`403`/`404`) exactly as on the unhooked path. A model that defines any of `before_save`, `before_create`, `after_create` or `after_save` is not eligible for the native create and update routes, which execute without Python model code; they use the Python lane, while its list, retrieve and delete routes stay native. Deleting does not run hooks.
+Generated create and PATCH update write through the model, so its [lifecycle hooks](model-hooks.md) run: create calls `acreate`, and update saves the item with the scoped query's conditions in its UPDATE, so a row that left the caller's scope since it was read is refused (`403`/`404`). A model that defines any of `before_save`, `before_create`, `after_create` or `after_save` is not eligible for the native create and update routes; they use the Python lane, while its list, retrieve and delete routes stay native. Deleting does not run hooks.
 
-## OpenAPI and inspection
+On Kiso, eligible generated routes execute in Rust when their schemas and model are supported and the resource has no access policy (other than an unmodified `ClaimsJWTAuth`), owner or assignment rule (other than `identity_key=caller_id`) or custom hook. Ineligible and stale plans use the Python lane. See [Kiso: generated CRUD](kiso.md#generated-crud); no switch is required.
 
-To inspect routes without starting the server:
+## Inspect the generated routes
 
 ```sh
-cd examples
-uv run --project .. hinoki routes blog.main:create_app --path /posts
+hinoki routes --path /billing/invoices
 ```
 
-Generated routes include schemas, access policies, status codes and pagination
-in the OpenAPI document. See the [CRUD API reference](reference/crud.md).
+```text
+GET     /billing/invoices            StaffTokens[billing:manage] hinoki.resources.list
+POST    /billing/invoices            StaffTokens[billing:manage] hinoki.resources.create
+DELETE  /billing/invoices/{item_id}  StaffTokens[billing:manage] hinoki.resources.delete
+GET     /billing/invoices/{item_id}  StaffTokens[billing:manage] hinoki.resources.retrieve
+PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] hinoki.resources.update
+```
 
-Generated CRUD suits ordinary model-backed operations. Prefer a handwritten
-action when a workflow has distinct state transitions, error semantics or
-side-effects beyond the single model mutation.
+Generated routes appear in the OpenAPI document with their schemas, access policies, status codes and pagination. See the [CRUD API reference](reference/crud.md). Prefer a handwritten action when a workflow has its own state transitions, errors or side effects beyond one model mutation.

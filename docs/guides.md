@@ -4,67 +4,79 @@ status: implemented
 
 # Guides
 
-One page for each part of an application. Start with the data and endpoint guides, then add access, rules and runtime concerns as you need them. New to Hinoki? Take the [tutorial](tutorial/index.md) first, or follow the [quick start](quick-start.md).
+One page per task. Start with data and endpoints, then add access, rules and runtime concerns as you need them. New to Hinoki? Take the [tutorial](tutorial/index.md) or the [quick start](quick-start.md) first.
 
 ## Data
 
-- [Models and queries](models.md): Models map Python classes to derived or explicitly named database tables, with typed queries and opt-in write-time field validation.
-- [Configure a database](databases.md): Set the backend URL, install the database module and apply migrations safely.
-- [Schemas and validation](schemas.md): A Schema describes API data, with typed validation, normalization, rejection checks and class-level unknown-field policies.
-- [Model-derived schemas](model-schemas.md): A Schema can take its fields and constraints from a Model.
-- [Model options](model-options.md): Options that describe a model beyond its columns are decorators, read like the action decorators.
-- [Utilities](utilities.md): Hinoki includes a small set of helpers where the framework can define clear behavior.
-- [Relations](relations.md): Foreign keys, explicit many-to-many association models, and how to load related rows.
-- [Migrations](migrations.md): Hinoki uses model declarations and recorded migration state to write SQL migration files.
+- [Configure a database](databases.md): choose the backend, set the URL or connection fields, keep credentials secret.
+- [Define models](models.md): columns, primary keys, column types, table names and write-time validators.
+- [Model options](model-options.md): indexes, composite uniqueness, default order, update timestamps and names, as decorators.
+- [Relations](relations.md): foreign keys, one-to-one, many-to-many association models and explicit loading.
+- [Query and write rows](queries.md): filters, pagination, reusable queries, creates, updates and bulk writes.
+- [Lifecycle hooks](model-hooks.md): react to a model's own writes and inspect its changed columns.
+- [Migrations](migrations.md): plan, review, apply and check migrations for every app.
+- [Schemas](schemas.md): declare the data that crosses the API boundary and convert it to and from rows.
+- [Scalar field types](schema-types.md): enums, literals, dates, decimals, bytes, addresses, secrets and paths.
+- [Collections and unions](schema-collections.md): sets, tuples, dictionaries, unions, discriminated unions, TypedDicts and dataclasses.
+- [Validate input](schema-validation.md): constraints, normalization, field and object checks, and input reshaping.
+- [Schemas from models](model-schemas.md): derive a `Schema` from a `Model` and convert rows with `from_model`.
+- [Time and utilities](utilities.md): UTC time, the application timezone, test clocks and update timestamps.
 
 ## Endpoints
 
-- [Endpoint declarations](endpoints.md): Hinoki endpoints are ordinary Python functions decorated with an HTTP method.
-- [Generate CRUD routes](crud.md): Generate model-backed list, retrieve and selected write actions, with access and ownership rules.
-- [OpenAPI](openapi.md): The OpenAPI 3.1 document is generated from registered routes, signatures and schema declarations.
-- [Errors](errors.md): Hinoki separates malformed requests, authentication failures and application errors.
-- [Pagination](pagination.md): An action opts into page-number pagination with `PageNumberPagination()`.
-- [Parsers and renderers](codecs.md): A parser turns a request body into Python data; a renderer turns a handler's result into response bytes.
+- [Function-based APIs](function-endpoints.md): the default pattern: plain functions grouped by a `RouteGroup` that states access, transactions and errors once.
+- [Class-based APIs](class-endpoints.md): `API` classes for `@crud` resources with hooks, inheritance and resources you ship to others.
+- [Register routes](routes.md): how `routes.py` and `hinoki.toml` build the route map, with `Mount`, `include=` in tests and `hinoki routes`.
+- [Requests and responses](endpoints.md): what an action receives (path, query, body, forms, XML, files) and how its result is checked.
+- [Generate CRUD routes](crud.md): list, retrieve and write actions from a model, with access and ownership rules.
+- [Errors](errors.md): malformed requests, authentication failures and declared application errors.
+- [Pagination](pagination.md): page-number pagination with `PageNumberPagination`.
+- [Parsers and renderers](codecs.md): other body formats in and out.
+- [OpenAPI document](openapi.md): the OpenAPI 3.1 document generated from routes, signatures and `Schema` declarations.
 
 ## Security and checks
 
-- [Authentication and access](authentication.md): Hinoki keeps credential parsing in an authentication provider and permission checks in an Access policy.
-- [Rules](rules.md): Rules are optional, typed promises about your application that a tool checks and that fail with a stable ID, a location and an explanation.
+- [Authentication and access](authentication.md): providers resolve a `Caller`; `Access` policies check permissions.
+- [Hosts, CORS and HTTPS](web-security.md): restrict the host names an app answers to, which browser origins may read it, browser security headers, HTTPS redirects and trusted proxies.
+- [Rules](rules.md): typed promises about your application, checked with a stable ID, a location and an explanation.
 
 ## Runtime
 
-- [Application modules](modules.md): Modules own resources whose lifetime belongs to a worker, such as a database pool.
-- [Transactions](transactions.md): An action opts into a database transaction with `atomic=True`; application code uses `db.atomic` as a block or a decorator.
-- [Settings](settings.md): Typed, immutable settings classes with environment, dotenv and TOML sources, and redacted secrets.
-- [Serving](serving.md): Run an application with `hinoki dev` while you work and `hinoki serve` in production-style runs, on Kiso (the default) or Granian.
-- [Testing](testing.md): Hinoki has two useful levels of application tests: call the operation functions directly, then exercise the app through its ASGI interface.
-- [Command line](cli.md): Run framework tools and app-defined management commands from the project directory.
-- [Interactive shell](shell.md): Explore app settings and models with a persistent, async-capable Python prompt.
-- [Typing](typing.md): Hinoki's public APIs use Python annotations so a type checker can catch mistakes in handlers, decorators and schema construction.
+- [Application modules](modules.md): resources that live as long as a worker, such as a database pool.
+- [Transactions](transactions.md): `atomic=True` on actions, `db.atomic` in application code.
+- [Settings](settings.md): typed, immutable settings from the environment, dotenv and TOML, with redacted secrets.
+- [Serve an application](serving.md): `hinoki dev` while you work, `hinoki serve` in production, on Kiso (the default) or Granian.
+- [Kiso server](kiso.md): what Hinoki's Rust server runs natively, its limits, workers and signals, reload and reverse-proxy behaviour.
+- [Test an application](testing.md): test through the whole stack with `ASGIClient`, against a disposable database, from the test `hinoki new` generates.
+- [Command line](cli.md): every `hinoki` command, the short forms inside a project and the explicit forms outside one.
+- [Create a project](new-project.md): the interactive `hinoki new` flow, its options and what the generated project contains.
+- [Inspect an application](inspect.md): check rules, list routes, export the OpenAPI document, show settings and diagnose the environment.
+- [Interactive shell](shell.md): an async-capable prompt with the app's settings and models.
+- [Typing](typing.md): what a type checker catches in handlers, decorators and `Schema` construction.
 
 ## Integrations
 
-- [Admin](admin.md): An optional module that gives staff a list, search, create, edit, bulk delete and a dashboard for your models, with its own users, a sign-in page and per-model permissions; it is included in the framework package and mounted explicitly.
-- [Application MCP](app-mcp.md): expose_as_mcp turns selected HTTP actions into tools for an MCP client.
-- [Development MCP](dev-mcp.md): CLI-hosted tools describe an app and its rules to an agent.
-- [Development tools](ai-workflow.md): Scaffold a project and give a coding agent rules, error explanations and an MCP server.
+- [Add an admin](admin.md): staff pages for your models, with a sign-in page, users and per-model permissions.
+- [Customize the admin](admin-customize.md): columns, hooks, bulk actions, templates and themes.
+- [Expose actions over MCP](app-mcp.md): selected actions as tools for a remote MCP client.
+- [Development MCP](dev-mcp.md): a read-only server that describes your app to a coding agent.
+- [Build with a coding agent](ai-workflow.md): a project, rules and tools ready for an agent, and where its authority ends.
 
 ## Operating
 
-- [Sync and async](sync-async.md): Hinoki runs on one event loop per worker; synchronous handlers run on a bounded worker pool.
+- [Sync and async code](sync-async.md): the event loop, the bounded sync pool and which style each surface accepts.
 - [Benchmarks](benchmarks.md): retained measurements with their environment, method and limits.
-- [Native CRUD orientation](rust-crud-orientation.md): a separate, workload-specific measurement of generated CRUD on the native path.
-- [Troubleshooting](troubleshooting.md): common startup, import and configuration errors and their fixes.
-- [Toolchain and CI](toolchain.md): the local and CI commands for Python, Rust, database-backed tests, packaging and the docs build.
+- [Generated CRUD on the native path](rust-crud-orientation.md): a workload-specific measurement of generated CRUD.
+- [Troubleshooting](troubleshooting.md): common errors by their message.
+- [Toolchain and CI](toolchain.md): local and CI commands for contributors.
 
-## Where to go next
+## Concepts and project
 
-- [Installation](getting-started.md) and the [quick start](quick-start.md): install from a checkout and run the Notes API.
-- [Concepts](concepts.md): the request lifecycle, architecture patterns and the vocabulary.
-- [Request lifecycle](request-lifecycle.md): the order of parsing, validation, access, handler, transaction and response.
-- [Architecture patterns](patterns.md): how to structure an application, with reasons.
-- [Glossary](glossary.md): one word, one meaning, including the four senses of "schema".
-- [Own schemas and ORM](ecosystem.md): what owning `Schema` and `Model` means for other libraries, and the extension points that exist.
-- [Reference](reference/index.md): public symbols, signatures and docstrings.
+- [Concepts](concepts.md): how models, `Schema` classes, actions, workers and rules fit together.
+- [Request lifecycle](request-lifecycle.md): the order of routing, access, binding, handler, commit and response.
+- [Structure an application](patterns.md): layers, where each concern lives, and why.
+- [Glossary](glossary.md): one word, one meaning.
+- [Use other libraries](ecosystem.md): what owning `Schema` and `Model` means, and the extension points.
+- [Reference](reference/index.md): public names, signatures and docstrings.
 - [Status](status.md): what works today and what does not yet.
 - [Documentation versions](documentation-versions.md): how `dev` and release docs are published.

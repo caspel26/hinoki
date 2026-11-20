@@ -1,54 +1,100 @@
 ---
 status: implemented
+related:
+  - cli.md
+  - models.md
+  - modules.md
 ---
 
-# Interactive shell
+# Explore an application in the shell
 
-Use `hinoki shell` to inspect application state and run ORM queries from an
-interactive Python prompt:
-
-```sh
-cd examples
-uv run --project .. hinoki shell
-```
-
-The project manifest supplies the application target and model modules. To
-open an app outside a project manifest, pass its `module:attribute` target and
-model modules explicitly:
+`hinoki shell` opens Python with your application loaded and its database
+connected, so you can try queries against real data:
 
 ```sh
-uv run --project .. hinoki shell blog.main:app --models blog.models
+uv run hinoki shell
 ```
-
-The shell exposes `app`, its validated `settings`, and concrete model classes
-from registered modules. It supports multiline statements and top-level
-`await` on one persistent event loop:
 
 ```pycon
->>> notes = await Note.all()
->>> len(notes)
+>>> await Invoice.filter(paid=False).acount()
 3
->>> app.title
-'Hinoki Blog'
+>>> [invoice.reference for invoice in await Invoice.all()]
+['INV-003', 'INV-002', 'INV-001']
+>>> settings.database.url
+Secret('***')
 ```
 
-Use the async ORM methods with `await` in this shell. Synchronous ORM methods
-are intended for synchronous handlers and cannot block the shell's event loop.
+## What is in the namespace
 
-Each installed app module is started in dependency order and closed when the
-session ends. Application `on_startup` and `on_shutdown` hooks are not called.
-This avoids unrelated actions such as sending mail or seeding data. Hinoki
-does not apply migrations; run `hinoki migrations apply` explicitly when
-needed. The shell requires a terminal. Ctrl-D exits, Ctrl-C at the prompt exits,
-and Ctrl-C during a cell interrupts that cell.
-Unmanaged asyncio tasks are cancelled on exit; cleanup is bounded by the app's
-`shutdown_timeout`. A task that ignores cancellation is abandoned when that
-deadline expires. Startup is bounded too; if a module suppresses cancellation
-indefinitely while opening, the shell stops the loop and cannot guarantee that
-the partially started module released its own resources.
+| Name | Value |
+| --- | --- |
+| `app` | the application from `hinoki.toml` (`[project] application`) |
+| `settings` | its validated settings |
+| model classes | every concrete model of every registered app, by class name (`Invoice`, `Note`, …) |
 
-Python entered at the prompt runs with the current user's privileges. Database
-operations use the configured database and may change its contents; use a
-development database while exploring.
+Two models with the same class name in different apps stop the shell before the
+prompt; select the modules you need with `--models`. A model may not be called
+`app` or `settings`.
 
-See the [CLI reference](cli.md#shell) for target selection and error behavior.
+## Await at the prompt
+
+The shell keeps one event loop for the session, so top-level `await` and
+multiline statements work. Use the async ORM methods (`acount()`, `aget()`,
+awaiting a query): the synchronous ones are meant for `def` handlers and cannot
+block the shell's loop.
+
+## Choose the application and models
+
+```sh
+uv run hinoki shell --models notes.apps.billing.models
+uv run hinoki shell notes.app:create_app --models notes.models
+```
+
+In a project the target defaults to `project.application`, and every registered
+app's models are loaded; repeat `--models` to load only some. Outside a project,
+pass a target (an application or a factory); `--models` is then optional.
+
+## What starts and what does not
+
+Each module the application installs, the database first, starts in dependency
+order and closes when the session ends. The application's `on_startup` and
+`on_shutdown` hooks do not run, so nothing sends mail or seeds data behind your
+back, and migrations are never applied: run
+[`hinoki migrations apply`](migrations.md) yourself.
+
+Unmanaged asyncio tasks are cancelled on exit; cleanup is bounded by the
+`lifecycle.shutdown_timeout` setting (10 seconds by default), and a task that ignores cancellation is abandoned at
+that deadline. Startup is bounded too: if a module suppresses cancellation while
+opening, the shell stops the loop and cannot guarantee that the module released
+what it had opened.
+
+!!! warning "Real data, your privileges"
+    Code at the prompt runs with your user's privileges against the configured
+    database and can change it. Point the settings at a development database.
+
+## How it looks
+
+On a colour terminal the shell opens with the Hinoki banner, a summary (the
+application title, the settings class and the loaded models) and a `hinoki ❯`
+prompt. `NO_COLOR`, `TERM=dumb`, `HINOKI_ANIMATE=0` and `HINOKI_IMAGES=0`
+behave as for [`hinoki new`](new-project.md#how-it-looks-in-a-terminal); without
+colour the shell prints `Hinoki interactive shell; use Ctrl-D or Ctrl-C to exit.`
+and Python's `>>>` / `...` prompts.
+
+## Errors and edge cases
+
+- Without a terminal the shell exits 2: "`hinoki shell` requires an interactive
+  terminal".
+- Ctrl-D exits, Ctrl-C at the prompt exits, Ctrl-C during a cell interrupts that
+  cell.
+- A model module that does not import stops the shell with
+  `cannot load model module '…'`; a duplicate class name with
+  `model name 'Invoice' occurs in both '…' and '…'`. Both exit 2.
+- Outside a project without a target: `pass TARGET outside a project with
+  hinoki.toml`.
+
+## See also
+
+- [Models](models.md)
+- [Own resources with modules](modules.md)
+- [Command line](cli.md)

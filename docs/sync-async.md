@@ -1,61 +1,80 @@
 ---
 status: implemented
+related:
+  - request-lifecycle.md
+  - transactions.md
+  - settings.md
 ---
 
-# Sync and async execution
+# Sync and async code
 
-Hinoki runs on one event loop per worker. **Async is the native way; sync is a supported way**, not a second-class one: a plain `def` handler or hook runs on a bounded thread pool (`settings.ExecutionSettings.sync_workers`, `sync_queue`; a full queue answers 503 `overloaded`, in handlers and in sync hooks), the request's context follows it, and the sync ORM methods hand their work back to the worker's loop and block that thread, never the loop.
+Each worker runs one event loop. `async def` is the native style; a plain `def` handler or hook is fully supported and runs on a bounded thread pool, with the request's context and blocking ORM twins that never block the loop.
 
-## Naming convention
-
-A name with the `a` prefix awaits the database (`aget`, `acreate`, `acount`); the same name without it is the blocking twin for sync handlers. A query builder is lazy until you evaluate it, and awaiting the queryset itself is the async twin of `.list()`:
+Two actions added to the `invoices` group of [function endpoints](function-endpoints.md), answering with a one-field `Schema`:
 
 ```python
-posts = await Post.filter(published=True).order_by("-created")  # async
-posts = Post.filter(published=True).order_by("-created").list()  # sync handler
-first = await Post.all().afirst()
+# notes/apps/billing/api.py  (in the invoices group's module)
+class UnpaidCount(Schema):
+    count: int
+
+
+@invoices.get("/unpaid/count")
+async def count_unpaid() -> UnpaidCount:  # async: await the a... method
+    return UnpaidCount(count=await Invoice.filter(paid=False).acount())
+
+
+@invoices.get("/unpaid/count-sync")
+def count_unpaid_sync() -> UnpaidCount:  # sync: the twin without the "a"
+    return UnpaidCount(count=Invoice.filter(paid=False).count())
 ```
 
-`aall()` was removed: `await Post.all()` replaces `await Post.all().aall()`.
+A name with the `a` prefix awaits the database (`aget`, `acreate`, `acount`); the same name without it is the blocking twin. A queryset is lazy until evaluated: `await queryset` is the async form of `queryset.list()`.
 
-## Parity table
+## Choose a style
+
+* Prefer `async def`. Use `def` for code that is naturally blocking: a library without async support, or CPU work measured to be short.
+* Never call blocking code from an `async def`. From a `def`, use the sync twin instead of calling an `a...` coroutine.
+* CPU-heavy work belongs in a separate process, not in either pool.
+* A sync ORM call made on the event loop raises, naming the `a...` method to use.
+
+## What runs where
 
 | Surface | Async | Sync | Notes |
 | --- | --- | --- | --- |
 | Action handlers | `async def` | `def` | Sync runs on the executor |
-| Generated CRUD hooks (`get_queryset`, `written_queryset`, `to_schema`, `store`, `change`, `remove`) | `async def` | `def` | Sync overrides run on the same bounded executor; use the matching sync or async ORM methods |
-| Auth providers (`authenticate`, `resolve`, `resolve_token`, JWT `resolve_claims`) | `async def` | `def` | Sync hooks run on the executor, so sync model calls are safe inside them |
-| Model: create / get / update / delete | `acreate`, `aget`, `aget_or_none`, `aupdate`, `aupdate_where`, `adelete`, `asave`, `aupdate_from`, `abulk_create`, `abulk_update`, `abulk_delete` | `create`, `get`, `get_or_none`, `update`, `update_where`, `delete`, `save`, `update_from`, `bulk_create`, `bulk_update`, `bulk_delete` | Sync calls only work inside a sync handler or hook served by Hinoki. The sync writes take the same `returning=False` option as their async twins ([models](models.md#writes-that-do-not-read-the-row-back)) |
-| QuerySet: read | `await queryset`, `afirst`, `aget`, `acount`, `aexists`, `apaginate` | `list`, `first`, `get`, `count`, `exists`, `paginate` | |
-| QuerySet: write | `aupdate`, `adelete` | `update`, `delete` | |
-| Relations | explicit loading (`select_related`, `prefetch_related`) | same | never lazy, so no hidden I/O in either style |
-| Raw SQL (`Database.fetch`, `fetch_one`, `execute`) | async | none | Use the model/queryset methods from sync code; raw SQL is an async-only escape hatch |
-| Transactions | `atomic=True` on the action | same | The runtime owns it for both styles |
-| Atomic blocks in application code | `async with db.atomic():`, `@db.atomic` on an `async def` | `with db.atomic():`, `@db.atomic` on a plain `def` | The sync forms run on a worker thread served by Hinoki and raise `RuntimeError` on the event loop; `atomic=True` on the action covers a whole handler ([transactions](transactions.md#atomic-blocks-and-functions-in-application-code)) |
+| CRUD hooks (`get_queryset`, `written_queryset`, `to_schema`, `store`, `change`, `remove`) | `async def` | `def` | Same executor as handlers |
+| Auth providers (`authenticate`, `resolve`, `resolve_token`, JWT `resolve_claims`) | `async def` | `def` | Sync hooks run on the executor |
+| Model writes and lookups | `acreate`, `aget`, `aget_or_none`, `aupdate`, `aupdate_where`, `adelete`, `asave`, `aupdate_from`, `abulk_create`, `abulk_update`, `abulk_delete` | The same names without `a` | Sync calls work only inside a sync handler or hook served by Hinoki; both take `returning=False` ([queries](queries.md#writes-that-do-not-read-the-row-back)) |
+| QuerySet reads | `await qs`, `afirst`, `aget`, `acount`, `aexists`, `apaginate` | `list`, `first`, `get`, `count`, `exists`, `paginate` | |
+| QuerySet writes | `aupdate`, `adelete` | `update`, `delete` | |
+| Relations | `select_related`, `prefetch_related` | same | Never lazy in either style |
+| Raw SQL (`Database.fetch`, `fetch_one`, `execute`) | async | none | Async-only escape hatch |
+| Transactions | `atomic=True` | same | The runtime owns it |
+| Atomic blocks | `async with db.atomic():`, `@db.atomic` on `async def` | `with db.atomic():`, `@db.atomic` on `def` | Sync forms raise `RuntimeError` on the loop ([transactions](transactions.md#atomic-blocks-and-functions-in-application-code)) |
 | `Schema`, `Request`, `Response`, parsers, renderers | plain code | same | No I/O |
-| Password hashing | `await hasher.hash/verify` | `hash_sync`, `verify_sync` | The async calls use a bounded thread pool |
-| Error handlers (`app.error_handler`) | `async def` | `def` | Run on the loop: no blocking calls inside |
+| Password hashing | `await hasher.hash/verify` | `hash_sync`, `verify_sync` | Async calls use their own bounded pool |
+| Error handlers (`app.error_handler`) | `async def` | `def` | Run on the loop: no blocking calls |
 | Module lifespans | async context manager | none | Resources belong to the worker's loop |
-| App startup/shutdown hooks | `async def hook(ctx)` | `def hook(ctx)` on the sync executor | Listed in `Hinoki(on_startup=..., on_shutdown=...)` |
-| Admin hooks (`stats`, `check`, `save`, `remove`) | `async def` | none | The admin runs on the loop; override with `async def` |
-| Tests | `ASGIClient` | `SyncClient` | Same behaviour through both |
-| Dev MCP `run_scenario` | n/a | n/a | Runs the app in-process |
+| Startup and shutdown hooks | `async def hook(ctx)` | `def hook(ctx)` | `Hinoki(on_startup=..., on_shutdown=...)`; sync runs on the executor |
+| Admin hooks (`stats`, `check`, `save`, `remove`) | `async def` | none | The admin runs on the loop |
+| Tests | `ASGIClient` | `SyncClient` | Same behaviour |
 
-## Limits to know
+## Size the pool
 
-* **Sync hooks use the same pool as sync handlers.** Sync auth and CRUD hooks take an executor slot; a flood of bad credentials or long-running hooks can fill the queue and make legitimate sync work answer 503 (`overloaded`, with `Retry-After`). Keep sync hooks short, reject malformed credentials before touching the database, and prefer async hooks when they can use async APIs.
+`execution.sync_workers` (default `8`) threads serve sync handlers and hooks; `execution.sync_queue` (default `64`) requests may wait for one. A full queue answers `503 overloaded` with `Retry-After`. See [settings](settings.md).
+
+## Errors and edge cases
+
+* **Sync hooks share the pool with sync handlers.** A flood of bad credentials or slow hooks can fill the queue and turn legitimate sync work into `503`. Keep sync hooks short, reject malformed credentials before touching the database, and prefer async hooks.
 * **A sync auth hook runs before the action's transaction opens**, so it is never part of it.
-* **Sync model calls only work inside the application's sync handlers and hooks.** In a test body use the async API (an async fixture) or your own connection, also with `SyncClient`.
-* **No sync lifespan, sync admin hooks, sync background tasks (`ctx.tasks.start_soon` takes coroutines) or sync `Database` SQL.** A sync *error handler* runs on the loop and must not call the ORM (its failure is treated as "unhandled").
-* **`SyncClient`** is available only inside its `with` block and raises a timeout error after `timeout` seconds.
+* **Sync model calls work only inside the app's sync handlers and hooks.** In a test body, use the async API (an async fixture) or your own connection, also with `SyncClient`.
+* **Async only:** module lifespans, admin hooks, background tasks (`ctx.tasks.start_soon` takes coroutines) and raw `Database` SQL. A sync error handler runs on the loop and must not call the ORM; its failure is treated as unhandled.
+* **`SyncClient`** works only inside its `with` block and raises a timeout error after `timeout` seconds (default 60).
 
-## Rules of thumb
+The test suite exercises sync and async handlers, sync authentication hooks, ORM calls through both clients, mixed traffic and cancellation against a disposable database.
 
-* Prefer `async` handlers; use `def` for code that is naturally blocking (a library without async support, CPU work measured to be short).
-* Never call blocking code from an `async def`; never call an `a...` coroutine from a `def` without `run_sync`-style helpers (the sync model methods already do that for you).
-* CPU-heavy work belongs in a separate process or worker, not in either pool.
-* A sync call made on the event loop itself raises, with a message naming the `a...` variant.
+## See also
 
-## Verified
-
-The test suite exercises sync and async handlers, synchronous authentication hooks, ORM calls through both clients, mixed traffic and cancellation against a disposable database. There are no synchronous module lifespans, admin hooks or background task APIs; those surfaces are async-only by design.
+* [Request lifecycle](request-lifecycle.md)
+* [Transactions](transactions.md)
+* [Settings](settings.md)

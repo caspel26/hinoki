@@ -1,19 +1,50 @@
+---
+status: implemented
+related:
+  - concepts.md
+  - transactions.md
+  - sync-async.md
+---
+
 # Request lifecycle
 
-The order matters because validation, access and transactions have different failure behavior.
+The order matters: validation, access and transactions fail in different ways and at different moments.
 
-1. Kiso accepts the HTTP request, answers what needs no application code and hands the rest to the request pipeline; see [serving](serving.md#kiso). (With `--server granian`, Granian accepts it and calls the ASGI application, which reaches the same pipeline.)
-2. Hinoki matches the method and path.
-3. For an action with an access policy, its authentication provider resolves a caller and the policy checks permissions. A `rate_limit=` policy runs next. The request body has not been read yet, so an unauthenticated or rate-limited client cannot make the server buffer it.
-4. Hinoki negotiates the response type from `Accept` (`406` when nothing fits), reads the body of `POST`/`PUT`/`PATCH`/`QUERY` requests, then binds and validates path, query, header and body values before the handler runs.
-5. For `atomic=True`, Hinoki opens a transaction before calling the handler.
-6. The handler returns. Hinoki checks the value against the return annotation (a mismatch is `500 internal_error`, inside the transaction, unless the action sets `validate_response=False`), then a configured renderer turns it into bytes. A returned `Response` is not checked or rendered.
-7. The transaction commits after successful response preparation. An exception or cancellation rolls back before an HTTP error is produced.
+1. **Accept.** Kiso accepts the connection, answers what needs no application code and hands the rest to the request pipeline ([Kiso](kiso.md)). With `--server granian`, Granian calls the ASGI application, which reaches the same pipeline.
+2. **Route.** Hinoki matches the method and path.
+3. **Authenticate and authorize.** For an action with an access policy, the provider resolves a `Caller` and the policy checks permissions. A `rate_limit=` policy runs next. The body has not been read yet, so an unauthenticated or rate-limited client cannot make the server buffer it.
+4. **Bind.** Hinoki negotiates the response type from `Accept` (`406` when nothing fits), reads the body of `POST`, `PUT`, `PATCH` and `QUERY` requests, then binds and validates path, query, header and body values.
+5. **Open the transaction** for an `atomic=True` action.
+6. **Run the handler**, then check its value against the return annotation (a mismatch is `500 internal_error`, inside the transaction, unless the action sets `validate_response=False`) and render it. A returned `Response` is neither checked nor rendered.
+7. **Commit** after the response is prepared. An exception or cancellation rolls back before the HTTP error is produced.
 
-An unhandled exception does not become a successful response. A failed commit is an error. A response renderer should not perform hidden database I/O.
+An unhandled exception never becomes a successful response, and a failed commit is an error. A renderer must not perform hidden database I/O.
 
-The default `execution.request_timeout` is 30 seconds and covers request processing through response preparation. Expiry returns `504 timeout`; an open transaction is rolled back. A synchronous handler already running in a worker thread cannot be forcibly stopped, so it continues occupying its executor slot until it returns, and its result is not sent. The default `execution.max_body_bytes` is 1 MiB; an oversized body returns `413 payload_too_large`. `MultiPartParser` (selected automatically for actions that bind `UploadedFile`) also bounds part count and per-part bytes; an oversized multipart part returns the same `413` code. Raw query strings default to an 8 KiB limit (`execution.max_query_bytes`, `414 uri_too_long`), and combined header names/values default to 32 KiB (`execution.max_header_bytes`, `431 headers_too_large`). These checks run before routing and header parsing. The ASGI server or reverse proxy should also enforce its own request-line and header limits.
+## Limits
 
-Each request gets a request ID in the configured `server.request_id_header` response header (`x-request-id` by default). Hinoki generates it by default; with `server.trust_request_id=True`, it accepts a validated inbound ID only from a configured trusted proxy. Built-in error JSON includes the same value as `request_id`. Startup and shutdown have separate defaults of 30 and 10 seconds in `lifecycle.startup_timeout` and `lifecycle.shutdown_timeout`; startup failure is reported through the ASGI lifespan protocol, and shutdown runs resource cleanup under its deadline. Application [startup and shutdown hooks](modules.md#startup-and-shutdown-hooks) run inside those limits.
+| Setting | Default | When exceeded |
+| --- | --- | --- |
+| `execution.request_timeout` | 30 s, through response preparation | `504 timeout`; an open transaction rolls back |
+| `execution.max_body_bytes` | 1 MiB (also each multipart part) | `413 payload_too_large` |
+| `execution.max_query_bytes` | 8 KiB | `414 uri_too_long` |
+| `execution.max_header_bytes` | 32 KiB, names and values combined | `431 headers_too_large` |
 
-The router, parsing, validation and selected serialization work use Rust, but the server hand-off (Granian and the ASGI adapter, or Kiso's queue) crosses Python objects. See [sync and async](sync-async.md) for what runs on which executor.
+The size checks run before routing. A sync handler already running when the timeout expires cannot be stopped: it keeps its executor slot until it returns, and its result is discarded. Let the proxy or ASGI server enforce its own request-line and header limits too.
+
+## Request IDs
+
+Each response carries a request ID in `server.request_id_header` (`x-request-id`), and built-in error JSON repeats it as `request_id`. Hinoki generates it; with `server.trust_request_id=True` it accepts a validated inbound ID, only from a trusted proxy.
+
+## Startup and shutdown
+
+`lifecycle.startup_timeout` (30 s) and `lifecycle.shutdown_timeout` (10 s) bound the worker lifespan. A startup failure is reported through the ASGI lifespan protocol; shutdown cleans up resources within its deadline. [Startup and shutdown hooks](modules.md#startup-and-shutdown-hooks) run inside those limits.
+
+## Where Rust runs
+
+Routing, parsing, validation and selected serialization run in Rust; the server hand-off (Granian and the ASGI adapter, or Kiso's queue) crosses Python objects. See [sync and async code](sync-async.md) for which executor runs what.
+
+## See also
+
+* [Transactions](transactions.md)
+* [Errors](errors.md)
+* [Serving](serving.md)

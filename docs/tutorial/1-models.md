@@ -1,29 +1,38 @@
 ---
 status: implemented
+related:
+  - models.md
+  - model-options.md
+  - migrations.md
 ---
 
 # 1. Models
 
-A model is a table. Hinoki's models are active records over a Rust query compiler: no lazy loading, no surprises.
+A model declares a table. A relation is loaded only when you ask for it, never
+as a side effect of reading an attribute.
 
 ```python
+# tracker/models.py
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from hinoki.orm import Model, OnDelete, field, foreign_key, indexed, ordered_by
+from hinoki import db
+from hinoki.orm import Model, OnDelete, field, foreign_key, pk
 from hinoki.utils import utc_now
 
 
-class Member(Model, table="tracker_members"):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
+@db.table("tracker_members")
+class Member(Model):
+    id: UUID = pk(default_factory=uuid4)
     name: str = field(max_length=80)
     token: str = field(unique=True)
 
 
-@indexed("owner_id", "created_at")
-@ordered_by("-created_at", "-id")
-class Task(Model, table="tracker_tasks", label="Task", plural="Tasks"):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
+@db.indexed("owner_id", "created_at")
+@db.ordered_by("-created_at", "-id")
+@db.table("tracker_tasks")
+class Task(Model, label="Task", plural="Tasks"):
+    id: UUID = pk(default_factory=uuid4)
     owner_id: UUID = foreign_key(
         Member, on_delete=OnDelete.RESTRICT, related_name="tasks"
     )
@@ -33,48 +42,52 @@ class Task(Model, table="tracker_tasks", label="Task", plural="Tasks"):
     completed_at: datetime | None = None
 ```
 
-The explicit `tracker_members` and `tracker_tasks` names above are pinned to
-the example's checked-in migration history. New models can omit `table=`:
+- `pk(...)` declares the primary key; `field(...)` adds column options such as
+  `max_length` and `unique`.
+- `@db.indexed("owner_id", "created_at")` adds a composite index.
+  `@db.ordered_by(...)` sets the order of every query that does not call
+  `order_by`.
+- `foreign_key(Member, ...)` stores the owner's id. `task.owner` is fetched only
+  when a query asks for it.
+- `@db.table(...)` pins the table name, because a Tracker rule requires it
+  ([chapter 5](5-rules.md)). Without it, Hinoki derives `<app>_<models>`, as
+  [chapter 8](8-projects.md) shows.
 
-```python
-from uuid import UUID, uuid4
+## Apply the migrations
 
-from hinoki.orm import Model, field
-
-
-class Invoice(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-    reference: str
-```
-
-Placed in a `billing` package's `models` module, that declaration derives the table
-`billing_invoices` (`<app>_<models>`), the singular display name
-`Invoice` and the plural `Invoices`. `label=` and `plural=` override the
-display names; set `table=` explicitly for irregular/localized names and to
-keep a physical table stable when a Python class is renamed. The fallback
-pluralizer is deterministic and English-oriented, so use explicit names for
-irregular nouns.
-
-* `@indexed` and `@ordered_by` are decorators that state facts about the model below them ([model options](../model-options.md)). The default order applies to every query that does not call `order_by`.
-* `foreign_key(Member, ...)` is a column holding the owner's id; the relation (`task.owner`) is never fetched by accident.
-
-## The migration
-
-The Tracker example already includes the migrations for this model and its index. Inspect the checked-in SQL and apply it to a disposable database:
-
-```sh
-cd examples
-uv run --project .. hinoki migrations status
-uv run --project .. hinoki migrations sql --app tracker 0001-initial
-uv run --project .. hinoki migrations sql --app tracker 0002-indexes
-uv run --project .. hinoki migrations apply --app tracker
-```
+A migration is a SQL file generated from the models and checked in beside them.
+Tracker ships two; the second adds the composite index:
 
 ```sql
-CREATE TABLE "tracker_tasks" ( ... );
+-- tracker/migrations/0002-indexes.sql
+-- index tracker_tasks (owner_id, created_at)
 CREATE INDEX "ix_tracker_tasks_owner_id_created_at" ON "tracker_tasks" ("owner_id", "created_at");
 ```
 
-The repository's `examples/hinoki.toml` registers Tracker alongside Notes and Blog, each with a separate model module and migration package. When you change a model, `hinoki migrations plan --app tracker` compares declarations with the recorded state and writes the next migration; the number and slug are derived automatically, and `--name` can override the slug. Review the SQL before applying it; migrations never run at app startup. Destructive changes are flagged and need `--allow-destructive`. [Chapter 8](8-projects.md) creates a new manifest-based project with `hinoki new` and adds apps with `hinoki app create`.
+From `examples/`, list and apply them:
+
+```sh
+uv run hinoki migrations status tracker
+uv run hinoki migrations apply tracker
+```
+
+```text
+tracker          pending  0001-initial
+tracker          pending  0002-indexes
+tracker: 0001-initial, 0002-indexes
+```
+
+With no database URL, the commands use `examples/.hinoki/local.sqlite3`.
+Migrations run only when you call `apply`; an application never migrates at
+startup.
+
+When a model changes, `uv run hinoki migrations plan tracker` writes the next
+migration. Review its SQL, then apply it.
+
+## Recap
+
+- A model is a typed class; decorators state table facts such as indexes and order.
+- Migrations are reviewed files, applied by an explicit command.
+- Relations are never loaded implicitly.
 
 Next: [2. Schemas](2-schemas.md).

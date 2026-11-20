@@ -1,30 +1,47 @@
 # Notes
 
-The smallest complete Hinoki app: a model, input/output schemas, CRUD handlers,
-and a declared database module. Its routes are all in `app.py`; `main.py`
-assembles the ASGI app.
+The smallest complete Hinoki app: a model, input and output schemas, four
+routes and a database setting. `app.py` holds the routes; `main.py` builds the
+application.
 
-## Run locally
+## Run
 
-From `examples/`, inspect the registered apps, plan the Notes migration, then
-apply it and start the app. The locked Python/Rust environment is at the
-repository root, so `--project ..` selects it:
+From `examples/`:
 
 ```sh
-uv run --project .. hinoki app list
-uv run --project .. hinoki migrations plan --app notes
-uv run --project .. hinoki migrations sql --app notes 0001-create-table-notes
-uv run --project .. hinoki migrations apply --app notes
-uv run --project .. hinoki dev notes.main:app
+uv run hinoki migrations apply notes
+uv run hinoki dev notes.main:app
 ```
 
-SQLite is the default at `.hinoki/local.sqlite3`. Open `/docs` to inspect the
-generated OpenAPI UI. Set `NOTES_DATABASE__URL` to select another backend; set
-`HINOKI_DATABASE_URL` to the same URL for migration commands. Migration
-numbering and names are derived from the planned schema change; `--name` can
-override the slug.
+The migration is checked in at
+[`migrations/0001-create-table-notes.sql`](migrations/0001-create-table-notes.sql);
+review it before applying. The database is `.hinoki/local.sqlite3`, and the
+application never migrates at startup.
 
-The example exposes `GET /notes`, `GET /notes/{note_id}`, `POST /notes` and
-`DELETE /notes/{note_id}`. It is intentionally small and has no auth or admin.
+## Try it
 
-Notes defines no rules on purpose: it is the smallest app, with public routes and an unpaginated list. The Blog and Tracker examples enable every built-in rule.
+In another terminal:
+
+```sh
+curl -X POST http://127.0.0.1:8000/notes -H 'content-type: application/json' -d '{"title":"First note","body":"Hello"}'
+curl http://127.0.0.1:8000/notes
+```
+
+The `POST` answers `201 Created` with the new note's `id`, `title` and `body`;
+the `GET` answers a JSON array. Invalid input is rejected before the handler
+runs. Open `/docs` for the OpenAPI UI.
+
+| Route | Action |
+| --- | --- |
+| `GET /notes` | list notes, ordered by title |
+| `GET /notes/{note_id}` | one note, or 404 |
+| `POST /notes` | create a note |
+| `DELETE /notes/{note_id}` | delete a note |
+
+## Configure
+
+Set `NOTES_DATABASE__URL` to use another database, and `HINOKI_DATABASE_URL` to
+the same URL for the migration commands.
+
+Notes has no authentication, no admin and no rules on purpose: its routes are
+public and its list is not paginated. Tracker and Blog enable every built-in rule.

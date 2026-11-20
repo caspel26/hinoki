@@ -1,46 +1,60 @@
+---
+status: implemented
+related:
+  - request-lifecycle.md
+  - patterns.md
+  - glossary.md
+---
+
 # Concepts
 
-This page connects the main parts of Hinoki. The guides explain each API in detail.
+How the parts of Hinoki fit together. Each guide explains one part in detail.
 
-## A model is stored data; a Schema is API data
+## A model is stored data; a `Schema` is API data
 
-`Model` describes a database row and its queries (SQLite, PostgreSQL, MySQL or MariaDB). `Schema` validates the values an endpoint accepts or returns. A response schema should expose only the fields clients are meant to see. Model-derived `Schema` classes are a convenience, not a replacement for deciding that boundary.
+A `Model` describes a table and its queries (SQLite, PostgreSQL, MySQL or MariaDB). A `Schema` validates what an endpoint accepts or returns. A response `Schema` exposes only the fields clients should see: `@derive(Invoice)` copies fields from a model, but you still decide the boundary, and a handler returns `InvoiceOut.from_model(row)`, never the row.
 
 ## A declaration is reused
 
-An action's Python signature and decorator options describe routing, binding, access, `atomic` transactions, expected errors, OpenAPI and MCP metadata. A route can be included as a standalone function, grouped in an `API` resource class, or collected in an includable `RouteGroup` of functions with shared defaults.
+An action's signature and decorator options state its route, inputs, access policy, transaction (`atomic=`), declared errors and response. Routing, binding, the OpenAPI document, the rules, the admin and MCP all read that one declaration. Actions are [plain functions](function-endpoints.md), optionally grouped in a `RouteGroup` with shared options, or [methods of an `API` class](class-endpoints.md). Each app lists them in its `routes.py`, and `hinoki.toml` mounts every app under its prefix ([register routes](routes.md)).
 
 ## One application object
 
-A server process serves one `Hinoki` object, the one `hinoki serve module:app` or `project.application` in `hinoki.toml` names. Declare it at module level, as the generated project does:
+A server process serves one `Hinoki` object: the one `project.application` in `hinoki.toml` names, or the target given to `hinoki serve`. Declare it at module level:
 
 ```python
-# blog/main.py
-app = Hinoki(settings=BlogSettings, rules=blog_rules)  # routes come from hinoki.toml
+# notes/main.py
+import stripe
+from hinoki import Hinoki, errors
+
+from notes.rules import project_rules
+from notes.settings import ProjectSettings
+
+app = Hinoki(settings=ProjectSettings, title="Notes", rules=project_rules)
 
 
-@app.error_handler(stripe.CardError)  # decorators on the app
+@app.error_handler(stripe.CardError)
 def card_error(error: stripe.CardError) -> errors.APIError:
     return errors.APIError(error.user_message, status=402, code="card_declined")
 ```
 
-Building `Hinoki(...)` declares and opens nothing, so importing the module is safe. Use a factory (`def create_app(...) -> Hinoki`, target `module:create_app`) when constructing the application needs arguments or conditions, such as the Blog's optional accounts or the Tracker's per-test database; inside a factory, register handlers with the same call after the app exists (`app.error_handler(Kind)(handler)`). The `[[apps]]` of `hinoki.toml` are something else: model and migration packages of the project, not further `Hinoki` objects.
+`Hinoki(...)` includes the routes listed in `hinoki.toml` and opens nothing, so importing the module is safe. Use a factory (`def create_app(...) -> Hinoki`, named `module:create_app`) only when construction needs runtime values, such as the Tracker's per-test database; inside it, register a handler with `app.error_handler(Kind)(handler)`. The `[[apps]]` of `hinoki.toml` are packages of models, migrations and routes, not further `Hinoki` objects.
 
 ## One request
 
-The server passes an ASGI request through the Python adapter, the compiled router and binding layer. Hinoki validates inputs, resolves authentication and access, runs the handler, then encodes and renders its response. The return value is checked against the action's return annotation (see [the response check](endpoints.md#the-response-is-checked-against-the-annotation)); a mismatch is a `500`. For a transactional action, commit happens after successful response encoding and rendering; failures roll back before HTTP error translation. The ASGI boundary still crosses Python objects; the runtime is not an all-Rust server.
+The server hands each request through the Python adapter to the compiled router and binding layer. Hinoki authenticates the caller, checks access, validates inputs, runs the handler, checks the return value against its annotation and renders the response. A transactional action commits after the response is prepared; a failure rolls back before it becomes an HTTP error. The ASGI boundary still crosses Python objects: the runtime is not an all-Rust server. Details: [request lifecycle](request-lifecycle.md).
 
 ## Worker resources
 
-Each server worker owns its module lifespan and database pool. Startup creates resources; shutdown closes them. A pool is not opened at import or shared across workers. Scripts outside the server manage their own short-lived connections.
+Each server worker owns its module lifespan and database pool: startup creates them, shutdown closes them. Nothing is opened at import or shared across workers. Scripts outside the server manage their own short-lived connections. See [modules](modules.md).
 
 ## Optional rules
 
-Rules inspect declared routes, schemas, models, imports or other known project structure. Hinoki ships eleven; see [rules](rules.md). They report a violation or say they could not verify the promise. They do not prove arbitrary function behavior. Enable the checks that suit the application and run them both at startup and in development.
+Rules check declared routes, schemas, models and imports. Hinoki ships eleven; each reports a violation, a pass, or that it could not verify its promise. They do not prove what a function body does. Turn on the ones that suit the application and run them at startup and in development. See [rules](rules.md).
 
-## Where to continue
+## See also
 
 * [Request lifecycle](request-lifecycle.md)
-* [Transactions](transactions.md)
-* [Sync and async](sync-async.md)
-* [Architecture patterns](patterns.md)
+* [Structure an application](patterns.md)
+* [Sync and async code](sync-async.md)
+* [Glossary](glossary.md)

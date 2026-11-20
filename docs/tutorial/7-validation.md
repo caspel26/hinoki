@@ -1,12 +1,21 @@
 ---
 status: implemented
+related:
+  - schemas.md
+  - models.md
+  - model-schemas.md
 ---
 
 # 7. Validate input
 
-`Schema` validation combines built-in type and value constraints with optional synchronous normalization and rejection checks. Constraints reject invalid input first; normalizers canonicalize valid strings; checks can then reject values based on one field or compare several fields. All of this happens before a validated schema reaches an operation.
+A `Schema` validates in three steps, all before your code runs: built-in
+constraints reject invalid input, normalizers make valid strings canonical, and
+checks reject values that are valid but not acceptable.
+
+## Normalize and check fields
 
 ```python
+# registration.py
 from typing import Annotated
 
 from hinoki import (
@@ -21,10 +30,7 @@ from hinoki import (
 
 
 class Registration(Schema):
-    username: Annotated[
-        str,
-        Field(min_length=3, max_length=32, pattern=r"[a-z0-9_]+"),
-    ]
+    username: Annotated[str, Field(min_length=3, max_length=32, pattern=r"[a-z0-9_]+")]
     email: Annotated[str, Field(format="email")]
     password: Annotated[str, Field(min_length=12)]
     confirmation: str
@@ -42,22 +48,22 @@ class Registration(Schema):
     def passwords_match(self) -> None:
         if self.password != self.confirmation:
             raise Invalid(
-                "password_mismatch",
-                "passwords do not match",
-                path="confirmation",
+                "password_mismatch", "passwords do not match", path="confirmation"
             )
+```
 
-
-valid = Registration.validate(
+```python
+# registration.py (continued)
+user = Registration.validate(
     {
         "username": "mari_23",
-        "email": "mari@example.test",
+        "email": "Mari@Example.test",
         "password": "correct-horse-battery",
         "confirmation": "correct-horse-battery",
     }
 )
-assert valid.username == "mari_23"
-assert valid.email == "mari@example.test"
+assert user.email == "mari@example.test"
+
 try:
     Registration.validate(
         {
@@ -72,17 +78,32 @@ except errors.ValidationError as error:
         print(detail.path, detail.code, detail.message)
 ```
 
-The invalid call reports a `common_password` error on `password` and a `password_mismatch` error on `confirmation`. `min_length`, `max_length` and `pattern` are built-in field constraints. `format="email"` is a ready-made pattern; `url`, `slug` and `hex_color` are also available. Numeric fields can use `gt`, `ge`, `lt` and `le`, and `one_of` restricts a value to a fixed set. An invalid built-in constraint prevents normalizers and custom checks from running.
+```text
+password common_password choose a less common password
+confirmation password_mismatch passwords do not match
+```
 
-`@field_normalize("email")` receives a structurally valid string and must return a `str`. Its result is checked against the same constraints before it is applied. Normalization also runs when you manually construct a `Schema(...)` or call `from_model(...)`; it does not run twice when an existing nested Schema is passed to a new parent. Inputs that fail the original constraints cannot be rescued by normalization.
+- **Constraints** come first: `min_length`, `max_length`, `pattern`, and
+  `format=` (`email`, `url`, `slug`, `hex_color`); numbers take `gt`, `ge`,
+  `lt` and `le`, and `one_of` fixes the allowed values. A failed constraint
+  stops validation of that field.
+- **`@field_normalize`** receives a valid string and returns a `str`; the result
+  is checked against the same constraints. It also runs for `Schema(...)` and
+  `from_model(...)`.
+- **`@field_check`** sees the final value of one field, **`@object_check`** the
+  whole schema. Both raise `Invalid(code, message)` and return `None`.
 
-`@field_check("password")` receives the final value. `@object_check` receives the complete schema and can compare final fields. Raise `Invalid(code, message)` to report a failure; checks must return `None` and do not transform the value. Normalizers and checks are synchronous, have no I/O, and run the same way before both sync and async handlers. A check that needs current database state, such as whether an email is already registered, belongs in an operation where it can be made race-safe.
+Normalizers and checks are synchronous and do no I/O. A rule that needs the
+database, such as "this email is not registered yet", belongs in an operation,
+where it can be race-safe.
 
-## Ignore unknown fields from external payloads
+## Ignore unknown fields
 
-Unknown fields are rejected by default. For an external payload that adds unrelated metadata, opt in to discarding unknown string keys on that Schema:
+Unknown fields are rejected by default. For an external payload that adds
+metadata you do not use, discard unknown keys on that `Schema`:
 
 ```python
+# webhooks.py
 from hinoki import Schema, SchemaConfig, SchemaExtra
 
 
@@ -97,34 +118,46 @@ event = Webhook.validate(
 assert event.dump() == {"event_id": "evt-1", "revision": 2}
 ```
 
-Known fields still require the declared types and constraints, and required fields remain required. Ignored keys are discarded; they are never attached to the object or returned by `dump()`. The policy affects `Schema.validate(...)` and request bodies before sync or async handlers. Constructor keywords and explicit `from_model(..., **extra)` overrides remain strict. Nested Schemas each use their own policy. Aliases also remain canonical: a Python field name does not substitute for its alias, and supplying both spellings is still an error.
+Declared fields stay strict, and ignored keys are never stored or dumped.
+Constructor keywords and `from_model(..., **extra)` stay strict too, and each
+nested `Schema` applies its own policy.
 
-## Validate values at Model write boundaries
+## Validate model writes
 
-Use the same built-in constraints on Model fields when data can be written outside an HTTP Schema, such as from a management command or the admin. Custom callbacks are synchronous and raise `ValueError` to refuse a value:
+Data can also reach a table without an HTTP `Schema`: from a management command
+or the admin. Put the same constraints on the model:
 
 ```python
+# catalog/models.py
 from uuid import UUID, uuid4
 
 from hinoki import Field
-from hinoki.orm import Model, field
+from hinoki.orm import Model, field, pk
 
 
-def normalized(value: str) -> None:
+def trimmed(value: str) -> None:
     if value != value.strip():
         raise ValueError("surrounding whitespace is not allowed")
 
 
 class Product(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
+    id: UUID = pk(default_factory=uuid4)
     sku: str = field(
-        max_length=32,
-        constraints=Field(min_length=3, pattern=r"[A-Z0-9-]+"),
+        max_length=32, constraints=Field(min_length=3, pattern=r"[A-Z0-9-]+")
     )
-    name: str = field(max_length=120, validators=(normalized,))
+    name: str = field(max_length=120, validators=(trimmed,))
     price: float = field(constraints=Field(gt=0))
 ```
 
-The checks run before `await Product.acreate(...)`, `await product.asave()` and `await Product.filter(...).aupdate(...)`, as well as their synchronous counterparts. Construction and assignment stay ordinary dataclass operations; existing rows are not revalidated when read. Invalid writes raise `ModelValidationError` with structured `details`, and no SQL is issued for that write. Validators must not perform I/O or change values. Keep request parsing in a Schema, and put rules that depend on other rows or permissions in an operation. See [Model field constraints and validators](../models.md#model-field-constraints-and-validators).
+The checks run before `acreate`, `asave` and queryset `aupdate`, and their
+synchronous forms. An invalid write raises `ModelValidationError` with
+structured `details` and sends no SQL. Rows that are read are not revalidated.
+See [field constraints and validators](../models.md#model-field-constraints-and-validators).
 
-More: [Schema constraints and checks](../schemas.md#built-in-and-custom-validation), [schemas derived from models](../model-schemas.md).
+## Recap
+
+- Constraints, then normalizers, then checks; all before the handler.
+- Unknown keys are an error unless a `Schema` opts out.
+- Model constraints guard writes that bypass HTTP.
+
+Next: [8. Projects and apps](8-projects.md).

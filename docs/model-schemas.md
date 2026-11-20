@@ -3,155 +3,127 @@ status: implemented
 related:
   - schemas.md
   - models.md
+  - endpoints.md
 ---
 
-# Schemas derived from models
+# Schemas from models
 
-Each example below includes its own imports. `Post` is the blog example's
-model (`examples/blog/models.py`).
-
-A `Schema` can take its fields and constraints from a `Model`. Pass the source model to the single `@derive(Model, ...)` decorator when selecting or making fields optional. A class without a decorator can still use `model=Model` to derive every column during the compatibility cycle.
+A `Schema` can take its fields and constraints from a `Model` with
+`@derive(Model, ...)`. Response handlers convert rows explicitly with
+`from_model`.
 
 ```python
-from blog.models import Post
+# notes/apps/billing/schemas.py
 from hinoki import Schema, derive
 
-
-@derive(Post, only=("title", "slug", "body"))
-class PostCreate(Schema): ...
+from .models import Invoice
 
 
-@derive(Post, exclude=("author_id",))
-class PostOut(Schema):
-    author_name: str
+@derive(Invoice, only=("reference",))
+class InvoiceIn(Schema): ...
 
 
-@derive(Post, only=("title", "body"), partial=True)
-class PostPatch(Schema): ...
+@derive(Invoice, exclude=("customer_id",))
+class InvoiceOut(Schema):
+    customer_name: str
 
 
-@derive(Post)
-class PostAll(Schema): ...
+@derive(Invoice, only=("reference", "paid"), partial=True)
+class InvoicePatch(Schema): ...
+
+
+@derive(Invoice)
+class InvoiceRow(Schema): ...
 ```
 
 | Option | Effect |
 | --- | --- |
-| `@derive(Post, ...)` | source model and field selection |
-| `only=("a", "b")` | take exactly these columns |
-| `exclude=("a",)` | take every column except these |
-| `partial=True` | make every selected derived field optional (`UNSET` when absent) |
-| `partial=("a",)` | make only the named selected fields optional |
+| `@derive(Invoice)` | every column |
+| `only=("a", "b")` | exactly these columns |
+| `exclude=("a",)` | every column except these |
+| `partial=True` | every selected field optional (`UNSET` when absent) |
+| `partial=("a",)` | only the named fields optional |
 
-`only` and `exclude` cannot be combined. An empty `only=()` is invalid; `exclude=()` is equivalent to selecting all columns. Model field types, maximum lengths, defaults and nullability are used. Annotations in the class body add fields or override a derived field, and methods and checks in the body are kept. Methods can use zero-argument `super()` as usual.
+Column types, maximum lengths, defaults and nullability carry over. Annotations
+in the class body add or override fields; methods and checks are kept.
+Relations are not derived: declare nested shapes explicitly. Derivation takes
+every column by default, so use `only` or `exclude` when a column is private.
 
-Unknown columns, a non-model, an empty `only`, optional names outside the selection, a class that is not a `Schema`, or a second `@derive` on the same class fail when the class is declared. Relations are not derived as nested values; declare the API shape explicitly. Model derivation includes all columns by default, so use `only` or `exclude` when the API must omit private fields. During the compatibility cycle, a keyword-only `@derive(only=...)` on a class declared with the `model=Model` class keyword remains valid and emits `DeprecationWarning`; use `@derive(Model, options...)` for new code. Passing the model both ways is a `RegistrationError`.
+These fail when the class is declared, with `RegistrationError`: unknown
+columns, a non-model, `only` together with `exclude`, an empty `only=()`,
+`partial` names outside the selection, a class that is not a `Schema`, and a
+second `@derive`. (`exclude=()` selects every column.) The older `model=` class
+keyword is deprecated and emits `DeprecationWarning`.
 
-### Inheriting from a Schema
+## Inherit from a derived schema
 
-A derived class inherits its base's fields as usual, and `only` or `exclude`
-cannot remove an inherited field. To fail closed, a derivation whose selection
-leaves out a model column that a base Schema already declares raises
-`RegistrationError` when the class is declared, naming the field and the base:
+A subclass inherits its base's fields; `only` and `exclude` cannot remove them.
+A derivation that would leave out a column the base declares fails closed:
 
 ```python
-from blog.models import Post
-from hinoki import Schema, derive
-
-
-@derive(Post)
-class PostAll(Schema): ...
-
-
-@derive(Post, only=("title",))  # RegistrationError: inherited field 'id' from PostAll
-class TitleOnly(PostAll): ...
+@derive(Invoice, only=("reference",))  # RegistrationError: inherited field 'id'
+class ReferenceOnly(InvoiceRow): ...
 ```
 
-Derive the narrower Schema from `Schema` (or from a base that declares only the
-columns it keeps). A selection that keeps or widens the inherited columns is
-allowed, and a field redeclared in the class body is kept on purpose.
+Derive the narrower schema from `Schema` instead. A selection that keeps or
+widens the inherited columns is allowed.
 
-## Return a Model from a Schema-annotated handler
+## Convert rows { #convert-rows }
 
-When a handler declares one concrete response `Schema`, Hinoki converts a
-directly returned `Model` with that Schema's `from_model()` projection:
+Return a `Schema`, never a `Model`:
 
 ```python
+# notes/apps/billing/api.py
 from uuid import UUID
 
-from blog.models import Post
-from hinoki import Schema, derive, http
+from hinoki import RouteGroup, errors
+from hinoki.pagination import Page, PageNumberPagination, PageParams
+
+from notes.security import billing_staff
+
+from .models import Invoice
+from .schemas import InvoiceOut
+
+invoices = RouteGroup("/invoices", access=billing_staff)
 
 
-@derive(Post, only=("id", "title"))
-class PostSummary(Schema): ...
+def to_out(invoice: Invoice) -> InvoiceOut:
+    return InvoiceOut.from_model(invoice, customer_name=invoice.customer.name)
 
 
-@http.get("/posts/{post_id}")
-async def one(post_id: UUID) -> PostSummary:
-    return await Post.aget(id=post_id)  # type: ignore[return-value]
+@invoices.get("/", pagination=PageNumberPagination())
+async def list_invoices(page: PageParams) -> Page[InvoiceOut]:
+    rows = await Invoice.all().select_related("customer").apaginate(page)
+    return rows.map(to_out)
+
+
+@invoices.get("/{invoice_id}", errors=(errors.NotFound,))
+async def get_invoice(invoice_id: UUID) -> InvoiceOut:
+    invoice = await Invoice.filter(id=invoice_id).select_related("customer").aget()
+    return to_out(invoice)
 ```
 
-The declared Schema decides what is sent for these results:
+* `from_model(row, **extra)` reads the attributes the schema needs; `extra`
+  fills fields the model lacks, such as `customer_name`. A missing attribute
+  raises `AttributeError`.
+* `from_models(rows, **extra)` converts a list; `extra` is shared by every row.
+  For a page, `Page.map(InvoiceOut.from_model)`.
+* Relations must be loaded first (`select_related`); nothing is fetched lazily.
+* An invalid stored value (longer than the schema allows) is the server's
+  fault: it becomes `500 internal_error`, logged with the `ValidationError`,
+  never a client 422.
 
-| Handler result | Response body |
-| --- | --- |
-| an instance of the declared Schema | sent as is |
-| an instance of a subclass of the declared Schema | only the declared Schema's fields; the subclass's extra fields are dropped |
-| one `Model` row | `from_model()` projection of that row |
-| a `Model` row that fails the Schema's constraints | `500 internal_error` with the request id; the `ValidationError` is logged as the cause and not sent to the client |
-| a `Model` of another class than the Schema's source model | `500 internal_error` |
-| a list or `Page` of `Model` rows | `500 internal_error`; convert explicitly with `from_models()` |
-| a `dict` or other plain value | `500 internal_error`; sent unchanged only with `validate_response=False` |
+!!! note "Returning a model"
+    A handler annotated with one concrete `Schema` still converts a single
+    returned `Model` of the derived class at runtime, but type checkers reject
+    it and the `HNK-API-001` rule (`Actions.forbid_model_responses`) reports
+    it. Lists or pages of models, models of another class, and plain `dict`
+    values are `500 internal_error` unless the action sets
+    `validate_response=False`. A subclass instance is sent with the declared
+    fields only. See [the response check](endpoints.md#the-response-is-checked-against-the-annotation).
 
-!!! note "Plain values are checked"
-    A returned `dict` (or any other non-Schema, non-Model value) where the
-    annotation names a `Schema` is a `500 internal_error`: the annotation is
-    enforced at runtime (see [the response check](endpoints.md#the-response-is-checked-against-the-annotation)).
-    Return a Schema instance or a Model; declare the action with
-    `validate_response=False` only to send a value as it is.
+## See also
 
-A row that fails the Schema's constraints is the server's fault (for example a
-stored value longer than the Schema allows), so it is never reported as a
-client `422`. No relation is loaded implicitly. For a computed field such as
-`author_name`, keep using `PostOut.from_model(post, author_name=...)`.
-
-Static type checkers do not know about this runtime conversion: they see a
-`Post` returned from a function annotated `-> PostSummary` as a type error.
-This is a limitation of static typing, not of the handler, so the intentional
-Model return needs `# type: ignore[return-value]` (or an explicit
-`PostSummary.from_model(...)` call, which type-checks without one). Derived
-fields are also not synthesized for static type checkers, so declare fields in
-the Schema body when they need static checking.
-
-## Add validation checks
-
-Use `@field_check("name")` for a rule on one or more structurally valid fields, and `@object_check` for a rule over the whole object. Raise `Invalid(code, message, path=...)` to report a problem. Checks are synchronous and must not perform I/O; database-dependent rules belong in an operation.
-
-```python
-from typing import Annotated
-
-from hinoki import Field, Invalid, Schema, field_check, object_check
-
-
-class SignUp(Schema):
-    username: Annotated[str, Field(min_length=3, max_length=32)]
-    password: Annotated[str, Field(min_length=12)]
-    confirmation: str
-
-    @field_check("username")
-    def username_characters(self, value: str) -> None:
-        if not value.replace("_", "").isalnum():
-            raise Invalid("username_characters", "use letters, numbers and _ only")
-
-    @field_check("password")
-    def reject_common_password(self, value: str) -> None:
-        if value.lower() in {"password12345", "qwerty123456"}:
-            raise Invalid("common_password", "choose a less common password")
-
-    @object_check
-    def passwords_match(self) -> None:
-        if self.password != self.confirmation:
-            raise Invalid("mismatch", "passwords do not match", path="confirmation")
-```
-
-Structural errors are reported before custom checks. All applicable check failures are returned together. See [schemas](schemas.md) for the validation contract and conversion methods.
+- [Schemas](schemas.md)
+- [Validate input](schema-validation.md)
+- [Generate CRUD routes](crud.md): `read=`, `create=` and `update=` take these schemas

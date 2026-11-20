@@ -1,41 +1,69 @@
 ---
 status: implemented
 related:
-  - cli.md
   - ai-workflow.md
   - app-mcp.md
+  - cli.md
 ---
 
-# Development MCP
+# Give an agent the development MCP
 
-`hinoki mcp TARGET` starts a newline-delimited JSON-RPC MCP server on stdio. It reads the registered application, enabled rules and optional model modules. It writes protocol messages to stdout and diagnostics to stderr. It does not write source code, rule configuration or waivers.
+`hinoki mcp` starts an MCP server on stdio that describes your app, its rules and its models to a coding agent. It is read-only: it never writes source code, rules or waivers.
 
 ```sh
-cd examples
-uv run --project .. hinoki mcp tracker.app:create_app \
-  --rules tracker.rules:tracker_rules \
-  --package tracker \
-  --models tracker.models
+hinoki mcp notes.main:app --models notes.models
 ```
 
-`TARGET` is an app or a no-argument factory. `--rules` selects a `RuleSet`; `--package` and `--models` can be repeated; `--waivers` selects the waiver file (default `hinoki-rules.toml`). Rule checks with side effects are not run by this server.
+The rules default to the app's own `Hinoki(rules=...)` and the package to the target's package. Projects made by `hinoki new` contain a `.mcp.json` that starts this server for the agent. Protocol messages go to stdout as newline-delimited JSON-RPC; diagnostics go to stderr.
+
+## Options
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `TARGET` | required | The app, or a no-argument factory (`module:create_app`) |
+| `--models MODULE` | none | Model modules to describe; repeatable |
+| `--rules MODULE:NAME` | the app's rules | Another `RuleSet` |
+| `--package NAME` | the target's package | Packages the rules inspect; repeatable |
+| `--waivers PATH` | `hinoki-rules.toml` | The owner's waiver file, read only |
+| `--requests PATH` | `.hinoki/requests.jsonl` | Where `recent_requests` reads |
+| `--scenarios off\|read\|write` | `off` | Registers `run_scenario` (see below) |
 
 ## Tools
 
-The server returns each result as JSON in `structuredContent` and in a text content block. Results include `tool_version`. Tool errors set `isError` and include an `error` message.
+Each result is JSON in `structuredContent` and in a text block, with a `tool_version`. A failed call sets `isError` and carries an `error` message.
 
 | Tool | Input | Result |
 | --- | --- | --- |
-| `inspect_project` | `{}` | App title/version, registered actions (each with `id`, `method`, `path`, `status`, `access`, `atomic`, `pagination`, `parsers`, `renderers` and `location`), selected model metadata, and enabled rule count. Models are included only when supplied with `--models`. |
-| `list_rules` | `{}` | Enabled rules and read-only waiver entries, including their file path, target, reason, owner and expiry. |
-| `explain_action` | `{"action": "module.function"}` | Action signature and docstring, access and `atomic` declarations, generated OpenAPI operation, and diagnostics for the action. The action may also be named by class method or bare handler name when unique. |
-| `explain_error` | `{"code": "validation_error"}` | Meaning and fix for a framework error code, HTTP error code or rule ID. |
-| `propose_model` | `{"name": "Article", "fields": [...]}`, optionally `table`, `owner` (an owning model), `path` (URL prefix) and `unique_together` | Suggested model, input/patch/output schemas and CRUD action source text. The returned text is not written to a file. Fields support `str`, `int`, `float`, `bool`, `uuid` and `datetime`, with optional `nullable`, `unique` and `max_length`. |
-| `recent_requests` | `{}` or `{"limit": 20, "status_min": 400, "path_contains": "/items"}` | The newest requests the development server answered, oldest first, as the JSON access fields (`method`, `path`, `query`, `status`, `duration_ms`, `lane`). They come from a file the Kiso server writes when `server.recent_requests` is set (default read path `.hinoki/requests.jsonl`, or `hinoki mcp --requests PATH`); the file keeps about the last 1 to 2 MiB and without it the result is empty with a note. `limit` is 1 to 200. The `query` field is the raw query string and is not redacted, so keep secrets such as tokens out of query strings on a development server, and treat the request file as sensitive. |
-| `check_project` | `{}` or `{"phase": "static"}` | Enabled rule diagnostics with waivers applied, plus `ok` and `failing`. `phase` accepts `startup` or `static`. Effectful checks are excluded. |
+| `inspect_project` | `{}` | App title and version; each action's `id`, `method`, `path`, `status`, `access`, `atomic`, `pagination`, `parsers`, `renderers` and `location`; model metadata (with `--models`); the enabled rule count |
+| `list_rules` | `{}` | Enabled rules and the waivers with their file, target, reason, owner and expiry |
+| `explain_action` | `{"action": "module.function"}` | Signature, docstring, access and `atomic`, the OpenAPI operation and the action's diagnostics. A class method or a unique bare handler name also works |
+| `explain_error` | `{"code": "validation_error"}` | Meaning and fix of a framework error code, HTTP error code or rule ID |
+| `check_project` | `{}` or `{"phase": "static"}` | Rule diagnostics with waivers applied, plus `ok` and `failing`; `phase` is `startup` or `static`. Effectful checks are not run |
+| `propose_model` | `{"name": "Article", "fields": [...]}`; optional `table`, `owner`, `path`, `unique_together` | Source text for a model, its input, patch and output `Schema` classes and CRUD actions. Returned, never written. Field types: `str`, `int`, `float`, `bool`, `uuid`, `datetime`, with `nullable`, `unique`, `max_length` |
+| `recent_requests` | `{}` or `{"limit": 20, "status_min": 400, "path_contains": "/invoices"}` | The newest requests the development server answered (`method`, `path`, `query`, `status`, `duration_ms`, `lane`), oldest first; `limit` is 1 to 200 |
 
-`run_scenario` is omitted unless explicitly enabled with `--scenarios read` or `--scenarios write`. Its input requires `path`, a plain URL path beginning with `/`; optional fields are `method` (default `GET`), `query` (query string without `?`), string-valued `headers`, and `json`. The result contains HTTP `status`, response `headers`, bounded body text, `truncated`, and parsed JSON when available.
+`recent_requests` reads the file Kiso writes when `server.recent_requests` is set; it keeps about the last 1 to 2 MiB, and without it the result is empty with a note. The `query` field is the raw query string and is not redacted: keep tokens out of query strings and treat the file as sensitive.
 
-Scenarios run the real app lifespan and handlers in-process. `read` accepts GET, HEAD, OPTIONS and QUERY; a GET handler may still change data. `write` also accepts POST, PUT, PATCH and DELETE. Scenario requests have a 15-second limit and response bodies are capped at 20,000 bytes. The tool is marked as effectful. Enable it only under owner control and use a disposable database.
+## Run requests against the app
 
-See [CLI options](cli.md#mcp) for startup configuration and [application MCP](app-mcp.md) for exposing selected routes as remote tools.
+`--scenarios read` or `--scenarios write` adds `run_scenario`. Its input needs `path` (a plain URL path starting with `/`); `method` (default `GET`), `query` (without `?`), string `headers` and `json` are optional. The result holds the HTTP `status`, response `headers`, the body text (at most 20,000 bytes, with `truncated`) and the parsed JSON when there is some.
+
+| Mode | Methods |
+| --- | --- |
+| `read` | `GET`, `HEAD`, `OPTIONS`, `QUERY` |
+| `write` | Also `POST`, `PUT`, `PATCH`, `DELETE` |
+
+!!! warning "Scenarios run your real handlers"
+    The app's lifespan and handlers run in-process, so even `read` can change data (a `GET` handler may write). Each request has a 15-second limit. Enable scenarios only yourself, never on an agent's request, and only against a disposable database.
+
+## Errors and edge cases
+
+* A failed app startup is reported to the client without its message, which may contain a connection string; the details go to stderr.
+* Rule checks with side effects are never run by this server; use `hinoki check --allow-effects`.
+* The server was exercised with the official `mcp` Python client (initialize, `tools/list`, `tools/call`); other clients are untested.
+
+## See also
+
+* [Build with a coding agent](ai-workflow.md)
+* [Expose actions over MCP](app-mcp.md)
+* [`hinoki mcp` options](cli.md#mcp)

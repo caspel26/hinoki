@@ -2,123 +2,177 @@
 status: implemented
 related:
   - models.md
+  - databases.md
   - cli.md
 ---
 
 # Migrations
 
-Hinoki compares each registered app's models with that app's migration state recorded in files. It can write a migration plan, but never applies schema changes when an application starts. `hinoki new` creates an explicit `hinoki.toml`; `hinoki app create NAME` adds another app and its migration package, and `hinoki app add NAME --models MODULE` registers a package that already exists.
-
-## Create a migration
-
-```sh
-uv run hinoki migrations plan --name add-published
-uv run hinoki migrations plan --app billing --name add-invoice-index
-```
-
-The app can be named as an argument or with `--app`: `hinoki migrations plan billing` and `hinoki migrations plan --app billing` are the same. Naming it twice with different values is an error.
-
-The manifest must register the selected app. A single-app project defaults to that app; in a multi-app project, writing a plan requires `--app`. Read-only `--dry-run` and `--check` without `--app` cover every registered app in dependency order. The planner targets the local SQLite default unless a URL is provided through `HINOKI_DATABASE_URL` or `--database`. It writes a numbered `.sql` file and a matching `.state.json` file into the registered migration package. Numbering and a stable slug derived from the first schema change are automatic; an optional `--name` replaces only that slug for a focused plan. Review both files before applying the change. Cross-app model references require an explicit `requires` dependency in `hinoki.toml`; this lets Hinoki validate references and order migrations without assigning another app's tables to the current app's migration state.
-
-`--dry-run` previews ordinary destructive changes without `--allow-destructive`
-and writes no files. An all-app preview is hypothetical: it can show a child
-app change against a prerequisite's current candidate models before that
-prerequisite has a recorded migration. Do not treat displayed plans as ready to
-apply in that order. An all-app preview cannot use `--name`; select one app to
-preview a named migration.
-
-### Cross-app migration safety
-
-Before writing a focused app plan, Hinoki checks cross-app foreign keys against
-the prerequisite app's recorded migration state. The referenced table and
-column must already be recorded, the column must be a primary key, and its
-logical type must be compatible. If the prerequisite has not been planned yet,
-plan and review it first. The prerequisite migration does not need to have been
-applied to the database before the dependent app can be planned.
-
-Hinoki also refuses to plan a parent table or referenced-column teardown while
-any recorded state snapshot of another app still refers to it. This guard
-applies to focused/all-app plans, `--dry-run`, and `--check`, and cannot be
-overridden with `--allow-destructive`. An all-app command fails without
-printing partial diffs. This prevents a generated parent drop from preceding a
-child foreign-key removal. Perform cross-app teardowns as reviewed, separately
-deployed phases: remove and apply the child reference first, then prepare and
-apply the parent teardown. The planner does not infer live database safety
-from migration files.
-
-The state file stores logical column types that are stable across backends; the
-generated SQL uses the selected backend's types. Existing state files that
-recorded SQLite or MySQL-specific type names are normalized when planning, so
-switching the planner's backend does not appear as a destructive type change.
-
-New `Model` classes may omit `table=`; Hinoki derives the table name `<app>_<models>`
-from the package of the model's `models` module and the Python class name. Keep `table=` explicit for models with existing
-migration history so later Python class renames do not change physical table
-identity. A changed implicit name appears as a drop/create plan and the
-destructive guard still applies. Hinoki refuses generated names reserved for
-its migration ledger or SQLite internals. See [Models and queries](models.md#define-a-model)
-for display-name overrides and the fallback naming rules.
-
-## Check migration drift
-
-To check that model changes have a migration file in CI, run:
+Hinoki compares each app's models with the migration state recorded in its
+migration package and writes SQL files you review and commit. Nothing changes a
+database until you run `apply`; an application never migrates at startup.
 
 ```sh
-uv run hinoki migrations plan --check
+hinoki migrations plan billing
+hinoki migrations apply
 ```
 
-It exits `1` when operations are pending, including destructive operations,
-and `0` when every selected app matches its latest migration state file. It
-does not write migration files or connect to a database. It imports registered
-model and migration modules (cross-app foreign keys require every model module),
-so those imports must be safe in CI. In a multi-app project, no `--app` checks
-every app in dependency order; `--app NAME` checks one app and its
-prerequisites. This check concerns file state only. Use `migrations status` to
-compare files with a live database's applied migration ledger. `--dry-run`
-without `--app` previews every registered app and exits successfully when
-changes are pending.
+Commands run from the project, where `hinoki.toml` registers each app's models
+and migrations (`hinoki new`, `hinoki app create`). Prefix them with `uv run`
+or activate `.venv`.
 
-For example, `billing` can depend on `accounts`:
+## Plan a migration
 
-```toml
-[[apps]]
-name = "billing"
-models = "sample.apps.billing.models"
-migrations = "sample.apps.billing.migrations"
-requires = ["accounts"]
+```sh
+hinoki migrations plan                  # a project with one app
+hinoki migrations plan billing          # one app of several
+hinoki migrations plan billing --name add-invoice-index
 ```
+
+`plan` writes two files into the app's migration package:
+`0001-create-table-billing-invoices.sql` and its `.state.json`. The number is
+automatic; the slug comes from the first change (`create table
+billing_invoices`) unless `--name` replaces it.
+
+In a project with several apps, `plan` needs the app name; `--check` and
+`--dry-run` without one cover every app.
+
+!!! warning "Plan for the backend you deploy"
+    The SQL uses the dialect of the selected URL: `--database`, then
+    `HINOKI_DATABASE_URL`, then local SQLite. Export the production backend's
+    URL (a disposable database of the same kind) before planning. The state
+    file is backend-neutral.
+
+## Review before applying
+
+Read both files. Changes that can lose data are **destructive** and are not
+written unless you pass `--allow-destructive`:
+
+* dropping a table or column, changing a type or constraint, adding a
+  non-null column;
+* a changed derived table name (renaming the class or moving its module), which
+  is planned as a drop and a create. Pin the name with `@db.table(...)`
+  ([table names](models.md#table-and-display-names)).
+
+```sh
+hinoki migrations plan billing --dry-run
+hinoki migrations plan billing --allow-destructive
+```
+
+`--dry-run` prints the plan, destructive operations included, and writes
+nothing. Changing a constraint on an existing column may need a hand-written
+migration.
 
 ## Apply and inspect
 
-`apply` and `status` take the app the same way: `hinoki migrations apply billing` applies `billing` and its prerequisites. Planning and applying stay two separate commands, so a migration is never written and applied in one step.
-
 ```sh
-export HINOKI_DATABASE_URL="$BLOG_DATABASE__URL"
-uv run hinoki migrations status
-uv run hinoki migrations sql --app accounts 0001-initial
-uv run hinoki migrations apply
+export HINOKI_DATABASE_URL="$NOTES_DATABASE__URL"
+hinoki migrations status
+hinoki migrations sql 0001-create-table-billing-invoices
+hinoki migrations apply
+hinoki migrations apply billing
 ```
 
-With no URL, `status` and `apply` use `sqlite://./.hinoki/local.sqlite3` and create the migration ledger/database as needed. In a manifest project this implicit path is anchored at the directory containing `hinoki.toml`, even when the command runs from a subdirectory. Without a manifest it stays relative to the current working directory. An explicit relative SQLite URL from `HINOKI_DATABASE_URL` or `--database` remains relative to the current working directory. Both commands operate on every registered app in dependency order. `--app NAME` limits them to that app and its prerequisites. `sql` requires `--app` in a multi-app project. The scaffolded root app keeps the traditional unprefixed migration ledger keys, so a project can add a manifest without replaying its existing migration history; added apps use namespaced keys, so `accounts/0001-initial.sql` and `billing/0001-initial.sql` are distinct records. Set `HINOKI_DATABASE_URL` or use `--database URL` to target another supported backend. A URL argument is visible in the process list and shell history, so do not pass a URL containing a password that way. A failed connection is reported as `error: database: …` with exit code 1, without the URL.
+| Command | Effect |
+| --- | --- |
+| `status [APP]` | lists applied and pending migrations; creates the ledger if missing |
+| `sql NAME` | prints one migration's SQL; add `--app APP` only when the name is ambiguous |
+| `apply [APP]` | applies pending migrations of every app, or of `APP` and its prerequisites, in dependency order |
 
-Existing projects without a `hinoki.toml` can continue using explicit `--models MODULE` and `--dir PATH` options. These options cannot be combined with a project manifest; use the manifest as the single source for registered apps.
+The database is chosen the same way as for `plan`; application settings such
+as `NOTES_DATABASE__URL` are not read. The implicit SQLite default
+(`sqlite://./.hinoki/local.sqlite3`) is anchored beside `hinoki.toml`, so a
+subdirectory uses the same file; an explicit relative SQLite URL stays relative
+to the current directory. A connection failure prints `error: database: …`
+without the URL and exits `1`. A `--database` URL is visible in the process
+list and shell history: do not put a password in it.
 
-Use a disposable database to review a migration before running it against important data.
+The root app keeps unprefixed ledger keys; added apps use namespaced keys, so
+`accounts/0001-initial.sql` and `billing/0001-initial.sql` are distinct records.
 
-Concurrent `apply` runs are serialized: each migration file runs in one transaction that takes a PostgreSQL advisory lock, a MySQL/MariaDB migration lock or, on SQLite, `BEGIN IMMEDIATE`, and reads the ledger inside it, so a file is applied once. On SQLite a second runner waits for the write lock for at most the busy timeout (5 seconds) and then fails with a locked-database error, so run `apply` from one process, as a deployment step.
+Run `apply` once per deployment, from one process, never from every worker's
+startup ([settings](settings.md#8-database-connection-ownership)). Concurrent
+runs are serialized: each file runs in one transaction under a PostgreSQL
+advisory lock, a MySQL/MariaDB migration lock or SQLite `BEGIN IMMEDIATE`, and
+reads the ledger inside it. On SQLite a second runner waits at most the busy
+timeout (5 seconds), then fails as locked.
 
-SQLite uses table rebuilds when a schema change cannot be expressed safely with `ALTER TABLE`. Review the generated SQL carefully. Dropping columns, changing types or constraints, and adding non-null columns can be destructive and require `--allow-destructive`. Hinoki holds the SQLite pool during a migration, suspends foreign-key enforcement on reserved connections, runs `PRAGMA foreign_key_check` before commit, and rolls the migration back if references are invalid.
+## Check migration drift
 
-MySQL and MariaDB migrations declare foreign keys at table level. For databases
-migrated with an older Hinoki version, inspect `SHOW CREATE TABLE`: MySQL ignores
-inline `REFERENCES` clauses, while MariaDB behavior varies by server version.
-Add any missing constraint through a reviewed manual migration; applied
-migrations are never rewritten automatically. Automatic removal of a foreign
-key column is refused for these backends because the planner cannot know
-whether an older migration actually created its constraint.
+```sh
+hinoki migrations plan --check
+```
 
-## Destructive changes
+Exits `1` when any app has model changes without a migration file, destructive
+ones included, and `0` otherwise. It covers every app in dependency order
+(`plan billing --check`: that app and its prerequisites), writes nothing and
+opens no database, but imports every registered model and migration module, so
+those imports must be safe in CI. `status` compares files with a live
+database instead.
 
-Operations that can remove data are reported as destructive and are not written unless `--allow-destructive` is passed to `plan`. Read the generated migration before opting in. Changing a constraint on an existing column may require a hand-written migration.
+## Apps and dependencies
 
-Migrations are files committed with the application. Do not run them from every server worker's startup hook. For the connection lifecycle, see [settings](settings.md#8-database-connection-ownership).
+An app that references another app's models declares it in `requires`:
+
+```toml
+# hinoki.toml
+[[apps]]
+name = "billing"
+models = "notes.apps.billing.models"
+migrations = "notes.apps.billing.migrations"
+requires = ["accounts"]
+```
+
+`hinoki app create billing` asks for `requires`; `hinoki app add NAME --models
+MODULE` registers an existing package. Each app's tables belong only to its
+own migration state.
+
+### Cross-app migration safety
+
+* Before planning `billing`, the referenced table and primary key must already
+  be recorded in `accounts`' migration state with a compatible type; plan and
+  review `accounts` first. It does not need to be applied yet.
+* A parent table or referenced column is never dropped while another app's
+  recorded state still refers to it, in `plan`, `--dry-run` and `--check`;
+  `--allow-destructive` does not override this, and an all-app command fails
+  without partial output. Remove and apply the child reference first, then
+  plan the parent teardown in a separate deployment.
+* `--dry-run` without an app previews every app, possibly against a
+  prerequisite's not-yet-planned models: do not apply in that order. It cannot
+  take `--name`.
+
+## Backend behaviour
+
+| Backend | Behaviour |
+| --- | --- |
+| SQLite | rebuilds a table when `ALTER TABLE` cannot express the change safely; holds the pool, suspends foreign-key enforcement on reserved connections, runs `PRAGMA foreign_key_check` before commit and rolls back on invalid references |
+| PostgreSQL | each migration runs in a transaction |
+| MySQL | DDL commits implicitly: a failed migration may be partially applied (Hinoki says so). Check the schema and `status` before retrying; keep a backup |
+| MariaDB | separate backend on the MySQL wire protocol; JSON is a text alias decoded by typed fields |
+
+MySQL and MariaDB foreign keys are table-level constraints. For databases
+migrated by an older Hinoki, check `SHOW CREATE TABLE`: MySQL ignores inline
+`REFERENCES`, and MariaDB varies by version. Add a missing constraint with a
+reviewed manual migration; applied migrations are never rewritten. Automatic
+removal of a foreign-key column is refused on these backends.
+
+State files record logical types; files from older versions that recorded
+SQLite or MySQL type names are normalized, so switching the planner's backend
+is not reported as a type change.
+
+## Without a manifest
+
+A project without `hinoki.toml` passes the models module and directory:
+
+```sh
+hinoki migrations --dir app/migrations plan --models app.models
+```
+
+These options cannot be combined with a manifest. Prefer adding one: the root
+app keeps its ledger keys, so existing history is not replayed.
+
+## See also
+
+- [Configure a database](databases.md)
+- [CLI reference](cli.md#migrations)
+- [Define models](models.md)

@@ -58,27 +58,32 @@ Declare them on the action with `errors=(PaymentDeclined,)` for the contract (Op
 A library or the database raises its own exception, which is not an HTTP error, and the client would receive `500 internal_error`. Answer it with a function on the app. The function receives the exception and returns the `APIError` to send; an instance can set its own `status`:
 
 ```python
-app = Hinoki(include=[...])
+# notes/main.py (continued)
+from hinoki import errors
+
+from notes.apps.billing.gateway import CardDeclined
 
 
-@app.error_handler(stripe.CardError)
-def card_error(error: stripe.CardError) -> errors.APIError:
-    return errors.APIError(error.user_message, status=402, code="card_declined")
+@app.error_handler(CardDeclined)
+def card_declined(error: CardDeclined) -> errors.APIError:
+    return errors.APIError(error.reason, status=402, code="card_declined")
 ```
+
+`CardDeclined` stands for any exception your code or a library raises, here one the Billing app's payment gateway client defines.
 
 * The most specific class wins: a handler for `HardQuota` is used before one for its base `Quota`. Application handlers are consulted before the built-in ones.
 * A handler may be `def` or `async def`. One that fails, or does not return an `APIError`, counts as "not handled" and the client receives `500 internal_error` without the exception text.
 * An exception type can be registered once (a second registration raises `ValueError`), and only before the app serves (afterwards `RegistrationError`). The decorator returns the function unchanged. A class or a value that is not a function is refused with `TypeError`.
 * `app.errors.handle(Kind)` is the same call without the `app` checks.
-* With a factory (`create_app()`), call `app.error_handler(Kind)(handler)` after building the app; the decorator form needs the application at module level. See [one application object](concepts.md#one-application-object).
+* With a factory (`create_app()`), call `app.error_handler(Kind)(handler)` inside it after building the app; the decorator form needs the module-level `app` ([Register routes](routes.md#the-application-module)).
 
 Built in, with nothing to write: `ObjectNotFound` is answered with `404 not_found`, and a database `UniqueViolation` with `409 unique_conflict` (`errors.UniqueConflict`) without exposing the constraint name. Register your own handler to replace either.
 
 ## Validation and binding errors
 
-Input that does not match a path, query, header or body annotation fails before the handler runs. Schema validation is strict and reports field paths with `422`. Unsupported content types receive `415`; malformed supported content receives a parser error. A body larger than `execution.max_body_bytes`, or a multipart part larger than its parser's `max_part_bytes`, receives `413 payload_too_large`. Query strings over `execution.max_query_bytes` receive `414 uri_too_long`; combined headers over `execution.max_header_bytes` receive `431 headers_too_large`. A `Host` outside the `allowed_hosts` setting receives `400 disallowed_host`, and a CORS preflight from an origin outside `cors.origins` receives `403 cors_origin_denied` ([settings](settings.md#debug-allowed-hosts-and-cors)). These are framework-level failures and do not need to be listed in the action's `errors=`.
+Input that does not match a path, query, header or body annotation fails before the handler runs. Schema validation is strict and reports field paths with `422`. Unsupported content types receive `415`; malformed supported content receives a parser error. A body larger than `execution.max_body_bytes`, or a multipart part larger than its parser's `max_part_bytes`, receives `413 payload_too_large`. Query strings over `execution.max_query_bytes` receive `414 uri_too_long`; combined headers over `execution.max_header_bytes` receive `431 headers_too_large`. A `Host` outside the `allowed_hosts` setting receives `400 disallowed_host`, and a CORS preflight from an origin outside `cors.origins` receives `403 cors_origin_denied` ([hosts, CORS and HTTPS](web-security.md#debug-allowed-hosts-and-cors)). These are framework-level failures and do not need to be listed in the action's `errors=`.
 
-When `security.redirect_https` is enabled, a plain HTTP request receives `308` with an HTTPS `Location` before routing or body parsing. The redirect requires an explicit `allowed_hosts` list and preserves the request method and target. A target that is not a path, such as `OPTIONS *`, is not redirected. See [browser security settings](settings.md#browser-security-headers-and-https).
+When `security.redirect_https` is enabled, a plain HTTP request receives `308` with an HTTPS `Location` before routing or body parsing. The redirect requires an explicit `allowed_hosts` list and preserves the request method and target. A target that is not a path, such as `OPTIONS *`, is not redirected. See [browser security settings](web-security.md#browser-security-headers-and-https).
 
 `ModelValidationError` is raised before an ORM insert or update when a Model field constraint or custom validator refuses a value. In an HTTP request it uses the same `422 validation_error` response shape as Schema validation, including field paths, codes and messages. The admin displays the field messages in its form. Keep Schema validation at the request boundary; Model checks also cover non-HTTP writes. See [Model field constraints and validators](models.md#model-field-constraints-and-validators).
 

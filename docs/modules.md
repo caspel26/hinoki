@@ -1,44 +1,135 @@
 ---
 status: implemented
+related:
+  - settings.md
+  - transactions.md
+  - cli.md
 ---
 
-# Application modules and resources
+# Own resources with modules
 
-Modules own resources whose lifetime belongs to a worker or a management command, such as a database pool. They are created during startup, made available through `ModuleContext`, and closed when that run ends.
+A module owns something that lives as long as a worker or a command run: a
+connection pool, a client, a thread pool. It opens the resource at startup,
+provides it to the rest of the application and closes it when the run ends.
+Nothing is opened at import time.
+
+```python
+# notes/passwords.py
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from hinoki import Module, ModuleContext
+from hinoki.crypto import PasswordHasher
+
+
+class Passwords(Module):
+    name = "passwords"
+
+    @asynccontextmanager
+    async def lifespan(self, ctx: ModuleContext) -> AsyncIterator[None]:
+        hasher = PasswordHasher()
+        ctx.provide(PasswordHasher, hasher)
+        try:
+            yield
+        finally:
+            hasher.close()
+```
+
+Install it on the application:
+
+```python
+# notes/main.py
+app = Hinoki(
+    settings=ProjectSettings,
+    title="Notes",
+    rules=project_rules,
+    modules=[Passwords()],
+)
+```
+
+Each worker runs `lifespan` up to `yield` before it answers requests, and the
+`finally` block when it stops, even if a later module fails to start.
+
+## Use what a module provides
+
+`ctx.provide(Type, value)` registers a value under its type; `ctx.get(Type)`
+returns it (or raises `LookupError`) and `ctx.find(Type)` returns `None` instead.
+The value is reachable from:
+
+| Where | How |
+| --- | --- |
+| Another module's `lifespan` | `ctx.get(PasswordHasher)`, with `requires = (Passwords,)` |
+| A startup or shutdown hook | `ctx.get(PasswordHasher)` |
+| A management command | `context.get(PasswordHasher)`, with `requires = (Passwords,)` |
+| A rate-limit policy | `context.resource(PasswordHasher)` |
+
+```python
+# notes/commands.py
+from argparse import ArgumentParser, Namespace
+
+from hinoki.crypto import PasswordHasher
+from hinoki.management import Command, CommandContext
+
+from notes.passwords import Passwords
+
+
+class HashPassword(Command):
+    name = "hash-password"
+    help = "print the Argon2id hash of a password"
+    requires = (Passwords,)
+
+    def add_arguments(self, parser: ArgumentParser) -> None:
+        parser.add_argument("password")
+
+    async def handle(self, context: CommandContext, args: Namespace) -> None:
+        print(await context.get(PasswordHasher).hash(args.password))
+```
+
+With `commands=[HashPassword]` on the application, `hinoki manage hash-password s3cret`
+starts only `Passwords` (and what it requires), runs the command and closes it.
+Request handlers do not receive module values as parameters; the database is the
+exception, because model methods find the worker's `Database` themselves.
+
+## The database module
+
+A `database: settings.DatabaseSettings` field on your settings class is enough:
+Hinoki installs `DatabaseModule` (from `hinoki.db`) before any declared module, so
+a module with `requires = (DatabaseModule,)` can call `ctx.get(Database)` in its
+lifespan. Declaring `DatabaseModule`, or a subclass of it, in `modules=` replaces
+the automatic one; modules that require `DatabaseModule` still start after it.
+See [database connection ownership](settings.md#8-database-connection-ownership).
 
 ## Declare modules
 
-This excerpt uses the `health` route and `Tasks` API from your application; the imports and application-specific declarations are omitted here.
+`modules=` accepts instances and classes. An instance is the plain choice; a class
+is built with its `from_settings(settings)` classmethod, which you override to
+read your settings (the default raises `TypeError` and says so).
 
-```python
-class ProjectSettings(settings.AppSettings, prefix="APP_"):
-    database: settings.DatabaseSettings
+`requires` decides the order: dependencies start first and stop last. An empty or
+duplicate `name`, a missing requirement, a cycle, or a type provided twice fails
+startup with `ModuleGraphError`. A module whose class extends a required class
+satisfies that requirement.
 
-
-app = Hinoki(settings=ProjectSettings, include=[health, Tasks])
-```
-
-The settings' `database: DatabaseSettings` field makes Hinoki install `DatabaseModule` before any declared module, so a module that `requires = (DatabaseModule,)` finds it. Declaring `DatabaseModule` in `modules=`, or installing an instance, replaces that automatic module. When a module class is passed, Hinoki constructs it from the settings class. A module instance is useful when setup needs explicit runtime arguments. The database pool is opened after the worker starts and closed during shutdown; importing the model module does not open a connection.
-
-## Provide and retrieve dependencies
-
-A module calls `ctx.provide(Type, value)` during lifespan startup. Other modules can declare dependencies and retrieve the provided value with `ctx.get(Type)`. Dependencies determine startup and shutdown order. Missing, duplicate or circular providers fail application startup.
-
-A module instance whose class extends a required module class satisfies that dependency. For example, a custom `DatabaseModule` subclass can replace the settings-provided database while modules requiring `DatabaseModule` continue to start after it.
-
-Module lifespan hooks are async. Keep startup bounded, fail fast when a required service is unavailable, and close each owned resource in `finally`.
+Keep `lifespan` bounded (it shares `lifecycle.startup_timeout`), fail fast when a
+required service is unavailable, and close what you own in `finally`.
 
 ## Startup and shutdown hooks
 
-For an action at the edge of a worker's life that owns no resource, such as warming a cache, logging the build or flushing a counter, list functions on the application instead of writing a module (`ProjectSettings`, `health` and `Tasks` are those of the previous example):
+For an action at the edge of a worker's life that owns no resource, such as
+warming a cache, logging the build or flushing a counter, list functions on the
+application instead of writing a module (`ProjectSettings` here declares a
+`database` field, so the database module is installed):
 
 ```python
+# notes/main.py
 import logging
 
 from hinoki import Hinoki, ModuleContext
 from hinoki.db import Database
 
-log = logging.getLogger("app")
+from notes.settings import ProjectSettings
+
+log = logging.getLogger("notes")
 
 
 async def warm_cache(ctx: ModuleContext) -> None:
@@ -50,10 +141,7 @@ def say_goodbye(ctx: ModuleContext) -> None:
 
 
 app = Hinoki(
-    settings=ProjectSettings,
-    include=[health, Tasks],
-    on_startup=[warm_cache],
-    on_shutdown=[say_goodbye],
+    settings=ProjectSettings, on_startup=[warm_cache], on_shutdown=[say_goodbye]
 )
 ```
 
@@ -72,10 +160,20 @@ Shutdown hooks run only after a startup that completed, and a shutdown hook is n
 
 Hooks run where the application serves requests: under `hinoki dev`/`serve` and any ASGI server, on the first request of each WSGI worker, and in the [test clients](testing.md). `hinoki manage` commands, `check`, `routes` and `migrations` do not run them.
 
-## Standalone scripts
+## Scripts outside the server
 
 For app maintenance tasks, declare a [management command](cli.md#manage) and list its required module classes in `Command.requires`. Hinoki starts only those modules and their dependencies for one command run, so a database module is opened and closed without starting the HTTP server or unrelated modules.
 
 Standalone scripts outside Hinoki's server or management-command runner have no module lifespan. Open their own `Database` and close it explicitly; do not import a module-global pool. The blog seed script demonstrates this pattern.
 
-See [settings and database ownership](settings.md#8-database-connection-ownership), [serving](serving.md) and [sync and async](sync-async.md).
+## Errors and edge cases
+
+- `ctx.get` for a type nobody provided raises `LookupError: <Type> was not provided`; declare the providing module in `requires`.
+- A module class without `from_settings` in `modules=` fails at construction: pass an instance instead.
+- `hinoki check`, `routes` and `migrations` do not start modules or run hooks.
+
+## See also
+
+- [Settings](settings.md): where a module reads its configuration.
+- [Command line](cli.md#manage): running management commands.
+- [Sync and async](sync-async.md): where sync hooks run.

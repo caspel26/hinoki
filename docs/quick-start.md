@@ -1,56 +1,105 @@
+---
+status: implemented
+related:
+  - tutorial/8-projects.md
+  - cli.md
+  - serving.md
+---
+
 # Quick start
 
-This walkthrough uses the default local SQLite database, so no database server
-or URL setup is needed. It creates the table with an explicit migration;
-Hinoki does not create or migrate tables when the app starts. To use PostgreSQL,
-MySQL or MariaDB instead, see [Configure a database](databases.md).
+Create a project, run its tests and serve it. Everything runs locally; the
+database is a SQLite file.
 
-## Plan and apply the migration
+## Create a project
 
-`examples/hinoki.toml` registers Notes, Tracker and Blog as independent apps.
-From the repository root, enter `examples/` and use the locked environment in
-the parent directory. On a fresh checkout, the checked-in Notes migration is
-already up to date, so planning reports `no changes`. Inspect the registered
-apps and migration SQL:
+From the Hinoki checkout:
 
 ```sh
-cd examples
-uv run --project .. hinoki app list
-uv run --project .. hinoki migrations plan --app notes
-uv run --project .. hinoki migrations sql --app notes 0001-create-table-notes
+uv run hinoki new
 ```
 
-Review the SQL, then apply it explicitly. With no URL set, the migration
-command and the Notes app both use `sqlite://./.hinoki/local.sqlite3`:
+`hinoki new` asks only what it needs. Give these answers and keep the other
+defaults:
+
+| Prompt | Default | Answer |
+| --- | --- | --- |
+| Project name | | `notes` |
+| Parent directory | `.` | `..` (beside the checkout) |
+| Database | `none` | `sqlite` |
+| Server | `kiso` | `kiso` |
+| Agent instructions and MCP config? | yes | yes |
+| Agent skills? | no | no |
+| Initialize a git repository? | yes | yes |
+| Install dependencies (uv sync)? | yes | yes |
+
+It writes the project, runs `git init` and `uv sync`, and prints the next
+commands. The files that matter:
+
+```text
+notes/
+├── hinoki.toml        manifest: application, routes, apps
+├── notes/
+│   ├── main.py        the application
+│   ├── api.py         GET /health
+│   ├── routes.py      routes = [health]
+│   ├── settings.py    typed settings, NOTES_* variables
+│   └── rules.py       architecture rules
+├── tests/             pytest suite
+└── AGENTS.md          agent instructions
+```
+
+!!! tip "Scripts and CI"
+    `uv run hinoki new notes --no-input` skips the prompts and uses the
+    defaults. All options are in [`hinoki new`](new-project.md).
+
+## Test and serve it
 
 ```sh
-uv run --project .. hinoki migrations apply --app notes
+cd ../notes
+uv run pytest
+uv run hinoki dev
 ```
 
-The local database file and migration ledger are created when `apply` runs.
-Use a disposable database while evaluating the example.
-
-## Start the app and send a request
+The test calls `/health` in process and needs no database. `hinoki dev` serves
+on `http://127.0.0.1:8000` and reloads when a file changes. In another terminal:
 
 ```sh
-uv run --project .. hinoki dev notes.main:app
+curl http://127.0.0.1:8000/health
 ```
 
-The `database` field of the Notes settings opens a pool for the worker and closes it at shutdown. It does not create tables. In another terminal, create a note and list the collection:
-
-```sh
-curl -i -X POST http://127.0.0.1:8000/notes \
-  -H 'content-type: application/json' \
-  -d '{"title":"First note","body":"Hello"}'
-curl http://127.0.0.1:8000/notes
+```text
+{"status":"ok"}
 ```
 
-The POST returns `201 Created` and a JSON object with the generated `id`, `title` and `body`. The GET returns a JSON array. Invalid input is rejected before the handler runs; see [error handling](errors.md) for the response format.
+Open `http://127.0.0.1:8000/docs` for the generated OpenAPI UI, or run
+`uv run hinoki routes` to list every route with its access policy.
 
-## Where to go next
+## What the manifest does
 
-- [Tutorial](tutorial/index.md): build the Tracker example in seven steps, then learn the project and app workflow.
-- [Models and queries](models.md): fields, querysets and relation loading.
-- [Migrations](migrations.md): migration files, destructive changes and deployment workflow.
-- [Configure a database](databases.md): choose another backend, set its URL and understand backend-specific behavior.
-- [API reference](reference/index.md): public symbols and signatures.
+`hinoki.toml` names the application and where its routes, models and migrations
+live:
+
+```toml
+[project]
+application = "notes.main:app"
+routes = "notes.routes:routes"
+
+[[apps]]
+name = "notes"
+models = "notes.models"
+migrations = "notes.migrations"
+requires = []
+```
+
+The application in `notes/main.py` lists no routes: it binds the ones the
+manifest names. Commands read the same file, so inside the project they need
+no module paths.
+
+## Next
+
+- [Tutorial](tutorial/index.md): build an API layer by layer.
+- [8. Projects and apps](tutorial/8-projects.md): add an app with its own
+  models and migrations to this project.
+- [Notes example](https://github.com/caspel26/hinoki/tree/main/examples/notes):
+  a small CRUD API with a migration.

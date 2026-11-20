@@ -1,32 +1,50 @@
 ---
 status: implemented
+related:
+  - patterns.md
+  - quick-start.md
 ---
 
-# Tutorial: a task tracker, layer by layer
+# Tutorial
 
-Chapters 1–6 follow the Tracker in [`examples/tracker`](https://github.com/caspel26/hinoki/tree/main/examples/tracker): members keep their own tasks, complete them, and a few rules stop it from rotting. Chapter 7 uses standalone validation examples. Chapter 8 starts a fresh project with the scaffold and app commands.
+Build the Tracker, an API where members keep their own tasks, one layer per
+chapter. The code is the checked-in example in
+[`examples/tracker`](https://github.com/caspel26/hinoki/tree/main/examples/tracker),
+so every step runs as shown.
 
-| Step | You add | You learn |
+| Chapter | You add | You learn |
 | --- | --- | --- |
-| [1. Models](1-models.md) | tables, an index, a default order | how a model and a migration relate |
-| [2. Schemas](2-schemas.md) | what clients send and see | strict validation, schemas derived from models |
-| [3. Operations](3-operations.md) | the business rules | row permission inside the statement |
+| [1. Models](1-models.md) | tables, an index, a default order | models and migrations |
+| [2. Schemas](2-schemas.md) | what clients send and receive | strict validation, derived schemas |
+| [3. Operations](3-operations.md) | the business rules | ownership inside the statement |
 | [4. Endpoints](4-endpoints.md) | the HTTP layer | access, transactions, declared errors |
-| [5. Rules](5-rules.md) | checks that keep the layers apart | `hinoki check`, import boundaries |
-| [6. Run and test it](6-run.md) | settings, serving, tests | `dev`, `serve`, the test client |
-| [7. Validate input](7-validation.md) | Schema config, normalization/checks and Model write validators | ignored external metadata, canonical fields, field-level and cross-field errors |
-| [8. Projects and apps](8-projects.md) | `hinoki new`, modular apps and migration commands | generated project manifest, automatic migration names and local SQLite setup |
+| [5. Rules](5-rules.md) | checks that keep the layers apart | `hinoki check` |
+| [6. Run and test it](6-run.md) | settings, a server, tests | `hinoki dev`, the test client |
+| [7. Validate input](7-validation.md) | normalizers and checks | field and cross-field errors |
+| [8. Projects and apps](8-projects.md) | an app in your own project | `hinoki app create`, planned migrations |
 
-The Tracker chapters build and run an existing, versioned example. The validation chapter uses focused examples; the final chapter separately walks through creating a project and app, where Hinoki writes the manifest and discovers migrations automatically.
+Chapters 1–6 build the Tracker. Chapter 7 uses standalone examples, and
+chapter 8 continues the project from the [Quick start](../quick-start.md).
 
 The shape you end with:
 
-```
+```text
 api.py          HTTP: shapes, status codes, access, transactions
    ↓
-operations.py   business rules, plain async functions, no HTTP types
+operations.py   business rules: plain async functions, no HTTP types
    ↓
 models.py       tables and relations
 ```
 
-Prerequisites: [install](../getting-started.md) from a checkout. The Tracker tests in chapters 1–6 need a disposable database in `HINOKI_TEST_DATABASE_URL` (PostgreSQL, or a throwaway SQLite file; chapter 6 shows both). The standalone validation examples in chapter 7 need no database; chapter 8 uses local SQLite by default.
+## Before you start
+
+[Install Hinoki](../getting-started.md). Chapters 1–6 run in the checkout's
+`examples/` directory:
+
+```sh
+cd examples
+```
+
+That directory hosts three applications (Notes, Tracker and Blog) under one
+`hinoki.toml`, so server and check commands name the application, such as
+`tracker.app:create_app`. In your own project they take no target.

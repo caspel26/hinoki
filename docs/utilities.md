@@ -2,98 +2,115 @@
 status: implemented
 related:
   - models.md
+  - model-options.md
   - testing.md
 ---
 
-# Utilities
+# Time and utilities
 
-Hinoki includes a small set of helpers where the framework can define clear behavior. Use the Python standard library for ordinary IDs, paths, and application-specific formatting.
+Hinoki ships a few helpers where the framework defines the behaviour. Use the
+standard library for everything else.
 
 ## UTC time
 
-`utc_now()` returns a timezone-aware `datetime` in UTC. It is suitable for field factories and application code:
+`utc_now()` returns a timezone-aware `datetime` in UTC; use it for field
+factories and application code.
 
 ```python
+# notes/apps/billing/models.py
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from hinoki.orm import Model, field
+from hinoki.orm import Model, field, pk
 from hinoki.utils import utc_now
 
 
 class Event(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
+    id: UUID = pk(default_factory=uuid4)
     created_at: datetime = field(default_factory=utc_now)
 ```
 
-The clock is a callable, so code that depends on time can accept a `Clock` and tests can supply a fixed function. No process-wide clock patch is needed.
+A clock is any callable returning an aware `datetime` (`hinoki.utils.Clock`).
+Code that depends on time accepts a clock; tests pass a fixed one. No
+process-wide patching is needed.
 
-For tests that need to move time more than once, use `ManualClock` from `hinoki.testing`:
+`utc_today(clock=utc_now)` returns the date in UTC, independent of the
+machine's timezone: `2026-01-02 00:30+02:00` is `2026-01-01`.
+
+## Test clocks
 
 ```python
+# tests/clocktest.py
 from datetime import UTC, datetime
 
 from hinoki.testing import ManualClock
 
-clock = ManualClock(datetime(2026, 1, 1, tzinfo=UTC))
-first = clock()
-clock.advance(seconds=60)
-second = clock()
+
+def test_clock_moves() -> None:
+    clock = ManualClock(datetime(2026, 1, 1, tzinfo=UTC))
+    first = clock()
+    clock.advance(seconds=60)
+    assert (clock() - first).total_seconds() == 60
 ```
 
-It stores instants in UTC, accepts only timezone-aware values, and can be passed to `app.now(clock)` or `utc_today(clock)`.
+`ManualClock` stores UTC instants, accepts only aware values and works with
+`app.now(clock)`, `utc_today(clock)` and `@timestamps(clock=...)`.
 
 ## Application timezone
 
-Set an IANA timezone name in the app's global settings. It defaults to `UTC`; invalid names fail while settings are constructed:
-
 ```python
-from hinoki import Hinoki, settings
+# notes/settings.py
+from hinoki import settings
 
 
-class ProjectSettings(settings.AppSettings):
+class ProjectSettings(settings.AppSettings, prefix="NOTES_", dotenv=".env"):
     timezone: str = "Europe/Rome"
-
-
-app = Hinoki(settings=ProjectSettings)
-current_time = app.now()  # aware datetime in Europe/Rome
 ```
 
-`app.now()` reads the timezone from that app's settings and returns an aware `datetime`. Apps in one process can use different settings. There is no `Hinoki(timezone=...)` argument. To make time-dependent code deterministic, pass a `Clock` to `app.now(clock)`.
-
-`utc_today(clock=utc_now)` returns the calendar date in UTC. The framework uses it for waiver expiry so the result does not depend on the machine's local timezone. For example, `2026-01-02 00:30+02:00` is `2026-01-01` in UTC.
+`app.now()` returns an aware `datetime` in the settings' IANA timezone
+(default `UTC`); an invalid name fails while settings load. Apps in one
+process can use different timezones; there is no `Hinoki(timezone=...)`.
+`app.now(clock)` takes a clock for tests.
 
 ## Model update timestamps
 
-Declare the columns explicitly and decorate the model with `@timestamps()` to refresh `updated_at` on each ORM update:
-
 ```python
-from datetime import datetime
-from uuid import UUID, uuid4
-
-from hinoki.orm import Model, field, timestamps
-from hinoki.utils import utc_now
+# notes/apps/billing/models.py (continued)
+from hinoki.orm import timestamps
 
 
 @timestamps()
-class Note(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
-    title: str
+class Statement(Model):
+    id: UUID = pk(default_factory=uuid4)
+    title: str = field(max_length=120)
     created_at: datetime = field(default_factory=utc_now)
     updated_at: datetime = field(default_factory=utc_now)
 ```
 
-The decorator requires a non-nullable `datetime` field named `updated_at`. Use `@timestamps("modified_at", clock=my_clock)` for another field or an injected clock. Clock values must be timezone-aware; Hinoki converts them to UTC. A value supplied for the managed field in an update is replaced by the clock value.
-
-The behavior applies to `Model.aupdate`/`update_where`, instance `asave`/`aupdate_from`, and `QuerySet.aupdate`, including sync counterparts. All rows changed by one statement receive the same time. Creation uses the declared field factories. Raw SQL bypasses this ORM behavior; use an explicit database trigger if independent writers need database-authoritative timestamps.
-
-These fields are ordinary model columns. They remain visible to type checkers and the migration planner; Hinoki does not add hidden fields or apply migrations automatically.
+* `@timestamps()` sets the non-nullable `updated_at: datetime` column on every
+  ORM update: `Model.aupdate`, `aupdate_where`, `asave`, `aupdate_from`,
+  `QuerySet.aupdate` and their sync forms. One statement gives every row the
+  same time; a value supplied for the column is replaced.
+* `@timestamps("modified_at", clock=my_clock)` names another column or injects
+  a clock; clock values must be aware and are stored in UTC.
+* Creation uses the field factories. Raw SQL bypasses the decorator: use a
+  database trigger if independent writers need database-authoritative times.
+* Both columns are ordinary fields, visible to type checkers and migrations.
 
 ## Other common needs
 
-* Use `uuid.uuid4()` for ordinary UUID identifiers.
-* Use `secrets` or `hinoki.crypto.random_token` for secret tokens, depending on whether the token is part of Hinoki authentication.
-* Use `pathlib.Path` for filesystem paths and the existing `Settings` loader for environment and dotenv configuration.
-* Use `hinoki.testing` clients for application requests; inject a clock callable when behavior depends on time.
+| Need | Use |
+| --- | --- |
+| UUID identifiers | `uuid.uuid4()` |
+| secret tokens | `secrets`, or `hinoki.crypto.random_token()` for Hinoki authentication |
+| file system paths | `pathlib.Path` |
+| configuration | [settings](settings.md) |
+| requests in tests | `hinoki.testing` clients ([testing](testing.md)) |
 
-Hinoki does not provide generic slug, retry, or environment helpers because their rules depend on the application.
+Hinoki has no slug, retry or environment helpers: their rules belong to the
+application.
+
+## See also
+
+- [Model options](model-options.md)
+- [Testing](testing.md)

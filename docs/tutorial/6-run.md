@@ -1,20 +1,39 @@
 ---
 status: implemented
+related:
+  - settings.md
+  - serving.md
+  - testing.md
 ---
 
 # 6. Run and test it
 
-## Settings and serving
+## Settings
 
-The Tracker example's factory assembles the HTTP routes, rules and MCP tool; the `database` field of its settings opens the database. It uses typed `TrackerSettings`; local SQLite is the default and `TRACKER_DATABASE__URL` selects another database.
+Settings are a typed class. Tracker declares a database; local SQLite is the
+default, and `TRACKER_DATABASE__URL` selects another database:
 
 ```python
-from tracker import api
-from tracker.rules import tracker_rules
-from tracker.security import member_only
-from tracker.settings import TrackerSettings
+# tracker/settings.py
+from hinoki import settings
+
+
+class TrackerSettings(settings.AppSettings, prefix="TRACKER_"):
+    database: settings.DatabaseSettings
+```
+
+The factory loads the settings, builds the application with its rules and
+includes the routes and an MCP tool:
+
+```python
+# tracker/app.py
 from hinoki import Hinoki
 from hinoki.ai.mcpapp import expose_as_mcp
+
+from . import api
+from .rules import tracker_rules
+from .security import member_only
+from .settings import TrackerSettings
 
 
 def create_app(database_url: str | None = None) -> Hinoki:
@@ -29,76 +48,81 @@ def create_app(database_url: str | None = None) -> Hinoki:
         rules=tracker_rules,
     )
     app.include(api.health, api.tasks)
+    # The MCP endpoint exposes only this action and uses the caller's own token.
     app.include(
         *expose_as_mcp(app, tools=[f"{api.__name__}.list_tasks"], access=member_only)
     )
     return app
 ```
 
-```sh
-# Omit these variables to use .hinoki/local.sqlite3.
-export TRACKER_DATABASE__URL='postgresql://user:password@127.0.0.1:5432/tracker'
-export HINOKI_DATABASE_URL="$TRACKER_DATABASE__URL"
-uv run --project .. hinoki migrations status
-uv run --project .. hinoki migrations sql --app tracker 0001-initial
-uv run --project .. hinoki migrations sql --app tracker 0002-indexes
-uv run --project .. hinoki migrations apply --app tracker
-uv run --project .. hinoki dev tracker.app:create_app
-```
+Tracker uses a factory because tests build it with a disposable database URL.
+A project created with `hinoki new` declares a module-level `app` and lists its
+routes in `routes.py` instead ([chapter 8](8-projects.md)).
 
-The Tracker example already includes its initial and index migrations, so this
-command sequence inspects and applies those checked-in files. After changing a
-model, generate a new migration with `hinoki migrations plan --app tracker`
-and review its SQL before applying it to a disposable database; do not expect
-the planner to recreate the existing initial migration.
-`dev` reloads on change; `serve` runs without reload and takes host, port and
-workers from the `server` settings ([serving](../serving.md)). Open `/docs` or
-`/redoc`.
+## Serve it
+
+From `examples/`:
+
+=== "SQLite (default)"
+
+    ```sh
+    uv run hinoki migrations apply tracker
+    uv run hinoki dev tracker.app:create_app
+    ```
+
+=== "PostgreSQL"
+
+    ```sh
+    export TRACKER_DATABASE__URL=postgresql://user:password@127.0.0.1:5432/tracker
+    export HINOKI_DATABASE_URL=$TRACKER_DATABASE__URL
+    uv run hinoki migrations apply tracker
+    uv run hinoki dev tracker.app:create_app
+    ```
+
+`HINOKI_DATABASE_URL` is the database of the migration commands; the
+application reads its own settings. `hinoki dev` serves on
+`http://127.0.0.1:8000` and reloads on change; open `/docs` or `/redoc`.
+`hinoki serve` runs without reload and takes host, port and workers from the
+`server` settings ([serving](../serving.md)).
 
 ## Test it
 
-Operations need no HTTP at all, so test them directly; then drive the whole
-stack with the in-process client. The repository test fixture applies the
-migrations and creates the Ann and Ben members used by the bearer tokens below:
-[tests/trackertest.py](https://github.com/caspel26/hinoki/blob/main/tests/trackertest.py).
+Operations need no HTTP, so test them directly. Then drive the whole stack with
+the in-process client:
 
 ```python
-import os
-
-import pytest
-
-from tracker.app import create_app
-from tracker.models import Member
-from hinoki.testing import ASGIClient
-
-URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
-needs_database = pytest.mark.skipif(URL is None, reason="no database")
-
-
+# tests/trackertest.py (excerpt)
 @needs_database
-async def test_tracker_api(members: tuple[Member, Member]) -> None:
+async def test_every_business_error_of_the_tracker_is_declared(
+    members: tuple[Member, Member],
+) -> None:
     assert URL is not None
     async with ASGIClient(create_app(URL), strict_errors=True) as client:
         made = await client.post("/tasks", json={"title": "x"}, token="ann-token")
         path = f"/tasks/{made.body['id']}"
         assert (await client.post(f"{path}/complete", token="ben-token")).status == 404
         assert (await client.post(f"{path}/complete", token="ann-token")).status == 200
-        assert (await client.post(f"{path}/complete", token="ann-token")).status == 409
+        again = await client.post(f"{path}/complete", token="ann-token")
+        assert again.status == 409
 ```
 
-This is an excerpt of `test_every_business_error_of_the_tracker_is_declared`;
-its `members` fixture creates the two users and provides a fresh migrated
-database. Run the repository test with a disposable database URL, which the
-fixture empties first (PostgreSQL, or a throwaway SQLite file such as
-`sqlite://./.hinoki/tracker-test.sqlite3`):
+The `members` fixture of
+[`tests/trackertest.py`](https://github.com/caspel26/hinoki/blob/main/tests/trackertest.py)
+migrates a fresh database and creates the members Ann and Ben. Run it from the
+repository root against a disposable database, which the fixture empties first:
 
 ```sh
-HINOKI_TEST_DATABASE_URL="$TRACKER_DATABASE__URL" uv run pytest tests/trackertest.py
+export HINOKI_TEST_DATABASE_URL=sqlite://./.hinoki/tracker-test.sqlite3
+uv run pytest tests/trackertest.py
 ```
 
-`strict_errors=True` fails the test if an action answers an error it did not
+`strict_errors=True` fails a test when an action answers an error it did not
 declare. For tests without `async`, use `SyncClient`.
 
-## Where next
+## Recap
 
-[Patterns and best practices](../patterns.md), [the application MCP](../app-mcp.md) (the tracker already exposes `list_tasks` to MCP clients), and [development tools](../ai-workflow.md).
+- Settings are typed and read from prefixed environment variables.
+- `hinoki dev` serves with reload; migrations stay a separate step.
+- Test operations directly and the stack with `ASGIClient`.
+
+Next: [7. Validate input](7-validation.md).
