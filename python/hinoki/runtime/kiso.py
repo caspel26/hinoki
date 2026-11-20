@@ -681,6 +681,8 @@ class KisoWorker:
             interrupt = self._on_signal if self.parent is None else self._ignore_signal
             loop.add_signal_handler(signal.SIGINT, interrupt)
             loop.add_signal_handler(signal.SIGHUP, interrupt)
+            # A supervised worker starts with SIGINT blocked (see Supervisor.spawn).
+            signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
             if self.parent is None:
                 shown = f"[{self.host}]" if ":" in self.host else self.host
                 print(f"listening on {self.scheme}://{shown}:{port}", flush=True)
