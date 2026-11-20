@@ -246,21 +246,22 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:00:07 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:05 UTC">November 20, 2026</span></span>
             <span>1 min read</span>
           </p>
           
         </header>
         
-<p>Build the Tracker, an API where members keep their own tasks, one layer per
-chapter. The code is the checked-in example in
-<a href="https://github.com/caspel26/hinoki/tree/main/examples/tracker"><code>examples/tracker</code></a>,
-so every step runs as shown.</p>
+<p>Follow the Tracker, an API where members keep their own tasks, one layer per
+chapter. Each chapter walks through files of the checked-in example in
+<a href="https://github.com/caspel26/hinoki/tree/main/examples/tracker"><code>examples/tracker</code></a>
+and runs its commands, so every step runs as shown. Chapter 8 then adds an app
+to your own project.</p>
 <table>
 <thead>
 <tr>
 <th>Chapter</th>
-<th>You add</th>
+<th>It covers</th>
 <th>You learn</th>
 </tr>
 </thead>
@@ -307,7 +308,7 @@ so every step runs as shown.</p>
 </tr>
 </tbody>
 </table>
-<p>Chapters 1–6 build the Tracker. Chapter 7 uses standalone examples, and
+<p>Chapters 1–6 cover the Tracker. Chapter 7 uses standalone examples, and
 chapter 8 continues the project from the <a href="../quick-start/">Quick start</a>.</p>
 <p>The shape you end with:</p>
 <div class="language-text highlight"><pre><span></span><code>api.py          HTTP: shapes, status codes, access, transactions
@@ -323,7 +324,9 @@ models.py       tables and relations
 </code></pre></div>
 <p>That directory hosts three applications (Notes, Tracker and Blog) under one
 <code>hinoki.toml</code>, so server and check commands name the application, such as
-<code>tracker.main:app</code>. In your own project they take no target.</p>
+<code>uv run hinoki check tracker.main:app</code>. Without it, <code>hinoki check</code> here checks
+the directory's own <code>project.app:app</code>, which declares no rules, and reports
+<code>0 rule(s)</code>. In your own project the commands take no target.</p>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
@@ -351,7 +354,7 @@ models.py       tables and relations
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:00:07 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:05 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/index.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

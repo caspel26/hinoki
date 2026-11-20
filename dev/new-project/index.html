@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:54:24 UTC">November 20, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -600,13 +600,21 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 <p>Run <code>uv sync</code> first if you answered no to installing. The application answers
 on <a href="http://127.0.0.1:8000/health">http://127.0.0.1:8000/health</a>, with its documentation at <code>/docs</code>.</p>
 <h2 id="choose-a-database">Choose a database<a class="headerlink" href="#choose-a-database" title="Permanent link">&para;</a></h2>
-<p><code>none</code> declares no database: add one later in <code>settings.py</code>. <code>sqlite</code> declares
-<code>database: settings.DatabaseSettings</code>, which defaults to a local file under
-<code>.hinoki/</code>. <code>postgresql</code> declares the same field and writes <code>.env.example</code> with
-a placeholder URL; copy it to <code>.env</code> and fill it in:</p>
+<p><code>sqlite</code> and <code>postgresql</code> add one field to <code>notes/settings.py</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"NOTES_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>
+    <span class="n">database</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">DatabaseSettings</span>
+</code></pre></div>
+<p>Its value comes from <code>NOTES_DATABASE__&lt;FIELD&gt;</code> variables (two underscores
+between the group and the field) in the environment or in <code>.env</code>; keep <code>.env</code>
+out of git. With no value set it is the SQLite file
+<code>.hinoki/local.sqlite3</code>. <code>postgresql</code> also writes <code>.env.example</code> with a
+placeholder URL; copy it to <code>.env</code> and fill it in:</p>
 <div class="language-sh highlight"><pre><span></span><code><span class="c1"># .env.example</span>
 <span class="nv">NOTES_DATABASE__URL</span><span class="o">=</span>postgresql://user:password@localhost:5432/notes
 </code></pre></div>
+<p><code>none</code> declares no field, and a request that queries a model fails with
+<code>no database is active</code>. Add the field above when you add models. <a href="../databases/">Configure a
+database</a> lists the URL forms and the connection fields.</p>
 <p>No database is created or contacted. Create the tables with
 <a href="../migrations/"><code>hinoki migrations apply</code></a> once you have models.</p>
 <h2 id="choose-a-server">Choose a server<a class="headerlink" href="#choose-a-server" title="Permanent link">&para;</a></h2>
@@ -690,7 +698,7 @@ a placeholder URL; copy it to <code>.env</code> and fill it in:</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:54:24 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/new-project.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -246,7 +246,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:05 UTC">November 20, 2026</span></span>
             <span>2 min read</span>
           </p>
           
@@ -306,11 +306,14 @@ Tracker ships two; the second adds the composite index:</p>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>status<span class="w"> </span>tracker
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>tracker
 </code></pre></div>
-<div class="language-text highlight"><pre><span></span><code>tracker          pending  0001-initial
+<div class="language-text highlight"><pre><span></span><code>database: sqlite:///.../examples/.hinoki/local.sqlite3 (from local SQLite default)
+tracker          pending  0001-initial
 tracker          pending  0002-indexes
+database: sqlite:///.../examples/.hinoki/local.sqlite3 (from local SQLite default)
 tracker: 0001-initial, 0002-indexes
 </code></pre></div>
-<p>With no database URL, the commands use <code>examples/.hinoki/local.sqlite3</code>.
+<p>Each command first names the database it uses. With no database configured,
+that is <code>examples/.hinoki/local.sqlite3</code>.
 Migrations run only when you call <code>apply</code>; an application never migrates at
 startup.</p>
 <p>When a model changes, <code>uv run hinoki migrations plan tracker</code> writes the next
@@ -349,7 +352,7 @@ migration. Review its SQL, then apply it.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:05 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/1-models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

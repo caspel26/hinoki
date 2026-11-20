@@ -246,15 +246,18 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
-            <span>2 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:57:59 UTC">November 20, 2026</span></span>
+            <span>3 min read</span>
           </p>
           
         </header>
         
 <h2 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h2>
-<p>Settings are a typed class. Tracker declares a database; local SQLite is the
-default, and <code>TRACKER_DATABASE__URL</code> selects another database:</p>
+<p>Settings are a typed class. Tracker declares a database; with no value set it
+is local SQLite. Each field of <code>DatabaseSettings</code> is a <code>TRACKER_DATABASE__&lt;FIELD&gt;</code>
+variable, two underscores between the group and the field, so
+<code>TRACKER_DATABASE__URL</code> selects another database (<a href="../../databases/">Configure a
+database</a>):</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/settings.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
 
@@ -317,6 +320,23 @@ application is the tracker, <code>TRACKER_DATABASE__URL</code> alone configures 
 <code>http://127.0.0.1:8000</code> and reloads on change; open <code>/docs</code> or <code>/redoc</code>.
 <code>hinoki serve</code> runs without reload and takes host, port and workers from the
 <code>server</code> settings (<a href="../../serving/">serving</a>).</p>
+<h2 id="try-it">Try it<a class="headerlink" href="#try-it" title="Permanent link">&para;</a></h2>
+<p>Every task route needs a member's token, and the Tracker has no sign-up route.
+Create a member in the <a href="../../shell/">shell</a>, which opens the same database as
+the migration commands. From <code>examples/</code>, in a second terminal:</p>
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>shell
+</code></pre></div>
+<div class="language-pycon highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="k">await</span> <span class="n">Member</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"Ann"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="s2">"ann-dev-token"</span><span class="p">)</span>
+</code></pre></div>
+<p>Leave the shell with Ctrl-D, then call the API with the token:</p>
+<div class="language-sh highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/tasks<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer ann-dev-token'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">'content-type: application/json'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"title":"Write the report"}'</span>
+curl<span class="w"> </span>http://127.0.0.1:8000/tasks<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer ann-dev-token'</span>
+</code></pre></div>
+<p>The first call answers <code>201</code> with the new task, the second a page with it.
+Without the header both answer <code>401</code>.</p>
 <h2 id="test-it">Test it<a class="headerlink" href="#test-it" title="Permanent link">&para;</a></h2>
 <p>The application reads its settings at import, so the test configuration sets
 the database variable first. In the repository, <code>tests/conftest.py</code> copies
@@ -378,12 +398,12 @@ declare. For tests without <code>async</code>, use <code>SyncClient</code>.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#settings">Settings</a></li><li><a href="#serve-it">Serve it</a></li><li><a href="#test-it">Test it</a></li><li><a href="#recap">Recap</a></li></ul>
+            <ul><li><a href="#settings">Settings</a></li><li><a href="#serve-it">Serve it</a></li><li><a href="#try-it">Try it</a></li><li><a href="#test-it">Test it</a></li><li><a href="#recap">Recap</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:57:59 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/6-run.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

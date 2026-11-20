@@ -218,8 +218,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
-            <span>2 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:54:24 UTC">November 20, 2026</span></span>
+            <span>3 min read</span>
           </p>
           
         </header>
@@ -298,8 +298,10 @@ commands. The files that matter:</p>
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">Scripts and CI</p>
-<p><code>uv run hinoki new notes --no-input</code> skips the prompts and uses the
-defaults. All options are in <a href="../new-project/"><code>hinoki new</code></a>.</p>
+<p><code>uv run hinoki new notes --dir .. --no-input --database sqlite --git --install</code>
+gives the same answers without prompts. Plain <code>--no-input</code> uses the defaults
+instead: no database, no <code>git init</code>, no <code>uv sync</code>. All options are in
+<a href="../new-project/"><code>hinoki new</code></a>.</p>
 </div>
 <h2 id="test-and-serve-it">Test and serve it<a class="headerlink" href="#test-and-serve-it" title="Permanent link">&para;</a></h2>
 <div class="language-sh highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>../notes
@@ -312,6 +314,11 @@ on <code>http://127.0.0.1:8000</code> and reloads when a file changes. In anothe
 </code></pre></div>
 <div class="language-text highlight"><pre><span></span><code>{"status":"ok"}
 </code></pre></div>
+<p>At startup <code>hinoki dev</code> logs a warning that <code>allowed_hosts is '*'</code>: the
+application answers to any <code>Host</code> header. It is harmless on your machine. To
+name the hosts you serve, and silence it, add
+<code>NOTES_ALLOWED_HOSTS=127.0.0.1,localhost</code> to <code>.env</code>; see
+<a href="../web-security/#allowed_hosts"><code>allowed_hosts</code></a>.</p>
 <p>Open <code>http://127.0.0.1:8000/docs</code> for the generated OpenAPI UI, or run
 <code>uv run hinoki routes</code> to list every route with its access policy.</p>
 <h2 id="what-the-manifest-does">What the manifest does<a class="headerlink" href="#what-the-manifest-does" title="Permanent link">&para;</a></h2>
@@ -347,6 +354,27 @@ live:</p>
 <p><code>manifest_routes()</code> reads <code>hinoki.toml</code>, so the application lists no routes of
 its own. Commands read the same file, so inside the project they need no module
 paths.</p>
+<h2 id="where-the-database-is-configured">Where the database is configured<a class="headerlink" href="#where-the-database-is-configured" title="Permanent link">&para;</a></h2>
+<p>Answering <code>sqlite</code> added one field to <code>notes/settings.py</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/settings.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"NOTES_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>
+    <span class="n">database</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">DatabaseSettings</span>
+</code></pre></div>
+<p>With no value set, it is the SQLite file <code>.hinoki/local.sqlite3</code>. Each field
+of <code>DatabaseSettings</code> is a <code>NOTES_DATABASE__&lt;FIELD&gt;</code> variable (two underscores
+between the group and the field), read from the environment or from <code>.env</code> in
+the project directory. <code>uv run hinoki settings</code> lists every variable and where
+its value came from. To use another file:</p>
+<div class="language-sh highlight"><pre><span></span><code><span class="c1"># .env</span>
+<span class="nv">NOTES_DATABASE__URL</span><span class="o">=</span>sqlite://./.hinoki/notes.sqlite3
+</code></pre></div>
+<p><a href="../databases/">Configure a database</a> covers PostgreSQL, MySQL and MariaDB, and
+connection fields instead of a URL. The project has no models yet; the
+<a href="../tutorial/">tutorial</a> and <a href="../tutorial/8-projects/">8. Projects and apps</a>
+add them.</p>
 <h2 id="next">Next<a class="headerlink" href="#next" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../tutorial/">Tutorial</a>: build an API layer by layer.</li>
@@ -377,12 +405,12 @@ paths.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#create-a-project">Create a project</a></li><li><a href="#test-and-serve-it">Test and serve it</a></li><li><a href="#what-the-manifest-does">What the manifest does</a></li><li><a href="#next">Next</a></li></ul>
+            <ul><li><a href="#create-a-project">Create a project</a></li><li><a href="#test-and-serve-it">Test and serve it</a></li><li><a href="#what-the-manifest-does">What the manifest does</a></li><li><a href="#where-the-database-is-configured">Where the database is configured</a></li><li><a href="#next">Next</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:54:24 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/quick-start.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

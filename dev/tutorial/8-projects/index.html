@@ -246,7 +246,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:00:07 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:57:59 UTC">November 20, 2026</span></span>
             <span>3 min read</span>
           </p>
           
@@ -287,8 +287,9 @@
 </table>
 <p>The command writes the package and registers it:</p>
 <div class="language-text highlight"><pre><span></span><code>notes/apps/billing/
+├── api.py         endpoints of the app
+├── routes.py      the list of routes served, mounted at the prefix
 ├── models.py      tables of the app
-├── routes.py      endpoints, mounted at the prefix
 └── migrations/    migration history
 </code></pre></div>
 <div class="language-toml highlight"><pre><span></span><code><span class="k">[[apps]]</span>
@@ -320,8 +321,8 @@ If billing later references a model of another app, list that app in
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre></div>
 <p>The table name is derived: <code>billing_invoices</code>, the app followed by the plural
-model name. Pin it with <code>@db.table(...)</code> only to keep a physical name stable,
-for example when you rename the class.</p>
+model name. <code>@db.table("billing_invoices")</code> pins it, so renaming the class
+keeps the physical name; the model rules below ask for it.</p>
 <h2 id="plan-and-apply-the-migration">Plan and apply the migration<a class="headerlink" href="#plan-and-apply-the-migration" title="Permanent link">&para;</a></h2>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>billing
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
@@ -353,7 +354,18 @@ uv<span class="w"> </span>run<span class="w"> </span>pytest
 </code></pre></div>
 <div class="language-text highlight"><pre><span></span><code>8 rule(s): 0 violated, 0 unverifiable, 0 waived
 </code></pre></div>
-<p>Endpoints for billing go in the app, and <code>notes/apps/billing/routes.py</code> lists
+<p><code>notes/rules.py</code> keeps two model rules commented out:
+<code>Models.require_explicit_table</code> and <code>Models.require_foreign_key_index</code>.
+<code>hinoki check</code> sees only the models the application imports, and a model rule
+that matches no model is <code>unverifiable</code>, which fails the check. Turn them on
+(and import <code>Models</code>) once a billing route imports <code>Invoice</code>; then add
+<code>@db.table("billing_invoices")</code> above the class, or the check reports:</p>
+<div class="language-text highlight"><pre><span></span><code>notes/apps/billing/models.py:10: HNK-DB-001 [violated] Invoice uses the derived table name 'billing_invoices'
+  fix: name the table with @db.table(...) or table=... on the model
+</code></pre></div>
+<p>Pinning the derived name changes no table: <code>migrations plan billing</code> then
+reports <code>no changes</code>.</p>
+<p>Endpoints for billing go in <code>notes/apps/billing/api.py</code>, and <code>routes.py</code> lists
 them. The application in <code>notes/main.py</code> includes every app's list with
 <code>manifest_routes()</code>, which mounts this one at <code>/billing</code>, so paths inside the
 app never repeat the prefix:</p>
@@ -408,7 +420,7 @@ app never repeat the prefix:</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:00:07 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:57:59 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/8-projects.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
