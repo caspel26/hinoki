@@ -9,6 +9,7 @@ import re
 import sys
 import tomllib
 from pathlib import Path
+from types import FrameType
 from typing import cast
 
 from hinoki.orm import MARK, FieldMeta, Model
@@ -16,6 +17,7 @@ from hinoki.orm.migrations import models_of
 from hinoki.orm.naming import MIGRATION_LEDGER, table_names_conflict
 from hinoki.routing import Includable, Mount
 from hinoki.scaffold import NAME, RESERVED_NAMES
+from hinoki.terminal import shown_path
 
 _MODULE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\Z")
 
@@ -324,6 +326,40 @@ def load_manifest(path: Path | None = None) -> ProjectManifest:
     manifest = ProjectManifest(manifest_path.resolve(), application, apps, routes)
     manifest.ordered_apps()
     return manifest
+
+
+def manifest_routes(start: Path | None = None) -> list[Includable]:
+    """The routes ``hinoki.toml`` declares: the project's, then each app's at its
+    prefix, for ``Hinoki(include=manifest_routes())``.
+
+    The manifest is found from ``start``, by default the directory of the calling
+    file (the working directory when the caller has no file), upwards. Outside a
+    project this raises ``ProjectError``.
+    """
+    directory = start if start is not None else _caller_directory(sys._getframe(1))
+    written = (directory if directory is not None else Path.cwd()).absolute()
+    resolved = written.resolve()
+    path = find_manifest_or_none(resolved) or _manifest_along(written)
+    if path is None:
+        searched = shown_path(written)
+        if resolved != written:
+            searched += f" (resolved: {shown_path(resolved)})"
+        raise ProjectError(f"no hinoki.toml found in {searched} or above it")
+    return load_manifest(path).route_items()
+
+
+def _manifest_along(directory: Path) -> Path | None:
+    """The manifest above ``directory`` as written, symlinks unresolved: a
+    package linked into a project is still found from inside it."""
+    for candidate in (directory, *directory.parents):
+        if (candidate / "hinoki.toml").is_file():
+            return candidate / "hinoki.toml"
+    return None
+
+
+def _caller_directory(frame: FrameType) -> Path | None:
+    file = frame.f_globals.get("__file__")
+    return Path(file).parent if isinstance(file, str) else None
 
 
 def manifest_declaring(module: str, file: str | None) -> ProjectManifest | None:

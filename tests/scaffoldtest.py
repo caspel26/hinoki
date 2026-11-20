@@ -95,6 +95,7 @@ def test_the_command_reports_success_and_failure(
 
 def test_the_generated_project_passes_its_own_rules_and_tests(tmp_path: Path) -> None:
     target = create("shop", tmp_path)
+    assert "include=manifest_routes()" in (target / "shop/main.py").read_text()
     env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(target), *sys.path])}
     check = subprocess.run(
         [sys.executable, "-m", "hinoki", "check"],
@@ -309,6 +310,7 @@ def test_a_non_interactive_run_needs_a_name_and_keeps_old_defaults(
     assert (target / "AGENTS.md").exists()
     assert not (target / ".git").exists()
     assert "    database:" not in (target / "shop/settings.py").read_text()
+    assert "after you add: database:" in (target / "shop/settings.py").read_text()
 
 
 def test_agent_files_can_be_left_out(tmp_path: Path) -> None:
@@ -321,10 +323,9 @@ def test_agent_files_can_be_left_out(tmp_path: Path) -> None:
 
 def test_a_database_choice_declares_the_setting(tmp_path: Path) -> None:
     sqlite = create("lite", tmp_path, database="sqlite")
-    assert (
-        "database: settings.DatabaseSettings"
-        in (sqlite / "lite/settings.py").read_text()
-    )
+    settings_text = (sqlite / "lite/settings.py").read_text()
+    assert "database: settings.DatabaseSettings" in settings_text
+    assert "after you add" not in settings_text
     assert not (sqlite / ".env.example").exists()
     pg = create("big", tmp_path, database="postgresql")
     assert (

@@ -20,7 +20,7 @@ from hinoki.scaffold import (
     ScaffoldError,
     create,
 )
-from hinoki.terminal import Style, elapsed
+from hinoki.terminal import Style, elapsed, shown_path
 
 Ask = Callable[[str], str]
 
@@ -260,16 +260,6 @@ def run_tool(command: list[str], cwd: Path, style: Style) -> bool:
         took = elapsed(time.monotonic() - started)
         print(style.ok(f"{label} {style.dim(f'({took})')}"))
     return True
-
-
-def shown_path(target: Path) -> str:
-    """``target`` relative to here when inside it, else with ``~`` for home."""
-    try:
-        return str(target.relative_to(Path.cwd()))
-    except ValueError:
-        home = str(Path.home())
-        text = str(target)
-        return "~" + text[len(home) :] if text.startswith(home + os.sep) else text
 
 
 def key_files(style: Style, target: Path, name: str) -> list[str]:

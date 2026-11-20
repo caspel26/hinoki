@@ -23,7 +23,7 @@ from hinoki.project import (
     find_manifest,
     load_manifest,
 )
-from hinoki.scaffold import NAME, RESERVED_NAMES
+from hinoki.scaffold import APP_API, APP_ROUTES, NAME, RESERVED_NAMES
 from hinoki.terminal import Style
 
 
@@ -52,7 +52,9 @@ def _create_app_locked(
         name, apps_directory, app_directory
     )
     try:
-        _write_app_files(name, app_directory, apps_directory, made_apps_init)
+        _write_app_files(
+            name, module_name, prefix, app_directory, apps_directory, made_apps_init
+        )
         _append_app(
             manifest.path,
             manifest.path.read_bytes(),
@@ -150,7 +152,12 @@ def _create_app_package(
 
 
 def _write_app_files(
-    name: str, app_directory: Path, apps_directory: Path, made_apps_init: bool
+    name: str,
+    package: str,
+    prefix: str,
+    app_directory: Path,
+    apps_directory: Path,
+    made_apps_init: bool,
 ) -> None:
     if made_apps_init:
         (apps_directory / "__init__.py").write_text(
@@ -162,9 +169,9 @@ def _write_app_files(
     (app_directory / "models.py").write_text(
         '"""Models owned by this app."""\n', encoding="utf-8"
     )
+    (app_directory / "api.py").write_text(APP_API.format(name=name), encoding="utf-8")
     (app_directory / "routes.py").write_text(
-        f'"""Routes of the {name} app, mounted at /{name} by hinoki.toml."""\n\n'
-        "routes: list[object] = []\n",
+        APP_ROUTES.format(name=name, package=package, prefix=prefix),
         encoding="utf-8",
     )
     migrations_directory = app_directory / "migrations"

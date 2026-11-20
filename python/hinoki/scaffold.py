@@ -39,17 +39,17 @@ select = ["E4", "E7", "E9", "F", "I", "B", "UP"]
 known-first-party = ["{name}"]
 {sources}"""
 
-MAIN = '''"""The application, declared: ``uv run hinoki dev`` serves it."""
+MAIN = '''"""The application. `hinoki.toml` names it; `uv run hinoki dev` serves it."""
 
 from hinoki import Hinoki
+from hinoki.project import manifest_routes
 
 from {name}.rules import project_rules
 from {name}.settings import ProjectSettings
 
-# The routes come from hinoki.toml (`routes` of the project and of each app):
-# without `include=`, this application binds them because the manifest names it.
 app = Hinoki(
-    settings=ProjectSettings,  # {upper}_* variables and .env, declared on the class
+    settings=ProjectSettings,  # {upper}_* variables and .env
+    include=manifest_routes(),  # {name}/routes.py, then each app's routes at its prefix
     title="{title}",
     openapi_url="/openapi.json",
     docs_url="/docs",
@@ -68,7 +68,7 @@ SETTINGS = '''"""Typed settings. Built-in groups (execution, lifecycle, logging,
 the framework; add your own fields here and read them from ``app.settings``.
 
     {upper}_LOGGING__FORMAT=json   {upper}_EXECUTION__SYNC_WORKERS=16
-    {upper}_DATABASE__URL=...      (after you add: database: settings.DatabaseSettings)
+    {upper}_DATABASE__URL=...{database_hint}
 """
 
 from hinoki import settings
@@ -122,6 +122,25 @@ project_rules = RuleSet(
     # Models.require_explicit_table(match="{name}.*"),
     # Models.require_foreign_key_index(match="{name}.*"),
 )
+'''
+
+APP_API = '''"""Endpoints of the {name} app. Group actions that share a prefix, access and
+transaction, then list the group in routes.py:
+
+    items = RouteGroup("/items", access=staff, atomic=True)
+
+    @items.get("/{{item_id}}")
+    async def get_item(item_id: UUID) -> ItemOut: ...
+"""
+'''
+
+APP_ROUTES = '''"""Routes of the {name} app, mounted at {prefix} by hinoki.toml."""
+
+from hinoki import Includable
+
+# from {package}.apps.{name}.api import items
+
+routes: list[Includable] = []
 '''
 
 TEST = """from hinoki.testing import ASGIClient
@@ -222,7 +241,7 @@ The generated app has neither. The reference is `examples/tracker` in the framew
 2. `schemas.py`: an `In` schema without the owner, an `Out` schema.
 3. `operations.py`: plain async functions taking `owner_id` and values; row permission goes in the statement (`Model.filter(owner_id=me)`, `aupdate_where({{...}})`), so someone else's row looks missing (404).
 4. `security.py`: a `BearerAuth` that resolves a token to `Caller(id=..., user=member, permissions=...)` and an `Access(...)`.
-5. `api.py`: actions with `access=...`, `caller: Caller[Member]`, `atomic=True` on writes, `pagination=` on lists; `routes.py`: the list of routes that `hinoki.toml` points to (a new action is not served until it is listed there); `main.py`: `Hinoki(settings=...)`, which opens the database declared by the settings' `database` field (a URL, or `engine` with its connection fields).
+5. `api.py`: actions with `access=...`, `caller: Caller[Member]`, `atomic=True` on writes, `pagination=` on lists; `routes.py`: the list of routes that `hinoki.toml` points to (a new action is not served until it is listed there); `main.py`: `Hinoki(settings=..., include=manifest_routes())`, which serves the routes `hinoki.toml` lists and opens the database declared by the settings' `database` field (a URL, or `engine` with its connection fields).
 6. `hinoki migrations plan`, then review the SQL. The project manifest discovers app models and migration packages.
 7. Tests: `from hinoki.testing import ASGIClient`; `async with ASGIClient(app) as client: await client.post("/x", json={{...}}, token="...")`.
 
@@ -291,6 +310,11 @@ def settings_source(name: str, database: str, server: str) -> str:
         name=name,
         upper=name.upper(),
         toml=', toml="settings.toml"' if server == "granian" else "",
+        database_hint=(
+            ""
+            if database != "none"
+            else "      (after you add: database: settings.DatabaseSettings)"
+        ),
         fields=(
             "    database: settings.DatabaseSettings\n"
             if database != "none"

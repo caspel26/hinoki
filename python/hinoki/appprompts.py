@@ -12,16 +12,16 @@ from hinoki.newcli import (
     Questions,
     cancelled,
     show_banner,
-    shown_path,
 )
 from hinoki.project import ProjectManifest
 from hinoki.prompts import Check, Prompter, keys_available, raw_keys
 from hinoki.scaffold import NAME, RESERVED_NAMES
-from hinoki.terminal import Style
+from hinoki.terminal import Style, shown_path
 
 APP_FILES = (
     ("models.py", "tables of the app"),
-    ("routes.py", "endpoints, mounted at the prefix"),
+    ("api.py", "endpoints of the app"),
+    ("routes.py", "routes served, mounted at the prefix"),
     ("migrations/", "migration history"),
 )
 
@@ -113,7 +113,10 @@ def report_app(
 ) -> list[str]:
     """The lines shown once the app exists."""
     if not style.fancy:
-        return [f"created app {name} at {created}", f"registered in {manifest}"]
+        return [
+            f"created app {name} at {shown_path(created)}",
+            f"registered in {shown_path(manifest)}",
+        ]
     mounted = f"mounted at {prefix or f'/{name}'}"
     if requires:
         mounted += f", requires {', '.join(requires)}"

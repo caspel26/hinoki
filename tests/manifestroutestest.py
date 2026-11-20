@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from hinoki import Hinoki
-from hinoki.project import ProjectError, load_manifest
+from hinoki.project import ProjectError, load_manifest, manifest_routes
 
 FEATURE = """from hinoki import http
 
@@ -192,3 +192,66 @@ def test_a_malformed_manifest_is_ignored_by_an_unrelated_application(
     monkeypatch.syspath_prepend(str(tmp_path))
     monkeypatch.delitem(sys.modules, "plain", raising=False)
     assert paths(importlib.import_module("plain").app) == []
+
+
+def test_manifest_routes_reads_the_manifest_above_the_calling_file(
+    project: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, package = project
+    write(
+        root / package / "app.py",
+        "from hinoki import Hinoki\nfrom hinoki.project import manifest_routes\n\n"
+        "app = Hinoki(include=manifest_routes())\n",
+    )
+    monkeypatch.chdir(root.parent)
+    app = importlib.import_module(f"{package}.app").app
+    assert paths(app) == ["/health", "/posts", "/invoicing"]
+
+
+def test_manifest_routes_from_an_explicit_start_directory(
+    project: tuple[Path, str],
+) -> None:
+    root, package = project
+    app = Hinoki(include=manifest_routes(root / package / "posts"))
+    assert paths(app) == ["/health", "/posts", "/invoicing"]
+
+
+def test_manifest_routes_outside_a_project_is_an_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    outside = tmp_path / "outside"
+    write(
+        outside / "loose.py",
+        "from hinoki.project import manifest_routes\n\nroutes = manifest_routes()\n",
+    )
+    monkeypatch.syspath_prepend(str(outside))
+    monkeypatch.delitem(sys.modules, "loose", raising=False)
+    monkeypatch.chdir(tmp_path)
+    missing = r"no hinoki\.toml found in outside or above"
+    with pytest.raises(ProjectError, match=missing):
+        importlib.import_module("loose")
+    with pytest.raises(ProjectError, match=missing):
+        manifest_routes(outside)
+
+
+def test_manifest_routes_finds_the_project_above_a_symlinked_package(
+    project: tuple[Path, str], tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    root, _ = project
+    store = tmp_path_factory.mktemp("store")  # no hinoki.toml above it
+    linked = root / "linked"
+    linked.symlink_to(store, target_is_directory=True)
+    app = Hinoki(include=manifest_routes(linked))
+    assert paths(app) == ["/health", "/posts", "/invoicing"]
+
+
+def test_manifest_routes_names_both_directories_it_searched(
+    tmp_path: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    store = tmp_path_factory.mktemp("store")
+    linked = tmp_path / "linked"
+    linked.symlink_to(store, target_is_directory=True)
+    with pytest.raises(ProjectError) as raised:
+        manifest_routes(linked)
+    assert "linked" in str(raised.value)
+    assert store.name in str(raised.value)

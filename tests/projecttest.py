@@ -3,14 +3,16 @@
 import argparse
 import importlib
 import json
+import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 
-from hinoki import managementcli, projectcli
+from hinoki import managementcli, projectcli, terminal
 from hinoki.__main__ import main
 from hinoki.db import Database
 from hinoki.orm import migrator
@@ -805,6 +807,90 @@ def _clear_project_model_modules(name: str, monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.delitem(sys.modules, f"{name}.apps.billing.models", raising=False)
 
 
+def test_plan_prints_the_written_path_relative_to_the_working_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, name, _ = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+    _clear_project_model_modules(name, monkeypatch)
+
+    assert main(["migrations", "plan", "--app", name]) == 0
+    out = capsys.readouterr().out
+    assert f"wrote {name}/migrations/0001-" in out
+    assert str(tmp_path) not in out
+
+
+def _shown_from(monkeypatch: pytest.MonkeyPatch, here: Path, home: Path) -> None:
+    """Show paths as if the working directory and home were elsewhere, while
+    the project itself is still found from the real working directory."""
+    fake = SimpleNamespace(cwd=lambda: here, home=lambda: home)
+    monkeypatch.setattr(terminal, "Path", fake)
+
+
+def test_plan_keeps_an_absolute_path_outside_the_working_directory_and_home(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, name, _ = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+    _clear_project_model_modules(name, monkeypatch)
+    _shown_from(monkeypatch, tmp_path / "elsewhere", tmp_path / "home")
+
+    assert main(["migrations", "plan", "--app", name]) == 0
+    out = capsys.readouterr().out
+    assert f"wrote {project / name / 'migrations'}{os.sep}0001-" in out
+
+
+def test_plan_shortens_a_path_under_home_with_a_tilde(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, name, _ = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+    _clear_project_model_modules(name, monkeypatch)
+    _shown_from(monkeypatch, tmp_path / "elsewhere", tmp_path)
+
+    assert main(["migrations", "plan", "--app", name]) == 0
+    out = capsys.readouterr().out
+    assert f"wrote ~{os.sep}{project.name}{os.sep}{name}{os.sep}migrations" in out
+    assert str(tmp_path) not in out
+
+
+def test_plan_shortens_a_path_under_a_symlinked_home_with_a_tilde(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, name, _ = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+    _clear_project_model_modules(name, monkeypatch)
+    home = tmp_path / "home-link"
+    home.symlink_to(tmp_path, target_is_directory=True)
+    _shown_from(monkeypatch, tmp_path / "elsewhere", home)
+
+    assert main(["migrations", "plan", "--app", name]) == 0
+    out = capsys.readouterr().out
+    assert f"wrote ~{os.sep}{project.name}{os.sep}{name}{os.sep}migrations" in out
+
+
+def test_plain_app_create_shows_paths_relative_to_the_working_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = create("sample", tmp_path)
+    monkeypatch.chdir(project)
+
+    assert main(["app", "create", "billing"]) == 0
+    output = capsys.readouterr().out
+    created = Path("sample", "apps", "billing")
+    assert f"created app billing at {created}\nregistered in hinoki.toml" in output
+
+
 def test_focused_child_plan_requires_recorded_parent_table(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1253,7 +1339,9 @@ def test_a_new_project_serves_its_routes_from_the_manifest(
         monkeypatch.delitem(sys.modules, name)
     manifest = (project / "hinoki.toml").read_text(encoding="utf-8")
     assert 'routes = "routedsample.routes:routes"' in manifest
-    assert "include=[" not in (project / "routedsample" / "main.py").read_text()
+    assert "include=manifest_routes()" in (
+        project / "routedsample" / "main.py"
+    ).read_text(encoding="utf-8")
 
     app = importlib.import_module("routedsample.main").app
     assert [route.path for route in app.routes] == ["/health"]
@@ -1270,12 +1358,21 @@ def test_app_create_registers_the_routes_of_the_new_app(
     for name in [key for key in sys.modules if key.startswith("billedsample")]:
         monkeypatch.delitem(sys.modules, name)
 
-    assert main(["app", "create", "billing"]) == 0
-    routes_file = project / "billedsample" / "apps" / "billing" / "routes.py"
-    assert "routes: list[object] = []" in routes_file.read_text(encoding="utf-8")
+    assert main(["app", "create", "billing", "--prefix", "/payments"]) == 0
+    app_directory = project / "billedsample" / "apps" / "billing"
+    routes_file = app_directory / "routes.py"
+    routes_text = routes_file.read_text(encoding="utf-8")
+    assert "routes: list[Includable] = []" in routes_text
+    assert "mounted at /payments by hinoki.toml" in routes_text
+    assert "# from billedsample.apps.billing.api import" in routes_text
+    assert "RouteGroup(" in (app_directory / "api.py").read_text(encoding="utf-8")
+    app = importlib.import_module("billedsample.main").app
+    assert [route.path for route in app.routes] == ["/health"]
+    for name in [key for key in sys.modules if key.startswith("billedsample")]:
+        monkeypatch.delitem(sys.modules, name)
     manifest = (project / "hinoki.toml").read_text(encoding="utf-8")
     assert 'routes = "billedsample.apps.billing.routes:routes"' in manifest
-    assert 'prefix = "/billing"' in manifest
+    assert 'prefix = "/payments"' in manifest
 
     routes_file.write_text(
         "from hinoki import http\n\n\n"
@@ -1284,17 +1381,17 @@ def test_app_create_registers_the_routes_of_the_new_app(
         encoding="utf-8",
     )
     app = importlib.import_module("billedsample.main").app
-    assert [route.path for route in app.routes] == ["/health", "/billing/invoices"]
+    assert [route.path for route in app.routes] == ["/health", "/payments/invoices"]
 
     capsys.readouterr()
     assert main(["app", "list"]) == 0
     listing = capsys.readouterr().out
-    assert "routes: billedsample.apps.billing.routes:routes at /billing" in listing
+    assert "routes: billedsample.apps.billing.routes:routes at /payments" in listing
     assert main(["app", "list", "--format", "json"]) == 0
     rows = json.loads(capsys.readouterr().out)["apps"]
     assert [(row["name"], row["prefix"]) for row in rows] == [
         ("billedsample", ""),
-        ("billing", "/billing"),
+        ("billing", "/payments"),
     ]
 
 

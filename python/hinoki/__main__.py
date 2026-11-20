@@ -39,6 +39,7 @@ from hinoki.projectmigrations import (
     database_dialect as _database_dialect,
 )
 from hinoki.reportui import run_timed
+from hinoki.terminal import shown_path
 
 
 def database_dialect(url: str) -> str:
@@ -142,7 +143,7 @@ def print_plan_result(args: argparse.Namespace, result: Plan) -> int:
         print(f"pending migrations: {count} {noun}")
         return 1
     if result.path:
-        print(f"wrote {result.path}")
+        print(f"wrote {shown_path(result.path)}")
     return 0
 
 
