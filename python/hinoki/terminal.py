@@ -242,13 +242,17 @@ class Style:
         """One line on the guide rail: a glyph in the margin, then ``text``."""
         return f"  {self.glyph(kind)}  {text}".rstrip()
 
+    def mark(self) -> str:
+        """The logo's two triangles as text, in the brand's shade and light."""
+        return self.paint("\u25e2", "shade", bold=True) + self.paint(
+            "\u25e4", "light", bold=True
+        )
+
     def banner_parts(self) -> tuple[str, str]:
         """What goes above the tagline line, and what starts the tagline line."""
         if self.images:
             return f"\n  {inline_logo(self.images)}\n", "  "
-        mark = self.paint("\u25e2", "shade", bold=True) + self.paint(
-            "\u25e4", "light", bold=True
-        )
+        mark = self.mark()
         # The logo's wordmark: ivory letters, the i's carrying its violet dots.
         wordmark = "".join(
             self.paint(letter, "dot", bold=True) if letter == "i" else self.bold(letter)
