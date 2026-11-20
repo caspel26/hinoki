@@ -35,7 +35,8 @@ Both commands run on **Kiso**, Hinoki's own Rust server, unless you choose
 | What it is | Hinoki's HTTP server in the native extension (Rust: hyper, tokio, rustls) | A general-purpose ASGI server, installed with the `server` extra |
 | Runs on the native lane | Eligible routes skip Python routing and binding ([details](kiso.md#what-is-native-and-what-still-runs-in-python)) | Every request goes through the ASGI pipeline |
 | Access log | Kiso's own, with `access_log_format`, `access_log_skip`, `server_timing` | Granian's |
-| ASGI middleware around the app | Not possible: there is no ASGI boundary | Yes, run the wrapper with `granian` ([metrics](#metrics-and-tracing)) |
+| Hinoki [middleware](middleware.md) | Yes; the route runs in Python instead of the native lane | Yes, identical |
+| ASGI wrapper around the app | Not possible: there is no ASGI boundary | Yes, run the wrapper with `granian` ([metrics](#metrics-and-tracing)) |
 | WSGI | – | `granian --interface wsgi` ([WSGI](#wsgi)) |
 
 Choose per run with a flag, or per project in settings:

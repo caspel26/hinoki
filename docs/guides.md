@@ -31,6 +31,7 @@ One page per task. Start with data and endpoints, then add access, rules and run
 - [Requests and responses](endpoints.md): what an action receives (path, query, body, forms, XML, files) and how its result is checked.
 - [Generate CRUD routes](crud.md): list, retrieve and write actions from a model, with access and ownership rules.
 - [Errors](errors.md): malformed requests, authentication failures and declared application errors.
+- [Middleware](middleware.md): typed `Middleware` around an action or the whole app, identical on Kiso and Granian.
 - [Pagination](pagination.md): page-number pagination with `PageNumberPagination`.
 - [Parsers and renderers](codecs.md): other body formats in and out.
 - [OpenAPI document](openapi.md): the OpenAPI 3.1 document generated from routes, signatures and `Schema` declarations.
