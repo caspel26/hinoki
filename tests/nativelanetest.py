@@ -13,6 +13,7 @@ from typing import Any, ClassVar
 import pytest
 
 from hinoki import (
+    API,
     Access,
     Caller,
     Hinoki,
@@ -34,6 +35,7 @@ from hinoki.orm.options import table
 from hinoki.routescli import lanes_of
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.nativelane import lane_refusal, resume
+from hinoki.runtime.servercore import stock_owner
 from tests.kisoservertest import Received, fetch
 from tests.providers import TokenAuth
 
@@ -303,7 +305,43 @@ async def write_atomic_ok(id: int, data: Rename) -> dict[str, int]:
     return {"id": id}
 
 
+class LaneResource(API, path="/lane/res"):
+    @http.get("/{id}")
+    async def one(self, id: int) -> dict[str, Any]:
+        found = await LaneNote.aget(id=id)
+        return {"id": found.id, "title": found.title}
+
+    @http.get("/boom")
+    async def boom(self) -> dict[str, str]:
+        raise ValueError("boom")
+
+    @http.post("/make", status=201)
+    async def make(self, data: Rename) -> dict[str, int]:
+        made = await LaneNote.acreate(id=40, title=data.title)
+        return {"id": made.id}
+
+
+class BuiltResource(API, path="/lane/built"):
+    def __init__(self) -> None:
+        self.label = "built"
+
+    @http.get("/{id}")
+    async def one(self, id: int) -> dict[str, Any]:
+        found = await LaneNote.aget(id=id)
+        return {"id": found.id, "title": found.title, "label": self.label}
+
+
+class HeaderedResource(API, path="/lane/headered"):
+    response_headers = (("x-lane-owner", "yes"),)
+
+    @http.get("/{id}")
+    async def one(self, id: int) -> dict[str, Any]:
+        found = await LaneNote.aget(id=id)
+        return {"id": found.id, "title": found.title}
+
+
 HANDLERS = (note, notes, count, pure, seen_context, boom, missing, sleeping, plain)
+CLASSES = (LaneResource, BuiltResource, HeaderedResource)
 GUARDED = (guarded, slow_auth, limited, limited_sync, search, negotiated)
 BODIES = (echo, replace, amend, find, atomic_read, atomic_write, limited_body)
 WRITES = (
@@ -326,11 +364,12 @@ SERVED |= {"/lane/atomic/{id}", "/lane/atomic"}
 SERVED |= {"/lane/write/{id}", "/lane/write", "/lane/write-bulk"}
 SERVED |= {"/lane/write-bulk-clash", "/lane/write-atomic/{id}"}
 SERVED |= {"/lane/write-atomic-ok/{id}", "/lane/write-atomic-bulk/{id}"}
+SERVED |= {"/lane/res/{id}", "/lane/res/boom", "/lane/res/make"}
 
 
 def make_app(url: str, **runtime: float) -> Hinoki:
     app = Hinoki(runtime=RuntimeConfig(**runtime))  # type: ignore[arg-type]
-    app.include(*HANDLERS, *GUARDED, *BODIES, *WRITES)
+    app.include(*HANDLERS, *GUARDED, *BODIES, *WRITES, *CLASSES)
     app.install(DatabaseModule(url), Holder())
     return app
 
@@ -637,6 +676,44 @@ async def test_a_hook_added_after_startup_hands_over_without_losing_the_transact
     assert calls == oracle_calls
     assert [r.status for r in served] == [201, 200, 404, 404, 404, 201, 200, 200]
     assert started == [1] * len(HOOK_TARGETS)
+
+
+async def test_class_api_handlers_take_the_lane_like_the_asyncio_path(
+    url: str,
+) -> None:
+    targets: list[Sent] = [
+        "/lane/res/1",
+        "/lane/res/9",
+        "/lane/res/x",
+        "/lane/res/boom",
+        ("POST", "/lane/res/make", JSON, b'{"title":"t"}'),
+        ("POST", "/lane/res/make", JSON, b'{"title":3}'),
+        "/lane/built/1",
+        "/lane/headered/1",
+        "/lane/headered/9",
+    ]
+    oracle, _ = await serve_all(url, targets, native=False)
+    served, started = await serve_all(url, targets, native=True)
+    assert [normalized(r) for r in served] == [normalized(r) for r in oracle]
+    assert served[0].json() == {"id": 1, "title": "one"}
+    assert served[6].json()["label"] == "built"
+    assert served[7].header("x-lane-owner") == "yes"
+    assert served[8].status == 404 and served[8].header("x-lane-owner") == "yes"
+    # one, one (not found), boom and both makes take the lane (the invalid body
+    # is refused inside it); the invalid path does not, nor does a class that
+    # builds itself with application code or one that adds response headers.
+    assert started == [1, 1, 0, 1, 1, 1, 0, 0, 0]
+
+
+def test_only_a_class_with_the_stock_constructor_is_a_native_owner() -> None:
+    assert stock_owner(LaneResource)
+    assert not stock_owner(BuiltResource)
+
+    class Slotted(API):
+        def __new__(cls) -> "Slotted":
+            return super().__new__(cls)
+
+    assert not stock_owner(Slotted)
 
 
 async def test_lane_refusal_names_why_a_route_stays_on_asyncio(

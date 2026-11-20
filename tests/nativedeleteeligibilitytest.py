@@ -76,6 +76,7 @@ def test_only_plain_and_transactional_deletes_are_native() -> None:
         "/guarded/{item}",
         "/limited/{item}",
         "/atomic/{item}",
+        "/things/{item}",
         "/group/{item}",
     ]
 
